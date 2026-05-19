@@ -8,7 +8,7 @@ use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, TypeSize};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
 use solar_interface::{
-    Ident,
+    Ident, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     kw, sym,
 };
@@ -592,10 +592,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(err.emit())
                 }
             }
-            hir::ExprKind::YulMember(expr, member) => {
-                self.check_yul_member(expr, member);
-                self.gcx.types.uint(256)
-            }
+            hir::ExprKind::YulMember(expr, member) => self.check_yul_member(expr, member),
             hir::ExprKind::Err(guar) => self.gcx.mk_ty_err(guar),
         }
     }
@@ -674,74 +671,92 @@ impl<'gcx> TypeChecker<'gcx> {
         Ok(true)
     }
 
-    fn check_yul_member(&mut self, expr: &'gcx hir::Expr<'gcx>, member: Ident) {
+    fn check_yul_member(&mut self, expr: &'gcx hir::Expr<'gcx>, member: Ident) -> Ty<'gcx> {
         let (ty, res) = self.check_yul_member_base(expr);
         let Some(res) = res else {
-            self.dcx()
-                .err("inline assembly suffixes can only be used with variables")
-                .span(member.span)
-                .emit();
-            return;
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err("inline assembly suffixes can only be used with variables")
+                    .span(member.span)
+                    .emit(),
+            );
         };
         let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else {
-            self.dcx()
-                .err("inline assembly suffixes can only be used with variables")
-                .span(member.span)
-                .emit();
-            return;
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err("inline assembly suffixes can only be used with variables")
+                    .span(member.span)
+                    .emit(),
+            );
         };
         let var = self.gcx.hir.variable(var_id);
-        let suffix = member.name;
-        let is_lvalue = self.in_lvalue();
 
-        if !is_yul_member(member) {
-            self.dcx()
-                .err(format!("unsupported inline assembly suffix `.{member}`"))
-                .span(member.span)
-                .emit();
-        } else if !var.is_constant()
-            && (var.is_state_variable()
-                || ty.data_stored_in(DataLocation::Storage)
-                || ty.data_stored_in(DataLocation::Transient))
-        {
-            if !matches!(suffix, sym::slot | sym::offset) {
+        if var.is_immutable() {
+            return self.gcx.mk_ty_err(
                 self.dcx()
-                    .err("storage variables only support `.slot` and `.offset`")
-                    .span(member.span)
-                    .emit();
-            } else if is_lvalue && var.is_state_variable() {
-                self.dcx()
-                    .err("state variables cannot be assigned to in inline assembly")
+                    .err("assembly access to immutable variables is not supported")
                     .span(expr.span)
-                    .emit();
-            } else if is_lvalue && suffix != sym::slot {
-                self.dcx().err("only `.slot` can be assigned to").span(member.span).emit();
-            }
-        } else if is_dynamic_calldata_array(ty) {
-            if !matches!(suffix, sym::offset | sym::length) {
-                self.dcx()
-                    .err("calldata variables only support `.offset` and `.length`")
-                    .span(member.span)
-                    .emit();
-            }
-        } else if let TyKind::FnPtr(f) = ty.kind {
-            if !matches!(suffix, sym::selector | kw::Address) {
-                self.dcx()
-                    .err("function pointer variables only support `.selector` and `.address`")
-                    .span(member.span)
-                    .emit();
-            } else if f.visibility != hir::Visibility::External {
-                self.dcx()
-                    .err("only external function pointer variables support `.selector` and `.address`")
-                    .span(member.span)
-                    .emit();
-            }
-        } else {
-            self.dcx()
-                .err(format!("suffix `.{member}` is not supported by this variable or type"))
-                .span(member.span)
-                .emit();
+                    .emit(),
+            );
         }
+
+        if !is_yul_member(member.name) {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err(format!("unsupported inline assembly suffix `.{member}`"))
+                    .span(member.span)
+                    .emit(),
+            );
+        }
+
+        let Some(member_set) = yul_member_set(var, ty) else {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err(format!("suffix `.{member}` is not supported by this variable or type"))
+                    .span(member.span)
+                    .emit(),
+            );
+        };
+
+        let Some(yul_member) = member_set.member(member.name) else {
+            return self.gcx.mk_ty_err(
+                self.dcx().err(member_set.unsupported_member_message()).span(member.span).emit(),
+            );
+        };
+
+        if let YulMemberSet::Function { external: false } = member_set {
+            return self.gcx.mk_ty_err(
+                self.dcx()
+                    .err(
+                        "only external function pointer variables support `.selector` and `.address`",
+                    )
+                    .span(member.span)
+                    .emit(),
+            );
+        }
+
+        if self.in_lvalue()
+            && !yul_member.assignable
+            && let Some(error) = member_set.assignment_error()
+        {
+            match error {
+                YulMemberAssignmentError::StateVariable => {
+                    return self.gcx.mk_ty_err(
+                        self.dcx()
+                            .err("state variables cannot be assigned to in inline assembly")
+                            .span(expr.span)
+                            .emit(),
+                    );
+                }
+                YulMemberAssignmentError::StorageOffset => {
+                    return self.gcx.mk_ty_err(
+                        self.dcx().err("only `.slot` can be assigned to").span(member.span).emit(),
+                    );
+                }
+            }
+        }
+
+        self.gcx.types.uint(256)
     }
 
     fn check_yul_member_base(
@@ -1481,8 +1496,100 @@ fn is_dynamic_calldata_array(ty: Ty<'_>) -> bool {
     )
 }
 
-fn is_yul_member(member: Ident) -> bool {
-    matches!(member.name, sym::length | sym::offset | sym::selector | sym::slot | kw::Address)
+#[derive(Clone, Copy)]
+struct YulMember {
+    name: Symbol,
+    assignable: bool,
+}
+
+impl YulMember {
+    const fn new(name: Symbol, assignable: bool) -> Self {
+        Self { name, assignable }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum YulMemberSet {
+    Storage { state: bool },
+    Calldata,
+    Function { external: bool },
+}
+
+impl YulMemberSet {
+    fn members(self) -> [YulMember; 2] {
+        match self {
+            Self::Storage { state } => {
+                [YulMember::new(sym::slot, !state), YulMember::new(sym::offset, false)]
+            }
+            Self::Calldata => {
+                [YulMember::new(sym::offset, true), YulMember::new(sym::length, true)]
+            }
+            Self::Function { .. } => {
+                [YulMember::new(sym::selector, true), YulMember::new(kw::Address, true)]
+            }
+        }
+    }
+
+    fn member(self, name: Symbol) -> Option<YulMember> {
+        self.members().into_iter().find(|member| member.name == name)
+    }
+
+    fn unsupported_member_message(self) -> &'static str {
+        match self {
+            Self::Storage { .. } => "storage variables only support `.slot` and `.offset`",
+            Self::Calldata => "calldata variables only support `.offset` and `.length`",
+            Self::Function { .. } => {
+                "function pointer variables only support `.selector` and `.address`"
+            }
+        }
+    }
+
+    fn assignment_error(self) -> Option<YulMemberAssignmentError> {
+        match self {
+            Self::Storage { state: true } => Some(YulMemberAssignmentError::StateVariable),
+            Self::Storage { state: false } => Some(YulMemberAssignmentError::StorageOffset),
+            Self::Calldata | Self::Function { .. } => None,
+        }
+    }
+}
+
+enum YulMemberAssignmentError {
+    StateVariable,
+    StorageOffset,
+}
+
+fn yul_member_set(var: &hir::Variable<'_>, ty: Ty<'_>) -> Option<YulMemberSet> {
+    if !var.is_constant()
+        && (var.is_state_variable()
+            || ty.data_stored_in(DataLocation::Storage)
+            || ty.data_stored_in(DataLocation::Transient))
+    {
+        return Some(YulMemberSet::Storage { state: var.is_state_variable() });
+    }
+
+    if is_dynamic_calldata_array(ty) {
+        return Some(YulMemberSet::Calldata);
+    }
+
+    if let TyKind::FnPtr(f) = ty.kind {
+        return Some(YulMemberSet::Function {
+            external: f.visibility == hir::Visibility::External,
+        });
+    }
+
+    None
+}
+
+fn is_yul_member(name: Symbol) -> bool {
+    [
+        YulMember::new(sym::length, true),
+        YulMember::new(sym::offset, true),
+        YulMember::new(sym::selector, true),
+        YulMember::new(sym::slot, true),
+        YulMember::new(kw::Address, true),
+    ]
+    .into_iter()
+    .any(|member| member.name == name)
 }
 
 enum OverloadError {

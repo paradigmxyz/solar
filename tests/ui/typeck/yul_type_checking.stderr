@@ -38,6 +38,12 @@ error: assembly access to immutable variables is not supported
 LL │             pop(immutableValue)
    ╰╴                ━━━━━━━━━━━━━━
 
+error: assembly access to immutable variables is not supported
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(immutableValue.slot)
+   ╰╴                ━━━━━━━━━━━━━━
+
 error: storage variables only support `.slot` and `.offset`
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
@@ -102,5 +108,5 @@ error: only external function pointer variables support `.selector` and `.addres
 LL │             pop(intFn.selector)
    ╰╴                      ━━━━━━━━
 
-error: aborting due to 16 previous errors
+error: aborting due to 17 previous errors
 

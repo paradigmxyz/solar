@@ -36,6 +36,8 @@ contract C {
 
             pop(extFn.address)
             pop(extFn.selector)
+            extFn.address := 0
+            extFn.selector := 0
             pop(add(1, 2))
         }
     }
@@ -63,6 +65,7 @@ contract C {
             state := 1 //~ ERROR: only local variables are supported in inline assembly
             constantValue := 1 //~ ERROR: cannot assign to a constant variable
             pop(immutableValue) //~ ERROR: assembly access to immutable variables is not supported
+            pop(immutableValue.slot) //~ ERROR: assembly access to immutable variables is not supported
             pop(state.length) //~ ERROR: storage variables only support `.slot` and `.offset`
             state.slot := 1 //~ ERROR: state variables cannot be assigned to in inline assembly
             pop(storageRef) //~ ERROR: storage reference variables need a suffix in inline assembly
