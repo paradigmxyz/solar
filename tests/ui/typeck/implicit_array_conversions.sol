@@ -36,6 +36,29 @@ contract C {
         return uint256[3](a);
     }
 
+    // === Invalid: explicit array conversions must preserve shape and element type ===
+
+    function explicitFixedToDynamic(uint256[3] memory a) internal pure returns (uint256[] memory) {
+        return uint256[](a); //~ ERROR: invalid explicit type conversion
+    }
+
+    function explicitDynamicToFixed(uint256[] memory a) internal pure returns (uint256[3] memory) {
+        return uint256[3](a); //~ ERROR: invalid explicit type conversion
+    }
+
+    function explicitElementMismatch(uint8[] memory a) internal pure returns (uint256[] memory) {
+        return uint256[](a); //~ ERROR: invalid explicit type conversion
+    }
+
+    function explicitMemoryToCalldata(uint256[] memory a) external pure {
+        uint256[] calldata b = uint256[](a); //~ ERROR: mismatched types
+    }
+
+    function explicitStorageToCalldata() external view {
+        uint256[] storage a = storageArr;
+        uint256[] calldata b = uint256[](a); //~ ERROR: mismatched types
+    }
+
     // === Invalid: different array lengths ===
     function differentLength(uint256[3] memory a) internal pure {
         uint256[4] memory b = a; //~ ERROR: mismatched types

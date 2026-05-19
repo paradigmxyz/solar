@@ -1,3 +1,33 @@
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         return uint256[](a);
+   ╰╴               ━━━━━━━━━━━━ cannot convert `uint256[3] memory` to `uint256[]`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         return uint256[3](a);
+   ╰╴               ━━━━━━━━━━━━━ cannot convert `uint256[] memory` to `uint256[3]`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         return uint256[](a);
+   ╰╴               ━━━━━━━━━━━━ cannot convert `uint8[] memory` to `uint256[]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         uint256[] calldata b = uint256[](a);
+   ╰╴                               ━━━━━━━━━━━━ expected `uint256[] calldata`, found `uint256[] memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
+   │
+LL │         uint256[] calldata b = uint256[](a);
+   ╰╴                               ━━━━━━━━━━━━ expected `uint256[] calldata`, found `uint256[] storage`
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/implicit_array_conversions.sol:LL:CC
    │
@@ -40,5 +70,5 @@ error: mismatched types
 LL │         uint8[] memory b = a;
    ╰╴                           ━ expected `uint8[] memory`, found `uint256[] memory`
 
-error: aborting due to 7 previous errors
+error: aborting due to 12 previous errors
 
