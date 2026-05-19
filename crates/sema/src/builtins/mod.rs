@@ -62,7 +62,7 @@ macro_rules! declare_builtins {
                 $gcx.type_of_builtin($slf)
             }
 
-            pub(crate) fn ty_uncached<'gcx>($slf, $gcx: Gcx<'gcx>) -> Ty<'gcx> {
+            pub(crate) fn ty_impl<'gcx>($slf, $gcx: Gcx<'gcx>) -> Ty<'gcx> {
                 match $slf {
                     $(
                         Builtin::$variant_name => $ty,

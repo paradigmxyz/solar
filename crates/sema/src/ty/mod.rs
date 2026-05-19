@@ -871,8 +871,8 @@ pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
 }
 
 /// Returns the type of the given builtin.
-pub(crate) fn type_of_builtin(gcx: _, builtin: Builtin) -> Ty<'gcx> {
-    builtin.ty_uncached(gcx)
+pub fn type_of_builtin(gcx: _, builtin: Builtin) -> Ty<'gcx> {
+    builtin.ty_impl(gcx)
 }
 
 /// Returns the type of the given item.
