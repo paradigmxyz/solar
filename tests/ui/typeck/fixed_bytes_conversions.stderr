@@ -100,5 +100,65 @@ error: invalid explicit type conversion
 LL │         bytes2 b10 = bytes2(0x0102 + 0);
    ╰╴                     ━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[9]` to `bytes2`
 
-error: aborting due to 17 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b1 = 1;
+   ╰╴                    ━ expected `bytes1`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes2 b2 = 256;
+   ╰╴                    ━━━ expected `bytes2`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b3 = -0x01;
+   ╰╴                    ━━━━━ expected `bytes1`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b4 = 0x1;
+   ╰╴                    ━━━ expected `bytes1`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes2 b5 = 0xff;
+   ╰╴                    ━━━━ expected `bytes2`, found `int_literal[8]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b6 = 0x0100;
+   ╰╴                    ━━━━━━ expected `bytes1`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes2 b7 = 0x010000;
+   ╰╴                    ━━━━━━━━ expected `bytes2`, found `int_literal[17]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b8 = 0x02 - 0x01;
+   ╰╴                    ━━━━━━━━━━━ expected `bytes1`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes1 b9 = 0x00 + 0x01;
+   ╰╴                    ━━━━━━━━━━━ expected `bytes1`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         bytes2 b10 = 0x0102 + 0;
+   ╰╴                     ━━━━━━━━━━ expected `bytes2`, found `int_literal[9]`
+
+error: aborting due to 27 previous errors
 

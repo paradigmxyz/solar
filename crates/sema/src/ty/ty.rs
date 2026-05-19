@@ -658,6 +658,12 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::LiteralTooLarge)
                 }
             }
+            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(FixedBytes(_))) => Ok(()),
+            (IntLiteral(false, _, Some(size_from)), Elementary(FixedBytes(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.

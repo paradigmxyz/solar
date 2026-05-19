@@ -28,6 +28,15 @@ contract C {
         bytes32 b32 = bytes32(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
     }
 
+    // Valid: same-size hex integer literals implicitly convert to FixedBytes.
+    function validImplicitHexLiteralToBytes() public pure {
+        bytes1 b1 = 0xff;
+        bytes2 b2 = 0x0001;
+        bytes4 b4 = 0x01ffc9a7;
+        bytes32 b32 =
+            (0x4b9f2d36e1b4c93de62cc077b00b1a91d84b6c31b4a14e012718dcca230689e7);
+    }
+
     // Valid: zero integer literals to FixedBytes.
     function validZeroLiteralToBytes() public pure {
         bytes1 b1 = bytes1(0);
@@ -36,6 +45,16 @@ contract C {
         bytes1 b3 = bytes1(1 - 1);
         bytes32 b4 = bytes32(0x01 - 0x01);
         bytes16 b16 = bytes16(0x00 + 0);
+    }
+
+    // Valid: zero integer literals implicitly convert to FixedBytes.
+    function validImplicitZeroLiteralToBytes() public pure {
+        bytes1 b1 = 0;
+        bytes2 b2 = 0x00000;
+        bytes32 b32 = -0x0;
+        bytes1 b3 = 1 - 1;
+        bytes32 b4 = 0x01 - 0x01;
+        bytes16 b16 = 0x00 + 0;
     }
 
     // Invalid: FixedBytes to signed Int (not allowed)
@@ -73,5 +92,19 @@ contract C {
         bytes1 b8 = bytes1(0x02 - 0x01); //~ ERROR: invalid explicit type conversion
         bytes1 b9 = bytes1(0x00 + 0x01); //~ ERROR: invalid explicit type conversion
         bytes2 b10 = bytes2(0x0102 + 0); //~ ERROR: invalid explicit type conversion
+    }
+
+    // Invalid: non-zero integer literals do not implicitly convert to FixedBytes unless they are same-size hex literals.
+    function invalidImplicitIntLiteralToBytes() public pure {
+        bytes1 b1 = 1; //~ ERROR: mismatched types
+        bytes2 b2 = 256; //~ ERROR: mismatched types
+        bytes1 b3 = -0x01; //~ ERROR: mismatched types
+        bytes1 b4 = 0x1; //~ ERROR: mismatched types
+        bytes2 b5 = 0xff; //~ ERROR: mismatched types
+        bytes1 b6 = 0x0100; //~ ERROR: mismatched types
+        bytes2 b7 = 0x010000; //~ ERROR: mismatched types
+        bytes1 b8 = 0x02 - 0x01; //~ ERROR: mismatched types
+        bytes1 b9 = 0x00 + 0x01; //~ ERROR: mismatched types
+        bytes2 b10 = 0x0102 + 0; //~ ERROR: mismatched types
     }
 }
