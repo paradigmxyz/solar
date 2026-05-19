@@ -1,4 +1,4 @@
-use super::{TypeChecker, res_not_lvalue_reason};
+use super::TypeChecker;
 use crate::{
     eval::ConstantEvaluator,
     hir,
@@ -195,7 +195,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> (Ty<'gcx>, Option<hir::Res>) {
         if let hir::ExprKind::Ident(res) = expr.kind {
             let res = self.resolve_overloads(res, expr.span);
-            if let Some(reason) = res_not_lvalue_reason(self.gcx, res) {
+            if let Some(reason) = self.res_not_lvalue_reason(res) {
                 self.try_set_not_lvalue(reason);
             }
             return (self.type_of_res(res), Some(res));
