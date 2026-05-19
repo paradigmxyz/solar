@@ -236,7 +236,11 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_reference_type(self) -> bool {
         match self.kind {
             TyKind::Elementary(t) => t.is_reference_type(),
-            TyKind::Struct(_) | TyKind::Array(..) | TyKind::DynArray(_) | TyKind::Slice(_) => true,
+            TyKind::Struct(_)
+            | TyKind::Array(..)
+            | TyKind::DynArray(_)
+            | TyKind::Slice(_)
+            | TyKind::Mapping(..) => true,
             _ => false,
         }
     }

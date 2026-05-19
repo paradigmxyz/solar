@@ -15,6 +15,7 @@ contract C {
     mapping(bytes32 => S) structs;
     mapping(bytes32 => S[]) structArrays;
     mapping(bytes32 => mapping(uint256 => S)) nestedStructs;
+    mapping(bytes32 => mapping(uint256 => uint256)) nestedMappings;
 
     // === Same location conversions (should all work) ===
 
@@ -59,6 +60,10 @@ contract C {
 
     function nestedMappingStructToStorage(bytes32 key) internal view returns (S storage s) {
         s = nestedStructs[key][0];
+    }
+
+    function nestedMappingToStorage(bytes32 key) internal view returns (mapping(uint256 => uint256) storage m) {
+        m = nestedMappings[key];
     }
 
     // === calldata -> memory (allowed, copy semantics) ===
