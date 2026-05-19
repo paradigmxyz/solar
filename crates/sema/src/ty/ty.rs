@@ -835,6 +835,13 @@ impl<'gcx> Ty<'gcx> {
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
+
+            // Integer literals -> address.
+            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(Address(_))) => Ok(()),
+            (IntLiteral(false, size, _), Elementary(Address(false))) if size.bits() <= 160 => {
+                Ok(())
+            }
+
             // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
             // possible.
             (IntLiteral(..), IntLiteral(..)) => unreachable!(),

@@ -60,13 +60,35 @@ contract C {
     // Valid: explicit address and FixedBytes conversions.
     function validAddressBytes20(address a, bytes20 b20) public pure {
         bytes20 b20FromAddress = bytes20(a);
+        bytes20 b20FromZeroAddress = bytes20(address(0));
         address addressFromB20 = address(b20);
+    }
+
+    // Valid: integer literals to address.
+    function validIntLiteralToAddress() public pure {
+        address a0 = address(0);
+        address a1 = address(1);
+        address a2 = address(0x1);
+        address a3 = address(0x0102);
+        address a4 = address(1 - 1);
+        address payable p0 = payable(0);
+        address payable p1 = payable(-0x0);
+        address payable p2 = payable(0x01 - 0x01);
+        address payable p3 = payable(address(1));
     }
 
     // Invalid: implicit address and FixedBytes conversions.
     function invalidImplicitAddressBytes20(address a, bytes20 b20) public pure {
         bytes20 b20FromAddress = a; //~ ERROR: mismatched types
         address addressFromB20 = b20; //~ ERROR: mismatched types
+    }
+
+    // Invalid: integer literals to address.
+    function invalidIntLiteralToAddress() public pure {
+        address a0 = address(-1); //~ ERROR: invalid explicit type conversion
+        address a1 = address(0x010000000000000000000000000000000000000000); //~ ERROR: invalid explicit type conversion
+        address payable p0 = payable(1); //~ ERROR: invalid explicit type conversion
+        address payable p1 = payable(0x01); //~ ERROR: invalid explicit type conversion
     }
 
     // Valid: same-size hex integer literals to FixedBytes.
