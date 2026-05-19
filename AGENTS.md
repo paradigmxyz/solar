@@ -66,8 +66,11 @@ Always look at the corresponding Solc test when porting behavior. Solc is always
 available in `testdata/solidity`. Solc tests may embed multiple source files in
 one `.sol` file with `==== Source: ... ====` annotations. When porting those
 tests, split the secondary sources into the UI test's `auxiliary/` directory and
-update imports accordingly. Add the Solc test path at the top of
-the ported test, or above the ported function when only one function is copied.
+update imports accordingly. Add attribution using the existing style:
+`// Ported from test/libsolidity/.../name.sol.` Use one line per upstream file.
+Place these after initial UI metadata directives such as `//@compile-flags`,
+`//@ error-in-other-file`, and `// check-fail`; if the file has no UI metadata,
+put the attribution at the top.
 
 ## Diagnostics Style
 
