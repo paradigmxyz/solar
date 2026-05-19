@@ -9,6 +9,9 @@ contract C {
     }
 
     uint256[] storageArr;
+    S[] structArr;
+    S[2] fixedStructArr;
+    S[][] nestedStructArr;
     mapping(bytes32 => S) structs;
     mapping(bytes32 => S[]) structArrays;
     mapping(bytes32 => mapping(uint256 => S)) nestedStructs;
@@ -28,6 +31,22 @@ contract C {
     function storageToStorage() internal {
         uint256[] storage a = storageArr;
         uint256[] storage b = a;
+    }
+
+    function arrayStructElementToStorage() internal view returns (S storage s) {
+        s = structArr[0];
+    }
+
+    function fixedArrayStructElementToStorage() internal view returns (S storage s) {
+        s = fixedStructArr[0];
+    }
+
+    function nestedArrayToStorage() internal view returns (S[] storage s) {
+        s = nestedStructArr[0];
+    }
+
+    function nestedArrayStructElementToStorage() internal view returns (S storage s) {
+        s = nestedStructArr[0][0];
     }
 
     function mappingStructToStorage(bytes32 key) internal view returns (S storage s) {
