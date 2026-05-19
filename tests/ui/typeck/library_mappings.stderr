@@ -1,0 +1,8 @@
+error: types in storage containing (nested) mappings cannot be assigned to
+   ╭▸ ROOT/tests/ui/typeck/library_mappings.sol:LL:CC
+   │
+LL │         x = y;
+   ╰╴        ━
+
+error: aborting due to 1 previous error
+
