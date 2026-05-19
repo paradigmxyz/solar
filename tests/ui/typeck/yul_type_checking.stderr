@@ -154,5 +154,143 @@ error: access to functions is not allowed in inline assembly
 LL │             pop(helper)
    ╰╴                ━━━━━━
 
-error: aborting due to 24 previous errors
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             helper := 1
+   ╰╴            ━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             helper := 1
+   ╰╴            ━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(Other)
+   ╰╴                ━━━━━ expected `uint256`, found `type(contract Other)`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Other := 1
+   ╰╴            ━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Other := 1
+   ╰╴            ━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(StructValue)
+   ╰╴                ━━━━━━━━━━━ expected `uint256`, found `type(struct C.StructValue)`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             StructValue := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             StructValue := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(Choice)
+   ╰╴                ━━━━━━ expected `uint256`, found `type(enum C.Choice)`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Choice := 1
+   ╰╴            ━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Choice := 1
+   ╰╴            ━━━━━━
+
+error: inline assembly suffixes can only be used with variables
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(Choice.A)
+   ╰╴                       ━
+
+error: inline assembly suffixes can only be used with variables
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Choice.A := 1
+   ╰╴                   ━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Choice.A := 1
+   ╰╴                   ━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(U256)
+   ╰╴                ━━━━ expected `uint256`, found `type(U256)`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             U256 := 1
+   ╰╴            ━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             U256 := 1
+   ╰╴            ━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(CustomError)
+   ╰╴                ━━━━━━━━━━━ expected `uint256`, found `error C.CustomError()`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             CustomError := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             CustomError := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(CustomEvent)
+   ╰╴                ━━━━━━━━━━━ expected `uint256`, found `event C.CustomEvent()`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             CustomEvent := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             CustomEvent := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: aborting due to 47 previous errors
 

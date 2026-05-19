@@ -3,7 +3,21 @@
 type U256 is uint256;
 type Word is bytes32;
 
+contract Other {}
+
 contract C {
+    enum Choice {
+        A,
+        B
+    }
+
+    struct StructValue {
+        uint256 value;
+    }
+
+    error CustomError();
+    event CustomEvent();
+
     uint256 state;
     uint256[] stateArray;
     U256 udvtState;
@@ -140,6 +154,44 @@ contract C {
             pop(intFn.selector) //~ ERROR: only external function pointer variables support `.selector` and `.address`
 
             pop(helper) //~ ERROR: access to functions is not allowed in inline assembly
+
+            helper := 1 //~ ERROR: only local variables can be assigned to in inline assembly
+            //~^ ERROR: expression has to be an lvalue
+
+            pop(Other) //~ ERROR: mismatched types
+
+            Other := 1 //~ ERROR: only local variables can be assigned to in inline assembly
+            //~^ ERROR: expression has to be an lvalue
+
+            pop(StructValue) //~ ERROR: mismatched types
+
+            StructValue := 1 //~ ERROR: only local variables can be assigned to in inline assembly
+            //~^ ERROR: expression has to be an lvalue
+
+            pop(Choice) //~ ERROR: mismatched types
+
+            Choice := 1 //~ ERROR: only local variables can be assigned to in inline assembly
+            //~^ ERROR: expression has to be an lvalue
+
+            pop(Choice.A) //~ ERROR: inline assembly suffixes can only be used with variables
+
+            Choice.A := 1 //~ ERROR: inline assembly suffixes can only be used with variables
+            //~^ ERROR: expression has to be an lvalue
+
+            pop(U256) //~ ERROR: mismatched types
+
+            U256 := 1 //~ ERROR: only local variables can be assigned to in inline assembly
+            //~^ ERROR: expression has to be an lvalue
+
+            pop(CustomError) //~ ERROR: mismatched types
+
+            CustomError := 1 //~ ERROR: only local variables can be assigned to in inline assembly
+            //~^ ERROR: expression has to be an lvalue
+
+            pop(CustomEvent) //~ ERROR: mismatched types
+
+            CustomEvent := 1 //~ ERROR: only local variables can be assigned to in inline assembly
+            //~^ ERROR: expression has to be an lvalue
         }
     }
 }
