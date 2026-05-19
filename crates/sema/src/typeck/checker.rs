@@ -541,7 +541,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Type(ref ty) => {
-                debug_assert!(ty.kind.is_elementary(), "non-elementary ExprKind::Type: {ty:?}");
                 self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty)))
             }
             hir::ExprKind::Unary(op, inner) => {
