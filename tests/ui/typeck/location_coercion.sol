@@ -4,7 +4,14 @@
 // See: https://docs.soliditylang.org/en/latest/types.html#data-location-and-assignment-behaviour
 
 contract C {
+    struct S {
+        uint256 x;
+    }
+
     uint256[] storageArr;
+    mapping(bytes32 => S) structs;
+    mapping(bytes32 => S[]) structArrays;
+    mapping(bytes32 => mapping(uint256 => S)) nestedStructs;
 
     // === Same location conversions (should all work) ===
 
@@ -21,6 +28,18 @@ contract C {
     function storageToStorage() internal {
         uint256[] storage a = storageArr;
         uint256[] storage b = a;
+    }
+
+    function mappingStructToStorage(bytes32 key) internal view returns (S storage s) {
+        s = structs[key];
+    }
+
+    function mappingStructArrayElementToStorage(bytes32 key) internal view returns (S storage s) {
+        s = structArrays[key][0];
+    }
+
+    function nestedMappingStructToStorage(bytes32 key) internal view returns (S storage s) {
+        s = nestedStructs[key][0];
     }
 
     // === calldata -> memory (allowed, copy semantics) ===
