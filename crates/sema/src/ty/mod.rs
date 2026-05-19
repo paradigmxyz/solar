@@ -911,12 +911,6 @@ macro_rules! cached {
 }
 
 cached! {
-fn type_of_using_directive_cached(gcx: _, key: UsingDirectiveKey) -> Option<Ty<'gcx>> {
-    // HIR nodes are arena-allocated for the lifetime of `GlobalCtxt`.
-    let using = unsafe { &*(key as *const hir::UsingDirective<'gcx>) };
-    using.ty.as_ref().map(|ty| gcx.type_of_hir_ty(ty))
-}
-
 /// Returns the [ERC-165] interface ID of the given contract.
 ///
 /// This is the XOR of the selectors of all function selectors in the interface.
@@ -1048,6 +1042,12 @@ pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
 /// Returns the type of the given builtin.
 pub fn type_of_builtin(gcx: _, builtin: Builtin) -> Ty<'gcx> {
     builtin.ty_impl(gcx)
+}
+
+fn type_of_using_directive_cached(gcx: _, key: UsingDirectiveKey) -> Option<Ty<'gcx>> {
+    // HIR nodes are arena-allocated for the lifetime of `GlobalCtxt`.
+    let using = unsafe { &*(key as *const hir::UsingDirective<'gcx>) };
+    using.ty.as_ref().map(|ty| gcx.type_of_hir_ty(ty))
 }
 
 /// Returns the type of the given item.
