@@ -32,6 +32,18 @@ error: cannot assign to a constant variable
 LL │             constantValue := 1
    ╰╴            ━━━━━━━━━━━━━
 
+error: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(convertedConstant)
+   ╰╴                ━━━━━━━━━━━━━━━━━
+
+error: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(stringConstant)
+   ╰╴                ━━━━━━━━━━━━━━
+
 error: assembly access to immutable variables is not supported
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
@@ -96,6 +108,18 @@ error: suffix `.slot` is not supported by this variable or type
 LL │             pop(local.slot)
    ╰╴                      ━━━━
 
+error: only types that use one stack slot are supported
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(extFn)
+   ╰╴                ━━━━━
+
+error: only types that use one stack slot are supported
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             extFn := 0
+   ╰╴            ━━━━━
+
 error: function pointer variables only support `.selector` and `.address`
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
@@ -108,5 +132,11 @@ error: only external function pointer variables support `.selector` and `.addres
 LL │             pop(intFn.selector)
    ╰╴                      ━━━━━━━━
 
-error: aborting due to 17 previous errors
+error: access to functions is not allowed in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(helper)
+   ╰╴                ━━━━━━
+
+error: aborting due to 22 previous errors
 

@@ -630,13 +630,43 @@ impl<'gcx> TypeChecker<'gcx> {
         ty: Ty<'gcx>,
         span: Span,
     ) -> Result<bool, ErrorGuaranteed> {
-        let hir::Res::Item(hir::ItemId::Variable(var_id)) = res else { return Ok(false) };
+        let hir::Res::Item(item) = res else { return Ok(false) };
+        let hir::ItemId::Variable(var_id) = item else {
+            if let hir::ItemId::Function(id) = item
+                && self.gcx.hir.function(id).is_yul
+            {
+                return Ok(false);
+            }
+            if self.in_lvalue() {
+                return Err(self
+                    .dcx()
+                    .err("only local variables can be assigned to in inline assembly")
+                    .span(span)
+                    .emit());
+            }
+            if let hir::ItemId::Function(_) = item {
+                return Err(self
+                    .dcx()
+                    .err("access to functions is not allowed in inline assembly")
+                    .span(span)
+                    .emit());
+            }
+            return Ok(false);
+        };
         let var = self.gcx.hir.variable(var_id);
 
         if var.is_immutable() {
             return Err(self
                 .dcx()
                 .err("assembly access to immutable variables is not supported")
+                .span(span)
+                .emit());
+        }
+
+        if var.is_constant() && !self.in_lvalue() && !is_yul_supported_constant(self.gcx, var, ty) {
+            return Err(self
+                .dcx()
+                .err("only direct number constants are supported in inline assembly")
                 .span(span)
                 .emit());
         }
@@ -665,6 +695,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 .err("calldata variables need a suffix in inline assembly")
                 .span(span)
                 .help("use `.offset` or `.length`")
+                .emit());
+        }
+
+        if matches!(ty.kind, TyKind::FnPtr(f) if f.visibility == hir::Visibility::External) {
+            return Err(self
+                .dcx()
+                .err("only types that use one stack slot are supported")
+                .span(span)
                 .emit());
         }
 
@@ -1498,6 +1536,16 @@ fn is_dynamic_calldata_array(ty: Ty<'_>) -> bool {
         ty.peel_refs().kind,
         TyKind::DynArray(_) | TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
     )
+}
+
+fn is_yul_supported_constant(gcx: Gcx<'_>, var: &hir::Variable<'_>, ty: Ty<'_>) -> bool {
+    if !ty.is_value_type() {
+        return false;
+    }
+
+    let Some(init) = var.initializer else { return false };
+    let init = init.peel_parens();
+    matches!(init.kind, hir::ExprKind::Lit(_)) || ConstantEvaluator::new(gcx).try_eval(init).is_ok()
 }
 
 #[derive(Clone, Copy)]
