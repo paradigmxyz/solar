@@ -3,7 +3,8 @@
 use super::{LoopContext, Lowerer};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
-use solar_sema::hir::{self, StmtKind};
+use solar_interface::kw;
+use solar_sema::hir::{self, StmtKind, yul as hir_yul};
 
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers a block of statements.
@@ -83,7 +84,208 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_block(builder, block);
             }
 
+            StmtKind::Assembly(assembly) => {
+                self.lower_yul_block(builder, &assembly.block);
+            }
+
             StmtKind::Err(_) => {}
+        }
+    }
+
+    fn lower_yul_block(&mut self, builder: &mut FunctionBuilder<'_>, block: &hir_yul::Block<'_>) {
+        for stmt in block.stmts {
+            self.lower_yul_stmt(builder, stmt);
+        }
+    }
+
+    fn lower_yul_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir_yul::Stmt<'_>) {
+        match &stmt.kind {
+            hir_yul::StmtKind::Block(block) => self.lower_yul_block(builder, block),
+            hir_yul::StmtKind::AssignSingle(path, expr) => {
+                let value = self.lower_yul_expr(builder, expr);
+                self.assign_yul_path(builder, path, value);
+            }
+            hir_yul::StmtKind::Expr(expr) => {
+                let _ = self.lower_yul_expr(builder, expr);
+            }
+            hir_yul::StmtKind::If(cond, body) => {
+                let then_block = builder.create_block();
+                let cont_block = builder.create_block();
+                let cond = self.lower_yul_expr(builder, cond);
+                builder.branch(cond, then_block, cont_block);
+
+                builder.switch_to_block(then_block);
+                self.lower_yul_block(builder, body);
+                if !builder.func().block(builder.current_block()).is_terminated() {
+                    builder.jump(cont_block);
+                }
+
+                builder.switch_to_block(cont_block);
+            }
+            hir_yul::StmtKind::VarDecl(_, _)
+            | hir_yul::StmtKind::AssignMulti(_, _)
+            | hir_yul::StmtKind::For(_)
+            | hir_yul::StmtKind::Switch(_)
+            | hir_yul::StmtKind::Leave
+            | hir_yul::StmtKind::Break
+            | hir_yul::StmtKind::Continue
+            | hir_yul::StmtKind::FunctionDef(_) => {}
+        }
+    }
+
+    fn lower_yul_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir_yul::Expr<'_>,
+    ) -> ValueId {
+        match &expr.kind {
+            hir_yul::ExprKind::Path(path) => self.lower_yul_path(builder, path),
+            hir_yul::ExprKind::Lit(lit) => self.lower_literal(builder, lit),
+            hir_yul::ExprKind::Call(call) => self.lower_yul_call(builder, call),
+        }
+    }
+
+    fn lower_yul_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        call: &hir_yul::ExprCall<'_>,
+    ) -> ValueId {
+        let args: Vec<_> =
+            call.arguments.iter().map(|arg| self.lower_yul_expr(builder, arg)).collect();
+
+        match call.name.name {
+            kw::Add => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.add(a, b)
+            }
+            kw::Sub => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.sub(a, b)
+            }
+            kw::Mul => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.mul(a, b)
+            }
+            kw::Div => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.div(a, b)
+            }
+            kw::And => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.and(a, b)
+            }
+            kw::Or => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.or(a, b)
+            }
+            kw::Xor => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.xor(a, b)
+            }
+            kw::Not => {
+                let a = Self::yul_arg(builder, &args, 0);
+                builder.not(a)
+            }
+            kw::Shl => {
+                let shift = Self::yul_arg(builder, &args, 0);
+                let value = Self::yul_arg(builder, &args, 1);
+                builder.shl(shift, value)
+            }
+            kw::Shr => {
+                let shift = Self::yul_arg(builder, &args, 0);
+                let value = Self::yul_arg(builder, &args, 1);
+                builder.shr(shift, value)
+            }
+            kw::Lt => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.lt(a, b)
+            }
+            kw::Gt => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.gt(a, b)
+            }
+            kw::Eq => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.eq(a, b)
+            }
+            kw::Iszero => {
+                let a = Self::yul_arg(builder, &args, 0);
+                builder.iszero(a)
+            }
+            _ => builder.imm_u64(0),
+        }
+    }
+
+    fn yul_arg(builder: &mut FunctionBuilder<'_>, args: &[ValueId], index: usize) -> ValueId {
+        args.get(index).copied().unwrap_or_else(|| builder.imm_u64(0))
+    }
+
+    fn lower_yul_path(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        path: &hir_yul::Path<'_>,
+    ) -> ValueId {
+        match path.res {
+            hir_yul::PathRes::SolidityVariable(var_id) => {
+                self.lower_solidity_variable_by_id(builder, var_id)
+            }
+            hir_yul::PathRes::StorageSlot(var_id) => {
+                let slot = self.storage_slots.get(&var_id).copied().unwrap_or(0);
+                builder.imm_u64(slot)
+            }
+            hir_yul::PathRes::StorageOffset(_) => builder.imm_u64(0),
+            hir_yul::PathRes::YulVariable | hir_yul::PathRes::Err => builder.imm_u64(0),
+        }
+    }
+
+    fn lower_solidity_variable_by_id(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+    ) -> ValueId {
+        if let Some(&val) = self.locals.get(&var_id) {
+            return val;
+        }
+
+        if let Some(offset) = self.get_local_memory_offset(&var_id) {
+            let offset_val = self.local_memory_addr(builder, offset);
+            return builder.mload(offset_val);
+        }
+
+        if let Some(&slot) = self.storage_slots.get(&var_id) {
+            let slot_val = builder.imm_u64(slot);
+            return builder.sload(slot_val);
+        }
+
+        builder.imm_u64(0)
+    }
+
+    fn assign_yul_path(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        path: &hir_yul::Path<'_>,
+        value: ValueId,
+    ) {
+        if let hir_yul::PathRes::SolidityVariable(var_id) = path.res {
+            if let Some(offset) = self.get_local_memory_offset(&var_id) {
+                let offset_val = self.local_memory_addr(builder, offset);
+                builder.mstore(offset_val, value);
+            } else if let Some(local) = self.locals.get_mut(&var_id) {
+                *local = value;
+            } else if let Some(&slot) = self.storage_slots.get(&var_id) {
+                let slot_val = builder.imm_u64(slot);
+                builder.sstore(slot_val, value);
+            }
         }
     }
 
@@ -136,9 +338,8 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn memory_struct_size(&self, ty: &hir::Type<'_>) -> u64 {
-        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &ty.kind {
-            let strukt = self.gcx.hir.strukt(*struct_id);
-            (strukt.fields.len().max(1) as u64) * 32
+        if matches!(ty.kind, hir::TypeKind::Custom(hir::ItemId::Struct(_))) {
+            self.calculate_memory_words_for_type(ty) * 32
         } else {
             32
         }
@@ -414,14 +615,7 @@ impl<'gcx> Lowerer<'gcx> {
                     && builder.func().is_public()
                 {
                     let struct_ptr = self.lower_expr(builder, expr);
-                    let strukt = self.gcx.hir.strukt(struct_id);
-                    let mut ret_vals = Vec::new();
-                    for i in 0..strukt.fields.len() {
-                        let offset = builder.imm_u64(i as u64 * 32);
-                        let field_ptr = builder.add(struct_ptr, offset);
-                        let field_val = builder.mload(field_ptr);
-                        ret_vals.push(field_val);
-                    }
+                    let ret_vals = self.load_struct_return_values(builder, struct_id, struct_ptr);
                     builder.ret(ret_vals);
                 } else {
                     let ret_val = self.lower_expr(builder, expr);

@@ -476,6 +476,54 @@ impl<'gcx> Lowerer<'gcx> {
         offset
     }
 
+    /// Loads a memory struct as flattened ABI return words.
+    pub(super) fn load_struct_return_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        struct_ptr: ValueId,
+    ) -> Vec<ValueId> {
+        let mut values = Vec::new();
+        self.load_struct_return_values_at(builder, struct_id, struct_ptr, 0, &mut values);
+        values
+    }
+
+    fn load_struct_return_values_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        struct_ptr: ValueId,
+        base_offset: u64,
+        values: &mut Vec<ValueId>,
+    ) -> u64 {
+        let strukt = self.gcx.hir.strukt(struct_id);
+        let mut offset = base_offset;
+
+        for &field_id in strukt.fields {
+            let field = self.gcx.hir.variable(field_id);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
+                offset = self.load_struct_return_values_at(
+                    builder,
+                    *inner_struct_id,
+                    struct_ptr,
+                    offset,
+                    values,
+                );
+            } else {
+                let field_ptr = if offset == 0 {
+                    struct_ptr
+                } else {
+                    let offset_val = builder.imm_u64(offset);
+                    builder.add(struct_ptr, offset_val)
+                };
+                values.push(builder.mload(field_ptr));
+                offset += 32;
+            }
+        }
+
+        offset
+    }
+
     /// Recursively copies a struct from storage to memory.
     /// Handles nested structs by flattening them into contiguous memory.
     /// Returns the next memory offset after all fields are copied.
@@ -705,7 +753,16 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.add_return(ty);
                 // Allocate memory for return variables so they can be assigned to
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
-                self.alloc_local_memory(ret_id);
+                let offset = self.alloc_local_memory(ret_id);
+                let offset_val = self.local_memory_addr(&mut builder, offset);
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &ret_var.ty.kind {
+                    let struct_size = self.calculate_memory_words_for_type(&ret_var.ty) * 32;
+                    let struct_ptr = self.allocate_memory(&mut builder, struct_size);
+                    builder.mstore(offset_val, struct_ptr);
+                } else {
+                    let zero = builder.imm_u256(U256::ZERO);
+                    builder.mstore(offset_val, zero);
+                }
             }
 
             if hir_func.kind == hir::FunctionKind::Constructor
@@ -723,18 +780,29 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.stop();
                 } else {
                     // Load return values from memory (where they were stored during execution)
-                    let ret_vals: Vec<ValueId> = hir_func
-                        .returns
-                        .iter()
-                        .map(|&ret_id| {
-                            if let Some(offset) = self.get_local_memory_offset(&ret_id) {
-                                let offset_val = self.local_memory_addr(&mut builder, offset);
-                                builder.mload(offset_val)
-                            } else {
-                                builder.imm_u256(U256::ZERO)
-                            }
-                        })
-                        .collect();
+                    let mut ret_vals = Vec::new();
+                    for &ret_id in hir_func.returns {
+                        let ret_var = self.gcx.hir.variable(ret_id);
+                        let ret_val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
+                            let offset_val = self.local_memory_addr(&mut builder, offset);
+                            builder.mload(offset_val)
+                        } else {
+                            builder.imm_u256(U256::ZERO)
+                        };
+
+                        if uses_external_abi
+                            && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) =
+                                &ret_var.ty.kind
+                        {
+                            ret_vals.extend(self.load_struct_return_values(
+                                &mut builder,
+                                *struct_id,
+                                ret_val,
+                            ));
+                        } else {
+                            ret_vals.push(ret_val);
+                        }
+                    }
                     builder.ret(ret_vals);
                 }
             }
@@ -930,6 +998,9 @@ impl<'gcx> Lowerer<'gcx> {
                     self.collect_assigned_vars_block(&clause.block);
                 }
             }
+            StmtKind::Assembly(assembly) => {
+                self.collect_assigned_vars_yul_block(&assembly.block);
+            }
             StmtKind::DeclSingle(_)
             | StmtKind::DeclMulti(_, _)
             | StmtKind::Return(None)
@@ -937,6 +1008,48 @@ impl<'gcx> Lowerer<'gcx> {
             | StmtKind::Break
             | StmtKind::Placeholder
             | StmtKind::Err(_) => {}
+        }
+    }
+
+    fn collect_assigned_vars_yul_block(&mut self, block: &hir::yul::Block<'_>) {
+        for stmt in block.stmts {
+            self.collect_assigned_vars_yul_stmt(stmt);
+        }
+    }
+
+    fn collect_assigned_vars_yul_stmt(&mut self, stmt: &hir::yul::Stmt<'_>) {
+        use hir::yul::StmtKind;
+        match &stmt.kind {
+            StmtKind::Block(block) => self.collect_assigned_vars_yul_block(block),
+            StmtKind::AssignSingle(path, _) => self.mark_assigned_yul_path(path),
+            StmtKind::AssignMulti(paths, _) => {
+                for path in *paths {
+                    self.mark_assigned_yul_path(path);
+                }
+            }
+            StmtKind::If(_, block) => self.collect_assigned_vars_yul_block(block),
+            StmtKind::For(for_stmt) => {
+                self.collect_assigned_vars_yul_block(&for_stmt.init);
+                self.collect_assigned_vars_yul_block(&for_stmt.step);
+                self.collect_assigned_vars_yul_block(&for_stmt.body);
+            }
+            StmtKind::Switch(switch) => {
+                for case in switch.cases {
+                    self.collect_assigned_vars_yul_block(&case.body);
+                }
+            }
+            StmtKind::FunctionDef(_)
+            | StmtKind::VarDecl(_, _)
+            | StmtKind::Expr(_)
+            | StmtKind::Leave
+            | StmtKind::Break
+            | StmtKind::Continue => {}
+        }
+    }
+
+    fn mark_assigned_yul_path(&mut self, path: &hir::yul::Path<'_>) {
+        if let hir::yul::PathRes::SolidityVariable(var_id) = path.res {
+            self.assigned_vars.insert(var_id);
         }
     }
 

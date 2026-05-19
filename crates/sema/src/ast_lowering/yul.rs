@@ -1,6 +1,6 @@
 //! Yul AST to HIR lowering and variable resolution.
 
-use super::resolve::{ResolveContext, Res};
+use super::resolve::ResolveContext;
 use crate::hir::{self, yul as hir_yul};
 use solar_ast as ast;
 use solar_data_structures::map::FxIndexMap;
@@ -32,11 +32,8 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
         &mut self,
         asm: &ast::StmtAssembly<'_>,
     ) -> &'gcx hir_yul::StmtAssembly<'gcx> {
-        let dialect = asm.dialect.map(|d| d.value);
-        let flags = self
-            .rcx
-            .arena
-            .alloc_slice_fill_iter(asm.flags.iter().map(|f| f.value));
+        let dialect = asm.dialect.as_ref().map(|d| d.value);
+        let flags = self.rcx.arena.alloc_slice_fill_iter(asm.flags.iter().map(|f| f.value));
         let block = self.lower_block(&asm.block);
         self.rcx.arena.alloc(hir_yul::StmtAssembly { dialect, flags, block })
     }
@@ -70,7 +67,7 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
                 for name in names.iter() {
                     self.declare_variable(*name);
                 }
-                let names = self.rcx.arena.alloc_slice_copy(&**names);
+                let names = self.rcx.arena.alloc_slice_copy(names);
                 let init = init.as_ref().map(|e| self.lower_expr(e));
                 hir_yul::StmtKind::VarDecl(names, init)
             }
@@ -82,17 +79,13 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
             }
 
             ast::yul::StmtKind::AssignMulti(paths, expr) => {
-                let paths = self
-                    .rcx
-                    .arena
-                    .alloc_slice_fill_iter(paths.iter().map(|p| self.lower_path(p)));
+                let paths =
+                    self.rcx.arena.alloc_slice_fill_iter(paths.iter().map(|p| self.lower_path(p)));
                 let expr = self.lower_expr(expr);
                 hir_yul::StmtKind::AssignMulti(paths, expr)
             }
 
-            ast::yul::StmtKind::Expr(expr) => {
-                hir_yul::StmtKind::Expr(self.lower_expr(expr))
-            }
+            ast::yul::StmtKind::Expr(expr) => hir_yul::StmtKind::Expr(self.lower_expr(expr)),
 
             ast::yul::StmtKind::If(cond, body) => {
                 let cond = self.lower_expr(cond);
@@ -178,9 +171,7 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
 
     fn lower_expr_full(&mut self, expr: &ast::yul::Expr<'_>) -> hir_yul::Expr<'gcx> {
         let kind = match &expr.kind {
-            ast::yul::ExprKind::Path(path) => {
-                hir_yul::ExprKind::Path(self.lower_path(path))
-            }
+            ast::yul::ExprKind::Path(path) => hir_yul::ExprKind::Path(self.lower_path(path)),
 
             ast::yul::ExprKind::Call(call) => {
                 // Validate the call target exists (builtin or user-defined function).
@@ -222,12 +213,14 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
                 // Dotted path like x.slot or x.offset.
                 // First check if base is a Yul variable (not allowed with .slot/.offset).
                 if self.lookup_yul_variable(base.name).is_some() {
-                    self.rcx.dcx().err(format!(
-                        "Yul variable `{}` cannot have `.{}` suffix",
-                        base.name, suffix.name
-                    ))
-                    .span(path.span())
-                    .emit();
+                    self.rcx
+                        .dcx()
+                        .err(format!(
+                            "Yul variable `{}` cannot have `.{}` suffix",
+                            base.name, suffix.name
+                        ))
+                        .span(path.span())
+                        .emit();
                     return hir_yul::PathRes::Err;
                 }
 
@@ -237,12 +230,14 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
                         let var = self.rcx.hir.variable(var_id);
                         // Validate it's a storage variable.
                         if !var.is_state_variable() {
-                            self.rcx.dcx().err(format!(
-                                "`.{}` is only allowed on storage variables",
-                                suffix.name
-                            ))
-                            .span(suffix.span)
-                            .emit();
+                            self.rcx
+                                .dcx()
+                                .err(format!(
+                                    "`.{}` is only allowed on storage variables",
+                                    suffix.name
+                                ))
+                                .span(suffix.span)
+                                .emit();
                             return hir_yul::PathRes::Err;
                         }
 
@@ -252,12 +247,14 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
                         } else if suffix.name == sym::offset {
                             hir_yul::PathRes::StorageOffset(var_id)
                         } else {
-                            self.rcx.dcx().err(format!(
-                                "unknown suffix `.{}`; expected `.slot` or `.offset`",
-                                suffix.name
-                            ))
-                            .span(suffix.span)
-                            .emit();
+                            self.rcx
+                                .dcx()
+                                .err(format!(
+                                    "unknown suffix `.{}`; expected `.slot` or `.offset`",
+                                    suffix.name
+                                ))
+                                .span(suffix.span)
+                                .emit();
                             hir_yul::PathRes::Err
                         }
                     }
@@ -266,11 +263,7 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
             }
             _ => {
                 // Paths with more than 2 segments are not valid in Yul.
-                self.rcx
-                    .dcx()
-                    .err("invalid path in assembly")
-                    .span(path.span())
-                    .emit();
+                self.rcx.dcx().err("invalid path in assembly").span(path.span()).emit();
                 hir_yul::PathRes::Err
             }
         }
@@ -284,42 +277,7 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
     }
 
     fn resolve_solidity_var_id(&mut self, ident: Ident) -> Option<hir::VariableId> {
-        // Try to resolve in Solidity scopes.
-        let res = self.rcx.resolver.resolve_single(&ident, &self.rcx.scopes);
-        match res {
-            Ok(decl) => match decl.res {
-                Res::Item(hir::ItemId::Variable(var_id)) => Some(var_id),
-                Res::Item(item) => {
-                    self.rcx
-                        .dcx()
-                        .err(format!(
-                            "cannot access {} `{}` from assembly",
-                            item.description(),
-                            ident.name
-                        ))
-                        .span(ident.span)
-                        .emit();
-                    None
-                }
-                Res::Builtin(_) | Res::Namespace(_) => {
-                    self.rcx
-                        .dcx()
-                        .err(format!("cannot access `{}` from assembly", ident.name))
-                        .span(ident.span)
-                        .emit();
-                    None
-                }
-                Res::Err(_) => None,
-            },
-            Err(_) => {
-                self.rcx
-                    .dcx()
-                    .err(format!("undefined variable `{}`", ident.name))
-                    .span(ident.span)
-                    .emit();
-                None
-            }
-        }
+        self.rcx.resolve_yul_solidity_var_id(ident)
     }
 
     fn validate_call_target(&mut self, name: Ident) {
@@ -334,11 +292,7 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
         }
 
         // Not found.
-        self.rcx
-            .dcx()
-            .err(format!("undefined function `{}`", name.name))
-            .span(name.span)
-            .emit();
+        self.rcx.dcx().err(format!("undefined function `{}`", name.name)).span(name.span).emit();
     }
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {

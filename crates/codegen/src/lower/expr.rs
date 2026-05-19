@@ -411,7 +411,11 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a literal to a MIR value.
-    fn lower_literal(&mut self, builder: &mut FunctionBuilder<'_>, lit: &hir::Lit<'_>) -> ValueId {
+    pub(super) fn lower_literal(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lit: &hir::Lit<'_>,
+    ) -> ValueId {
         match &lit.kind {
             LitKind::Bool(b) => builder.imm_bool(*b),
             LitKind::Number(n) => builder.imm_u256(*n),
@@ -1298,14 +1302,87 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Handle Type(expr) where callee is an explicit Type expression
         // e.g., uint256(x), address(y), bytes32(z)
-        if let ExprKind::Type(_ty) = &callee.kind {
-            // Type conversion: return the first argument
-            if let Some(first_arg) = args.exprs().next() {
-                return self.lower_expr(builder, first_arg);
-            }
+        if let ExprKind::Type(ty) = &callee.kind
+            && let Some(first_arg) = args.exprs().next()
+        {
+            let value = self.lower_expr(builder, first_arg);
+            return self.lower_type_conversion(builder, ty, value);
         }
 
         builder.imm_u64(0)
+    }
+
+    fn lower_type_conversion(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+        value: ValueId,
+    ) -> ValueId {
+        match &ty.kind {
+            hir::TypeKind::Elementary(elem) => {
+                self.lower_elementary_type_conversion(builder, elem, value)
+            }
+            hir::TypeKind::Custom(hir::ItemId::Enum(_)) => self.mask_to_bits(builder, value, 8),
+            _ => value,
+        }
+    }
+
+    fn lower_elementary_type_conversion(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elem: &ElementaryType,
+        value: ValueId,
+    ) -> ValueId {
+        match elem {
+            ElementaryType::Bool => {
+                let is_zero = builder.iszero(value);
+                builder.iszero(is_zero)
+            }
+            ElementaryType::Address(_) => self.mask_to_bits(builder, value, 160),
+            ElementaryType::UInt(size) => {
+                let bits = size.bits() as u32;
+                self.mask_to_bits(builder, value, bits)
+            }
+            ElementaryType::Int(size) => {
+                let bits = size.bits() as u32;
+                self.sign_extend_to_bits(builder, value, bits)
+            }
+            ElementaryType::FixedBytes(_) => value,
+            ElementaryType::String
+            | ElementaryType::Bytes
+            | ElementaryType::Fixed(_, _)
+            | ElementaryType::UFixed(_, _) => value,
+        }
+    }
+
+    fn mask_to_bits(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        bits: u32,
+    ) -> ValueId {
+        if bits == 0 || bits >= 256 {
+            return value;
+        }
+
+        let mask = (U256::from(1) << bits) - U256::from(1);
+        let mask = builder.imm_u256(mask);
+        builder.and(value, mask)
+    }
+
+    fn sign_extend_to_bits(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        bits: u32,
+    ) -> ValueId {
+        if bits == 0 || bits >= 256 {
+            return value;
+        }
+
+        let shift = builder.imm_u64(u64::from(256 - bits));
+        let shifted = builder.shl(shift, value);
+        builder.sar(shift, shifted)
     }
 
     /// Lowers a `new T[](len)` memory array expression.
@@ -3215,6 +3292,7 @@ impl<'gcx> Lowerer<'gcx> {
                 None
             }
             hir::StmtKind::Loop(..)
+            | hir::StmtKind::Assembly(_)
             | hir::StmtKind::Emit(_)
             | hir::StmtKind::Revert(_)
             | hir::StmtKind::Break

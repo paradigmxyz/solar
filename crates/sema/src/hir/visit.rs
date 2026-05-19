@@ -252,6 +252,7 @@ pub trait Visit<'hir> {
                 }
             }
             StmtKind::Expr(expr) => self.visit_expr(expr)?,
+            StmtKind::Assembly(_) => {}
             StmtKind::Placeholder => {}
             StmtKind::Err(_guar) => {}
         }

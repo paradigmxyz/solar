@@ -819,6 +819,47 @@ impl<'gcx> ResolveContext<'gcx> {
         self.resolver.resolve_path_as(path, &self.scopes, description)
     }
 
+    pub(super) fn resolve_yul_solidity_var_id(&self, ident: Ident) -> Option<hir::VariableId> {
+        let decls = match self.resolver.resolve_name_raw(ident, &self.scopes) {
+            Some(decls) => decls,
+            None => {
+                self.dcx()
+                    .err(format!("undefined variable `{}`", ident.name))
+                    .span(ident.span)
+                    .emit();
+                return None;
+            }
+        };
+
+        let [decl] = decls else {
+            self.dcx().err(format!("ambiguous variable `{}`", ident.name)).span(ident.span).emit();
+            return None;
+        };
+
+        match decl.res {
+            Res::Item(hir::ItemId::Variable(var_id)) => Some(var_id),
+            Res::Item(item) => {
+                self.dcx()
+                    .err(format!(
+                        "cannot access {} `{}` from assembly",
+                        item.description(),
+                        ident.name
+                    ))
+                    .span(ident.span)
+                    .emit();
+                None
+            }
+            Res::Builtin(_) | Res::Namespace(_) => {
+                self.dcx()
+                    .err(format!("cannot access `{}` from assembly", ident.name))
+                    .span(ident.span)
+                    .emit();
+                None
+            }
+            Res::Err(_) => None,
+        }
+    }
+
     /// Lowers the given statements by first entering a new scope.
     fn lower_block(&mut self, block: &ast::Block<'_>) -> hir::Block<'gcx> {
         self.in_scope_if(!block.is_empty(), |this| this.lower_stmts(block.stmts, block.span))
@@ -851,10 +892,10 @@ impl<'gcx> ResolveContext<'gcx> {
                 })),
                 self.lower_expr(expr),
             ),
-            ast::StmtKind::Assembly(_) => hir::StmtKind::Err(
-                // self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
-                ErrorGuaranteed::new_unchecked(),
-            ),
+            ast::StmtKind::Assembly(assembly) => {
+                let mut yul = super::yul::YulLoweringContext::new(self);
+                hir::StmtKind::Assembly(yul.lower_assembly(assembly))
+            }
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
                 hir::StmtKind::UncheckedBlock(self.lower_block(stmts))
