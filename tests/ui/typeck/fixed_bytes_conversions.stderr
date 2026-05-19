@@ -73,8 +73,8 @@ LL │         address a0 = address(-1);
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
    │
-LL │         address a1 = address(0x010000000000000000000000000000000000000000);
-   ╰╴                     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[161]` to `address`
+LL │         address a1 = address(1461501637330902918203684832716283019655932542976);
+   ╰╴                     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[161]` to `address`
 
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
@@ -87,6 +87,12 @@ error: invalid explicit type conversion
    │
 LL │         address payable p1 = payable(0x01);
    ╰╴                                     ━━━━ cannot convert `int_literal[1]` to `address payable`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
+   │
+LL │         address payable p2 = payable(1461501637330902918203684832716283019655932542975);
+   ╰╴                                     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ cannot convert `int_literal[160]` to `address payable`
 
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/fixed_bytes_conversions.sol:LL:CC
@@ -250,5 +256,5 @@ error: mismatched types
 LL │         bytes2 b10 = 0x0102 + 0;
    ╰╴                     ━━━━━━━━━━ expected `bytes2`, found `int_literal[9]`
 
-error: aborting due to 42 previous errors
+error: aborting due to 43 previous errors
 

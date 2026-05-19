@@ -67,14 +67,17 @@ contract C {
     // Valid: integer literals to address.
     function validIntLiteralToAddress() public pure {
         address a0 = address(0);
-        address a1 = address(1);
-        address a2 = address(0x1);
-        address a3 = address(0x0102);
-        address a4 = address(1 - 1);
+        address a1 = address(-0x0);
+        address a2 = address(1);
+        address a3 = address(0x1);
+        address a4 = address(0x0102);
+        address a5 = address(1 - 1);
+        address a6 = address(1461501637330902918203684832716283019655932542975);
         address payable p0 = payable(0);
-        address payable p1 = payable(-0x0);
-        address payable p2 = payable(0x01 - 0x01);
-        address payable p3 = payable(address(1));
+        address payable p1 = payable(0x00);
+        address payable p2 = payable(-0x0);
+        address payable p3 = payable(0x01 - 0x01);
+        address payable p4 = payable(address(1));
     }
 
     // Invalid: implicit address and FixedBytes conversions.
@@ -86,9 +89,10 @@ contract C {
     // Invalid: integer literals to address.
     function invalidIntLiteralToAddress() public pure {
         address a0 = address(-1); //~ ERROR: invalid explicit type conversion
-        address a1 = address(0x010000000000000000000000000000000000000000); //~ ERROR: invalid explicit type conversion
+        address a1 = address(1461501637330902918203684832716283019655932542976); //~ ERROR: invalid explicit type conversion
         address payable p0 = payable(1); //~ ERROR: invalid explicit type conversion
         address payable p1 = payable(0x01); //~ ERROR: invalid explicit type conversion
+        address payable p2 = payable(1461501637330902918203684832716283019655932542975); //~ ERROR: invalid explicit type conversion
     }
 
     // Valid: same-size hex integer literals to FixedBytes.
