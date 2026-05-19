@@ -126,9 +126,9 @@ contract C {
 
             constantValue := 1 //~ ERROR: cannot assign to a constant variable
 
-            pop("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg") //~ ERROR: String literal too long (33 > 32)
+            pop("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg") //~ ERROR: string literal too long (33 > 32)
 
-            pop(hex"123456789012345678901234567890123456789012345678901234567890123456") //~ ERROR: String literal too long (33 > 32)
+            pop(hex"123456789012345678901234567890123456789012345678901234567890123456") //~ ERROR: string literal too long (33 > 32)
 
             pop(stringConstant) //~ ERROR: only direct number constants are supported in inline assembly
 

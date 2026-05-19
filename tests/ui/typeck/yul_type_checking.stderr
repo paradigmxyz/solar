@@ -48,13 +48,13 @@ error: cannot assign to a constant variable
 LL │             constantValue := 1
    ╰╴            ━━━━━━━━━━━━━
 
-error: String literal too long (33 > 32)
+error: string literal too long (33 > 32)
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg")
    ╰╴                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: String literal too long (33 > 32)
+error: string literal too long (33 > 32)
    ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
    │
 LL │             pop(hex"123456789012345678901234567890123456789012345678901234567890123456")
