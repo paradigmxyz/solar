@@ -142,7 +142,7 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
 
 fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberListOwned<'gcx> {
     let mut members = Vec::with_capacity(2);
-    if f.visibility >= hir::Visibility::Public {
+    if f.visibility >= hir::Visibility::Public || f.special {
         members.push(Member::of_builtin(gcx, Builtin::FunctionSelector));
     }
     if f.visibility == hir::Visibility::External {
@@ -234,7 +234,12 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
             .filter(|&id| gcx.hir.function(id).is_ordinary())
             .map(|id| {
                 let item = hir::ItemId::from(id);
-                Member::with_res(gcx.item_name(item).name, gcx.type_of_item(item), item)
+                let ty = if gcx.hir.function(id).visibility >= hir::Visibility::Public {
+                    gcx.type_of_item(item).as_externally_callable_library_function(gcx)
+                } else {
+                    gcx.type_of_item(item)
+                };
+                Member::with_res(gcx.item_name(item).name, ty, item)
             })
             .collect()
     } else {

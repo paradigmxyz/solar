@@ -1,0 +1,14 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
+   │
+LL │         run(PointerLib.select);
+   ╰╴            ━━━━━━━━━━━━━━━━━ expected `function (Pointer) pure external returns (Pointer)`, found `function (Pointer) pure returns (Pointer)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
+   │
+LL │         function(Pointer) external pure returns (Pointer) fn = PointerLib.select;
+   ╰╴                                                               ━━━━━━━━━━━━━━━━━ expected `function (Pointer) pure external returns (Pointer)`, found `function (Pointer) pure returns (Pointer)`
+
+error: aborting due to 2 previous errors
+

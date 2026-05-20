@@ -173,6 +173,20 @@ impl<'gcx> Ty<'gcx> {
             state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
             visibility: self.visibility().unwrap_or(Visibility::Public),
             function_id: None,
+            special: false,
+        })
+    }
+
+    pub fn as_externally_callable_library_function(self, gcx: Gcx<'gcx>) -> Self {
+        let ty = self.as_externally_callable_function(gcx);
+        let TyKind::FnPtr(f) = ty.kind else { return ty };
+        gcx.mk_ty_fn_ptr(TyFnPtr {
+            parameters: f.parameters,
+            returns: f.returns,
+            state_mutability: f.state_mutability,
+            visibility: Visibility::Internal,
+            function_id: f.function_id,
+            special: true,
         })
     }
 
@@ -728,6 +742,10 @@ impl<'gcx> Ty<'gcx> {
             // Function pointer conversions.
             // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
             (FnPtr(from_fn), FnPtr(to_fn)) => {
+                if from_fn.special || to_fn.special {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
                 // Parameter and return types must match exactly (no implicit conversion).
                 if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
                     return Result::Err(TyConvertError::Incompatible);
@@ -1109,6 +1127,8 @@ pub struct TyFnPtr<'gcx> {
     pub state_mutability: StateMutability,
     pub visibility: Visibility,
     pub function_id: Option<hir::FunctionId>,
+    /// Whether this is a special function value that cannot convert to function pointer types.
+    pub special: bool,
 }
 
 impl<'gcx> TyFnPtr<'gcx> {

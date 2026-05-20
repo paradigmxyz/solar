@@ -401,6 +401,7 @@ impl<'gcx> Gcx<'gcx> {
             state_mutability,
             visibility,
             function_id: None,
+            special: false,
         })
     }
 
@@ -613,6 +614,7 @@ impl<'gcx> Gcx<'gcx> {
                     state_mutability: f.state_mutability,
                     visibility: f.visibility,
                     function_id: None,
+                    special: false,
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
@@ -887,6 +889,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 state_mutability: f.state_mutability,
                 visibility: f.visibility,
                 function_id: Some(id),
+                special: false,
             }))
         }
         hir::ItemId::Variable(id) => {
