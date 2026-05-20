@@ -820,44 +820,14 @@ impl<'gcx> ResolveContext<'gcx> {
     }
 
     pub(super) fn resolve_yul_solidity_var_id(&self, ident: Ident) -> Option<hir::VariableId> {
-        let decls = match self.resolver.resolve_name_raw(ident, &self.scopes) {
-            Some(decls) => decls,
-            None => {
-                self.dcx()
-                    .err(format!("undefined variable `{}`", ident.name))
-                    .span(ident.span)
-                    .emit();
-                return None;
-            }
-        };
+        let decls = self.resolver.resolve_name_raw(ident, &self.scopes)?;
 
-        let [decl] = decls else {
-            self.dcx().err(format!("ambiguous variable `{}`", ident.name)).span(ident.span).emit();
-            return None;
-        };
-
-        match decl.res {
+        let mut vars = decls.iter().filter_map(|decl| match decl.res {
             Res::Item(hir::ItemId::Variable(var_id)) => Some(var_id),
-            Res::Item(item) => {
-                self.dcx()
-                    .err(format!(
-                        "cannot access {} `{}` from assembly",
-                        item.description(),
-                        ident.name
-                    ))
-                    .span(ident.span)
-                    .emit();
-                None
-            }
-            Res::Builtin(_) | Res::Namespace(_) => {
-                self.dcx()
-                    .err(format!("cannot access `{}` from assembly", ident.name))
-                    .span(ident.span)
-                    .emit();
-                None
-            }
-            Res::Err(_) => None,
-        }
+            _ => None,
+        });
+        let var_id = vars.next()?;
+        vars.next().is_none().then_some(var_id)
     }
 
     /// Lowers the given statements by first entering a new scope.

@@ -207,73 +207,37 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
                 }
 
                 // Try Solidity resolution.
-                self.resolve_solidity_var(*ident)
+                self.resolve_solidity_var(*ident).unwrap_or(hir_yul::PathRes::YulVariable)
             }
             [base, suffix] => {
-                // Dotted path like x.slot or x.offset.
-                // First check if base is a Yul variable (not allowed with .slot/.offset).
+                if suffix.name != sym::slot && suffix.name != sym::offset {
+                    return hir_yul::PathRes::YulVariable;
+                }
+
                 if self.lookup_yul_variable(base.name).is_some() {
-                    self.rcx
-                        .dcx()
-                        .err(format!(
-                            "Yul variable `{}` cannot have `.{}` suffix",
-                            base.name, suffix.name
-                        ))
-                        .span(path.span())
-                        .emit();
-                    return hir_yul::PathRes::Err;
+                    return hir_yul::PathRes::YulVariable;
                 }
 
-                // Must be a Solidity variable.
-                match self.resolve_solidity_var_id(*base) {
-                    Some(var_id) => {
-                        let var = self.rcx.hir.variable(var_id);
-                        // Validate it's a storage variable.
-                        if !var.is_state_variable() {
-                            self.rcx
-                                .dcx()
-                                .err(format!(
-                                    "`.{}` is only allowed on storage variables",
-                                    suffix.name
-                                ))
-                                .span(suffix.span)
-                                .emit();
-                            return hir_yul::PathRes::Err;
-                        }
+                let Some(var_id) = self.resolve_solidity_var_id(*base) else {
+                    return hir_yul::PathRes::YulVariable;
+                };
+                let var = self.rcx.hir.variable(var_id);
+                if !var.is_state_variable() {
+                    return hir_yul::PathRes::YulVariable;
+                }
 
-                        // Check suffix.
-                        if suffix.name == sym::slot {
-                            hir_yul::PathRes::StorageSlot(var_id)
-                        } else if suffix.name == sym::offset {
-                            hir_yul::PathRes::StorageOffset(var_id)
-                        } else {
-                            self.rcx
-                                .dcx()
-                                .err(format!(
-                                    "unknown suffix `.{}`; expected `.slot` or `.offset`",
-                                    suffix.name
-                                ))
-                                .span(suffix.span)
-                                .emit();
-                            hir_yul::PathRes::Err
-                        }
-                    }
-                    None => hir_yul::PathRes::Err,
+                if suffix.name == sym::slot {
+                    hir_yul::PathRes::StorageSlot(var_id)
+                } else {
+                    hir_yul::PathRes::StorageOffset(var_id)
                 }
             }
-            _ => {
-                // Paths with more than 2 segments are not valid in Yul.
-                self.rcx.dcx().err("invalid path in assembly").span(path.span()).emit();
-                hir_yul::PathRes::Err
-            }
+            _ => hir_yul::PathRes::YulVariable,
         }
     }
 
-    fn resolve_solidity_var(&mut self, ident: Ident) -> hir_yul::PathRes {
-        match self.resolve_solidity_var_id(ident) {
-            Some(var_id) => hir_yul::PathRes::SolidityVariable(var_id),
-            None => hir_yul::PathRes::Err,
-        }
+    fn resolve_solidity_var(&mut self, ident: Ident) -> Option<hir_yul::PathRes> {
+        self.resolve_solidity_var_id(ident).map(hir_yul::PathRes::SolidityVariable)
     }
 
     fn resolve_solidity_var_id(&mut self, ident: Ident) -> Option<hir::VariableId> {
@@ -281,18 +245,7 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
     }
 
     fn validate_call_target(&mut self, name: Ident) {
-        // Check if it's a Yul builtin.
-        if name.is_yul_evm_builtin() {
-            return;
-        }
-
-        // Check if it's a user-defined Yul function.
-        if self.lookup_yul_function(name.name).is_some() {
-            return;
-        }
-
-        // Not found.
-        self.rcx.dcx().err(format!("undefined function `{}`", name.name)).span(name.span).emit();
+        let _ = name.is_yul_evm_builtin() || self.lookup_yul_function(name.name).is_some();
     }
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {

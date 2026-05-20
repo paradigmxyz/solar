@@ -751,9 +751,12 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 let ty = self.lower_type_from_var(ret_var);
                 builder.add_return(ty);
-                // Allocate memory for return variables so they can be assigned to
-                // within the function body (e.g., `liquidity = 1` in if/else branches)
                 let offset = self.alloc_local_memory(ret_id);
+                if ret_var.name.is_none() {
+                    continue;
+                }
+
+                // Named return variables are in-scope locals initialized to zero.
                 let offset_val = self.local_memory_addr(&mut builder, offset);
                 if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &ret_var.ty.kind {
                     let struct_size = self.calculate_memory_words_for_type(&ret_var.ty) * 32;
