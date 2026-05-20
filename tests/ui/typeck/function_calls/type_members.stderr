@@ -1,6 +1,18 @@
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
    │
+LL │         function() external pure fn = Executor.check;
+   ╰╴                                      ━━━━━━━━━━━━━━ expected `function () pure external`, found `function () pure`
+
+error: member `address` not found on type `function () pure`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
+   │
+LL │         Executor.check.address;
+   ╰╴                       ━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
+   │
 LL │         run(PointerLib.select);
    ╰╴            ━━━━━━━━━━━━━━━━━ expected `function (Pointer) pure external returns (Pointer)`, found `function (Pointer) pure returns (Pointer)`
 
@@ -10,5 +22,17 @@ error: mismatched types
 LL │         function(Pointer) external pure returns (Pointer) fn = PointerLib.select;
    ╰╴                                                               ━━━━━━━━━━━━━━━━━ expected `function (Pointer) pure external returns (Pointer)`, found `function (Pointer) pure returns (Pointer)`
 
-error: aborting due to 2 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
+   │
+LL │ …re returns (PointerLib.Item memory) structFn = PointerLib.get;
+   ╰╴                                                ━━━━━━━━━━━━━━ expected `function (struct PointerLib.Item memory) pure external returns (struct PointerLib.Item memory)`, found `function (struct PointerLib.Item memory) pure returns (struct PointerLib.Item memory)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
+   │
+LL │         emit ExternalFunction(PointerLib.ping);
+   ╰╴                              ━━━━━━━━━━━━━━━ expected `function () external`, found `function ()`
+
+error: aborting due to 6 previous errors
 

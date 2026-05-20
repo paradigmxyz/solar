@@ -317,7 +317,7 @@ impl<'gcx> OverrideGraph<'gcx> {
         let ty = proxy.ty(self.gcx);
         let ext_ty = ty.as_externally_callable_function(self.gcx);
         let param_types =
-            if let TyKind::FnPtr(fn_ptr) = ext_ty.kind { Some(fn_ptr.parameters) } else { None };
+            if let TyKind::Fn(fn_ty) = ext_ty.kind { Some(fn_ty.parameters) } else { None };
         param_types == self.signature.param_types
     }
 }
@@ -406,7 +406,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         let param_types = if kind.is_function() {
             let ty = proxy.ty(self.gcx);
             let ext_ty = ty.as_externally_callable_function(self.gcx);
-            if let TyKind::FnPtr(fn_ptr) = ext_ty.kind { Some(fn_ptr.parameters) } else { None }
+            if let TyKind::Fn(fn_ty) = ext_ty.kind { Some(fn_ty.parameters) } else { None }
         } else {
             None
         };
@@ -810,8 +810,7 @@ impl<'gcx> OverrideChecker<'gcx> {
         let overriding_ext = overriding_ty.as_externally_callable_function(gcx);
         let base_ext = base_ty.as_externally_callable_function(gcx);
 
-        let (TyKind::FnPtr(overriding_fn), TyKind::FnPtr(base_fn)) =
-            (overriding_ext.kind, base_ext.kind)
+        let (TyKind::Fn(overriding_fn), TyKind::Fn(base_fn)) = (overriding_ext.kind, base_ext.kind)
         else {
             return false;
         };

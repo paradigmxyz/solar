@@ -191,7 +191,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 let is_array_push = false;
 
                 let ty = match callee_ty.kind {
-                    TyKind::FnPtr(f) => {
+                    TyKind::Fn(f) => {
                         let param_names = if let Some(struct_id) = struct_id {
                             Some(self.get_struct_field_names(struct_id))
                         } else {
@@ -425,7 +425,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             let mut sm = hir::StateMutability::NonPayable;
                             if let Some(ctor) = c.ctor {
                                 let func_ty = self.gcx.type_of_item(ctor.into());
-                                let TyKind::FnPtr(f) = func_ty.kind else { unreachable!() };
+                                let TyKind::Fn(f) = func_ty.kind else { unreachable!() };
                                 parameters = f.parameters;
                                 sm = f.state_mutability;
                                 debug_assert!(
@@ -929,8 +929,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     .span(var.span)
                     .emit();
             }
-            if let TyKind::FnPtr(f) = ty.kind
-                && f.visibility == hir::Visibility::External
+            if let TyKind::Fn(f) = ty.kind
+                && f.is_external()
             {
                 self.dcx()
                     .err("immutable variables of external function type are not yet supported")
@@ -1439,7 +1439,7 @@ fn valid_delete(ty: Ty<'_>) -> bool {
     }
 
     match ty.kind {
-        TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::FnPtr(_) => true,
+        TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::Fn(_) => true,
         TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
 
         TyKind::Err(_) => true,
@@ -1543,10 +1543,19 @@ fn binop_common_type<'gcx>(
             }
         }
 
-        TyKind::FnPtr(_) => {
-            // TODO: Compare internal function pointers
-            // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3193
-            None
+        TyKind::Fn(f) => {
+            use hir::BinOpKind::*;
+
+            let TyKind::Fn(other_fn) = other.kind else { return None };
+            if !matches!(op, Eq | Ne) {
+                return None;
+            }
+            if !((f.is_internal() && other_fn.is_internal())
+                || (f.is_external() && other_fn.is_external()))
+            {
+                return None;
+            }
+            ty.common_type(other, gcx)
         }
 
         TyKind::Elementary(hir::ElementaryType::String)

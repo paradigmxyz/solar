@@ -1,7 +1,7 @@
 use super::Builtin;
 use crate::{
     hir,
-    ty::{Gcx, Ty, TyFnPtr, TyKind},
+    ty::{Gcx, Ty, TyFn, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType, StateMutability as SM};
 use solar_data_structures::BumpExt;
@@ -32,7 +32,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Slice(_ty) => Default::default(),
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
-        TyKind::FnPtr(f) => function(gcx, f),
+        TyKind::Fn(f) => function(gcx, f),
         TyKind::Contract(id) => contract(gcx, id),
         TyKind::Struct(_id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),
@@ -140,12 +140,12 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
         .collect()
 }
 
-fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberListOwned<'gcx> {
+fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFn<'gcx>) -> MemberListOwned<'gcx> {
     let mut members = Vec::with_capacity(2);
-    if f.visibility >= hir::Visibility::Public || f.special {
+    if f.has_selector() {
         members.push(Member::of_builtin(gcx, Builtin::FunctionSelector));
     }
-    if f.visibility == hir::Visibility::External {
+    if f.has_address() {
         members.push(Member::of_builtin(gcx, Builtin::FunctionAddress));
     }
     members
@@ -234,12 +234,11 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
             .filter(|&id| gcx.hir.function(id).is_ordinary())
             .map(|id| {
                 let item = hir::ItemId::from(id);
-                let ty = if gcx.hir.function(id).visibility >= hir::Visibility::Public {
-                    gcx.type_of_item(item).as_externally_callable_library_function(gcx)
-                } else {
-                    gcx.type_of_item(item)
-                };
-                Member::with_res(gcx.item_name(item).name, ty, item)
+                Member::with_res(
+                    gcx.item_name(item).name,
+                    gcx.type_of_function_via_contract_name(id),
+                    item,
+                )
             })
             .collect()
     } else {
@@ -247,7 +246,8 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
             .iter()
             .map(|f| {
                 let id = hir::ItemId::from(f.id);
-                Member::with_res(gcx.item_name(id).name, f.ty, id)
+                let ty = gcx.type_of_function_via_contract_name(f.id);
+                Member::with_res(gcx.item_name(id).name, ty, id)
             })
             .collect()
     }
