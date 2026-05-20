@@ -156,7 +156,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
 }
 
 fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
-    let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(gcx).parameters().unwrap();
+    let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(false, gcx).parameters().unwrap();
     key(a) == key(b)
 }
 
@@ -292,7 +292,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Contract(..)
         | TyKind::Udvt(..)
         | TyKind::Enum(..)
-        | TyKind::FnPtr(..)
+        | TyKind::Fn(..)
         | TyKind::DynArray(..) => Some(U256::from(1)),
         TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
         TyKind::Array(ty, uint) => {

@@ -1595,13 +1595,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
             ast::ExprKind::Call(callee, args) => {
-                let callee = callee.peel_parens();
-                let (callee, options) =
-                    if let ast::ExprKind::CallOptions(expr, options) = &callee.kind {
-                        (self.lower_expr(expr), Some(self.lower_named_args(options)))
-                    } else {
-                        (self.lower_expr(callee), None)
-                    };
+                let (callee, options) = self.lower_call_callee(callee);
                 hir::ExprKind::Call(callee, self.lower_call_args(args), options)
             }
             ast::ExprKind::CallOptions(callee, options) => {
@@ -1669,6 +1663,39 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {
         self.arena.alloc_with(|| lit.copy_without_data())
+    }
+
+    fn lower_call_callee(
+        &mut self,
+        callee: &ast::Expr<'_>,
+    ) -> (&'gcx hir::Expr<'gcx>, Option<&'gcx hir::CallOptions<'gcx>>) {
+        let mut inner = callee.peel_parens();
+        let mut options = None;
+        let mut has_nested_options = false;
+
+        while let ast::ExprKind::CallOptions(next, args) = &inner.kind {
+            if options.is_some() {
+                has_nested_options = true;
+            }
+            options =
+                Some(hir::CallOptions { span: inner.span, args: self.lower_named_args(args) });
+            inner = next.peel_parens();
+        }
+
+        let Some(options) = options else {
+            return (self.lower_expr(inner), None);
+        };
+
+        if has_nested_options {
+            self.sess
+                .dcx
+                .err("function call options have already been set")
+                .span(callee.span)
+                .help("combine them into a single `{...}` option")
+                .emit();
+        }
+
+        (self.lower_expr(inner), Some(self.arena.alloc(options)))
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {

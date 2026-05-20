@@ -103,7 +103,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         }
 
-        if matches!(ty.kind, TyKind::FnPtr(f) if f.visibility == hir::Visibility::External) {
+        if matches!(ty.kind, TyKind::Fn(f) if f.is_external()) {
             return Err(self
                 .dcx()
                 .err("only types that use one stack slot are supported")
@@ -301,10 +301,8 @@ fn yul_member_set(var: &hir::Variable<'_>, ty: Ty<'_>) -> Option<YulMemberSet> {
         return Some(YulMemberSet::Calldata);
     }
 
-    if let TyKind::FnPtr(f) = ty.kind {
-        return Some(YulMemberSet::Function {
-            external: f.visibility == hir::Visibility::External,
-        });
+    if let TyKind::Fn(f) = ty.kind {
+        return Some(YulMemberSet::Function { external: f.is_external() });
     }
 
     None
