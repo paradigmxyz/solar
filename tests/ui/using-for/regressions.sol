@@ -3,6 +3,7 @@
 // ported-from: test/libsolidity/semanticTests/enums/using_inherited_enum_excplicitly.sol
 // ported-from: test/libsolidity/semanticTests/using/imported_functions.sol
 // ported-from: test/libsolidity/semanticTests/errors/using_structs.sol
+// ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/491_using_this_in_constructor.sol
 // ported-from: test/libsolidity/syntaxTests/using/global_local_clash.sol
 
 import {S, f1 as f, gen, inc as aliasedInc} from "./auxiliary/regressions_imports.sol";
@@ -62,4 +63,12 @@ contract StorageStringAssignment {
         s.a = 9;
         s.b = "abc";
     }
+}
+
+contract ConstructorThisWarning {
+    constructor() {
+        this.f(); //~ WARN: `this` used in constructor
+    }
+
+    function f() public pure {}
 }
