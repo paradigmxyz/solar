@@ -850,7 +850,9 @@ impl<'gcx> TypeChecker<'gcx> {
             return;
         }
 
-        if let TyKind::Ref(inner, DataLocation::Storage) = expected.kind {
+        if matches!(actual.kind, TyKind::StringLiteral(..))
+            && let TyKind::Ref(inner, DataLocation::Storage) = expected.kind
+        {
             let memory_expected = inner.with_loc_if_ref(self.gcx, DataLocation::Memory);
             if actual.try_convert_implicit_to(memory_expected, self.gcx).is_ok() {
                 return;
