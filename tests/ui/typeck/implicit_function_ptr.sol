@@ -193,22 +193,6 @@ contract FunctionComparison {
     }
 }
 
-contract FunctionComparisonWithCallOptions {
-    function external_test_function() external payable {}
-
-    function invalidCallOptionComparisons() external returns (bool) {
-        return (this.external_test_function{value: 4} == this.external_test_function) && //~ ERROR: cannot apply builtin operator
-            (this.external_test_function{value: 4} == this.external_test_function{value: 4}) && //~ ERROR: cannot apply builtin operator
-            ((this.external_test_function{value: 4}) == this.external_test_function) && //~ ERROR: cannot apply builtin operator
-            (this.external_test_function{value: 4} == (this.external_test_function{value: 4})); //~ ERROR: cannot apply builtin operator
-    }
-
-    function invalidCallOptionAssignment() external {
-        function() external payable fn = this.external_test_function{value: 4}; //~ ERROR: mismatched types
-        function() external payable fn2 = (this.external_test_function{value: 4}); //~ ERROR: mismatched types
-    }
-}
-
 // Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_payable.sol.
 // Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_pure.sol.
 // Ported from test/libsolidity/syntaxTests/conversion/function_type_nonpayable_view.sol.

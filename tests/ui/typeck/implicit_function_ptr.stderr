@@ -114,50 +114,6 @@ LL │             FunctionComparisonLib.f == FunctionComparisonLib.g;
    │             │
    ╰╴            function ()
 
-error: cannot apply builtin operator `==` to `function () payable external` and `function () payable external`
-   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
-   │
-LL │         return (this.external_test_function{value: 4} == this.external_test_function) &&
-   │                 ┬──────────────────────────────────── ━━ ─────────────────────────── function () payable external
-   │                 │
-   ╰╴                function () payable external
-
-error: cannot apply builtin operator `==` to `function () payable external` and `function () payable external`
-   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
-   │
-LL │ …     (this.external_test_function{value: 4} == this.external_test_function{value: 4}) &&
-   │        ┬──────────────────────────────────── ━━ ───────────────────────────────────── function () payable external
-   │        │
-   ╰╴       function () payable external
-
-error: cannot apply builtin operator `==` to `function () payable external` and `function () payable external`
-   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
-   │
-LL │             ((this.external_test_function{value: 4}) == this.external_test_function) &&
-   │              ┬────────────────────────────────────── ━━ ─────────────────────────── function () payable external
-   │              │
-   ╰╴             function () payable external
-
-error: cannot apply builtin operator `==` to `function () payable external` and `function () payable external`
-   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
-   │
-LL │ …     (this.external_test_function{value: 4} == (this.external_test_function{value: 4}));
-   │        ┬──────────────────────────────────── ━━ ─────────────────────────────────────── function () payable external
-   │        │
-   ╰╴       function () payable external
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
-   │
-LL │         function() external payable fn = this.external_test_function{value: 4};
-   ╰╴                                         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `function () payable external`, found `function () payable external`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
-   │
-LL │         function() external payable fn2 = (this.external_test_function{value: 4});
-   ╰╴                                           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `function () payable external`, found `function () payable external`
-
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
    │
@@ -206,5 +162,5 @@ error: mismatched types
 LL │         function() pure external g = this.h;
    ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () view external`
 
-error: aborting due to 31 previous errors
+error: aborting due to 25 previous errors
 

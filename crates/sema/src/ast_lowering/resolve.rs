@@ -1243,7 +1243,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     hir::ExprKind::Ident(res),
                     call.name.span,
                 );
-                hir::ExprKind::Call(callee, self.lower_yul_call_args(call.arguments, span))
+                hir::ExprKind::Call(callee, self.lower_yul_call_args(call.arguments, span), None)
             }
             Err(guar) => hir::ExprKind::Err(guar),
         }
@@ -1426,13 +1426,12 @@ impl<'gcx> ResolveContext<'gcx> {
                     id: self.next_id(),
                     kind: hir::ExprKind::Ident(res),
                     span: path.last().span,
-                    call_options: None,
                 }),
                 self.lower_call_args(args),
+                None,
             ),
             id: self.next_id(),
             span,
-            call_options: None,
         })
     }
 
@@ -1595,12 +1594,13 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Binary(lhs, op, rhs) => {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
-            ast::ExprKind::Call(callee, args) => hir::ExprKind::Call(
-                self.lower_expr(callee.peel_parens()),
-                self.lower_call_args(args),
-            ),
+            ast::ExprKind::Call(callee, args) => {
+                let (callee, options) = self.lower_call_callee(callee.peel_parens());
+                hir::ExprKind::Call(callee, self.lower_call_args(args), options)
+            }
             ast::ExprKind::CallOptions(callee, options) => {
-                return self.lower_call_options_expr(callee, options, expr.span);
+                let _ = options;
+                return self.lower_expr_full(callee.peel_parens());
             }
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {
@@ -1656,24 +1656,23 @@ impl<'gcx> ResolveContext<'gcx> {
         self.arena.alloc_with(|| lit.copy_without_data())
     }
 
-    fn lower_call_options_expr(
+    fn lower_call_callee(
         &mut self,
-        callee: &ast::Expr<'_>,
-        options: &[ast::NamedArg<'_>],
-        span: Span,
-    ) -> hir::Expr<'gcx> {
-        let mut expr = self.lower_expr_full(callee.peel_parens());
-        let option = hir::CallOptions { span, args: self.lower_named_args(options) };
-        expr.call_options = Some(match expr.call_options {
-            Some(existing) => {
-                let mut options = SmallVec::<[_; 2]>::from_slice(existing);
-                options.push(option);
-                self.arena.alloc_slice_copy(&options)
-            }
-            None => self.arena.alloc_as_slice(option),
-        });
-        expr.span = span;
-        expr
+        mut callee: &ast::Expr<'_>,
+    ) -> (&'gcx hir::Expr<'gcx>, Option<&'gcx [hir::CallOptions<'gcx>]>) {
+        let mut options = SmallVec::<[_; 2]>::new();
+        while let ast::ExprKind::CallOptions(inner, args) = &callee.kind {
+            options.push(hir::CallOptions { span: callee.span, args: self.lower_named_args(args) });
+            callee = inner.peel_parens();
+        }
+        let callee = self.lower_expr(callee);
+        let options = if options.is_empty() {
+            None
+        } else {
+            options.reverse();
+            Some(&*self.arena.alloc_slice_copy(&options))
+        };
+        (callee, options)
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {

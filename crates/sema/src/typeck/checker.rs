@@ -102,14 +102,7 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        let mut ty = self.check_expr_kind(expr, expected);
-        if let Some(options) = expr.call_options {
-            let creation = matches!(expr.kind, hir::ExprKind::New(_));
-            for (i, options) in options.iter().enumerate() {
-                let already_set = i > 0 || matches!(ty.kind, TyKind::CallOptions(_));
-                ty = self.check_call_options(ty, options.args, options.span, creation, already_set);
-            }
-        }
+        let ty = self.check_expr_kind(expr, expected);
         self.register_ty(expr, ty);
         ty
     }
@@ -181,9 +174,19 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
-            hir::ExprKind::Call(callee, ref args) => {
-                let callee_ty = self.check_expr(callee);
-                let mut callee_ty = callee_ty.peel_call_options();
+            hir::ExprKind::Call(callee, ref args, opts) => {
+                let mut callee_ty = self.check_expr(callee);
+                if let Some(opts) = opts {
+                    for (i, opts) in opts.iter().enumerate() {
+                        callee_ty = self.check_call_options(
+                            callee_ty,
+                            opts.args,
+                            opts.span,
+                            matches!(callee.kind, hir::ExprKind::New(_)),
+                            i > 0,
+                        );
+                    }
+                }
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
                 let struct_id = if let TyKind::Type(struct_ty) = callee_ty.kind
@@ -812,18 +815,17 @@ impl<'gcx> TypeChecker<'gcx> {
         creation: bool,
         already_set: bool,
     ) -> Ty<'gcx> {
-        let base_ty = ty.peel_call_options();
-        let TyKind::Fn(f) = base_ty.kind else {
+        let TyKind::Fn(f) = ty.kind else {
             for opt in opts {
                 let _ = self.check_expr(&opt.value);
             }
-            if !base_ty.references_error() {
+            if !ty.references_error() {
                 self.dcx()
                     .err("function call options can only be set on external function calls or contract creations")
                     .span(span)
                     .emit();
             }
-            return base_ty;
+            return ty;
         };
 
         if already_set {
@@ -891,7 +893,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
 
-        self.gcx.mk_ty(TyKind::CallOptions(base_ty))
+        ty
     }
 
     fn check_positional_call_args(
@@ -1461,10 +1463,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
 ///
 /// If `false`, it cannot be an lvalue.
 fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
-    if expr.call_options.is_some() {
-        return false;
-    }
-
     match expr.kind {
         hir::ExprKind::Ident(_)
         | hir::ExprKind::Index(..)
@@ -1674,7 +1672,6 @@ fn binop_common_type<'gcx>(
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
         | TyKind::Type(_)
-        | TyKind::CallOptions(_)
         | TyKind::Meta(_) => None,
 
         TyKind::Err(_) => Some(ty),

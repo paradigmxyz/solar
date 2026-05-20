@@ -343,17 +343,17 @@ impl<'hir, 'id> HirBuilder<'hir, 'id> {
 
     /// Creates a HIR expression with ID, kind and span.
     pub fn expr(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
-        self.arena.alloc(Expr { id, kind, span, call_options: None })
+        self.arena.alloc(Expr { id, kind, span })
     }
 
     /// Creates a HIR expression with the given kind (as requested in GitHub issue).
     pub fn expr_kind(&self, kind: ExprKind<'hir>) -> Expr<'hir> {
-        Expr { id: self.next_expr_id(), kind, span: Span::DUMMY, call_options: None }
+        Expr { id: self.next_expr_id(), kind, span: Span::DUMMY }
     }
 
     /// Creates an allocated HIR expression.
     pub fn expr_alloc(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> &'hir Expr<'hir> {
-        self.arena.alloc(Expr { id, kind, span, call_options: None })
+        self.arena.alloc(Expr { id, kind, span })
     }
 
     /// Creates an allocated HIR statement.
@@ -393,12 +393,12 @@ impl<'hir, 'id> HirBuilder<'hir, 'id> {
 
     /// Creates an owned HIR expression with the given ID, kind and span.
     pub fn expr_owned(&self, id: ExprId, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
-        Expr { id, kind, span, call_options: None }
+        Expr { id, kind, span }
     }
 
     /// Creates an owned HIR expression with automatically generated ID.
     pub fn expr_auto(&self, kind: ExprKind<'hir>, span: Span) -> Expr<'hir> {
-        Expr { id: self.next_expr_id(), kind, span, call_options: None }
+        Expr { id: self.next_expr_id(), kind, span }
     }
 
     /// Creates a HIR statement with the given kind and span.
@@ -1463,8 +1463,6 @@ pub struct Expr<'hir> {
     pub kind: ExprKind<'hir>,
     /// The expression span.
     pub span: Span,
-    /// Function call options attached to this expression, e.g. `foo{ gas: 100_000 }`.
-    pub call_options: Option<&'hir [CallOptions<'hir>]>,
 }
 
 impl Expr<'_> {
@@ -1491,7 +1489,7 @@ pub enum ExprKind<'hir> {
     Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
 
     /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
-    Call(&'hir Expr<'hir>, CallArgs<'hir>),
+    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir [CallOptions<'hir>]>),
 
     // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.
@@ -1800,7 +1798,7 @@ mod tests {
         assert_size::<TypeKind<'_>>(str!["16"]);
         assert_size::<Type<'_>>(str!["24"]);
 
-        assert_size::<ExprKind<'_>>(str!["40"]);
+        assert_size::<ExprKind<'_>>(str!["56"]);
         assert_size::<Expr<'_>>(str!["72"]);
 
         assert_size::<StmtKind<'_>>(str!["32"]);
