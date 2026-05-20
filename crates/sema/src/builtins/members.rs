@@ -3,7 +3,7 @@ use crate::{
     hir,
     ty::{Gcx, Ty, TyFn, TyKind},
 };
-use solar_ast::{DataLocation, ElementaryType, StateMutability as SM};
+use solar_ast::{DataLocation, ElementaryType, StateMutability as SM, Visibility};
 use solar_data_structures::BumpExt;
 use solar_interface::Symbol;
 
@@ -231,14 +231,13 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
     if contract.kind.is_library() {
         contract
             .functions()
-            .filter(|&id| gcx.hir.function(id).is_ordinary())
+            .filter(|&id| {
+                let f = gcx.hir.function(id);
+                f.is_ordinary() && f.visibility >= Visibility::Internal
+            })
             .map(|id| {
                 let item = hir::ItemId::from(id);
-                Member::with_res(
-                    gcx.item_name(item).name,
-                    gcx.type_of_function_via_contract_name(id),
-                    item,
-                )
+                Member::with_res(gcx.item_name(item).name, function_via_contract(gcx, id), item)
             })
             .collect()
     } else {
@@ -246,10 +245,24 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
             .iter()
             .map(|f| {
                 let id = hir::ItemId::from(f.id);
-                let ty = gcx.type_of_function_via_contract_name(f.id);
+                let ty = function_via_contract(gcx, f.id);
                 Member::with_res(gcx.item_name(id).name, ty, id)
             })
             .collect()
+    }
+}
+
+fn function_via_contract<'gcx>(gcx: Gcx<'gcx>, id: hir::FunctionId) -> Ty<'gcx> {
+    let f = gcx.hir.function(id);
+    let ty = gcx.type_of_item(id.into());
+    if f.contract.is_some_and(|contract_id| gcx.hir.contract(contract_id).kind.is_library()) {
+        if f.visibility >= Visibility::Public {
+            ty.as_externally_callable_library_function(gcx)
+        } else {
+            ty
+        }
+    } else {
+        ty.as_declaration_function(gcx)
     }
 }
 

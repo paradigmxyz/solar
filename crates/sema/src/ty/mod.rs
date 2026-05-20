@@ -395,29 +395,12 @@ impl<'gcx> Gcx<'gcx> {
         state_mutability: StateMutability,
         returns: &[Ty<'gcx>],
     ) -> Ty<'gcx> {
-        self.mk_ty_fn_with_id(kind, parameters, state_mutability, returns, None)
-    }
-
-    pub fn mk_ty_fn_with_id(
-        self,
-        kind: TyFnKind,
-        parameters: &[Ty<'gcx>],
-        state_mutability: StateMutability,
-        returns: &[Ty<'gcx>],
-        function_id: Option<hir::FunctionId>,
-    ) -> Ty<'gcx> {
-        let state_mutability =
-            if kind == TyFnKind::Internal && state_mutability == StateMutability::Payable {
-                StateMutability::NonPayable
-            } else {
-                state_mutability
-            };
         self.mk_ty_fn(TyFn {
             kind,
             parameters: self.mk_tys(parameters),
             returns: self.mk_tys(returns),
-            state_mutability,
-            function_id,
+            state_mutability: fn_state_mutability(kind, state_mutability),
+            function_id: None,
         })
     }
 
@@ -629,12 +612,13 @@ impl<'gcx> Gcx<'gcx> {
                 } else {
                     TyFnKind::Internal
                 };
-                return self.mk_ty_fn_with_kind(
+                return self.mk_ty_fn(TyFn {
                     kind,
-                    self.mk_item_tys(f.parameters),
-                    f.state_mutability,
-                    self.mk_item_tys(f.returns),
-                );
+                    parameters: self.mk_item_tys(f.parameters),
+                    returns: self.mk_item_tys(f.returns),
+                    state_mutability: fn_state_mutability(kind, f.state_mutability),
+                    function_id: None,
+                });
             }
             hir::TypeKind::Mapping(mapping) => {
                 let key = self.type_of_hir_ty(&mapping.key);
@@ -728,6 +712,14 @@ fn compatible_fixed_bytes_type(lit: &hir::Lit<'_>) -> Option<TypeSize> {
     }
 }
 
+fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> StateMutability {
+    if kind == TyFnKind::Internal && state_mutability == StateMutability::Payable {
+        StateMutability::NonPayable
+    } else {
+        state_mutability
+    }
+}
+
 macro_rules! cached {
     ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
         #[derive(Default)]
@@ -798,7 +790,15 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         functions
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
-        let ty = gcx.type_of_interface_function(f_id);
+        let ty = gcx
+            .mk_ty_fn(TyFn {
+                kind: TyFnKind::External,
+                parameters: gcx.mk_item_tys(f.parameters),
+                returns: gcx.mk_item_tys(f.returns),
+                state_mutability: fn_state_mutability(TyFnKind::External, f.state_mutability),
+                function_id: Some(f_id),
+            })
+            .as_externally_callable_function(gcx);
         let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
         for (var_id, ty) in f.variables().zip(ty_f.tys()) {
@@ -891,50 +891,6 @@ pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
     keccak256(gcx.item_signature(id))
 }
 
-/// Returns the function definition type.
-///
-/// This corresponds to solc `FunctionDefinition::type()`.
-pub fn type_of_function(gcx: _, id: hir::FunctionId) -> Ty<'gcx> {
-    let f = gcx.hir.function(id);
-    gcx.mk_ty_fn_with_id(
-        TyFnKind::Internal,
-        gcx.mk_item_tys(f.parameters),
-        f.state_mutability,
-        gcx.mk_item_tys(f.returns),
-        Some(id),
-    )
-}
-
-/// Returns the function type used in external interfaces.
-pub fn type_of_interface_function(gcx: _, id: hir::FunctionId) -> Ty<'gcx> {
-    let f = gcx.hir.function(id);
-    gcx.mk_ty_fn_with_id(
-        TyFnKind::External,
-        gcx.mk_item_tys(f.parameters),
-        f.state_mutability,
-        gcx.mk_item_tys(f.returns),
-        Some(id),
-    )
-    .as_externally_callable_function(gcx)
-}
-
-/// Returns the function type exposed by contract-type member access.
-///
-/// This corresponds to solc `FunctionDefinition::typeViaContractName()`.
-pub fn type_of_function_via_contract_name(gcx: _, id: hir::FunctionId) -> Ty<'gcx> {
-    let f = gcx.hir.function(id);
-    let ty = gcx.type_of_function(id);
-    if f.contract.is_some_and(|contract_id| gcx.hir.contract(contract_id).kind.is_library()) {
-        if f.visibility >= Visibility::Public {
-            ty.as_externally_callable_library_function(gcx)
-        } else {
-            ty
-        }
-    } else {
-        ty.as_declaration_function(gcx)
-    }
-}
-
 /// Returns the type of the given builtin.
 pub fn type_of_builtin(gcx: _, builtin: Builtin) -> Ty<'gcx> {
     builtin.ty_impl(gcx)
@@ -944,7 +900,16 @@ pub fn type_of_builtin(gcx: _, builtin: Builtin) -> Ty<'gcx> {
 pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
     let kind = match id {
         hir::ItemId::Contract(id) => TyKind::Contract(id),
-        hir::ItemId::Function(id) => return gcx.type_of_function(id),
+        hir::ItemId::Function(id) => {
+            let f = gcx.hir.function(id);
+            return gcx.mk_ty_fn(TyFn {
+                kind: TyFnKind::Internal,
+                parameters: gcx.mk_item_tys(f.parameters),
+                returns: gcx.mk_item_tys(f.returns),
+                state_mutability: fn_state_mutability(TyFnKind::Internal, f.state_mutability),
+                function_id: Some(id),
+            });
+        }
         hir::ItemId::Variable(id) => {
             let var = gcx.hir.variable(id);
             let ty = gcx.type_of_hir_ty(&var.ty);

@@ -166,7 +166,13 @@ impl<'gcx> Ty<'gcx> {
         } else {
             returns
         };
-        gcx.mk_ty_fn_with_id(kind, parameters, f.state_mutability, returns, f.function_id)
+        gcx.mk_ty_fn(TyFn {
+            kind,
+            parameters,
+            returns,
+            state_mutability: f.state_mutability,
+            function_id: f.function_id,
+        })
     }
 
     pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
@@ -183,13 +189,13 @@ impl<'gcx> Ty<'gcx> {
         if f.is_declaration() {
             return self;
         }
-        gcx.mk_ty_fn_with_id(
-            TyFnKind::Declaration,
-            f.parameters,
-            f.state_mutability,
-            f.returns,
-            f.function_id,
-        )
+        gcx.mk_ty_fn(TyFn {
+            kind: TyFnKind::Declaration,
+            parameters: f.parameters,
+            returns: f.returns,
+            state_mutability: f.state_mutability,
+            function_id: f.function_id,
+        })
     }
 
     pub fn make_ref(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
