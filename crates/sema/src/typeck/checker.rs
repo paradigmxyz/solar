@@ -370,7 +370,6 @@ impl<'gcx> TypeChecker<'gcx> {
                         let err = self.dcx().err(msg).span(ident.span);
                         self.gcx.mk_ty_err(err.emit())
                     }
-                    Err(MemberAccessError::Attached) => self.attached_function_access_error(ident),
                     Err(MemberAccessError::Ambiguous) => {
                         let msg = format!(
                             "member `{ident}` not unique on type `{}`",
@@ -933,11 +932,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Result<&'a members::Member<'gcx>, MemberAccessError> {
         match members {
             [] => Err(MemberAccessError::NotFound),
-            [member] if member.attached => Err(MemberAccessError::Attached),
             [member] => Ok(member),
-            [..] if members.iter().all(|member| member.attached) => {
-                Err(MemberAccessError::Attached)
-            }
             [..] => Err(MemberAccessError::Ambiguous),
         }
     }
@@ -982,11 +977,6 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    fn attached_function_access_error(&self, ident: Ident) -> Ty<'gcx> {
-        let msg = format!("attached function `{ident}` can only be called");
-        self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
-    }
-
     fn member_call_ty(&self, receiver_ty: Ty<'gcx>, member: &members::Member<'gcx>) -> Ty<'gcx> {
         if !member.attached {
             return member.ty;
@@ -1004,6 +994,7 @@ impl<'gcx> TypeChecker<'gcx> {
             state_mutability: function_ty.state_mutability,
             visibility: function_ty.visibility,
             function_id: function_ty.function_id,
+            attached: false,
         })
     }
 
@@ -1758,7 +1749,6 @@ enum OverloadError {
 
 enum MemberAccessError {
     NotFound,
-    Attached,
     Ambiguous,
 }
 

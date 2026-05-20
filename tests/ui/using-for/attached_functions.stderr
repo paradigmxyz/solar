@@ -1,14 +1,20 @@
-error: attached function `inc` can only be called
+error: member `address` not found on type `function (uint256) pure external returns (uint256)`
    ╭▸ ROOT/tests/ui/using-for/attached_functions.sol:LL:CC
    │
-LL │         x.inc;
-   ╰╴          ━━━
+LL │         x.ext.address;
+   ╰╴              ━━━━━━━
 
-error: attached function `pick` can only be called
+error: member `pick` not unique on type `uint256`
    ╭▸ ROOT/tests/ui/using-for/attached_functions.sol:LL:CC
    │
 LL │         x.pick;
    ╰╴          ━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/using-for/attached_functions.sol:LL:CC
+   │
+LL │         function(uint256) internal pure returns (uint256) ptr = x.inc;
+   ╰╴                                                                ━━━━━ attached functions cannot be converted into unattached functions
 
 error: wrong argument count for function call: 1 arguments given but expected 0
    ╭▸ ROOT/tests/ui/using-for/attached_functions.sol:LL:CC
@@ -26,5 +32,5 @@ LL │         x.add();
    │              │
    ╰╴             expected 1 argument, found 0
 
-error: aborting due to 4 previous errors
+error: aborting due to 5 previous errors
 

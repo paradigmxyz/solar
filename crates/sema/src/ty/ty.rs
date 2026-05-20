@@ -36,6 +36,9 @@ pub enum TyConvertError {
     /// Invalid conversion between types.
     InvalidConversion,
 
+    /// Attached function cannot be converted to an unattached function pointer.
+    AttachedFunction,
+
     /// Literal is larger than the target type.
     LiteralTooLarge,
 
@@ -68,6 +71,9 @@ impl TyConvertError {
             }
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::AttachedFunction => {
+                "attached functions cannot be converted into unattached functions".to_string()
             }
             Self::LiteralTooLarge => {
                 format!(
@@ -179,6 +185,19 @@ impl<'gcx> Ty<'gcx> {
             state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
             visibility: self.visibility().unwrap_or(Visibility::Public),
             function_id: None,
+            attached: false,
+        })
+    }
+
+    pub fn as_attached_function(self, gcx: Gcx<'gcx>) -> Self {
+        let TyKind::FnPtr(f) = self.kind else { return self };
+        gcx.mk_ty_fn_ptr(TyFnPtr {
+            parameters: f.parameters,
+            returns: f.returns,
+            state_mutability: f.state_mutability,
+            visibility: f.visibility,
+            function_id: f.function_id,
+            attached: true,
         })
     }
 
@@ -773,6 +792,13 @@ impl<'gcx> Ty<'gcx> {
             // Function pointer conversions.
             // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
             (FnPtr(from_fn), FnPtr(to_fn)) => {
+                if from_fn.attached != to_fn.attached {
+                    if from_fn.attached {
+                        return Result::Err(TyConvertError::AttachedFunction);
+                    }
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+
                 // Parameter and return types must match exactly (no implicit conversion).
                 if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
                     return Result::Err(TyConvertError::Incompatible);
@@ -1154,6 +1180,8 @@ pub struct TyFnPtr<'gcx> {
     pub state_mutability: StateMutability,
     pub visibility: Visibility,
     pub function_id: Option<hir::FunctionId>,
+    /// Whether the first parameter is bound to a receiver in member-access syntax.
+    pub attached: bool,
 }
 
 impl<'gcx> TyFnPtr<'gcx> {

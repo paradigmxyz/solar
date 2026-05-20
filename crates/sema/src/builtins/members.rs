@@ -151,7 +151,7 @@ fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberListOwned<'gc
     if f.visibility >= hir::Visibility::Public {
         members.push(Member::of_builtin(gcx, Builtin::FunctionSelector));
     }
-    if f.visibility == hir::Visibility::External {
+    if f.visibility == hir::Visibility::External && !f.attached {
         members.push(Member::of_builtin(gcx, Builtin::FunctionAddress));
     }
     members

@@ -403,6 +403,7 @@ impl<'gcx> Gcx<'gcx> {
             state_mutability,
             visibility,
             function_id: None,
+            attached: false,
         })
     }
 
@@ -615,6 +616,7 @@ impl<'gcx> Gcx<'gcx> {
                     state_mutability: f.state_mutability,
                     visibility: f.visibility,
                     function_id: None,
+                    attached: false,
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
@@ -795,7 +797,7 @@ impl<'gcx> Gcx<'gcx> {
         seen: &mut FxHashSet<(Symbol, hir::FunctionId)>,
         members: &mut Vec<members::Member<'gcx>>,
     ) {
-        let fn_ty = self.type_of_item(function.into());
+        let fn_ty = self.type_of_item(function.into()).as_attached_function(self);
         let TyKind::FnPtr(function_ty) = fn_ty.kind else {
             return;
         };
@@ -1053,6 +1055,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 state_mutability: f.state_mutability,
                 visibility: f.visibility,
                 function_id: Some(id),
+                attached: false,
             }))
         }
         hir::ItemId::Variable(id) => {
