@@ -3,10 +3,28 @@ use crate::{
     hir,
     ty::{Ty, TyKind},
 };
-use solar_ast::{DataLocation, ElementaryType, Span};
+use solar_ast::{DataLocation, ElementaryType, LitKind, Span};
 use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
+    pub(super) fn check_yul_lit(&self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
+        if let LitKind::Str(_, s, _) = &lit.kind {
+            let len = s.as_byte_str().len();
+            return if len <= 32 {
+                self.gcx.types.uint(256)
+            } else {
+                self.gcx.mk_ty_err(
+                    self.dcx()
+                        .err(format!("string literal too long ({len} > 32)"))
+                        .span(lit.span)
+                        .emit(),
+                )
+            };
+        }
+
+        self.gcx.type_of_lit(lit)
+    }
+
     /// Checks whether a resolved identifier should be treated as an external Solidity reference in
     /// Yul. Returns `Ok(true)` when the identifier was accepted and should be typed as a Yul word,
     /// `Ok(false)` when it is not a Yul external reference and normal typing should continue, and
@@ -85,7 +103,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         }
 
-        if matches!(ty.kind, TyKind::FnPtr(f) if f.visibility == hir::Visibility::External) {
+        if matches!(ty.kind, TyKind::Fn(f) if f.is_external()) {
             return Err(self
                 .dcx()
                 .err("only types that use one stack slot are supported")
@@ -283,10 +301,8 @@ fn yul_member_set(var: &hir::Variable<'_>, ty: Ty<'_>) -> Option<YulMemberSet> {
         return Some(YulMemberSet::Calldata);
     }
 
-    if let TyKind::FnPtr(f) = ty.kind {
-        return Some(YulMemberSet::Function {
-            external: f.visibility == hir::Visibility::External,
-        });
+    if let TyKind::Fn(f) = ty.kind {
+        return Some(YulMemberSet::Function { external: f.is_external() });
     }
 
     None

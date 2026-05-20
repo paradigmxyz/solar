@@ -1,7 +1,7 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir,
-    ty::{Gcx, Ty},
+    ty::{Gcx, Ty, TyFnKind},
 };
 use solar_ast::StateMutability as SM;
 use solar_data_structures::map::FxHashMap;
@@ -197,11 +197,11 @@ declare_builtins! {
     AddressCodehash        => sym::codehash
                            => gcx.types.fixed_bytes(32);
     AddressCall            => kw::Call
-                           => gcx.mk_builtin_fn(&[gcx.types.bytes_ref.memory], SM::View, &[gcx.types.bytes_ref.memory]);
+                           => gcx.mk_ty_fn_with_kind(TyFnKind::BareCall, &[gcx.types.bytes_ref.memory], SM::Payable, &[gcx.types.bool, gcx.types.bytes_ref.memory]);
     AddressDelegatecall    => kw::Delegatecall
-                           => gcx.mk_builtin_fn(&[gcx.types.bytes_ref.memory], SM::View, &[gcx.types.bytes_ref.memory]);
+                           => gcx.mk_ty_fn_with_kind(TyFnKind::BareDelegateCall, &[gcx.types.bytes_ref.memory], SM::NonPayable, &[gcx.types.bool, gcx.types.bytes_ref.memory]);
     AddressStaticcall      => kw::Staticcall
-                           => gcx.mk_builtin_fn(&[gcx.types.bytes_ref.memory], SM::View, &[gcx.types.bytes_ref.memory]);
+                           => gcx.mk_ty_fn_with_kind(TyFnKind::BareStaticCall, &[gcx.types.bytes_ref.memory], SM::View, &[gcx.types.bool, gcx.types.bytes_ref.memory]);
 
     AddressPayableTransfer => sym::transfer
                            => gcx.mk_builtin_fn(&[gcx.types.uint(256)], SM::NonPayable, &[]);

@@ -46,6 +46,74 @@ error: mismatched types
 LL │         function() external pure returns (uint256) f = privateTarget;
    ╰╴                                                       ━━━━━━━━━━━━━ expected `function () pure external returns (uint256)`, found `function () pure returns (uint256)`
 
+error: cannot apply builtin operator `!=` to `function ()` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         return internalPtr != externalPtr &&
+   │                ┬────────── ━━ ─────────── function () external
+   │                │
+   ╰╴               function ()
+
+error: cannot apply builtin operator `!=` to `function () pure` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │             internalTarget != this.f;
+   │             ┬───────────── ━━ ────── function () external
+   │             │
+   ╰╴            function () pure
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function () external externalPtr1 = this.externalWithUint;
+   ╰╴                                            ━━━━━━━━━━━━━━━━━━━━━ expected `function () external`, found `function (uint256) external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         function () external externalPtr2 = this.externalWithBool;
+   ╰╴                                            ━━━━━━━━━━━━━━━━━━━━━ expected `function () external`, found `function (bool) external`
+
+error: cannot apply builtin operator `==` to `function (uint256) external` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         return this.externalWithUint == externalPtr1 &&
+   │                ┬──────────────────── ━━ ──────────── function () external
+   │                │
+   ╰╴               function (uint256) external
+
+error: cannot apply builtin operator `==` to `function (bool) external` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │             this.externalWithBool == externalPtr2 &&
+   │             ┬──────────────────── ━━ ──────────── function () external
+   │             │
+   ╰╴            function (bool) external
+
+error: cannot apply builtin operator `!=` to `function (bool) external` and `function (uint256) external`
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │             this.externalWithBool != this.externalWithUint;
+   │             ┬──────────────────── ━━ ───────────────────── function (uint256) external
+   │             │
+   ╰╴            function (bool) external
+
+error: cannot apply builtin operator `==` to `function ()` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │         return FunctionComparisonLib.f == externalPtr ||
+   │                ┬────────────────────── ━━ ─────────── function () external
+   │                │
+   ╰╴               function ()
+
+error: cannot apply builtin operator `==` to `function ()` and `function ()`
+   ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
+   │
+LL │             FunctionComparisonLib.f == FunctionComparisonLib.g;
+   │             ┬────────────────────── ━━ ─────────────────────── function ()
+   │             │
+   ╰╴            function ()
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/implicit_function_ptr.sol:LL:CC
    │
@@ -94,5 +162,5 @@ error: mismatched types
 LL │         function() pure external g = this.h;
    ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () view external`
 
-error: aborting due to 16 previous errors
+error: aborting due to 25 previous errors
 

@@ -2,12 +2,14 @@ use crate::{
     builtins::{Builtin, members},
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyFnPtr, TyKind},
+    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, ElementaryType, Span, TypeSize, UserDefinableOperator};
+use solar_ast::{
+    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
+};
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, sym};
+use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, kw, sym};
 use std::ops::ControlFlow;
 
 type ParamNames = SmallVec<[Option<Symbol>; 8]>;
@@ -177,7 +179,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
-            hir::ExprKind::Call(callee, ref args, ref _opts) => {
+            hir::ExprKind::Call(callee, ref args, opts) => {
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
                     self.check_member_call_callee(callee, receiver, ident, args)
                 } else if let hir::ExprKind::Ident(res) = callee.kind {
@@ -185,6 +187,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 } else {
                     self.check_expr(callee)
                 };
+                if let Some(opts) = opts {
+                    callee_ty = self.check_call_options(callee_ty, opts.args, opts.span);
+                }
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
                 let struct_id = if let TyKind::Type(struct_ty) = callee_ty.kind
@@ -200,7 +205,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 let is_array_push = false;
 
                 let ty = match callee_ty.kind {
-                    TyKind::FnPtr(f) => {
+                    TyKind::Fn(f) => {
+                        if f.is_declaration() {
+                            return self.gcx.mk_ty_err(
+                                self.dcx()
+                                    .err("cannot call function via contract type name")
+                                    .span(expr.span)
+                                    .emit(),
+                            );
+                        }
                         let param_names = if let Some(struct_id) = struct_id {
                             Some(self.get_struct_field_names(struct_id))
                         } else {
@@ -346,6 +359,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty_err(self.dcx().err("cannot index").span(expr.span).emit())
                 }
             }
+            hir::ExprKind::Lit(lit) if self.in_yul => self.check_yul_lit(lit),
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(expr, ident) => {
                 let expr_ty = self.check_expr(expr);
@@ -420,28 +434,23 @@ impl<'gcx> TypeChecker<'gcx> {
                 match ty.kind {
                     TyKind::Contract(id) => {
                         let c = self.gcx.hir.contract(id);
-                        let kind = c.kind;
-                        if !kind.is_contract() {
-                            let msg = format!("cannot instantiate {kind}s");
+                        if !c.kind.is_contract() {
+                            let msg = format!("cannot instantiate {}s", c.kind);
                             self.gcx.mk_ty_err(self.dcx().err(msg).span(hir_ty.span).emit())
                         } else {
                             let mut parameters: &[Ty<'_>] = &[];
                             let mut sm = hir::StateMutability::NonPayable;
                             if let Some(ctor) = c.ctor {
-                                let func_ty = self.gcx.type_of_item(ctor.into());
-                                let TyKind::FnPtr(f) = func_ty.kind else { unreachable!() };
-                                parameters = f.parameters;
+                                let f = self.gcx.hir.function(ctor);
+                                parameters = self.gcx.mk_item_tys(f.parameters);
                                 sm = f.state_mutability;
-                                debug_assert!(
-                                    f.returns.is_empty(),
-                                    "non-empty constructor returns"
-                                );
                             }
-                            self.gcx.mk_builtin_fn(parameters, sm, &[ty])
+                            self.gcx.mk_creation_fn(parameters, sm, &[ty])
                         }
                     }
                     TyKind::Array(..) => {
-                        let mut err = self.dcx().err("cannot instantiate static arrays");
+                        let mut err =
+                            self.dcx().err("cannot instantiate static arrays").span(hir_ty.span);
                         if let hir::TypeKind::Array(hir::TypeArray {
                             element: _,
                             size: Some(size_expr),
@@ -459,6 +468,13 @@ impl<'gcx> TypeChecker<'gcx> {
                             self.gcx.mk_ty_err(
                                 self.dcx()
                                     .err("cannot instantiate mappings")
+                                    .span(hir_ty.span)
+                                    .emit(),
+                            )
+                        } else if ty.contains_library(self.gcx) {
+                            self.gcx.mk_ty_err(
+                                self.dcx()
+                                    .err("invalid use of a library name")
                                     .span(hir_ty.span)
                                     .emit(),
                             )
@@ -724,7 +740,7 @@ impl<'gcx> TypeChecker<'gcx> {
             op,
             false,
             &mut |function| {
-                let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
+                let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind else {
                     return;
                 };
                 if rhs.convert_implicit_to(function_ty.parameters[1], self.gcx) {
@@ -743,7 +759,7 @@ impl<'gcx> TypeChecker<'gcx> {
         match functions {
             WantOne::Zero => None,
             WantOne::One(function) => {
-                let TyKind::FnPtr(function_ty) = self.gcx.type_of_item(function.into()).kind else {
+                let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind else {
                     unreachable!()
                 };
                 Some(self.fn_call_return_type(function_ty.returns))
@@ -982,17 +998,17 @@ impl<'gcx> TypeChecker<'gcx> {
             return member.ty;
         }
 
-        let TyKind::FnPtr(function_ty) = member.ty.kind else { return member.ty };
+        let TyKind::Fn(function_ty) = member.ty.kind else { return member.ty };
         let Some((&self_ty, parameters)) = function_ty.parameters.split_first() else {
             return member.ty;
         };
         debug_assert!(receiver_ty.convert_implicit_to(self_ty, self.gcx));
 
-        self.gcx.mk_ty_fn_ptr(TyFnPtr {
+        self.gcx.mk_ty_fn(TyFn {
+            kind: function_ty.kind,
             parameters,
             returns: function_ty.returns,
             state_mutability: function_ty.state_mutability,
-            visibility: function_ty.visibility,
             function_id: function_ty.function_id,
             attached: false,
         })
@@ -1031,7 +1047,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallCandidateParams<'gcx>> {
         match ty.kind {
-            TyKind::FnPtr(function_ty) => {
+            TyKind::Fn(function_ty) => {
                 let param_names = function_ty
                     .function_id
                     .map(|id| self.get_call_param_names(id, function_ty.parameters.len()));
@@ -1085,7 +1101,7 @@ impl<'gcx> TypeChecker<'gcx> {
         receiver_ty: Ty<'gcx>,
         member: &members::Member<'gcx>,
     ) -> Option<CallCandidateParams<'gcx>> {
-        let TyKind::FnPtr(function_ty) = member.ty.kind else { return None };
+        let TyKind::Fn(function_ty) = member.ty.kind else { return None };
         let parameters = if member.attached {
             let (&self_ty, parameters) = function_ty.parameters.split_first()?;
             if !receiver_ty.convert_implicit_to(self_ty, self.gcx) {
@@ -1143,6 +1159,108 @@ impl<'gcx> TypeChecker<'gcx> {
     fn arg_matches(&mut self, expr: &'gcx hir::Expr<'gcx>, param_ty: Ty<'gcx>) -> bool {
         let ty = self.check_expr_once(expr);
         ty.try_convert_implicit_to(param_ty, self.gcx).is_ok()
+    }
+
+    fn check_call_options(
+        &mut self,
+        ty: Ty<'gcx>,
+        opts: &'gcx [hir::NamedArg<'gcx>],
+        span: Span,
+    ) -> Ty<'gcx> {
+        let TyKind::Fn(f) = ty.kind else {
+            for opt in opts {
+                let _ = self.check_expr(&opt.value);
+            }
+            if !ty.references_error() {
+                self.dcx()
+                    .err("function call options can only be set on external function calls or contract creations")
+                    .span(span)
+                    .emit();
+            }
+            return ty;
+        };
+
+        let creation = f.is_creation();
+        if !creation && !f.is_external() && !f.is_bare_call() {
+            self.dcx()
+                .err("function call options can only be set on external function calls or contract creations")
+                .span(span)
+                .emit();
+        }
+
+        let mut gas_set = false;
+        let mut value_set = false;
+        let mut salt_set = false;
+        for opt in opts {
+            let name = opt.name.name;
+            let duplicate = match name {
+                kw::Gas => {
+                    if creation {
+                        self.dcx()
+                            .err("function call option `gas` cannot be used with `new`")
+                            .span(opt.name.span)
+                            .emit();
+                    } else {
+                        let _ = self.expect_ty(&opt.value, self.gcx.types.uint(256));
+                    }
+                    std::mem::replace(&mut gas_set, true)
+                }
+                sym::value => {
+                    if f.kind == TyFnKind::BareDelegateCall {
+                        self.dcx()
+                            .err("cannot set option `value` for delegatecall")
+                            .span(opt.name.span)
+                            .emit();
+                    } else if f.kind == TyFnKind::BareStaticCall {
+                        self.dcx()
+                            .err("cannot set option `value` for staticcall")
+                            .span(opt.name.span)
+                            .emit();
+                    } else if f.state_mutability != StateMutability::Payable {
+                        let msg = if creation
+                            && let Some(ret) = f.returns.first()
+                            && let TyKind::Contract(id) = ret.kind
+                        {
+                            let name = self.gcx.item_name(hir::ItemId::from(id)).name;
+                            format!(
+                                "cannot set option `value`, since the constructor of contract `{name}` is not payable"
+                            )
+                        } else {
+                            "cannot set option `value` on a non-payable function type".to_string()
+                        };
+                        self.dcx().err(msg).span(opt.name.span).emit();
+                    }
+                    let _ = self.expect_ty(&opt.value, self.gcx.types.uint(256));
+                    std::mem::replace(&mut value_set, true)
+                }
+                sym::salt => {
+                    if !creation {
+                        self.dcx()
+                            .err("function call option `salt` can only be used with `new`")
+                            .span(opt.name.span)
+                            .emit();
+                    }
+                    let _ = self.expect_ty(&opt.value, self.gcx.types.fixed_bytes(32));
+                    std::mem::replace(&mut salt_set, true)
+                }
+                _ => {
+                    self.dcx()
+                        .err(format!("unknown call option `{name}`"))
+                        .span(opt.name.span)
+                        .emit();
+                    let _ = self.check_expr(&opt.value);
+                    false
+                }
+            };
+            if duplicate {
+                self.dcx()
+                    .err(format!("duplicate call option `{name}`"))
+                    .span(opt.name.span)
+                    .emit();
+            }
+        }
+
+        ty
     }
 
     fn check_positional_call_args(
@@ -1284,8 +1402,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     .span(var.span)
                     .emit();
             }
-            if let TyKind::FnPtr(f) = ty.kind
-                && f.visibility == hir::Visibility::External
+            if let TyKind::Fn(f) = ty.kind
+                && f.is_external()
             {
                 self.dcx()
                     .err("immutable variables of external function type are not yet supported")
@@ -1807,7 +1925,7 @@ fn valid_delete(ty: Ty<'_>) -> bool {
     }
 
     match ty.kind {
-        TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::FnPtr(_) => true,
+        TyKind::Elementary(_) | TyKind::Contract(_) | TyKind::Enum(_) | TyKind::Fn(_) => true,
         TyKind::Ref(_, loc) => !matches!(loc, DataLocation::Calldata),
 
         TyKind::Err(_) => true,
@@ -1911,10 +2029,19 @@ fn binop_common_type<'gcx>(
             }
         }
 
-        TyKind::FnPtr(_) => {
-            // TODO: Compare internal function pointers
-            // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3193
-            None
+        TyKind::Fn(f) => {
+            use hir::BinOpKind::*;
+
+            let TyKind::Fn(other_fn) = other.kind else { return None };
+            if !matches!(op, Eq | Ne) {
+                return None;
+            }
+            if !((f.is_internal() && other_fn.is_internal())
+                || (f.is_external() && other_fn.is_external()))
+            {
+                return None;
+            }
+            ty.common_type(other, gcx)
         }
 
         TyKind::Elementary(hir::ElementaryType::String)

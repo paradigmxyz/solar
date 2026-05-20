@@ -1,0 +1,38 @@
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/declaration_function_calls.sol:LL:CC
+   │
+LL │         A.f();
+   ╰╴        ━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/declaration_function_calls.sol:LL:CC
+   │
+LL │         A.g();
+   ╰╴        ━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/declaration_function_calls.sol:LL:CC
+   │
+LL │         A.h();
+   ╰╴        ━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/declaration_function_calls.sol:LL:CC
+   │
+LL │     A.f();
+   ╰╴    ━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/declaration_function_calls.sol:LL:CC
+   │
+LL │         Base.externalBase();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/declaration_function_calls.sol:LL:CC
+   │
+LL │         BaseMembers.externalMember();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
+

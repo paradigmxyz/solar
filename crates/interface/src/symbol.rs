@@ -994,6 +994,7 @@ symbols! {
         require,
         ripemd160,
         runtimeCode,
+        salt,
         selector,
         send,
         sender,

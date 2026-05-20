@@ -43,7 +43,7 @@ use interner::Interner;
 #[allow(clippy::module_inception)]
 mod ty;
 pub(crate) use ty::SameSourceFileLevelUserTypeError;
-pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
+pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
@@ -56,7 +56,7 @@ pub struct InterfaceFunction<'gcx> {
     pub id: hir::FunctionId,
     /// The function 4-byte selector.
     pub selector: Selector,
-    /// The function type. This is always a function pointer.
+    /// The function type.
     pub ty: Ty<'gcx>,
 }
 
@@ -354,7 +354,7 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::Tuple(tys))
     }
 
-    fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
+    pub(crate) fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
         self.mk_ty_iter(ids.iter().map(|&id| self.type_of_item(id.into())))
     }
 
@@ -386,22 +386,22 @@ impl<'gcx> Gcx<'gcx> {
         )))
     }
 
-    pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
-        self.mk_ty(TyKind::FnPtr(self.interner.intern_ty_fn_ptr(self.bump(), ptr)))
+    pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
+        self.mk_ty(TyKind::Fn(self.interner.intern_ty_fn(self.bump(), ptr)))
     }
 
-    pub fn mk_ty_fn(
+    pub fn mk_ty_fn_with_kind(
         self,
+        kind: TyFnKind,
         parameters: &[Ty<'gcx>],
         state_mutability: StateMutability,
-        visibility: Visibility,
         returns: &[Ty<'gcx>],
     ) -> Ty<'gcx> {
-        self.mk_ty_fn_ptr(TyFnPtr {
+        self.mk_ty_fn(TyFn {
+            kind,
             parameters: self.mk_tys(parameters),
             returns: self.mk_tys(returns),
-            state_mutability,
-            visibility,
+            state_mutability: fn_state_mutability(kind, state_mutability),
             function_id: None,
             attached: false,
         })
@@ -413,13 +413,22 @@ impl<'gcx> Gcx<'gcx> {
         state_mutability: StateMutability,
         returns: &[Ty<'gcx>],
     ) -> Ty<'gcx> {
-        self.mk_ty_fn(parameters, state_mutability, Visibility::Internal, returns)
+        self.mk_ty_fn_with_kind(TyFnKind::Internal, parameters, state_mutability, returns)
     }
 
     pub(crate) fn mk_yul_builtin_fn(self, parameters: usize, returns: usize) -> Ty<'gcx> {
         let parameters = vec![self.types.uint(256); parameters];
         let returns = vec![self.types.uint(256); returns];
         self.mk_builtin_fn(&parameters, StateMutability::NonPayable, &returns)
+    }
+
+    pub(crate) fn mk_creation_fn(
+        self,
+        parameters: &[Ty<'gcx>],
+        state_mutability: StateMutability,
+        returns: &[Ty<'gcx>],
+    ) -> Ty<'gcx> {
+        self.mk_ty_fn_with_kind(TyFnKind::Creation, parameters, state_mutability, returns)
     }
 
     pub(crate) fn mk_builtin_mod(self, builtin: Builtin) -> Ty<'gcx> {
@@ -610,11 +619,16 @@ impl<'gcx> Gcx<'gcx> {
                 }
             }
             hir::TypeKind::Function(f) => {
-                return self.mk_ty_fn_ptr(TyFnPtr {
+                let kind = if f.visibility == Visibility::External {
+                    TyFnKind::External
+                } else {
+                    TyFnKind::Internal
+                };
+                return self.mk_ty_fn(TyFn {
+                    kind,
                     parameters: self.mk_item_tys(f.parameters),
                     returns: self.mk_item_tys(f.returns),
-                    state_mutability: f.state_mutability,
-                    visibility: f.visibility,
+                    state_mutability: fn_state_mutability(kind, f.state_mutability),
                     function_id: None,
                     attached: false,
                 });
@@ -725,8 +739,7 @@ impl<'gcx> Gcx<'gcx> {
                 }
                 let hir::UsingEntryKind::Functions(candidates) = entry.kind else { continue };
                 for &function_id in candidates {
-                    let TyKind::FnPtr(function_ty) = self.type_of_item(function_id.into()).kind
-                    else {
+                    let TyKind::Fn(function_ty) = self.type_of_item(function_id.into()).kind else {
                         continue;
                     };
                     if function_ty.parameters.len() != if unary { 1 } else { 2 } {
@@ -797,8 +810,18 @@ impl<'gcx> Gcx<'gcx> {
         seen: &mut FxHashSet<(Symbol, hir::FunctionId)>,
         members: &mut Vec<members::Member<'gcx>>,
     ) {
-        let fn_ty = self.type_of_item(function.into()).as_attached_function(self);
-        let TyKind::FnPtr(function_ty) = fn_ty.kind else {
+        let function_item = self.hir.function(function);
+        let fn_ty = self.type_of_item(function.into());
+        let fn_ty =
+            if function_item.contract.is_some_and(|id| self.hir.contract(id).kind.is_library())
+                && function_item.visibility >= Visibility::Public
+            {
+                fn_ty.as_externally_callable_function(true, self)
+            } else {
+                fn_ty
+            }
+            .as_attached_function(self);
+        let TyKind::Fn(function_ty) = fn_ty.kind else {
             return;
         };
         let Some(&self_ty) = function_ty.parameters.first() else {
@@ -866,6 +889,14 @@ fn compatible_fixed_bytes_type(lit: &hir::Lit<'_>) -> Option<TypeSize> {
         TypeSize::try_new_fb_bytes((digit_count / 2).try_into().ok()?)
     } else {
         None
+    }
+}
+
+fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> StateMutability {
+    if kind == TyFnKind::Internal && state_mutability == StateMutability::Payable {
+        StateMutability::NonPayable
+    } else {
+        state_mutability
     }
 }
 
@@ -939,8 +970,17 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         functions
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
-        let ty = gcx.type_of_item(f_id.into());
-        let TyKind::FnPtr(ty_f) = ty.kind else { unreachable!() };
+        let ty = gcx
+            .mk_ty_fn(TyFn {
+                kind: TyFnKind::External,
+                parameters: gcx.mk_item_tys(f.parameters),
+                returns: gcx.mk_item_tys(f.returns),
+                state_mutability: fn_state_mutability(TyFnKind::External, f.state_mutability),
+                function_id: Some(f_id),
+                attached: false,
+            })
+            .as_externally_callable_function(false, gcx);
+        let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
         for (var_id, ty) in f.variables().zip(ty_f.tys()) {
             if let Err(guar) = ty.error_reported() {
@@ -1049,14 +1089,14 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
         hir::ItemId::Contract(id) => TyKind::Contract(id),
         hir::ItemId::Function(id) => {
             let f = gcx.hir.function(id);
-            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(gcx.bump(), TyFnPtr {
+            return gcx.mk_ty_fn(TyFn {
+                kind: TyFnKind::Internal,
                 parameters: gcx.mk_item_tys(f.parameters),
                 returns: gcx.mk_item_tys(f.returns),
-                state_mutability: f.state_mutability,
-                visibility: f.visibility,
+                state_mutability: fn_state_mutability(TyFnKind::Internal, f.state_mutability),
                 function_id: Some(id),
                 attached: false,
-            }))
+            });
         }
         hir::ItemId::Variable(id) => {
             let var = gcx.hir.variable(id);

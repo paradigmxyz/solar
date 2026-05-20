@@ -1,8 +1,8 @@
 //! Type interner.
 //!
-//! Creates and stores unique instances of types, type lists, and function pointers.
+//! Creates and stores unique instances of types, type lists, and function values.
 
-use super::{Ty, TyData, TyFlags, TyFnPtr, TyKind};
+use super::{Ty, TyData, TyFlags, TyFn, TyKind};
 use solar_data_structures::{Interned, map::FxBuildHasher};
 use std::{
     borrow::Borrow,
@@ -15,7 +15,7 @@ type InternSet<T> = once_map::OnceMap<T, (), FxBuildHasher>;
 pub(super) struct Interner<'gcx> {
     pub(super) tys: InternSet<&'gcx TyData<'gcx>>,
     pub(super) ty_lists: InternSet<&'gcx [Ty<'gcx>]>,
-    pub(super) fn_ptrs: InternSet<&'gcx TyFnPtr<'gcx>>,
+    pub(super) fns: InternSet<&'gcx TyFn<'gcx>>,
 }
 
 impl<'gcx> Interner<'gcx> {
@@ -51,12 +51,12 @@ impl<'gcx> Interner<'gcx> {
         })
     }
 
-    pub(super) fn intern_ty_fn_ptr(
+    pub(super) fn intern_ty_fn(
         &self,
         bump: &'gcx bumpalo::Bump,
-        ptr: TyFnPtr<'gcx>,
-    ) -> &'gcx TyFnPtr<'gcx> {
-        self.fn_ptrs.intern(ptr, |ptr| bump.alloc(ptr))
+        ptr: TyFn<'gcx>,
+    ) -> &'gcx TyFn<'gcx> {
+        self.fns.intern(ptr, |ptr| bump.alloc(ptr))
     }
 }
 

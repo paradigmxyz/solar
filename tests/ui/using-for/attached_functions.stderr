@@ -1,4 +1,4 @@
-error: member `address` not found on type `function (uint256) pure external returns (uint256)`
+error: member `address` not found on type `function (uint256) pure returns (uint256)`
    ╭▸ ROOT/tests/ui/using-for/attached_functions.sol:LL:CC
    │
 LL │         x.ext.address;

@@ -1,6 +1,6 @@
 use crate::{
     hir,
-    ty::{Gcx, Ty, TyFnPtr, TyKind},
+    ty::{Gcx, Ty, TyFn, TyKind},
 };
 use solar_ast::{StateMutability, UserDefinableOperator};
 
@@ -9,7 +9,7 @@ pub(super) fn check_using_operator<'gcx>(
     using: &hir::UsingDirective<'_>,
     entry: &hir::UsingEntry<'_>,
     function_id: hir::FunctionId,
-    function_ty: &TyFnPtr<'gcx>,
+    function_ty: &TyFn<'gcx>,
     using_ty: Option<Ty<'gcx>>,
     op: UserDefinableOperator,
 ) {

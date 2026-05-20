@@ -1532,7 +1532,7 @@ pub enum ExprKind<'hir> {
     Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
 
     /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
-    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir [NamedArg<'hir>]>),
+    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir CallOptions<'hir>>),
 
     // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.
@@ -1587,6 +1587,13 @@ pub enum ExprKind<'hir> {
 pub struct NamedArg<'hir> {
     pub name: Ident,
     pub value: Expr<'hir>,
+}
+
+/// Function call options: `foo{ gas: 100_000 }`.
+#[derive(Clone, Copy, Debug)]
+pub struct CallOptions<'hir> {
+    pub span: Span,
+    pub args: &'hir [NamedArg<'hir>],
 }
 
 /// A list of function call arguments.
@@ -1834,8 +1841,8 @@ mod tests {
         assert_size::<TypeKind<'_>>(str!["16"]);
         assert_size::<Type<'_>>(str!["24"]);
 
-        assert_size::<ExprKind<'_>>(str!["56"]);
-        assert_size::<Expr<'_>>(str!["72"]);
+        assert_size::<ExprKind<'_>>(str!["48"]);
+        assert_size::<Expr<'_>>(str!["64"]);
 
         assert_size::<StmtKind<'_>>(str!["32"]);
         assert_size::<Stmt<'_>>(str!["40"]);

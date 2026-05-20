@@ -1,0 +1,14 @@
+error: cannot set option `value` for delegatecall
+   ╭▸ ROOT/tests/ui/typeck/function_calls/low_level_call_options.sol:LL:CC
+   │
+LL │         addr.delegatecall{value: 1, gas: 1000}(data);
+   ╰╴                          ━━━━━
+
+error: cannot set option `value` for staticcall
+   ╭▸ ROOT/tests/ui/typeck/function_calls/low_level_call_options.sol:LL:CC
+   │
+LL │         addr.staticcall{value: 1, gas: 1000}(data);
+   ╰╴                        ━━━━━
+
+error: aborting due to 2 previous errors
+

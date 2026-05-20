@@ -1,7 +1,7 @@
 use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
+use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize};
 use solar_data_structures::{Interned, fmt};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
@@ -154,48 +154,51 @@ impl<'gcx> Ty<'gcx> {
         self
     }
 
-    pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
+    pub fn as_externally_callable_function(self, in_library: bool, gcx: Gcx<'gcx>) -> Self {
+        let TyKind::Fn(f) = self.kind else { return self };
+        let kind = if in_library { TyFnKind::DelegateCall } else { f.kind };
         let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
         let parameters = self.parameters().unwrap_or_default();
         let returns = self.returns().unwrap_or_default();
         let any_parameter = parameters.iter().any(is_calldata);
         let any_return = returns.iter().any(is_calldata);
-        if !any_parameter && !any_return {
+        if !any_parameter && !any_return && f.kind == kind {
             return self;
         }
-        gcx.mk_ty_fn_ptr(TyFnPtr {
-            parameters: if any_parameter {
-                gcx.mk_ty_iter(parameters.iter().map(|param| {
-                    if is_calldata(param) {
-                        param.with_loc(gcx, DataLocation::Memory)
-                    } else {
-                        *param
-                    }
-                }))
-            } else {
-                parameters
-            },
-            returns: if any_return {
-                gcx.mk_ty_iter(returns.iter().map(|ret| {
-                    if is_calldata(ret) { ret.with_loc(gcx, DataLocation::Memory) } else { *ret }
-                }))
-            } else {
-                returns
-            },
-            state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
-            visibility: self.visibility().unwrap_or(Visibility::Public),
-            function_id: None,
+        let parameters = if any_parameter {
+            gcx.mk_ty_iter(parameters.iter().map(|param| {
+                if is_calldata(param) { param.with_loc(gcx, DataLocation::Memory) } else { *param }
+            }))
+        } else {
+            parameters
+        };
+        let returns = if any_return {
+            gcx.mk_ty_iter(returns.iter().map(|ret| {
+                if is_calldata(ret) { ret.with_loc(gcx, DataLocation::Memory) } else { *ret }
+            }))
+        } else {
+            returns
+        };
+        gcx.mk_ty_fn(TyFn {
+            kind,
+            parameters,
+            returns,
+            state_mutability: f.state_mutability,
+            function_id: f.function_id,
             attached: false,
         })
     }
 
     pub fn as_attached_function(self, gcx: Gcx<'gcx>) -> Self {
-        let TyKind::FnPtr(f) = self.kind else { return self };
-        gcx.mk_ty_fn_ptr(TyFnPtr {
+        let TyKind::Fn(f) = self.kind else { return self };
+        if f.attached {
+            return self;
+        }
+        gcx.mk_ty_fn(TyFn {
+            kind: f.kind,
             parameters: f.parameters,
             returns: f.returns,
             state_mutability: f.state_mutability,
-            visibility: f.visibility,
             function_id: f.function_id,
             attached: true,
         })
@@ -251,7 +254,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_value_type(self) -> bool {
         match self.kind {
             TyKind::Elementary(t) => t.is_value_type(),
-            TyKind::Contract(_) | TyKind::FnPtr(_) | TyKind::Enum(_) | TyKind::Udvt(..) => true,
+            TyKind::Contract(_) | TyKind::Fn(_) | TyKind::Enum(_) | TyKind::Udvt(..) => true,
             _ => false,
         }
     }
@@ -295,7 +298,18 @@ impl<'gcx> Ty<'gcx> {
         .is_break()
     }
 
-    /// Returns `true` if this type contains a non-public (internal/private) function pointer.
+    /// Returns `true` if this type contains a library contract type.
+    pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| match ty.kind {
+            TyKind::Contract(id) if gcx.hir.contract(id).kind.is_library() => {
+                ControlFlow::Break(())
+            }
+            _ => ControlFlow::Continue(()),
+        })
+        .is_break()
+    }
+
+    /// Returns `true` if this type contains a non-public (internal/private) function type.
     #[inline]
     pub fn has_internal_function(self) -> bool {
         self.flags.contains(TyFlags::HAS_INTERNAL_FN)
@@ -326,7 +340,7 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn parameters(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
-            TyKind::FnPtr(f) => f.parameters,
+            TyKind::Fn(f) => f.parameters,
             TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
             _ => return None,
         })
@@ -336,7 +350,7 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn returns(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
-            TyKind::FnPtr(f) => f.returns,
+            TyKind::Fn(f) => f.returns,
             _ => return None,
         })
     }
@@ -345,25 +359,16 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn state_mutability(self) -> Option<StateMutability> {
         match self.kind {
-            TyKind::FnPtr(f) => Some(f.state_mutability),
+            TyKind::Fn(f) => Some(f.state_mutability),
             _ => None,
         }
     }
 
-    /// Returns the visibility of the type.
-    #[inline]
-    pub fn visibility(self) -> Option<Visibility> {
-        match self.kind {
-            TyKind::FnPtr(f) => Some(f.visibility),
-            _ => None,
-        }
-    }
-
-    /// Returns the function ID if this is a function pointer type with a specific function.
+    /// Returns the function ID if this is a function type with a specific function.
     #[inline]
     pub fn function_id(self) -> Option<hir::FunctionId> {
         match self.kind {
-            TyKind::FnPtr(f) => f.function_id,
+            TyKind::Fn(f) => f.function_id,
             _ => None,
         }
     }
@@ -372,7 +377,7 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn item_id(self) -> Option<hir::ItemId> {
         Some(match self.kind {
-            TyKind::FnPtr(f) => f.function_id?.into(),
+            TyKind::Fn(f) => f.function_id?.into(),
             TyKind::Contract(id) => id.into(),
             TyKind::Struct(id) => id.into(),
             TyKind::Enum(id) => id.into(),
@@ -415,7 +420,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
-            | TyKind::FnPtr(_)
+            | TyKind::Fn(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
@@ -464,7 +469,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
-            | TyKind::FnPtr(_)
+            | TyKind::Fn(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
@@ -791,35 +796,24 @@ impl<'gcx> Ty<'gcx> {
 
             // Function pointer conversions.
             // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
-            (FnPtr(from_fn), FnPtr(to_fn)) => {
+            (Fn(from_fn), Fn(to_fn)) => {
                 if from_fn.attached != to_fn.attached {
                     if from_fn.attached {
                         return Result::Err(TyConvertError::AttachedFunction);
                     }
                     return Result::Err(TyConvertError::Incompatible);
                 }
-
+                if from_fn.kind != to_fn.kind {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
                 // Parameter and return types must match exactly (no implicit conversion).
                 if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
                     return Result::Err(TyConvertError::Incompatible);
                 }
 
-                let visibility_ok = from_fn.visibility == to_fn.visibility
-                    || matches!(
-                        (from_fn.visibility, to_fn.visibility),
-                        (Visibility::Private, Visibility::Internal)
-                    );
-                if !visibility_ok {
-                    return Result::Err(TyConvertError::Incompatible);
-                }
-
-                // Function ID: a FnPtr with an ID can coerce to one without an ID, but not vice
-                // versa.
-                let function_id_ok = match (from_fn.function_id, to_fn.function_id) {
-                    (_, None) => true,
-                    (a, b) => a == b,
-                };
-                if !function_id_ok {
+                // Declaration function values name a concrete declaration accessed through a
+                // contract type and are only compatible with that same declaration.
+                if from_fn.is_declaration() && from_fn.function_id != to_fn.function_id {
                     return Result::Err(TyConvertError::Incompatible);
                 }
 
@@ -1134,7 +1128,7 @@ pub enum TyKind<'gcx> {
     Mapping(Ty<'gcx>, Ty<'gcx>),
 
     /// Function pointer: `function(...) returns (...)`.
-    FnPtr(&'gcx TyFnPtr<'gcx>),
+    Fn(&'gcx TyFn<'gcx>),
 
     /// Contract.
     Contract(hir::ContractId),
@@ -1174,18 +1168,112 @@ pub enum TyKind<'gcx> {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct TyFnPtr<'gcx> {
+pub struct TyFn<'gcx> {
+    /// The semantic kind of this function value.
+    pub kind: TyFnKind,
+    /// The parameter types.
     pub parameters: &'gcx [Ty<'gcx>],
+    /// The return types.
     pub returns: &'gcx [Ty<'gcx>],
+    /// The function state mutability.
     pub state_mutability: StateMutability,
-    pub visibility: Visibility,
+    /// The declaration this function value refers to, if known.
     pub function_id: Option<hir::FunctionId>,
     /// Whether the first parameter is bound to a receiver in member-access syntax.
     pub attached: bool,
 }
 
-impl<'gcx> TyFnPtr<'gcx> {
-    /// Returns an iterator over all the types in the function pointer.
+/// The semantic kind of a function value.
+///
+/// This mirrors the solc `FunctionType::Kind` variants that are relevant to the current type
+/// system.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TyFnKind {
+    /// An ordinary internal function value.
+    Internal,
+    /// An ordinary external function value.
+    External,
+    /// A function declaration accessed through a contract type, e.g. `C.f`.
+    Declaration,
+    /// A public library function accessed through the library type, e.g. `L.f`.
+    ///
+    /// It has a `.selector` member, but is not assignable to ordinary function types.
+    DelegateCall,
+    /// A low-level `address.call` function.
+    BareCall,
+    /// A low-level `address.delegatecall` function.
+    BareDelegateCall,
+    /// A low-level `address.staticcall` function.
+    BareStaticCall,
+    /// A contract creation function, e.g. `new C`.
+    Creation,
+}
+
+impl<'gcx> TyFn<'gcx> {
+    /// Returns the semantic kind of this function value.
+    #[inline]
+    pub fn kind(&self) -> TyFnKind {
+        self.kind
+    }
+
+    /// Returns whether this is an internal function value.
+    #[inline]
+    pub fn is_internal(&self) -> bool {
+        self.kind == TyFnKind::Internal
+    }
+
+    /// Returns whether this is an external function value.
+    #[inline]
+    pub fn is_external(&self) -> bool {
+        self.kind == TyFnKind::External
+    }
+
+    /// Returns whether this is a contract-type function declaration value.
+    #[inline]
+    pub fn is_declaration(&self) -> bool {
+        self.kind == TyFnKind::Declaration
+    }
+
+    /// Returns whether this is a public library function value.
+    #[inline]
+    pub fn is_delegate_call(&self) -> bool {
+        self.kind == TyFnKind::DelegateCall
+    }
+
+    /// Returns whether this is a low-level call function.
+    #[inline]
+    pub fn is_bare_call(&self) -> bool {
+        matches!(
+            self.kind,
+            TyFnKind::BareCall | TyFnKind::BareDelegateCall | TyFnKind::BareStaticCall
+        )
+    }
+
+    /// Returns whether this is a contract creation function.
+    #[inline]
+    pub fn is_creation(&self) -> bool {
+        self.kind == TyFnKind::Creation
+    }
+
+    /// Returns whether this function value has a known declaration.
+    #[inline]
+    pub fn has_declaration(&self) -> bool {
+        self.function_id.is_some()
+    }
+
+    /// Returns whether this function value has a `.selector` member.
+    #[inline]
+    pub fn has_selector(&self) -> bool {
+        matches!(self.kind, TyFnKind::External | TyFnKind::Declaration | TyFnKind::DelegateCall)
+    }
+
+    /// Returns whether this function value has an `.address` member.
+    #[inline]
+    pub fn has_address(&self) -> bool {
+        self.is_external() && !self.attached
+    }
+
+    /// Returns an iterator over all the types in the function value.
     pub fn tys(&self) -> impl DoubleEndedIterator<Item = Ty<'gcx>> + Clone {
         self.parameters.iter().copied().chain(self.returns.iter().copied())
     }
@@ -1197,7 +1285,7 @@ bitflags::bitflags! {
     pub struct TyFlags: u8 {
         /// Whether an error is reachable.
         const HAS_ERROR    = 1 << 0;
-        /// Whether this type contains a non-public (internal/private) function pointer.
+        /// Whether this type contains a non-public (internal/private) function type.
         const HAS_INTERNAL_FN = 1 << 1;
     }
 }
@@ -1220,8 +1308,8 @@ impl TyFlags {
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
 
-            TyKind::FnPtr(f) => {
-                if f.visibility < hir::Visibility::Public {
+            TyKind::Fn(f) => {
+                if f.is_internal() {
                     self.add(Self::HAS_INTERNAL_FN);
                 }
             }

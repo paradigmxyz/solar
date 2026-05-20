@@ -6,6 +6,8 @@ Guidance for AI coding agents working in this repository.
 
 Solar is a blazingly fast, modular Solidity compiler written in Rust, aiming to be a modern alternative to solc.
 
+For testing and comparing behavior and semantics, the current tracked solc version (usually the latest stable release) is always available as a submodule `./testdata/solidity`.
+
 ## Commands
 
 ```bash
@@ -74,7 +76,7 @@ Common file-level UI directives:
 ### Porting Tests from Solc
 
 Always look at the corresponding Solc test when porting behavior. Solc is always
-available in `testdata/solidity`. Solc tests may embed multiple source files in
+available in `./testdata/solidity`. Solc tests may embed multiple source files in
 one `.sol` file with `==== Source: ... ====` annotations. When porting those
 tests, split the secondary sources into the UI test's `auxiliary/` directory and
 update imports accordingly.
