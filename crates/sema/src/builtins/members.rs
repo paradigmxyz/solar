@@ -210,7 +210,8 @@ fn reference<'gcx>(
 // `Enum.Variant`, `Udvt.wrap`
 fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
-        TyKind::Contract(id) => contract_type(gcx, id),
+        // TODO: https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
+        TyKind::Contract(_) => Default::default(),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
         }
@@ -229,28 +230,6 @@ fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
         TyKind::Elementary(ElementaryType::String) => string_ty(gcx),
         TyKind::Elementary(ElementaryType::Bytes) => bytes_ty(gcx),
         _ => Default::default(),
-    }
-}
-
-fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
-    let contract = gcx.hir.contract(id);
-    if contract.kind.is_library() {
-        contract
-            .functions()
-            .filter(|&id| gcx.hir.function(id).is_ordinary())
-            .map(|id| {
-                let item = hir::ItemId::from(id);
-                Member::with_res(gcx.item_name(item).name, gcx.type_of_item(item), item)
-            })
-            .collect()
-    } else {
-        gcx.interface_functions(id)
-            .iter()
-            .map(|f| {
-                let id = hir::ItemId::from(f.id);
-                Member::with_res(gcx.item_name(id).name, f.ty, id)
-            })
-            .collect()
     }
 }
 
