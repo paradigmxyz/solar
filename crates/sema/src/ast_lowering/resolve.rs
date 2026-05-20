@@ -1605,17 +1605,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 hir::ExprKind::Call(callee, self.lower_call_args(args), options)
             }
             ast::ExprKind::CallOptions(callee, options) => {
-                let callee = self.lower_expr(callee);
-                let _options = self.lower_named_args(options);
-                let options_span = callee.span.shrink_to_hi().with_hi(expr.span.hi());
-                hir::ExprKind::Err(
-                    self.sess
-                        .dcx
-                        .err("call options must be part of a call expression")
-                        .span(options_span)
-                        .span_note(expr.span, "this expression is not a function call expression")
-                        .emit(),
-                )
+                hir::ExprKind::CallOptions(self.lower_expr(callee), self.lower_named_args(options))
             }
             ast::ExprKind::Delete(expr) => hir::ExprKind::Delete(self.lower_expr(expr)),
             ast::ExprKind::Ident(name) => {

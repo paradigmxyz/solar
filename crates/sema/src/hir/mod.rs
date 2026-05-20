@@ -1491,6 +1491,9 @@ pub enum ExprKind<'hir> {
     /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
     Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir [NamedArg<'hir>]>),
 
+    /// Function call options: `foo{ gas: 100_000 }`.
+    CallOptions(&'hir Expr<'hir>, &'hir [NamedArg<'hir>]),
+
     // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.
     Delete(&'hir Expr<'hir>),

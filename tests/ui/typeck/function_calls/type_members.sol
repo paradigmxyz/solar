@@ -5,6 +5,7 @@
 // ported-from: test/libsolidity/syntaxTests/events/event_library_function.sol
 // ported-from: test/libsolidity/syntaxTests/abiEncoder/v2_call_to_v2_library_function_pointer_accepting_struct.sol
 // ported-from: test/libsolidity/syntaxTests/types/contractTypeType/members/assign_function_via_contract_name_to_var.sol
+// ported-from: test/libsolidity/semanticTests/functionTypes/stack_height_check_on_adding_gas_variable_to_function.sol
 
 type Pointer is uint256;
 
@@ -78,5 +79,21 @@ contract C {
 
     function eventLibraryFunctionIsSpecial() public {
         emit ExternalFunction(PointerLib.ping); //~ ERROR: mismatched types
+    }
+}
+
+contract FunctionCallOptionMembers {
+    function g() external {}
+    function h() external payable {}
+
+    function callOptionMembers() external returns (bool) {
+        return this.g.address == this.g.address &&
+            this.g{gas: 42}.address == this.g.address &&
+            this.g{gas: 42}.selector == this.g.selector &&
+            this.h.address == this.h.address &&
+            this.h{gas: 42}.address == this.h.address &&
+            this.h{gas: 42}.selector == this.h.selector &&
+            this.h{gas: 42, value: 5}.address == this.h.address &&
+            this.h{gas: 42, value: 5}.selector == this.h.selector;
     }
 }

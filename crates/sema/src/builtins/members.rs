@@ -273,6 +273,7 @@ fn function_via_contract<'gcx>(gcx: Gcx<'gcx>, id: hir::FunctionId) -> Ty<'gcx> 
             returns: fn_ty.returns,
             state_mutability: fn_ty.state_mutability,
             function_id: fn_ty.function_id,
+            options: fn_ty.options,
         })
     }
 }

@@ -101,6 +101,7 @@ contract C {
 // Ported from test/libsolidity/syntaxTests/functionTypes/comparison_of_function_types_internal_eq_2.sol.
 // Ported from test/libsolidity/syntaxTests/functionTypes/comparison_operators_between_internal_and_external_function_pointers.sol.
 // Ported from test/libsolidity/syntaxTests/functionTypes/comparison_operators_external_functions_with_different_parameters.sol.
+// Ported from test/libsolidity/syntaxTests/functionTypes/comparison_operator_for_external_functions_with_call_options.sol.
 library FunctionComparisonLib {
     function f() public {}
     function g() public {}
@@ -189,6 +190,19 @@ contract FunctionComparison {
     function invalidLibraryComparisons(function () external externalPtr) external view returns (bool) {
         return FunctionComparisonLib.f == externalPtr || //~ ERROR: cannot apply builtin operator
             FunctionComparisonLib.f == FunctionComparisonLib.g; //~ ERROR: cannot apply builtin operator
+    }
+}
+
+contract FunctionComparisonWithCallOptions {
+    function external_test_function() external payable {}
+
+    function invalidCallOptionComparisons() external returns (bool) {
+        return (this.external_test_function{value: 4} == this.external_test_function) && //~ ERROR: cannot apply builtin operator
+            (this.external_test_function{value: 4} == this.external_test_function{value: 4}); //~ ERROR: cannot apply builtin operator
+    }
+
+    function invalidCallOptionAssignment() external {
+        function() external payable fn = this.external_test_function{value: 4}; //~ ERROR: mismatched types
     }
 }
 

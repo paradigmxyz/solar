@@ -42,7 +42,7 @@ use interner::Interner;
 
 #[allow(clippy::module_inception)]
 mod ty;
-pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
+pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyFnOptions, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
@@ -401,6 +401,7 @@ impl<'gcx> Gcx<'gcx> {
             returns: self.mk_tys(returns),
             state_mutability: fn_state_mutability(kind, state_mutability),
             function_id: None,
+            options: Default::default(),
         })
     }
 
@@ -618,6 +619,7 @@ impl<'gcx> Gcx<'gcx> {
                     returns: self.mk_item_tys(f.returns),
                     state_mutability: fn_state_mutability(kind, f.state_mutability),
                     function_id: None,
+                    options: Default::default(),
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
@@ -797,6 +799,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: fn_state_mutability(TyFnKind::External, f.state_mutability),
                 function_id: Some(f_id),
+                options: Default::default(),
             })
             .as_externally_callable_function(false, gcx);
         let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
@@ -908,6 +911,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: fn_state_mutability(TyFnKind::Internal, f.state_mutability),
                 function_id: Some(id),
+                options: Default::default(),
             });
         }
         hir::ItemId::Variable(id) => {
