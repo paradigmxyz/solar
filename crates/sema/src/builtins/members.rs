@@ -3,6 +3,7 @@ use crate::{
     hir,
     ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
+use either::Either;
 use solar_ast::{DataLocation, ElementaryType, StateMutability as SM, Visibility};
 use solar_data_structures::BumpExt;
 use solar_interface::Symbol;
@@ -232,49 +233,37 @@ fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
 
 fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
     let contract = gcx.hir.contract(id);
-    if contract.kind.is_library() {
-        contract
-            .functions()
-            .filter(|&id| {
-                let f = gcx.hir.function(id);
-                f.is_ordinary() && f.visibility >= Visibility::Internal
-            })
-            .map(|id| {
-                let item = hir::ItemId::from(id);
-                Member::with_res(gcx.item_name(item).name, function_via_contract(gcx, id), item)
-            })
-            .collect()
+    let is_library = contract.kind.is_library();
+    let functions = if is_library {
+        Either::Left(contract.functions().filter(|&id| {
+            let f = gcx.hir.function(id);
+            f.is_ordinary() && f.visibility >= Visibility::Internal
+        }))
     } else {
-        gcx.interface_functions(id)
-            .iter()
-            .map(|f| {
-                let id = hir::ItemId::from(f.id);
-                let ty = function_via_contract(gcx, f.id);
-                Member::with_res(gcx.item_name(id).name, ty, id)
-            })
-            .collect()
-    }
-}
-
-fn function_via_contract<'gcx>(gcx: Gcx<'gcx>, id: hir::FunctionId) -> Ty<'gcx> {
-    let f = gcx.hir.function(id);
-    let ty = gcx.type_of_item(id.into());
-    if f.contract.is_some_and(|contract_id| gcx.hir.contract(contract_id).kind.is_library()) {
-        if f.visibility >= Visibility::Public {
-            ty.as_externally_callable_function(true, gcx)
-        } else {
-            ty
-        }
-    } else {
-        let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
-        gcx.mk_ty_fn(TyFn {
-            kind: TyFnKind::Declaration,
-            parameters: fn_ty.parameters,
-            returns: fn_ty.returns,
-            state_mutability: fn_ty.state_mutability,
-            function_id: fn_ty.function_id,
+        Either::Right(gcx.interface_functions(id).iter().map(|f| f.id))
+    };
+    functions
+        .map(|id| {
+            let item = hir::ItemId::from(id);
+            let f = gcx.hir.function(id);
+            let ty = gcx.type_of_item(id.into());
+            let ty = if is_library && f.visibility >= Visibility::Public {
+                ty.as_externally_callable_function(true, gcx)
+            } else if is_library {
+                ty
+            } else {
+                let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
+                gcx.mk_ty_fn(TyFn {
+                    kind: TyFnKind::Declaration,
+                    parameters: fn_ty.parameters,
+                    returns: fn_ty.returns,
+                    state_mutability: fn_ty.state_mutability,
+                    function_id: fn_ty.function_id,
+                })
+            };
+            Member::with_res(gcx.item_name(item).name, ty, item)
         })
-    }
+        .collect()
 }
 
 // `type(T)`

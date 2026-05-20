@@ -722,6 +722,7 @@ impl<'gcx> Ty<'gcx> {
                 if from_fn.kind != to_fn.kind {
                     return Result::Err(TyConvertError::Incompatible);
                 }
+
                 // Parameter and return types must match exactly (no implicit conversion).
                 if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
                     return Result::Err(TyConvertError::Incompatible);

@@ -1595,7 +1595,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 hir::ExprKind::Binary(self.lower_expr(lhs), *op, self.lower_expr(rhs))
             }
             ast::ExprKind::Call(callee, args) => {
-                let (callee, options) = self.lower_call_callee(callee.peel_parens());
+                let (callee, options) = self.lower_call_callee(callee);
                 hir::ExprKind::Call(callee, self.lower_call_args(args), options)
             }
             ast::ExprKind::CallOptions(callee, options) => {
@@ -1669,19 +1669,24 @@ impl<'gcx> ResolveContext<'gcx> {
         &mut self,
         callee: &ast::Expr<'_>,
     ) -> (&'gcx hir::Expr<'gcx>, Option<&'gcx hir::CallOptions<'gcx>>) {
-        let callee = callee.peel_parens();
-        let ast::ExprKind::CallOptions(inner, args) = &callee.kind else {
-            return (self.lower_expr(callee), None);
-        };
-
-        let mut options = hir::CallOptions { span: callee.span, args: self.lower_named_args(args) };
-        let mut inner = inner.peel_parens();
+        let mut inner = callee.peel_parens();
+        let mut options = None;
         let mut has_nested_options = false;
-        while let ast::ExprKind::CallOptions(next, args) = &inner.kind {
-            has_nested_options = true;
-            options = hir::CallOptions { span: inner.span, args: self.lower_named_args(args) };
+
+        #[expect(clippy::while_let_loop, reason = "this is intentionally shaped like a do-while")]
+        loop {
+            let ast::ExprKind::CallOptions(next, args) = &inner.kind else { break };
+            if options.is_some() {
+                has_nested_options = true;
+            }
+            options =
+                Some(hir::CallOptions { span: inner.span, args: self.lower_named_args(args) });
             inner = next.peel_parens();
         }
+
+        let Some(options) = options else {
+            return (self.lower_expr(inner), None);
+        };
 
         if has_nested_options {
             self.sess
