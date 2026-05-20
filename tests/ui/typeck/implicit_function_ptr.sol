@@ -96,12 +96,12 @@ contract C {
     }
 }
 
-// Ported from test/libsolidity/semanticTests/functionTypes/comparison_operators_for_external_functions.sol.
-// Ported from test/libsolidity/syntaxTests/functionTypes/comparison_of_function_types_internal_eq_1.sol.
-// Ported from test/libsolidity/syntaxTests/functionTypes/comparison_of_function_types_internal_eq_2.sol.
-// Ported from test/libsolidity/syntaxTests/functionTypes/comparison_operators_between_internal_and_external_function_pointers.sol.
-// Ported from test/libsolidity/syntaxTests/functionTypes/comparison_operators_external_functions_with_different_parameters.sol.
-// Ported from test/libsolidity/syntaxTests/functionTypes/comparison_operator_for_external_functions_with_call_options.sol.
+// ported-from: test/libsolidity/semanticTests/functionTypes/comparison_operators_for_external_functions.sol
+// ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_of_function_types_internal_eq_1.sol
+// ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_of_function_types_internal_eq_2.sol
+// ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_operators_between_internal_and_external_function_pointers.sol
+// ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_operators_external_functions_with_different_parameters.sol
+// ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_operator_for_external_functions_with_call_options.sol
 library FunctionComparisonLib {
     function f() public {}
     function g() public {}

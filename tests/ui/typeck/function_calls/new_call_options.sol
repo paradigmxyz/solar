@@ -1,5 +1,7 @@
 //@compile-flags: -Ztypeck
-// testdata/solidity/test/libsolidity/syntaxTests/constructor/payable_new.sol
+// ported-from: test/libsolidity/syntaxTests/constructor/payable_new.sol
+// ported-from: test/libsolidity/syntaxTests/constructor/nonpayable_new.sol
+
 contract PayableA1 {}
 contract PayableB1 is PayableA1 {
     constructor() payable {}
@@ -24,7 +26,6 @@ contract PayableCreator {
     }
 }
 
-// testdata/solidity/test/libsolidity/syntaxTests/constructor/nonpayable_new.sol
 contract NonPayableA1 {
     constructor() {}
 }
