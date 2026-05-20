@@ -1630,7 +1630,7 @@ impl EvmCodegen {
     /// Emits a constructor dynamic string/bytes argument as a short storage string word.
     ///
     /// Constructor args are copied to memory at 0x80 in ABI encoding:
-    /// head[index] = dynamic tail offset, tail = [length][data...].
+    /// `head[index] = dynamic tail offset, tail = [length][data...]`.
     /// The current codegen supports short storage strings (<=31 bytes). Long storage strings need
     /// separate data-slot handling.
     fn emit_constructor_short_string_arg(asm: &mut Assembler, index: u32) {
