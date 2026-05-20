@@ -10,7 +10,7 @@ use solar_data_structures::{
     index::{Idx, IndexVec},
     newtype_index,
 };
-use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, source_map::SourceFile};
+use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed, source_map::SourceFile};
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
@@ -867,6 +867,8 @@ pub struct UsingDirective<'hir> {
 pub struct UsingEntry<'hir> {
     /// The path span.
     pub span: Span,
+    /// The member name introduced by a braced function entry.
+    pub name: Option<Symbol>,
     /// The attached item.
     pub kind: UsingEntryKind<'hir>,
     /// The operator this entry defines, if any.

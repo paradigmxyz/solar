@@ -484,6 +484,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 };
                 self.arena.alloc_as_slice(hir::UsingEntry {
                     span: path.span(),
+                    name: None,
                     kind,
                     operator: None,
                 })
@@ -491,7 +492,12 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::UsingList::Multiple(paths) => {
                 self.arena.alloc_slice_fill_iter(paths.iter().map(|(path, operator)| {
                     let kind = self.lower_using_functions(path);
-                    hir::UsingEntry { span: path.span(), kind, operator: *operator }
+                    hir::UsingEntry {
+                        span: path.span(),
+                        name: Some(path.last().name),
+                        kind,
+                        operator: *operator,
+                    }
                 }))
             }
         };

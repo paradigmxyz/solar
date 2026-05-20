@@ -16,14 +16,14 @@ diagnostic paths without keeping one UI file per upstream test.
   - Fixed in this branch: member lookup on `type(contract C)` now exposes nested
     type members, including inherited enum types.
 
-- [ ] Imported free-function aliases in braced using directives.
+- [x] Imported free-function aliases in braced using directives.
   - Upstream:
     `test/libsolidity/semanticTests/using/imported_functions.sol` and
     `test/libsolidity/syntaxTests/using/global_and_local.sol`
   - Expected: `using {A.f, importedAlias} for T` attaches both a qualified
     namespace function and an imported alias.
-  - Current behavior: qualified namespace functions attach, but the imported
-    alias path is not attached as a member.
+  - Fixed in this branch: braced using entries now preserve the source member
+    name, so imported aliases attach under the alias name.
 
 - [ ] Ambiguity between global and local attached members.
   - Upstream: `test/libsolidity/syntaxTests/using/global_local_clash.sol`

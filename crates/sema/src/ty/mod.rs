@@ -785,7 +785,7 @@ impl<'gcx> Gcx<'gcx> {
                     }
                     hir::UsingEntryKind::Functions(functions) => {
                         for &function in functions {
-                            let name = self.item_name(function).name;
+                            let name = entry.name.unwrap_or_else(|| self.item_name(function).name);
                             self.add_attached_function(
                                 ty,
                                 function,
