@@ -102,7 +102,14 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         expected: Option<Ty<'gcx>>,
     ) -> Ty<'gcx> {
-        let ty = self.check_expr_kind(expr, expected);
+        let mut ty = self.check_expr_kind(expr, expected);
+        if let Some(options) = expr.call_options {
+            let creation = matches!(expr.kind, hir::ExprKind::New(_));
+            for (i, options) in options.iter().enumerate() {
+                let already_set = i > 0 || matches!(ty.kind, TyKind::CallOptions(_));
+                ty = self.check_call_options(ty, options.args, options.span, creation, already_set);
+            }
+        }
         self.register_ty(expr, ty);
         ty
     }
@@ -174,16 +181,8 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
-            hir::ExprKind::Call(callee, ref args, ref opts) => {
-                let mut callee_ty = self.check_expr(callee);
-                if let Some(opts) = opts {
-                    callee_ty = self.check_call_options(
-                        callee_ty,
-                        opts,
-                        matches!(callee.kind, hir::ExprKind::New(_)),
-                        false,
-                    );
-                }
+            hir::ExprKind::Call(callee, ref args) => {
+                let callee_ty = self.check_expr(callee);
                 let mut callee_ty = callee_ty.peel_call_options();
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
@@ -258,17 +257,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 ty
-            }
-            hir::ExprKind::CallOptions(callee, opts) => {
-                let callee_ty = self.check_expr(callee);
-                let callee = callee.peel_parens();
-                let already_set = matches!(callee.kind, hir::ExprKind::CallOptions(..));
-                self.check_call_options(
-                    callee_ty,
-                    opts,
-                    matches!(callee.kind, hir::ExprKind::New(_)),
-                    already_set,
-                )
             }
             hir::ExprKind::Delete(expr) => {
                 let ty = self.require_lvalue(expr);
@@ -820,6 +808,7 @@ impl<'gcx> TypeChecker<'gcx> {
         &mut self,
         ty: Ty<'gcx>,
         opts: &'gcx [hir::NamedArg<'gcx>],
+        span: Span,
         creation: bool,
         already_set: bool,
     ) -> Ty<'gcx> {
@@ -831,23 +820,20 @@ impl<'gcx> TypeChecker<'gcx> {
             if !base_ty.references_error() {
                 self.dcx()
                     .err("function call options can only be set on external function calls or contract creations")
-                    .span(opts.first().map_or(Span::DUMMY, |opt| opt.name.span))
+                    .span(span)
                     .emit();
             }
             return base_ty;
         };
 
         if already_set {
-            self.dcx()
-                .err("function call options have already been set")
-                .span(opts.first().map_or(Span::DUMMY, |opt| opt.name.span))
-                .emit();
+            self.dcx().err("function call options have already been set").span(span).emit();
         }
 
         if !creation && !f.is_external() {
             self.dcx()
                 .err("function call options can only be set on external function calls or contract creations")
-                .span(opts.first().map_or(Span::DUMMY, |opt| opt.name.span))
+                .span(span)
                 .emit();
         }
 
@@ -1475,6 +1461,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
 ///
 /// If `false`, it cannot be an lvalue.
 fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
+    if expr.call_options.is_some() {
+        return false;
+    }
+
     match expr.kind {
         hir::ExprKind::Ident(_)
         | hir::ExprKind::Index(..)
@@ -1487,7 +1477,6 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         hir::ExprKind::Array(_)
         | hir::ExprKind::Assign(..)
         | hir::ExprKind::Binary(..)
-        | hir::ExprKind::CallOptions(..)
         | hir::ExprKind::Delete(_)
         | hir::ExprKind::Slice(..)
         | hir::ExprKind::Lit(_)
