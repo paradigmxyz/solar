@@ -1667,21 +1667,32 @@ impl<'gcx> ResolveContext<'gcx> {
 
     fn lower_call_callee(
         &mut self,
-        mut callee: &ast::Expr<'_>,
-    ) -> (&'gcx hir::Expr<'gcx>, Option<&'gcx [hir::CallOptions<'gcx>]>) {
-        let mut options = SmallVec::<[_; 2]>::new();
-        while let ast::ExprKind::CallOptions(inner, args) = &callee.kind {
-            options.push(hir::CallOptions { span: callee.span, args: self.lower_named_args(args) });
-            callee = inner.peel_parens();
-        }
-        let callee = self.lower_expr(callee);
-        let options = if options.is_empty() {
-            None
-        } else {
-            options.reverse();
-            Some(&*self.arena.alloc_slice_copy(&options))
+        callee: &ast::Expr<'_>,
+    ) -> (&'gcx hir::Expr<'gcx>, Option<&'gcx hir::CallOptions<'gcx>>) {
+        let callee = callee.peel_parens();
+        let ast::ExprKind::CallOptions(inner, args) = &callee.kind else {
+            return (self.lower_expr(callee), None);
         };
-        (callee, options)
+
+        let mut options = hir::CallOptions { span: callee.span, args: self.lower_named_args(args) };
+        let mut inner = inner.peel_parens();
+        let mut has_nested_options = false;
+        while let ast::ExprKind::CallOptions(next, args) = &inner.kind {
+            has_nested_options = true;
+            options = hir::CallOptions { span: inner.span, args: self.lower_named_args(args) };
+            inner = next.peel_parens();
+        }
+
+        if has_nested_options {
+            self.sess
+                .dcx
+                .err("function call options have already been set")
+                .span(callee.span)
+                .help("combine them into a single `{...}` option")
+                .emit();
+        }
+
+        (self.lower_expr(inner), Some(self.arena.alloc(options)))
     }
 
     fn lower_named_args(&mut self, options: &[ast::NamedArg<'_>]) -> &'gcx [hir::NamedArg<'gcx>] {

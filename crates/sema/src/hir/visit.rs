@@ -148,10 +148,8 @@ pub trait Visit<'hir> {
             ExprKind::Call(expr, ref args, opts) => {
                 self.visit_expr(expr)?;
                 if let Some(opts) = opts {
-                    for opt in opts {
-                        for arg in opt.args {
-                            self.visit_expr(&arg.value)?;
-                        }
+                    for arg in opts.args {
+                        self.visit_expr(&arg.value)?;
                     }
                 }
                 self.visit_call_args(args)?;

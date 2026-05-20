@@ -1,3 +1,11 @@
+error: function call options have already been set
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │         this.h{gas: 42}{value: 5}();
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: combine them into a single `{...}` option
+
 error: call options must be part of a call expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
    │
@@ -70,5 +78,5 @@ note: this expression is not a function call expression
 LL │             this.h{gas: 42, value: 5}.selector == this.h.selector;
    ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 6 previous errors
+error: aborting due to 7 previous errors
 

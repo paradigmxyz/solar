@@ -177,15 +177,12 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Call(callee, ref args, opts) => {
                 let mut callee_ty = self.check_expr(callee);
                 if let Some(opts) = opts {
-                    for (i, opts) in opts.iter().enumerate() {
-                        callee_ty = self.check_call_options(
-                            callee_ty,
-                            opts.args,
-                            opts.span,
-                            matches!(callee.kind, hir::ExprKind::New(_)),
-                            i > 0,
-                        );
-                    }
+                    callee_ty = self.check_call_options(
+                        callee_ty,
+                        opts.args,
+                        opts.span,
+                        matches!(callee.kind, hir::ExprKind::New(_)),
+                    );
                 }
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
@@ -813,7 +810,6 @@ impl<'gcx> TypeChecker<'gcx> {
         opts: &'gcx [hir::NamedArg<'gcx>],
         span: Span,
         creation: bool,
-        already_set: bool,
     ) -> Ty<'gcx> {
         let TyKind::Fn(f) = ty.kind else {
             for opt in opts {
@@ -827,10 +823,6 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             return ty;
         };
-
-        if already_set {
-            self.dcx().err("function call options have already been set").span(span).emit();
-        }
 
         if !creation && !f.is_external() {
             self.dcx()
