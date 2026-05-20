@@ -25,7 +25,7 @@ function badReturn(U a, U b) pure returns (uint256) {
     return U.unwrap(a) + U.unwrap(b);
 }
 
-function notPure(U a, U b) view returns (U) {
+function notPure(U a, U b) view returns (U) { //~ WARN: function state mutability can be restricted to `pure`
     return a;
 }
 

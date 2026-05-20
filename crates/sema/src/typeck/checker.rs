@@ -870,6 +870,159 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    fn check_pure_restriction_warning(&self, function: &'gcx hir::Function<'gcx>) {
+        if !function.kind.is_ordinary()
+            || function.is_yul
+            || function.body.is_none()
+            || function.state_mutability == StateMutability::Pure
+            || function.state_mutability == StateMutability::Payable
+            || !function.modifiers.is_empty()
+            || !self.source_has_using_directive(function.source)
+            || function
+                .parameters
+                .iter()
+                .chain(function.returns)
+                .any(|&var| self.gcx.type_of_item(var.into()).data_stored_in(DataLocation::Storage))
+        {
+            return;
+        }
+
+        let Some(body) = function.body else { return };
+        if self.block_can_be_pure(body) {
+            self.dcx()
+                .warn("function state mutability can be restricted to `pure`")
+                .span(function.span)
+                .emit();
+        }
+    }
+
+    fn source_has_using_directive(&self, source_id: hir::SourceId) -> bool {
+        let source = self.gcx.hir.source(source_id);
+        !source.usings.is_empty()
+            || source.items.iter().any(|&item| {
+                let hir::ItemId::Contract(contract_id) = item else {
+                    return false;
+                };
+                !self.gcx.hir.contract(contract_id).usings.is_empty()
+            })
+    }
+
+    fn block_can_be_pure(&self, block: hir::Block<'gcx>) -> bool {
+        block.stmts.iter().all(|stmt| self.stmt_can_be_pure(stmt))
+    }
+
+    fn stmt_can_be_pure(&self, stmt: &'gcx hir::Stmt<'gcx>) -> bool {
+        match stmt.kind {
+            hir::StmtKind::DeclSingle(var) => self
+                .gcx
+                .hir
+                .variable(var)
+                .initializer
+                .is_none_or(|expr| self.expr_can_be_pure(expr)),
+            hir::StmtKind::DeclMulti(_, expr) | hir::StmtKind::Return(Some(expr)) => {
+                self.expr_can_be_pure(expr)
+            }
+            hir::StmtKind::Expr(expr) => self.expr_can_be_pure(expr),
+            hir::StmtKind::Block(block)
+            | hir::StmtKind::UncheckedBlock(block)
+            | hir::StmtKind::Loop(block, _) => self.block_can_be_pure(block),
+            hir::StmtKind::If(cond, true_, false_) => {
+                self.expr_can_be_pure(cond)
+                    && self.stmt_can_be_pure(true_)
+                    && false_.is_none_or(|stmt| self.stmt_can_be_pure(stmt))
+            }
+            hir::StmtKind::Switch(switch) => {
+                self.expr_can_be_pure(switch.selector)
+                    && switch
+                        .cases
+                        .iter()
+                        .all(|case| case.body.iter().all(|stmt| self.stmt_can_be_pure(stmt)))
+            }
+            hir::StmtKind::Return(None)
+            | hir::StmtKind::Break
+            | hir::StmtKind::Continue
+            | hir::StmtKind::Err(_) => true,
+            hir::StmtKind::AssemblyBlock(_)
+            | hir::StmtKind::Emit(_)
+            | hir::StmtKind::Revert(_)
+            | hir::StmtKind::Try(_)
+            | hir::StmtKind::Placeholder => false,
+        }
+    }
+
+    fn expr_can_be_pure(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        match expr.kind {
+            hir::ExprKind::Array(exprs) => exprs.iter().all(|expr| self.expr_can_be_pure(expr)),
+            hir::ExprKind::Binary(lhs, _, rhs) | hir::ExprKind::Assign(lhs, _, rhs) => {
+                matches!(expr.kind, hir::ExprKind::Binary(..))
+                    && self.expr_can_be_pure(lhs)
+                    && self.expr_can_be_pure(rhs)
+            }
+            hir::ExprKind::Call(callee, ref args, opts) => {
+                opts.is_none()
+                    && self.callee_can_be_pure(callee)
+                    && args.kind.exprs().all(|arg| self.expr_can_be_pure(arg))
+            }
+            hir::ExprKind::Delete(_) | hir::ExprKind::New(_) => false,
+            hir::ExprKind::Ident(res) => self.res_can_be_pure(res),
+            hir::ExprKind::Index(expr, index) => {
+                self.expr_can_be_pure(expr)
+                    && index.is_none_or(|index| self.expr_can_be_pure(index))
+            }
+            hir::ExprKind::Slice(expr, start, end) => {
+                self.expr_can_be_pure(expr)
+                    && start.is_none_or(|start| self.expr_can_be_pure(start))
+                    && end.is_none_or(|end| self.expr_can_be_pure(end))
+            }
+            hir::ExprKind::Lit(_) | hir::ExprKind::Type(_) | hir::ExprKind::TypeCall(_) => true,
+            hir::ExprKind::Member(expr, _) | hir::ExprKind::Payable(expr) => {
+                self.expr_can_be_pure(expr)
+            }
+            hir::ExprKind::Ternary(cond, true_, false_) => {
+                self.expr_can_be_pure(cond)
+                    && self.expr_can_be_pure(true_)
+                    && self.expr_can_be_pure(false_)
+            }
+            hir::ExprKind::Tuple(exprs) => {
+                exprs.iter().copied().flatten().all(|expr| self.expr_can_be_pure(expr))
+            }
+            hir::ExprKind::Unary(_, expr) => self.expr_can_be_pure(expr),
+            hir::ExprKind::YulMember(_, _) => false,
+            hir::ExprKind::Err(_) => true,
+        }
+    }
+
+    fn callee_can_be_pure(&self, callee: &'gcx hir::Expr<'gcx>) -> bool {
+        if !self.expr_can_be_pure(callee) {
+            return false;
+        }
+        let Some(ty) = self.types.get(&callee.id) else {
+            return true;
+        };
+        if let TyKind::Fn(function) = ty.kind {
+            function.state_mutability == StateMutability::Pure
+        } else {
+            true
+        }
+    }
+
+    fn res_can_be_pure(&self, res: &'gcx [hir::Res]) -> bool {
+        res.iter().all(|&res| match res {
+            hir::Res::Item(hir::ItemId::Variable(var)) => {
+                !matches!(self.gcx.hir.variable(var).kind, hir::VarKind::State)
+            }
+            hir::Res::Builtin(builtin) => self.builtin_can_be_pure(builtin),
+            _ => true,
+        })
+    }
+
+    fn builtin_can_be_pure(&self, builtin: Builtin) -> bool {
+        let TyKind::Fn(function) = builtin.ty(self.gcx).kind else {
+            return false;
+        };
+        function.state_mutability == StateMutability::Pure
+    }
+
     fn get_param_names(&self, params: &[hir::VariableId]) -> ParamNames {
         params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
     }
@@ -1678,7 +1831,9 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         let prev = self.contract;
         let prev_function = self.function.replace(id);
         self.contract = contract.or(prev);
-        let r = self.visit_function(self.gcx.hir.function(id));
+        let function = self.gcx.hir.function(id);
+        let r = self.visit_function(function);
+        self.check_pure_restriction_warning(function);
         self.contract = prev;
         self.function = prev_function;
         r

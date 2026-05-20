@@ -3,6 +3,8 @@
 // ported-from: test/libsolidity/semanticTests/enums/using_inherited_enum_excplicitly.sol
 // ported-from: test/libsolidity/semanticTests/using/imported_functions.sol
 // ported-from: test/libsolidity/semanticTests/errors/using_structs.sol
+// ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/253_using_for_function_exists.sol
+// ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/254_using_for_function_on_int.sol
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/491_using_this_in_constructor.sol
 // ported-from: test/libsolidity/syntaxTests/using/global_local_clash.sol
 
@@ -71,4 +73,26 @@ contract ConstructorThisWarning {
     }
 
     function f() public pure {}
+}
+
+library PureWarningLib {
+    function double(uint256 self) public returns (uint256) { //~ WARN: function state mutability can be restricted to `pure`
+        return 2 * self;
+    }
+}
+
+contract PureWarningMemberOnly {
+    using PureWarningLib for uint256;
+
+    function f(uint256 a) public { //~ WARN: function state mutability can be restricted to `pure`
+        a.double;
+    }
+}
+
+contract NoPureWarningForNonPureUsingCall {
+    using PureWarningLib for uint256;
+
+    function f(uint256 a) public returns (uint256) {
+        return a.double();
+    }
 }
