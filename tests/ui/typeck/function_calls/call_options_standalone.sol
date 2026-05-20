@@ -7,6 +7,8 @@ contract CallOptionMembers {
     }
 
     function callOptionMembers() external returns (bool) {
+        // solc accepts call options as a valid function value here. We currently only support
+        // call options directly on calls.
         return this.g{gas: 42}.address == this.g.address && //~ ERROR: call options must be part of a call expression
             this.g{gas: 42}.selector == this.g.selector && //~ ERROR: call options must be part of a call expression
             this.h{gas: 42}.address == this.h.address && //~ ERROR: call options must be part of a call expression
