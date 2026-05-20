@@ -419,27 +419,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 match ty.kind {
                     TyKind::Contract(id) => {
                         let c = self.gcx.hir.contract(id);
-                        if c.kind.is_library() {
-                            self.gcx.mk_ty_err(
-                                self.dcx()
-                                    .err("invalid use of a library name")
-                                    .span(hir_ty.span)
-                                    .emit(),
-                            )
-                        } else if c.kind.is_interface() {
-                            self.gcx.mk_ty_err(
-                                self.dcx()
-                                    .err("cannot instantiate an interface")
-                                    .span(expr.span)
-                                    .emit(),
-                            )
-                        } else if c.is_abstract() {
-                            self.gcx.mk_ty_err(
-                                self.dcx()
-                                    .err("cannot instantiate an abstract contract")
-                                    .span(expr.span)
-                                    .emit(),
-                            )
+                        if !c.kind.is_contract() {
+                            let msg = format!("cannot instantiate {}s", c.kind);
+                            self.gcx.mk_ty_err(self.dcx().err(msg).span(hir_ty.span).emit())
                         } else {
                             let mut parameters: &[Ty<'_>] = &[];
                             let mut sm = hir::StateMutability::NonPayable;

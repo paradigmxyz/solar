@@ -1,4 +1,4 @@
-error: invalid use of a library name
+error: cannot instantiate librarys
    ╭▸ ROOT/tests/ui/typeck/function_calls/new_exprs.sol:LL:CC
    │
 LL │         new L();
@@ -10,17 +10,17 @@ error: invalid use of a library name
 LL │         new L[](2);
    ╰╴            ━━━
 
-error: cannot instantiate an interface
+error: cannot instantiate interfaces
    ╭▸ ROOT/tests/ui/typeck/function_calls/new_exprs.sol:LL:CC
    │
 LL │         new I();
-   ╰╴        ━━━━━
+   ╰╴            ━
 
-error: cannot instantiate an abstract contract
+error: cannot instantiate abstract contracts
    ╭▸ ROOT/tests/ui/typeck/function_calls/new_exprs.sol:LL:CC
    │
 LL │         new A();
-   ╰╴        ━━━━━
+   ╰╴            ━
 
 error: expected contract or dynamic array type
    ╭▸ ROOT/tests/ui/typeck/function_calls/new_exprs.sol:LL:CC

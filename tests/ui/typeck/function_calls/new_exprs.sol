@@ -16,10 +16,10 @@ contract ValidContract {}
 
 contract C {
     function f(uint256 n) public {
-        new L(); //~ ERROR: invalid use of a library name
+        new L(); //~ ERROR: cannot instantiate librarys
         new L[](2); //~ ERROR: invalid use of a library name
-        new I(); //~ ERROR: cannot instantiate an interface
-        new A(); //~ ERROR: cannot instantiate an abstract contract
+        new I(); //~ ERROR: cannot instantiate interfaces
+        new A(); //~ ERROR: cannot instantiate abstract contracts
 
         // testdata/solidity/test/libsolidity/syntaxTests/nameAndTypeResolution/265_new_for_non_array.sol
         uint256 x = new uint256(7); //~ ERROR: expected contract or dynamic array type
