@@ -798,7 +798,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 state_mutability: fn_state_mutability(TyFnKind::External, f.state_mutability),
                 function_id: Some(f_id),
             })
-            .as_externally_callable_function(gcx);
+            .as_externally_callable_function(false, gcx);
         let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
         for (var_id, ty) in f.variables().zip(ty_f.tys()) {

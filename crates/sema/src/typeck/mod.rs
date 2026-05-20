@@ -156,7 +156,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
 }
 
 fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
-    let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(gcx).parameters().unwrap();
+    let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(false, gcx).parameters().unwrap();
     key(a) == key(b)
 }
 

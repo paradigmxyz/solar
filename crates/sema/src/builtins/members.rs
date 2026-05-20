@@ -1,7 +1,7 @@
 use super::Builtin;
 use crate::{
     hir,
-    ty::{Gcx, Ty, TyFn, TyKind},
+    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType, StateMutability as SM, Visibility};
 use solar_data_structures::BumpExt;
@@ -135,7 +135,11 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
         .iter()
         .map(|f| {
             let id = hir::ItemId::from(f.id);
-            Member::with_res(gcx.item_name(id).name, f.ty.as_externally_callable_function(gcx), id)
+            Member::with_res(
+                gcx.item_name(id).name,
+                f.ty.as_externally_callable_function(false, gcx),
+                id,
+            )
         })
         .collect()
 }
@@ -257,12 +261,19 @@ fn function_via_contract<'gcx>(gcx: Gcx<'gcx>, id: hir::FunctionId) -> Ty<'gcx> 
     let ty = gcx.type_of_item(id.into());
     if f.contract.is_some_and(|contract_id| gcx.hir.contract(contract_id).kind.is_library()) {
         if f.visibility >= Visibility::Public {
-            ty.as_externally_callable_library_function(gcx)
+            ty.as_externally_callable_function(true, gcx)
         } else {
             ty
         }
     } else {
-        ty.as_declaration_function(gcx)
+        let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
+        gcx.mk_ty_fn(TyFn {
+            kind: TyFnKind::Declaration,
+            parameters: fn_ty.parameters,
+            returns: fn_ty.returns,
+            state_mutability: fn_ty.state_mutability,
+            function_id: fn_ty.function_id,
+        })
     }
 }
 

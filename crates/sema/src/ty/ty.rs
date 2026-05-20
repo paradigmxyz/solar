@@ -142,8 +142,9 @@ impl<'gcx> Ty<'gcx> {
         self
     }
 
-    fn as_externally_callable_function_with_kind(self, kind: TyFnKind, gcx: Gcx<'gcx>) -> Self {
+    pub fn as_externally_callable_function(self, in_library: bool, gcx: Gcx<'gcx>) -> Self {
         let TyKind::Fn(f) = self.kind else { return self };
+        let kind = if in_library { TyFnKind::DelegateCall } else { f.kind };
         let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
         let parameters = self.parameters().unwrap_or_default();
         let returns = self.returns().unwrap_or_default();
@@ -170,29 +171,6 @@ impl<'gcx> Ty<'gcx> {
             kind,
             parameters,
             returns,
-            state_mutability: f.state_mutability,
-            function_id: f.function_id,
-        })
-    }
-
-    pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
-        let TyKind::Fn(f) = self.kind else { return self };
-        self.as_externally_callable_function_with_kind(f.kind, gcx)
-    }
-
-    pub fn as_externally_callable_library_function(self, gcx: Gcx<'gcx>) -> Self {
-        self.as_externally_callable_function_with_kind(TyFnKind::DelegateCall, gcx)
-    }
-
-    pub fn as_declaration_function(self, gcx: Gcx<'gcx>) -> Self {
-        let TyKind::Fn(f) = self.kind else { return self };
-        if f.is_declaration() {
-            return self;
-        }
-        gcx.mk_ty_fn(TyFn {
-            kind: TyFnKind::Declaration,
-            parameters: f.parameters,
-            returns: f.returns,
             state_mutability: f.state_mutability,
             function_id: f.function_id,
         })
