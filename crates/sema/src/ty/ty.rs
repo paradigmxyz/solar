@@ -142,6 +142,13 @@ impl<'gcx> Ty<'gcx> {
         self
     }
 
+    pub fn peel_call_options(mut self) -> Self {
+        while let TyKind::CallOptions(inner) = self.kind {
+            self = inner;
+        }
+        self
+    }
+
     pub fn as_externally_callable_function(self, in_library: bool, gcx: Gcx<'gcx>) -> Self {
         let TyKind::Fn(f) = self.kind else { return self };
         let kind = if in_library { TyFnKind::DelegateCall } else { f.kind };
@@ -353,6 +360,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
+            | TyKind::CallOptions(ty)
             | TyKind::Udvt(ty, _)
             | TyKind::Type(ty)
             | TyKind::Meta(ty) => ty.visit(f),
@@ -401,6 +409,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
+            | TyKind::CallOptions(ty)
             | TyKind::Udvt(ty, _)
             | TyKind::Type(ty)
             | TyKind::Meta(ty) => ty.visit_with_structs(gcx, f),
@@ -1046,6 +1055,9 @@ pub enum TyKind<'gcx> {
     /// Function pointer: `function(...) returns (...)`.
     Fn(&'gcx TyFn<'gcx>),
 
+    /// A function call options expression: `f{gas: x}`.
+    CallOptions(Ty<'gcx>),
+
     /// Contract.
     Contract(hir::ContractId),
 
@@ -1210,6 +1222,7 @@ impl TyFlags {
             | TyKind::DynArray(ty)
             | TyKind::Array(ty, _)
             | TyKind::Slice(ty)
+            | TyKind::CallOptions(ty)
             | TyKind::Udvt(ty, _)
             | TyKind::Type(ty)
             | TyKind::Meta(ty) => self.add_ty(ty),

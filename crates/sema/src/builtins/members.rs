@@ -33,6 +33,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
         TyKind::Fn(f) => function(gcx, f),
+        TyKind::CallOptions(ty) => native_members(gcx, ty).to_vec(),
         TyKind::Contract(id) => contract(gcx, id),
         TyKind::Struct(_id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),

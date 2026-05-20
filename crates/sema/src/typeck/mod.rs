@@ -311,6 +311,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         }
 
         TyKind::Slice(..)
+        | TyKind::CallOptions(..)
         | TyKind::Type(..)
         | TyKind::Tuple(..)
         | TyKind::Module(..)

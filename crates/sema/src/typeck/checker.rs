@@ -184,6 +184,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         false,
                     );
                 }
+                let mut callee_ty = callee_ty.peel_call_options();
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
                 let struct_id = if let TyKind::Type(struct_ty) = callee_ty.kind
@@ -685,14 +686,7 @@ impl<'gcx> TypeChecker<'gcx> {
         op: hir::BinOp,
         assign: bool,
     ) -> Ty<'gcx> {
-        let call_options_comparison = op.kind.is_cmp()
-            && matches!((lhs.kind, rhs.kind), (TyKind::Fn(_), TyKind::Fn(_)))
-            && (is_call_options_expr(lhs_e) || is_call_options_expr(rhs_e));
-        let common = if call_options_comparison {
-            None
-        } else {
-            binop_common_type(self.gcx, lhs, rhs, op.kind)
-        };
+        let common = binop_common_type(self.gcx, lhs, rhs, op.kind);
         // TODO: custom operators
         if let Some(common) = common
             && !(assign && common != lhs)
@@ -760,22 +754,6 @@ impl<'gcx> TypeChecker<'gcx> {
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) {
-        if is_call_options_expr(expr)
-            && matches!((actual.kind, expected.kind), (TyKind::Fn(_), TyKind::Fn(_)))
-        {
-            let mut diag = self.dcx().err("mismatched types").span(expr.span);
-            diag = diag.span_label(
-                expr.span,
-                format!(
-                    "expected `{}`, found `{}`",
-                    expected.display(self.gcx),
-                    actual.display(self.gcx)
-                ),
-            );
-            diag.emit();
-            return;
-        }
-
         let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return };
 
         let mut diag = self.dcx().err("mismatched types").span(expr.span);
@@ -845,17 +823,18 @@ impl<'gcx> TypeChecker<'gcx> {
         creation: bool,
         already_set: bool,
     ) -> Ty<'gcx> {
-        let TyKind::Fn(f) = ty.kind else {
+        let base_ty = ty.peel_call_options();
+        let TyKind::Fn(f) = base_ty.kind else {
             for opt in opts {
                 let _ = self.check_expr(&opt.value);
             }
-            if !ty.references_error() {
+            if !base_ty.references_error() {
                 self.dcx()
                     .err("function call options can only be set on external function calls or contract creations")
                     .span(opts.first().map_or(Span::DUMMY, |opt| opt.name.span))
                     .emit();
             }
-            return ty;
+            return base_ty;
         };
 
         if already_set {
@@ -926,7 +905,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
 
-        ty
+        self.gcx.mk_ty(TyKind::CallOptions(base_ty))
     }
 
     fn check_positional_call_args(
@@ -1706,6 +1685,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
         | TyKind::Type(_)
+        | TyKind::CallOptions(_)
         | TyKind::Meta(_) => None,
 
         TyKind::Err(_) => Some(ty),
@@ -1727,10 +1707,6 @@ fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Optio
         return None;
     }
     Some(ty)
-}
-
-fn is_call_options_expr(expr: &hir::Expr<'_>) -> bool {
-    matches!(expr.peel_parens().kind, hir::ExprKind::CallOptions(..))
 }
 
 fn valid_meta_type(ty: Ty<'_>) -> bool {
