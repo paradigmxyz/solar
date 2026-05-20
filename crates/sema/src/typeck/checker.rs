@@ -2,7 +2,7 @@ use crate::{
     builtins::Builtin,
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyKind},
+    ty::{Gcx, Ty, TyFnKind, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, StateMutability, TypeSize};
@@ -195,6 +195,14 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
+                        if f.is_declaration() {
+                            return self.gcx.mk_ty_err(
+                                self.dcx()
+                                    .err("cannot call function via contract type name")
+                                    .span(expr.span)
+                                    .emit(),
+                            );
+                        }
                         let param_names = if let Some(struct_id) = struct_id {
                             Some(self.get_struct_field_names(struct_id))
                         } else {
@@ -821,7 +829,7 @@ impl<'gcx> TypeChecker<'gcx> {
         };
 
         let creation = f.is_creation();
-        if !creation && !f.is_external() {
+        if !creation && !f.is_external() && !f.is_bare_call() {
             self.dcx()
                 .err("function call options can only be set on external function calls or contract creations")
                 .span(span)
@@ -846,7 +854,17 @@ impl<'gcx> TypeChecker<'gcx> {
                     std::mem::replace(&mut gas_set, true)
                 }
                 sym::value => {
-                    if f.state_mutability != StateMutability::Payable {
+                    if f.kind == TyFnKind::BareDelegateCall {
+                        self.dcx()
+                            .err("cannot set option `value` for delegatecall")
+                            .span(opt.name.span)
+                            .emit();
+                    } else if f.kind == TyFnKind::BareStaticCall {
+                        self.dcx()
+                            .err("cannot set option `value` for staticcall")
+                            .span(opt.name.span)
+                            .emit();
+                    } else if f.state_mutability != StateMutability::Payable {
                         let msg = if creation
                             && let Some(ret) = f.returns.first()
                             && let TyKind::Contract(id) = ret.kind

@@ -1123,12 +1123,15 @@ pub enum TyFnKind {
     Declaration,
     /// A public library function accessed through the library type, e.g. `L.f`.
     ///
-    /// This is solc's `FunctionType::Kind::DelegateCall`. It has a `.selector` member, but is not
-    /// assignable to ordinary function types.
+    /// It has a `.selector` member, but is not assignable to ordinary function types.
     DelegateCall,
+    /// A low-level `address.call` function.
+    BareCall,
+    /// A low-level `address.delegatecall` function.
+    BareDelegateCall,
+    /// A low-level `address.staticcall` function.
+    BareStaticCall,
     /// A contract creation function, e.g. `new C`.
-    ///
-    /// This is solc's `FunctionType::Kind::Creation`.
     Creation,
 }
 
@@ -1161,6 +1164,15 @@ impl<'gcx> TyFn<'gcx> {
     #[inline]
     pub fn is_delegate_call(&self) -> bool {
         self.kind == TyFnKind::DelegateCall
+    }
+
+    /// Returns whether this is a low-level call function.
+    #[inline]
+    pub fn is_bare_call(&self) -> bool {
+        matches!(
+            self.kind,
+            TyFnKind::BareCall | TyFnKind::BareDelegateCall | TyFnKind::BareStaticCall
+        )
     }
 
     /// Returns whether this is a contract creation function.
