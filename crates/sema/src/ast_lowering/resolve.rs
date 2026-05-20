@@ -1673,9 +1673,7 @@ impl<'gcx> ResolveContext<'gcx> {
         let mut options = None;
         let mut has_nested_options = false;
 
-        #[expect(clippy::while_let_loop, reason = "this is intentionally shaped like a do-while")]
-        loop {
-            let ast::ExprKind::CallOptions(next, args) = &inner.kind else { break };
+        while let ast::ExprKind::CallOptions(next, args) = &inner.kind {
             if options.is_some() {
                 has_nested_options = true;
             }
