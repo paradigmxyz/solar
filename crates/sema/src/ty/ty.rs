@@ -270,6 +270,17 @@ impl<'gcx> Ty<'gcx> {
         .is_break()
     }
 
+    /// Returns `true` if this type contains a library contract type.
+    pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| match ty.kind {
+            TyKind::Contract(id) if gcx.hir.contract(id).kind.is_library() => {
+                ControlFlow::Break(())
+            }
+            _ => ControlFlow::Continue(()),
+        })
+        .is_break()
+    }
+
     /// Returns `true` if this type contains a non-public (internal/private) function type.
     #[inline]
     pub fn has_internal_function(self) -> bool {
