@@ -1,0 +1,8 @@
+error: can only use modifiers defined in the current contract or in base contracts
+   ╭▸ ROOT/tests/ui/using-for/libraries/visibility.sol:LL:CC
+   │
+LL │     function bad() L.m public {}
+   ╰╴                   ━━━
+
+error: aborting due to 1 previous error
+

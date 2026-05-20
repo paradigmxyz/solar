@@ -33,16 +33,18 @@ diagnostic paths without keeping one UI file per upstream test.
   - Current behavior: duplicate attached member names with different function
     IDs can be hidden instead of reported as ambiguous.
 
-- [ ] Reject library names as using-for target types.
+- [x] Reject library names as using-for target types.
   - Upstream: `test/libsolidity/syntaxTests/using/using_library_for_library.sol`
   - Expected: `using L for M` is invalid when `M` is a library name.
-  - Current behavior: the target type lowers to a contract type and is accepted.
+  - Fixed in this branch: type checking now rejects library contract types as
+    using-for target types.
 
-- [ ] Reject library modifiers referenced through using-for.
+- [x] Reject library modifiers referenced through using-for.
   - Upstream: `test/libsolidity/syntaxTests/modifiers/library_via_using.sol`
   - Expected: `function f() L.m public {}` rejects `L.m` even if `using L for *`
     is in scope.
-  - Current behavior: the modifier path is accepted.
+  - Fixed in this branch: modifier resolution now rejects modifiers whose
+    defining contract is not the current contract or one of its bases.
 
 - [ ] Allow storage string fields to receive string literals.
   - Upstream: `test/libsolidity/semanticTests/errors/using_structs.sol`

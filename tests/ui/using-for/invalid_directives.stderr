@@ -25,6 +25,18 @@ LL │ ┃ }
    │ ┗━┛
    ╰ help: the type cannot be implicitly converted to the first function argument `uint256`
 
+error: invalid use of library name
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ using L for M;
+   ╰╴━━━━━━━━━━━━━━
+
+error: invalid use of library name
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ using L for L;
+   ╰╴━━━━━━━━━━━━━━
+
 error: library name expected
    ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
    │
@@ -76,5 +88,5 @@ LL │ ┃         return x;
 LL │ ┃     }
    ╰╴┗━━━━━┛
 
-error: aborting due to 7 previous errors
+error: aborting due to 9 previous errors
 

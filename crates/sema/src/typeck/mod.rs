@@ -70,6 +70,13 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
         }
     }
 
+    if let Some(ty) = using_ty
+        && let TyKind::Contract(id) = ty.kind
+        && gcx.hir.contract(id).kind.is_library()
+    {
+        gcx.dcx().err("invalid use of library name").span(using.span).emit();
+    }
+
     for entry in using.entries {
         match entry.kind {
             hir::UsingEntryKind::Library(id) => {

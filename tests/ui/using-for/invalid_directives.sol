@@ -4,6 +4,7 @@
 // ported-from: test/libsolidity/syntaxTests/using/free_functions_implicit_conversion_err.sol
 // ported-from: test/libsolidity/syntaxTests/using/private_library_function_outside_scope.sol
 // ported-from: test/libsolidity/syntaxTests/using/global_for_type_defined_elsewhere.sol
+// ported-from: test/libsolidity/syntaxTests/using/using_library_for_library.sol
 
 uint256 constant X = 1;
 
@@ -35,9 +36,13 @@ library L {
     }
 }
 
+library M {}
+
 using {id256} for uint256 global; //~ ERROR: can only use `global` with user-defined types
 using {id256} for L.Inner global; //~ ERROR: can only use `global` with types defined in the same source unit at file level
 //~^ ERROR: cannot be attached
+using L for M; //~ ERROR: invalid use of library name
+using L for L; //~ ERROR: invalid use of library name
 
 contract C {
     using NotLibrary for uint256; //~ ERROR: library name expected
