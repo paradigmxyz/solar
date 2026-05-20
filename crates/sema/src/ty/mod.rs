@@ -352,7 +352,7 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::Tuple(tys))
     }
 
-    fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
+    pub(crate) fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
         self.mk_ty_iter(ids.iter().map(|&id| self.type_of_item(id.into())))
     }
 
@@ -417,6 +417,15 @@ impl<'gcx> Gcx<'gcx> {
         let parameters = vec![self.types.uint(256); parameters];
         let returns = vec![self.types.uint(256); returns];
         self.mk_builtin_fn(&parameters, StateMutability::NonPayable, &returns)
+    }
+
+    pub(crate) fn mk_creation_fn(
+        self,
+        parameters: &[Ty<'gcx>],
+        state_mutability: StateMutability,
+        returns: &[Ty<'gcx>],
+    ) -> Ty<'gcx> {
+        self.mk_ty_fn_with_kind(TyFnKind::Creation, parameters, state_mutability, returns)
     }
 
     pub(crate) fn mk_builtin_mod(self, builtin: Builtin) -> Ty<'gcx> {

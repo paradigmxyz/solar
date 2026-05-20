@@ -177,12 +177,7 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Call(callee, ref args, opts) => {
                 let mut callee_ty = self.check_expr(callee);
                 if let Some(opts) = opts {
-                    callee_ty = self.check_call_options(
-                        callee_ty,
-                        opts.args,
-                        opts.span,
-                        matches!(callee.kind, hir::ExprKind::New(_)),
-                    );
+                    callee_ty = self.check_call_options(callee_ty, opts.args, opts.span);
                 }
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
@@ -432,16 +427,11 @@ impl<'gcx> TypeChecker<'gcx> {
                             let mut parameters: &[Ty<'_>] = &[];
                             let mut sm = hir::StateMutability::NonPayable;
                             if let Some(ctor) = c.ctor {
-                                let func_ty = self.gcx.type_of_item(ctor.into());
-                                let TyKind::Fn(f) = func_ty.kind else { unreachable!() };
-                                parameters = f.parameters;
+                                let f = self.gcx.hir.function(ctor);
+                                parameters = self.gcx.mk_item_tys(f.parameters);
                                 sm = f.state_mutability;
-                                debug_assert!(
-                                    f.returns.is_empty(),
-                                    "non-empty constructor returns"
-                                );
                             }
-                            self.gcx.mk_builtin_fn(parameters, sm, &[ty])
+                            self.gcx.mk_creation_fn(parameters, sm, &[ty])
                         }
                     }
                     TyKind::Array(..) => {
@@ -809,7 +799,6 @@ impl<'gcx> TypeChecker<'gcx> {
         ty: Ty<'gcx>,
         opts: &'gcx [hir::NamedArg<'gcx>],
         span: Span,
-        creation: bool,
     ) -> Ty<'gcx> {
         let TyKind::Fn(f) = ty.kind else {
             for opt in opts {
@@ -824,6 +813,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         };
 
+        let creation = f.is_creation();
         if !creation && !f.is_external() {
             self.dcx()
                 .err("function call options can only be set on external function calls or contract creations")
@@ -850,10 +840,18 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
                 sym::value => {
                     if f.state_mutability != StateMutability::Payable {
-                        self.dcx()
-                            .err("cannot set option `value` on a non-payable function type")
-                            .span(opt.name.span)
-                            .emit();
+                        let msg = if creation
+                            && let Some(ret) = f.returns.first()
+                            && let TyKind::Contract(id) = ret.kind
+                        {
+                            let name = self.gcx.item_name(hir::ItemId::from(id)).name;
+                            format!(
+                                "cannot set option `value`, since the constructor of contract `{name}` is not payable"
+                            )
+                        } else {
+                            "cannot set option `value` on a non-payable function type".to_string()
+                        };
+                        self.dcx().err(msg).span(opt.name.span).emit();
                     }
                     let _ = self.expect_ty(&opt.value, self.gcx.types.uint(256));
                     std::mem::replace(&mut value_set, true)

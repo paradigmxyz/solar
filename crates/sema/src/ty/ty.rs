@@ -1115,6 +1115,10 @@ pub enum TyFnKind {
     /// This is solc's `FunctionType::Kind::DelegateCall`. It has a `.selector` member, but is not
     /// assignable to ordinary function types.
     DelegateCall,
+    /// A contract creation function, e.g. `new C`.
+    ///
+    /// This is solc's `FunctionType::Kind::Creation`.
+    Creation,
 }
 
 impl<'gcx> TyFn<'gcx> {
@@ -1146,6 +1150,12 @@ impl<'gcx> TyFn<'gcx> {
     #[inline]
     pub fn is_delegate_call(&self) -> bool {
         self.kind == TyFnKind::DelegateCall
+    }
+
+    /// Returns whether this is a contract creation function.
+    #[inline]
+    pub fn is_creation(&self) -> bool {
+        self.kind == TyFnKind::Creation
     }
 
     /// Returns whether this function value has a known declaration.
