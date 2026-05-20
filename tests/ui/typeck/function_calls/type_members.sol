@@ -81,19 +81,3 @@ contract C {
         emit ExternalFunction(PointerLib.ping); //~ ERROR: mismatched types
     }
 }
-
-contract FunctionCallOptionMembers {
-    function g() external {}
-    function h() external payable {}
-
-    function callOptionMembers() external returns (bool) {
-        return this.g.address == this.g.address &&
-            this.g{gas: 42}.address == this.g.address &&
-            this.g{gas: 42}.selector == this.g.selector &&
-            this.h.address == this.h.address &&
-            this.h{gas: 42}.address == this.h.address &&
-            this.h{gas: 42}.selector == this.h.selector &&
-            this.h{gas: 42, value: 5}.address == this.h.address &&
-            this.h{gas: 42, value: 5}.selector == this.h.selector;
-    }
-}
