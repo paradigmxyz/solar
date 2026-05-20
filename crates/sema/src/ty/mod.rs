@@ -970,13 +970,14 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         functions
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
+        let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
         let ty = gcx
             .mk_ty_fn(TyFn {
                 kind: TyFnKind::External,
-                parameters: gcx.mk_item_tys(f.parameters),
-                returns: gcx.mk_item_tys(f.returns),
-                state_mutability: fn_state_mutability(TyFnKind::External, f.state_mutability),
-                function_id: Some(f_id),
+                parameters: fn_ty.parameters,
+                returns: fn_ty.returns,
+                state_mutability: f.state_mutability,
+                function_id: fn_ty.function_id,
                 attached: false,
             })
             .as_externally_callable_function(false, gcx);

@@ -93,6 +93,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 l.binop(r, bin_op.kind).map_err(Into::into)
             }
             // hir::ExprKind::Call(_, _) => unimplemented!(),
+            // hir::ExprKind::CallOptions(_, _) => unimplemented!(),
             // hir::ExprKind::Delete(_) => unimplemented!(),
             hir::ExprKind::Ident(res) => {
                 // Ignore invalid overloads since they will get correctly detected later.
