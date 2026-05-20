@@ -2,9 +2,9 @@ error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
    │
 LL │         function() external pure fn = Executor.check;
-   ╰╴                                      ━━━━━━━━━━━━━━ expected `function () pure external`, found `function () pure`
+   ╰╴                                      ━━━━━━━━━━━━━━ expected `function () pure external`, found `function Executor.check() pure`
 
-error: member `address` not found on type `function () pure`
+error: member `address` not found on type `function Executor.check() pure`
    ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
    │
 LL │         Executor.check.address;

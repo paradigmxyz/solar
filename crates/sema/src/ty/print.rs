@@ -1,4 +1,4 @@
-use super::{Gcx, Ty, TyKind};
+use super::{Gcx, Ty, TyFnKind, TyKind};
 use crate::hir;
 use alloy_json_abi as json;
 use solar_ast::ElementaryType;
@@ -280,12 +280,9 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 write!(self.buf, " {}", c.name)
             }
             TyKind::Fn(f) => {
-                let visibility = if f.is_external() {
-                    hir::Visibility::External
-                } else {
-                    hir::Visibility::Internal
-                };
-                self.print_function(None, f.parameters, f.returns, f.state_mutability, visibility)
+                let def =
+                    if f.is_declaration() { f.function_id.map(hir::ItemId::from) } else { None };
+                self.print_function(def, f.parameters, f.returns, f.state_mutability, f.kind)
             }
             TyKind::Struct(id) => {
                 write!(self.buf, "struct {}", self.gcx.item_canonical_name(id))
@@ -362,7 +359,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
         parameters: &[Ty<'gcx>],
         returns: &[Ty<'gcx>],
         state_mutability: hir::StateMutability,
-        visibility: hir::Visibility,
+        kind: TyFnKind,
     ) -> fmt::Result {
         self.buf.write_str("function ")?;
         if let Some(def) = def {
@@ -374,7 +371,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
         if state_mutability != hir::StateMutability::NonPayable {
             write!(self.buf, " {state_mutability}")?;
         }
-        if visibility == hir::Visibility::External {
+        if kind == TyFnKind::External {
             self.buf.write_str(" external")?;
         }
 
