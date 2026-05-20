@@ -280,9 +280,27 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 write!(self.buf, " {}", c.name)
             }
             TyKind::Fn(f) => {
-                let def =
-                    if f.is_declaration() { f.function_id.map(hir::ItemId::from) } else { None };
-                self.print_function(def, f.parameters, f.returns, f.state_mutability, f.kind)
+                self.buf.write_str("function ")?;
+                if f.is_declaration()
+                    && let Some(id) = f.function_id
+                {
+                    let name = self.gcx.item_canonical_name(hir::ItemId::from(id));
+                    write!(self.buf, "{name}")?;
+                }
+                self.print_tuple(f.parameters)?;
+
+                if f.state_mutability != hir::StateMutability::NonPayable {
+                    write!(self.buf, " {}", f.state_mutability)?;
+                }
+                if f.kind == TyFnKind::External {
+                    self.buf.write_str(" external")?;
+                }
+
+                if !f.returns.is_empty() {
+                    self.buf.write_str(" returns ")?;
+                    self.print_tuple(f.returns)?;
+                }
+                Ok(())
             }
             TyKind::Struct(id) => {
                 write!(self.buf, "struct {}", self.gcx.item_canonical_name(id))
@@ -351,35 +369,6 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
 
             TyKind::Err(_) => self.buf.write_str("<error>"),
         }
-    }
-
-    fn print_function(
-        &mut self,
-        def: Option<hir::ItemId>,
-        parameters: &[Ty<'gcx>],
-        returns: &[Ty<'gcx>],
-        state_mutability: hir::StateMutability,
-        kind: TyFnKind,
-    ) -> fmt::Result {
-        self.buf.write_str("function ")?;
-        if let Some(def) = def {
-            let name = self.gcx.item_canonical_name(def);
-            write!(self.buf, "{name}")?;
-        }
-        self.print_tuple(parameters)?;
-
-        if state_mutability != hir::StateMutability::NonPayable {
-            write!(self.buf, " {state_mutability}")?;
-        }
-        if kind == TyFnKind::External {
-            self.buf.write_str(" external")?;
-        }
-
-        if !returns.is_empty() {
-            self.buf.write_str(" returns ")?;
-            self.print_tuple(returns)?;
-        }
-        Ok(())
     }
 
     fn print_tuple(&mut self, tys: &[Ty<'gcx>]) -> fmt::Result {
