@@ -42,6 +42,7 @@ use interner::Interner;
 
 #[allow(clippy::module_inception)]
 mod ty;
+pub(crate) use ty::SameSourceFileLevelUserTypeError;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
@@ -831,7 +832,7 @@ impl<'gcx> Gcx<'gcx> {
             }
         }
 
-        if let Some(type_source) = self.type_definition_source(ty)
+        if let Some(type_source) = ty.item_source(self)
             && type_source != source
         {
             for using in self.hir.source(type_source).usings {
@@ -848,16 +849,6 @@ impl<'gcx> Gcx<'gcx> {
         };
         let loc = ty.loc().unwrap_or(DataLocation::Storage);
         ty == using_ty.with_loc_if_ref(self, loc)
-    }
-
-    fn type_definition_source(self, ty: Ty<'gcx>) -> Option<hir::SourceId> {
-        match ty.peel_refs().kind {
-            TyKind::Contract(id) => Some(self.hir.contract(id).source),
-            TyKind::Struct(id) => Some(self.hir.strukt(id).source),
-            TyKind::Enum(id) => Some(self.hir.enumm(id).source),
-            TyKind::Udvt(_, id) => Some(self.hir.udvt(id).source),
-            _ => None,
-        }
     }
 }
 

@@ -1,11 +1,11 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir::{self, Item, ItemId, Res, Visit},
-    ty::{Gcx, Ty, TyKind},
+    ty::{Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind},
 };
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
-use solar_ast::{DataLocation, StateMutability, UserDefinableOperator, Visibility};
+use solar_ast::{DataLocation, StateMutability, Visibility};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
@@ -16,6 +16,7 @@ use std::ops::ControlFlow;
 
 mod checker;
 mod override_checker;
+mod udvt;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
@@ -52,15 +53,15 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
     if using.global
         && let Some(ty) = using_ty
     {
-        match same_source_file_level_user_type(gcx, ty, using.source) {
+        match ty.same_source_file_level_user_type(gcx, using.source) {
             Ok(()) => {}
-            Err(GlobalUsingError::NotUserDefined) => {
+            Err(SameSourceFileLevelUserTypeError::NotUserDefined) => {
                 gcx.dcx()
                     .err("can only use `global` with user-defined types")
                     .span(using.span)
                     .emit();
             }
-            Err(GlobalUsingError::NotSameSourceFileLevel) => {
+            Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel) => {
                 gcx.dcx()
                     .err("can only use `global` with types defined in the same source unit at file level")
                     .span(using.span)
@@ -87,45 +88,6 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
             }
             hir::UsingEntryKind::Err(_) => {}
         }
-    }
-}
-
-enum GlobalUsingError {
-    NotUserDefined,
-    NotSameSourceFileLevel,
-}
-
-fn same_source_file_level_user_type(
-    gcx: Gcx<'_>,
-    ty: Ty<'_>,
-    source: hir::SourceId,
-) -> Result<(), GlobalUsingError> {
-    match ty.peel_refs().kind {
-        TyKind::Struct(id) => {
-            let item = gcx.hir.strukt(id);
-            if item.source == source && item.contract.is_none() {
-                Ok(())
-            } else {
-                Err(GlobalUsingError::NotSameSourceFileLevel)
-            }
-        }
-        TyKind::Enum(id) => {
-            let item = gcx.hir.enumm(id);
-            if item.source == source && item.contract.is_none() {
-                Ok(())
-            } else {
-                Err(GlobalUsingError::NotSameSourceFileLevel)
-            }
-        }
-        TyKind::Udvt(_, id) => {
-            let item = gcx.hir.udvt(id);
-            if item.source == source && item.contract.is_none() {
-                Ok(())
-            } else {
-                Err(GlobalUsingError::NotSameSourceFileLevel)
-            }
-        }
-        _ => Err(GlobalUsingError::NotUserDefined),
     }
 }
 
@@ -193,119 +155,7 @@ fn check_using_function<'gcx>(
     }
 
     if let Some(op) = entry.operator {
-        check_using_operator(gcx, using, entry, function_id, function_ty, using_ty, op);
-    }
-}
-
-fn check_using_operator<'gcx>(
-    gcx: Gcx<'gcx>,
-    using: &hir::UsingDirective<'_>,
-    entry: &hir::UsingEntry<'_>,
-    function_id: hir::FunctionId,
-    function_ty: &crate::ty::TyFnPtr<'gcx>,
-    using_ty: Option<Ty<'gcx>>,
-    op: UserDefinableOperator,
-) {
-    let function = gcx.hir.function(function_id);
-
-    if function_ty.state_mutability != StateMutability::Pure || !function.is_free() {
-        gcx.dcx()
-            .err("only pure free functions can be used to define operators")
-            .span(entry.span)
-            .span_note(function.span, "function defined here")
-            .emit();
-    }
-
-    let Some(using_ty) = using_ty else { return };
-    let TyKind::Udvt(_, _) = using_ty.kind else {
-        gcx.dcx()
-            .err("operators can only be implemented for user-defined value types")
-            .span(entry.span)
-            .emit();
-        return;
-    };
-
-    let params = function_ty.parameters;
-    let is_unary_only = matches!(op, UserDefinableOperator::BitNot);
-    let is_binary_only = !matches!(op, UserDefinableOperator::Sub | UserDefinableOperator::BitNot);
-    let first_matches = params.first().is_some_and(|&ty| ty == using_ty);
-    let first_two_match = params.len() < 2 || params[0] == params[1];
-
-    let wrong_params = if is_binary_only && (params.len() != 2 || !first_two_match) {
-        Some(format!("two parameters of type `{}`", using_ty.display(gcx)))
-    } else if is_unary_only && (params.len() != 1 || !first_matches) {
-        Some(format!("exactly one parameter of type `{}`", using_ty.display(gcx)))
-    } else if params.len() >= 3 || !first_matches || !first_two_match {
-        Some(format!("one or two parameters of type `{}`", using_ty.display(gcx)))
-    } else {
-        None
-    };
-    if let Some(expected) = wrong_params {
-        gcx.dcx()
-            .err("wrong parameters in operator definition")
-            .span(function.span)
-            .span_note(entry.span, "function was used to implement an operator here")
-            .help(format!(
-                "function `{}` needs to have {expected} to be used for operator `{}`",
-                gcx.item_name(function_id).as_str(),
-                op.to_str()
-            ))
-            .emit();
-    }
-
-    let returns = function_ty.returns;
-    let returns_bool = matches!(
-        op,
-        UserDefinableOperator::Eq
-            | UserDefinableOperator::Ne
-            | UserDefinableOperator::Lt
-            | UserDefinableOperator::Le
-            | UserDefinableOperator::Gt
-            | UserDefinableOperator::Ge
-    );
-    let wrong_returns = if returns_bool {
-        returns.len() != 1 || returns[0] != gcx.types.bool
-    } else {
-        returns.len() != 1 || returns[0] != using_ty
-    };
-    if wrong_returns {
-        let expected = if returns_bool {
-            "`bool`".to_string()
-        } else {
-            format!("`{}`", using_ty.display(gcx))
-        };
-        gcx.dcx()
-            .err("wrong return parameters in operator definition")
-            .span(function.span)
-            .span_note(entry.span, "function was used to implement an operator here")
-            .help(format!(
-                "function `{}` needs to return {expected} to be used for operator `{}`",
-                gcx.item_name(function_id).as_str(),
-                op.to_str()
-            ))
-            .emit();
-    }
-
-    if matches!(params.len(), 1 | 2) {
-        let mut matches = 0;
-        gcx.for_each_user_operator(
-            using_ty,
-            using.source,
-            using.contract,
-            op,
-            params.len() == 1,
-            &mut |_| matches += 1,
-        );
-        if matches >= 2 {
-            gcx.dcx()
-                .err(format!(
-                    "user-defined {} operator `{}` has more than one definition matching the operand type visible in the current scope",
-                    if params.len() == 1 { "unary" } else { "binary" },
-                    op.to_str()
-                ))
-                .span(entry.span)
-                .emit();
-        }
+        udvt::check_using_operator(gcx, using, entry, function_id, function_ty, using_ty, op);
     }
 }
 

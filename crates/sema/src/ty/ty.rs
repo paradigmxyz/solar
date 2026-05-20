@@ -46,6 +46,12 @@ pub enum TyConvertError {
     AddressNotPayable,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SameSourceFileLevelUserTypeError {
+    NotUserDefined,
+    NotSameSourceFileLevel,
+}
+
 impl TyConvertError {
     /// Returns the error message for this conversion error.
     pub fn message<'gcx>(self, from: Ty<'gcx>, to: Ty<'gcx>, gcx: Gcx<'gcx>) -> String {
@@ -340,6 +346,45 @@ impl<'gcx> Ty<'gcx> {
         match self.kind {
             TyKind::FnPtr(f) => f.function_id,
             _ => None,
+        }
+    }
+
+    /// Returns the HIR item ID associated with this type, if any.
+    #[inline]
+    pub fn item_id(self) -> Option<hir::ItemId> {
+        Some(match self.kind {
+            TyKind::FnPtr(f) => f.function_id?.into(),
+            TyKind::Contract(id) => id.into(),
+            TyKind::Struct(id) => id.into(),
+            TyKind::Enum(id) => id.into(),
+            TyKind::Error(_, id) => id.into(),
+            TyKind::Event(_, id) => id.into(),
+            TyKind::Udvt(_, id) => id.into(),
+            _ => return None,
+        })
+    }
+
+    /// Returns the source ID where this type's HIR item is defined.
+    #[inline]
+    pub fn item_source(self, gcx: Gcx<'gcx>) -> Option<hir::SourceId> {
+        self.peel_refs().item_id().map(|id| gcx.hir.item(id).source())
+    }
+
+    pub(crate) fn same_source_file_level_user_type(
+        self,
+        gcx: Gcx<'gcx>,
+        source: hir::SourceId,
+    ) -> Result<(), SameSourceFileLevelUserTypeError> {
+        let Some(id @ (hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_))) =
+            self.peel_refs().item_id()
+        else {
+            return Err(SameSourceFileLevelUserTypeError::NotUserDefined);
+        };
+        let item = gcx.hir.item(id);
+        if item.source() == source && item.contract().is_none() {
+            Ok(())
+        } else {
+            Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel)
         }
     }
 
