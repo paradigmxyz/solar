@@ -260,6 +260,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::CallOptions(callee, opts) => {
                 let callee_ty = self.check_expr(callee);
+                let callee = callee.peel_parens();
                 let already_set = matches!(callee.kind, hir::ExprKind::CallOptions(..));
                 self.check_call_options(
                     callee_ty,
@@ -686,8 +687,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         let call_options_comparison = op.kind.is_cmp()
             && matches!((lhs.kind, rhs.kind), (TyKind::Fn(_), TyKind::Fn(_)))
-            && (matches!(lhs_e.kind, hir::ExprKind::CallOptions(..))
-                || matches!(rhs_e.kind, hir::ExprKind::CallOptions(..)));
+            && (is_call_options_expr(lhs_e) || is_call_options_expr(rhs_e));
         let common = if call_options_comparison {
             None
         } else {
@@ -760,7 +760,7 @@ impl<'gcx> TypeChecker<'gcx> {
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) {
-        if matches!(expr.kind, hir::ExprKind::CallOptions(..))
+        if is_call_options_expr(expr)
             && matches!((actual.kind, expected.kind), (TyKind::Fn(_), TyKind::Fn(_)))
         {
             let mut diag = self.dcx().err("mismatched types").span(expr.span);
@@ -1727,6 +1727,10 @@ fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Optio
         return None;
     }
     Some(ty)
+}
+
+fn is_call_options_expr(expr: &hir::Expr<'_>) -> bool {
+    matches!(expr.peel_parens().kind, hir::ExprKind::CallOptions(..))
 }
 
 fn valid_meta_type(ty: Ty<'_>) -> bool {

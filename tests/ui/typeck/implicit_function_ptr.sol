@@ -198,11 +198,14 @@ contract FunctionComparisonWithCallOptions {
 
     function invalidCallOptionComparisons() external returns (bool) {
         return (this.external_test_function{value: 4} == this.external_test_function) && //~ ERROR: cannot apply builtin operator
-            (this.external_test_function{value: 4} == this.external_test_function{value: 4}); //~ ERROR: cannot apply builtin operator
+            (this.external_test_function{value: 4} == this.external_test_function{value: 4}) && //~ ERROR: cannot apply builtin operator
+            ((this.external_test_function{value: 4}) == this.external_test_function) && //~ ERROR: cannot apply builtin operator
+            (this.external_test_function{value: 4} == (this.external_test_function{value: 4})); //~ ERROR: cannot apply builtin operator
     }
 
     function invalidCallOptionAssignment() external {
         function() external payable fn = this.external_test_function{value: 4}; //~ ERROR: mismatched types
+        function() external payable fn2 = (this.external_test_function{value: 4}); //~ ERROR: mismatched types
     }
 }
 
