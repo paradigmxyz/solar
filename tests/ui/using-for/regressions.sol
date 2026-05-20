@@ -2,6 +2,7 @@
 // ported-from: test/libsolidity/semanticTests/enums/using_contract_enums_with_explicit_contract_name.sol
 // ported-from: test/libsolidity/semanticTests/enums/using_inherited_enum_excplicitly.sol
 // ported-from: test/libsolidity/semanticTests/using/imported_functions.sol
+// ported-from: test/libsolidity/semanticTests/errors/using_structs.sol
 // ported-from: test/libsolidity/syntaxTests/using/global_local_clash.sol
 
 import {S, f1 as f, gen, inc as aliasedInc} from "./auxiliary/regressions_imports.sol";
@@ -46,5 +47,19 @@ contract AttachedMemberClash {
 
     function test() public pure returns (uint256) {
         return gen().f(); //~ ERROR: member `f` not unique
+    }
+}
+
+struct StorageStringStruct {
+    uint256 a;
+    string b;
+}
+
+contract StorageStringAssignment {
+    StorageStringStruct s;
+
+    function f() public {
+        s.a = 9;
+        s.b = "abc";
     }
 }
