@@ -6,15 +6,15 @@ diagnostic paths without keeping one UI file per upstream test.
 
 ## Missing Semantics
 
-- [ ] Qualified enum access through contract types.
+- [x] Qualified enum access through contract types.
   - Upstream:
     `test/libsolidity/semanticTests/enums/using_contract_enums_with_explicit_contract_name.sol`
     and
     `test/libsolidity/semanticTests/enums/using_inherited_enum_excplicitly.sol`
   - Expected: `C.E.V` and `Base.E.V` resolve when `E` is an enum declared in
     `C` or inherited from `Base`.
-  - Current behavior: member lookup on `type(contract C)` does not expose nested
-    enum type members, so `C.E` is rejected.
+  - Fixed in this branch: member lookup on `type(contract C)` now exposes nested
+    type members, including inherited enum types.
 
 - [ ] Imported free-function aliases in braced using directives.
   - Upstream:
