@@ -173,7 +173,6 @@ impl<'gcx> Ty<'gcx> {
             returns,
             state_mutability: f.state_mutability,
             function_id: f.function_id,
-            options: f.options,
         })
     }
 
@@ -723,10 +722,6 @@ impl<'gcx> Ty<'gcx> {
                 if from_fn.kind != to_fn.kind {
                     return Result::Err(TyConvertError::Incompatible);
                 }
-                if from_fn.options != to_fn.options {
-                    return Result::Err(TyConvertError::Incompatible);
-                }
-
                 // Parameter and return types must match exactly (no implicit conversion).
                 if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
                     return Result::Err(TyConvertError::Incompatible);
@@ -1100,23 +1095,6 @@ pub struct TyFn<'gcx> {
     pub state_mutability: StateMutability,
     /// The declaration this function value refers to, if known.
     pub function_id: Option<hir::FunctionId>,
-    /// Additional call options and binding state carried on the function value.
-    pub options: TyFnOptions,
-}
-
-/// Extra function-value options that affect stack layout.
-///
-/// This mirrors solc `FunctionType::Options`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-pub struct TyFnOptions {
-    /// Whether the gas value to be used is on the stack.
-    pub gas_set: bool,
-    /// Whether the value to be sent is on the stack.
-    pub value_set: bool,
-    /// Whether the create2 salt value to be used is on the stack.
-    pub salt_set: bool,
-    /// Whether the first argument is bound as `self`.
-    pub has_bound_first_argument: bool,
 }
 
 /// The semantic kind of a function value.
@@ -1185,20 +1163,6 @@ impl<'gcx> TyFn<'gcx> {
     #[inline]
     pub fn has_address(&self) -> bool {
         self.is_external()
-    }
-
-    /// Returns the number of stack slots occupied by this function value.
-    pub fn stack_size(&self) -> usize {
-        let mut size = match self.kind {
-            TyFnKind::External | TyFnKind::DelegateCall => 2,
-            TyFnKind::Internal => 1,
-            TyFnKind::Declaration => 0,
-        };
-        size += usize::from(self.options.gas_set);
-        size += usize::from(self.options.value_set);
-        size += usize::from(self.options.salt_set);
-        size += usize::from(self.options.has_bound_first_argument);
-        size
     }
 
     /// Returns an iterator over all the types in the function value.

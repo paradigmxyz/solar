@@ -2,7 +2,7 @@ use crate::{
     builtins::Builtin,
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyFn, TyKind},
+    ty::{Gcx, Ty, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{DataLocation, ElementaryType, Span, StateMutability, TypeSize};
@@ -181,6 +181,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         callee_ty,
                         opts,
                         matches!(callee.kind, hir::ExprKind::New(_)),
+                        false,
                     );
                 }
 
@@ -259,10 +260,12 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::CallOptions(callee, opts) => {
                 let callee_ty = self.check_expr(callee);
+                let already_set = matches!(callee.kind, hir::ExprKind::CallOptions(..));
                 self.check_call_options(
                     callee_ty,
                     opts,
                     matches!(callee.kind, hir::ExprKind::New(_)),
+                    already_set,
                 )
             }
             hir::ExprKind::Delete(expr) => {
@@ -681,7 +684,15 @@ impl<'gcx> TypeChecker<'gcx> {
         op: hir::BinOp,
         assign: bool,
     ) -> Ty<'gcx> {
-        let common = binop_common_type(self.gcx, lhs, rhs, op.kind);
+        let call_options_comparison = op.kind.is_cmp()
+            && matches!((lhs.kind, rhs.kind), (TyKind::Fn(_), TyKind::Fn(_)))
+            && (matches!(lhs_e.kind, hir::ExprKind::CallOptions(..))
+                || matches!(rhs_e.kind, hir::ExprKind::CallOptions(..)));
+        let common = if call_options_comparison {
+            None
+        } else {
+            binop_common_type(self.gcx, lhs, rhs, op.kind)
+        };
         // TODO: custom operators
         if let Some(common) = common
             && !(assign && common != lhs)
@@ -749,6 +760,22 @@ impl<'gcx> TypeChecker<'gcx> {
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) {
+        if matches!(expr.kind, hir::ExprKind::CallOptions(..))
+            && matches!((actual.kind, expected.kind), (TyKind::Fn(_), TyKind::Fn(_)))
+        {
+            let mut diag = self.dcx().err("mismatched types").span(expr.span);
+            diag = diag.span_label(
+                expr.span,
+                format!(
+                    "expected `{}`, found `{}`",
+                    expected.display(self.gcx),
+                    actual.display(self.gcx)
+                ),
+            );
+            diag.emit();
+            return;
+        }
+
         let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return };
 
         let mut diag = self.dcx().err("mismatched types").span(expr.span);
@@ -816,6 +843,7 @@ impl<'gcx> TypeChecker<'gcx> {
         ty: Ty<'gcx>,
         opts: &'gcx [hir::NamedArg<'gcx>],
         creation: bool,
+        already_set: bool,
     ) -> Ty<'gcx> {
         let TyKind::Fn(f) = ty.kind else {
             for opt in opts {
@@ -830,6 +858,13 @@ impl<'gcx> TypeChecker<'gcx> {
             return ty;
         };
 
+        if already_set {
+            self.dcx()
+                .err("function call options have already been set")
+                .span(opts.first().map_or(Span::DUMMY, |opt| opt.name.span))
+                .emit();
+        }
+
         if !creation && !f.is_external() {
             self.dcx()
                 .err("function call options can only be set on external function calls or contract creations")
@@ -837,14 +872,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit();
         }
 
-        if f.options.gas_set || f.options.value_set || f.options.salt_set {
-            self.dcx()
-                .err("function call options have already been set")
-                .span(opts.first().map_or(Span::DUMMY, |opt| opt.name.span))
-                .emit();
-        }
-
-        let mut options = f.options;
         let mut gas_set = false;
         let mut value_set = false;
         let mut salt_set = false;
@@ -859,7 +886,6 @@ impl<'gcx> TypeChecker<'gcx> {
                             .emit();
                     } else {
                         let _ = self.expect_ty(&opt.value, self.gcx.types.uint(256));
-                        options.gas_set = true;
                     }
                     std::mem::replace(&mut gas_set, true)
                 }
@@ -871,7 +897,6 @@ impl<'gcx> TypeChecker<'gcx> {
                             .emit();
                     }
                     let _ = self.expect_ty(&opt.value, self.gcx.types.uint(256));
-                    options.value_set = true;
                     std::mem::replace(&mut value_set, true)
                 }
                 sym::salt => {
@@ -882,7 +907,6 @@ impl<'gcx> TypeChecker<'gcx> {
                             .emit();
                     }
                     let _ = self.expect_ty(&opt.value, self.gcx.types.fixed_bytes(32));
-                    options.salt_set = true;
                     std::mem::replace(&mut salt_set, true)
                 }
                 _ => {
@@ -902,17 +926,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         }
 
-        if creation || !f.is_external() {
-            return ty;
-        }
-        self.gcx.mk_ty_fn(TyFn {
-            kind: f.kind,
-            parameters: f.parameters,
-            returns: f.returns,
-            state_mutability: f.state_mutability,
-            function_id: f.function_id,
-            options,
-        })
+        ty
     }
 
     fn check_positional_call_args(
@@ -1670,16 +1684,8 @@ fn binop_common_type<'gcx>(
             if !matches!(op, Eq | Ne) {
                 return None;
             }
-            if !((f.is_internal()
-                && f.stack_size() == 1
-                && other_fn.is_internal()
-                && other_fn.stack_size() == 1)
-                || (f.is_external()
-                    && f.stack_size() == 2
-                    && !f.options.has_bound_first_argument
-                    && other_fn.is_external()
-                    && other_fn.stack_size() == 2
-                    && !other_fn.options.has_bound_first_argument))
+            if !((f.is_internal() && other_fn.is_internal())
+                || (f.is_external() && other_fn.is_external()))
             {
                 return None;
             }
