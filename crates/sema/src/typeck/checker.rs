@@ -284,13 +284,6 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Ident(res) => {
                 let res = self.resolve_overloads(res, expr.span);
-                if res == hir::Res::Builtin(Builtin::This) && self.in_constructor_context() {
-                    self.dcx()
-                        .warn("`this` used in constructor")
-                        .span(expr.span)
-                        .note("external functions of a contract cannot be called while it is being constructed")
-                        .emit();
-                }
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }

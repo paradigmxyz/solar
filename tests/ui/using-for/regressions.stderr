@@ -4,13 +4,5 @@ error: member `f` not unique on type `struct S memory`
 LL │         return gen().f();
    ╰╴                     ━
 
-warning: `this` used in constructor
-   ╭▸ ROOT/tests/ui/using-for/regressions.sol:LL:CC
-   │
-LL │         this.f();
-   │         ━━━━
-   │
-   ╰ note: external functions of a contract cannot be called while it is being constructed
-
-error: aborting due to 1 previous error; 1 warning emitted
+error: aborting due to 1 previous error
 

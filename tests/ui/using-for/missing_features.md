@@ -66,8 +66,7 @@ priority unless we decide to match solc warning coverage broadly.
     `test/libsolidity/syntaxTests/nameAndTypeResolution/254_using_for_function_on_int.sol`
   - Current behavior: no mutability warning is emitted.
 
-- [x] Warning for using `this` in a constructor.
+- [ ] Warning for using `this` in a constructor.
   - Upstream:
     `test/libsolidity/syntaxTests/nameAndTypeResolution/491_using_this_in_constructor.sol`
-  - Fixed in this branch: type checking warns when the builtin `this` value is
-    used in constructor context.
+  - Current behavior: no constructor `this` warning is emitted.
