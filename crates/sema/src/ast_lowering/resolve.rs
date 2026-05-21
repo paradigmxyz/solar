@@ -389,7 +389,24 @@ impl<'gcx> ResolveContext<'gcx> {
                                 && func.contract.is_some_and(|c| {
                                     self.hir.contract(c).linearized_bases[1..].contains(&base)
                                 }) => {}
-                        hir::ItemId::Function(f) if self.hir.function(f).kind.is_modifier() => {}
+                        hir::ItemId::Function(f) if self.hir.function(f).kind.is_modifier() => {
+                            let modifier_contract = self.hir.function(f).contract;
+                            let allowed = func.contract.is_some_and(|current| {
+                                modifier_contract.is_some_and(|modifier_contract| {
+                                    self.hir
+                                        .contract(current)
+                                        .linearized_bases
+                                        .contains(&modifier_contract)
+                                })
+                            });
+                            if !allowed {
+                                self.dcx()
+                                    .err("can only use modifiers defined in the current contract or in base contracts")
+                                    .span(modifier.name.span())
+                                    .emit();
+                                continue;
+                            }
+                        }
                         _ => {
                             self.resolver.report_expected(
                                 expected,
