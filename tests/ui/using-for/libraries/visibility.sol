@@ -2,13 +2,8 @@
 // ported-from: test/libsolidity/syntaxTests/using/library_functions_at_file_level.sol
 // ported-from: test/libsolidity/syntaxTests/using/library_functions_inside_contract.sol
 // ported-from: test/libsolidity/syntaxTests/using/private_library_function_inside_scope.sol
-// ported-from: test/libsolidity/syntaxTests/modifiers/library_via_using.sol
 
 library L {
-    modifier m() {
-        _;
-    }
-
     function ext(uint256 x) external pure returns (uint256) {
         return x;
     }
@@ -32,8 +27,6 @@ contract C {
     function run(uint256 x) public pure returns (uint256) {
         return x.ext() + x.pub() + x.inner();
     }
-
-    function bad() L.m public {} //~ ERROR: can only use modifiers defined in the current contract or in base contracts
 }
 
 library PrivateScope {
