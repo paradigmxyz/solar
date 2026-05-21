@@ -180,6 +180,11 @@ impl<'a, G: EmissionGuarantee> DiagBuilder<'a, G> {
         unsafe { std::ptr::drop_in_place(&mut this.diagnostic) };
         r
     }
+
+    #[inline(never)]
+    fn outline_mut(&mut self, f: impl FnOnce(&mut Self)) {
+        f(self);
+    }
 }
 
 /// Forwards methods to [`Diag`].
@@ -193,9 +198,11 @@ macro_rules! forward {
         $(
             $(#[$attrs])*
             #[doc = concat!("See [`Diag::", stringify!($n), "()`].")]
-            #[inline(never)]
+            #[inline]
             $vis fn $n(mut self, $($name: $ty),*) -> Self {
-                self.diagnostic.0.$n($($name),*);
+                self.outline_mut(|this| {
+                    this.diagnostic.0.$n($($name),*);
+                });
                 self
             }
         )*
