@@ -59,14 +59,12 @@ diagnostic paths without keeping one UI file per upstream test.
 These are solc warnings rather than using-for semantic failures. They are lower
 priority unless we decide to match solc warning coverage broadly.
 
-- [x] Mutability warnings for functions that can be `pure`.
+- [ ] Mutability warnings for functions that can be `pure`.
   - Upstream:
     `test/libsolidity/syntaxTests/nameAndTypeResolution/253_using_for_function_exists.sol`
     and
     `test/libsolidity/syntaxTests/nameAndTypeResolution/254_using_for_function_on_int.sol`
-  - Fixed in this branch: the type checker emits this warning for the audited
-    using-for corpus when a function body can be checked as pure without
-    stateful operations.
+  - Current behavior: no mutability warning is emitted.
 
 - [x] Warning for using `this` in a constructor.
   - Upstream:

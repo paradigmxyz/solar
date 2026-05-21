@@ -74,13 +74,5 @@ LL │ ┃     return a;
 LL │ ┃ }
    ╰╴┗━┛
 
-warning: function state mutability can be restricted to `pure`
-   ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
-   │
-LL │ ┏ function notPure(U a, U b) view returns (U) {
-LL │ ┃     return a;
-LL │ ┃ }
-   ╰╴┗━┛
-
-error: aborting due to 6 previous errors; 1 warning emitted
+error: aborting due to 6 previous errors
 
