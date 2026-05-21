@@ -6,16 +6,6 @@ diagnostic paths without keeping one UI file per upstream test.
 
 ## Missing Semantics
 
-- [x] Qualified enum access through contract types.
-  - Upstream:
-    `test/libsolidity/semanticTests/enums/using_contract_enums_with_explicit_contract_name.sol`
-    and
-    `test/libsolidity/semanticTests/enums/using_inherited_enum_excplicitly.sol`
-  - Expected: `C.E.V` and `Base.E.V` resolve when `E` is an enum declared in
-    `C` or inherited from `Base`.
-  - Fixed in this branch: member lookup on `type(contract C)` now exposes nested
-    type members, including inherited enum types.
-
 - [x] Imported free-function aliases in braced using directives.
   - Upstream:
     `test/libsolidity/semanticTests/using/imported_functions.sol` and
@@ -46,26 +36,3 @@ diagnostic paths without keeping one UI file per upstream test.
     is in scope.
   - Fixed in this branch: modifier resolution now rejects modifiers whose
     defining contract is not the current contract or one of its bases.
-
-- [ ] Allow storage string fields to receive string literals.
-  - Upstream: `test/libsolidity/semanticTests/errors/using_structs.sol`
-  - Expected: `s.b = "abc"` is valid for a storage struct field `string b`.
-  - Current behavior: type checking rejects assigning the string literal to
-    `string storage`.
-
-## Warning Parity
-
-These are solc warnings rather than using-for semantic failures. They are lower
-priority unless we decide to match solc warning coverage broadly.
-
-- [ ] Mutability warnings for functions that can be `pure`.
-  - Upstream:
-    `test/libsolidity/syntaxTests/nameAndTypeResolution/253_using_for_function_exists.sol`
-    and
-    `test/libsolidity/syntaxTests/nameAndTypeResolution/254_using_for_function_on_int.sol`
-  - Current behavior: no mutability warning is emitted.
-
-- [ ] Warning for using `this` in a constructor.
-  - Upstream:
-    `test/libsolidity/syntaxTests/nameAndTypeResolution/491_using_this_in_constructor.sol`
-  - Current behavior: no constructor `this` warning is emitted.
