@@ -1,0 +1,279 @@
+error: function `p_zero` does not have any parameters and therefore cannot be attached
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     p_zero as +,
+   │     ━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function p_zero() pure returns (Param) {
+LL │ ┃     return Param.wrap(0);
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function p_one(Param a) pure returns (Param) {
+LL │ ┃
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     p_one as *,
+   │     ━━━━━
+   ╰ help: function `p_one` needs to have two parameters of type `Param` to be used for operator `*`
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function p_three(Param a, Param b, Param c) pure returns (Param) {
+LL │ ┃
+LL │ ┃     b; c;
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     p_three as -,
+   │     ━━━━━━━
+   ╰ help: function `p_three` needs to have one or two parameters of type `Param` to be used for operator `-`
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function p_first(uint256 a, Param b) pure returns (Param) {
+LL │ ┃
+LL │ ┃     a;
+LL │ ┃     return b;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     p_first as /,
+   │     ━━━━━━━
+   ╰ help: function `p_first` needs to have two parameters of type `Param` to be used for operator `/`
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function p_second(Param a, uint256 b) pure returns (Param) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     p_second as %
+   │     ━━━━━━━━
+   ╰ help: function `p_second` needs to have two parameters of type `Param` to be used for operator `%`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function r_raw(Ret a, Ret b) pure returns (uint256) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return Ret.unwrap(a);
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     r_raw as +,
+   │     ━━━━━
+   ╰ help: function `r_raw` needs to return `Ret` to be used for operator `+`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function r_none(Ret a, Ret b) pure {
+LL │ ┃
+LL │ ┃     a; b;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     r_none as *,
+   │     ━━━━━━
+   ╰ help: function `r_none` needs to return `Ret` to be used for operator `*`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function r_two(Ret a, Ret b) pure returns (Ret, Ret) {
+LL │ ┃
+LL │ ┃     return (a, b);
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     r_two as /,
+   │     ━━━━━
+   ╰ help: function `r_two` needs to return `Ret` to be used for operator `/`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function r_unary_raw(Ret a) pure returns (uint256) {
+LL │ ┃
+LL │ ┃     return Ret.unwrap(a);
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     r_unary_raw as ~,
+   │     ━━━━━━━━━━━
+   ╰ help: function `r_unary_raw` needs to return `Ret` to be used for operator `~`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function r_minus_two(Ret a) pure returns (Ret, Ret) {
+LL │ ┃
+LL │ ┃     return (a, a);
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     r_minus_two as -
+   │     ━━━━━━━━━━━
+   ╰ help: function `r_minus_two` needs to return `Ret` to be used for operator `-`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function c_ret_udvt(Cmp a, Cmp b) pure returns (Cmp) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     c_ret_udvt as <,
+   │     ━━━━━━━━━━
+   ╰ help: function `c_ret_udvt` needs to return `bool` to be used for operator `<`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function c_none(Cmp a, Cmp b) pure {
+LL │ ┃
+LL │ ┃     a; b;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     c_none as >,
+   │     ━━━━━━
+   ╰ help: function `c_none` needs to return `bool` to be used for operator `>`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function c_two(Cmp a, Cmp b) pure returns (bool, Cmp) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return (true, a);
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     c_two as ==,
+   │     ━━━━━
+   ╰ help: function `c_two` needs to return `bool` to be used for operator `==`
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function c_params(Cmp a) pure returns (bool) {
+LL │ ┃
+LL │ ┃     a;
+LL │ ┃     return true;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     c_params as !=
+   │     ━━━━━━━━
+   ╰ help: function `c_params` needs to have two parameters of type `Cmp` to be used for operator `!=`
+
+error: cannot apply builtin operator `+` to `Param` and `Param`
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │         a + b;
+   │         ┬ ━ ─ Param
+   │         │
+   ╰╴        Param
+
+error: cannot apply builtin operator `*` to `Param` and `Param`
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │         a * b;
+   │         ┬ ━ ─ Param
+   │         │
+   ╰╴        Param
+
+error: cannot apply builtin operator `-` to `Param` and `Param`
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │         a - b;
+   │         ┬ ━ ─ Param
+   │         │
+   ╰╴        Param
+
+error: cannot apply builtin operator `/` to `Param` and `Param`
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │         a / b;
+   │         ┬ ━ ─ Param
+   │         │
+   ╰╴        Param
+
+error: cannot apply builtin operator `%` to `Param` and `Param`
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │         a % b;
+   │         ┬ ━ ─ Param
+   │         │
+   ╰╴        Param
+
+error: cannot apply builtin operator `!=` to `Cmp` and `Cmp`
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │         a != b;
+   │         ┬ ━━ ─ Cmp
+   │         │
+   ╰╴        Cmp
+
+error: aborting due to 20 previous errors
+
