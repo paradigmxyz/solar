@@ -11,22 +11,15 @@ For testing and comparing behavior and semantics, the current tracked solc versi
 ## Commands
 
 ```bash
-cargo build                                      # Build
-cargo nextest run --workspace                    # Run tests (faster than cargo test)
-cargo uitest                                     # Run UI tests
-cargo uibless                                    # Update UI test expectations
-cargo fmt --all                                  # Format
-cargo clippy --workspace --all-targets           # Lint
-cargo llvm-cov nextest --workspace               # Test coverage with nextest
-cargo run -- file.sol                            # Run compiler
-cargo run -- -Zhelp                              # Unstable flags help
-```
-
-For coverage, install `cargo-llvm-cov` if needed and use its nextest integration:
-
-```bash
-cargo install cargo-llvm-cov
-cargo llvm-cov nextest --workspace
+cargo build                            # Build
+cargo nextest run --workspace          # Run tests (faster than cargo test)
+cargo llvm-cov nextest --workspace     # Test coverage
+cargo uitest                           # Run UI tests
+cargo uibless                          # Update UI test expectations
+cargo fmt --all                        # Format
+cargo clippy --workspace --all-targets # Lint
+cargo run -- file.sol                  # Run compiler
+cargo run -- -Zhelp                    # Unstable flags help
 ```
 
 ## Architecture
@@ -95,6 +88,7 @@ Do not add a full stop or other trailing punctuation after the path.
 Place these after initial UI metadata directives such as `//@compile-flags`,
 `//@ error-in-other-file`, and `// check-fail`; if the file has no UI metadata,
 put the attribution at the top.
+Only add attribution if you're actually porting the semantics of the test 1-1 from Solc, not just "covering the error message". Renames are OK.
 
 ## Diagnostics Style
 
