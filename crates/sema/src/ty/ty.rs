@@ -36,6 +36,9 @@ pub enum TyConvertError {
     /// Invalid conversion between types.
     InvalidConversion,
 
+    /// Attached function cannot be converted to an unattached function pointer.
+    AttachedFunction,
+
     /// Literal is larger than the target type.
     LiteralTooLarge,
 
@@ -44,6 +47,12 @@ pub enum TyConvertError {
 
     /// Non-payable address cannot be converted to a contract that can receive ether.
     AddressNotPayable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SameSourceFileLevelUserTypeError {
+    NotUserDefined,
+    NotSameSourceFileLevel,
 }
 
 impl TyConvertError {
@@ -62,6 +71,9 @@ impl TyConvertError {
             }
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::AttachedFunction => {
+                "attached functions cannot be converted into unattached functions".to_string()
             }
             Self::LiteralTooLarge => {
                 format!(
@@ -110,7 +122,7 @@ impl<'gcx> Ty<'gcx> {
 
     #[doc(alias = "with_location_if_reference")]
     pub fn with_loc_if_ref(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
-        if self.is_reference_type() {
+        if self.peel_refs().is_reference_type() {
             return self.with_loc(gcx, loc);
         }
         self
@@ -173,6 +185,22 @@ impl<'gcx> Ty<'gcx> {
             returns,
             state_mutability: f.state_mutability,
             function_id: f.function_id,
+            attached: false,
+        })
+    }
+
+    pub fn as_attached_function(self, gcx: Gcx<'gcx>) -> Self {
+        let TyKind::Fn(f) = self.kind else { return self };
+        if f.attached {
+            return self;
+        }
+        gcx.mk_ty_fn(TyFn {
+            kind: f.kind,
+            parameters: f.parameters,
+            returns: f.returns,
+            state_mutability: f.state_mutability,
+            function_id: f.function_id,
+            attached: true,
         })
     }
 
@@ -342,6 +370,45 @@ impl<'gcx> Ty<'gcx> {
         match self.kind {
             TyKind::Fn(f) => f.function_id,
             _ => None,
+        }
+    }
+
+    /// Returns the HIR item ID associated with this type, if any.
+    #[inline]
+    pub fn item_id(self) -> Option<hir::ItemId> {
+        Some(match self.kind {
+            TyKind::Fn(f) => f.function_id?.into(),
+            TyKind::Contract(id) => id.into(),
+            TyKind::Struct(id) => id.into(),
+            TyKind::Enum(id) => id.into(),
+            TyKind::Error(_, id) => id.into(),
+            TyKind::Event(_, id) => id.into(),
+            TyKind::Udvt(_, id) => id.into(),
+            _ => return None,
+        })
+    }
+
+    /// Returns the source ID where this type's HIR item is defined.
+    #[inline]
+    pub fn item_source(self, gcx: Gcx<'gcx>) -> Option<hir::SourceId> {
+        self.peel_refs().item_id().map(|id| gcx.hir.item(id).source())
+    }
+
+    pub(crate) fn same_source_file_level_user_type(
+        self,
+        gcx: Gcx<'gcx>,
+        source: hir::SourceId,
+    ) -> Result<(), SameSourceFileLevelUserTypeError> {
+        let Some(id @ (hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_))) =
+            self.peel_refs().item_id()
+        else {
+            return Err(SameSourceFileLevelUserTypeError::NotUserDefined);
+        };
+        let item = gcx.hir.item(id);
+        if item.source() == source && item.contract().is_none() {
+            Ok(())
+        } else {
+            Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel)
         }
     }
 
@@ -730,10 +797,15 @@ impl<'gcx> Ty<'gcx> {
             // Function pointer conversions.
             // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
             (Fn(from_fn), Fn(to_fn)) => {
+                if from_fn.attached != to_fn.attached {
+                    if from_fn.attached {
+                        return Result::Err(TyConvertError::AttachedFunction);
+                    }
+                    return Result::Err(TyConvertError::Incompatible);
+                }
                 if from_fn.kind != to_fn.kind {
                     return Result::Err(TyConvertError::Incompatible);
                 }
-
                 // Parameter and return types must match exactly (no implicit conversion).
                 if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
                     return Result::Err(TyConvertError::Incompatible);
@@ -1107,6 +1179,8 @@ pub struct TyFn<'gcx> {
     pub state_mutability: StateMutability,
     /// The declaration this function value refers to, if known.
     pub function_id: Option<hir::FunctionId>,
+    /// Whether the first parameter is bound to a receiver in member-access syntax.
+    pub attached: bool,
 }
 
 /// The semantic kind of a function value.
@@ -1196,7 +1270,7 @@ impl<'gcx> TyFn<'gcx> {
     /// Returns whether this function value has an `.address` member.
     #[inline]
     pub fn has_address(&self) -> bool {
-        self.is_external()
+        self.is_external() && !self.attached
     }
 
     /// Returns an iterator over all the types in the function value.

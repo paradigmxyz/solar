@@ -1,11 +1,11 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir::{self, Item, ItemId, Res, Visit},
-    ty::{Gcx, Ty, TyKind},
+    ty::{Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind},
 };
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
-use solar_ast::{StateMutability, Visibility};
+use solar_ast::{DataLocation, StateMutability, Visibility};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
@@ -16,6 +16,7 @@ use std::ops::ControlFlow;
 
 mod checker;
 mod override_checker;
+mod udvt;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
@@ -26,18 +27,142 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             check_payable_fallback_without_receive(gcx, id);
             check_external_type_clashes(gcx, id);
             check_receive_function(gcx, id);
+            for using in gcx.hir.contract(id).usings {
+                check_using_directive(gcx, using);
+            }
             check_unimplemented_functions(gcx, id);
             override_checker::check(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
             check_break_continue(gcx, id);
+            for using in gcx.hir.source(id).usings {
+                check_using_directive(gcx, using);
+            }
             if gcx.sess.opts.unstable.typeck {
                 // TODO: Parallelize more.
                 checker::check(gcx, id);
             }
         }),
     );
+}
+
+fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {
+    let using_ty = gcx.type_of_using_directive(using);
+
+    if using.global
+        && let Some(ty) = using_ty
+    {
+        match ty.same_source_file_level_user_type(gcx, using.source) {
+            Ok(()) => {}
+            Err(SameSourceFileLevelUserTypeError::NotUserDefined) => {
+                gcx.dcx()
+                    .err("can only use `global` with user-defined types")
+                    .span(using.span)
+                    .emit();
+            }
+            Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel) => {
+                gcx.dcx()
+                    .err("can only use `global` with types defined in the same source unit at file level")
+                    .span(using.span)
+                    .emit();
+            }
+        }
+    }
+
+    if !using.global
+        && let Some(ty) = using_ty
+        && let TyKind::Contract(id) = ty.kind
+        && gcx.hir.contract(id).kind.is_library()
+    {
+        gcx.dcx().err("invalid use of library name").span(using.span).emit();
+    }
+
+    for entry in using.entries {
+        match entry.kind {
+            hir::UsingEntryKind::Library(id) => {
+                if !gcx.hir.contract(id).kind.is_library() {
+                    gcx.dcx()
+                        .err("library name expected")
+                        .span(entry.span)
+                        .help("if you want to attach a function, use `{...}`")
+                        .emit();
+                }
+            }
+            hir::UsingEntryKind::Functions(functions) => {
+                for &function in functions {
+                    check_using_function(gcx, using, entry, function, using_ty);
+                }
+            }
+            hir::UsingEntryKind::Err(_) => {}
+        }
+    }
+}
+
+fn check_using_function<'gcx>(
+    gcx: Gcx<'gcx>,
+    using: &hir::UsingDirective<'_>,
+    entry: &hir::UsingEntry<'_>,
+    function_id: hir::FunctionId,
+    using_ty: Option<Ty<'gcx>>,
+) {
+    let function = gcx.hir.function(function_id);
+    let is_library_function =
+        function.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
+    if !function.is_free() && !is_library_function {
+        gcx.dcx()
+            .err("only file-level functions and library functions can be attached to a type in a `using` statement")
+            .span(entry.span)
+            .emit();
+    }
+
+    let TyKind::Fn(function_ty) = gcx.type_of_item(function_id.into()).kind else { unreachable!() };
+    if function_ty.parameters.is_empty() {
+        gcx.dcx()
+            .err(format!(
+                "function `{}` does not have any parameters and therefore cannot be attached",
+                gcx.item_name(function_id).as_str()
+            ))
+            .span(entry.span)
+            .span_note(function.span, "function defined here")
+            .emit();
+        return;
+    }
+
+    if function.visibility == Visibility::Private && function.contract != using.contract {
+        gcx.dcx()
+            .err(format!(
+                "function `{}` is private and therefore cannot be attached to a type outside of the library where it is defined",
+                gcx.item_name(function_id).as_str()
+            ))
+            .span(entry.span)
+            .span_note(function.span, "function defined here")
+            .emit();
+    }
+
+    if let Some(using_ty) = using_ty {
+        let normalized_using_ty = using_ty.with_loc_if_ref(gcx, DataLocation::Storage);
+        let self_ty = function_ty.parameters[0].with_loc_if_ref(gcx, DataLocation::Storage);
+        if !normalized_using_ty.convert_implicit_to(self_ty, gcx) && entry.operator.is_none() {
+            gcx.dcx()
+                .err(format!(
+                    "function `{}` cannot be attached to type `{}`",
+                    gcx.item_name(function_id).as_str(),
+                    using_ty.display(gcx)
+                ))
+                .span(entry.span)
+                .span_note(function.span, "function defined here")
+                .help(format!(
+                    "the type cannot be implicitly converted to the first function argument `{}`",
+                    function_ty.parameters[0].display(gcx)
+                ))
+                .emit();
+        }
+    }
+
+    if let Some(op) = entry.operator {
+        udvt::check_using_operator(gcx, using, entry, function_id, function_ty, using_ty, op);
+    }
 }
 
 fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {

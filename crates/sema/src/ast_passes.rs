@@ -384,7 +384,7 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
         &mut self,
         using: &'ast ast::UsingDirective<'ast>,
     ) -> ControlFlow<Self::BreakValue> {
-        let ast::UsingDirective { list: _, ty, global } = using;
+        let ast::UsingDirective { ref list, ref ty, global } = *using;
         let with_ty = ty.is_some();
         if self.contract.is_none() && !with_ty {
             self.dcx()
@@ -392,14 +392,30 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 .span(self.item_span)
                 .emit();
         }
-        if *global && !with_ty {
+        if self.contract.is_some() && !with_ty && matches!(list, ast::UsingList::Multiple(_)) {
+            self.dcx()
+                .err("the type has to be specified explicitly when attaching specific functions")
+                .span(self.item_span)
+                .emit();
+        }
+        if global && !with_ty {
             self.dcx()
                 .err("can only globally attach functions to specific types")
                 .span(self.item_span)
                 .emit();
         }
-        if *global && self.contract.is_some() {
+        if global && self.contract.is_some() {
             self.dcx().err("`global` can only be used at file level").span(self.item_span).emit();
+        }
+        if !global && let ast::UsingList::Multiple(paths) = list {
+            for (path, operator) in paths.iter() {
+                if operator.is_some() {
+                    self.dcx()
+                        .err("operators can only be defined in a global `using for` directive")
+                        .span(path.span())
+                        .emit();
+                }
+            }
         }
         if let Some(contract) = self.contract
             && contract.kind.is_interface()

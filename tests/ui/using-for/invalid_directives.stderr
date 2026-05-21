@@ -1,0 +1,92 @@
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ using {id256} for uint256 global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with types defined in the same source unit at file level
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ using {id256} for L.Inner global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: function `id256` cannot be attached to type `struct L.Inner`
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ using {id256} for L.Inner global;
+   │        ━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ ┏ function id256(uint256 x) pure returns (uint256) {
+LL │ ┃     return x;
+LL │ ┃ }
+   │ ┗━┛
+   ╰ help: the type cannot be implicitly converted to the first function argument `uint256`
+
+error: invalid use of library name
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ using L for M;
+   ╰╴━━━━━━━━━━━━━━
+
+error: invalid use of library name
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ using L for L;
+   ╰╴━━━━━━━━━━━━━━
+
+error: library name expected
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │     using NotLibrary for uint256;
+   │           ━━━━━━━━━━
+   │
+   ╰ help: if you want to attach a function, use `{...}`
+
+error: function `zero` does not have any parameters and therefore cannot be attached
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │     using {zero} for uint256;
+   │            ━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ ┏ function zero() pure returns (uint256) {
+LL │ ┃     return 0;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: function `id8` cannot be attached to type `uint256`
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │     using {id8} for uint256;
+   │            ━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ ┏ function id8(uint8 x) pure returns (uint8) {
+LL │ ┃     return x;
+LL │ ┃ }
+   │ ┗━┛
+   ╰ help: the type cannot be implicitly converted to the first function argument `uint8`
+
+error: function `priv` is private and therefore cannot be attached to a type outside of the library where it is defined
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │     using {L.priv} for uint256;
+   │            ━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid_directives.sol:LL:CC
+   │
+LL │ ┏     function priv(uint256 x) private pure returns (uint256) {
+LL │ ┃         return x;
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 9 previous errors
+

@@ -1,0 +1,14 @@
+error: expected library, found function
+   ╭▸ ROOT/tests/ui/using-for/invalid_resolution.sol:LL:CC
+   │
+LL │     using id256 for uint256;
+   ╰╴          ━━━━━
+
+error: expected function name
+   ╭▸ ROOT/tests/ui/using-for/invalid_resolution.sol:LL:CC
+   │
+LL │     using {X} for uint256;
+   ╰╴           ━
+
+error: aborting due to 2 previous errors
+

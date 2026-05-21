@@ -6,7 +6,7 @@ use crate::{
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
-use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
+use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
 use solar_data_structures::{
     BumpExt,
     fmt::{from_fn, or_list},
@@ -42,10 +42,12 @@ use interner::Interner;
 
 #[allow(clippy::module_inception)]
 mod ty;
+pub(crate) use ty::SameSourceFileLevelUserTypeError;
 pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
+type UsingDirectiveKey = usize;
 
 /// A function exported by a contract.
 #[derive(Clone, Copy, Debug)]
@@ -401,6 +403,7 @@ impl<'gcx> Gcx<'gcx> {
             returns: self.mk_tys(returns),
             state_mutability: fn_state_mutability(kind, state_mutability),
             function_id: None,
+            attached: false,
         })
     }
 
@@ -627,6 +630,7 @@ impl<'gcx> Gcx<'gcx> {
                     returns: self.mk_item_tys(f.returns),
                     state_mutability: fn_state_mutability(kind, f.state_mutability),
                     function_id: None,
+                    attached: false,
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
@@ -638,6 +642,14 @@ impl<'gcx> Gcx<'gcx> {
             hir::TypeKind::Err(guar) => TyKind::Err(guar),
         };
         self.mk_ty(kind)
+    }
+
+    /// Returns the target type of the given [`hir::UsingDirective`].
+    pub(crate) fn type_of_using_directive(
+        self,
+        using: &'gcx hir::UsingDirective<'gcx>,
+    ) -> Option<Ty<'gcx>> {
+        self.type_of_using_directive_cached(using as *const _ as UsingDirectiveKey)
     }
 
     fn type_of_item_simple(self, id: hir::ItemId, span: Span) -> Ty<'gcx> {
@@ -700,9 +712,161 @@ impl<'gcx> Gcx<'gcx> {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> members::MemberList<'gcx> {
-        let _ = (source, contract); // TODO
-        self.native_members(ty)
+    ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
+        let native = self.native_members(ty);
+        let attached = self.attached_functions(ty, source, contract);
+        native.iter().copied().chain(attached)
+    }
+
+    pub(crate) fn for_each_user_operator(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+        op: UserDefinableOperator,
+        unary: bool,
+        f: &mut dyn FnMut(hir::FunctionId),
+    ) {
+        let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind else {
+            return;
+        };
+        let ty = self.type_of_item(user_ty.into());
+        let mut seen = FxHashSet::default();
+        self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
+            for entry in using.entries {
+                if entry.operator == Some(op)
+                    && let hir::UsingEntryKind::Functions(candidates) = entry.kind
+                {
+                    for &function_id in candidates {
+                        if let TyKind::Fn(function_ty) = self.type_of_item(function_id.into()).kind
+                            && function_ty.parameters.len() == if unary { 1 } else { 2 }
+                            && function_ty.parameters.first().copied() == Some(ty)
+                            && seen.insert(function_id)
+                        {
+                            f(function_id);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    fn attached_functions(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Vec<members::Member<'gcx>> {
+        let mut members = Vec::new();
+        let mut seen = FxHashSet::default();
+        self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
+            for entry in using.entries {
+                if entry.operator.is_some() {
+                    continue;
+                }
+                match entry.kind {
+                    hir::UsingEntryKind::Library(library) => {
+                        for function in self.hir.contract(library).functions() {
+                            let f = self.hir.function(function);
+                            if !f.is_ordinary()
+                                || f.parameters.is_empty()
+                                || f.visibility == Visibility::Private
+                            {
+                                continue;
+                            }
+                            self.add_attached_function(ty, function, None, &mut seen, &mut members);
+                        }
+                    }
+                    hir::UsingEntryKind::Functions(functions) => {
+                        for &function in functions {
+                            let name = entry.name.unwrap_or_else(|| self.item_name(function).name);
+                            self.add_attached_function(
+                                ty,
+                                function,
+                                Some(name),
+                                &mut seen,
+                                &mut members,
+                            );
+                        }
+                    }
+                    hir::UsingEntryKind::Err(_) => {}
+                }
+            }
+        });
+        members
+    }
+
+    fn add_attached_function(
+        self,
+        ty: Ty<'gcx>,
+        function: hir::FunctionId,
+        name: Option<Symbol>,
+        seen: &mut FxHashSet<(Symbol, hir::FunctionId)>,
+        members: &mut Vec<members::Member<'gcx>>,
+    ) {
+        let function_item = self.hir.function(function);
+        let fn_ty = self.type_of_item(function.into());
+        let fn_ty =
+            if function_item.contract.is_some_and(|id| self.hir.contract(id).kind.is_library())
+                && function_item.visibility >= Visibility::Public
+            {
+                fn_ty.as_externally_callable_function(true, self)
+            } else {
+                fn_ty
+            }
+            .as_attached_function(self);
+        if let TyKind::Fn(function_ty) = fn_ty.kind
+            && let Some(&self_ty) = function_ty.parameters.first()
+            && ty.convert_implicit_to(self_ty, self)
+            && let name = name.unwrap_or_else(|| self.item_name(function).name)
+            && seen.insert((name, function))
+        {
+            members.push(members::Member::with_attached_function(name, fn_ty, function));
+        }
+    }
+
+    fn for_each_using_directive_for_type(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+        f: &mut dyn FnMut(&'gcx hir::UsingDirective<'gcx>),
+    ) {
+        let mut check = |usings: &'gcx [hir::UsingDirective<'gcx>], only_global: bool| {
+            for using in usings {
+                if self.using_directive_applies(using, ty, only_global) {
+                    f(using);
+                }
+            }
+        };
+
+        if let Some(contract) = contract {
+            check(self.hir.contract(contract).usings, false);
+        }
+        check(self.hir.source(source).usings, false);
+
+        if let Some(type_source) = ty.item_source(self)
+            && type_source != source
+        {
+            check(self.hir.source(type_source).usings, true);
+        }
+    }
+
+    fn using_directive_applies(
+        self,
+        using: &'gcx hir::UsingDirective<'gcx>,
+        ty: Ty<'gcx>,
+        only_global: bool,
+    ) -> bool {
+        if only_global && !(using.global && using.ty.is_some()) {
+            return false;
+        }
+        let Some(using_ty) = self.type_of_using_directive(using) else {
+            // For `*`.
+            return true;
+        };
+        let loc = ty.loc().unwrap_or(DataLocation::Storage);
+        ty == using_ty.with_loc_if_ref(self, loc)
     }
 }
 
@@ -800,13 +964,16 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
         let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
-        let ty = gcx.mk_ty_fn(TyFn {
-            kind: TyFnKind::External,
-            parameters: fn_ty.parameters,
-            returns: fn_ty.returns,
-            state_mutability: f.state_mutability,
-            function_id: fn_ty.function_id,
-        }).as_externally_callable_function(false, gcx);
+        let ty = gcx
+            .mk_ty_fn(TyFn {
+                kind: TyFnKind::External,
+                parameters: fn_ty.parameters,
+                returns: fn_ty.returns,
+                state_mutability: f.state_mutability,
+                function_id: fn_ty.function_id,
+                attached: false,
+            })
+            .as_externally_callable_function(false, gcx);
         let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
         for (var_id, ty) in f.variables().zip(ty_f.tys()) {
@@ -904,6 +1071,12 @@ pub fn type_of_builtin(gcx: _, builtin: Builtin) -> Ty<'gcx> {
     builtin.ty_impl(gcx)
 }
 
+fn type_of_using_directive_cached(gcx: _, key: UsingDirectiveKey) -> Option<Ty<'gcx>> {
+    // HIR nodes are arena-allocated for the lifetime of `GlobalCtxt`.
+    let using = unsafe { &*(key as *const hir::UsingDirective<'gcx>) };
+    using.ty.as_ref().map(|ty| gcx.type_of_hir_ty(ty))
+}
+
 /// Returns the type of the given item.
 pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
     let kind = match id {
@@ -916,6 +1089,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 returns: gcx.mk_item_tys(f.returns),
                 state_mutability: fn_state_mutability(TyFnKind::Internal, f.state_mutability),
                 function_id: Some(id),
+                attached: false,
             });
         }
         hir::ItemId::Variable(id) => {

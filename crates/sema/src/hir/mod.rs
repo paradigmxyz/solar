@@ -10,7 +10,7 @@ use solar_data_structures::{
     index::{Idx, IndexVec},
     newtype_index,
 };
-use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, source_map::SourceFile};
+use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed, source_map::SourceFile};
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
@@ -471,6 +471,8 @@ pub struct Source<'hir> {
     pub imports: &'hir [(ast::ItemId, SourceId)],
     /// The source items.
     pub items: &'hir [ItemId],
+    /// The source-level `using for` directives.
+    pub usings: &'hir [UsingDirective<'hir>],
     /// The source docs.
     pub docs: &'hir [DocId],
 }
@@ -765,6 +767,8 @@ pub struct Contract<'hir> {
     /// Note that this only includes items defined in the contract itself, not inherited items.
     /// For getting all items, use [`Hir::contract_items`].
     pub items: &'hir [ItemId],
+    /// The contract-level `using for` directives.
+    pub usings: &'hir [UsingDirective<'hir>],
 }
 
 impl Contract<'_> {
@@ -839,6 +843,47 @@ pub struct Modifier<'hir> {
     pub id: ItemId,
     /// The arguments to the modifier or base class call.
     pub args: CallArgs<'hir>,
+}
+
+/// A resolved `using for` directive.
+#[derive(Debug)]
+pub struct UsingDirective<'hir> {
+    /// The directive span.
+    pub span: Span,
+    /// The source this directive is defined in.
+    pub source: SourceId,
+    /// The contract this directive is defined in, if any.
+    pub contract: Option<ContractId>,
+    /// The type this directive applies to. `None` means `*`.
+    pub ty: Option<Type<'hir>>,
+    /// Whether this is a global directive.
+    pub global: bool,
+    /// The attached library/functions.
+    pub entries: &'hir [UsingEntry<'hir>],
+}
+
+/// A resolved entry in a `using for` directive.
+#[derive(Debug)]
+pub struct UsingEntry<'hir> {
+    /// The path span.
+    pub span: Span,
+    /// The member name introduced by a braced function entry.
+    pub name: Option<Symbol>,
+    /// The attached item.
+    pub kind: UsingEntryKind<'hir>,
+    /// The operator this entry defines, if any.
+    pub operator: Option<ast::UserDefinableOperator>,
+}
+
+/// A resolved `using for` entry kind.
+#[derive(Debug)]
+pub enum UsingEntryKind<'hir> {
+    /// `using L for T`.
+    Library(ContractId),
+    /// `using { f } for T`.
+    Functions(&'hir [FunctionId]),
+    /// An erroneous entry.
+    Err(ErrorGuaranteed),
 }
 
 /// A function.
@@ -1786,7 +1831,7 @@ mod tests {
         assert_size::<Hir<'_>>(str!["240"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
-        assert_size::<Contract<'_>>(str!["128"]);
+        assert_size::<Contract<'_>>(str!["144"]);
         assert_size::<Function<'_>>(str!["144"]);
         assert_size::<Struct<'_>>(str!["48"]);
         assert_size::<Enum<'_>>(str!["48"]);

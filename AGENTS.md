@@ -11,14 +11,15 @@ For testing and comparing behavior and semantics, the current tracked solc versi
 ## Commands
 
 ```bash
-cargo build                                      # Build
-cargo nextest run --workspace                    # Run tests (faster than cargo test)
-cargo uitest                                     # Run UI tests
-cargo uibless                                    # Update UI test expectations
-cargo +nightly fmt --all                         # Format (CI uses nightly)
-cargo clippy --workspace --all-targets           # Lint
-cargo run -- file.sol                            # Run compiler
-cargo run -- -Zhelp                              # Unstable flags help
+cargo build                            # Build
+cargo nextest run --workspace          # Run tests (faster than cargo test)
+cargo llvm-cov nextest --workspace     # Test coverage
+cargo uitest                           # Run UI tests
+cargo uibless                          # Update UI test expectations
+cargo fmt --all                        # Format
+cargo clippy --workspace --all-targets # Lint
+cargo run -- file.sol                  # Run compiler
+cargo run -- -Zhelp                    # Unstable flags help
 ```
 
 ## Architecture
@@ -62,14 +63,32 @@ contract Test {
 Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`
 Use `^` or `v` to point to lines above/below.
 
+Common file-level UI directives:
+
+- `//@compile-flags: ...`: Pass extra compiler flags for this test.
+- `//@ error-in-other-file: ...`: Expect a diagnostic with this text in an
+  imported/auxiliary source.
+- `// check-fail`: Mark the test as expected to fail even if no inline
+  diagnostic annotation appears in the primary file.
+- `//@ignore-host: windows`: Skip a test on a specific host.
+- `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
+  multiple revisions.
+
 ### Porting Tests from Solc
 
 Always look at the corresponding Solc test when porting behavior. Solc is always
 available in `./testdata/solidity`. Solc tests may embed multiple source files in
 one `.sol` file with `==== Source: ... ====` annotations. When porting those
 tests, split the secondary sources into the UI test's `auxiliary/` directory and
-update imports accordingly. Add the Solc test path at the top of
-the ported test, or above the ported function when only one function is copied.
+update imports accordingly.
+
+Add attribution using:
+`// ported-from: test/libsolidity/.../name.sol`. Use one line per upstream file.
+Do not add a full stop or other trailing punctuation after the path.
+Place these after initial UI metadata directives such as `//@compile-flags`,
+`//@ error-in-other-file`, and `// check-fail`; if the file has no UI metadata,
+put the attribution at the top.
+Only add attribution if you're actually porting the semantics of the test 1-1 from Solc, not just "covering the error message". Renames are OK.
 
 ## Diagnostics Style
 
