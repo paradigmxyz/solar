@@ -47,12 +47,11 @@ diagnostic paths without keeping one UI file per upstream test.
   - Fixed in this branch: modifier resolution now rejects modifiers whose
     defining contract is not the current contract or one of its bases.
 
-- [x] Allow storage string fields to receive string literals.
+- [ ] Allow storage string fields to receive string literals.
   - Upstream: `test/libsolidity/semanticTests/errors/using_structs.sol`
   - Expected: `s.b = "abc"` is valid for a storage struct field `string b`.
-  - Fixed in this branch: assignment checking accepts values that can be copied
-    through the matching memory reference type when the left hand side is a
-    storage reference.
+  - Current behavior: type checking rejects assigning the string literal to
+    `string storage`.
 
 ## Warning Parity
 

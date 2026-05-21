@@ -160,8 +160,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     );
                     result
                 } else {
-                    let rhs_ty = self.check_expr_with_noexpect(rhs, Some(ty));
-                    self.check_assignment_expected(rhs, rhs_ty, ty);
+                    let _ = self.expect_ty(rhs, ty);
                     ty
                 }
             }
@@ -830,27 +829,6 @@ impl<'gcx> TypeChecker<'gcx> {
         let mut diag = self.dcx().err("mismatched types").span(expr.span);
         diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
         diag.emit();
-    }
-
-    #[track_caller]
-    fn check_assignment_expected(
-        &mut self,
-        expr: &'gcx hir::Expr<'gcx>,
-        actual: Ty<'gcx>,
-        expected: Ty<'gcx>,
-    ) {
-        if actual.try_convert_implicit_to(expected, self.gcx).is_ok() {
-            return;
-        }
-
-        if let TyKind::Ref(inner, DataLocation::Storage) = expected.kind {
-            let memory_expected = inner.with_loc_if_ref(self.gcx, DataLocation::Memory);
-            if actual.try_convert_implicit_to(memory_expected, self.gcx).is_ok() {
-                return;
-            }
-        }
-
-        self.check_expected(expr, actual, expected);
     }
 
     fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {

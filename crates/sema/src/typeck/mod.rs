@@ -70,8 +70,7 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
         }
     }
 
-    if !using.global
-        && let Some(ty) = using_ty
+    if let Some(ty) = using_ty
         && let TyKind::Contract(id) = ty.kind
         && gcx.hir.contract(id).kind.is_library()
     {
