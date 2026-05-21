@@ -15,10 +15,18 @@ cargo build                                      # Build
 cargo nextest run --workspace                    # Run tests (faster than cargo test)
 cargo uitest                                     # Run UI tests
 cargo uibless                                    # Update UI test expectations
-cargo +nightly fmt --all                         # Format (CI uses nightly)
+cargo fmt --all                                  # Format
 cargo clippy --workspace --all-targets           # Lint
+cargo llvm-cov nextest --workspace               # Test coverage with nextest
 cargo run -- file.sol                            # Run compiler
 cargo run -- -Zhelp                              # Unstable flags help
+```
+
+For coverage, install `cargo-llvm-cov` if needed and use its nextest integration:
+
+```bash
+cargo install cargo-llvm-cov
+cargo llvm-cov nextest --workspace
 ```
 
 ## Architecture
