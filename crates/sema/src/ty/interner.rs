@@ -7,6 +7,7 @@ use solar_data_structures::{Interned, map::FxBuildHasher};
 use std::{
     borrow::Borrow,
     hash::{BuildHasher, Hash},
+    mem,
 };
 
 type InternSet<T> = once_map::OnceMap<T, (), FxBuildHasher>;
@@ -37,6 +38,11 @@ impl<'gcx> Interner<'gcx> {
     ) -> &'gcx [Ty<'gcx>] {
         if tys.is_empty() {
             return &[];
+        }
+        if bump_contains_slice(bump, tys) {
+            // SAFETY: `tys` points into `bump`, which is owned by the global context and lives for
+            // `'gcx`.
+            return unsafe { solar_data_structures::trustme::decouple_lt(tys) };
         }
         self.ty_lists.intern_ref(tys, |tys| bump.alloc_slice_copy(tys))
     }
@@ -179,4 +185,41 @@ fn make_val<K>(_: &K) {}
 #[inline]
 fn with_result<K: Copy, V>(k: &K, _: &V) -> K {
     *k
+}
+
+#[inline]
+fn bump_contains_slice<T>(bump: &bumpalo::Bump, slice: &[T]) -> bool {
+    let len = mem::size_of_val(slice);
+    if len == 0 {
+        return false;
+    }
+
+    let start = slice.as_ptr().addr();
+    let Some(end) = start.checked_add(len) else { return false };
+
+    // SAFETY: The chunk data is not read, and the arena is not used during the iteration.
+    unsafe {
+        bump.iter_allocated_chunks_raw().any(|(ptr, len)| {
+            let chunk_start = ptr.addr();
+            let chunk_end = chunk_start + len;
+            chunk_start <= start && end <= chunk_end
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use solar_ast::ElementaryType;
+
+    #[test]
+    fn intern_tys_returns_arena_slice() {
+        let bump = bumpalo::Bump::new();
+        let interner = Interner::new();
+        let ty = interner.intern_ty(&bump, TyKind::Elementary(ElementaryType::Bool));
+        let tys = bump.alloc_slice_copy(&[ty]);
+
+        let interned = interner.intern_tys(&bump, tys);
+        assert!(std::ptr::eq(interned, tys));
+    }
 }
