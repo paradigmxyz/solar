@@ -116,6 +116,10 @@ impl<'gcx> Lowerer<'gcx> {
             }
             hir_yul::StmtKind::If(cond, body) => self.lower_yul_if(builder, cond, body),
             hir_yul::StmtKind::VarDecl(names, init) => {
+                if names.len() != 1 {
+                    self.unsupported_yul_stmt(builder, stmt, "multiple variable declaration");
+                    return;
+                }
                 let value = init.map(|expr| self.lower_yul_expr(builder, expr));
                 for name in *names {
                     let value = value.unwrap_or_else(|| builder.imm_u64(0));
@@ -808,9 +812,13 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.sstore(slot_val, value);
                 }
             }
-            hir_yul::PathRes::StorageSlot(_)
-            | hir_yul::PathRes::StorageOffset(_)
-            | hir_yul::PathRes::Err => {}
+            hir_yul::PathRes::StorageSlot(_) => {
+                self.unsupported_yul_path(path, "storage slot assignment target");
+            }
+            hir_yul::PathRes::StorageOffset(_) => {
+                self.unsupported_yul_path(path, "storage offset assignment target");
+            }
+            hir_yul::PathRes::Err => {}
         }
     }
 

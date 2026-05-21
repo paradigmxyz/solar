@@ -42,5 +42,23 @@ error: undefined Yul variable `missing`
 LL │             result := missing
    ╰╴                      ━━━━━━━
 
-error: aborting due to 7 previous errors
+error: unsupported Yul multiple variable declaration
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             let a, b := add(1, 2)
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━
+
+error: unsupported Yul storage slot assignment target
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             storageValue.slot := 1
+   ╰╴            ━━━━━━━━━━━━━━━━━
+
+error: unsupported Yul storage offset assignment target
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             storageValue.offset := 1
+   ╰╴            ━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 10 previous errors
 
