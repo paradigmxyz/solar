@@ -1,5 +1,5 @@
 error: member `f` not unique on type `struct S memory`
-   ╭▸ ROOT/tests/ui/using-for/regressions.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/imported_aliases_and_clashes.sol:LL:CC
    │
 LL │         return gen().f();
    ╰╴                     ━
