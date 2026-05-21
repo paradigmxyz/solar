@@ -727,29 +727,28 @@ impl<'gcx> Gcx<'gcx> {
         unary: bool,
         f: &mut dyn FnMut(hir::FunctionId),
     ) {
-        if let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind
-            && let ty = self.type_of_item(user_ty.into())
-        {
-            let mut seen = FxHashSet::default();
-            self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
-                for entry in using.entries {
-                    if entry.operator == Some(op)
-                        && let hir::UsingEntryKind::Functions(candidates) = entry.kind
-                    {
-                        for &function_id in candidates {
-                            if let TyKind::Fn(function_ty) =
-                                self.type_of_item(function_id.into()).kind
-                                && function_ty.parameters.len() == if unary { 1 } else { 2 }
-                                && function_ty.parameters.first().copied() == Some(ty)
-                                && seen.insert(function_id)
-                            {
-                                f(function_id);
-                            }
+        let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind else {
+            return;
+        };
+        let ty = self.type_of_item(user_ty.into());
+        let mut seen = FxHashSet::default();
+        self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
+            for entry in using.entries {
+                if entry.operator == Some(op)
+                    && let hir::UsingEntryKind::Functions(candidates) = entry.kind
+                {
+                    for &function_id in candidates {
+                        if let TyKind::Fn(function_ty) = self.type_of_item(function_id.into()).kind
+                            && function_ty.parameters.len() == if unary { 1 } else { 2 }
+                            && function_ty.parameters.first().copied() == Some(ty)
+                            && seen.insert(function_id)
+                        {
+                            f(function_id);
                         }
                     }
                 }
-            });
-        }
+            }
+        });
     }
 
     fn attached_functions(
