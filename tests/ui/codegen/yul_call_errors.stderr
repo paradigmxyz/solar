@@ -1,0 +1,64 @@
+error: undefined Yul function `unknown_yul_call`
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             result := unknown_yul_call()
+   ╰╴                      ━━━━━━━━━━━━━━━━
+
+error: unsupported Yul builtin `addmod`
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             result := addmod(1, 2, 3)
+   ╰╴                      ━━━━━━
+
+error: unsupported Yul function `id`
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             result := id(1)
+   ╰╴                      ━━
+
+error: unsupported Yul function definition
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │ ┏             function id(x) -> y {
+LL │ ┃                 y := x
+LL │ ┃             }
+   ╰╴┗━━━━━━━━━━━━━┛
+
+error: wrong number of arguments for Yul builtin `mstore`: expected 2, found 1
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             mstore(0x00)
+   ╰╴            ━━━━━━
+
+error: unsupported Yul for statement
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             for { } 1 { } { }
+   ╰╴            ━━━━━━━━━━━━━━━━━
+
+error: undefined Yul variable `missing`
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             result := missing
+   ╰╴                      ━━━━━━━
+
+error: unsupported Yul multiple variable declaration
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             let a, b := add(1, 2)
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━
+
+error: unsupported Yul storage slot assignment target
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             storageValue.slot := 1
+   ╰╴            ━━━━━━━━━━━━━━━━━
+
+error: unsupported Yul storage offset assignment target
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             storageValue.offset := 1
+   ╰╴            ━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 10 previous errors
+

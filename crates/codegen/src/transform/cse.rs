@@ -359,6 +359,11 @@ impl CommonSubexprEliminator {
                 replace(ret_offset);
                 replace(ret_size);
             }
+            InstKind::InternalCall { args, .. } => {
+                for arg in args {
+                    replace(arg);
+                }
+            }
 
             InstKind::Phi(incoming) => {
                 for (_, val) in incoming {
@@ -369,6 +374,7 @@ impl CommonSubexprEliminator {
             // Nullary operations - no operands
             InstKind::MSize
             | InstKind::CalldataSize
+            | InstKind::InternalFrameAddr(_)
             | InstKind::CodeSize
             | InstKind::ReturnDataSize
             | InstKind::Caller

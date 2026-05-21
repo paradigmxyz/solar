@@ -735,6 +735,11 @@ fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, 
             replace(ret_offset);
             replace(ret_size);
         }
+        InstKind::InternalCall { args, .. } => {
+            for arg in args {
+                replace(arg);
+            }
+        }
         InstKind::Phi(incoming) => {
             for (_, v) in incoming {
                 replace(v);
@@ -743,6 +748,7 @@ fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, 
         // Nullary instructions have no operands.
         InstKind::MSize
         | InstKind::CalldataSize
+        | InstKind::InternalFrameAddr(_)
         | InstKind::CodeSize
         | InstKind::ReturnDataSize
         | InstKind::Caller

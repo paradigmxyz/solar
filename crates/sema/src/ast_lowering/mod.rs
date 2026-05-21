@@ -13,6 +13,7 @@ use solar_interface::{Session, diagnostics::DiagCtxt};
 mod lower;
 
 mod linearize;
+mod yul;
 
 pub(crate) mod resolve;
 pub(crate) use resolve::{Res, SymbolResolver};

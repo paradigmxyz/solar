@@ -1,0 +1,32 @@
+// === ROOT/tests/ui/codegen/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
+; module @YulLowLevelBuiltins
+fn @safeCall(arg0: address, arg1: bytes4) -> bool {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v6 = mload 64
+    v8 = mstore 0, arg1
+    v10 = gas
+    v16 = call v10, arg0, 0, 0, 4, 0, 32
+    v18 = mstore 128, v16
+    v20 = mload 128
+    v22 = mload 0
+    v24 = eq v22, 1
+    v25 = and v20, v24
+    v26 = iszero v25
+    br v26, bb1, bb2
+  bb1:
+    v28 = returndatasize
+    v29 = returndatacopy v6, 0, v28
+    v31 = returndatasize
+    revert v6, v31
+  bb2:
+    v34 = mload 128
+    v35 = extcodesize arg0
+    v37 = gt v35, 0
+    v38 = and v34, v37
+    v40 = mstore 128, v38
+    v42 = mstore 64, v6
+    v45 = mload 128
+    ret v45
+}
+

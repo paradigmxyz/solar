@@ -11,7 +11,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
-use solar_interface::Ident;
+use solar_interface::{Ident, Symbol};
 use solar_sema::{
     hir::{self, ContractId, FunctionId as HirFunctionId, VariableId},
     ty::Gcx,
@@ -56,12 +56,22 @@ pub struct Lowerer<'gcx> {
     assigned_vars: FxHashSet<VariableId>,
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
+    /// HIR functions already lowered into this MIR module.
+    hir_to_mir_functions: FxHashMap<HirFunctionId, FunctionId>,
+    /// Functions currently being lowered on demand.
+    lowering_functions: FxHashSet<HirFunctionId>,
+    /// Whether the current function body is constructor code.
+    lowering_constructor: bool,
+    /// Whether local memory slots should be addressed through the internal-call frame.
+    lowering_internal_function: bool,
     /// Mapping from struct state variable ID to base storage slot.
     pub struct_storage_base_slots: FxHashMap<VariableId, u64>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
     pub struct_field_memory_offsets: FxHashMap<(hir::StructId, usize), u64>,
+    /// Stack of Yul local scopes for inline assembly lowering.
+    yul_scopes: Vec<FxHashMap<Symbol, ValueId>>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -80,9 +90,14 @@ impl<'gcx> Lowerer<'gcx> {
             loop_stack: Vec::new(),
             assigned_vars: FxHashSet::default(),
             inline_stack: Vec::new(),
+            hir_to_mir_functions: FxHashMap::default(),
+            lowering_functions: FxHashSet::default(),
+            lowering_constructor: false,
+            lowering_internal_function: false,
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_field_memory_offsets: FxHashMap::default(),
+            yul_scopes: Vec::new(),
         }
     }
 
@@ -103,6 +118,8 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Maximum inline depth to prevent excessive recursion.
     const MAX_INLINE_DEPTH: usize = 32;
+    /// Historical base used by local memory slots in external function bodies.
+    const LOCAL_MEMORY_BASE: u64 = 0x80;
 
     /// Attempts to enter inlining for a function. Returns false if a cycle is detected
     /// or the max inline depth is exceeded.
@@ -136,6 +153,19 @@ impl<'gcx> Lowerer<'gcx> {
     /// Gets the memory offset for a local variable, if it's stored in memory.
     pub fn get_local_memory_offset(&self, var_id: &VariableId) -> Option<u64> {
         self.local_memory_slots.get(var_id).copied()
+    }
+
+    /// Returns the address for a local memory slot in the current lowering context.
+    pub fn local_memory_addr(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
+        if self.lowering_internal_function {
+            let header_size = 64;
+            let arg_size = (builder.func().params.len() as u64) * 32;
+            let return_size = (builder.func().returns.len() as u64) * 32;
+            let local_offset = offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
+            builder.internal_frame_addr(header_size + arg_size + return_size + local_offset)
+        } else {
+            builder.imm_u64(offset)
+        }
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
@@ -179,7 +209,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         for func_id in functions {
-            self.lower_function(func_id);
+            self.ensure_function_lowered(func_id);
         }
 
         self.current_contract_id = None;
@@ -302,6 +332,10 @@ impl<'gcx> Lowerer<'gcx> {
 
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
+            let saved_lowering_constructor = self.lowering_constructor;
+            let saved_lowering_internal_function = self.lowering_internal_function;
+            self.lowering_constructor = true;
+            self.lowering_internal_function = false;
 
             // Initialize each state variable
             for var_id in vars_with_init {
@@ -319,6 +353,8 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             builder.stop();
+            self.lowering_constructor = saved_lowering_constructor;
+            self.lowering_internal_function = saved_lowering_internal_function;
         }
 
         self.module.add_function(mir_func);
@@ -427,7 +463,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Gets the memory byte offset for a struct field (flattened for nested structs).
+    /// Gets the memory byte offset for a struct field.
     pub fn get_struct_field_memory_offset(
         &mut self,
         struct_id: hir::StructId,
@@ -437,17 +473,57 @@ impl<'gcx> Lowerer<'gcx> {
             return offset;
         }
 
-        let strukt = self.gcx.hir.strukt(struct_id);
-        let mut offset = 0u64;
-        for (i, &field_id) in strukt.fields.iter().enumerate() {
-            if i == field_index {
-                break;
-            }
-            let field = self.gcx.hir.variable(field_id);
-            offset += self.calculate_memory_words_for_type(&field.ty) * 32;
-        }
+        let offset = (field_index as u64) * 32;
 
         self.struct_field_memory_offsets.insert((struct_id, field_index), offset);
+        offset
+    }
+
+    /// Loads a memory struct as flattened ABI return words.
+    pub(super) fn load_struct_return_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        struct_ptr: ValueId,
+    ) -> Vec<ValueId> {
+        let mut values = Vec::new();
+        self.load_struct_return_values_at(builder, struct_id, struct_ptr, 0, &mut values);
+        values
+    }
+
+    fn load_struct_return_values_at(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        struct_id: hir::StructId,
+        struct_ptr: ValueId,
+        base_offset: u64,
+        values: &mut Vec<ValueId>,
+    ) -> u64 {
+        let strukt = self.gcx.hir.strukt(struct_id);
+        let mut offset = base_offset;
+
+        for &field_id in strukt.fields {
+            let field = self.gcx.hir.variable(field_id);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
+                offset = self.load_struct_return_values_at(
+                    builder,
+                    *inner_struct_id,
+                    struct_ptr,
+                    offset,
+                    values,
+                );
+            } else {
+                let field_ptr = if offset == 0 {
+                    struct_ptr
+                } else {
+                    let offset_val = builder.imm_u64(offset);
+                    builder.add(struct_ptr, offset_val)
+                };
+                values.push(builder.mload(field_ptr));
+                offset += 32;
+            }
+        }
+
         offset
     }
 
@@ -553,6 +629,42 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a function to MIR.
+    pub(super) fn ensure_function_lowered(&mut self, func_id: hir::FunctionId) -> FunctionId {
+        if let Some(&mir_id) = self.hir_to_mir_functions.get(&func_id) {
+            return mir_id;
+        }
+
+        if self.lowering_functions.contains(&func_id) {
+            return self.module.add_function(Function::new(Ident::new(
+                solar_interface::Symbol::intern("_recursive_internal"),
+                solar_interface::Span::DUMMY,
+            )));
+        }
+
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_next_local_memory_offset = self.next_local_memory_offset;
+        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_current_contract_id = self.current_contract_id;
+        let saved_lowering_constructor = self.lowering_constructor;
+        let saved_lowering_internal_function = self.lowering_internal_function;
+
+        self.lowering_functions.insert(func_id);
+        self.current_contract_id = self.gcx.hir.function(func_id).contract;
+        let mir_id = self.lower_function(func_id);
+        self.lowering_functions.remove(&func_id);
+
+        self.locals = saved_locals;
+        self.local_memory_slots = saved_local_memory_slots;
+        self.next_local_memory_offset = saved_next_local_memory_offset;
+        self.assigned_vars = saved_assigned_vars;
+        self.current_contract_id = saved_current_contract_id;
+        self.lowering_constructor = saved_lowering_constructor;
+        self.lowering_internal_function = saved_lowering_internal_function;
+
+        mir_id
+    }
+
     fn lower_function(&mut self, func_id: hir::FunctionId) -> FunctionId {
         let hir_func = self.gcx.hir.function(func_id);
 
@@ -578,11 +690,15 @@ impl<'gcx> Lowerer<'gcx> {
         if mir_func.is_public() && !is_special {
             mir_func.selector = Some(self.compute_selector(hir_func));
         }
+        let uses_external_abi = mir_func.is_public() && !is_special;
+        let uses_internal_frame = !uses_external_abi && !is_special;
 
         self.locals.clear();
         self.local_memory_slots.clear();
         self.next_local_memory_offset = 0x80;
         self.assigned_vars.clear();
+        self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
+        self.lowering_internal_function = uses_internal_frame;
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
@@ -598,7 +714,9 @@ impl<'gcx> Lowerer<'gcx> {
                 let ty = self.lower_type_from_var(param);
 
                 // Check if this is a struct parameter that needs special handling
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &param.ty.kind {
+                if uses_external_abi
+                    && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &param.ty.kind
+                {
                     // Struct parameters: copy fields from calldata to memory
                     let strukt = self.gcx.hir.strukt(*struct_id);
                     let num_fields = strukt.fields.len();
@@ -636,9 +754,27 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 let ty = self.lower_type_from_var(ret_var);
                 builder.add_return(ty);
-                // Allocate memory for return variables so they can be assigned to
-                // within the function body (e.g., `liquidity = 1` in if/else branches)
-                self.alloc_local_memory(ret_id);
+                let offset = self.alloc_local_memory(ret_id);
+                if ret_var.name.is_none() {
+                    continue;
+                }
+
+                // Named return variables are in-scope locals initialized to zero.
+                let offset_val = self.local_memory_addr(&mut builder, offset);
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &ret_var.ty.kind {
+                    let struct_size = self.calculate_memory_words_for_type(&ret_var.ty) * 32;
+                    let struct_ptr = self.allocate_memory(&mut builder, struct_size);
+                    builder.mstore(offset_val, struct_ptr);
+                } else {
+                    let zero = builder.imm_u256(U256::ZERO);
+                    builder.mstore(offset_val, zero);
+                }
+            }
+
+            if hir_func.kind == hir::FunctionKind::Constructor
+                && let Some(contract_id) = hir_func.contract
+            {
+                self.lower_constructor_prelude(&mut builder, contract_id);
             }
 
             if let Some(body) = &hir_func.body {
@@ -650,24 +786,90 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.stop();
                 } else {
                     // Load return values from memory (where they were stored during execution)
-                    let ret_vals: Vec<ValueId> = hir_func
-                        .returns
-                        .iter()
-                        .map(|&ret_id| {
-                            if let Some(offset) = self.get_local_memory_offset(&ret_id) {
-                                let offset_val = builder.imm_u64(offset);
-                                builder.mload(offset_val)
-                            } else {
-                                builder.imm_u256(U256::ZERO)
-                            }
-                        })
-                        .collect();
+                    let mut ret_vals = Vec::new();
+                    for &ret_id in hir_func.returns {
+                        let ret_var = self.gcx.hir.variable(ret_id);
+                        let ret_val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
+                            let offset_val = self.local_memory_addr(&mut builder, offset);
+                            builder.mload(offset_val)
+                        } else {
+                            builder.imm_u256(U256::ZERO)
+                        };
+
+                        if uses_external_abi
+                            && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) =
+                                &ret_var.ty.kind
+                        {
+                            ret_vals.extend(self.load_struct_return_values(
+                                &mut builder,
+                                *struct_id,
+                                ret_val,
+                            ));
+                        } else {
+                            ret_vals.push(ret_val);
+                        }
+                    }
                     builder.ret(ret_vals);
                 }
             }
         }
 
-        self.module.add_function(mir_func)
+        self.lowering_constructor = false;
+        self.lowering_internal_function = false;
+        if uses_internal_frame {
+            mir_func.internal_frame_size =
+                self.next_local_memory_offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
+        }
+
+        let mir_id = self.module.add_function(mir_func);
+        self.hir_to_mir_functions.insert(func_id, mir_id);
+        mir_id
+    }
+
+    /// Lowers state-variable initializers and base constructors for an explicit constructor.
+    fn lower_constructor_prelude(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        contract_id: ContractId,
+    ) {
+        let contract = self.gcx.hir.contract(contract_id);
+
+        // Solidity runs construction from base to derived. For each contract in that order,
+        // initialize its state variables, then run its constructor body. The current contract's
+        // own constructor body is lowered by the caller after this prelude.
+        let construction_order: Vec<_> = contract
+            .linearized_bases
+            .iter()
+            .enumerate()
+            .map(|(idx, &base_id)| {
+                let args = idx.checked_sub(1).and_then(|arg_idx| {
+                    contract.linearized_bases_args.get(arg_idx).and_then(|m| *m)
+                });
+                (base_id, args)
+            })
+            .collect();
+
+        for (base_id, args) in construction_order.into_iter().rev() {
+            let base_contract = self.gcx.hir.contract(base_id);
+            for var_id in base_contract.variables() {
+                let var = self.gcx.hir.variable(var_id);
+                if var.is_state_variable()
+                    && !var.is_constant()
+                    && let Some(init) = var.initializer
+                    && let Some(&slot) = self.storage_slots.get(&var_id)
+                {
+                    let init_val = self.lower_expr(builder, init);
+                    let slot_val = builder.imm_u64(slot);
+                    builder.sstore(slot_val, init_val);
+                }
+            }
+
+            if base_id != contract_id
+                && let Some(ctor_id) = base_contract.ctor
+            {
+                self.lower_base_constructor_call(builder, ctor_id, args);
+            }
+        }
     }
 
     /// Computes the 4-byte function selector.
@@ -725,10 +927,7 @@ impl<'gcx> Lowerer<'gcx> {
                     // Enums are represented as uint8 in ABI encoding
                     "uint8".to_string()
                 }
-                hir::ItemId::Contract(contract_id) => {
-                    let c = self.gcx.hir.contract(*contract_id);
-                    c.name.to_string()
-                }
+                hir::ItemId::Contract(_) => "address".to_string(),
                 _ => "unknown".to_string(),
             },
             hir::TypeKind::Err(_) => "error".to_string(),
@@ -805,6 +1004,9 @@ impl<'gcx> Lowerer<'gcx> {
                     self.collect_assigned_vars_block(&clause.block);
                 }
             }
+            StmtKind::Assembly(assembly) => {
+                self.collect_assigned_vars_yul_block(&assembly.block);
+            }
             StmtKind::DeclSingle(_)
             | StmtKind::DeclMulti(_, _)
             | StmtKind::Return(None)
@@ -812,6 +1014,48 @@ impl<'gcx> Lowerer<'gcx> {
             | StmtKind::Break
             | StmtKind::Placeholder
             | StmtKind::Err(_) => {}
+        }
+    }
+
+    fn collect_assigned_vars_yul_block(&mut self, block: &hir::yul::Block<'_>) {
+        for stmt in block.stmts {
+            self.collect_assigned_vars_yul_stmt(stmt);
+        }
+    }
+
+    fn collect_assigned_vars_yul_stmt(&mut self, stmt: &hir::yul::Stmt<'_>) {
+        use hir::yul::StmtKind;
+        match &stmt.kind {
+            StmtKind::Block(block) => self.collect_assigned_vars_yul_block(block),
+            StmtKind::AssignSingle(path, _) => self.mark_assigned_yul_path(path),
+            StmtKind::AssignMulti(paths, _) => {
+                for path in *paths {
+                    self.mark_assigned_yul_path(path);
+                }
+            }
+            StmtKind::If(_, block) => self.collect_assigned_vars_yul_block(block),
+            StmtKind::For(for_stmt) => {
+                self.collect_assigned_vars_yul_block(&for_stmt.init);
+                self.collect_assigned_vars_yul_block(&for_stmt.step);
+                self.collect_assigned_vars_yul_block(&for_stmt.body);
+            }
+            StmtKind::Switch(switch) => {
+                for case in switch.cases {
+                    self.collect_assigned_vars_yul_block(&case.body);
+                }
+            }
+            StmtKind::FunctionDef(_)
+            | StmtKind::VarDecl(_, _)
+            | StmtKind::Expr(_)
+            | StmtKind::Leave
+            | StmtKind::Break
+            | StmtKind::Continue => {}
+        }
+    }
+
+    fn mark_assigned_yul_path(&mut self, path: &hir::yul::Path<'_>) {
+        if let hir::yul::PathRes::SolidityVariable(var_id) = path.res {
+            self.assigned_vars.insert(var_id);
         }
     }
 

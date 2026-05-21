@@ -106,7 +106,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
 
     // Handle MIR emit if requested (does not require bytecode generation).
     if sess.opts.emit.contains(&CompilerOutput::Mir) {
-        emit_mir(compiler);
+        emit_mir(compiler)?;
     }
 
     // Handle bytecode emit if requested
@@ -124,7 +124,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
 }
 
 /// Emit textual MIR for all contracts using solar-codegen.
-fn emit_mir(compiler: &mut CompilerRef<'_>) {
+fn emit_mir(compiler: &mut CompilerRef<'_>) -> Result {
     use solar_codegen::{lower, mir::module_to_text};
 
     let gcx = compiler.gcx();
@@ -135,10 +135,13 @@ fn emit_mir(compiler: &mut CompilerRef<'_>) {
             continue;
         }
         let module = lower::lower_contract(gcx, id);
+        gcx.dcx().has_errors()?;
         let name = gcx.contract_fully_qualified_name(id);
         println!("// === {name} ===");
         println!("{}", module_to_text(&module));
     }
+
+    Ok(())
 }
 
 /// Emit bytecode (and optionally ABI/hashes) for all contracts using solar-codegen.
@@ -162,6 +165,7 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
         let contract = gcx.hir.contract(id);
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
             let mut module = lower::lower_contract(gcx, id);
+            gcx.dcx().has_errors()?;
             let mut codegen = EvmCodegen::new();
             let (deployment_bytecode, _) = codegen.generate_deployment_bytecode(&mut module);
             all_bytecodes.insert(id, deployment_bytecode);
@@ -198,6 +202,7 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
             // Lower to MIR with all bytecodes available
             let mut module = lower::lower_contract_with_bytecodes(gcx, id, &all_bytecodes);
+            gcx.dcx().has_errors()?;
 
             // Generate bytecode
             let mut codegen = EvmCodegen::new();

@@ -819,6 +819,17 @@ impl<'gcx> ResolveContext<'gcx> {
         self.resolver.resolve_path_as(path, &self.scopes, description)
     }
 
+    pub(super) fn resolve_yul_solidity_var_id(&self, ident: Ident) -> Option<hir::VariableId> {
+        let decls = self.resolver.resolve_name_raw(ident, &self.scopes)?;
+
+        let mut vars = decls.iter().filter_map(|decl| match decl.res {
+            Res::Item(hir::ItemId::Variable(var_id)) => Some(var_id),
+            _ => None,
+        });
+        let var_id = vars.next()?;
+        vars.next().is_none().then_some(var_id)
+    }
+
     /// Lowers the given statements by first entering a new scope.
     fn lower_block(&mut self, block: &ast::Block<'_>) -> hir::Block<'gcx> {
         self.in_scope_if(!block.is_empty(), |this| this.lower_stmts(block.stmts, block.span))
@@ -851,10 +862,10 @@ impl<'gcx> ResolveContext<'gcx> {
                 })),
                 self.lower_expr(expr),
             ),
-            ast::StmtKind::Assembly(_) => hir::StmtKind::Err(
-                // self.dcx().err("assembly is not yet implemented").span(stmt.span).emit(),
-                ErrorGuaranteed::new_unchecked(),
-            ),
+            ast::StmtKind::Assembly(assembly) => {
+                let mut yul = super::yul::YulLoweringContext::new(self);
+                hir::StmtKind::Assembly(yul.lower_assembly(assembly))
+            }
             ast::StmtKind::Block(stmts) => hir::StmtKind::Block(self.lower_block(stmts)),
             ast::StmtKind::UncheckedBlock(stmts) => {
                 hir::StmtKind::UncheckedBlock(self.lower_block(stmts))

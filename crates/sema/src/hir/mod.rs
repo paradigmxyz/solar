@@ -21,6 +21,7 @@ pub use ast::{
 
 mod visit;
 pub use visit::Visit;
+pub mod yul;
 
 /// HIR arena allocator.
 pub struct Arena {
@@ -1175,9 +1176,8 @@ pub struct Stmt<'hir> {
 /// A kind of statement.
 #[derive(Debug)]
 pub enum StmtKind<'hir> {
-    // TODO: Yul to HIR.
-    // /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
-    // Assembly(StmtAssembly<'hir>),
+    /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
+    Assembly(&'hir yul::StmtAssembly<'hir>),
     /// A single-variable declaration statement: `uint256 foo = 42;`.
     DeclSingle(VariableId),
 
