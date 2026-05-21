@@ -3,7 +3,6 @@ use crate::{
     ty::{Gcx, Ty, TyFn, TyKind},
 };
 use solar_ast::{StateMutability, UserDefinableOperator};
-use solar_interface::Span;
 
 pub(super) fn check_using_operator<'gcx>(
     gcx: Gcx<'gcx>,
@@ -53,14 +52,11 @@ pub(super) fn check_using_operator<'gcx>(
             .err("wrong parameters in operator definition")
             .span(function.span)
             .span_note(entry.span, "function was used to implement an operator here")
-            .span_label(
-                wrong_param_span(gcx, function, params, using_ty, op),
-                format!(
-                    "function `{}` needs to have {expected} to be used for operator `{}`",
-                    gcx.item_name(function_id).as_str(),
-                    op.to_str()
-                ),
-            )
+            .help(format!(
+                "function `{}` needs to have {expected} to be used for operator `{}`",
+                gcx.item_name(function_id).as_str(),
+                op.to_str()
+            ))
             .emit();
     }
 
@@ -79,15 +75,12 @@ pub(super) fn check_using_operator<'gcx>(
             .err("wrong return parameters in operator definition")
             .span(function.span)
             .span_note(entry.span, "function was used to implement an operator here")
-            .span_label(
-                wrong_return_span(gcx, function, returns, return_ty),
-                format!(
-                    "function `{}` needs to return `{}` to be used for operator `{}`",
-                    gcx.item_name(function_id).as_str(),
-                    return_ty.display(gcx),
-                    op.to_str()
-                ),
-            )
+            .help(format!(
+                "function `{}` needs to return `{}` to be used for operator `{}`",
+                gcx.item_name(function_id).as_str(),
+                return_ty.display(gcx),
+                op.to_str()
+            ))
             .emit();
     }
 
@@ -112,39 +105,4 @@ pub(super) fn check_using_operator<'gcx>(
                 .emit();
         }
     }
-}
-
-fn wrong_param_span(
-    gcx: Gcx<'_>,
-    function: &hir::Function<'_>,
-    params: &[Ty<'_>],
-    using_ty: Ty<'_>,
-    op: UserDefinableOperator,
-) -> Span {
-    let wrong_param = if let Some(i) = params.iter().position(|&ty| ty != using_ty) {
-        function.parameters.get(i)
-    } else if matches!(op, UserDefinableOperator::BitNot) && params.len() > 1 {
-        function.parameters.get(1)
-    } else if params.len() > 2 {
-        function.parameters.get(2)
-    } else {
-        function.parameters.last()
-    };
-    wrong_param.map_or(function.span, |&id| gcx.hir.variable(id).ty.span)
-}
-
-fn wrong_return_span(
-    gcx: Gcx<'_>,
-    function: &hir::Function<'_>,
-    returns: &[Ty<'_>],
-    return_ty: Ty<'_>,
-) -> Span {
-    let wrong_return = if let Some(i) = returns.iter().position(|&ty| ty != return_ty) {
-        function.returns.get(i)
-    } else if returns.len() > 1 {
-        function.returns.get(1)
-    } else {
-        function.returns.last()
-    };
-    wrong_return.map_or(function.span, |&id| gcx.hir.variable(id).ty.span)
 }
