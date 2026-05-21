@@ -196,6 +196,16 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MStore8(offset, value), None)
     }
 
+    /// Emits an msize instruction.
+    pub fn msize(&mut self) -> ValueId {
+        self.emit_inst(InstKind::MSize, Some(MirType::uint256()))
+    }
+
+    /// Emits an mcopy instruction.
+    pub fn mcopy(&mut self, dest: ValueId, src: ValueId, len: ValueId) -> ValueId {
+        self.emit_inst(InstKind::MCopy(dest, src, len), None)
+    }
+
     /// Emits an sload instruction.
     pub fn sload(&mut self, slot: ValueId) -> ValueId {
         self.emit_inst(InstKind::SLoad(slot), Some(MirType::uint256()))
@@ -231,6 +241,42 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::CalldataCopy(dest, offset, size), None)
     }
 
+    /// Emits a codesize instruction.
+    pub fn codesize(&mut self) -> ValueId {
+        self.emit_inst(InstKind::CodeSize, Some(MirType::uint256()))
+    }
+
+    /// Emits an extcodesize instruction.
+    pub fn extcodesize(&mut self, addr: ValueId) -> ValueId {
+        self.emit_inst(InstKind::ExtCodeSize(addr), Some(MirType::uint256()))
+    }
+
+    /// Emits an extcodecopy instruction.
+    pub fn extcodecopy(
+        &mut self,
+        addr: ValueId,
+        dest: ValueId,
+        offset: ValueId,
+        size: ValueId,
+    ) -> ValueId {
+        self.emit_inst(InstKind::ExtCodeCopy(addr, dest, offset, size), None)
+    }
+
+    /// Emits an extcodehash instruction.
+    pub fn extcodehash(&mut self, addr: ValueId) -> ValueId {
+        self.emit_inst(InstKind::ExtCodeHash(addr), Some(MirType::uint256()))
+    }
+
+    /// Emits a returndatasize instruction.
+    pub fn returndatasize(&mut self) -> ValueId {
+        self.emit_inst(InstKind::ReturnDataSize, Some(MirType::uint256()))
+    }
+
+    /// Emits a returndatacopy instruction.
+    pub fn returndatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) -> ValueId {
+        self.emit_inst(InstKind::ReturnDataCopy(dest, offset, size), None)
+    }
+
     /// Emits an internal function call.
     pub fn internal_call(
         &mut self,
@@ -257,6 +303,51 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::CallValue, Some(MirType::uint256()))
     }
 
+    /// Emits an origin instruction.
+    pub fn origin(&mut self) -> ValueId {
+        self.emit_inst(InstKind::Origin, Some(MirType::Address))
+    }
+
+    /// Emits a gasprice instruction.
+    pub fn gasprice(&mut self) -> ValueId {
+        self.emit_inst(InstKind::GasPrice, Some(MirType::uint256()))
+    }
+
+    /// Emits a blockhash instruction.
+    pub fn blockhash(&mut self, block_num: ValueId) -> ValueId {
+        self.emit_inst(InstKind::BlockHash(block_num), Some(MirType::FixedBytes(32)))
+    }
+
+    /// Emits a coinbase instruction.
+    pub fn coinbase(&mut self) -> ValueId {
+        self.emit_inst(InstKind::Coinbase, Some(MirType::Address))
+    }
+
+    /// Emits a timestamp instruction.
+    pub fn timestamp(&mut self) -> ValueId {
+        self.emit_inst(InstKind::Timestamp, Some(MirType::uint256()))
+    }
+
+    /// Emits a number instruction.
+    pub fn number(&mut self) -> ValueId {
+        self.emit_inst(InstKind::BlockNumber, Some(MirType::uint256()))
+    }
+
+    /// Emits a prevrandao instruction.
+    pub fn prevrandao(&mut self) -> ValueId {
+        self.emit_inst(InstKind::PrevRandao, Some(MirType::uint256()))
+    }
+
+    /// Emits a gaslimit instruction.
+    pub fn gaslimit(&mut self) -> ValueId {
+        self.emit_inst(InstKind::GasLimit, Some(MirType::uint256()))
+    }
+
+    /// Emits a chainid instruction.
+    pub fn chainid(&mut self) -> ValueId {
+        self.emit_inst(InstKind::ChainId, Some(MirType::uint256()))
+    }
+
     /// Emits an address instruction.
     pub fn address(&mut self) -> ValueId {
         self.emit_inst(InstKind::Address, Some(MirType::Address))
@@ -280,6 +371,21 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a keccak256 instruction.
     pub fn keccak256(&mut self, offset: ValueId, size: ValueId) -> ValueId {
         self.emit_inst(InstKind::Keccak256(offset, size), Some(MirType::bytes32()))
+    }
+
+    /// Emits a basefee instruction.
+    pub fn basefee(&mut self) -> ValueId {
+        self.emit_inst(InstKind::BaseFee, Some(MirType::uint256()))
+    }
+
+    /// Emits a blobbasefee instruction.
+    pub fn blobbasefee(&mut self) -> ValueId {
+        self.emit_inst(InstKind::BlobBaseFee, Some(MirType::uint256()))
+    }
+
+    /// Emits a blobhash instruction.
+    pub fn blobhash(&mut self, index: ValueId) -> ValueId {
+        self.emit_inst(InstKind::BlobHash(index), Some(MirType::FixedBytes(32)))
     }
 
     /// Emits a call instruction (external call).

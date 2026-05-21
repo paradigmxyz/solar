@@ -160,6 +160,18 @@ pub enum PathRes {
 pub struct ExprCall<'hir> {
     pub name: Ident,
     pub arguments: &'hir [Expr<'hir>],
+    pub res: CallRes,
+}
+
+/// Resolution of a Yul function call target.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CallRes {
+    /// An EVM dialect builtin.
+    Builtin,
+    /// A user-defined Yul function.
+    Function,
+    /// An unresolved call target. Parser-only paths allow this.
+    Unknown,
 }
 
 /// An assembly block statement.

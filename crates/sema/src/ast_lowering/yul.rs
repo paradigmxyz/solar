@@ -174,13 +174,12 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
             ast::yul::ExprKind::Path(path) => hir_yul::ExprKind::Path(self.lower_path(path)),
 
             ast::yul::ExprKind::Call(call) => {
-                // Validate the call target exists (builtin or user-defined function).
-                self.validate_call_target(call.name);
+                let res = self.resolve_call_target(call.name);
                 let arguments = self
                     .rcx
                     .arena
                     .alloc_slice_fill_iter(call.arguments.iter().map(|e| self.lower_expr_full(e)));
-                hir_yul::ExprKind::Call(hir_yul::ExprCall { name: call.name, arguments })
+                hir_yul::ExprKind::Call(hir_yul::ExprCall { name: call.name, arguments, res })
             }
 
             ast::yul::ExprKind::Lit(lit) => hir_yul::ExprKind::Lit(self.lower_lit(lit)),
@@ -244,8 +243,16 @@ impl<'a, 'gcx> YulLoweringContext<'a, 'gcx> {
         self.rcx.resolve_yul_solidity_var_id(ident)
     }
 
-    fn validate_call_target(&mut self, name: Ident) {
-        let _ = name.is_yul_evm_builtin() || self.lookup_yul_function(name.name).is_some();
+    fn resolve_call_target(&mut self, name: Ident) -> hir_yul::CallRes {
+        if name.is_yul_evm_builtin() {
+            return hir_yul::CallRes::Builtin;
+        }
+
+        if self.lookup_yul_function(name.name).is_some() {
+            return hir_yul::CallRes::Function;
+        }
+
+        hir_yul::CallRes::Unknown
     }
 
     fn lower_lit(&mut self, lit: &ast::Lit<'_>) -> &'gcx ast::Lit<'gcx> {

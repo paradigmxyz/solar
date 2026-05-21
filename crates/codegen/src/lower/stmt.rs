@@ -3,7 +3,7 @@
 use super::{LoopContext, Lowerer};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
-use solar_interface::kw;
+use solar_interface::{Symbol, kw};
 use solar_sema::hir::{self, StmtKind, yul as hir_yul};
 
 impl<'gcx> Lowerer<'gcx> {
@@ -93,9 +93,14 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn lower_yul_block(&mut self, builder: &mut FunctionBuilder<'_>, block: &hir_yul::Block<'_>) {
+        self.enter_yul_scope();
         for stmt in block.stmts {
             self.lower_yul_stmt(builder, stmt);
+            if builder.func().block(builder.current_block()).is_terminated() {
+                break;
+            }
         }
+        self.exit_yul_scope();
     }
 
     fn lower_yul_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir_yul::Stmt<'_>) {
@@ -122,8 +127,14 @@ impl<'gcx> Lowerer<'gcx> {
 
                 builder.switch_to_block(cont_block);
             }
-            hir_yul::StmtKind::VarDecl(_, _)
-            | hir_yul::StmtKind::AssignMulti(_, _)
+            hir_yul::StmtKind::VarDecl(names, init) => {
+                let value = init.map(|expr| self.lower_yul_expr(builder, expr));
+                for name in *names {
+                    let value = value.unwrap_or_else(|| builder.imm_u64(0));
+                    self.declare_yul_variable(name.name, value);
+                }
+            }
+            hir_yul::StmtKind::AssignMulti(_, _)
             | hir_yul::StmtKind::For(_)
             | hir_yul::StmtKind::Switch(_)
             | hir_yul::StmtKind::Leave
@@ -174,6 +185,26 @@ impl<'gcx> Lowerer<'gcx> {
                 let b = Self::yul_arg(builder, &args, 1);
                 builder.div(a, b)
             }
+            kw::Sdiv => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.sdiv(a, b)
+            }
+            kw::Mod => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.mod_(a, b)
+            }
+            kw::Smod => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.smod(a, b)
+            }
+            kw::Exp => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.exp(a, b)
+            }
             kw::And => {
                 let a = Self::yul_arg(builder, &args, 0);
                 let b = Self::yul_arg(builder, &args, 1);
@@ -203,15 +234,30 @@ impl<'gcx> Lowerer<'gcx> {
                 let value = Self::yul_arg(builder, &args, 1);
                 builder.shr(shift, value)
             }
+            kw::Sar => {
+                let shift = Self::yul_arg(builder, &args, 0);
+                let value = Self::yul_arg(builder, &args, 1);
+                builder.sar(shift, value)
+            }
             kw::Lt => {
                 let a = Self::yul_arg(builder, &args, 0);
                 let b = Self::yul_arg(builder, &args, 1);
                 builder.lt(a, b)
             }
+            kw::Slt => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.slt(a, b)
+            }
             kw::Gt => {
                 let a = Self::yul_arg(builder, &args, 0);
                 let b = Self::yul_arg(builder, &args, 1);
                 builder.gt(a, b)
+            }
+            kw::Sgt => {
+                let a = Self::yul_arg(builder, &args, 0);
+                let b = Self::yul_arg(builder, &args, 1);
+                builder.sgt(a, b)
             }
             kw::Eq => {
                 let a = Self::yul_arg(builder, &args, 0);
@@ -222,12 +268,295 @@ impl<'gcx> Lowerer<'gcx> {
                 let a = Self::yul_arg(builder, &args, 0);
                 builder.iszero(a)
             }
-            _ => builder.imm_u64(0),
+            kw::Byte => {
+                let index = Self::yul_arg(builder, &args, 0);
+                let value = Self::yul_arg(builder, &args, 1);
+                Self::lower_yul_byte(builder, index, value)
+            }
+            kw::Mload => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                builder.mload(offset)
+            }
+            kw::Mstore => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let value = Self::yul_arg(builder, &args, 1);
+                builder.mstore(offset, value);
+                builder.imm_u64(0)
+            }
+            kw::Mstore8 => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let value = Self::yul_arg(builder, &args, 1);
+                builder.mstore8(offset, value);
+                builder.imm_u64(0)
+            }
+            kw::Msize => builder.msize(),
+            kw::Mcopy => {
+                let dest = Self::yul_arg(builder, &args, 0);
+                let src = Self::yul_arg(builder, &args, 1);
+                let len = Self::yul_arg(builder, &args, 2);
+                builder.mcopy(dest, src, len);
+                builder.imm_u64(0)
+            }
+            kw::Sload => {
+                let slot = Self::yul_arg(builder, &args, 0);
+                builder.sload(slot)
+            }
+            kw::Sstore => {
+                let slot = Self::yul_arg(builder, &args, 0);
+                let value = Self::yul_arg(builder, &args, 1);
+                builder.sstore(slot, value);
+                builder.imm_u64(0)
+            }
+            kw::Tload => {
+                let slot = Self::yul_arg(builder, &args, 0);
+                builder.tload(slot)
+            }
+            kw::Tstore => {
+                let slot = Self::yul_arg(builder, &args, 0);
+                let value = Self::yul_arg(builder, &args, 1);
+                builder.tstore(slot, value);
+                builder.imm_u64(0)
+            }
+            kw::Calldataload => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                builder.calldataload(offset)
+            }
+            kw::Calldatasize => builder.calldatasize(),
+            kw::Calldatacopy => {
+                let dest = Self::yul_arg(builder, &args, 0);
+                let offset = Self::yul_arg(builder, &args, 1);
+                let size = Self::yul_arg(builder, &args, 2);
+                builder.calldatacopy(dest, offset, size);
+                builder.imm_u64(0)
+            }
+            kw::Extcodesize => {
+                let addr = Self::yul_arg(builder, &args, 0);
+                builder.extcodesize(addr)
+            }
+            kw::Extcodecopy => {
+                let addr = Self::yul_arg(builder, &args, 0);
+                let dest = Self::yul_arg(builder, &args, 1);
+                let offset = Self::yul_arg(builder, &args, 2);
+                let size = Self::yul_arg(builder, &args, 3);
+                builder.extcodecopy(addr, dest, offset, size);
+                builder.imm_u64(0)
+            }
+            kw::Extcodehash => {
+                let addr = Self::yul_arg(builder, &args, 0);
+                builder.extcodehash(addr)
+            }
+            kw::Returndatasize => builder.returndatasize(),
+            kw::Returndatacopy => {
+                let dest = Self::yul_arg(builder, &args, 0);
+                let offset = Self::yul_arg(builder, &args, 1);
+                let size = Self::yul_arg(builder, &args, 2);
+                builder.returndatacopy(dest, offset, size);
+                builder.imm_u64(0)
+            }
+            kw::Address => builder.address(),
+            kw::Balance => {
+                let addr = Self::yul_arg(builder, &args, 0);
+                builder.balance(addr)
+            }
+            kw::Selfbalance => builder.selfbalance(),
+            kw::Caller => builder.caller(),
+            kw::Callvalue => builder.callvalue(),
+            kw::Origin => builder.origin(),
+            kw::Gasprice => builder.gasprice(),
+            kw::Blockhash => {
+                let block_num = Self::yul_arg(builder, &args, 0);
+                builder.blockhash(block_num)
+            }
+            kw::Coinbase => builder.coinbase(),
+            kw::Timestamp => builder.timestamp(),
+            kw::Number => builder.number(),
+            kw::Difficulty | kw::Prevrandao => builder.prevrandao(),
+            kw::Gaslimit => builder.gaslimit(),
+            kw::Chainid => builder.chainid(),
+            kw::Gas => builder.gas(),
+            kw::Basefee => builder.basefee(),
+            kw::Blobbasefee => builder.blobbasefee(),
+            kw::Blobhash => {
+                let index = Self::yul_arg(builder, &args, 0);
+                builder.blobhash(index)
+            }
+            kw::Keccak256 => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let size = Self::yul_arg(builder, &args, 1);
+                builder.keccak256(offset, size)
+            }
+            kw::Call => {
+                let gas = Self::yul_arg(builder, &args, 0);
+                let addr = Self::yul_arg(builder, &args, 1);
+                let value = Self::yul_arg(builder, &args, 2);
+                let args_offset = Self::yul_arg(builder, &args, 3);
+                let args_size = Self::yul_arg(builder, &args, 4);
+                let ret_offset = Self::yul_arg(builder, &args, 5);
+                let ret_size = Self::yul_arg(builder, &args, 6);
+                builder.call(gas, addr, value, args_offset, args_size, ret_offset, ret_size)
+            }
+            kw::Staticcall => {
+                let gas = Self::yul_arg(builder, &args, 0);
+                let addr = Self::yul_arg(builder, &args, 1);
+                let args_offset = Self::yul_arg(builder, &args, 2);
+                let args_size = Self::yul_arg(builder, &args, 3);
+                let ret_offset = Self::yul_arg(builder, &args, 4);
+                let ret_size = Self::yul_arg(builder, &args, 5);
+                builder.staticcall(gas, addr, args_offset, args_size, ret_offset, ret_size)
+            }
+            kw::Delegatecall => {
+                let gas = Self::yul_arg(builder, &args, 0);
+                let addr = Self::yul_arg(builder, &args, 1);
+                let args_offset = Self::yul_arg(builder, &args, 2);
+                let args_size = Self::yul_arg(builder, &args, 3);
+                let ret_offset = Self::yul_arg(builder, &args, 4);
+                let ret_size = Self::yul_arg(builder, &args, 5);
+                builder.delegatecall(gas, addr, args_offset, args_size, ret_offset, ret_size)
+            }
+            kw::Create => {
+                let value = Self::yul_arg(builder, &args, 0);
+                let offset = Self::yul_arg(builder, &args, 1);
+                let size = Self::yul_arg(builder, &args, 2);
+                builder.create(value, offset, size)
+            }
+            kw::Create2 => {
+                let value = Self::yul_arg(builder, &args, 0);
+                let offset = Self::yul_arg(builder, &args, 1);
+                let size = Self::yul_arg(builder, &args, 2);
+                let salt = Self::yul_arg(builder, &args, 3);
+                builder.create2(value, offset, size, salt)
+            }
+            kw::Log0 => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let size = Self::yul_arg(builder, &args, 1);
+                builder.log0(offset, size);
+                builder.imm_u64(0)
+            }
+            kw::Log1 => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let size = Self::yul_arg(builder, &args, 1);
+                let topic1 = Self::yul_arg(builder, &args, 2);
+                builder.log1(offset, size, topic1);
+                builder.imm_u64(0)
+            }
+            kw::Log2 => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let size = Self::yul_arg(builder, &args, 1);
+                let topic1 = Self::yul_arg(builder, &args, 2);
+                let topic2 = Self::yul_arg(builder, &args, 3);
+                builder.log2(offset, size, topic1, topic2);
+                builder.imm_u64(0)
+            }
+            kw::Log3 => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let size = Self::yul_arg(builder, &args, 1);
+                let topic1 = Self::yul_arg(builder, &args, 2);
+                let topic2 = Self::yul_arg(builder, &args, 3);
+                let topic3 = Self::yul_arg(builder, &args, 4);
+                builder.log3(offset, size, topic1, topic2, topic3);
+                builder.imm_u64(0)
+            }
+            kw::Log4 => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let size = Self::yul_arg(builder, &args, 1);
+                let topic1 = Self::yul_arg(builder, &args, 2);
+                let topic2 = Self::yul_arg(builder, &args, 3);
+                let topic3 = Self::yul_arg(builder, &args, 4);
+                let topic4 = Self::yul_arg(builder, &args, 5);
+                builder.log4(offset, size, topic1, topic2, topic3, topic4);
+                builder.imm_u64(0)
+            }
+            kw::Revert => {
+                let offset = Self::yul_arg(builder, &args, 0);
+                let size = Self::yul_arg(builder, &args, 1);
+                builder.revert(offset, size);
+                builder.imm_u64(0)
+            }
+            kw::Stop => {
+                builder.stop();
+                builder.imm_u64(0)
+            }
+            kw::Invalid => {
+                builder.invalid();
+                builder.imm_u64(0)
+            }
+            kw::Pop => builder.imm_u64(0),
+            _ => {
+                let message = match call.res {
+                    hir_yul::CallRes::Builtin => {
+                        format!("unsupported Yul builtin `{}`", call.name.name)
+                    }
+                    hir_yul::CallRes::Function => {
+                        format!("unsupported Yul function `{}`", call.name.name)
+                    }
+                    hir_yul::CallRes::Unknown => {
+                        format!("undefined Yul function `{}`", call.name.name)
+                    }
+                };
+                self.gcx.dcx().err(message).span(call.name.span).emit();
+                builder.imm_u64(0)
+            }
         }
+    }
+
+    fn lower_yul_byte(
+        builder: &mut FunctionBuilder<'_>,
+        index: ValueId,
+        value: ValueId,
+    ) -> ValueId {
+        let in_range = {
+            let limit = builder.imm_u64(32);
+            builder.lt(index, limit)
+        };
+        let shift = {
+            let last = builder.imm_u64(31);
+            let byte_width = builder.imm_u64(8);
+            let from_right = builder.sub(last, index);
+            builder.mul(from_right, byte_width)
+        };
+        let shifted = builder.shr(shift, value);
+        let mask = builder.imm_u64(0xff);
+        let byte = builder.and(shifted, mask);
+        let zero = builder.imm_u64(0);
+        builder.select(in_range, byte, zero)
     }
 
     fn yul_arg(builder: &mut FunctionBuilder<'_>, args: &[ValueId], index: usize) -> ValueId {
         args.get(index).copied().unwrap_or_else(|| builder.imm_u64(0))
+    }
+
+    fn enter_yul_scope(&mut self) {
+        self.yul_scopes.push(Default::default());
+    }
+
+    fn exit_yul_scope(&mut self) {
+        self.yul_scopes.pop();
+    }
+
+    fn declare_yul_variable(&mut self, name: Symbol, value: ValueId) {
+        let scope = self.yul_scopes.last_mut().expect("missing Yul scope");
+        scope.insert(name, value);
+    }
+
+    fn lookup_yul_variable(&self, name: Symbol) -> Option<ValueId> {
+        self.yul_scopes.iter().rev().find_map(|scope| scope.get(&name).copied())
+    }
+
+    fn assign_yul_variable(&mut self, name: Symbol, value: ValueId) -> bool {
+        for scope in self.yul_scopes.iter_mut().rev() {
+            if let Some(local) = scope.get_mut(&name) {
+                *local = value;
+                return true;
+            }
+        }
+        false
+    }
+
+    fn yul_path_symbol(path: &hir_yul::Path<'_>) -> Option<Symbol> {
+        match path.segments {
+            [ident] => Some(ident.name),
+            _ => None,
+        }
     }
 
     fn lower_yul_path(
@@ -244,7 +573,10 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.imm_u64(slot)
             }
             hir_yul::PathRes::StorageOffset(_) => builder.imm_u64(0),
-            hir_yul::PathRes::YulVariable | hir_yul::PathRes::Err => builder.imm_u64(0),
+            hir_yul::PathRes::YulVariable => Self::yul_path_symbol(path)
+                .and_then(|name| self.lookup_yul_variable(name))
+                .unwrap_or_else(|| builder.imm_u64(0)),
+            hir_yul::PathRes::Err => builder.imm_u64(0),
         }
     }
 
@@ -276,16 +608,26 @@ impl<'gcx> Lowerer<'gcx> {
         path: &hir_yul::Path<'_>,
         value: ValueId,
     ) {
-        if let hir_yul::PathRes::SolidityVariable(var_id) = path.res {
-            if let Some(offset) = self.get_local_memory_offset(&var_id) {
-                let offset_val = self.local_memory_addr(builder, offset);
-                builder.mstore(offset_val, value);
-            } else if let Some(local) = self.locals.get_mut(&var_id) {
-                *local = value;
-            } else if let Some(&slot) = self.storage_slots.get(&var_id) {
-                let slot_val = builder.imm_u64(slot);
-                builder.sstore(slot_val, value);
+        match path.res {
+            hir_yul::PathRes::YulVariable => {
+                if let Some(name) = Self::yul_path_symbol(path) {
+                    self.assign_yul_variable(name, value);
+                }
             }
+            hir_yul::PathRes::SolidityVariable(var_id) => {
+                if let Some(offset) = self.get_local_memory_offset(&var_id) {
+                    let offset_val = self.local_memory_addr(builder, offset);
+                    builder.mstore(offset_val, value);
+                } else if let Some(local) = self.locals.get_mut(&var_id) {
+                    *local = value;
+                } else if let Some(&slot) = self.storage_slots.get(&var_id) {
+                    let slot_val = builder.imm_u64(slot);
+                    builder.sstore(slot_val, value);
+                }
+            }
+            hir_yul::PathRes::StorageSlot(_)
+            | hir_yul::PathRes::StorageOffset(_)
+            | hir_yul::PathRes::Err => {}
         }
     }
 

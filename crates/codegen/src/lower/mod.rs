@@ -11,7 +11,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
-use solar_interface::Ident;
+use solar_interface::{Ident, Symbol};
 use solar_sema::{
     hir::{self, ContractId, FunctionId as HirFunctionId, VariableId},
     ty::Gcx,
@@ -70,6 +70,8 @@ pub struct Lowerer<'gcx> {
     pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
     pub struct_field_memory_offsets: FxHashMap<(hir::StructId, usize), u64>,
+    /// Stack of Yul local scopes for inline assembly lowering.
+    yul_scopes: Vec<FxHashMap<Symbol, ValueId>>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -95,6 +97,7 @@ impl<'gcx> Lowerer<'gcx> {
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_field_memory_offsets: FxHashMap::default(),
+            yul_scopes: Vec::new(),
         }
     }
 

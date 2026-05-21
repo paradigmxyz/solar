@@ -1,0 +1,20 @@
+error: undefined Yul function `unknown_yul_call`
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             result := unknown_yul_call()
+   ╰╴                      ━━━━━━━━━━━━━━━━
+
+error: unsupported Yul builtin `addmod`
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             result := addmod(1, 2, 3)
+   ╰╴                      ━━━━━━
+
+error: unsupported Yul function `id`
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             result := id(1)
+   ╰╴                      ━━
+
+error: aborting due to 3 previous errors
+
