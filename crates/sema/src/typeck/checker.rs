@@ -1080,12 +1080,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let mut selected = WantOne::Zero;
         for member in members {
-            let Some((parameters, param_names)) =
+            if let Some((parameters, param_names)) =
                 self.member_call_candidate_params(receiver_ty, member)
-            else {
-                continue;
-            };
-            if self.call_args_match(args, parameters, param_names.as_deref()) {
+                && self.call_args_match(args, parameters, param_names.as_deref())
+            {
                 selected.push(member);
             }
         }
@@ -1878,22 +1876,20 @@ enum WantOne<T> {
 
 impl<T> FromIterator<T> for WantOne<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut iter = iter.into_iter().peekable();
+        let mut iter = iter.into_iter();
         match iter.next() {
             None => Self::Zero,
-            Some(first) => {
-                match iter.peek() {
-                    None => Self::One(first),
-                    Some(_) => Self::Many, // (std::iter::once(first).chain(iter).collect()),
-                }
-            }
+            Some(first) => match iter.next() {
+                None => Self::One(first),
+                Some(_) => Self::Many,
+            },
         }
     }
 }
 
 impl<T> WantOne<T> {
     fn push(&mut self, value: T) {
-        *self = match std::mem::replace(self, Self::Zero) {
+        *self = match self {
             Self::Zero => Self::One(value),
             Self::One(_) | Self::Many => Self::Many,
         };

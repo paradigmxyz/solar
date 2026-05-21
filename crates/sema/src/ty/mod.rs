@@ -727,34 +727,29 @@ impl<'gcx> Gcx<'gcx> {
         unary: bool,
         f: &mut dyn FnMut(hir::FunctionId),
     ) {
-        let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind else {
-            return;
-        };
-        let ty = self.type_of_item(user_ty.into());
-        let mut seen = FxHashSet::default();
-        self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
-            for entry in using.entries {
-                if entry.operator != Some(op) {
-                    continue;
+        if let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind
+            && let ty = self.type_of_item(user_ty.into())
+        {
+            let mut seen = FxHashSet::default();
+            self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
+                for entry in using.entries {
+                    if entry.operator == Some(op)
+                        && let hir::UsingEntryKind::Functions(candidates) = entry.kind
+                    {
+                        for &function_id in candidates {
+                            if let TyKind::Fn(function_ty) =
+                                self.type_of_item(function_id.into()).kind
+                                && function_ty.parameters.len() == if unary { 1 } else { 2 }
+                                && function_ty.parameters.first().copied() == Some(ty)
+                                && seen.insert(function_id)
+                            {
+                                f(function_id);
+                            }
+                        }
+                    }
                 }
-                let hir::UsingEntryKind::Functions(candidates) = entry.kind else { continue };
-                for &function_id in candidates {
-                    let TyKind::Fn(function_ty) = self.type_of_item(function_id.into()).kind else {
-                        continue;
-                    };
-                    if function_ty.parameters.len() != if unary { 1 } else { 2 } {
-                        continue;
-                    }
-                    if function_ty.parameters.first() != Some(&ty) {
-                        continue;
-                    }
-                    if !seen.insert(function_id) {
-                        continue;
-                    }
-                    f(function_id);
-                }
-            }
-        });
+            });
+        }
     }
 
     fn attached_functions(
@@ -821,20 +816,14 @@ impl<'gcx> Gcx<'gcx> {
                 fn_ty
             }
             .as_attached_function(self);
-        let TyKind::Fn(function_ty) = fn_ty.kind else {
-            return;
-        };
-        let Some(&self_ty) = function_ty.parameters.first() else {
-            return;
-        };
-        if !ty.convert_implicit_to(self_ty, self) {
-            return;
+        if let TyKind::Fn(function_ty) = fn_ty.kind
+            && let Some(&self_ty) = function_ty.parameters.first()
+            && ty.convert_implicit_to(self_ty, self)
+            && let name = name.unwrap_or_else(|| self.item_name(function).name)
+            && seen.insert((name, function))
+        {
+            members.push(members::Member::with_attached_function(name, fn_ty, function));
         }
-        let name = name.unwrap_or_else(|| self.item_name(function).name);
-        if !seen.insert((name, function)) {
-            return;
-        }
-        members.push(members::Member::with_attached_function(name, fn_ty, function));
     }
 
     fn for_each_using_directive_for_type(
@@ -844,32 +833,37 @@ impl<'gcx> Gcx<'gcx> {
         contract: Option<hir::ContractId>,
         f: &mut dyn FnMut(&'gcx hir::UsingDirective<'gcx>),
     ) {
-        if let Some(contract) = contract {
-            for using in self.hir.contract(contract).usings {
-                if self.using_directive_applies(using, ty) {
+        let mut check = |usings: &'gcx [hir::UsingDirective<'gcx>], only_global: bool| {
+            for using in usings {
+                if self.using_directive_applies(using, ty, only_global) {
                     f(using);
                 }
             }
+        };
+
+        if let Some(contract) = contract {
+            check(self.hir.contract(contract).usings, false);
         }
-        for using in self.hir.source(source).usings {
-            if self.using_directive_applies(using, ty) {
-                f(using);
-            }
-        }
+        check(self.hir.source(source).usings, false);
 
         if let Some(type_source) = ty.item_source(self)
             && type_source != source
         {
-            for using in self.hir.source(type_source).usings {
-                if using.global && using.ty.is_some() && self.using_directive_applies(using, ty) {
-                    f(using);
-                }
-            }
+            check(self.hir.source(type_source).usings, true);
         }
     }
 
-    fn using_directive_applies(self, using: &'gcx hir::UsingDirective<'gcx>, ty: Ty<'gcx>) -> bool {
+    fn using_directive_applies(
+        self,
+        using: &'gcx hir::UsingDirective<'gcx>,
+        ty: Ty<'gcx>,
+        only_global: bool,
+    ) -> bool {
+        if only_global && !(using.global && using.ty.is_some()) {
+            return false;
+        }
         let Some(using_ty) = self.type_of_using_directive(using) else {
+            // For `*`.
             return true;
         };
         let loc = ty.loc().unwrap_or(DataLocation::Storage);
