@@ -16,5 +16,31 @@ error: unsupported Yul function `id`
 LL │             result := id(1)
    ╰╴                      ━━
 
-error: aborting due to 3 previous errors
+error: unsupported Yul function definition
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │ ┏             function id(x) -> y {
+LL │ ┃                 y := x
+LL │ ┃             }
+   ╰╴┗━━━━━━━━━━━━━┛
+
+error: wrong number of arguments for Yul builtin `mstore`: expected 2, found 1
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             mstore(0x00)
+   ╰╴            ━━━━━━
+
+error: unsupported Yul for statement
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             for { } 1 { } { }
+   ╰╴            ━━━━━━━━━━━━━━━━━
+
+error: undefined Yul variable `missing`
+   ╭▸ ROOT/tests/ui/codegen/yul_call_errors.sol:LL:CC
+   │
+LL │             result := missing
+   ╰╴                      ━━━━━━━
+
+error: aborting due to 7 previous errors
 

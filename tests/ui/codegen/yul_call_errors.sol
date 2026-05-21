@@ -15,10 +15,28 @@ contract YulCallErrors {
 
     function unsupportedFunction() public pure returns (uint256 result) {
         assembly {
-            function id(x) -> y {
+            result := id(1) //~ ERROR: unsupported Yul function `id`
+            function id(x) -> y { //~ ERROR: unsupported Yul function definition
                 y := x
             }
-            result := id(1) //~ ERROR: unsupported Yul function `id`
+        }
+    }
+
+    function wrongArity() public pure {
+        assembly {
+            mstore(0x00) //~ ERROR: wrong number of arguments for Yul builtin `mstore`: expected 2, found 1
+        }
+    }
+
+    function unsupportedFor() public pure {
+        assembly {
+            for { } 1 { } { } //~ ERROR: unsupported Yul for statement
+        }
+    }
+
+    function undefinedVariable() public pure returns (uint256 result) {
+        assembly {
+            result := missing //~ ERROR: undefined Yul variable `missing`
         }
     }
 }

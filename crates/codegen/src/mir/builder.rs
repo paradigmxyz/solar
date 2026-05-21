@@ -506,7 +506,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a phi instruction.
     pub fn phi(&mut self, ty: MirType, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        self.func.alloc_value(Value::Phi { ty, incoming })
+        self.emit_inst(InstKind::Phi(incoming), Some(ty))
     }
 
     /// Sets a jump terminator.
