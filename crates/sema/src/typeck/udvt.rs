@@ -3,7 +3,6 @@ use crate::{
     ty::{Gcx, Ty, TyFn, TyKind},
 };
 use solar_ast::{StateMutability, UserDefinableOperator};
-use solar_interface::Span;
 
 pub(super) fn check_using_operator<'gcx>(
     gcx: Gcx<'gcx>,
@@ -51,7 +50,7 @@ pub(super) fn check_using_operator<'gcx>(
     if let Some(expected) = wrong_params {
         gcx.dcx()
             .err("wrong parameters in operator definition")
-            .span(type_list_span(gcx, function.parameters, function.span))
+            .span(function.span)
             .span_note(entry.span, "function was used to implement an operator here")
             .help(format!(
                 "function `{}` needs to have {expected} to be used for operator `{}`",
@@ -74,7 +73,7 @@ pub(super) fn check_using_operator<'gcx>(
     if returns.len() != 1 || returns[0] != return_ty {
         gcx.dcx()
             .err("wrong return parameters in operator definition")
-            .span(type_list_span(gcx, function.returns, function.span))
+            .span(function.span)
             .span_note(entry.span, "function was used to implement an operator here")
             .help(format!(
                 "function `{}` needs to return `{}` to be used for operator `{}`",
@@ -106,9 +105,4 @@ pub(super) fn check_using_operator<'gcx>(
                 .emit();
         }
     }
-}
-
-fn type_list_span(gcx: Gcx<'_>, variables: &[hir::VariableId], fallback: Span) -> Span {
-    let span = Span::join_first_last(variables.iter().map(|&id| gcx.hir.variable(id).ty.span));
-    if span.is_dummy() { fallback } else { span }
 }

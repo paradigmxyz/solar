@@ -15,8 +15,11 @@ LL │ ┃ }
 error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function p_one(Param a) pure returns (Param) {
-   │                ━━━━━
+LL │ ┏ function p_one(Param a) pure returns (Param) {
+LL │ ┃
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -28,8 +31,12 @@ LL │     p_one as *,
 error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function p_three(Param a, Param b, Param c) pure returns (Param) {
-   │                  ━━━━━━━━━━━━━━━━━━━━━━━
+LL │ ┏ function p_three(Param a, Param b, Param c) pure returns (Param) {
+LL │ ┃
+LL │ ┃     b; c;
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -41,8 +48,12 @@ LL │     p_three as -,
 error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function p_first(uint256 a, Param b) pure returns (Param) {
-   │                  ━━━━━━━━━━━━━━━━
+LL │ ┏ function p_first(uint256 a, Param b) pure returns (Param) {
+LL │ ┃
+LL │ ┃     a;
+LL │ ┃     return b;
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -54,8 +65,12 @@ LL │     p_first as /,
 error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function p_second(Param a, uint256 b) pure returns (Param) {
-   │                   ━━━━━━━━━━━━━━━━
+LL │ ┏ function p_second(Param a, uint256 b) pure returns (Param) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -67,8 +82,12 @@ LL │     p_second as %
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function r_raw(Ret a, Ret b) pure returns (uint256) {
-   │                                            ━━━━━━━
+LL │ ┏ function r_raw(Ret a, Ret b) pure returns (uint256) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return Ret.unwrap(a);
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -96,8 +115,11 @@ LL │     r_none as *,
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function r_two(Ret a, Ret b) pure returns (Ret, Ret) {
-   │                                            ━━━━━━━━
+LL │ ┏ function r_two(Ret a, Ret b) pure returns (Ret, Ret) {
+LL │ ┃
+LL │ ┃     return (a, b);
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -109,8 +131,11 @@ LL │     r_two as /,
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function r_unary_raw(Ret a) pure returns (uint256) {
-   │                                           ━━━━━━━
+LL │ ┏ function r_unary_raw(Ret a) pure returns (uint256) {
+LL │ ┃
+LL │ ┃     return Ret.unwrap(a);
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -122,8 +147,11 @@ LL │     r_unary_raw as ~,
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function r_minus_two(Ret a) pure returns (Ret, Ret) {
-   │                                           ━━━━━━━━
+LL │ ┏ function r_minus_two(Ret a) pure returns (Ret, Ret) {
+LL │ ┃
+LL │ ┃     return (a, a);
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -135,8 +163,12 @@ LL │     r_minus_two as -
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function c_ret_udvt(Cmp a, Cmp b) pure returns (Cmp) {
-   │                                                 ━━━
+LL │ ┏ function c_ret_udvt(Cmp a, Cmp b) pure returns (Cmp) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -164,8 +196,12 @@ LL │     c_none as >,
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function c_two(Cmp a, Cmp b) pure returns (bool, Cmp) {
-   │                                            ━━━━━━━━━
+LL │ ┏ function c_two(Cmp a, Cmp b) pure returns (bool, Cmp) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return (true, a);
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -177,8 +213,12 @@ LL │     c_two as ==,
 error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │ function c_params(Cmp a) pure returns (bool) {
-   │                   ━━━
+LL │ ┏ function c_params(Cmp a) pure returns (bool) {
+LL │ ┃
+LL │ ┃     a;
+LL │ ┃     return true;
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC

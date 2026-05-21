@@ -13,8 +13,12 @@ LL │ using {add as +, add2 as +} for U global;
 error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
    │
-LL │ function badParams(uint256 a, uint256 b) pure returns (uint256) {
-   │                    ━━━━━━━━━━━━━━━━━━
+LL │ ┏ function badParams(uint256 a, uint256 b) pure returns (uint256) {
+LL │ ┃
+LL │ ┃
+LL │ ┃     return a + b;
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
@@ -26,8 +30,12 @@ LL │ using {badParams as -} for U global;
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
    │
-LL │ function badParams(uint256 a, uint256 b) pure returns (uint256) {
-   │                                                        ━━━━━━━
+LL │ ┏ function badParams(uint256 a, uint256 b) pure returns (uint256) {
+LL │ ┃
+LL │ ┃
+LL │ ┃     return a + b;
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
@@ -39,8 +47,11 @@ LL │ using {badParams as -} for U global;
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
    │
-LL │ function badReturn(U a, U b) pure returns (uint256) {
-   │                                            ━━━━━━━
+LL │ ┏ function badReturn(U a, U b) pure returns (uint256) {
+LL │ ┃
+LL │ ┃     return U.unwrap(a) + U.unwrap(b);
+LL │ ┃ }
+   │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/invalid_operators.sol:LL:CC
