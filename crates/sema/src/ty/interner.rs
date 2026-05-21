@@ -40,6 +40,7 @@ impl<'gcx> Interner<'gcx> {
             return &[];
         }
         if bump_contains_slice(bump, tys) {
+            debug_assert!(self.ty_lists.contains_key(tys));
             // SAFETY: `tys` points into `bump`, which is owned by the global context and lives for
             // `'gcx`.
             return unsafe { solar_data_structures::trustme::decouple_lt(tys) };
@@ -217,9 +218,9 @@ mod tests {
         let bump = bumpalo::Bump::new();
         let interner = Interner::new();
         let ty = interner.intern_ty(&bump, TyKind::Elementary(ElementaryType::Bool));
-        let tys = bump.alloc_slice_copy(&[ty]);
+        let tys = interner.intern_tys(&bump, &[ty]);
 
-        let interned = interner.intern_tys(&bump, tys);
-        assert!(std::ptr::eq(interned, tys));
+        let reinterned = interner.intern_tys(&bump, tys);
+        assert!(std::ptr::eq(reinterned, tys));
     }
 }
