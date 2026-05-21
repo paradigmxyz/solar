@@ -29,3 +29,10 @@ diagnostic paths without keeping one UI file per upstream test.
   - Expected: `using L for M` is invalid when `M` is a library name.
   - Fixed in this branch: type checking now rejects library contract types as
     using-for target types.
+
+- [x] Reject library modifiers referenced through using-for.
+  - Upstream: `test/libsolidity/syntaxTests/modifiers/library_via_using.sol`
+  - Expected: `function f() L.m public {}` rejects `L.m` even if `using L for *`
+    is in scope.
+  - Fixed in this branch: modifier resolution now rejects modifiers whose
+    defining contract is not the current contract or one of its bases.
