@@ -75,9 +75,26 @@ LL │ ┃ }
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
-LL │     p_second as %
+LL │     p_second as %,
    │     ━━━━━━━━
    ╰ help: function `p_second` needs to have two parameters of type `Param` to be used for operator `%`
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │ ┏ function p_bitnot_two(Param a, Param b) pure returns (Param) {
+LL │ ┃
+LL │ ┃     b;
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │     p_bitnot_two as ~
+   │     ━━━━━━━━━━━━
+   ╰ help: function `p_bitnot_two` needs to have exactly one parameter of type `Param` to be used for operator `~`
 
 error: wrong return parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
@@ -267,6 +284,12 @@ LL │         a % b;
    │         │
    ╰╴        Param
 
+error: cannot apply unary operator `~` to `Param`
+   ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
+   │
+LL │         ~a;
+   ╰╴        ━━
+
 error: cannot apply builtin operator `!=` to `Cmp` and `Cmp`
    ╭▸ ROOT/tests/ui/using-for/operators/operator_definition_matrix.sol:LL:CC
    │
@@ -275,5 +298,5 @@ LL │         a != b;
    │         │
    ╰╴        Cmp
 
-error: aborting due to 20 previous errors
+error: aborting due to 22 previous errors
 

@@ -36,12 +36,19 @@ function p_second(Param a, uint256 b) pure returns (Param) {
     return a;
 }
 
+function p_bitnot_two(Param a, Param b) pure returns (Param) {
+    //~^ ERROR: wrong parameters
+    b;
+    return a;
+}
+
 using {
     p_zero as +, //~ ERROR: does not have any parameters
     p_one as *,
     p_three as -,
     p_first as /,
-    p_second as %
+    p_second as %,
+    p_bitnot_two as ~
 } for Param global;
 
 function r_raw(Ret a, Ret b) pure returns (uint256) {
@@ -115,6 +122,7 @@ contract C {
         a - b; //~ ERROR: cannot apply builtin operator
         a / b; //~ ERROR: cannot apply builtin operator
         a % b; //~ ERROR: cannot apply builtin operator
+        ~a; //~ ERROR: cannot apply unary operator
     }
 
     function badReturnUses(Ret a, Ret b) public pure {
