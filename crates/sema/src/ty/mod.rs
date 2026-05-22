@@ -874,12 +874,14 @@ fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
     if ty == using_ty {
         return true;
     }
-    let (TyKind::Fn(a), TyKind::Fn(b)) = (ty.kind, using_ty.kind) else { return false };
-    a.kind == b.kind
-        && a.parameters == b.parameters
-        && a.returns == b.returns
-        && a.state_mutability == b.state_mutability
-        && a.attached == b.attached
+    if let (TyKind::Fn(a), TyKind::Fn(b)) = (ty.kind, using_ty.kind) {
+        return a.kind == b.kind
+            && a.parameters == b.parameters
+            && a.returns == b.returns
+            && a.state_mutability == b.state_mutability
+            && a.attached == b.attached;
+    }
+    false
 }
 
 fn compatible_fixed_bytes_type(lit: &hir::Lit<'_>) -> Option<TypeSize> {
