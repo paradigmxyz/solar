@@ -27,7 +27,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         },
         TyKind::StringLiteral(_utf8, _size) => Default::default(),
         TyKind::IntLiteral(..) => Default::default(),
-        TyKind::Ref(inner, loc) => reference(gcx, inner, loc),
+        TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
         TyKind::Array(_ty, _len) => expected_ref(),
         TyKind::Slice(_ty) => Default::default(),
@@ -166,7 +166,12 @@ fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFn<'gcx>) -> MemberListOwned<'gcx> 
     members
 }
 
-fn reference<'gcx>(gcx: Gcx<'gcx>, inner: Ty<'gcx>, loc: DataLocation) -> MemberListOwned<'gcx> {
+fn reference<'gcx>(
+    gcx: Gcx<'gcx>,
+    this: Ty<'gcx>,
+    inner: Ty<'gcx>,
+    loc: DataLocation,
+) -> MemberListOwned<'gcx> {
     match (&inner.kind, loc) {
         (&TyKind::Struct(id), _) => {
             let fields = gcx.hir.strukt(id).fields;
@@ -191,15 +196,15 @@ fn reference<'gcx>(gcx: Gcx<'gcx>, inner: Ty<'gcx>, loc: DataLocation) -> Member
                 Member::of_builtin(gcx, Builtin::ArrayLength),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush0,
-                    gcx.mk_builtin_fn(&[], SM::NonPayable, &[inner]),
+                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush,
-                    gcx.mk_builtin_fn(&[inner], SM::NonPayable, &[]),
+                    gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPop,
-                    gcx.mk_builtin_fn(&[], SM::NonPayable, &[]),
+                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[]),
                 ),
             ]
         }
