@@ -11,6 +11,12 @@ pub(super) trait QueryKey: Copy {
     type Cache<V>: QueryCache<Self, V> + Default
     where
         V: Copy;
+
+    fn prefill_cache<V>(_: &Self::Cache<V>, _: &hir::Hir<'_>)
+    where
+        V: Copy,
+    {
+    }
 }
 
 pub(super) trait QueryCache<K, V> {
@@ -49,6 +55,14 @@ impl<K, V> Default for VecCache<K, V> {
     }
 }
 
+impl<K, V> VecCache<K, V> {
+    fn prefill(&self, len: usize) {
+        while self.cache.count() < len {
+            self.cache.push(OnceLock::new());
+        }
+    }
+}
+
 impl<K, V> QueryCache<K, V> for VecCache<K, V>
 where
     K: Idx,
@@ -72,32 +86,46 @@ impl QueryKey for Builtin {
         = VecCache<Self, V>
     where
         V: Copy;
+
+    fn prefill_cache<V>(cache: &Self::Cache<V>, _: &hir::Hir<'_>)
+    where
+        V: Copy,
+    {
+        cache.prefill(Self::COUNT);
+    }
 }
 
 macro_rules! vec_query_keys {
-    ($($ty:ty),* $(,)?) => {
+    ($($ty:ty => $len:expr;)*) => {
         $(
             impl QueryKey for $ty {
                 type Cache<V> = VecCache<Self, V>
                 where
                     V: Copy;
+
+                fn prefill_cache<V>(cache: &Self::Cache<V>, hir: &hir::Hir<'_>)
+                where
+                    V: Copy,
+                {
+                    cache.prefill($len(hir));
+                }
             }
         )*
     };
 }
 
 vec_query_keys! {
-    hir::SourceId,
-    hir::DocId,
-    hir::ContractId,
-    hir::FunctionId,
-    hir::StructId,
-    hir::EnumId,
-    hir::UdvtId,
-    hir::EventId,
-    hir::ErrorId,
-    hir::VariableId,
-    hir::ExprId,
+    hir::SourceId => |hir: &hir::Hir<'_>| hir.sources.len();
+    hir::DocId => |hir: &hir::Hir<'_>| hir.docs.len();
+    hir::ContractId => |hir: &hir::Hir<'_>| hir.contracts.len();
+    hir::FunctionId => |hir: &hir::Hir<'_>| hir.functions.len();
+    hir::StructId => |hir: &hir::Hir<'_>| hir.structs.len();
+    hir::EnumId => |hir: &hir::Hir<'_>| hir.enums.len();
+    hir::UdvtId => |hir: &hir::Hir<'_>| hir.udvts.len();
+    hir::EventId => |hir: &hir::Hir<'_>| hir.events.len();
+    hir::ErrorId => |hir: &hir::Hir<'_>| hir.errors.len();
+    hir::VariableId => |hir: &hir::Hir<'_>| hir.variables.len();
+    hir::ExprId => |_| 0;
 }
 
 macro_rules! default_query_keys {
@@ -146,6 +174,14 @@ macro_rules! cached {
             )*
         }
 
+        impl<'gcx> Cache<'gcx> {
+            fn prefill(&self, hir: &$crate::hir::Hir<'_>) {
+                $(
+                    <$key_type as $crate::ty::caches::QueryKey>::prefill_cache(&self.$name, hir);
+                )*
+            }
+        }
+
         impl<'gcx> Gcx<'gcx> {
             $(
                 $(#[$attr])*
@@ -172,3 +208,9 @@ macro_rules! cached {
 }
 
 pub(super) use cached;
+
+impl<'gcx> super::Gcx<'gcx> {
+    pub(crate) fn init_caches(self) {
+        self.cache.prefill(&self.hir);
+    }
+}

@@ -92,6 +92,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
     gcx.sess.dcx.has_errors()?;
 
     ast_lowering::lower(compiler.gcx_mut());
+    gcx.init_caches();
 
     Ok(ControlFlow::Continue(()))
 }
