@@ -78,51 +78,6 @@ where
     }
 }
 
-pub(super) struct ItemIdCache<V> {
-    contracts: VecCache<hir::ContractId, V, CacheIndex>,
-    functions: VecCache<hir::FunctionId, V, CacheIndex>,
-    variables: VecCache<hir::VariableId, V, CacheIndex>,
-    structs: VecCache<hir::StructId, V, CacheIndex>,
-    enums: VecCache<hir::EnumId, V, CacheIndex>,
-    udvts: VecCache<hir::UdvtId, V, CacheIndex>,
-    errors: VecCache<hir::ErrorId, V, CacheIndex>,
-    events: VecCache<hir::EventId, V, CacheIndex>,
-}
-
-impl<V> Default for ItemIdCache<V> {
-    fn default() -> Self {
-        Self {
-            contracts: Default::default(),
-            functions: Default::default(),
-            variables: Default::default(),
-            structs: Default::default(),
-            enums: Default::default(),
-            udvts: Default::default(),
-            errors: Default::default(),
-            events: Default::default(),
-        }
-    }
-}
-
-impl<V> QueryCache<hir::ItemId, V> for ItemIdCache<V>
-where
-    V: Copy,
-{
-    #[inline]
-    fn get_or_insert(&self, key: hir::ItemId, make_val: impl FnOnce(&hir::ItemId) -> V) -> V {
-        match key {
-            hir::ItemId::Contract(id) => self.contracts.get_or_insert(id, |_| make_val(&key)),
-            hir::ItemId::Function(id) => self.functions.get_or_insert(id, |_| make_val(&key)),
-            hir::ItemId::Variable(id) => self.variables.get_or_insert(id, |_| make_val(&key)),
-            hir::ItemId::Struct(id) => self.structs.get_or_insert(id, |_| make_val(&key)),
-            hir::ItemId::Enum(id) => self.enums.get_or_insert(id, |_| make_val(&key)),
-            hir::ItemId::Udvt(id) => self.udvts.get_or_insert(id, |_| make_val(&key)),
-            hir::ItemId::Error(id) => self.errors.get_or_insert(id, |_| make_val(&key)),
-            hir::ItemId::Event(id) => self.events.get_or_insert(id, |_| make_val(&key)),
-        }
-    }
-}
-
 impl QueryKey for Builtin {
     type Cache<V>
         = VecCache<Self, V, CacheIndex>
@@ -145,13 +100,6 @@ impl Idx for Builtin {
     fn index(self) -> usize {
         self as usize
     }
-}
-
-impl QueryKey for hir::ItemId {
-    type Cache<V>
-        = ItemIdCache<V>
-    where
-        V: Copy;
 }
 
 macro_rules! vec_query_keys {
@@ -192,7 +140,7 @@ macro_rules! default_query_keys {
     };
 }
 
-default_query_keys! { usize, (Symbol, hir::SourceId) }
+default_query_keys! { usize, (Symbol, hir::SourceId), hir::ItemId }
 
 impl<'gcx> QueryKey for Ty<'gcx> {
     type Cache<V>
