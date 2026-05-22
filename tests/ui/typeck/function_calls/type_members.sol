@@ -43,6 +43,18 @@ interface Executor {
     function check() external pure;
 }
 
+contract Base {
+    function internalBase(uint256 value) internal pure returns (uint256) {
+        return value;
+    }
+}
+
+contract Derived is Base {
+    function baseTypeInternalFunction() public pure returns (uint256) {
+        return Base.internalBase(1);
+    }
+}
+
 contract C {
     event ExternalFunction(function() external indexed);
 
