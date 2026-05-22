@@ -7,7 +7,6 @@ use solar_data_structures::{Interned, map::FxBuildHasher};
 use std::{
     borrow::Borrow,
     hash::{BuildHasher, Hash},
-    mem,
 };
 
 type InternSet<T> = once_map::OnceMap<T, (), FxBuildHasher>;
@@ -39,7 +38,7 @@ impl<'gcx> Interner<'gcx> {
         if tys.is_empty() {
             return &[];
         }
-        if bump_contains_slice(bump, tys) {
+        if bump_contains_ptr(bump, tys.as_ptr()) {
             debug_assert!(self.ty_lists.contains_key(tys));
             // SAFETY: `tys` points into `bump`, which is owned by the global context and lives for
             // `'gcx`.
@@ -189,21 +188,14 @@ fn with_result<K: Copy, V>(k: &K, _: &V) -> K {
 }
 
 #[inline]
-fn bump_contains_slice<T>(bump: &bumpalo::Bump, slice: &[T]) -> bool {
-    let len = mem::size_of_val(slice);
-    if len == 0 {
-        return false;
-    }
-
-    let start = slice.as_ptr().addr();
-    let Some(end) = start.checked_add(len) else { return false };
-
+fn bump_contains_ptr<T>(bump: &bumpalo::Bump, ptr: *const T) -> bool {
+    let addr = ptr.addr();
     // SAFETY: The chunk data is not read, and the arena is not used during the iteration.
     unsafe {
         bump.iter_allocated_chunks_raw().any(|(ptr, len)| {
             let chunk_start = ptr.addr();
             let chunk_end = chunk_start + len;
-            chunk_start <= start && end <= chunk_end
+            chunk_start <= addr && addr < chunk_end
         })
     }
 }
