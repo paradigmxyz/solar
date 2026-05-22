@@ -1,7 +1,10 @@
 use crate::{builtins::Builtin, hir, ty::Ty};
-use solar_data_structures::{index::Idx, map::FxBuildHasher, sync::Mutex};
+use solar_data_structures::{index::Idx, map::FxBuildHasher};
 use solar_interface::Symbol;
-use std::{hash::Hash, marker::PhantomData, sync::OnceLock};
+use std::{fmt::Debug, hash::Hash};
+
+mod vec_cache;
+use vec_cache::VecCache;
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 
@@ -38,65 +41,52 @@ where
     }
 }
 
-pub(super) trait VecCacheKey: Copy {
-    fn index(self) -> usize;
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(super) struct CacheIndex(u32);
+
+impl CacheIndex {
+    const ZERO: Self = Self(0);
 }
 
-impl<I: Idx> VecCacheKey for I {
+impl Idx for CacheIndex {
+    const MAX: usize = u32::MAX as usize;
+
+    #[inline]
+    unsafe fn from_usize_unchecked(idx: usize) -> Self {
+        Self(idx as u32)
+    }
+
     #[inline]
     fn index(self) -> usize {
-        self.index()
+        self.0 as usize
     }
 }
 
-impl VecCacheKey for Builtin {
-    #[inline]
-    fn index(self) -> usize {
-        self as usize
-    }
-}
-
-pub(super) struct VecCache<K, V> {
-    cache: Mutex<Vec<Box<OnceLock<V>>>>,
-    key: PhantomData<fn(K) -> K>,
-}
-
-impl<K, V> Default for VecCache<K, V> {
-    fn default() -> Self {
-        Self { cache: Default::default(), key: PhantomData }
-    }
-}
-
-impl<K, V> QueryCache<K, V> for VecCache<K, V>
+impl<K, V> QueryCache<K, V> for VecCache<K, V, CacheIndex>
 where
-    K: VecCacheKey,
+    K: Eq + Idx + Copy + Debug,
     V: Copy,
 {
     #[inline]
     fn get_or_insert(&self, key: K, make_val: impl FnOnce(&K) -> V) -> V {
-        let slot = {
-            let mut cache = self.cache.lock();
-            let index = key.index();
-            if index >= cache.len() {
-                cache.resize_with(index + 1, || Box::new(OnceLock::new()));
-            }
-            &*cache[index] as *const OnceLock<V>
-        };
-        // SAFETY: Slots are boxed and never removed, so growing the vector cannot invalidate this
-        // pointer after the lock is released.
-        *unsafe { &*slot }.get_or_init(|| make_val(&key))
+        if let Some((value, _)) = self.lookup(&key) {
+            return value;
+        }
+        let value = make_val(&key);
+        self.complete(key, value, CacheIndex::ZERO);
+        self.lookup(&key).map_or(value, |(value, _)| value)
     }
 }
 
 pub(super) struct ItemIdCache<V> {
-    contracts: VecCache<hir::ContractId, V>,
-    functions: VecCache<hir::FunctionId, V>,
-    variables: VecCache<hir::VariableId, V>,
-    structs: VecCache<hir::StructId, V>,
-    enums: VecCache<hir::EnumId, V>,
-    udvts: VecCache<hir::UdvtId, V>,
-    errors: VecCache<hir::ErrorId, V>,
-    events: VecCache<hir::EventId, V>,
+    contracts: VecCache<hir::ContractId, V, CacheIndex>,
+    functions: VecCache<hir::FunctionId, V, CacheIndex>,
+    variables: VecCache<hir::VariableId, V, CacheIndex>,
+    structs: VecCache<hir::StructId, V, CacheIndex>,
+    enums: VecCache<hir::EnumId, V, CacheIndex>,
+    udvts: VecCache<hir::UdvtId, V, CacheIndex>,
+    errors: VecCache<hir::ErrorId, V, CacheIndex>,
+    events: VecCache<hir::EventId, V, CacheIndex>,
 }
 
 impl<V> Default for ItemIdCache<V> {
@@ -135,9 +125,26 @@ where
 
 impl QueryKey for Builtin {
     type Cache<V>
-        = VecCache<Self, V>
+        = VecCache<Self, V, CacheIndex>
     where
         V: Copy;
+}
+
+impl Idx for Builtin {
+    const MAX: usize = Self::COUNT - 1;
+
+    #[inline]
+    unsafe fn from_usize_unchecked(idx: usize) -> Self {
+        debug_assert!(idx < Self::COUNT);
+        // SAFETY: `Builtin` is a fieldless `repr(u8)` enum with contiguous discriminants, and the
+        // debug assertion mirrors the invariant enforced by `Idx::from_usize`.
+        unsafe { std::mem::transmute::<u8, Self>(idx as u8) }
+    }
+
+    #[inline]
+    fn index(self) -> usize {
+        self as usize
+    }
 }
 
 impl QueryKey for hir::ItemId {
@@ -151,7 +158,7 @@ macro_rules! vec_query_keys {
     ($($ty:ty),* $(,)?) => {
         $(
             impl QueryKey for $ty {
-                type Cache<V> = VecCache<Self, V>
+                type Cache<V> = VecCache<Self, V, CacheIndex>
                 where
                     V: Copy;
             }

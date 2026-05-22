@@ -35,7 +35,7 @@ macro_rules! declare_builtins {
     (|$slf:ident, $gcx:ident| $($(#[$variant_attr:meta])* $variant_name:ident => $sym:ident::$name:ident => $ty:expr;)*) => {
         /// A compiler builtin.
         #[repr(u8)]
-        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum Builtin {
             $(
                 $(#[$variant_attr])*
