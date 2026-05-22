@@ -180,6 +180,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, opts) => {
+                let is_abi_decode = is_abi_decode_callee(callee);
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
                     self.check_member_call_callee(callee, receiver, ident, args)
                 } else if let hir::ExprKind::Ident(res) = callee.kind {
@@ -189,6 +190,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if let Some(opts) = opts {
                     callee_ty = self.check_call_options(callee_ty, opts.args, opts.span);
+                }
+
+                if is_abi_decode {
+                    self.try_set_not_lvalue(NotLvalueReason::Generic);
+                    return self.check_abi_decode_call(expr.span, args);
                 }
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
@@ -889,6 +895,80 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
         }
+    }
+
+    fn check_abi_decode_call(&mut self, call_span: Span, args: &hir::CallArgs<'gcx>) -> Ty<'gcx> {
+        let hir::CallArgsKind::Unnamed(exprs) = args.kind else {
+            self.dcx()
+                .err("named arguments cannot be used for functions that take arbitrary parameters")
+                .span(args.span)
+                .emit();
+            if let hir::CallArgsKind::Named(named_args) = args.kind {
+                for arg in named_args {
+                    let _ = self.check_expr_once(&arg.value);
+                }
+            }
+            return self
+                .gcx
+                .mk_ty_err(self.dcx().err("invalid `abi.decode` call").span(call_span).emit());
+        };
+
+        if exprs.len() != 2 {
+            let guar = self
+                .dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected 2",
+                    exprs.len()
+                ))
+                .span(call_span)
+                .span_label(args.span, format!("expected 2 arguments, found {}", exprs.len()))
+                .emit();
+            for expr in exprs {
+                let _ = self.check_expr_once(expr);
+            }
+            return self.gcx.mk_ty_err(guar);
+        }
+
+        let data_ty = self.check_expr_once(&exprs[0]);
+        self.check_expected(&exprs[0], data_ty, self.gcx.types.bytes_ref.memory);
+
+        let types = self.abi_decode_types(&exprs[1]);
+        self.fn_call_return_type(types)
+    }
+
+    fn abi_decode_types(&mut self, expr: &'gcx hir::Expr<'gcx>) -> &'gcx [Ty<'gcx>] {
+        let hir::ExprKind::Tuple(type_exprs) = expr.kind else {
+            let guar = self
+                .dcx()
+                .err("the second argument to `abi.decode` must be a tuple of types")
+                .span(expr.span)
+                .emit();
+            return self.gcx.mk_tys(&[self.gcx.mk_ty_err(guar)]);
+        };
+
+        let mut tys = Vec::with_capacity(type_exprs.len());
+        for type_expr in type_exprs {
+            let Some(type_expr) = type_expr else {
+                let guar = self
+                    .dcx()
+                    .err("`abi.decode` type tuple components cannot be empty")
+                    .span(expr.span)
+                    .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            };
+            let hir::ExprKind::Type(ref ty) = type_expr.kind else {
+                let guar = self
+                    .dcx()
+                    .err("`abi.decode` type tuple components must be types")
+                    .span(type_expr.span)
+                    .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            };
+            tys.push(self.gcx.type_of_hir_ty(ty).with_loc_if_ref(self.gcx, DataLocation::Memory));
+        }
+        self.gcx.mk_tys(&tys)
     }
 
     fn check_member_call_callee(
@@ -1928,6 +2008,14 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 
         _ => false,
     }
+}
+
+fn is_abi_decode_callee(callee: &hir::Expr<'_>) -> bool {
+    let hir::ExprKind::Member(receiver, ident) = callee.kind else { return false };
+    if ident.name != sym::decode {
+        return false;
+    }
+    matches!(receiver.kind, hir::ExprKind::Ident([hir::Res::Builtin(Builtin::Abi)]))
 }
 
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
