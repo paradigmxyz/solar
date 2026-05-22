@@ -17,6 +17,13 @@ contract Test {
         uint256 x = state;
         dynamicArray[idx] = x;
     }
+
+    function testStorageArrayMethods() external {
+        dynamicArray.push(1);
+        uint256 x = dynamicArray.push();
+        dynamicArray.pop();
+        x;
+    }
     
     function testMapping() external {
         uint256 x = state;
