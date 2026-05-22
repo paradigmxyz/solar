@@ -31,12 +31,21 @@ library L {
         self;
         return x;
     }
+
+    function callSelector(function(uint256) internal pure returns (uint256) self, uint256 x)
+        internal
+        pure
+        returns (uint256)
+    {
+        return self(x) * 2;
+    }
 }
 
 using {inc, add} for uint256;
 
 contract C {
     using L for uint256;
+    using L for function(uint256) internal pure returns (uint256);
 
     function ok(uint256 x, bool b) public pure {
         uint256 a = x.inc();
@@ -56,5 +65,13 @@ contract C {
         function(uint256) internal pure returns (uint256) ptr = x.inc; //~ ERROR: mismatched types
         x.inc(1); //~ ERROR: wrong argument count for function call
         x.add(); //~ ERROR: wrong argument count for function call
+    }
+
+    function identity(uint256 x) internal pure returns (uint256) {
+        return x;
+    }
+
+    function functionValue(uint256 x) public pure returns (uint256) {
+        return identity.callSelector(x);
     }
 }
