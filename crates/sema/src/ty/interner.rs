@@ -189,13 +189,13 @@ fn with_result<K: Copy, V>(k: &K, _: &V) -> K {
 
 #[inline]
 fn bump_contains_ptr<T>(bump: &bumpalo::Bump, ptr: *const T) -> bool {
-    let addr = ptr.addr();
+    let ptr = ptr.cast::<u8>();
     // SAFETY: The chunk data is not read, and the arena is not used during the iteration.
     unsafe {
-        bump.iter_allocated_chunks_raw().any(|(ptr, len)| {
-            let chunk_start = ptr.addr();
-            let chunk_end = chunk_start + len;
-            chunk_start <= addr && addr < chunk_end
+        bump.iter_allocated_chunks_raw().any(|(chunk_start, len)| {
+            let chunk_start = chunk_start.cast_const();
+            let chunk_end = chunk_start.add(len);
+            chunk_start <= ptr && ptr < chunk_end
         })
     }
 }
