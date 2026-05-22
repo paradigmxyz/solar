@@ -9,7 +9,11 @@ use solar_ast::{
     DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, kw, sym};
+use solar_interface::{
+    Ident, Symbol,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    kw, sym,
+};
 use std::ops::ControlFlow;
 
 type ParamNames = SmallVec<[Option<Symbol>; 8]>;
@@ -121,19 +125,44 @@ impl<'gcx> TypeChecker<'gcx> {
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
+                let mut guar: Option<ErrorGuaranteed> = None;
                 for (i, expr) in exprs.iter().enumerate() {
                     let expr_ty = self.check_expr(expr);
+                    if (i == 0 || common.is_some())
+                        && let None = expr_ty.mobile(self.gcx)
+                    {
+                        let g = self.dcx().err("invalid mobile type").span(expr.span).emit();
+                        guar.get_or_insert(g);
+                    }
                     if let Some(common_ty) = common {
                         common = common_ty.common_type(expr_ty, self.gcx);
                     } else if i == 0 {
                         common = expr_ty.mobile(self.gcx);
                     }
                 }
+                if let Some(guar) = guar {
+                    return self.gcx.mk_ty_err(guar);
+                }
                 if let Some(common) = common {
-                    // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1583
-                    self.gcx
-                        .mk_ty(TyKind::Array(common, U256::from(exprs.len())))
-                        .with_loc(self.gcx, DataLocation::Memory)
+                    if common.has_mapping(self.gcx) {
+                        let msg = format!(
+                            "type `{}` is only valid in storage because it contains a (nested) mapping",
+                            common.display(self.gcx),
+                        );
+                        self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
+                    } else if !common.nameable() {
+                        self.gcx.mk_ty_err(
+                            self.dcx()
+                                .err("cannot infer nameable array element type")
+                                .span(expr.span)
+                                .help("add an explicit type conversion for the first element")
+                                .emit(),
+                        )
+                    } else {
+                        self.gcx
+                            .mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                            .with_loc(self.gcx, DataLocation::Memory)
+                    }
                 } else {
                     self.gcx.mk_ty_err(
                         self.dcx().err("cannot infer array element type").span(expr.span).emit(),
