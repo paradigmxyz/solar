@@ -699,11 +699,11 @@ impl<'gcx> TypeChecker<'gcx> {
         for (i, (&lhs_component, &lhs_component_ty)) in
             lhs_components.iter().zip(lhs_types).enumerate()
         {
-            let Some(_) = lhs_component else { continue };
-            let Some(rhs_component) = rhs_components.and_then(|components| components[i]) else {
-                continue;
-            };
-            self.check_expected(rhs_component, rhs_types[i], lhs_component_ty);
+            if let Some(_) = lhs_component
+                && let Some(rhs_component) = rhs_components.and_then(|components| components[i])
+            {
+                self.check_expected(rhs_component, rhs_types[i], lhs_component_ty);
+            }
         }
     }
 
