@@ -85,23 +85,6 @@ impl QueryKey for Builtin {
         V: Copy;
 }
 
-impl Idx for Builtin {
-    const MAX: usize = Self::COUNT - 1;
-
-    #[inline]
-    unsafe fn from_usize_unchecked(idx: usize) -> Self {
-        debug_assert!(idx < Self::COUNT);
-        // SAFETY: `Builtin` is a fieldless `repr(u8)` enum with contiguous discriminants, and the
-        // debug assertion mirrors the invariant enforced by `Idx::from_usize`.
-        unsafe { std::mem::transmute::<u8, Self>(idx as u8) }
-    }
-
-    #[inline]
-    fn index(self) -> usize {
-        self as usize
-    }
-}
-
 macro_rules! vec_query_keys {
     ($($ty:ty),* $(,)?) => {
         $(

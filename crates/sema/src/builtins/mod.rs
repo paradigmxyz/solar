@@ -4,7 +4,7 @@ use crate::{
     ty::{Gcx, Ty, TyFnKind},
 };
 use solar_ast::StateMutability as SM;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{index::Idx, map::FxHashMap};
 use solar_interface::{Span, Symbol, kw, sym};
 use std::sync::OnceLock;
 
@@ -424,5 +424,22 @@ impl Builtin {
         debug_assert!(range.end <= Self::COUNT);
         (range.start as Primitive..range.end as Primitive)
             .map(|idx| unsafe { Self::from_index(idx as usize).unwrap_unchecked() })
+    }
+}
+
+impl Idx for Builtin {
+    const MAX: usize = Self::COUNT - 1;
+
+    #[inline]
+    unsafe fn from_usize_unchecked(idx: usize) -> Self {
+        debug_assert!(idx < Self::COUNT);
+        // SAFETY: `Builtin` is a fieldless `repr(Primitive)` enum with contiguous discriminants,
+        // and the debug assertion mirrors the invariant enforced by `Idx::from_usize`.
+        unsafe { std::mem::transmute::<Primitive, Self>(idx as Primitive) }
+    }
+
+    #[inline]
+    fn index(self) -> usize {
+        self as usize
     }
 }
