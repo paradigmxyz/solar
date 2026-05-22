@@ -14,6 +14,10 @@ contract WithNonPayableFallback {
     fallback() external {}
 }
 
+interface I {}
+
+abstract contract Abstract {}
+
 library Lib {}
 
 contract Test {
@@ -61,5 +65,12 @@ contract Test {
         address a = address(Lib);
         address b = address(type(Lib)); //~ ERROR: invalid explicit type conversion
         a; b;
+    }
+
+    function testContractTypeToAddress() public pure {
+        address a = address(NoReceive); //~ ERROR: invalid explicit type conversion
+        address b = address(I); //~ ERROR: invalid explicit type conversion
+        address c = address(Abstract); //~ ERROR: invalid explicit type conversion
+        a; b; c;
     }
 }
