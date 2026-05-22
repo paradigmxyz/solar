@@ -9,7 +9,11 @@ use solar_ast::{
     DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
-use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, kw, sym};
+use solar_interface::{
+    Ident, Symbol,
+    diagnostics::{DiagCtxt, ErrorGuaranteed},
+    kw, sym,
+};
 use std::ops::ControlFlow;
 
 type ParamNames = SmallVec<[Option<Symbol>; 8]>;
@@ -123,17 +127,44 @@ impl<'gcx> TypeChecker<'gcx> {
         match expr.kind {
             hir::ExprKind::Array(exprs) => {
                 let mut common = expected.and_then(|arr| arr.base_type(self.gcx));
+                let mut guar: Option<ErrorGuaranteed> = None;
                 for (i, expr) in exprs.iter().enumerate() {
                     let expr_ty = self.check_expr(expr);
+                    if (i == 0 || common.is_some())
+                        && let None = expr_ty.mobile(self.gcx)
+                    {
+                        let g = self.dcx().err("invalid mobile type").span(expr.span).emit();
+                        guar.get_or_insert(g);
+                    }
                     if let Some(common_ty) = common {
                         common = common_ty.common_type(expr_ty, self.gcx);
                     } else if i == 0 {
                         common = expr_ty.mobile(self.gcx);
                     }
                 }
+                if let Some(guar) = guar {
+                    return self.gcx.mk_ty_err(guar);
+                }
                 if let Some(common) = common {
-                    // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1583
-                    self.gcx.mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                    if common.has_mapping(self.gcx) {
+                        let msg = format!(
+                            "type `{}` is only valid in storage because it contains a (nested) mapping",
+                            common.display(self.gcx),
+                        );
+                        self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
+                    } else if !common.nameable() {
+                        self.gcx.mk_ty_err(
+                            self.dcx()
+                                .err("cannot infer nameable array element type")
+                                .span(expr.span)
+                                .help("add an explicit type conversion for the first element")
+                                .emit(),
+                        )
+                    } else {
+                        self.gcx
+                            .mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                            .with_loc(self.gcx, DataLocation::Memory)
+                    }
                 } else {
                     self.gcx.mk_ty_err(
                         self.dcx().err("cannot infer array element type").span(expr.span).emit(),
@@ -313,7 +344,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
                     if let Some(index) = index {
-                        let _ = self.expect_ty(index, index_ty);
+                        let _ = self.check_expr_outside_lvalue_context(index, Some(index_ty));
                     } else {
                         self.dcx().err("index expression cannot be omitted").span(expr.span).emit();
                     }
@@ -342,7 +373,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = self.check_expr(lhs);
                 if !ty.is_sliceable() {
                     self.dcx().err("can only slice arrays").span(expr.span).emit();
-                } else if !ty.is_ref_at(DataLocation::Calldata) {
+                } else if !is_calldata_sliceable(ty) {
                     self.dcx().err("can only slice dynamic calldata arrays").span(expr.span).emit();
                 }
                 if let Some((_index_ty, _result_ty)) = self.index_types(ty) {
@@ -787,6 +818,7 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Array(element, _) | TyKind::DynArray(element) => {
                 (self.gcx.types.uint(256), element.with_loc_if_ref_opt(self.gcx, loc))
             }
+            TyKind::Slice(array) => (self.gcx.types.uint(256), array.base_type(self.gcx)?),
             TyKind::Elementary(ElementaryType::Bytes)
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
@@ -1033,7 +1065,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return Ok(res);
         }
 
-        let mut selected = WantOne::Zero;
+        let mut selected = SmallVec::<[_; 4]>::new();
         for &res in res {
             let ty = self.type_of_res(res);
             let Some((param_tys, param_names)) = self.call_candidate_params(ty) else {
@@ -1043,11 +1075,43 @@ impl<'gcx> TypeChecker<'gcx> {
                 selected.push(res);
             }
         }
-        match selected {
-            WantOne::Zero => Err(OverloadError::NotFound),
-            WantOne::One(res) => Ok(res),
-            WantOne::Many => Err(OverloadError::Ambiguous),
+        match selected.as_slice() {
+            [] => Err(OverloadError::NotFound),
+            [res] => Ok(*res),
+            selected => self.select_most_derived_function(selected).ok_or(OverloadError::Ambiguous),
         }
+    }
+
+    fn select_most_derived_function(&self, candidates: &[hir::Res]) -> Option<hir::Res> {
+        let contract = self.contract?;
+        let bases = self.gcx.hir.contract(contract).linearized_bases;
+
+        let mut selected = None;
+        let mut selected_depth = usize::MAX;
+        let mut parameter_types = None;
+        for &candidate in candidates {
+            let hir::Res::Item(hir::ItemId::Function(id)) = candidate else { return None };
+            let function = self.gcx.hir.function(id);
+            let depth = bases.iter().position(|&base| Some(base) == function.contract)?;
+            let params = self.gcx.item_parameter_types(id);
+            if let Some(parameter_types) = parameter_types {
+                if parameter_types != params {
+                    return None;
+                }
+            } else {
+                parameter_types = Some(params);
+            }
+
+            match depth.cmp(&selected_depth) {
+                std::cmp::Ordering::Less => {
+                    selected = Some(candidate);
+                    selected_depth = depth;
+                }
+                std::cmp::Ordering::Equal => return None,
+                std::cmp::Ordering::Greater => {}
+            }
+        }
+        selected
     }
 
     fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallCandidateParams<'gcx>> {
@@ -1370,6 +1434,17 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn check_expr_once(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         if let Some(&ty) = self.types.get(&expr.id) { ty } else { self.check_expr(expr) }
+    }
+
+    fn check_expr_outside_lvalue_context(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        expected: Option<Ty<'gcx>>,
+    ) -> Ty<'gcx> {
+        let prev = self.lvalue_context.take();
+        let ty = self.check_expr_with(expr, expected);
+        self.lvalue_context = prev;
+        ty
     }
 
     #[must_use]
@@ -1943,6 +2018,11 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 
         _ => false,
     }
+}
+
+fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
+    ty.is_ref_at(DataLocation::Calldata)
+        || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
 }
 
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
