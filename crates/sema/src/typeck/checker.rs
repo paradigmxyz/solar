@@ -265,7 +265,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 };
 
-                if !is_array_push {
+                if !is_array_push && !is_storage_ref(ty) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -1839,13 +1839,13 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Index(..)
         | hir::ExprKind::Member(..)
         | hir::ExprKind::YulMember(..)
-        | hir::ExprKind::Call(..)
         | hir::ExprKind::Tuple(..)
         | hir::ExprKind::Err(_) => true,
 
         hir::ExprKind::Array(_)
         | hir::ExprKind::Assign(..)
         | hir::ExprKind::Binary(..)
+        | hir::ExprKind::Call(..)
         | hir::ExprKind::Delete(_)
         | hir::ExprKind::Slice(..)
         | hir::ExprKind::Lit(_)
@@ -1856,6 +1856,10 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Type(_)
         | hir::ExprKind::Unary(..) => false,
     }
+}
+
+fn is_storage_ref(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::Ref(_, DataLocation::Storage))
 }
 
 enum OverloadError {

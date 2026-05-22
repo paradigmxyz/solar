@@ -16,5 +16,11 @@ error: expression has to be an lvalue
 LL │         (-c) = c;
    ╰╴         ━━
 
-error: aborting due to 3 previous errors
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
+   │
+LL │         retArr() = arr;
+   ╰╴        ━━━━━━━━
+
+error: aborting due to 4 previous errors
 
