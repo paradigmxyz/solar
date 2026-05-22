@@ -35,6 +35,7 @@ struct TypeChecker<'gcx> {
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
     member_builtins: FxHashMap<hir::ExprId, Builtin>,
+    builtin_callees: FxHashMap<hir::ExprId, Builtin>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
 
@@ -67,6 +68,7 @@ impl<'gcx> TypeChecker<'gcx> {
             construction_context: 0,
             types: Default::default(),
             member_builtins: Default::default(),
+            builtin_callees: Default::default(),
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
@@ -250,6 +252,11 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
+                        if let Some(&builtin) = self.builtin_callees.get(&callee.id)
+                            && self.check_variadic_builtin_args(builtin, args)
+                        {
+                            return self.fn_call_return_type(f.returns);
+                        }
                         if f.is_declaration() {
                             return self.gcx.mk_ty_err(
                                 self.dcx()
@@ -1015,6 +1022,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_library_self_call(member, ident.span);
                 if let Some(hir::Res::Builtin(builtin)) = member.res {
                     self.member_builtins.insert(callee.id, builtin);
+                    self.builtin_callees.insert(callee.id, builtin);
                 }
                 self.member_call_ty(receiver_ty, member)
             }
@@ -1072,8 +1080,110 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         };
         let ty = self.type_of_res(res);
+        if let hir::Res::Builtin(builtin) = res {
+            self.builtin_callees.insert(callee.id, builtin);
+        }
         self.register_ty(callee, ty);
         ty
+    }
+
+    fn check_variadic_builtin_args(
+        &mut self,
+        builtin: Builtin,
+        args: &hir::CallArgs<'gcx>,
+    ) -> bool {
+        let Some(kind) = VariadicBuiltin::new(builtin) else { return false };
+        let hir::CallArgsKind::Unnamed(exprs) = args.kind else {
+            self.dcx()
+                .err("named arguments cannot be used for functions that take arbitrary parameters")
+                .span(args.span)
+                .emit();
+            if let hir::CallArgsKind::Named(named_args) = args.kind {
+                for arg in named_args {
+                    let _ = self.check_expr_once(&arg.value);
+                }
+            }
+            return true;
+        };
+
+        match kind {
+            VariadicBuiltin::Any => {
+                for expr in exprs {
+                    let _ = self.check_expr_once(expr);
+                }
+            }
+            VariadicBuiltin::Bytes => {
+                for expr in exprs {
+                    let ty = self.check_expr_once(expr);
+                    if ty.is_fixed_bytes() {
+                        continue;
+                    }
+                    self.check_expected(expr, ty, self.gcx.types.bytes_ref.memory);
+                }
+            }
+            VariadicBuiltin::String => {
+                for expr in exprs {
+                    let ty = self.check_expr_once(expr);
+                    self.check_expected(expr, ty, self.gcx.types.string_ref.memory);
+                }
+            }
+            VariadicBuiltin::SelectorPrefixed => {
+                self.check_min_variadic_arg_count(builtin, args.span, exprs.len(), 1);
+                if let Some((selector, rest)) = exprs.split_first() {
+                    let ty = self.check_expr_once(selector);
+                    self.check_expected(selector, ty, self.gcx.types.fixed_bytes(4));
+                    for expr in rest {
+                        let _ = self.check_expr_once(expr);
+                    }
+                }
+            }
+            VariadicBuiltin::SignaturePrefixed => {
+                self.check_min_variadic_arg_count(builtin, args.span, exprs.len(), 1);
+                if let Some((signature, rest)) = exprs.split_first() {
+                    let ty = self.check_expr_once(signature);
+                    self.check_expected(signature, ty, self.gcx.types.string_ref.memory);
+                    for expr in rest {
+                        let _ = self.check_expr_once(expr);
+                    }
+                }
+            }
+            VariadicBuiltin::EncodeCall => {
+                if exprs.len() != 2 {
+                    self.dcx()
+                        .err(format!(
+                            "wrong argument count for function call: {} arguments given but expected 2",
+                            exprs.len()
+                        ))
+                        .span(args.span)
+                        .emit();
+                }
+                for expr in exprs {
+                    let _ = self.check_expr_once(expr);
+                }
+            }
+        }
+        true
+    }
+
+    fn check_min_variadic_arg_count(
+        &self,
+        builtin: Builtin,
+        span: Span,
+        actual: usize,
+        minimum: usize,
+    ) {
+        if actual < minimum {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {actual} arguments given but expected at least {minimum}"
+                ))
+                .span(span)
+                .span_label(
+                    span,
+                    format!("`{}` requires at least {minimum} argument", builtin.name()),
+                )
+                .emit();
+        }
     }
 
     fn check_library_self_call(&self, member: &members::Member<'gcx>, span: Span) {
@@ -2018,6 +2128,29 @@ enum OverloadError {
 enum MemberAccessError {
     NotFound,
     Ambiguous,
+}
+
+enum VariadicBuiltin {
+    Any,
+    Bytes,
+    String,
+    SelectorPrefixed,
+    SignaturePrefixed,
+    EncodeCall,
+}
+
+impl VariadicBuiltin {
+    fn new(builtin: Builtin) -> Option<Self> {
+        Some(match builtin {
+            Builtin::AbiEncode | Builtin::AbiEncodePacked => Self::Any,
+            Builtin::AbiEncodeWithSelector => Self::SelectorPrefixed,
+            Builtin::AbiEncodeCall => Self::EncodeCall,
+            Builtin::AbiEncodeWithSignature => Self::SignaturePrefixed,
+            Builtin::StringConcat => Self::String,
+            Builtin::BytesConcat => Self::Bytes,
+            _ => return None,
+        })
+    }
 }
 
 enum WantOne<T> {
