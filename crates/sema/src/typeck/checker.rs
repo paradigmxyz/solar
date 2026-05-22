@@ -1060,7 +1060,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return Ok(res);
         }
 
-        let mut selected = WantOne::Zero;
+        let mut selected = SmallVec::<[_; 4]>::new();
         for &res in res {
             let ty = self.type_of_res(res);
             let Some((param_tys, param_names)) = self.call_candidate_params(ty) else {
@@ -1070,11 +1070,43 @@ impl<'gcx> TypeChecker<'gcx> {
                 selected.push(res);
             }
         }
-        match selected {
-            WantOne::Zero => Err(OverloadError::NotFound),
-            WantOne::One(res) => Ok(res),
-            WantOne::Many => Err(OverloadError::Ambiguous),
+        match selected.as_slice() {
+            [] => Err(OverloadError::NotFound),
+            [res] => Ok(*res),
+            selected => self.select_most_derived_function(selected).ok_or(OverloadError::Ambiguous),
         }
+    }
+
+    fn select_most_derived_function(&self, candidates: &[hir::Res]) -> Option<hir::Res> {
+        let contract = self.contract?;
+        let bases = self.gcx.hir.contract(contract).linearized_bases;
+
+        let mut selected = None;
+        let mut selected_depth = usize::MAX;
+        let mut parameter_types = None;
+        for &candidate in candidates {
+            let hir::Res::Item(hir::ItemId::Function(id)) = candidate else { return None };
+            let function = self.gcx.hir.function(id);
+            let depth = bases.iter().position(|&base| Some(base) == function.contract)?;
+            let params = self.gcx.item_parameter_types(id);
+            if let Some(parameter_types) = parameter_types {
+                if parameter_types != params {
+                    return None;
+                }
+            } else {
+                parameter_types = Some(params);
+            }
+
+            match depth.cmp(&selected_depth) {
+                std::cmp::Ordering::Less => {
+                    selected = Some(candidate);
+                    selected_depth = depth;
+                }
+                std::cmp::Ordering::Equal => return None,
+                std::cmp::Ordering::Greater => {}
+            }
+        }
+        selected
     }
 
     fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallCandidateParams<'gcx>> {
