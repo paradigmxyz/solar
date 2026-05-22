@@ -14,6 +14,11 @@ library PointerLib {
         uint256 x;
     }
 
+    enum Choice {
+        A,
+        B
+    }
+
     function ping() public {}
 
     function offset(Pointer ptr, uint256 by) internal pure returns (Pointer next) {
@@ -45,6 +50,14 @@ interface Executor {
 
 contract C {
     event ExternalFunction(function() external indexed);
+
+    function libraryStructConstructor() public pure returns (PointerLib.Item memory) {
+        return PointerLib.Item(1);
+    }
+
+    function libraryEnumValue() public pure returns (PointerLib.Choice) {
+        return PointerLib.Choice.A;
+    }
 
     function libraryFunctionPointer() public pure {
         function(Pointer, uint256) internal pure returns (Pointer) fn = PointerLib.offset;
