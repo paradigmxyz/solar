@@ -265,7 +265,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 };
 
-                if !is_array_push && !is_storage_ref(ty) {
+                if !is_array_push && ty.loc() != Some(DataLocation::Storage) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -1856,10 +1856,6 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Type(_)
         | hir::ExprKind::Unary(..) => false,
     }
-}
-
-fn is_storage_ref(ty: Ty<'_>) -> bool {
-    matches!(ty.kind, TyKind::Ref(_, DataLocation::Storage))
 }
 
 enum OverloadError {
