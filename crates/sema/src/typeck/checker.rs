@@ -340,7 +340,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = self.check_expr(lhs);
                 if !ty.is_sliceable() {
                     self.dcx().err("can only slice arrays").span(expr.span).emit();
-                } else if !ty.is_ref_at(DataLocation::Calldata) {
+                } else if !is_calldata_sliceable(ty) {
                     self.dcx().err("can only slice dynamic calldata arrays").span(expr.span).emit();
                 }
                 if let Some((_index_ty, _result_ty)) = self.index_types(ty) {
@@ -785,6 +785,7 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Array(element, _) | TyKind::DynArray(element) => {
                 (self.gcx.types.uint(256), element.with_loc_if_ref_opt(self.gcx, loc))
             }
+            TyKind::Slice(array) => (self.gcx.types.uint(256), array.base_type(self.gcx)?),
             TyKind::Elementary(ElementaryType::Bytes)
             | TyKind::Elementary(ElementaryType::FixedBytes(_)) => {
                 (self.gcx.types.uint(256), self.gcx.types.fixed_bytes(1))
@@ -1928,6 +1929,11 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 
         _ => false,
     }
+}
+
+fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
+    ty.is_ref_at(DataLocation::Calldata)
+        || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
 }
 
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
