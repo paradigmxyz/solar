@@ -34,5 +34,11 @@ error: mismatched types
 LL │         emit ExternalFunction(PointerLib.ping);
    ╰╴                              ━━━━━━━━━━━━━━━ expected `function () external`, found `function ()`
 
-error: aborting due to 6 previous errors
+error: member `stateVar` not found on type `type(contract StateVarScope)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
+   │
+LL │         value = StateVarScope.stateVar;
+   ╰╴                              ━━━━━━━━
+
+error: aborting due to 7 previous errors
 

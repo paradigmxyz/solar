@@ -713,7 +713,7 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
-        let native = self.native_members(ty);
+        let native = self.native_members((ty, contract));
         let attached = self.attached_functions(ty, source, contract);
         native.iter().copied().chain(attached)
     }
@@ -892,6 +892,8 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
         state_mutability
     }
 }
+
+type NativeMembersKey<'gcx> = (Ty<'gcx>, Option<hir::ContractId>);
 
 macro_rules! cached {
     ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
@@ -1178,8 +1180,9 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     }
 }
 
-fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
-    members::native_members(gcx, ty)
+fn native_members(gcx: _, key: NativeMembersKey<'gcx>) -> members::MemberList<'gcx> {
+    let (ty, contract) = key;
+    members::native_members(gcx, ty, contract)
 }
 }
 

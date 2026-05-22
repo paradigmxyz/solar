@@ -11,7 +11,11 @@ use solar_interface::Symbol;
 pub type MemberList<'gcx> = &'gcx [Member<'gcx>];
 pub(crate) type MemberListOwned<'gcx> = Vec<Member<'gcx>>;
 
-pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'gcx> {
+pub(crate) fn native_members<'gcx>(
+    gcx: Gcx<'gcx>,
+    ty: Ty<'gcx>,
+    current_contract: Option<hir::ContractId>,
+) -> MemberList<'gcx> {
     let expected_ref = || panic!("native_members: type {ty:?} should be wrapped in Ref");
     gcx.bump().alloc_vec(match ty.kind {
         TyKind::Elementary(elementary_type) => match elementary_type {
@@ -57,7 +61,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             .unwrap_or_else(|| panic!("builtin module {builtin:?} has no inner builtins"))
             .map(|b| Member::of_builtin(gcx, b))
             .collect(),
-        TyKind::Type(ty) => type_type(gcx, ty),
+        TyKind::Type(ty) => type_type(gcx, ty, current_contract),
         TyKind::Meta(ty) => meta(gcx, ty),
         TyKind::Err(_guar) => Default::default(),
     })
@@ -213,9 +217,13 @@ fn reference<'gcx>(
 }
 
 // `Enum.Variant`, `Udvt.wrap`
-fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
+fn type_type<'gcx>(
+    gcx: Gcx<'gcx>,
+    ty: Ty<'gcx>,
+    current_contract: Option<hir::ContractId>,
+) -> MemberListOwned<'gcx> {
     match ty.kind {
-        TyKind::Contract(id) => contract_type(gcx, id),
+        TyKind::Contract(id) => contract_type(gcx, id, current_contract),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
         }
@@ -237,9 +245,15 @@ fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     }
 }
 
-fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
+fn contract_type(
+    gcx: Gcx<'_>,
+    id: hir::ContractId,
+    current_contract: Option<hir::ContractId>,
+) -> MemberListOwned<'_> {
     let contract = gcx.hir.contract(id);
     let is_library = contract.kind.is_library();
+    let is_base_of_current = current_contract
+        .is_some_and(|current| gcx.hir.contract(current).linearized_bases.contains(&id));
     let functions = if is_library {
         Either::Left(contract.functions().filter(|&id| {
             let f = gcx.hir.function(id);
@@ -248,7 +262,7 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
     } else {
         Either::Right(gcx.interface_functions(id).iter().map(|f| f.id))
     };
-    functions
+    let mut members: MemberListOwned<'_> = functions
         .map(|id| {
             let item = hir::ItemId::from(id);
             let f = gcx.hir.function(id);
@@ -270,7 +284,20 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
             };
             Member::with_res(gcx.item_name(item).name, ty, item)
         })
-        .collect()
+        .collect();
+
+    if !is_library && is_base_of_current {
+        members.extend(contract.variables().filter_map(|id| {
+            let var = gcx.hir.variable(id);
+            if var.visibility.unwrap_or(Visibility::Internal) <= Visibility::Private {
+                return None;
+            }
+            let item = hir::ItemId::from(id);
+            Some(Member::with_res(gcx.item_name(item).name, gcx.type_of_item(item), item))
+        }));
+    }
+
+    members
 }
 
 // `type(T)`
