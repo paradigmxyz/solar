@@ -10,8 +10,10 @@ use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, 
 use solar_data_structures::{
     BumpExt,
     fmt::{from_fn, or_list},
+    index::Idx,
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
+    sync::Mutex,
     trustme,
 };
 use solar_interface::{
@@ -23,9 +25,10 @@ use solar_interface::{
 use std::{
     fmt,
     hash::Hash,
+    marker::PhantomData,
     ops::ControlFlow,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -894,16 +897,78 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
 }
 
 macro_rules! cached {
-    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
+    (@parse [$($fields:tt)*] [$($methods:tt)*]) => {
         #[derive(Default)]
         struct Cache<'gcx> {
-            $(
-                $name: FxOnceMap<$key_type, $value>,
-            )*
+            $($fields)*
         }
 
         impl<'gcx> Gcx<'gcx> {
-            $(
+            $($methods)*
+        }
+    };
+
+    (@parse [$($fields:tt)*] [$($methods:tt)*] $(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : hir::$key_type:ident) -> $value:ty $imp:block $($rest:tt)*) => {
+        cached! {
+            @parse
+            [$($fields)* $name: VecCache<hir::$key_type, $value>,]
+            [$($methods)*
+                $(#[$attr])*
+                $vis fn $name(self, $key: hir::$key_type) -> $value {
+                    #[cfg(false)]
+                    let _guard = log_cache_query(stringify!($name), &$key);
+                    #[cfg(false)]
+                    let mut hit = true;
+                    let r = cache_insert(&self.cache.$name, $key, |&$key| {
+                        #[cfg(false)]
+                        {
+                            hit = false;
+                        }
+                        let $gcx = self;
+                        $imp
+                    });
+                    #[cfg(false)]
+                    log_cache_query_result(&r, hit);
+                    r
+                }
+            ]
+            $($rest)*
+        }
+    };
+
+    (@parse [$($fields:tt)*] [$($methods:tt)*] $(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : Builtin) -> $value:ty $imp:block $($rest:tt)*) => {
+        cached! {
+            @parse
+            [$($fields)* $name: VecCache<Builtin, $value>,]
+            [$($methods)*
+                $(#[$attr])*
+                $vis fn $name(self, $key: Builtin) -> $value {
+                    #[cfg(false)]
+                    let _guard = log_cache_query(stringify!($name), &$key);
+                    #[cfg(false)]
+                    let mut hit = true;
+                    let r = cache_insert(&self.cache.$name, $key, |&$key| {
+                        #[cfg(false)]
+                        {
+                            hit = false;
+                        }
+                        let $gcx = self;
+                        $imp
+                    });
+                    #[cfg(false)]
+                    log_cache_query_result(&r, hit);
+                    r
+                }
+            ]
+            $($rest)*
+        }
+    };
+
+    (@parse [$($fields:tt)*] [$($methods:tt)*] $(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block $($rest:tt)*) => {
+        cached! {
+            @parse
+            [$($fields)* $name: FxOnceMap<$key_type, $value>,]
+            [$($methods)*
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
                     #[cfg(false)]
@@ -922,8 +987,13 @@ macro_rules! cached {
                     log_cache_query_result(&r, hit);
                     r
                 }
-            )*
+            ]
+            $($rest)*
         }
+    };
+
+    ($($tokens:tt)*) => {
+        cached!(@parse [] [] $($tokens)*);
     };
 }
 
@@ -1311,14 +1381,103 @@ fn is_value_ns(id: hir::ItemId) -> bool {
     )
 }
 
-/// `OnceMap::insert` but with `Copy` keys and values.
-#[inline]
-fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V
+trait DenseCacheKey: Copy {
+    fn dense_cache_index(self) -> usize;
+}
+
+impl<I: Idx> DenseCacheKey for I {
+    #[inline]
+    fn dense_cache_index(self) -> usize {
+        self.index()
+    }
+}
+
+impl DenseCacheKey for hir::ItemId {
+    #[inline]
+    fn dense_cache_index(self) -> usize {
+        let (tag, index) = match self {
+            Self::Contract(id) => (0, id.index()),
+            Self::Function(id) => (1, id.index()),
+            Self::Variable(id) => (2, id.index()),
+            Self::Struct(id) => (3, id.index()),
+            Self::Enum(id) => (4, id.index()),
+            Self::Udvt(id) => (5, id.index()),
+            Self::Error(id) => (6, id.index()),
+            Self::Event(id) => (7, id.index()),
+        };
+        (index << 3) | tag
+    }
+}
+
+impl DenseCacheKey for Builtin {
+    #[inline]
+    fn dense_cache_index(self) -> usize {
+        self as usize
+    }
+}
+
+struct VecCache<K, V> {
+    slots: Mutex<Vec<Box<OnceLock<V>>>>,
+    marker: PhantomData<fn(K) -> K>,
+}
+
+impl<K, V> Default for VecCache<K, V> {
+    fn default() -> Self {
+        Self { slots: Mutex::default(), marker: PhantomData }
+    }
+}
+
+trait QueryCache<K, V> {
+    fn get_or_insert<F>(&self, key: K, make_val: F) -> V
+    where
+        F: FnOnce(&K) -> V;
+}
+
+impl<K, V> QueryCache<K, V> for VecCache<K, V>
+where
+    K: DenseCacheKey,
+    V: Copy,
+{
+    fn get_or_insert<F>(&self, key: K, make_val: F) -> V
+    where
+        F: FnOnce(&K) -> V,
+    {
+        let slot = {
+            let mut slots = self.slots.lock();
+            let index = key.dense_cache_index();
+            if index >= slots.len() {
+                slots.resize_with(index + 1, || Box::new(OnceLock::new()));
+            }
+            &*slots[index] as *const OnceLock<V>
+        };
+        // SAFETY: Slots are boxed and never removed from the vector, so growing the vector cannot
+        // invalidate this pointer.
+        *unsafe { &*slot }.get_or_init(|| make_val(&key))
+    }
+}
+
+impl<K, V> QueryCache<K, V> for FxOnceMap<K, V>
 where
     K: Copy + Eq + Hash,
     V: Copy,
 {
-    map.map_insert(key, make_val, cache_insert_with_result)
+    fn get_or_insert<F>(&self, key: K, make_val: F) -> V
+    where
+        F: FnOnce(&K) -> V,
+    {
+        self.map_insert(key, make_val, cache_insert_with_result)
+    }
+}
+
+/// Inserts into a query cache with `Copy` keys and values.
+#[inline]
+fn cache_insert<K, V, C>(cache: &C, key: K, make_val: impl FnOnce(&K) -> V) -> V
+where
+    K: Copy,
+    V: Copy,
+    C: QueryCache<K, V>,
+{
+    cache.get_or_insert(key, make_val)
 }
 
 #[inline]
