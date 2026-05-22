@@ -1049,6 +1049,12 @@ impl<'gcx> Ty<'gcx> {
                 let tys = tys.iter().map(|ty| ty.mobile(gcx)).collect::<Option<Vec<_>>>()?;
                 gcx.mk_ty_tuple(gcx.mk_tys(&tys))
             }
+            TyKind::Error(..)
+            | TyKind::Event(..)
+            | TyKind::Module(..)
+            | TyKind::BuiltinModule(..)
+            | TyKind::Type(_)
+            | TyKind::Meta(_) => return None,
             // TODO: functions
             _ => self,
         })
