@@ -30,6 +30,7 @@ struct TypeChecker<'gcx> {
     construction_context: u32,
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    member_builtins: FxHashMap<hir::ExprId, Builtin>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
 
@@ -61,6 +62,7 @@ impl<'gcx> TypeChecker<'gcx> {
             function: None,
             construction_context: 0,
             types: Default::default(),
+            member_builtins: Default::default(),
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
@@ -201,8 +203,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     None
                 };
 
-                // TODO: `array.push() = x;` is the only valid call lvalue
-                let is_array_push = false;
+                let is_array_push =
+                    self.member_builtins.get(&callee.id) == Some(&Builtin::ArrayPush0);
 
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
@@ -914,6 +916,9 @@ impl<'gcx> TypeChecker<'gcx> {
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
+                if let Some(builtin) = member_builtin(member) {
+                    self.member_builtins.insert(callee.id, builtin);
+                }
                 self.member_call_ty(receiver_ty, member)
             }
             Err(e) => {
@@ -1511,7 +1516,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let result = self.lvalue_context.unwrap();
         self.lvalue_context = prev;
 
-        if result.is_ok() && is_syntactic_lvalue(expr) {
+        if result.is_ok() && self.is_lvalue_expr(expr) {
             return ty;
         }
 
@@ -1550,6 +1555,37 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn in_lvalue(&self) -> bool {
         self.lvalue_context.is_some()
+    }
+
+    /// Returns `true` if the given expression can be an lvalue.
+    ///
+    /// If `false`, it cannot be an lvalue.
+    fn is_lvalue_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        match expr.kind {
+            hir::ExprKind::Ident(_)
+            | hir::ExprKind::Index(..)
+            | hir::ExprKind::Member(..)
+            | hir::ExprKind::YulMember(..)
+            | hir::ExprKind::Tuple(..)
+            | hir::ExprKind::Err(_) => true,
+
+            hir::ExprKind::Call(callee, ..) => {
+                self.member_builtins.get(&callee.id) == Some(&Builtin::ArrayPush0)
+            }
+
+            hir::ExprKind::Array(_)
+            | hir::ExprKind::Assign(..)
+            | hir::ExprKind::Binary(..)
+            | hir::ExprKind::Delete(_)
+            | hir::ExprKind::Slice(..)
+            | hir::ExprKind::Lit(_)
+            | hir::ExprKind::Payable(_)
+            | hir::ExprKind::New(_)
+            | hir::ExprKind::Ternary(..)
+            | hir::ExprKind::TypeCall(_)
+            | hir::ExprKind::Type(_)
+            | hir::ExprKind::Unary(..) => false,
+        }
     }
 
     fn in_constructor_context(&self) -> bool {
@@ -1830,34 +1866,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
     }
 }
 
-/// Returns `true` if the given expression can be an lvalue.
-///
-/// If `false`, it cannot be an lvalue.
-fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
-    match expr.kind {
-        hir::ExprKind::Ident(_)
-        | hir::ExprKind::Index(..)
-        | hir::ExprKind::Member(..)
-        | hir::ExprKind::YulMember(..)
-        | hir::ExprKind::Tuple(..)
-        | hir::ExprKind::Err(_) => true,
-
-        hir::ExprKind::Array(_)
-        | hir::ExprKind::Assign(..)
-        | hir::ExprKind::Binary(..)
-        | hir::ExprKind::Call(..)
-        | hir::ExprKind::Delete(_)
-        | hir::ExprKind::Slice(..)
-        | hir::ExprKind::Lit(_)
-        | hir::ExprKind::Payable(_)
-        | hir::ExprKind::New(_)
-        | hir::ExprKind::Ternary(..)
-        | hir::ExprKind::TypeCall(_)
-        | hir::ExprKind::Type(_)
-        | hir::ExprKind::Unary(..) => false,
-    }
-}
-
 enum OverloadError {
     NotFound,
     Ambiguous,
@@ -1893,6 +1901,13 @@ impl<T> WantOne<T> {
             Self::Zero => Self::One(value),
             Self::One(_) | Self::Many => Self::Many,
         };
+    }
+}
+
+fn member_builtin(member: &members::Member<'_>) -> Option<Builtin> {
+    match member.res {
+        Some(hir::Res::Builtin(builtin)) => Some(builtin),
+        _ => None,
     }
 }
 

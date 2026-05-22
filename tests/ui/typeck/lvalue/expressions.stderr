@@ -22,5 +22,23 @@ error: expression has to be an lvalue
 LL │         retArr() = arr;
    ╰╴        ━━━━━━━━
 
-error: aborting due to 4 previous errors
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
+   │
+LL │         arr.push(1) = arr.pop();
+   ╰╴        ━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
+   │
+LL │         data.push(0x01) = arr.pop();
+   ╰╴        ━━━━━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
+   │
+LL │         arr.pop() = arr.pop();
+   ╰╴        ━━━━━━━━━
+
+error: aborting due to 7 previous errors
 
