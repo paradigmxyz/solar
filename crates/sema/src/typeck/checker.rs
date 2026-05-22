@@ -1443,11 +1443,10 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
-        let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc() else {
-            return;
-        };
-        let Some(size) = self.ty_memory_static_size(ty.peel_refs()) else { return };
-        if size >= U256::from(u32::MAX) {
+        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
+            && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
+            && size >= u32::MAX
+        {
             self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
         }
     }
