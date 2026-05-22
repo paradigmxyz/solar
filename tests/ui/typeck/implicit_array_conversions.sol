@@ -16,6 +16,11 @@ contract C {
         uint256[3] memory b = a;
     }
 
+    function fixedArrayLiteral() internal pure {
+        uint256[3] memory a = [uint256(1), uint256(2), uint256(3)];
+        sameFixedArray([uint256(1), uint256(2), uint256(3)]);
+    }
+
     // === Valid: explicit conversions preserve data locations ===
 
     function explicitMemoryArray(uint256[] memory a) internal pure returns (uint256[] memory) {

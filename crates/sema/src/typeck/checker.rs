@@ -131,7 +131,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
                 if let Some(common) = common {
                     // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1583
-                    self.gcx.mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                    self.gcx
+                        .mk_ty(TyKind::Array(common, U256::from(exprs.len())))
+                        .with_loc(self.gcx, DataLocation::Memory)
                 } else {
                     self.gcx.mk_ty_err(
                         self.dcx().err("cannot infer array element type").span(expr.span).emit(),
