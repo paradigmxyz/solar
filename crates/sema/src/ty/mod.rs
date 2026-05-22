@@ -641,7 +641,7 @@ impl<'gcx> Gcx<'gcx> {
                 TyKind::Mapping(key, value)
             }
             hir::TypeKind::Custom(item) => return self.type_of_item_simple(item, ty.span),
-            hir::TypeKind::Err(guar) => TyKind::Err(guar),
+            hir::TypeKind::Err(guar) => return self.mk_ty_err(guar),
         };
         self.mk_ty(kind)
     }
@@ -1110,7 +1110,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 TyKind::Udvt(ty, id)
             } else {
                 let msg = "the underlying type of UDVTs must be an elementary value type";
-                TyKind::Err(gcx.dcx().err(msg).span(udvt.ty.span).emit())
+                return gcx.mk_ty_err(gcx.dcx().err(msg).span(udvt.ty.span).emit());
             }
         }
         hir::ItemId::Error(id) => {
