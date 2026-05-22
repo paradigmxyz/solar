@@ -28,6 +28,7 @@ paste.workspace = true
 strum.workspace = true
 
 alloy-primitives.workspace = true
+boxcar.workspace = true
 bumpalo.workspace = true
 either.workspace = true
 num-bigint.workspace = true

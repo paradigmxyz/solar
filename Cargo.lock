@@ -3134,6 +3134,7 @@ dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
  "bitflags",
+ "boxcar",
  "bumpalo",
  "derive_more",
  "either",

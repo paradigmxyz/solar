@@ -1,10 +1,7 @@
 use crate::{builtins::Builtin, hir, ty::Ty};
 use solar_data_structures::{index::Idx, map::FxBuildHasher};
 use solar_interface::Symbol;
-use std::{fmt::Debug, hash::Hash};
-
-mod vec_cache;
-use vec_cache::VecCache;
+use std::{hash::Hash, marker::PhantomData, sync::OnceLock};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 
@@ -41,46 +38,38 @@ where
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(super) struct CacheIndex(u32);
-
-impl CacheIndex {
-    const ZERO: Self = Self(0);
+pub(super) struct VecCache<K, V> {
+    cache: boxcar::Vec<OnceLock<V>>,
+    key: PhantomData<fn(K) -> K>,
 }
 
-impl Idx for CacheIndex {
-    const MAX: usize = u32::MAX as usize;
-
-    #[inline]
-    unsafe fn from_usize_unchecked(idx: usize) -> Self {
-        Self(idx as u32)
-    }
-
-    #[inline]
-    fn index(self) -> usize {
-        self.0 as usize
+impl<K, V> Default for VecCache<K, V> {
+    fn default() -> Self {
+        Self { cache: Default::default(), key: PhantomData }
     }
 }
 
-impl<K, V> QueryCache<K, V> for VecCache<K, V, CacheIndex>
+impl<K, V> QueryCache<K, V> for VecCache<K, V>
 where
-    K: Eq + Idx + Copy + Debug,
+    K: Idx,
     V: Copy,
 {
     #[inline]
     fn get_or_insert(&self, key: K, make_val: impl FnOnce(&K) -> V) -> V {
-        if let Some((value, _)) = self.lookup(&key) {
-            return value;
-        }
-        let value = make_val(&key);
-        self.complete(key, value, CacheIndex::ZERO);
-        self.lookup(&key).map_or(value, |(value, _)| value)
+        let index = key.index();
+        let slot = loop {
+            if let Some(slot) = self.cache.get(index) {
+                break slot;
+            }
+            self.cache.push(OnceLock::new());
+        };
+        *slot.get_or_init(|| make_val(&key))
     }
 }
 
 impl QueryKey for Builtin {
     type Cache<V>
-        = VecCache<Self, V, CacheIndex>
+        = VecCache<Self, V>
     where
         V: Copy;
 }
@@ -89,7 +78,7 @@ macro_rules! vec_query_keys {
     ($($ty:ty),* $(,)?) => {
         $(
             impl QueryKey for $ty {
-                type Cache<V> = VecCache<Self, V, CacheIndex>
+                type Cache<V> = VecCache<Self, V>
                 where
                     V: Copy;
             }
