@@ -311,7 +311,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some((index_ty, result_ty)) = self.index_types(ty) {
                     // Index expression.
                     if let Some(index) = index {
-                        let _ = self.expect_ty(index, index_ty);
+                        let _ = self.check_expr_outside_lvalue_context(index, Some(index_ty));
                     } else {
                         self.dcx().err("index expression cannot be omitted").span(expr.span).emit();
                     }
@@ -1365,6 +1365,17 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn check_expr_once(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         if let Some(&ty) = self.types.get(&expr.id) { ty } else { self.check_expr(expr) }
+    }
+
+    fn check_expr_outside_lvalue_context(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        expected: Option<Ty<'gcx>>,
+    ) -> Ty<'gcx> {
+        let prev = self.lvalue_context.take();
+        let ty = self.check_expr_with(expr, expected);
+        self.lvalue_context = prev;
+        ty
     }
 
     #[must_use]

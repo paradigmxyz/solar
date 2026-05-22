@@ -5,6 +5,7 @@ contract Test {
     uint256 state;
     uint256[] dynamicArray;
     mapping(uint256 => uint256) map;
+    mapping(address => mapping(address => bool)) nestedMap;
     uint256 idx;
     
     function testStateVar() external {
@@ -20,6 +21,10 @@ contract Test {
     function testMapping() external {
         uint256 x = state;
         map[idx] = x;
+    }
+
+    function testNestedMapping() external {
+        nestedMap[msg.sender][address(this)] = true;
     }
     
     function testIncrement() external {
