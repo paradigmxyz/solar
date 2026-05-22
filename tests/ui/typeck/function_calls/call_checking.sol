@@ -157,6 +157,13 @@ contract CallChecking {
         //~^ ERROR: mismatched types
         //~| ERROR: mismatched types
     }
+
+    // === ABI decode ===
+    function testAbiDecode(bytes memory data) public pure {
+        uint256 single = abi.decode(data, (uint256));
+        (uint256 a, bool b) = abi.decode(data, (uint256, bool));
+        bytes memory decoded = abi.decode(data, (bytes));
+    }
 }
 
 contract BaseCallTarget {
