@@ -715,7 +715,7 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
-        let native = self.native_members(ty);
+        let native = self.native_members((ty, contract));
         let attached = self.attached_functions(ty, source, contract);
         native.iter().copied().chain(attached)
     }
@@ -1180,8 +1180,9 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     }
 }
 
-fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
-    members::native_members(gcx, ty)
+fn native_members(gcx: _, key: (Ty<'gcx>, Option<hir::ContractId>)) -> members::MemberList<'gcx> {
+    let (ty, contract) = key;
+    members::native_members(gcx, ty, contract)
 }
 }
 
