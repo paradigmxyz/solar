@@ -56,18 +56,12 @@ impl<'gcx> ConstantEvaluator<'gcx> {
 
     /// Evaluates the given expression, returning an error if it fails.
     pub fn try_eval(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
-        self.depth += 1;
-        if self.depth > RECURSION_LIMIT {
-            return Err(EE::RecursionLimitReached.spanned(expr.span));
-        }
-        let mut res = self.eval_expr(expr);
-        if let Err(e) = &mut res
-            && e.span.is_dummy()
-        {
-            e.span = expr.span;
-        }
-        self.depth = self.depth.checked_sub(1).unwrap();
-        res
+        self.try_eval_with(expr, Self::eval_expr)
+    }
+
+    /// Evaluates a storage layout base slot expression.
+    pub fn try_eval_storage_layout_base_slot(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
+        self.try_eval_with(expr, Self::eval_storage_layout_base_slot_expr)
     }
 
     /// Emits a diagnostic for the given evaluation error.
@@ -138,6 +132,66 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             LitKind::Bool(bool) => Ok(IntScalar::from_be_bytes(&[bool as u8])),
             LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
             _ => Err(EE::UnsupportedLiteral.into()),
+        }
+    }
+
+    fn try_eval_with(
+        &mut self,
+        expr: &hir::Expr<'_>,
+        eval: fn(&mut Self, &hir::Expr<'_>) -> EvalResult<'gcx>,
+    ) -> EvalResult<'gcx> {
+        self.depth += 1;
+        if self.depth > RECURSION_LIMIT {
+            return Err(EE::RecursionLimitReached.spanned(expr.span));
+        }
+        let mut res = eval(self, expr);
+        if let Err(e) = &mut res
+            && e.span.is_dummy()
+        {
+            e.span = expr.span;
+        }
+        self.depth = self.depth.checked_sub(1).unwrap();
+        res
+    }
+
+    fn eval_storage_layout_base_slot_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
+        let expr = expr.peel_parens();
+        match expr.kind {
+            hir::ExprKind::Binary(l, bin_op, r) => {
+                let l = self.try_eval_storage_layout_base_slot(l)?;
+                let r = self.try_eval_storage_layout_base_slot(r)?;
+                l.storage_layout_binop(r, bin_op.kind).map_err(Into::into)
+            }
+            hir::ExprKind::Ident(res) => {
+                let Some(v) = res.iter().find_map(|res| res.as_variable()) else {
+                    return Err(EE::NonConstantVar.into());
+                };
+
+                let v = self.gcx.hir.variable(v);
+                if v.mutability != Some(hir::VarMut::Constant) {
+                    return Err(EE::NonConstantVar.into());
+                }
+                self.try_eval_storage_layout_base_slot(
+                    v.initializer.expect("constant variable has no initializer"),
+                )
+            }
+            hir::ExprKind::Lit(lit) => self.eval_storage_layout_base_slot_lit(lit),
+            hir::ExprKind::Unary(un_op, v) => {
+                let v = self.try_eval_storage_layout_base_slot(v)?;
+                v.storage_layout_unop(un_op.kind).map_err(Into::into)
+            }
+            hir::ExprKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
+            _ => Err(EE::UnsupportedExpr.into()),
+        }
+    }
+
+    fn eval_storage_layout_base_slot_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult<'gcx> {
+        match lit.kind {
+            LitKind::Number(n) => Ok(IntScalar::new(n)),
+            LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
+            LitKind::Address(_) | LitKind::Bool(_) | LitKind::Rational(_) | LitKind::Str(..) => {
+                Err(EE::NonInteger.into())
+            }
         }
     }
 }
@@ -252,6 +306,18 @@ impl IntScalar {
         })
     }
 
+    fn storage_layout_unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
+        Ok(match op {
+            hir::UnOpKind::PreInc
+            | hir::UnOpKind::PreDec
+            | hir::UnOpKind::PostInc
+            | hir::UnOpKind::PostDec => return Err(EE::UnsupportedUnaryOp),
+            hir::UnOpKind::Not => return Err(EE::NonInteger),
+            hir::UnOpKind::BitNot => Self { data: !self.data },
+            hir::UnOpKind::Neg => Self { data: -self.data },
+        })
+    }
+
     /// Applies the given binary operation to this value.
     ///
     /// For literal arithmetic, this preserves the exact mathematical value.
@@ -292,6 +358,46 @@ impl IntScalar {
         })
     }
 
+    fn storage_layout_binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
+        use hir::BinOpKind::*;
+        Ok(match op {
+            Add => Self { data: self.data + r.data },
+            Sub => Self { data: self.data - r.data },
+            Mul => Self { data: self.data * r.data },
+            Div => {
+                if r.data.is_zero() {
+                    return Err(EE::DivisionByZero);
+                }
+                if !(&self.data % &r.data).is_zero() {
+                    return Err(EE::NonInteger);
+                }
+                Self { data: self.data / r.data }
+            }
+            Rem => {
+                if r.data.is_zero() {
+                    return Err(EE::DivisionByZero);
+                }
+                Self { data: self.data % r.data }
+            }
+            Pow => {
+                if r.is_negative() {
+                    return Err(EE::ArithmeticOverflow);
+                }
+                self.storage_layout_pow(r)?
+            }
+            BitOr => Self { data: self.data | r.data },
+            BitAnd => Self { data: self.data & r.data },
+            BitXor => Self { data: self.data ^ r.data },
+            Shr => {
+                let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
+                Self { data: self.data >> r }
+            }
+            Shl => self.storage_layout_shl(r)?,
+            Sar => return Err(EE::UnsupportedBinaryOp),
+            Lt | Le | Gt | Ge | Eq | Ne | Or | And => return Err(EE::NonInteger),
+        })
+    }
+
     fn checked_shl(self, r: Self) -> Result<Self, EE> {
         if self.data.is_zero() {
             return Ok(self);
@@ -306,6 +412,18 @@ impl IntScalar {
             return Err(EE::ArithmeticOverflow);
         }
         Self::checked(self.data << usize::try_from(shift).map_err(|_| EE::ArithmeticOverflow)?)
+    }
+
+    fn storage_layout_shl(self, r: Self) -> Result<Self, EE> {
+        if self.data.is_zero() {
+            return Ok(self);
+        }
+        let shift: usize = r
+            .as_u256()
+            .ok_or(EE::ArithmeticOverflow)?
+            .try_into()
+            .map_err(|_| EE::ArithmeticOverflow)?;
+        Ok(Self { data: self.data << shift })
     }
 
     fn checked_pow(self, r: Self) -> Result<Self, EE> {
@@ -327,6 +445,29 @@ impl IntScalar {
         let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
         Self::checked(self.data.pow(exp))
     }
+
+    fn storage_layout_pow(self, r: Self) -> Result<Self, EE> {
+        if self.data.is_zero() {
+            return Ok(self);
+        }
+        if self.data.is_one() {
+            return Ok(self);
+        }
+        if self.data == BigInt::from(-1) {
+            let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
+            let is_odd = exp.bit(0);
+            return Ok(Self { data: if is_odd { self.data } else { BigInt::one() } });
+        }
+        let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
+        let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
+        Ok(Self { data: self.data.pow(exp) })
+    }
+}
+
+impl fmt::Display for IntScalar {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.data.fmt(f)
+    }
 }
 
 #[derive(Debug)]
@@ -338,6 +479,7 @@ pub enum EvalErrorKind {
     UnsupportedUnaryOp,
     UnsupportedBinaryOp,
     UnsupportedExpr,
+    NonInteger,
     NonConstantVar,
     AlreadyEmitted(ErrorGuaranteed),
 }
@@ -357,6 +499,7 @@ impl EvalErrorKind {
             Self::UnsupportedUnaryOp => "unsupported unary operation",
             Self::UnsupportedBinaryOp => "unsupported binary operation",
             Self::UnsupportedExpr => "unsupported expression",
+            Self::NonInteger => "not an integer",
             Self::NonConstantVar => "only constant variables are allowed",
             Self::AlreadyEmitted(_) => unreachable!(),
         }
