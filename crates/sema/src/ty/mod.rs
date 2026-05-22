@@ -443,7 +443,8 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
-    pub(crate) fn mk_ty_err(self, _guar: ErrorGuaranteed) -> Ty<'gcx> {
+    #[inline]
+    pub fn mk_ty_err(self, _guar: ErrorGuaranteed) -> Ty<'gcx> {
         const { assert!(std::mem::size_of::<ErrorGuaranteed>() == 0) }
         self.types.err
     }
