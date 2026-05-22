@@ -91,6 +91,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
             span: item.span,
             name: contract.name,
             kind: contract.kind,
+            layout: None,
 
             // Set later.
             doc,

@@ -31,6 +31,7 @@ alloy-primitives.workspace = true
 bumpalo.workspace = true
 either.workspace = true
 num-bigint.workspace = true
+num-rational.workspace = true
 num-traits.workspace = true
 once_map.workspace = true
 rayon.workspace = true

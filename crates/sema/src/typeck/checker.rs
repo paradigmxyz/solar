@@ -5,8 +5,11 @@ use crate::{
     ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
 use alloy_primitives::U256;
+use num_bigint::{BigInt, Sign};
+use num_rational::Ratio;
+use num_traits::{One, Signed, Zero};
 use solar_ast::{
-    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
+    DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
 use solar_interface::{Ident, Symbol, diagnostics::DiagCtxt, kw, sym};
@@ -52,6 +55,11 @@ enum NotLvalueReason {
     Generic,
 }
 
+enum StorageLayoutSlotValue {
+    Integer(Ratio<BigInt>),
+    NonInteger,
+}
+
 impl<'gcx> TypeChecker<'gcx> {
     fn new(gcx: Gcx<'gcx>, source: hir::SourceId) -> Self {
         Self {
@@ -70,6 +78,147 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn dcx(&self) -> &'gcx DiagCtxt {
         self.gcx.dcx()
+    }
+
+    fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
+        match self.eval_storage_layout_base_slot(slot) {
+            Ok(StorageLayoutSlotValue::Integer(value)) if value.denom() == &BigInt::one() => {
+                let value = value.numer();
+                if value.is_negative() || value > &u256_max_bigint() {
+                    self.dcx()
+                        .err(format!(
+                            "base slot of storage layout evaluates to {value}, which is outside the range of type `uint256`"
+                        ))
+                        .span(slot.span)
+                        .emit();
+                }
+            }
+            Ok(StorageLayoutSlotValue::Integer(_) | StorageLayoutSlotValue::NonInteger) => {
+                self.dcx()
+                    .err("base slot of storage layout must evaluate to an integer")
+                    .span(slot.span)
+                    .emit();
+            }
+            Err(()) => {
+                let _ = self.check_expr(slot);
+                self.dcx()
+                    .err("base slot of storage layout must be a compile-time constant expression")
+                    .span(slot.span)
+                    .emit();
+            }
+        }
+    }
+
+    fn eval_storage_layout_base_slot(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Result<StorageLayoutSlotValue, ()> {
+        let expr = expr.peel_parens();
+        match expr.kind {
+            hir::ExprKind::Binary(lhs, op, rhs) => {
+                let lhs = self.eval_storage_layout_base_slot(lhs)?;
+                let rhs = self.eval_storage_layout_base_slot(rhs)?;
+                self.eval_storage_layout_binary(lhs, op.kind, rhs)
+            }
+            hir::ExprKind::Ident(res) => {
+                let Some(var) = res.iter().find_map(|res| res.as_variable()) else {
+                    return Err(());
+                };
+                let var = self.gcx.hir.variable(var);
+                if var.mutability != Some(hir::VarMut::Constant) {
+                    return Err(());
+                }
+                let Some(init) = var.initializer else { return Err(()) };
+                self.eval_storage_layout_base_slot(init)
+            }
+            hir::ExprKind::Lit(lit) => Ok(eval_storage_layout_lit(lit)),
+            hir::ExprKind::Unary(op, value) => {
+                let value = self.eval_storage_layout_base_slot(value)?;
+                self.eval_storage_layout_unary(op.kind, value)
+            }
+            hir::ExprKind::Err(_) => Err(()),
+            _ => Err(()),
+        }
+    }
+
+    fn eval_storage_layout_binary(
+        &self,
+        lhs: StorageLayoutSlotValue,
+        op: hir::BinOpKind,
+        rhs: StorageLayoutSlotValue,
+    ) -> Result<StorageLayoutSlotValue, ()> {
+        let (StorageLayoutSlotValue::Integer(lhs), StorageLayoutSlotValue::Integer(rhs)) =
+            (lhs, rhs)
+        else {
+            return Ok(StorageLayoutSlotValue::NonInteger);
+        };
+
+        let value = match op {
+            hir::BinOpKind::Add => lhs + rhs,
+            hir::BinOpKind::Sub => lhs - rhs,
+            hir::BinOpKind::Mul => lhs * rhs,
+            hir::BinOpKind::Div => {
+                if rhs.is_zero() {
+                    return Err(());
+                }
+                lhs / rhs
+            }
+            hir::BinOpKind::Rem => {
+                if lhs.denom() != &BigInt::one() || rhs.denom() != &BigInt::one() || rhs.is_zero() {
+                    return Err(());
+                }
+                Ratio::from_integer(lhs.numer() % rhs.numer())
+            }
+            hir::BinOpKind::Pow => {
+                if lhs.denom() != &BigInt::one() || rhs.denom() != &BigInt::one() {
+                    return Err(());
+                }
+                let Some(exp) = rhs.numer().to_biguint() else { return Err(()) };
+                let Ok(exp) = u32::try_from(exp) else { return Err(()) };
+                Ratio::from_integer(lhs.numer().pow(exp))
+            }
+            hir::BinOpKind::Lt
+            | hir::BinOpKind::Le
+            | hir::BinOpKind::Gt
+            | hir::BinOpKind::Ge
+            | hir::BinOpKind::Eq
+            | hir::BinOpKind::Ne
+            | hir::BinOpKind::Or
+            | hir::BinOpKind::And => return Ok(StorageLayoutSlotValue::NonInteger),
+            hir::BinOpKind::BitOr
+            | hir::BinOpKind::BitAnd
+            | hir::BinOpKind::BitXor
+            | hir::BinOpKind::Shl
+            | hir::BinOpKind::Shr
+            | hir::BinOpKind::Sar => return Err(()),
+        };
+        Ok(StorageLayoutSlotValue::Integer(value))
+    }
+
+    fn eval_storage_layout_unary(
+        &self,
+        op: hir::UnOpKind,
+        value: StorageLayoutSlotValue,
+    ) -> Result<StorageLayoutSlotValue, ()> {
+        let StorageLayoutSlotValue::Integer(value) = value else {
+            return Ok(StorageLayoutSlotValue::NonInteger);
+        };
+        match op {
+            hir::UnOpKind::Neg => Ok(StorageLayoutSlotValue::Integer(-value)),
+            hir::UnOpKind::Not => Ok(StorageLayoutSlotValue::NonInteger),
+            hir::UnOpKind::BitNot => {
+                if value.denom() != &BigInt::one() {
+                    return Err(());
+                }
+                Ok(StorageLayoutSlotValue::Integer(Ratio::from_integer(
+                    -value.numer() - BigInt::one(),
+                )))
+            }
+            hir::UnOpKind::PreInc
+            | hir::UnOpKind::PreDec
+            | hir::UnOpKind::PostInc
+            | hir::UnOpKind::PostDec => Err(()),
+        }
     }
 
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
@@ -1665,6 +1814,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
+        if let Some(slot) = contract.layout {
+            self.check_storage_layout_base_slot(slot);
+        }
+
         // Check base constructor arguments
         for (&base_id, modifier) in
             contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
@@ -1856,6 +2009,30 @@ fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
         | hir::ExprKind::Type(_)
         | hir::ExprKind::Unary(..) => false,
     }
+}
+
+fn eval_storage_layout_lit(lit: &hir::Lit<'_>) -> StorageLayoutSlotValue {
+    match &lit.kind {
+        LitKind::Number(value) => {
+            StorageLayoutSlotValue::Integer(Ratio::from_integer(bigint_from_u256(*value)))
+        }
+        LitKind::Rational(value) => StorageLayoutSlotValue::Integer(Ratio::new(
+            bigint_from_u256(*value.numer()),
+            bigint_from_u256(*value.denom()),
+        )),
+        LitKind::Err(_) => StorageLayoutSlotValue::NonInteger,
+        LitKind::Address(_) | LitKind::Bool(_) | LitKind::Str(..) => {
+            StorageLayoutSlotValue::NonInteger
+        }
+    }
+}
+
+fn bigint_from_u256(value: U256) -> BigInt {
+    BigInt::from_bytes_be(Sign::Plus, &value.to_be_bytes::<32>())
+}
+
+fn u256_max_bigint() -> BigInt {
+    bigint_from_u256(U256::MAX)
 }
 
 enum OverloadError {

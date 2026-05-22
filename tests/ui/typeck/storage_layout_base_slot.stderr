@@ -1,0 +1,38 @@
+error: base slot of storage layout must be a compile-time constant expression
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
+   │
+LL │ contract AttachedFunction layout at 2.f() {
+   ╰╴                                    ━━━━━
+
+error: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
+   │
+LL │ contract FractionalDivision layout at 3/2 {}
+   ╰╴                                      ━━━
+
+error: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
+   │
+LL │ contract FractionalNumber layout at 4.2 {}
+   ╰╴                                    ━━━
+
+error: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
+   │
+LL │ contract LeadingFractionalNumber layout at .1 {}
+   ╰╴                                           ━━
+
+error: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
+   │
+LL │ contract NegativeExponent layout at 42e-10 {}
+   ╰╴                                    ━━━━━━
+
+error: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
+   │
+LL │ contract UnderscoredNegativeExponent layout at 1_7e-10 {}
+   ╰╴                                               ━━━━━━━
+
+error: aborting due to 6 previous errors
+
