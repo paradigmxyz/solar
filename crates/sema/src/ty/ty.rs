@@ -943,6 +943,10 @@ impl<'gcx> Ty<'gcx> {
 
             // Contract -> address (always allowed)
             (Contract(_), Elementary(Address(false))) => Ok(()),
+            // Library type name -> address.
+            (Type(library), Elementary(Address(false))) if matches!(library.kind, Contract(id) if gcx.hir.contract(id).kind.is_library()) => {
+                Ok(())
+            }
 
             // Contract -> address payable (only if contract can receive ether)
             (Contract(contract_id), Elementary(Address(true))) => {

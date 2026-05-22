@@ -14,6 +14,8 @@ contract WithNonPayableFallback {
     fallback() external {}
 }
 
+library Lib {}
+
 contract Test {
     function testContractToAddress(
         NoReceive c1,
@@ -53,5 +55,11 @@ contract Test {
         WithPayableFallback c6 = WithPayableFallback(paddr); // ok
         NoReceive c7 = NoReceive(paddr); // ok
         WithNonPayableFallback c8 = WithNonPayableFallback(paddr); // ok
+    }
+
+    function testLibraryTypeToAddress() public pure {
+        address a = address(Lib);
+        address b = address(type(Lib)); //~ ERROR: invalid explicit type conversion
+        a; b;
     }
 }
