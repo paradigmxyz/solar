@@ -895,6 +895,8 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
     }
 }
 
+type NativeMembersKey<'gcx> = (Ty<'gcx>, Option<hir::ContractId>);
+
 macro_rules! cached {
     ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
         #[derive(Default)]
@@ -1180,7 +1182,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     }
 }
 
-fn native_members(gcx: _, key: (Ty<'gcx>, Option<hir::ContractId>)) -> members::MemberList<'gcx> {
+fn native_members(gcx: _, key: (NativeMembersKey<'gcx>, Option<hir::ContractId>)) -> members::MemberList<'gcx> {
     let (ty, contract) = key;
     members::native_members(gcx, ty, contract)
 }

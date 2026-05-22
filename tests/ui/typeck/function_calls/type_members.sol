@@ -6,6 +6,7 @@
 // ported-from: test/libsolidity/syntaxTests/abiEncoder/v2_call_to_v2_library_function_pointer_accepting_struct.sol
 // ported-from: test/libsolidity/syntaxTests/types/contractTypeType/members/assign_function_via_contract_name_to_var.sol
 // ported-from: test/libsolidity/semanticTests/functionTypes/stack_height_check_on_adding_gas_variable_to_function.sol
+// ported-from: test/libsolidity/semanticTests/various/state_variable_under_contract_name.sol
 
 type Pointer is uint256;
 
@@ -91,5 +92,19 @@ contract C {
 
     function eventLibraryFunctionIsSpecial() public {
         emit ExternalFunction(PointerLib.ping); //~ ERROR: mismatched types
+    }
+}
+
+contract StateVarScope {
+    uint256 stateVar = 42;
+
+    function getStateVar() public view returns (uint256 value) {
+        value = StateVarScope.stateVar;
+    }
+}
+
+contract OtherScope {
+    function getStateVar() public view returns (uint256 value) {
+        value = StateVarScope.stateVar; //~ ERROR: member `stateVar` not found
     }
 }
