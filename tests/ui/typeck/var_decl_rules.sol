@@ -45,6 +45,10 @@ contract C {
     // Calldata variable containing mapping is also invalid
     function g(WithMapping calldata w) internal {} //~ ERROR: is only valid in storage because it contains a (nested) mapping
 
+    // Fixed arrays that exceed the memory/calldata type-size limit are invalid
+    function tooLargeMemory(uint[85678901234] memory a) public pure {} //~ ERROR: type too large for memory
+    function tooLargeCalldata(uint[85678901234] calldata a) external pure {} //~ ERROR: type too large for calldata
+
     // Uninitialized storage mapping in local variable is invalid
     function h() internal {
         mapping(uint => uint) storage s; //~ ERROR: uninitialized mapping

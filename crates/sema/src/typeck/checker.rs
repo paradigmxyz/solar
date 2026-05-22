@@ -1377,6 +1377,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
+        self.check_var_type_size(var, ty);
 
         if let Some(init) = var.initializer {
             if var.is_state_variable() && ty.has_mapping(self.gcx) {
@@ -1439,6 +1440,43 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         ty
+    }
+
+    fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
+        let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc() else {
+            return;
+        };
+        let Some(size) = self.ty_memory_static_size(ty.peel_refs()) else { return };
+        if size >= U256::from(u32::MAX) {
+            self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
+        }
+    }
+
+    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> Option<U256> {
+        match ty.kind {
+            TyKind::Array(elem, len) => {
+                let elem_size = if elem.is_dynamically_sized() {
+                    U256::from(32)
+                } else {
+                    self.ty_memory_static_size(elem)?
+                };
+                len.checked_mul(elem_size)
+            }
+            TyKind::Struct(id) => {
+                let mut size = U256::ZERO;
+                for &field_ty in self.gcx.struct_field_types(id) {
+                    let field_size = if field_ty.is_dynamically_sized() {
+                        U256::from(32)
+                    } else {
+                        self.ty_memory_static_size(field_ty)?
+                    };
+                    size = size.checked_add(field_size)?;
+                }
+                Some(size)
+            }
+            TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
+            _ => Some(U256::from(32)),
+        }
     }
 
     fn check_decl(
