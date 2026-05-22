@@ -125,7 +125,7 @@ vec_query_keys! {
     hir::EventId => |hir: &hir::Hir<'_>| hir.events.len();
     hir::ErrorId => |hir: &hir::Hir<'_>| hir.errors.len();
     hir::VariableId => |hir: &hir::Hir<'_>| hir.variables.len();
-    hir::ExprId => |_| 0;
+    hir::ExprId => |hir: &hir::Hir<'_>| hir.expr_count;
 }
 
 macro_rules! default_query_keys {

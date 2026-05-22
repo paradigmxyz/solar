@@ -94,6 +94,8 @@ pub struct Hir<'hir> {
     pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
     /// All constants and variables.
     pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
+    /// The number of expression IDs allocated while lowering.
+    pub(crate) expr_count: usize,
 }
 
 macro_rules! indexvec_methods {
@@ -184,6 +186,7 @@ impl<'hir> Hir<'hir> {
             events: IndexVec::new(),
             errors: IndexVec::new(),
             variables: IndexVec::new(),
+            expr_count: 0,
         }
     }
 
@@ -321,6 +324,12 @@ impl IdCounter {
         let x = self.counter.get();
         self.counter.set(x + 1);
         x as usize
+    }
+
+    /// Returns the number of IDs generated so far.
+    #[inline]
+    pub fn count(&self) -> usize {
+        self.counter.get() as usize
     }
 }
 
@@ -1828,7 +1837,7 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<Hir<'_>>(str!["240"]);
+        assert_size::<Hir<'_>>(str!["248"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
         assert_size::<Contract<'_>>(str!["144"]);

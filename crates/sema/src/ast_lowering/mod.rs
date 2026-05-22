@@ -100,7 +100,8 @@ impl<'gcx> LoweringContext<'gcx> {
     fn finish(self) -> (Hir<'gcx>, SymbolResolver<'gcx>) {
         // NOTE: Explicit scope to drop `self` before the span.
         {
-            let this = self;
+            let mut this = self;
+            this.hir.expr_count = this.next_id.count();
             (this.hir, this.resolver)
         }
     }
