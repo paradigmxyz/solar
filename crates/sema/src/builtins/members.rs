@@ -1,9 +1,10 @@
 use super::Builtin;
 use crate::{
     hir,
-    ty::{Gcx, Ty, TyFnPtr, TyKind},
+    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
-use solar_ast::{DataLocation, ElementaryType, StateMutability as SM};
+use either::Either;
+use solar_ast::{DataLocation, ElementaryType, StateMutability as SM, Visibility};
 use solar_data_structures::BumpExt;
 use solar_interface::Symbol;
 
@@ -25,14 +26,14 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             ElementaryType::FixedBytes(_size) => fixed_bytes(gcx),
         },
         TyKind::StringLiteral(_utf8, _size) => Default::default(),
-        TyKind::IntLiteral(_negative, _size) => Default::default(),
+        TyKind::IntLiteral(..) => Default::default(),
         TyKind::Ref(inner, loc) => reference(gcx, ty, inner, loc),
         TyKind::DynArray(_ty) => expected_ref(),
         TyKind::Array(_ty, _len) => expected_ref(),
         TyKind::Slice(_ty) => Default::default(),
         TyKind::Tuple(_tys) => Default::default(),
         TyKind::Mapping(..) => Default::default(),
-        TyKind::FnPtr(f) => function(gcx, f),
+        TyKind::Fn(f) => function(gcx, f),
         TyKind::Contract(id) => contract(gcx, id),
         TyKind::Struct(_id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),
@@ -67,19 +68,29 @@ pub struct Member<'gcx> {
     pub name: Symbol,
     pub ty: Ty<'gcx>,
     pub res: Option<hir::Res>,
+    /// Whether this is a `using for` function whose first parameter is bound to the receiver.
+    pub attached: bool,
 }
 
 impl<'gcx> Member<'gcx> {
     pub fn new(name: Symbol, ty: Ty<'gcx>) -> Self {
-        Self { name, ty, res: None }
+        Self { name, ty, res: None, attached: false }
     }
 
     pub fn with_res(name: Symbol, ty: Ty<'gcx>, res: impl Into<hir::Res>) -> Self {
-        Self { name, ty, res: Some(res.into()) }
+        Self { name, ty, res: Some(res.into()), attached: false }
+    }
+
+    pub fn with_attached_function(name: Symbol, ty: Ty<'gcx>, function: hir::FunctionId) -> Self {
+        Self { name, ty, res: Some(hir::ItemId::from(function).into()), attached: true }
     }
 
     pub fn with_builtin(builtin: Builtin, ty: Ty<'gcx>) -> Self {
         Self::with_res(builtin.name(), ty, builtin)
+    }
+
+    pub fn with_attached_builtin(builtin: Builtin, ty: Ty<'gcx>) -> Self {
+        Self { name: builtin.name(), ty, res: Some(builtin.into()), attached: true }
     }
 
     pub fn of_builtin(gcx: Gcx<'gcx>, builtin: Builtin) -> Self {
@@ -135,17 +146,21 @@ pub(crate) fn contract(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_>
         .iter()
         .map(|f| {
             let id = hir::ItemId::from(f.id);
-            Member::with_res(gcx.item_name(id).name, f.ty.as_externally_callable_function(gcx), id)
+            Member::with_res(
+                gcx.item_name(id).name,
+                f.ty.as_externally_callable_function(false, gcx),
+                id,
+            )
         })
         .collect()
 }
 
-fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFnPtr<'gcx>) -> MemberListOwned<'gcx> {
+fn function<'gcx>(gcx: Gcx<'gcx>, f: &'gcx TyFn<'gcx>) -> MemberListOwned<'gcx> {
     let mut members = Vec::with_capacity(2);
-    if f.visibility >= hir::Visibility::Public {
+    if f.has_selector() {
         members.push(Member::of_builtin(gcx, Builtin::FunctionSelector));
     }
-    if f.visibility == hir::Visibility::External {
+    if f.has_address() {
         members.push(Member::of_builtin(gcx, Builtin::FunctionAddress));
     }
     members
@@ -179,15 +194,15 @@ fn reference<'gcx>(
             };
             vec![
                 Member::of_builtin(gcx, Builtin::ArrayLength),
-                Member::with_builtin(
+                Member::with_attached_builtin(
                     Builtin::ArrayPush0,
                     gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
                 ),
-                Member::with_builtin(
+                Member::with_attached_builtin(
                     Builtin::ArrayPush,
                     gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
                 ),
-                Member::with_builtin(
+                Member::with_attached_builtin(
                     Builtin::ArrayPop,
                     gcx.mk_builtin_fn(&[this], SM::NonPayable, &[]),
                 ),
@@ -204,8 +219,7 @@ fn reference<'gcx>(
 // `Enum.Variant`, `Udvt.wrap`
 fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
-        // TODO: https://github.com/argotorg/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/ast/Types.cpp#L3913
-        TyKind::Contract(_) => Default::default(),
+        TyKind::Contract(id) => contract_type(gcx, id),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
         }
@@ -225,6 +239,42 @@ fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
         TyKind::Elementary(ElementaryType::Bytes) => bytes_ty(gcx),
         _ => Default::default(),
     }
+}
+
+fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
+    let contract = gcx.hir.contract(id);
+    let is_library = contract.kind.is_library();
+    let functions = if is_library {
+        Either::Left(contract.functions().filter(|&id| {
+            let f = gcx.hir.function(id);
+            f.is_ordinary() && f.visibility >= Visibility::Internal
+        }))
+    } else {
+        Either::Right(gcx.interface_functions(id).iter().map(|f| f.id))
+    };
+    functions
+        .map(|id| {
+            let item = hir::ItemId::from(id);
+            let f = gcx.hir.function(id);
+            let ty = gcx.type_of_item(id.into());
+            let ty = if is_library && f.visibility >= Visibility::Public {
+                ty.as_externally_callable_function(true, gcx)
+            } else if is_library {
+                ty
+            } else {
+                let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
+                gcx.mk_ty_fn(TyFn {
+                    kind: TyFnKind::Declaration,
+                    parameters: fn_ty.parameters,
+                    returns: fn_ty.returns,
+                    state_mutability: fn_ty.state_mutability,
+                    function_id: fn_ty.function_id,
+                    attached: false,
+                })
+            };
+            Member::with_res(gcx.item_name(item).name, ty, item)
+        })
+        .collect()
 }
 
 // `type(T)`

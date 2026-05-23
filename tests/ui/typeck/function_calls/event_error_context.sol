@@ -1,12 +1,9 @@
 //@compile-flags: -Ztypeck
-
-// Tests for event/error invocation context validation.
-// Based on solc tests:
-// - syntaxTests/events/event_without_emit_deprecated.sol
-// - syntaxTests/events/multiple_event_without_emit.sol
-// - syntaxTests/emit/emit_non_event.sol
-// - syntaxTests/revertStatement/error_used_elsewhere.sol
-// - syntaxTests/revertStatement/revert_event.sol
+// ported-from: test/libsolidity/syntaxTests/events/event_without_emit_deprecated.sol
+// ported-from: test/libsolidity/syntaxTests/events/multiple_event_without_emit.sol
+// ported-from: test/libsolidity/syntaxTests/emit/emit_non_event.sol
+// ported-from: test/libsolidity/syntaxTests/revertStatement/error_used_elsewhere.sol
+// ported-from: test/libsolidity/syntaxTests/revertStatement/revert_event.sol
 
 contract EventErrorContext {
     event MyEvent(uint a, bytes32 b);
@@ -27,7 +24,7 @@ contract EventErrorContext {
         revert EmptyError();
     }
 
-    // === Event invocations outside emit (solc error 3132) ===
+    // === Event invocations outside emit (error 3132) ===
     function eventAsExpression() public {
         MyEvent(1, "hi"); //~ ERROR: event invocations have to be prefixed by `emit`
     }
@@ -43,7 +40,6 @@ contract EventErrorContext {
         //~^ ERROR: mismatched types
     }
 
-    // Solc test: multiple_event_without_emit.sol
     function multipleEvents() external {
         emit MyEvent(0, "x");
         // Second invocation without emit should still error.
@@ -52,7 +48,7 @@ contract EventErrorContext {
 
     function takeBytes(bytes memory) public pure {}
 
-    // === Error invocations outside revert (solc error 7757) ===
+    // === Error invocations outside revert (error 7757) ===
     function errorAsExpression() public pure {
         MyError(404, "not found"); //~ ERROR: errors can only be used with revert statements
     }
@@ -68,12 +64,12 @@ contract EventErrorContext {
         //~^ ERROR: mismatched types
     }
 
-    // === Non-event in emit statement (solc error 9292) ===
+    // === Non-event in emit statement (error 9292) ===
     function emitNonEvent() public {
         emit Test(); //~ ERROR: expression has to be an event invocation
     }
 
-    // === Non-error in revert statement (solc error 1885) ===
+    // === Non-error in revert statement (error 1885) ===
     function revertEvent() public pure {
         revert EmptyEvent(); //~ ERROR: event invocations have to be prefixed by `emit`
         //~^ ERROR: expression has to be an error
@@ -160,5 +156,5 @@ contract EventErrorContext {
     }
 
     // TODO: require(condition, MyError(...)) should be allowed but is not yet implemented.
-    // See: syntaxTests/errors/require_custom.sol
+    // See: test/libsolidity/syntaxTests/errors/require_custom.sol.
 }

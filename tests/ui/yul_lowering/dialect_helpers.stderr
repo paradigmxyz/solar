@@ -1,0 +1,80 @@
+error: unresolved symbol `linkersymbol`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             x := linkersymbol("file.sol:Library")
+   ╰╴                 ━━━━━━━━━━━━
+
+error: unresolved symbol `memoryguard`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             x := memoryguard(0x80)
+   ╰╴                 ━━━━━━━━━━━
+
+error: unresolved symbol `datasize`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             x := datasize("runtime")
+   ╰╴                 ━━━━━━━━
+
+error: unresolved symbol `dataoffset`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             y := dataoffset("runtime")
+   ╰╴                 ━━━━━━━━━━
+
+error: unresolved symbol `datacopy`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             datacopy(0, 0, 0)
+   ╰╴            ━━━━━━━━
+
+error: unresolved symbol `setimmutable`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             setimmutable(0, "immutable_id", x)
+   ╰╴            ━━━━━━━━━━━━
+
+error: unresolved symbol `loadimmutable`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             y := loadimmutable("immutable_id")
+   ╰╴                 ━━━━━━━━━━━━━
+
+error: unresolved symbol `auxdataloadn`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             y := auxdataloadn(0)
+   ╰╴                 ━━━━━━━━━━━━
+
+error: unresolved symbol `eofcreate`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             x := eofcreate("runtime", 0, 0, 0, 0)
+   ╰╴                 ━━━━━━━━━
+
+error: unresolved symbol `returncontract`
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             returncontract("runtime", 0, 0)
+   ╰╴            ━━━━━━━━━━━━━━
+
+error: unsupported verbatim builtin
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             x := verbatim_0i_1o(hex"58")
+   ╰╴                 ━━━━━━━━━━━━━━
+
+error: unsupported verbatim builtin
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             y := verbatim_1i_1o(hex"6001", x)
+   ╰╴                 ━━━━━━━━━━━━━━
+
+error: unsupported verbatim builtin
+   ╭▸ ROOT/tests/ui/yul_lowering/dialect_helpers.sol:LL:CC
+   │
+LL │             verbatim_2i_0o(hex"5050", x, y)
+   ╰╴            ━━━━━━━━━━━━━━
+
+error: aborting due to 13 previous errors
+

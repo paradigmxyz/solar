@@ -1,0 +1,14 @@
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/defined_non_global_operator.sol:LL:CC
+   │
+LL │ using {add as +, neg as -} for DefinedInt;
+   ╰╴       ━━━
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/defined_non_global_operator.sol:LL:CC
+   │
+LL │ using {add as +, neg as -} for DefinedInt;
+   ╰╴                 ━━━
+
+error: aborting due to 2 previous errors
+

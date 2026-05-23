@@ -1,0 +1,8 @@
+error: the type has to be specified explicitly at file level (cannot use `*`)
+   ╭▸ ROOT/tests/ui/parser/using_file_level_function_wildcard.sol:LL:CC
+   │
+LL │ using {f} for *;
+   ╰╴━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

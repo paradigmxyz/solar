@@ -1,0 +1,8 @@
+error: expected `;`, found `global`
+   ╭▸ ROOT/tests/ui/parser/using_global_global.sol:LL:CC
+   │
+LL │ using {f} for S global global;
+   ╰╴                       ━━━━━━ expected `;`
+
+error: aborting due to 1 previous error
+

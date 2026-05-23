@@ -59,7 +59,7 @@ pub trait Visit<'hir> {
     }
 
     fn visit_function(&mut self, func: &'hir Function<'hir>) -> ControlFlow<Self::BreakValue> {
-        let Function { source: _, contract: _, span: _, name: _, kind: _, visibility: _, state_mutability: _, modifiers, marked_virtual: _, virtual_: _, override_: _, overrides: _, parameters, returns, body, body_span: _, gettee: _ } = func;
+        let Function { source: _, doc: _, contract: _, span: _, name: _, kind: _, is_yul: _, visibility: _, state_mutability: _, modifiers, marked_virtual: _, virtual_: _, override_: _, overrides: _, parameters, returns, body, body_span: _, gettee: _ } = func;
         for &param in parameters.iter() {
             self.visit_nested_var(param)?;
         }
@@ -148,8 +148,8 @@ pub trait Visit<'hir> {
             ExprKind::Call(expr, ref args, opts) => {
                 self.visit_expr(expr)?;
                 if let Some(opts) = opts {
-                    for opt in opts {
-                        self.visit_expr(&opt.value)?;
+                    for arg in opts.args {
+                        self.visit_expr(&arg.value)?;
                     }
                 }
                 self.visit_call_args(args)?;
@@ -157,7 +157,8 @@ pub trait Visit<'hir> {
             ExprKind::Delete(expr)
             | ExprKind::Member(expr, _)
             | ExprKind::Payable(expr)
-            | ExprKind::Unary(_, expr) => self.visit_expr(expr)?,
+            | ExprKind::Unary(_, expr)
+            | ExprKind::YulMember(expr, _) => self.visit_expr(expr)?,
             ExprKind::Assign(lhs, _, rhs) | ExprKind::Binary(lhs, _, rhs) => {
                 self.visit_expr(lhs)?;
                 self.visit_expr(rhs)?;
@@ -219,7 +220,10 @@ pub trait Visit<'hir> {
                 }
                 self.visit_expr(expr)?;
             }
-            StmtKind::Block(block) | StmtKind::UncheckedBlock(block) | StmtKind::Loop(block, _) => {
+            StmtKind::Block(block)
+            | StmtKind::UncheckedBlock(block)
+            | StmtKind::AssemblyBlock(block)
+            | StmtKind::Loop(block, _) => {
                 for stmt in block.stmts {
                     self.visit_stmt(stmt)?;
                 }
@@ -238,6 +242,14 @@ pub trait Visit<'hir> {
                 self.visit_stmt(true_)?;
                 if let Some(false_) = false_ {
                     self.visit_stmt(false_)?;
+                }
+            }
+            StmtKind::Switch(switch) => {
+                self.visit_expr(switch.selector)?;
+                for case in switch.cases {
+                    for stmt in case.body.iter() {
+                        self.visit_stmt(stmt)?;
+                    }
                 }
             }
             StmtKind::Try(try_) => {

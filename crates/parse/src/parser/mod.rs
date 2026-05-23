@@ -669,14 +669,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     first = false;
                 } else {
                     // check for separator
-                    match self.expect(sep_kind) {
-                        Ok(recovered_) => {
-                            if recovered_ == Recovered::Yes {
-                                recovered = Recovered::Yes;
-                                break;
-                            }
-                        }
-                        Err(e) => return Err(e),
+                    let recovered_ = self.expect(sep_kind)?;
+                    if recovered_ == Recovered::Yes {
+                        recovered = Recovered::Yes;
+                        break;
                     }
 
                     if self.check(ket) {
@@ -904,7 +900,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses either an identifier or a Yul EVM builtin.
     fn parse_yul_path_ident(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
-        if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
+        if !ident.is_yul_builtin() && ident.is_reserved(true) {
             self.expected_ident_found_err().emit();
         }
         self.bump();
@@ -1057,6 +1053,7 @@ fn parse_natspec(
         items.push(ast::NatSpecItem {
             kind: ast::NatSpecKind::Notice,
             span: comment_span,
+            symbol: comment_symbol,
             content_start: 0,
             content_end: content.len() as u32,
         });
@@ -1072,6 +1069,7 @@ fn parse_natspec(
         items: &mut SmallVec<[ast::NatSpecItem; 6]>,
         kind: &mut Option<ast::NatSpecKind>,
         span: &mut Option<Span>,
+        symbol: Symbol,
         content_start: usize,
         content_end: usize,
     ) {
@@ -1079,6 +1077,7 @@ fn parse_natspec(
             items.push(ast::NatSpecItem {
                 span: span.take().unwrap(),
                 kind: k,
+                symbol,
                 content_start: content_start as u32,
                 content_end: content_end as u32,
             });
@@ -1107,12 +1106,20 @@ fn parse_natspec(
             && is_line_start(line_start, line_start + tag_offset)
         {
             let tag_start = line_start + tag_offset + 1;
-            flush_item(&mut items, &mut kind, &mut span, content_start, prev_line_end);
+            flush_item(
+                &mut items,
+                &mut kind,
+                &mut span,
+                comment_symbol,
+                content_start,
+                prev_line_end,
+            );
 
             // Skip leading whitespace after '@'
             let tag_slice = &bytes[tag_start..line_end];
             let trimmed = tag_slice.len() - tag_slice.trim_ascii_start().len();
-            let (tag, rest_start) = split_once_ws(content, bytes, tag_start + trimmed, line_end);
+            let (tag, rest_start) =
+                crate::natspec::split_once_ws(content, tag_start + trimmed, line_end);
 
             // Calculate span: from first non-whitespace char after '@' to end of tag name.
             let tag_lo =
@@ -1126,18 +1133,18 @@ fn parse_natspec(
                 "author" => ast::NatSpecKind::Author,
                 "notice" => ast::NatSpecKind::Notice,
                 "dev" => ast::NatSpecKind::Dev,
-                "param" | "return" | "inheritdoc" => {
+                "param" | "inheritdoc" => {
                     let (name, content_start_pos) =
-                        split_once_ws(content, bytes, rest_start, line_end);
+                        crate::natspec::split_once_ws(content, rest_start, line_end);
                     content_start = content_start_pos;
                     let ident = Ident::new(Symbol::intern(name), comment_span);
                     match tag {
                         "param" => ast::NatSpecKind::Param { name: ident },
-                        "return" => ast::NatSpecKind::Return { name: ident },
                         "inheritdoc" => ast::NatSpecKind::Inheritdoc { contract: ident },
                         _ => unreachable!(),
                     }
                 }
+                "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
                     if let Some(custom_tag) = tag.strip_prefix("custom:") {
                         let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
@@ -1164,27 +1171,8 @@ fn parse_natspec(
         prev_line_end = line_end;
         line_start = line_end + 1;
     }
-    flush_item(&mut items, &mut kind, &mut span, content_start, bytes.len());
+    flush_item(&mut items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
     Some(items)
-}
-
-/// Splits a string slice at the first whitespace character using the `memchr` crate.
-/// Returns the content up to the whitespace and the position of the first following non-blank char.
-#[inline]
-fn split_once_ws<'a>(
-    content: &'a str,
-    bytes: &'a [u8],
-    start: usize,
-    end: usize,
-) -> (&'a str, usize) {
-    if let Some(ws_pos) =
-        memchr::memchr3(b' ', b'\t', b'\r', &bytes[start..end]).map(|offset| start + offset)
-    {
-        let rest = &bytes[ws_pos..end];
-        (&content[start..ws_pos], ws_pos + (rest.len() - rest.trim_ascii_start().len()))
-    } else {
-        (&content[start..end], end)
-    }
 }
 
 #[cfg(test)]
@@ -1209,7 +1197,7 @@ mod tests {
             ast::NatSpecKind::Notice if kind == "notice" => None,
             ast::NatSpecKind::Dev if kind == "dev" => None,
             ast::NatSpecKind::Param { name } if kind == "param" => Some(name.name.as_str()),
-            ast::NatSpecKind::Return { name } if kind == "return" => Some(name.name.as_str()),
+            ast::NatSpecKind::Return { .. } if kind == "return" => None,
             ast::NatSpecKind::Inheritdoc { contract } if kind == "inheritdoc" => {
                 Some(contract.name.as_str())
             }
@@ -1268,7 +1256,7 @@ mod tests {
             check(4, &span4, "notice", None, Some("and continues here"));
             check(5, "dev", "dev", None, Some("This is dev documentation"));
             check(6, "param", "param", Some("x"), Some("The input parameter"));
-            check(7, "return", "return", Some("result"), Some("The return value"));
+            check(7, "return", "return", None, Some("result The return value"));
             check(8, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
             check(9, "custom:security", "custom", Some("security"), Some("High priority"));
             check(10, "solidity", "internal", Some("solidity"), Some("memory-safe"));
@@ -1320,7 +1308,7 @@ mod tests {
             check(2, "notice", "notice", None, Some("This is a notice\n * that spans multiple lines\n * and continues here"));
             check(3, "dev", "dev", None, Some("This is dev documentation"));
             check(4, "param", "param", Some("x"), Some("The input parameter"));
-            check(5, "return", "return", Some("result"), Some("The return value"));
+            check(5, "return", "return", None, Some("result The return value"));
             check(6, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
             check(7, "custom:security", "custom", Some("security"), Some("High priority"));
             check(8, "src", "internal", Some("src"), Some("0:123:456"));

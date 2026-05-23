@@ -1,5 +1,5 @@
 use crate::{Session, SessionGlobals, Span};
-use solar_data_structures::{index::BaseIndex32, trustme};
+use solar_data_structures::{index::NonMaxU32, trustme};
 use solar_macros::symbols;
 use std::{cmp, fmt, hash, str};
 
@@ -141,8 +141,14 @@ impl Ident {
 
     /// Returns `true` if the identifier is a Yul EVM builtin keyword.
     #[inline]
-    pub fn is_yul_evm_builtin(self) -> bool {
+    pub fn is_yul_builtin(self) -> bool {
         self.name.is_yul_builtin()
+    }
+
+    /// Returns `true` if the identifier is a reserved Yul EVM builtin keyword.
+    #[inline]
+    pub fn is_reserved_yul_builtin(self) -> bool {
+        self.name.is_reserved_yul_builtin()
     }
 
     /// Returns `true` if the identifier is either a keyword, either currently in use or reserved
@@ -197,7 +203,7 @@ impl Ident {
 /// Internally, a `Symbol` is implemented as an index, and all operations
 /// (including hashing, equality, and ordering) operate on that index.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Symbol(BaseIndex32);
+pub struct Symbol(NonMaxU32);
 
 impl Default for Symbol {
     #[inline]
@@ -211,7 +217,7 @@ impl Symbol {
     pub const DUMMY: Self = kw::Empty;
 
     const fn new(n: u32) -> Self {
-        Self(BaseIndex32::new(n))
+        Self(NonMaxU32::new(n).unwrap())
     }
 
     /// Maps a string to its interned representation.
@@ -304,7 +310,15 @@ impl Symbol {
     #[inline]
     pub fn is_yul_builtin(self) -> bool {
         (self >= kw::Add && self <= kw::Xor)
-            | matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
+            || (self >= kw::Auxdataloadn && self <= kw::Setimmutable)
+            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
+    }
+
+    /// Returns `true` if the symbol is a reserved Yul EVM builtin keyword.
+    #[inline]
+    pub fn is_reserved_yul_builtin(self) -> bool {
+        (self >= kw::Add && self <= kw::Xor)
+            || matches!(self, kw::Address | kw::Byte | kw::Return | kw::Revert)
     }
 
     /// Returns `true` if the symbol is either a keyword, either currently in use or reserved for
@@ -312,7 +326,7 @@ impl Symbol {
     #[inline]
     pub fn is_reserved(self, yul: bool) -> bool {
         if yul {
-            self.is_yul_keyword() | self.is_yul_builtin()
+            self.is_yul_keyword() | self.is_reserved_yul_builtin()
         } else {
             self.is_used_keyword() | self.is_unused_keyword()
         }
@@ -382,7 +396,7 @@ impl fmt::Display for Symbol {
 ///
 /// [`ByteSymbol`] is used less widely, so it has fewer operations defined than [`Symbol`].
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ByteSymbol(BaseIndex32);
+pub struct ByteSymbol(NonMaxU32);
 
 impl ByteSymbol {
     /// Maps a string to its interned representation.
@@ -496,12 +510,12 @@ impl Interner {
 impl inturn::InternerSymbol for ByteSymbol {
     #[inline]
     fn try_from_usize(n: usize) -> Option<Self> {
-        BaseIndex32::try_from_usize(n).map(Self)
+        u32::try_from(n).ok().and_then(NonMaxU32::new).map(Self)
     }
 
     #[inline]
     fn to_usize(self) -> usize {
-        self.0.index()
+        self.0.get() as usize
     }
 }
 
@@ -820,7 +834,6 @@ symbols! {
         // Some builtins have already been previously declared, so they can't be redeclared here.
         // See `is_yul_builtin`.
         // https://docs.soliditylang.org/en/latest/yul.html#evm-dialect
-        // TODO: The remaining internal dialect builtins.
         Add:            "add",
         Addmod:         "addmod",
         And:            "and",
@@ -837,6 +850,8 @@ symbols! {
         Caller:         "caller",
         Callvalue:      "callvalue",
         Chainid:        "chainid",
+        Codecopy:       "codecopy",
+        Codesize:       "codesize",
         Coinbase:       "coinbase",
         Create:         "create",
         Create2:        "create2",
@@ -896,6 +911,21 @@ symbols! {
         Tload:          "tload",
         Tstore:         "tstore",
         Xor:            "xor",
+
+        Auxdataloadn:   "auxdataloadn",
+        Clz:            "clz",
+        Datacopy:       "datacopy",
+        Dataoffset:     "dataoffset",
+        Datasize:       "datasize",
+        Eofcreate:      "eofcreate",
+        Extcall:        "extcall",
+        Extdelegatecall: "extdelegatecall",
+        Extstaticcall:   "extstaticcall",
+        Linkersymbol:   "linkersymbol",
+        Loadimmutable:  "loadimmutable",
+        Memoryguard:    "memoryguard",
+        Returncontract: "returncontract",
+        Setimmutable:   "setimmutable",
 
         // Experimental Solidity specific keywords.
         Class:         "class",
@@ -959,15 +989,18 @@ symbols! {
         msg,
         name,
         object,
+        offset,
         push,
         require,
         ripemd160,
         runtimeCode,
+        salt,
         selector,
         send,
         sender,
         sha256,
         sig,
+        slot,
         solidity,
         super_: "super",
         this,

@@ -3,5 +3,5 @@
 .idea
 /*.sol
 /*.yul
-/tmp/
+/tmp
 .DS_Store

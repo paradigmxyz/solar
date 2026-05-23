@@ -1,0 +1,38 @@
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {id} for uint256 global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {idC} for C global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {idL} for L global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {idI} for I global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: operators can only be implemented for user-defined value types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {addE as +} for E global;
+   ╰╴       ━━━━
+
+error: operators can only be implemented for user-defined value types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {addS as +} for S global;
+   ╰╴       ━━━━
+
+error: aborting due to 6 previous errors
+

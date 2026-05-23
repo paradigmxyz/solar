@@ -1,0 +1,20 @@
+error: too many `@return` tags: function has 2 return values, found 3
+   ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
+   │
+LL │     /// @return Third return value
+   ╰╴         ━━━━━━
+
+error: tag `@return` references non-existent return parameter 'other'
+   ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
+   │
+LL │     /// @return other Invalid return name
+   ╰╴         ━━━━━━
+
+error: tag `@return` does not contain the name of its return parameter
+   ╭▸ ROOT/tests/ui/natspec/tag_returns.sol:LL:CC
+   │
+LL │     /// @return
+   ╰╴         ━━━━━━
+
+error: aborting due to 3 previous errors
+
