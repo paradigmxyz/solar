@@ -8,18 +8,21 @@ use solar_interface::{Ident, Symbol, diagnostics::ErrorGuaranteed, kw, sym};
 
 impl<'gcx> TypeChecker<'gcx> {
     pub(super) fn check_yul_lit(&self, lit: &'gcx hir::Lit<'gcx>) -> Ty<'gcx> {
-        if let LitKind::Str(_, s, _) = &lit.kind {
-            let len = s.as_byte_str().len();
-            return if len <= 32 {
-                self.gcx.types.uint(256)
-            } else {
-                self.gcx.mk_ty_err(
+        match &lit.kind {
+            LitKind::Str(_, s, _) => {
+                let len = s.as_byte_str().len();
+                if len <= 32 {
+                    return self.gcx.types.uint(256);
+                }
+                return self.gcx.mk_ty_err(
                     self.dcx()
                         .err(format!("string literal too long ({len} > 32)"))
                         .span(lit.span)
                         .emit(),
-                )
-            };
+                );
+            }
+            LitKind::Address(_) => return self.gcx.types.uint(256),
+            _ => {}
         }
 
         self.gcx.type_of_lit(lit)

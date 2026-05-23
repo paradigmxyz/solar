@@ -1,4 +1,5 @@
 //@compile-flags: -Ztypeck
+// ported-from: test/libsolidity/syntaxTests/array/slice/calldata_dynamic_access.sol
 
 // Tests for array slice implicit conversions.
 // See: https://docs.soliditylang.org/en/latest/types.html#array-slices
@@ -17,6 +18,13 @@ contract C {
     // Slices can be implicitly converted to memory arrays of the same element type.
     function toMemory(uint256[] calldata data, uint256 start, uint256 end) external pure {
         uint256[] memory s = data[start:end];
+    }
+
+    function accessSlice(uint256[] calldata data) external pure {
+        data[1:2][0];
+        data[1:][0];
+        data[1:][1:2][0];
+        data[1:2][1:][0];
     }
 
     // Slices can only be created from calldata arrays.
