@@ -748,6 +748,8 @@ pub struct Contract<'hir> {
     pub name: Ident,
     /// The contract kind.
     pub kind: ContractKind,
+    /// The storage layout base slot expression, if specified.
+    pub layout: Option<&'hir Expr<'hir>>,
     /// The contract bases, as declared in the source code.
     pub bases: &'hir [ContractId],
     /// The base arguments, as declared in the source code.
@@ -1840,7 +1842,7 @@ mod tests {
         assert_size::<Hir<'_>>(str!["248"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
-        assert_size::<Contract<'_>>(str!["144"]);
+        assert_size::<Contract<'_>>(str!["152"]);
         assert_size::<Function<'_>>(str!["144"]);
         assert_size::<Struct<'_>>(str!["48"]);
         assert_size::<Enum<'_>>(str!["48"]);

@@ -76,6 +76,20 @@ impl<'gcx> TypeChecker<'gcx> {
         self.gcx.dcx()
     }
 
+    fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
+        match ConstantEvaluator::new(self.gcx).eval(slot) {
+            Ok(value) => {
+                if value.as_u256().is_none() {
+                    self.dcx()
+                        .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
+                        .span(slot.span)
+                        .emit();
+                }
+            }
+            Err(_err) => {}
+        }
+    }
+
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         self.types[&expr.id]
     }
@@ -180,7 +194,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             .span(expr.span);
                         return self.gcx.mk_ty_err(err.emit());
                     }
-                    let _ = self.expect_ty(rhs, ty);
+                    self.check_tuple_assign_rhs(lhs, ty, rhs);
                     ty
                 } else if let Some(op) = op {
                     let rhs_ty = self.check_expr(rhs);
@@ -590,8 +604,9 @@ impl<'gcx> TypeChecker<'gcx> {
                             self.check_expr(expr)
                         };
                         if ty.is_unit() { empty_err(self, expr.span) } else { ty }
+                    } else if self.in_lvalue() {
+                        self.gcx.mk_ty_err(ErrorGuaranteed::new_unchecked())
                     } else {
-                        // TODO: allow lvalue empty tuple component with a placeholder type
                         empty_err(self, expr.span)
                     }
                 });
@@ -679,6 +694,57 @@ impl<'gcx> TypeChecker<'gcx> {
                 .err("types in storage containing (nested) mappings cannot be assigned to")
                 .span(expr.span)
                 .emit();
+        }
+    }
+
+    fn check_tuple_assign_rhs(
+        &mut self,
+        lhs: &'gcx hir::Expr<'gcx>,
+        lhs_ty: Ty<'gcx>,
+        rhs: &'gcx hir::Expr<'gcx>,
+    ) {
+        let hir::ExprKind::Tuple(lhs_components) = &lhs.kind else { return };
+        let lhs_types = if let TyKind::Tuple(types) = lhs_ty.kind {
+            types
+        } else {
+            std::slice::from_ref(&lhs_ty)
+        };
+
+        let rhs_ty = self.check_expr(rhs);
+        let rhs_types = if let TyKind::Tuple(types) = rhs_ty.kind {
+            types
+        } else {
+            std::slice::from_ref(&rhs_ty)
+        };
+
+        if lhs_components.len() != rhs_types.len() {
+            self.dcx()
+                .err("mismatched number of components")
+                .span(lhs.span)
+                .span_label(
+                    rhs.span,
+                    format!(
+                        "expected a tuple with {} element{}, found one with {} element{}",
+                        lhs_components.len(),
+                        pluralize!(lhs_components.len()),
+                        rhs_types.len(),
+                        pluralize!(rhs_types.len())
+                    ),
+                )
+                .emit();
+            return;
+        }
+
+        let rhs_components =
+            if let hir::ExprKind::Tuple(components) = &rhs.kind { Some(*components) } else { None };
+        for (i, (&lhs_component, &lhs_component_ty)) in
+            lhs_components.iter().zip(lhs_types).enumerate()
+        {
+            if let Some(_) = lhs_component
+                && let Some(rhs_component) = rhs_components.and_then(|components| components[i])
+            {
+                self.check_expected(rhs_component, rhs_types[i], lhs_component_ty);
+            }
         }
     }
 
@@ -1740,6 +1806,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
+        if let Some(slot) = contract.layout {
+            self.check_storage_layout_base_slot(slot);
+        }
+
         // Check base constructor arguments
         for (&base_id, modifier) in
             contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
