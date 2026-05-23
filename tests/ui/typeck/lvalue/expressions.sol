@@ -26,6 +26,8 @@ contract Test {
     function testCall() external {
         retArr() = arr; //~ ERROR: expression has to be an lvalue
         retArr()[0] = 1;
+        retArr().push() = 1;
+        retArr().push(1) = arr.pop(); //~ ERROR: expression has to be an lvalue
     }
 
     function testCallLvalue() external {

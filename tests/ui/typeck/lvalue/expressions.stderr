@@ -22,6 +22,12 @@ error: expression has to be an lvalue
 LL │         retArr() = arr;
    ╰╴        ━━━━━━━━
 
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
+   │
+LL │         retArr().push(1) = arr.pop();
+   ╰╴        ━━━━━━━━━━━━━━━━
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
    │
@@ -46,5 +52,5 @@ error: expression has to be an lvalue
 LL │         arr.pop() = arr.pop();
    ╰╴        ━━━━━━━━━
 
-error: aborting due to 8 previous errors
+error: aborting due to 9 previous errors
 

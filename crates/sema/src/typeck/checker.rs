@@ -295,10 +295,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 };
 
-                // For some reason, `ArrayPush0` is the only call that can be an lvalue.
-                if !(ty.loc() == Some(DataLocation::Storage)
-                    || self.member_builtins.get(&callee.id) == Some(&Builtin::ArrayPush0))
-                {
+                // No-argument storage array `.push()` is the only call that can be an lvalue.
+                if self.member_builtins.get(&callee.id) != Some(&Builtin::ArrayPush0) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -330,7 +328,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty
             }
             hir::ExprKind::Index(lhs, index) => {
-                let ty = self.check_expr(lhs);
+                let ty = self.check_expr_outside_lvalue_context(lhs, None);
                 if ty.references_error() {
                     return ty;
                 }
@@ -395,7 +393,7 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Lit(lit) if self.in_yul => self.check_yul_lit(lit),
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(expr, ident) => {
-                let expr_ty = self.check_expr(expr);
+                let expr_ty = self.check_expr_outside_lvalue_context(expr, None);
                 if expr_ty.references_error() {
                     return expr_ty;
                 }
@@ -932,7 +930,7 @@ impl<'gcx> TypeChecker<'gcx> {
         ident: Ident,
         args: &hir::CallArgs<'gcx>,
     ) -> Ty<'gcx> {
-        let receiver_ty = self.check_expr(receiver);
+        let receiver_ty = self.check_expr_outside_lvalue_context(receiver, None);
         if let Err(e) = receiver_ty.error_reported() {
             let ty = self.gcx.mk_ty_err(e);
             self.register_ty(callee, ty);
