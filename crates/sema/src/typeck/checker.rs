@@ -34,6 +34,7 @@ struct TypeChecker<'gcx> {
     construction_context: u32,
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    member_builtins: FxHashMap<hir::ExprId, Builtin>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
 
@@ -65,6 +66,7 @@ impl<'gcx> TypeChecker<'gcx> {
             function: None,
             construction_context: 0,
             types: Default::default(),
+            member_builtins: Default::default(),
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
@@ -246,9 +248,6 @@ impl<'gcx> TypeChecker<'gcx> {
                     None
                 };
 
-                // TODO: `array.push() = x;` is the only valid call lvalue
-                let is_array_push = false;
-
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
                         if f.is_declaration() {
@@ -310,7 +309,8 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 };
 
-                if !is_array_push {
+                // No-argument storage array `.push()` is the only call that can be an lvalue.
+                if self.member_builtins.get(&callee.id) != Some(&Builtin::ArrayPush0) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -342,7 +342,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty
             }
             hir::ExprKind::Index(lhs, index) => {
-                let ty = self.check_expr(lhs);
+                let ty = self.check_expr_outside_lvalue_context(lhs, None);
                 if ty.references_error() {
                     return ty;
                 }
@@ -407,7 +407,7 @@ impl<'gcx> TypeChecker<'gcx> {
             hir::ExprKind::Lit(lit) if self.in_yul => self.check_yul_lit(lit),
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
             hir::ExprKind::Member(expr, ident) => {
-                let expr_ty = self.check_expr(expr);
+                let expr_ty = self.check_expr_outside_lvalue_context(expr, None);
                 if expr_ty.references_error() {
                     return expr_ty;
                 }
@@ -457,6 +457,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         };
                         Some(reason)
                     }
+                    TyKind::Ref(inner, _) if matches!(inner.kind, TyKind::Struct(_)) => None,
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
                             && possible_members.len() == 1
@@ -466,7 +467,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     {
                         Some(NotLvalueReason::Generic)
                     }
-                    _ => None,
+                    _ => Some(NotLvalueReason::Generic),
                 };
                 if let Some(reason) = not_lvalue_reason {
                     self.try_set_not_lvalue(reason);
@@ -996,7 +997,7 @@ impl<'gcx> TypeChecker<'gcx> {
         ident: Ident,
         args: &hir::CallArgs<'gcx>,
     ) -> Ty<'gcx> {
-        let receiver_ty = self.check_expr(receiver);
+        let receiver_ty = self.check_expr_outside_lvalue_context(receiver, None);
         if let Err(e) = receiver_ty.error_reported() {
             let ty = self.gcx.mk_ty_err(e);
             self.register_ty(callee, ty);
@@ -1012,6 +1013,9 @@ impl<'gcx> TypeChecker<'gcx> {
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
+                if let Some(hir::Res::Builtin(builtin)) = member.res {
+                    self.member_builtins.insert(callee.id, builtin);
+                }
                 self.member_call_ty(receiver_ty, member)
             }
             Err(e) => {
@@ -1652,7 +1656,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let result = self.lvalue_context.unwrap();
         self.lvalue_context = prev;
 
-        if result.is_ok() && is_syntactic_lvalue(expr) {
+        if result.is_ok() && self.is_lvalue_expr(expr) {
             return ty;
         }
 
@@ -1691,6 +1695,37 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn in_lvalue(&self) -> bool {
         self.lvalue_context.is_some()
+    }
+
+    /// Returns `true` if the given expression can be an lvalue.
+    ///
+    /// If `false`, it cannot be an lvalue.
+    fn is_lvalue_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        match expr.kind {
+            hir::ExprKind::Ident(_)
+            | hir::ExprKind::Index(..)
+            | hir::ExprKind::Member(..)
+            | hir::ExprKind::YulMember(..)
+            | hir::ExprKind::Tuple(..)
+            | hir::ExprKind::Err(_) => true,
+
+            hir::ExprKind::Call(callee, ..) => {
+                self.member_builtins.get(&callee.id) == Some(&Builtin::ArrayPush0)
+            }
+
+            hir::ExprKind::Array(_)
+            | hir::ExprKind::Assign(..)
+            | hir::ExprKind::Binary(..)
+            | hir::ExprKind::Delete(_)
+            | hir::ExprKind::Slice(..)
+            | hir::ExprKind::Lit(_)
+            | hir::ExprKind::Payable(_)
+            | hir::ExprKind::New(_)
+            | hir::ExprKind::Ternary(..)
+            | hir::ExprKind::TypeCall(_)
+            | hir::ExprKind::Type(_)
+            | hir::ExprKind::Unary(..) => false,
+        }
     }
 
     fn in_constructor_context(&self) -> bool {
@@ -1972,34 +2007,6 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             _ => {}
         }
         self.walk_stmt(stmt)
-    }
-}
-
-/// Returns `true` if the given expression can be an lvalue.
-///
-/// If `false`, it cannot be an lvalue.
-fn is_syntactic_lvalue(expr: &hir::Expr<'_>) -> bool {
-    match expr.kind {
-        hir::ExprKind::Ident(_)
-        | hir::ExprKind::Index(..)
-        | hir::ExprKind::Member(..)
-        | hir::ExprKind::YulMember(..)
-        | hir::ExprKind::Call(..)
-        | hir::ExprKind::Tuple(..)
-        | hir::ExprKind::Err(_) => true,
-
-        hir::ExprKind::Array(_)
-        | hir::ExprKind::Assign(..)
-        | hir::ExprKind::Binary(..)
-        | hir::ExprKind::Delete(_)
-        | hir::ExprKind::Slice(..)
-        | hir::ExprKind::Lit(_)
-        | hir::ExprKind::Payable(_)
-        | hir::ExprKind::New(_)
-        | hir::ExprKind::Ternary(..)
-        | hir::ExprKind::TypeCall(_)
-        | hir::ExprKind::Type(_)
-        | hir::ExprKind::Unary(..) => false,
     }
 }
 

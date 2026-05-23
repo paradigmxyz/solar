@@ -196,11 +196,11 @@ fn reference<'gcx>(
                 Member::of_builtin(gcx, Builtin::ArrayLength),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush0,
-                    gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
+                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush,
-                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
+                    gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPop,

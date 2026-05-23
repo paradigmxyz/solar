@@ -1,4 +1,5 @@
 //@compile-flags: -Ztypeck
+// ported-from: test/libsolidity/syntaxTests/lvalues/valid_lvalues.sol
 // Valid lvalue assignments for memory variables
 
 struct S {
@@ -48,5 +49,17 @@ contract Test {
     function testFunctionParam(uint256 param) external pure {
         uint256 x;
         param = x;
+    }
+
+    function internalFunction() internal pure {}
+
+    function externalFunction() external pure {}
+
+    function testInternalFunctionParam(function() internal pure param) internal pure {
+        param = internalFunction;
+    }
+
+    function testExternalFunctionParam(function() external pure param) external view {
+        param = this.externalFunction;
     }
 }
