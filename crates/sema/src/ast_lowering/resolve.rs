@@ -437,6 +437,15 @@ impl<'gcx> ResolveContext<'gcx> {
         for id in self.hir.variable_ids().skip(normal_vars) {
             self.resolve_var(id);
         }
+
+        for id in self.hir.contract_ids() {
+            let ast_item = self.hir_to_ast[&hir::ItemId::Contract(id)];
+            let ast::ItemKind::Contract(ast_contract) = &ast_item.kind else { unreachable!() };
+            let contract = self.hir.contract(id);
+            self.init(contract.source, Some(id), None);
+            self.hir.contracts[id].layout =
+                ast_contract.layout.as_ref().map(|layout| self.lower_expr(layout.slot));
+        }
     }
 
     #[instrument(level = "debug", skip_all)]

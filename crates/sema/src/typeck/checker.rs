@@ -76,6 +76,20 @@ impl<'gcx> TypeChecker<'gcx> {
         self.gcx.dcx()
     }
 
+    fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
+        match ConstantEvaluator::new(self.gcx).eval(slot) {
+            Ok(value) => {
+                if value.as_u256().is_none() {
+                    self.dcx()
+                        .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
+                        .span(slot.span)
+                        .emit();
+                }
+            }
+            Err(_err) => {}
+        }
+    }
+
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
         self.types[&expr.id]
     }
@@ -1740,6 +1754,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
+        if let Some(slot) = contract.layout {
+            self.check_storage_layout_base_slot(slot);
+        }
+
         // Check base constructor arguments
         for (&base_id, modifier) in
             contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
