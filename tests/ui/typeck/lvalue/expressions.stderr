@@ -22,6 +22,12 @@ error: expression has to be an lvalue
 LL │         retArr() = arr;
    ╰╴        ━━━━━━━━
 
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
+   │
+LL │         arr.push() = arr.pop();
+   ╰╴                     ━━━━━━━━━ expected `uint256`, found `tuple()`
+
 error: expression has to be an lvalue
    ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
    │
@@ -40,5 +46,5 @@ error: expression has to be an lvalue
 LL │         arr.pop() = arr.pop();
    ╰╴        ━━━━━━━━━
 
-error: aborting due to 7 previous errors
+error: aborting due to 8 previous errors
 

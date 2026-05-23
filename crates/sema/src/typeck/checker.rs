@@ -234,9 +234,6 @@ impl<'gcx> TypeChecker<'gcx> {
                     None
                 };
 
-                let is_array_push =
-                    self.member_builtins.get(&callee.id) == Some(&Builtin::ArrayPush0);
-
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
                         if f.is_declaration() {
@@ -298,7 +295,10 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 };
 
-                if !is_array_push && ty.loc() != Some(DataLocation::Storage) {
+                // For some reason, `ArrayPush0` is the only call that can be an lvalue.
+                if !(ty.loc() == Some(DataLocation::Storage)
+                    || self.member_builtins.get(&callee.id) == Some(&Builtin::ArrayPush0))
+                {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -948,7 +948,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
-                if let Some(builtin) = member_builtin(member) {
+                if let Some(hir::Res::Builtin(builtin)) = member.res {
                     self.member_builtins.insert(callee.id, builtin);
                 }
                 self.member_call_ty(receiver_ty, member)
@@ -1976,13 +1976,6 @@ impl<T> WantOne<T> {
             Self::Zero => Self::One(value),
             Self::One(_) | Self::Many => Self::Many,
         };
-    }
-}
-
-fn member_builtin(member: &members::Member<'_>) -> Option<Builtin> {
-    match member.res {
-        Some(hir::Res::Builtin(builtin)) => Some(builtin),
-        _ => None,
     }
 }
 

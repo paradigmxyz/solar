@@ -31,6 +31,7 @@ contract Test {
     function testCallLvalue() external {
         arr.push() = 1;
         data.push() = 0x01;
+        arr.push() = arr.pop(); //~ ERROR: mismatched types
         arr.push(1) = arr.pop(); //~ ERROR: expression has to be an lvalue
         data.push(0x01) = arr.pop(); //~ ERROR: expression has to be an lvalue
         arr.pop() = arr.pop(); //~ ERROR: expression has to be an lvalue
