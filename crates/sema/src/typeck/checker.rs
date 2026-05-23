@@ -83,12 +83,6 @@ impl<'gcx> TypeChecker<'gcx> {
                         .emit();
                 }
             }
-            Err(err) if matches!(err.kind, EvalErrorKind::UnsupportedLiteral) => {
-                self.dcx()
-                    .err("base slot of storage layout must evaluate to an integer")
-                    .span(slot.span)
-                    .emit();
-            }
             Err(err) => {
                 if matches!(err.kind, EvalErrorKind::AlreadyEmitted(_)) {
                     return;
