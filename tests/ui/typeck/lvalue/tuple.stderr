@@ -16,5 +16,11 @@ error: mismatched types
 LL │         (1, state) = (x, x);
    ╰╴                     ━━━━━━ expected `tuple(int_literal[1],uint256)`, found `tuple(uint256,uint256)`
 
-error: aborting due to 3 previous errors
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple.sol:LL:CC
+   │
+LL │         (returnsTuple()) = (uint256(1), uint256(1));
+   ╰╴         ━━━━━━━━━━━━━━
+
+error: aborting due to 4 previous errors
 

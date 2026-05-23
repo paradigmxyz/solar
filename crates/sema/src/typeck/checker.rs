@@ -443,6 +443,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         };
                         Some(reason)
                     }
+                    TyKind::Ref(inner, _) if matches!(inner.kind, TyKind::Struct(_)) => None,
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
                             && possible_members.len() == 1
@@ -452,7 +453,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     {
                         Some(NotLvalueReason::Generic)
                     }
-                    _ => None,
+                    _ => Some(NotLvalueReason::Generic),
                 };
                 if let Some(reason) = not_lvalue_reason {
                     self.try_set_not_lvalue(reason);
