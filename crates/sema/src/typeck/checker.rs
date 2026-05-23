@@ -73,8 +73,7 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
-        let mut evaluator = ConstantEvaluator::new(self.gcx);
-        match evaluator.try_eval(slot) {
+        match ConstantEvaluator::new(self.gcx).eval(slot) {
             Ok(value) => {
                 if value.as_u256().is_none() {
                     self.dcx()
@@ -83,9 +82,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         .emit();
                 }
             }
-            Err(err) => {
-                evaluator.emit_eval_error(slot, err);
-            }
+            Err(_err) => {}
         }
     }
 
