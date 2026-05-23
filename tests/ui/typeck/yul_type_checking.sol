@@ -70,6 +70,9 @@ contract C {
             pop(convertedConstant)
             pop("abc")
             pop(hex"1234")
+            let bitmask := 0xffffffffffffffffffffffffffffffffffffffff
+            pop(bitmask)
+            mstore(64, 0x000000000000378eDCD5B5B0A24f5342d8C10485)
             mstore(0, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef")
             mstore(32, hex"1234567890123456789012345678901234567890123456789012345678901234")
             storageRef.slot := state.slot
