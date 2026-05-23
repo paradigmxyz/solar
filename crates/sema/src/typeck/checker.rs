@@ -74,7 +74,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
         let mut evaluator = ConstantEvaluator::new(self.gcx);
-        match evaluator.try_eval_storage_layout_base_slot(slot) {
+        match evaluator.try_eval(slot) {
             Ok(value) => {
                 if value.as_u256().is_none() {
                     self.dcx()
@@ -85,7 +85,12 @@ impl<'gcx> TypeChecker<'gcx> {
                         .emit();
                 }
             }
-            Err(err) if matches!(err.kind, EvalErrorKind::NonInteger) => {
+            Err(err)
+                if matches!(
+                    err.kind,
+                    EvalErrorKind::NonInteger | EvalErrorKind::UnsupportedLiteral
+                ) =>
+            {
                 self.dcx()
                     .err("base slot of storage layout must evaluate to an integer")
                     .span(slot.span)

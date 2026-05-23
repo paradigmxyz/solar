@@ -13,11 +13,15 @@ const MAX_BITS: u64 = solar_ast::TypeSize::MAX as u64;
 
 /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
-    match ConstantEvaluator::new(gcx).eval(size) {
+    let mut evaluator = ConstantEvaluator::new(gcx);
+    match evaluator.eval(size) {
         Ok(int) => {
-            let Some(int) = int.as_u256() else {
+            if int.is_negative() {
                 let msg = "array length cannot be negative";
                 return Err(gcx.dcx().err(msg).span(size.span).emit());
+            };
+            let Some(int) = int.as_u256() else {
+                return Err(evaluator.emit_eval_error(size, EE::ArithmeticOverflow.into()));
             };
             if int.is_zero() {
                 let msg = "array length must be greater than zero";
@@ -56,12 +60,18 @@ impl<'gcx> ConstantEvaluator<'gcx> {
 
     /// Evaluates the given expression, returning an error if it fails.
     pub fn try_eval(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
-        self.try_eval_with(expr, Self::eval_expr)
-    }
-
-    /// Evaluates a storage layout base slot expression.
-    pub fn try_eval_storage_layout_base_slot(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
-        self.try_eval_with(expr, Self::eval_storage_layout_base_slot_expr)
+        self.depth += 1;
+        if self.depth > RECURSION_LIMIT {
+            return Err(EE::RecursionLimitReached.spanned(expr.span));
+        }
+        let mut res = self.eval_expr(expr);
+        if let Err(e) = &mut res
+            && e.span.is_dummy()
+        {
+            e.span = expr.span;
+        }
+        self.depth = self.depth.checked_sub(1).unwrap();
+        res
     }
 
     /// Emits a diagnostic for the given evaluation error.
@@ -127,69 +137,9 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         match lit.kind {
             // LitKind::Str(str_kind, arc) => todo!(),
             LitKind::Number(n) => Ok(IntScalar::new(n)),
-            // LitKind::Rational(ratio) => todo!(),
-            LitKind::Address(address) => Ok(IntScalar::from_be_bytes(address.as_slice())),
-            LitKind::Bool(bool) => Ok(IntScalar::from_be_bytes(&[bool as u8])),
             LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
-            _ => Err(EE::UnsupportedLiteral.into()),
-        }
-    }
-
-    fn try_eval_with(
-        &mut self,
-        expr: &hir::Expr<'_>,
-        eval: fn(&mut Self, &hir::Expr<'_>) -> EvalResult<'gcx>,
-    ) -> EvalResult<'gcx> {
-        self.depth += 1;
-        if self.depth > RECURSION_LIMIT {
-            return Err(EE::RecursionLimitReached.spanned(expr.span));
-        }
-        let mut res = eval(self, expr);
-        if let Err(e) = &mut res
-            && e.span.is_dummy()
-        {
-            e.span = expr.span;
-        }
-        self.depth = self.depth.checked_sub(1).unwrap();
-        res
-    }
-
-    fn eval_storage_layout_base_slot_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
-        let expr = expr.peel_parens();
-        match expr.kind {
-            hir::ExprKind::Binary(l, bin_op, r) => {
-                let l = self.try_eval_storage_layout_base_slot(l)?;
-                let r = self.try_eval_storage_layout_base_slot(r)?;
-                l.storage_layout_binop(r, bin_op.kind).map_err(Into::into)
-            }
-            hir::ExprKind::Ident(res) => {
-                let Some(v) = res.iter().find_map(|res| res.as_variable()) else {
-                    return Err(EE::NonConstantVar.into());
-                };
-
-                let v = self.gcx.hir.variable(v);
-                if v.mutability != Some(hir::VarMut::Constant) {
-                    return Err(EE::NonConstantVar.into());
-                }
-                self.try_eval_storage_layout_base_slot(
-                    v.initializer.expect("constant variable has no initializer"),
-                )
-            }
-            hir::ExprKind::Lit(lit) => self.eval_storage_layout_base_slot_lit(lit),
-            hir::ExprKind::Unary(un_op, v) => {
-                let v = self.try_eval_storage_layout_base_slot(v)?;
-                v.storage_layout_unop(un_op.kind).map_err(Into::into)
-            }
-            hir::ExprKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
-            _ => Err(EE::UnsupportedExpr.into()),
-        }
-    }
-
-    fn eval_storage_layout_base_slot_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult<'gcx> {
-        match lit.kind {
-            LitKind::Number(n) => Ok(IntScalar::new(n)),
-            LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
-            LitKind::Address(_) | LitKind::Bool(_) | LitKind::Rational(_) | LitKind::Str(..) => {
+            LitKind::Str(..) => Err(EE::UnsupportedLiteral.into()),
+            LitKind::Address(_) | LitKind::Bool(_) | LitKind::Rational(_) => {
                 Err(EE::NonInteger.into())
             }
         }
@@ -258,13 +208,6 @@ impl IntScalar {
         BigInt::from_bytes_be(Sign::Plus, &data.to_be_bytes::<32>())
     }
 
-    fn checked(data: BigInt) -> Result<Self, EE> {
-        if Self::bits(&data) > MAX_BITS {
-            return Err(EE::ArithmeticOverflow);
-        }
-        Ok(Self { data })
-    }
-
     fn bits(data: &BigInt) -> u64 {
         if data.is_zero() {
             return 1;
@@ -282,31 +225,12 @@ impl IntScalar {
         !value.is_zero() && (value & (value - BigUint::one())).is_zero()
     }
 
-    fn negate(self) -> Result<Self, EE> {
-        Self::checked(-self.data)
-    }
-
     fn shift_amount(r: Self) -> Option<usize> {
         r.as_u256()?.try_into().ok()
     }
 
-    fn bitop(self, r: Self, f: impl FnOnce(BigInt, BigInt) -> BigInt) -> Result<Self, EE> {
-        Self::checked(f(self.data, r.data))
-    }
-
     /// Applies the given unary operation to this value.
     pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
-        Ok(match op {
-            hir::UnOpKind::PreInc
-            | hir::UnOpKind::PreDec
-            | hir::UnOpKind::PostInc
-            | hir::UnOpKind::PostDec => return Err(EE::UnsupportedUnaryOp),
-            hir::UnOpKind::Not | hir::UnOpKind::BitNot => Self::checked(!self.data)?,
-            hir::UnOpKind::Neg => self.negate()?,
-        })
-    }
-
-    fn storage_layout_unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
         Ok(match op {
             hir::UnOpKind::PreInc
             | hir::UnOpKind::PreDec
@@ -322,43 +246,6 @@ impl IntScalar {
     ///
     /// For literal arithmetic, this preserves the exact mathematical value.
     pub fn binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
-        use hir::BinOpKind::*;
-        Ok(match op {
-            Add => Self::checked(self.data + r.data)?,
-            Sub => Self::checked(self.data - r.data)?,
-            Mul => Self::checked(self.data * r.data)?,
-            Div => {
-                if r.data.is_zero() {
-                    return Err(EE::DivisionByZero);
-                }
-                Self::checked(self.data / r.data)?
-            }
-            Rem => {
-                if r.data.is_zero() {
-                    return Err(EE::DivisionByZero);
-                }
-                Self::checked(self.data % r.data)?
-            }
-            Pow => {
-                if r.is_negative() {
-                    return Err(EE::ArithmeticOverflow);
-                }
-                self.checked_pow(r)?
-            }
-            BitOr => self.bitop(r, |a, b| a | b)?,
-            BitAnd => self.bitop(r, |a, b| a & b)?,
-            BitXor => self.bitop(r, |a, b| a ^ b)?,
-            Shr => {
-                let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
-                Self::checked(self.data >> r)?
-            }
-            Shl => self.checked_shl(r)?,
-            Sar => return Err(EE::UnsupportedBinaryOp),
-            Lt | Le | Gt | Ge | Eq | Ne | Or | And => return Err(EE::UnsupportedBinaryOp),
-        })
-    }
-
-    fn storage_layout_binop(self, r: Self, op: hir::BinOpKind) -> Result<Self, EE> {
         use hir::BinOpKind::*;
         Ok(match op {
             Add => Self { data: self.data + r.data },
@@ -383,7 +270,7 @@ impl IntScalar {
                 if r.is_negative() {
                     return Err(EE::ArithmeticOverflow);
                 }
-                self.storage_layout_pow(r)?
+                self.pow(r)?
             }
             BitOr => Self { data: self.data | r.data },
             BitAnd => Self { data: self.data & r.data },
@@ -392,61 +279,25 @@ impl IntScalar {
                 let r = Self::shift_amount(r).ok_or(EE::ArithmeticOverflow)?;
                 Self { data: self.data >> r }
             }
-            Shl => self.storage_layout_shl(r)?,
+            Shl => self.shl(r)?,
             Sar => return Err(EE::UnsupportedBinaryOp),
             Lt | Le | Gt | Ge | Eq | Ne | Or | And => return Err(EE::NonInteger),
         })
     }
 
-    fn checked_shl(self, r: Self) -> Result<Self, EE> {
+    fn shl(self, r: Self) -> Result<Self, EE> {
         if self.data.is_zero() {
             return Ok(self);
         }
-        let shift: u64 = r
-            .as_u256()
-            .ok_or(EE::ArithmeticOverflow)?
-            .try_into()
-            .map_err(|_| EE::ArithmeticOverflow)?;
-        let bits = Self::bits(&self.data);
-        if shift > MAX_BITS.saturating_sub(bits) {
+        let shift = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
+        if shift > U256::from(MAX_BITS) {
             return Err(EE::ArithmeticOverflow);
         }
-        Self::checked(self.data << usize::try_from(shift).map_err(|_| EE::ArithmeticOverflow)?)
-    }
-
-    fn storage_layout_shl(self, r: Self) -> Result<Self, EE> {
-        if self.data.is_zero() {
-            return Ok(self);
-        }
-        let shift: usize = r
-            .as_u256()
-            .ok_or(EE::ArithmeticOverflow)?
-            .try_into()
-            .map_err(|_| EE::ArithmeticOverflow)?;
+        let shift: usize = shift.try_into().map_err(|_| EE::ArithmeticOverflow)?;
         Ok(Self { data: self.data << shift })
     }
 
-    fn checked_pow(self, r: Self) -> Result<Self, EE> {
-        if self.data.is_zero() {
-            return Ok(self);
-        }
-        if self.data.is_one() {
-            return Ok(self);
-        }
-        if self.data == BigInt::from(-1) {
-            let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
-            let is_odd = exp.bit(0);
-            return Self::checked(if is_odd { self.data } else { BigInt::one() });
-        }
-        let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
-        if exp > U256::from(MAX_BITS) {
-            return Err(EE::ArithmeticOverflow);
-        }
-        let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
-        Self::checked(self.data.pow(exp))
-    }
-
-    fn storage_layout_pow(self, r: Self) -> Result<Self, EE> {
+    fn pow(self, r: Self) -> Result<Self, EE> {
         if self.data.is_zero() {
             return Ok(self);
         }
@@ -459,6 +310,9 @@ impl IntScalar {
             return Ok(Self { data: if is_odd { self.data } else { BigInt::one() } });
         }
         let exp = r.as_u256().ok_or(EE::ArithmeticOverflow)?;
+        if exp > U256::from(MAX_BITS) {
+            return Err(EE::ArithmeticOverflow);
+        }
         let exp = exp.try_into().map_err(|_| EE::ArithmeticOverflow)?;
         Ok(Self { data: self.data.pow(exp) })
     }
