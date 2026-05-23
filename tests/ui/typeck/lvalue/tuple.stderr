@@ -14,7 +14,19 @@ error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/lvalue/tuple.sol:LL:CC
    │
 LL │         (1, state) = (x, x);
-   ╰╴                     ━━━━━━ expected `tuple(int_literal[1],uint256)`, found `tuple(uint256,uint256)`
+   ╰╴                      ━ expected `int_literal[1]`, found `uint256`
 
-error: aborting due to 3 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple.sol:LL:CC
+   │
+LL │         (x, ) = (true, 1);
+   ╰╴                 ━━━━ expected `uint256`, found `bool`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple.sol:LL:CC
+   │
+LL │         (, x) = (1, true);
+   ╰╴                    ━━━━ expected `uint256`, found `bool`
+
+error: aborting due to 5 previous errors
 

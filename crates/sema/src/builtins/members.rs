@@ -89,6 +89,10 @@ impl<'gcx> Member<'gcx> {
         Self::with_res(builtin.name(), ty, builtin)
     }
 
+    pub fn with_attached_builtin(builtin: Builtin, ty: Ty<'gcx>) -> Self {
+        Self { name: builtin.name(), ty, res: Some(builtin.into()), attached: true }
+    }
+
     pub fn of_builtin(gcx: Gcx<'gcx>, builtin: Builtin) -> Self {
         Self::with_builtin(builtin, builtin.ty(gcx))
     }
@@ -190,15 +194,15 @@ fn reference<'gcx>(
             };
             vec![
                 Member::of_builtin(gcx, Builtin::ArrayLength),
-                Member::with_builtin(
+                Member::with_attached_builtin(
                     Builtin::ArrayPush0,
                     gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
                 ),
-                Member::with_builtin(
+                Member::with_attached_builtin(
                     Builtin::ArrayPush,
                     gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
                 ),
-                Member::with_builtin(
+                Member::with_attached_builtin(
                     Builtin::ArrayPop,
                     gcx.mk_builtin_fn(&[this], SM::NonPayable, &[]),
                 ),

@@ -14,4 +14,10 @@ contract Test {
         (1, state) = (x, x); //~ ERROR: expression has to be an lvalue
         //~^ ERROR: mismatched types
     }
+
+    function testTupleHoleTypeMismatch() external {
+        uint256 x = state;
+        (x, ) = (true, 1); //~ ERROR: mismatched types
+        (, x) = (1, true); //~ ERROR: mismatched types
+    }
 }

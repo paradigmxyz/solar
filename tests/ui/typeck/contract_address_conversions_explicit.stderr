@@ -22,5 +22,29 @@ error: invalid explicit type conversion
 LL │         WithPayableFallback c3 = WithPayableFallback(addr);
    ╰╴                                 ━━━━━━━━━━━━━━━━━━━━━━━━━ cannot convert non-payable `address` to `contract WithPayableFallback` because it has a receive function or payable fallback
 
-error: aborting due to 4 previous errors
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/contract_address_conversions_explicit.sol:LL:CC
+   │
+LL │         address b = address(type(Lib));
+   ╰╴                    ━━━━━━━━━━━━━━━━━━ cannot convert `type(library Lib)` to `address`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/contract_address_conversions_explicit.sol:LL:CC
+   │
+LL │         address a = address(NoReceive);
+   ╰╴                    ━━━━━━━━━━━━━━━━━━ cannot convert `type(contract NoReceive)` to `address`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/contract_address_conversions_explicit.sol:LL:CC
+   │
+LL │         address b = address(I);
+   ╰╴                    ━━━━━━━━━━ cannot convert `type(contract I)` to `address`
+
+error: invalid explicit type conversion
+   ╭▸ ROOT/tests/ui/typeck/contract_address_conversions_explicit.sol:LL:CC
+   │
+LL │         address c = address(Abstract);
+   ╰╴                    ━━━━━━━━━━━━━━━━━ cannot convert `type(contract Abstract)` to `address`
+
+error: aborting due to 8 previous errors
 
