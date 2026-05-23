@@ -41,29 +41,29 @@ contract RationalDivisionWithoutFractionalPart layout at 12/3 {}
 
 contract BinaryExpression layout at 0xffff * (0x123 + 0xABC) {}
 contract ConstantInExpression layout at 0xffff * (50 - X) {}
-contract IntermediateOperationOutOfRange layout at (2**256 + 1) * 2 - 2**256 - 3 {}
+contract IntermediateOperationOutOfRange layout at (2**256 + 1) * 2 - 2**256 - 3 {} //~ ERROR: failed to evaluate constant: arithmetic overflow
 contract MaxValue layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF {}
 
-contract AttachedFunction layout at 2.f() { //~ ERROR: base slot of storage layout must be a compile-time constant expression
+contract AttachedFunction layout at 2.f() { //~ ERROR: failed to evaluate constant: unsupported expression
     using L for *;
 }
 
-contract OverflowAdd layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF + 1 {} //~ ERROR: base slot of storage layout evaluates to
-contract OverflowPow layout at 2**256 {} //~ ERROR: base slot of storage layout evaluates to
-contract UnderflowSub layout at 0 - 1 {} //~ ERROR: base slot of storage layout evaluates to
-contract UnderflowExpression layout at 2**8 - 2**16 {} //~ ERROR: base slot of storage layout evaluates to
-contract NegativeNumber layout at -1 {} //~ ERROR: base slot of storage layout evaluates to
-contract NegativeConstant layout at -X {} //~ ERROR: base slot of storage layout evaluates to
-contract BitwiseNegationLiteral layout at ~0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE {} //~ ERROR: base slot of storage layout evaluates to
+contract OverflowAdd layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF + 1 {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+contract OverflowPow layout at 2**256 {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+contract UnderflowSub layout at 0 - 1 {} //~ ERROR: base slot of storage layout evaluates to a value outside
+contract UnderflowExpression layout at 2**8 - 2**16 {} //~ ERROR: base slot of storage layout evaluates to a value outside
+contract NegativeNumber layout at -1 {} //~ ERROR: base slot of storage layout evaluates to a value outside
+contract NegativeConstant layout at -X {} //~ ERROR: base slot of storage layout evaluates to a value outside
+contract BitwiseNegationLiteral layout at ~0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE {} //~ ERROR: failed to evaluate constant: arithmetic overflow
 
-contract BoolLiteral layout at true {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract BoolConstant layout at B {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract HexAddress layout at 0xdCad3a6d3569DF655070DEd06cb7A1b2Ccd1D3AF {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract StringLiteral layout at "MyLayoutBase" {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract HexStringLiteral layout at hex"616263" {} //~ ERROR: base slot of storage layout must evaluate to an integer
+contract BoolLiteral layout at true {}
+contract BoolConstant layout at B {}
+contract HexAddress layout at 0xdCad3a6d3569DF655070DEd06cb7A1b2Ccd1D3AF {}
+contract StringLiteral layout at "MyLayoutBase" {} //~ ERROR: failed to evaluate constant: unsupported literal
+contract HexStringLiteral layout at hex"616263" {} //~ ERROR: failed to evaluate constant: unsupported literal
 
-contract FractionalDivision layout at 3/2 {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract FractionalNumber layout at 4.2 {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract LeadingFractionalNumber layout at .1 {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract NegativeExponent layout at 42e-10 {} //~ ERROR: base slot of storage layout must evaluate to an integer
-contract UnderscoredNegativeExponent layout at 1_7e-10 {} //~ ERROR: base slot of storage layout must evaluate to an integer
+contract FractionalDivision layout at 3/2 {}
+contract FractionalNumber layout at 4.2 {} //~ ERROR: failed to evaluate constant: unsupported literal
+contract LeadingFractionalNumber layout at .1 {} //~ ERROR: failed to evaluate constant: unsupported literal
+contract NegativeExponent layout at 42e-10 {} //~ ERROR: failed to evaluate constant: unsupported literal
+contract UnderscoredNegativeExponent layout at 1_7e-10 {} //~ ERROR: failed to evaluate constant: unsupported literal

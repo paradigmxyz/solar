@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstantEvaluator, EvalErrorKind},
+    eval::ConstantEvaluator,
     hir::{self, Visit},
     ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
@@ -84,14 +84,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             Err(err) => {
-                if matches!(err.kind, EvalErrorKind::AlreadyEmitted(_)) {
-                    return;
-                }
-                let _ = self.check_expr(slot);
-                self.dcx()
-                    .err("base slot of storage layout must be a compile-time constant expression")
-                    .span(slot.span)
-                    .emit();
+                evaluator.emit_eval_error(slot, err);
             }
         }
     }

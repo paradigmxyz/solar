@@ -1,110 +1,94 @@
-error: base slot of storage layout must be a compile-time constant expression
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
+   │
+LL │ contract IntermediateOperationOutOfRange layout at (2**256 + 1) * 2 - 2**256 - 3 {}
+   │                                                    ━┬─────━━━━━━━━━━━━━━━━━━━━━━
+   │                                                     │
+   ╰╴                                                    evaluation of constant value failed here
+
+error: failed to evaluate constant: unsupported expression
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract AttachedFunction layout at 2.f() {
-   ╰╴                                    ━━━━━
+   ╰╴                                    ━━━━━ evaluation of constant value failed here
 
-error: base slot of storage layout evaluates to 115792089237316195423570985008687907853269984665640564039457584007913129639936, which is outside the range of type `uint256`
+error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
-LL │ contract OverflowAdd layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF + 1 {}
-   ╰╴                               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │ … layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF + 1 {}
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: base slot of storage layout evaluates to 115792089237316195423570985008687907853269984665640564039457584007913129639936, which is outside the range of type `uint256`
+error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract OverflowPow layout at 2**256 {}
-   ╰╴                               ━━━━━━
+   ╰╴                               ━━━━━━ evaluation of constant value failed here
 
-error: base slot of storage layout evaluates to -1, which is outside the range of type `uint256`
+error: base slot of storage layout evaluates to a value outside the range of type `uint256`
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract UnderflowSub layout at 0 - 1 {}
    ╰╴                                ━━━━━
 
-error: base slot of storage layout evaluates to -65280, which is outside the range of type `uint256`
+error: base slot of storage layout evaluates to a value outside the range of type `uint256`
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract UnderflowExpression layout at 2**8 - 2**16 {}
    ╰╴                                       ━━━━━━━━━━━━
 
-error: base slot of storage layout evaluates to -1, which is outside the range of type `uint256`
+error: base slot of storage layout evaluates to a value outside the range of type `uint256`
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract NegativeNumber layout at -1 {}
    ╰╴                                  ━━
 
-error: base slot of storage layout evaluates to -42, which is outside the range of type `uint256`
+error: base slot of storage layout evaluates to a value outside the range of type `uint256`
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract NegativeConstant layout at -X {}
    ╰╴                                    ━━
 
-error: base slot of storage layout evaluates to -115792089237316195423570985008687907853269984665640564039457584007913129639935, which is outside the range of type `uint256`
+error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
-LL │ contract BitwiseNegationLiteral layout at ~0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE {}
-   ╰╴                                          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │ …l layout at ~0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE {}
+   ╰╴             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: base slot of storage layout must evaluate to an integer
-   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
-   │
-LL │ contract BoolLiteral layout at true {}
-   ╰╴                               ━━━━
-
-error: base slot of storage layout must evaluate to an integer
-   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
-   │
-LL │ contract BoolConstant layout at B {}
-   ╰╴                                ━
-
-error: base slot of storage layout must evaluate to an integer
-   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
-   │
-LL │ contract HexAddress layout at 0xdCad3a6d3569DF655070DEd06cb7A1b2Ccd1D3AF {}
-   ╰╴                              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: base slot of storage layout must evaluate to an integer
+error: failed to evaluate constant: unsupported literal
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract StringLiteral layout at "MyLayoutBase" {}
-   ╰╴                                 ━━━━━━━━━━━━━━
+   ╰╴                                 ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: base slot of storage layout must evaluate to an integer
+error: failed to evaluate constant: unsupported literal
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract HexStringLiteral layout at hex"616263" {}
-   ╰╴                                    ━━━━━━━━━━━
+   ╰╴                                    ━━━━━━━━━━━ evaluation of constant value failed here
 
-error: base slot of storage layout must evaluate to an integer
-   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
-   │
-LL │ contract FractionalDivision layout at 3/2 {}
-   ╰╴                                      ━━━
-
-error: base slot of storage layout must evaluate to an integer
+error: failed to evaluate constant: unsupported literal
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract FractionalNumber layout at 4.2 {}
-   ╰╴                                    ━━━
+   ╰╴                                    ━━━ evaluation of constant value failed here
 
-error: base slot of storage layout must evaluate to an integer
+error: failed to evaluate constant: unsupported literal
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract LeadingFractionalNumber layout at .1 {}
-   ╰╴                                           ━━
+   ╰╴                                           ━━ evaluation of constant value failed here
 
-error: base slot of storage layout must evaluate to an integer
+error: failed to evaluate constant: unsupported literal
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract NegativeExponent layout at 42e-10 {}
-   ╰╴                                    ━━━━━━
+   ╰╴                                    ━━━━━━ evaluation of constant value failed here
 
-error: base slot of storage layout must evaluate to an integer
+error: failed to evaluate constant: unsupported literal
    ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot.sol:LL:CC
    │
 LL │ contract UnderscoredNegativeExponent layout at 1_7e-10 {}
-   ╰╴                                               ━━━━━━━
+   ╰╴                                               ━━━━━━━ evaluation of constant value failed here
 
-error: aborting due to 18 previous errors
+error: aborting due to 15 previous errors
 
