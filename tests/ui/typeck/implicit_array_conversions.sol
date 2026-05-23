@@ -6,6 +6,7 @@
 
 contract C {
     uint256[] storageArr;
+    mapping(int256 => int256) mappingArrElement;
 
     // === Valid: same element type assignment ===
     function sameDynamicArray(uint256[] memory a) internal pure {
@@ -14,6 +15,11 @@ contract C {
 
     function sameFixedArray(uint256[3] memory a) internal pure {
         uint256[3] memory b = a;
+    }
+
+    function fixedArrayLiteral() internal pure {
+        uint256[3] memory a = [uint256(1), uint256(2), uint256(3)];
+        sameFixedArray([uint256(1), uint256(2), uint256(3)]);
     }
 
     // === Valid: explicit conversions preserve data locations ===
@@ -57,6 +63,19 @@ contract C {
     function explicitStorageToCalldata() external view {
         uint256[] storage a = storageArr;
         uint256[] calldata b = uint256[](a); //~ ERROR: mismatched types
+    }
+
+    // === Invalid: inline array element types must be mobile and nameable ===
+    function invalidMobileType() internal pure {
+        [uint256]; //~ ERROR: invalid mobile type
+    }
+
+    function unnamedTupleElement() internal pure {
+        [(uint256(1), uint256(2)), (uint256(3), uint256(4))]; //~ ERROR: cannot infer nameable array element type
+    }
+
+    function mappingElementType() internal view {
+        [mappingArrElement]; //~ ERROR: is only valid in storage because it contains a (nested) mapping
     }
 
     // === Invalid: different array lengths ===
