@@ -34,5 +34,12 @@ contract Test {
 
     function testParenthesizedCallValues() public {
         (returnsTuple()) = (uint256(1), uint256(1)); //~ ERROR: expression has to be an lvalue
+        //~^ ERROR: mismatched number of components
+    }
+
+    function testTupleHoleTypeMismatch() external {
+        uint256 x = state;
+        (x, ) = (true, 1); //~ ERROR: mismatched types
+        (, x) = (1, true); //~ ERROR: mismatched types
     }
 }

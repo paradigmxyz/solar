@@ -39,6 +39,12 @@ contract Test {
         uint256 z;
         (x, y, z) = (z, y, x);
     }
+
+    function testTupleAssignWithHoles() external pure {
+        uint256 x;
+        (x, ) = (1, true);
+        (, x) = (false, 2);
+    }
     
     function testFunctionParam(uint256 param) external pure {
         uint256 x;
