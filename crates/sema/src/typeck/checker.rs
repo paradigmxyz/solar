@@ -78,19 +78,12 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(value) => {
                 if value.as_u256().is_none() {
                     self.dcx()
-                        .err(format!(
-                            "base slot of storage layout evaluates to {value}, which is outside the range of type `uint256`"
-                        ))
+                        .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
                         .span(slot.span)
                         .emit();
                 }
             }
-            Err(err)
-                if matches!(
-                    err.kind,
-                    EvalErrorKind::NonInteger | EvalErrorKind::UnsupportedLiteral
-                ) =>
-            {
+            Err(err) if matches!(err.kind, EvalErrorKind::UnsupportedLiteral) => {
                 self.dcx()
                     .err("base slot of storage layout must evaluate to an integer")
                     .span(slot.span)
