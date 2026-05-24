@@ -52,5 +52,11 @@ error: `abi.decode` type tuple components must be types
 LL │         abi.decode(data, ((uint256, int256)));
    ╰╴                          ━━━━━━━━━━━━━━━━━
 
-error: aborting due to 8 previous errors
+error: decoding type not supported
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode(data, (Unsupported));
+   ╰╴                          ━━━━━━━━━━━ found `struct C.Unsupported memory`
+
+error: aborting due to 9 previous errors
 

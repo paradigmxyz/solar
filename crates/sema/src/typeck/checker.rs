@@ -1450,6 +1450,16 @@ impl<'gcx> TypeChecker<'gcx> {
             if matches!(ty.kind, TyKind::Elementary(ElementaryType::Address(false))) {
                 ty = self.gcx.types.address_payable;
             }
+            if !valid_abi_decodable_type(ty, self.gcx) {
+                let guar = self
+                    .dcx()
+                    .err("decoding type not supported")
+                    .span(type_expr.span)
+                    .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
             tys.push(ty);
         }
         self.gcx.mk_tys(&tys)
@@ -2668,6 +2678,23 @@ fn type_supported_by_old_abi_encoder(ty: Ty<'_>) -> bool {
         TyKind::Tuple(_) => false,
         TyKind::Slice(array) => type_supported_by_old_abi_encoder(array),
         _ => true,
+    }
+}
+
+fn valid_abi_decodable_type<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
+    if ty.references_error() {
+        return true;
+    }
+    match ty.kind {
+        TyKind::Error(..)
+        | TyKind::Event(..)
+        | TyKind::Module(..)
+        | TyKind::BuiltinModule(..)
+        | TyKind::Type(_)
+        | TyKind::Meta(_)
+        | TyKind::Variadic
+        | TyKind::Tuple(_) => false,
+        _ => ty.can_be_exported(gcx),
     }
 }
 
