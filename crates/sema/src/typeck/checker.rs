@@ -978,7 +978,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
-                self.check_positional_call_args(call_span, args.span, exprs, param_tys);
+                self.check_positional_call_args(Some(call_span), args.span, exprs, param_tys);
             }
             hir::CallArgsKind::Named(named_args) => {
                 if let Some(names) = param_names {
@@ -1339,31 +1339,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
-                let (fixed_params, variadic) = split_variadic_params(param_tys);
-                if variadic {
-                    if exprs.len() < fixed_params.len() {
-                        return false;
-                    }
-                } else if exprs.len() != fixed_params.len() {
-                    return false;
-                }
-                let (fixed_exprs, variadic_exprs) = exprs.split_at(fixed_params.len());
-                let fixed_match = fixed_exprs
-                    .iter()
-                    .zip(fixed_params)
-                    .all(|(expr, &param_ty)| self.arg_matches(expr, param_ty));
-                if !fixed_match {
-                    return false;
-                }
-                if variadic {
-                    if variadic_exprs.is_empty() {
-                        return false;
-                    }
-                    for expr in variadic_exprs {
-                        let _ = self.check_expr_once(expr);
-                    }
-                }
-                true
+                self.check_positional_call_args(None, args.span, exprs, param_tys)
             }
             hir::CallArgsKind::Named(named_args) => {
                 let Some(names) = param_names else { return false };
@@ -1498,59 +1474,72 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn check_positional_call_args(
         &mut self,
-        call_span: Span,
+        call_span: Option<Span>,
         args_span: Span,
         exprs: &'gcx [hir::Expr<'gcx>],
         param_tys: &[Ty<'gcx>],
-    ) {
+    ) -> bool {
         let (fixed_params, variadic) = split_variadic_params(param_tys);
+        let mut matches = true;
 
         if !variadic && exprs.len() != fixed_params.len() {
-            self.dcx()
-                .err(format!(
-                    "wrong argument count for function call: {} arguments given but expected {}",
-                    exprs.len(),
-                    fixed_params.len()
-                ))
-                .span(call_span)
-                .span_label(
-                    args_span,
-                    format!(
-                        "expected {} argument{}, found {}",
-                        fixed_params.len(),
-                        pluralize!(fixed_params.len()),
-                        exprs.len()
-                    ),
-                )
-                .emit();
+            matches = false;
+            if let Some(call_span) = call_span {
+                self.dcx()
+                    .err(format!(
+                        "wrong argument count for function call: {} arguments given but expected {}",
+                        exprs.len(),
+                        fixed_params.len()
+                    ))
+                    .span(call_span)
+                    .span_label(
+                        args_span,
+                        format!(
+                            "expected {} argument{}, found {}",
+                            fixed_params.len(),
+                            pluralize!(fixed_params.len()),
+                            exprs.len()
+                        ),
+                    )
+                    .emit();
+            }
         } else if variadic && exprs.len() < fixed_params.len() {
-            self.dcx()
-                .err(format!(
-                    "wrong argument count for function call: {} arguments given but expected at least {}",
-                    exprs.len(),
-                    fixed_params.len()
-                ))
-                .span(call_span)
-                .span_label(
-                    args_span,
-                    format!(
-                        "expected at least {} argument{}, found {}",
-                        fixed_params.len(),
-                        pluralize!(fixed_params.len()),
-                        exprs.len()
-                    ),
-                )
-                .emit();
+            matches = false;
+            if let Some(call_span) = call_span {
+                self.dcx()
+                    .err(format!(
+                        "wrong argument count for function call: {} arguments given but expected at least {}",
+                        exprs.len(),
+                        fixed_params.len()
+                    ))
+                    .span(call_span)
+                    .span_label(
+                        args_span,
+                        format!(
+                            "expected at least {} argument{}, found {}",
+                            fixed_params.len(),
+                            pluralize!(fixed_params.len()),
+                            exprs.len()
+                        ),
+                    )
+                    .emit();
+            }
         }
 
         let count = std::cmp::min(exprs.len(), fixed_params.len());
         for i in 0..count {
             let actual = self.check_expr_once(&exprs[i]);
-            self.check_expected(&exprs[i], actual, fixed_params[i]);
+            if call_span.is_some() {
+                self.check_expected(&exprs[i], actual, fixed_params[i]);
+            } else if actual.try_convert_implicit_to(fixed_params[i], self.gcx).is_err() {
+                matches = false;
+            }
         }
         for expr in exprs.iter().skip(count) {
             let _ = self.check_expr_once(expr);
         }
+
+        matches
     }
 
     fn check_named_call_args(
