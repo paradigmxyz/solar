@@ -82,10 +82,7 @@ impl<'gcx> TypeChecker<'gcx> {
         match ConstantEvaluator::new(self.gcx).eval(slot) {
             Ok(value) => {
                 if value.as_u256().is_none() {
-                    self.dcx()
-                        .err("base slot of storage layout evaluates to a value outside the range of type `uint256`")
-                        .span(slot.span)
-                        .emit();
+                    self.dcx().err_span("base slot of storage layout evaluates to a value outside the range of type `uint256`", slot.span);
                 }
             }
             Err(_err) => {}
@@ -147,7 +144,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     if (i == 0 || common.is_some())
                         && let None = expr_ty.mobile(self.gcx)
                     {
-                        let g = self.dcx().err("invalid mobile type").span(expr.span).emit();
+                        let g = self.dcx().err_span("invalid mobile type", expr.span);
                         guar.get_or_insert(g);
                     }
                     if let Some(common_ty) = common {
@@ -165,7 +162,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             "type `{}` is only valid in storage because it contains a (nested) mapping",
                             common.display(self.gcx),
                         );
-                        self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
+                        self.gcx.mk_ty_err(self.dcx().err_span(msg, expr.span))
                     } else if !common.nameable() {
                         self.gcx.mk_ty_err(
                             self.dcx()
@@ -181,7 +178,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                 } else {
                     self.gcx.mk_ty_err(
-                        self.dcx().err("cannot infer array element type").span(expr.span).emit(),
+                        self.dcx().err_span("cannot infer array element type", expr.span),
                     )
                 }
             }
@@ -251,12 +248,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
                         if f.is_declaration() {
-                            return self.gcx.mk_ty_err(
-                                self.dcx()
-                                    .err("cannot call function via contract type name")
-                                    .span(expr.span)
-                                    .emit(),
-                            );
+                            return self.gcx.mk_ty_err(self.dcx().err_span(
+                                "cannot call function via contract type name",
+                                expr.span,
+                            ));
                         }
                         let param_names = if let Some(struct_id) = struct_id {
                             Some(self.get_struct_field_names(struct_id))
@@ -270,10 +265,10 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
                     TyKind::Event(param_tys, id) => {
                         if !self.in_emit {
-                            self.dcx()
-                                .err("event invocations have to be prefixed by `emit`")
-                                .span(expr.span)
-                                .emit();
+                            self.dcx().err_span(
+                                "event invocations have to be prefixed by `emit`",
+                                expr.span,
+                            );
                         }
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
@@ -286,10 +281,10 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Error(param_tys, id) => {
                         // TODO: Also allow in require(condition, MyError(...)).
                         if !self.in_revert {
-                            self.dcx()
-                                .err("errors can only be used with revert statements")
-                                .span(expr.span)
-                                .emit();
+                            self.dcx().err_span(
+                                "errors can only be used with revert statements",
+                                expr.span,
+                            );
                         }
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
@@ -358,7 +353,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     if let Some(index) = index {
                         let _ = self.check_expr_outside_lvalue_context(index, Some(index_ty));
                     } else {
-                        self.dcx().err("index expression cannot be omitted").span(expr.span).emit();
+                        self.dcx().err_span("index expression cannot be omitted", expr.span);
                     }
                     result_ty
                 } else if let TyKind::Type(elem_ty) = ty.kind {
@@ -378,15 +373,15 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.gcx.mk_ty(TyKind::Type(self.gcx.mk_ty(arr)))
                 } else {
                     let msg = format!("cannot index into {}", ty.display(self.gcx));
-                    self.gcx.mk_ty_err(self.dcx().err(msg).span(expr.span).emit())
+                    self.gcx.mk_ty_err(self.dcx().err_span(msg, expr.span))
                 }
             }
             hir::ExprKind::Slice(lhs, start, end) => {
                 let ty = self.check_expr(lhs);
                 if !ty.is_sliceable() {
-                    self.dcx().err("can only slice arrays").span(expr.span).emit();
+                    self.dcx().err_span("can only slice arrays", expr.span);
                 } else if !is_calldata_sliceable(ty) {
-                    self.dcx().err("can only slice dynamic calldata arrays").span(expr.span).emit();
+                    self.dcx().err_span("can only slice dynamic calldata arrays", expr.span);
                 }
                 if let Some((_index_ty, _result_ty)) = self.index_types(ty) {
                     if let Some(start) = start {
@@ -401,7 +396,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.gcx.mk_ty(TyKind::Slice(ty))
                     }
                 } else {
-                    self.gcx.mk_ty_err(self.dcx().err("cannot index").span(expr.span).emit())
+                    self.gcx.mk_ty_err(self.dcx().err_span("cannot index", expr.span))
                 }
             }
             hir::ExprKind::Lit(lit) if self.in_yul => self.check_yul_lit(lit),
@@ -482,7 +477,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         let c = self.gcx.hir.contract(id);
                         if !c.kind.is_contract() {
                             let msg = format!("cannot instantiate {}s", c.kind);
-                            self.gcx.mk_ty_err(self.dcx().err(msg).span(hir_ty.span).emit())
+                            self.gcx.mk_ty_err(self.dcx().err_span(msg, hir_ty.span))
                         } else {
                             let mut parameters: &[Ty<'_>] = &[];
                             let mut sm = hir::StateMutability::NonPayable;
@@ -512,17 +507,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     _ if ty.is_array_like() => {
                         if ty.has_mapping(self.gcx) {
                             self.gcx.mk_ty_err(
-                                self.dcx()
-                                    .err("cannot instantiate mappings")
-                                    .span(hir_ty.span)
-                                    .emit(),
+                                self.dcx().err_span("cannot instantiate mappings", hir_ty.span),
                             )
                         } else if ty.contains_library(self.gcx) {
                             self.gcx.mk_ty_err(
-                                self.dcx()
-                                    .err("invalid use of a library name")
-                                    .span(hir_ty.span)
-                                    .emit(),
+                                self.dcx().err_span("invalid use of a library name", hir_ty.span),
                             )
                         } else {
                             let ty = ty.with_loc(self.gcx, DataLocation::Memory);
@@ -535,10 +524,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     }
                     TyKind::Err(_) => ty,
                     _ => self.gcx.mk_ty_err(
-                        self.dcx()
-                            .err("expected contract or dynamic array type")
-                            .span(hir_ty.span)
-                            .emit(),
+                        self.dcx().err_span("expected contract or dynamic array type", hir_ty.span),
                     ),
                 }
             }
@@ -579,12 +565,10 @@ impl<'gcx> TypeChecker<'gcx> {
                     (true_ty, false_ty) => {
                         let mut guar = None;
                         if true_ty.is_none() {
-                            guar =
-                                Some(self.dcx().err("invalid true type").span(true_.span).emit());
+                            guar = Some(self.dcx().err_span("invalid true type", true_.span));
                         }
                         if false_ty.is_none() {
-                            guar =
-                                Some(self.dcx().err("invalid false type").span(false_.span).emit());
+                            guar = Some(self.dcx().err_span("invalid false type", false_.span));
                         }
                         true_ty.or(false_ty).unwrap_or_else(|| self.gcx.mk_ty_err(guar.unwrap()))
                     }
@@ -595,7 +579,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 let mut tys = exprs.iter().map(|&expr_opt| {
                     let empty_err = |this: &Self, span| {
                         this.gcx.mk_ty_err(
-                            this.dcx().err("tuple components cannot be empty").span(span).emit(),
+                            this.dcx().err_span("tuple components cannot be empty", span),
                         )
                     };
                     if let Some(expr) = expr_opt {
@@ -622,7 +606,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if valid_meta_type(ty) {
                     self.gcx.mk_ty(TyKind::Meta(ty))
                 } else {
-                    self.gcx.mk_ty_err(self.dcx().err("invalid type").span(hir_ty.span).emit())
+                    self.gcx.mk_ty_err(self.dcx().err_span("invalid type", hir_ty.span))
                 }
             }
             hir::ExprKind::Type(ref ty) => {
@@ -675,7 +659,7 @@ impl<'gcx> TypeChecker<'gcx> {
         // https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1421
         if let hir::ExprKind::Tuple(components) = &expr.kind {
             if components.is_empty() {
-                self.dcx().err("empty tuple on the left hand side").span(expr.span).emit();
+                self.dcx().err_span("empty tuple on the left hand side", expr.span);
                 return;
             }
             let types =
@@ -691,10 +675,10 @@ impl<'gcx> TypeChecker<'gcx> {
         // Types containing mappings cannot be assigned to, unless the lvalue is a local/return
         // variable (local storage pointers are OK).
         if ty.has_mapping(self.gcx) && !self.is_local_or_return_variable(expr) {
-            self.dcx()
-                .err("types in storage containing (nested) mappings cannot be assigned to")
-                .span(expr.span)
-                .emit();
+            self.dcx().err_span(
+                "types in storage containing (nested) mappings cannot be assigned to",
+                expr.span,
+            );
         }
     }
 
@@ -862,14 +846,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 Some(self.fn_call_return_type(function_ty.returns))
             }
-            WantOne::Many => Some(
-                self.gcx.mk_ty_err(
-                    self.dcx()
-                        .err("user-defined operator has more than one matching definition")
-                        .span(span)
-                        .emit(),
-                ),
-            ),
+            WantOne::Many => {
+                Some(self.gcx.mk_ty_err(
+                    self.dcx().err_span(
+                        "user-defined operator has more than one matching definition",
+                        span,
+                    ),
+                ))
+            }
         }
     }
 
@@ -902,7 +886,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         let WantOne::One(from_expr) = args.exprs().collect::<WantOne<_>>() else {
             return self.gcx.mk_ty_err(
-                self.dcx().err("expected exactly one unnamed argument").span(args.span).emit(),
+                self.dcx().err_span("expected exactly one unnamed argument", args.span),
             );
         };
         let from = self.check_expr(from_expr);
@@ -978,10 +962,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 if let Some(names) = param_names {
                     self.check_named_call_args(call_span, args.span, named_args, param_tys, names);
                 } else {
-                    self.dcx()
-                        .err("named arguments cannot be used for functions that take arbitrary parameters")
-                        .span(args.span)
-                        .emit();
+                    self.dcx().err_span("named arguments cannot be used for functions that take arbitrary parameters", args.span);
                     for arg in named_args {
                         let _ = self.check_expr(&arg.value);
                     }
@@ -1037,7 +1018,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         )
                     }
                 };
-                self.gcx.mk_ty_err(self.dcx().err(msg).span(ident.span).emit())
+                self.gcx.mk_ty_err(self.dcx().err_span(msg, ident.span))
             }
         };
         self.register_ty(callee, ty);
@@ -1068,7 +1049,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     OverloadError::NotFound => "no matching declarations found",
                     OverloadError::Ambiguous => "no unique declarations found",
                 };
-                hir::Res::Err(self.dcx().err(msg).span(callee.span).emit())
+                hir::Res::Err(self.dcx().err_span(msg, callee.span))
             }
         };
         let ty = self.type_of_res(res);
@@ -1088,10 +1069,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if function.contract == Some(contract_id)
             && function.visibility >= solar_ast::Visibility::Public
         {
-            self.dcx()
-                .err("libraries cannot call their own functions externally")
-                .span(span)
-                .emit();
+            self.dcx().err_span("libraries cannot call their own functions externally", span);
         }
     }
 
@@ -1304,20 +1282,14 @@ impl<'gcx> TypeChecker<'gcx> {
                 let _ = self.check_expr(&opt.value);
             }
             if !ty.references_error() {
-                self.dcx()
-                    .err("function call options can only be set on external function calls or contract creations")
-                    .span(span)
-                    .emit();
+                self.dcx().err_span("function call options can only be set on external function calls or contract creations", span);
             }
             return ty;
         };
 
         let creation = f.is_creation();
         if !creation && !f.is_external() && !f.is_bare_call() {
-            self.dcx()
-                .err("function call options can only be set on external function calls or contract creations")
-                .span(span)
-                .emit();
+            self.dcx().err_span("function call options can only be set on external function calls or contract creations", span);
         }
 
         let mut gas_set = false;
@@ -1328,10 +1300,10 @@ impl<'gcx> TypeChecker<'gcx> {
             let duplicate = match name {
                 kw::Gas => {
                     if creation {
-                        self.dcx()
-                            .err("function call option `gas` cannot be used with `new`")
-                            .span(opt.name.span)
-                            .emit();
+                        self.dcx().err_span(
+                            "function call option `gas` cannot be used with `new`",
+                            opt.name.span,
+                        );
                     } else {
                         let _ = self.expect_ty(&opt.value, self.gcx.types.uint(256));
                     }
@@ -1340,14 +1312,10 @@ impl<'gcx> TypeChecker<'gcx> {
                 sym::value => {
                     if f.kind == TyFnKind::BareDelegateCall {
                         self.dcx()
-                            .err("cannot set option `value` for delegatecall")
-                            .span(opt.name.span)
-                            .emit();
+                            .err_span("cannot set option `value` for delegatecall", opt.name.span);
                     } else if f.kind == TyFnKind::BareStaticCall {
                         self.dcx()
-                            .err("cannot set option `value` for staticcall")
-                            .span(opt.name.span)
-                            .emit();
+                            .err_span("cannot set option `value` for staticcall", opt.name.span);
                     } else if f.state_mutability != StateMutability::Payable {
                         let msg = if creation
                             && let Some(ret) = f.returns.first()
@@ -1360,17 +1328,17 @@ impl<'gcx> TypeChecker<'gcx> {
                         } else {
                             "cannot set option `value` on a non-payable function type".to_string()
                         };
-                        self.dcx().err(msg).span(opt.name.span).emit();
+                        self.dcx().err_span(msg, opt.name.span);
                     }
                     let _ = self.expect_ty(&opt.value, self.gcx.types.uint(256));
                     std::mem::replace(&mut value_set, true)
                 }
                 sym::salt => {
                     if !creation {
-                        self.dcx()
-                            .err("function call option `salt` can only be used with `new`")
-                            .span(opt.name.span)
-                            .emit();
+                        self.dcx().err_span(
+                            "function call option `salt` can only be used with `new`",
+                            opt.name.span,
+                        );
                     }
                     let _ = self.expect_ty(&opt.value, self.gcx.types.fixed_bytes(32));
                     std::mem::replace(&mut salt_set, true)
@@ -1525,10 +1493,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
         if let Some(init) = var.initializer {
             if var.is_state_variable() && ty.has_mapping(self.gcx) {
-                self.dcx()
-                    .err("types in storage containing (nested) mappings cannot be assigned to")
-                    .span(var.span)
-                    .emit();
+                self.dcx().err_span(
+                    "types in storage containing (nested) mappings cannot be assigned to",
+                    var.span,
+                );
             } else if expect {
                 let _ = if var.is_state_variable() {
                     self.with_construction_context(|this| this.expect_ty(init, ty))
@@ -1540,18 +1508,15 @@ impl<'gcx> TypeChecker<'gcx> {
 
         if var.is_immutable() {
             if !ty.is_value_type() {
-                self.dcx()
-                    .err("immutable variables cannot have a non-value type")
-                    .span(var.span)
-                    .emit();
+                self.dcx().err_span("immutable variables cannot have a non-value type", var.span);
             }
             if let TyKind::Fn(f) = ty.kind
                 && f.is_external()
             {
-                self.dcx()
-                    .err("immutable variables of external function type are not yet supported")
-                    .span(var.span)
-                    .emit();
+                self.dcx().err_span(
+                    "immutable variables of external function type are not yet supported",
+                    var.span,
+                );
             }
         }
 
@@ -1644,7 +1609,7 @@ impl<'gcx> TypeChecker<'gcx> {
             ty.kind,
             TyKind::Elementary(_) | TyKind::Udvt(_, _) | TyKind::Contract(_) | TyKind::Enum(_)
         ) {
-            self.dcx().err("only elementary types, user defined value types, contract types or enums are allowed as mapping keys.").span(key.span).emit();
+            self.dcx().err_span("only elementary types, user defined value types, contract types or enums are allowed as mapping keys.", key.span);
         }
         ty
     }
@@ -1752,7 +1717,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     OverloadError::NotFound => "no matching declarations found",
                     OverloadError::Ambiguous => "no unique declarations found",
                 };
-                hir::Res::Err(self.dcx().err(msg).span(span).emit())
+                hir::Res::Err(self.dcx().err_span(msg, span))
             }
         }
     }
@@ -1964,18 +1929,15 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     match stmt.kind {
                         hir::StmtKind::Emit(_) => {
                             if !matches!(callee_ty.kind, TyKind::Event(..)) {
-                                self.dcx()
-                                    .err("expression has to be an event invocation")
-                                    .span(callee.span)
-                                    .emit();
+                                self.dcx().err_span(
+                                    "expression has to be an event invocation",
+                                    callee.span,
+                                );
                             }
                         }
                         hir::StmtKind::Revert(_) => {
                             if !matches!(callee_ty.kind, TyKind::Error(..)) {
-                                self.dcx()
-                                    .err("expression has to be an error")
-                                    .span(callee.span)
-                                    .emit();
+                                self.dcx().err_span("expression has to be an error", callee.span);
                             }
                         }
                         _ => unreachable!(),
@@ -1997,10 +1959,10 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                     && !ty.is_unit()
                     && !ty.references_error()
                 {
-                    self.dcx()
-                        .err("inline assembly expression statements cannot return values")
-                        .span(expr.span)
-                        .emit();
+                    self.dcx().err_span(
+                        "inline assembly expression statements cannot return values",
+                        expr.span,
+                    );
                 }
                 return ControlFlow::Continue(());
             }

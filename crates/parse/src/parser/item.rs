@@ -154,7 +154,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if !self.in_contract && !kind.allowed_in_global() {
             let msg = format!("{kind}s are not allowed in the global scope");
-            self.dcx().err(msg).span(lo.to(self.prev_token.span)).emit();
+            self.dcx().err_span(msg, lo.to(self.prev_token.span));
         }
         // All function kinds are allowed in contracts.
 
@@ -198,7 +198,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             header.name = Some(ident);
         } else if self.token.is_non_reserved_ident(false) {
             let msg = "function names are not allowed here";
-            self.dcx().err(msg).span(self.token.span).emit();
+            self.dcx().err_span(msg, self.token.span);
             self.bump();
         }
 
@@ -230,7 +230,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     let mut v = Some(visibility);
                     if !flags.contains(FunctionFlags::from_visibility(visibility)) {
                         let msg = visibility_error(visibility, flags.visibilities());
-                        self.dcx().err(msg).span(span).emit();
+                        self.dcx().err_span(msg, span);
                         // Set to the first valid visibility, if any.
                         v = flags.visibilities().into_iter().flatten().next();
                     }
@@ -250,7 +250,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                     if !flags.contains(FunctionFlags::from_state_mutability(state_mutability)) {
                         let msg =
                             state_mutability_error(state_mutability, flags.state_mutabilities());
-                        self.dcx().err(msg).span(span).emit();
+                        self.dcx().err_span(msg, span);
                         // Set to the first valid state mutability, if any.
                         sm = flags.state_mutabilities().into_iter().flatten().next();
                     }
@@ -260,7 +260,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let span = self.prev_token.span;
                 if !flags.contains(FunctionFlags::VIRTUAL) {
                     let msg = "`virtual` is not allowed here";
-                    self.dcx().err(msg).span(span).emit();
+                    self.dcx().err_span(msg, span);
                 } else if let Some(prev) = header.virtual_ {
                     let msg = "virtual already specified";
                     self.dcx().err(msg).span(span).span_label(prev, "previous definition").emit();
@@ -272,7 +272,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let span = o.span;
                 if !flags.contains(FunctionFlags::OVERRIDE) {
                     let msg = "`override` is not allowed here";
-                    self.dcx().err(msg).span(span).emit();
+                    self.dcx().err_span(msg, span);
                 } else if let Some(prev) = &header.override_ {
                     let msg = "override already specified";
                     self.dcx()
@@ -392,7 +392,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             && !kind.is_contract()
         {
             let msg = "storage layout is only allowed for contracts";
-            self.dcx().err(msg).span(layout.span).emit();
+            self.dcx().err_span(msg, layout.span);
         }
 
         self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
@@ -452,7 +452,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             if !self.token.is_eof() && tokens.is_empty() {
                 let msg = "expected at least one token in pragma directive";
-                self.dcx().err(msg).span(self.prev_token.span).emit();
+                self.dcx().err_span(msg, self.prev_token.span);
             }
             PragmaTokens::Verbatim(self.alloc_vec(tokens))
         };
@@ -600,7 +600,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         };
         if path.value.as_str().is_empty() {
             let msg = "import path cannot be empty";
-            self.dcx().err(msg).span(path.span).emit();
+            self.dcx().err_span(msg, path.span);
         }
         self.expect_semi()?;
         Ok(ImportDirective { path, items })
@@ -741,20 +741,20 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             if let Some(s) = self.parse_data_location() {
                 if !flags.contains(VarFlags::DATALOC) {
                     let msg = "data locations are not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else if data_location.is_some() {
                     let msg = "data location already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else {
                     data_location = Some(s);
                 }
             } else if let Some(v) = self.parse_visibility() {
                 if !flags.contains(VarFlags::from_visibility(v)) {
                     let msg = visibility_error(v, flags.visibilities());
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else if visibility.is_some() {
                     let msg = "visibility already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else {
                     visibility = Some(v);
                 }
@@ -762,34 +762,34 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 // `CONSTANT_VAR` is special cased later.
                 if flags != VarFlags::CONSTANT_VAR && !flags.contains(VarFlags::from_varmut(m)) {
                     let msg = varmut_error(m, flags.varmuts());
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else if mutability.is_some() {
                     let msg = "mutability already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else {
                     mutability = Some(m);
                 }
             } else if self.eat_keyword(kw::Indexed) {
                 if !flags.contains(VarFlags::INDEXED) {
                     let msg = "`indexed` is not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else if indexed {
                     let msg = "`indexed` already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else {
                     indexed = true;
                 }
             } else if self.eat_keyword(kw::Virtual) {
                 let msg = "`virtual` is not allowed here";
-                self.dcx().err(msg).span(self.prev_token.span).emit();
+                self.dcx().err_span(msg, self.prev_token.span);
             } else if self.eat_keyword(kw::Override) {
                 let o = self.parse_override()?;
                 if !flags.contains(VarFlags::OVERRIDE) {
                     let msg = "`override` is not allowed here";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else if override_.is_some() {
                     let msg = "override already specified";
-                    self.dcx().err(msg).span(self.prev_token.span).emit();
+                    self.dcx().err_span(msg, self.prev_token.span);
                 } else {
                     override_ = Some(o);
                 }
@@ -825,11 +825,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
         if mutability == Some(VarMut::Constant) && initializer.is_none() {
             let msg = "constant variable must be initialized";
-            self.dcx().err(msg).span(span).emit();
+            self.dcx().err_span(msg, span);
         }
         if flags == VarFlags::CONSTANT_VAR && mutability != Some(VarMut::Constant) {
             let msg = "only constant variables are allowed at file level";
-            self.dcx().err(msg).span(span).emit();
+            self.dcx().err_span(msg, span);
         }
 
         Ok(VariableDefinition {
@@ -1000,7 +1000,7 @@ impl<'p, 'sess, 'ast> SemverVersionParser<'p, 'sess, 'ast> {
     }
 
     fn emit_err(&self, msg: impl Into<DiagMsg>) {
-        self.p.dcx().err(msg).span(self.current_span()).emit();
+        self.p.dcx().err_span(msg, self.current_span());
     }
 
     fn parse(mut self) -> SemverVersion {

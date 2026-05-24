@@ -183,7 +183,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .span(member.span)
                 .emit(),
             Err(ErrorKind::UnsupportedMember(member_set)) => {
-                self.dcx().err(member_set.unsupported_member_message()).span(member.span).emit()
+                self.dcx().err_span(member_set.unsupported_member_message(), member.span)
             }
             Err(ErrorKind::NonExternalFunction) => self
                 .dcx()
@@ -196,7 +196,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .span(expr.span)
                 .emit(),
             Err(ErrorKind::Assignment(YulMemberAssignmentError::StorageOffset)) => {
-                self.dcx().err("only `.slot` can be assigned to").span(member.span).emit()
+                self.dcx().err_span("only `.slot` can be assigned to", member.span)
             }
         };
 

@@ -662,7 +662,7 @@ impl<'gcx> Gcx<'gcx> {
             | hir::ItemId::Udvt(_) => self.type_of_item(id),
             _ => {
                 let msg = "name has to refer to a valid user-defined type";
-                self.mk_ty_err(self.dcx().err(msg).span(span).emit())
+                self.mk_ty_err(self.dcx().err_span(msg, span))
             }
         }
     }
@@ -693,16 +693,13 @@ impl<'gcx> Gcx<'gcx> {
                 )
                 .unwrap_or_else(|| {
                     self.mk_ty_err(
-                        self.dcx()
-                            .err("integer literal is greater than 2**256")
-                            .span(lit.span)
-                            .emit(),
+                        self.dcx().err_span("integer literal is greater than 2**256", lit.span),
                     )
                 })
             }
-            solar_ast::LitKind::Rational(_) => self.mk_ty_err(
-                self.dcx().err("rational literals are not supported").span(lit.span).emit(),
-            ),
+            solar_ast::LitKind::Rational(_) => {
+                self.mk_ty_err(self.dcx().err_span("rational literals are not supported", lit.span))
+            }
             solar_ast::LitKind::Address(_) => self.types.address,
             solar_ast::LitKind::Bool(_) => self.types.bool,
             &solar_ast::LitKind::Err(guar) => self.mk_ty_err(guar),
@@ -1001,7 +998,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                     format!("this type cannot be parameter or return type of a public {kind}")
                 };
                 let span = gcx.hir.variable(var_id).ty.span;
-                result = Err(gcx.dcx().err(msg).span(span).emit());
+                result = Err(gcx.dcx().err_span(msg, span));
             }
         }
         if result.is_err() {
@@ -1110,7 +1107,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 TyKind::Udvt(ty, id)
             } else {
                 let msg = "the underlying type of UDVTs must be an elementary value type";
-                return gcx.mk_ty_err(gcx.dcx().err(msg).span(udvt.ty.span).emit());
+                return gcx.mk_ty_err(gcx.dcx().err_span(msg, udvt.ty.span));
             }
         }
         hir::ItemId::Error(id) => {
@@ -1136,7 +1133,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         let s = gcx.hir.strukt(id);
 
         if cd.depth() >= 256 {
-            let guar = gcx.dcx().err("struct is too deeply nested").span(s.span).emit();
+            let guar = gcx.dcx().err_span("struct is too deeply nested", s.span);
             return CycleDetectorResult::Break(Either::Left(guar));
         }
 
@@ -1175,7 +1172,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         CycleDetectorResult::Break(Either::Left(guar)) => Recursiveness::Infinite(guar),
         CycleDetectorResult::Break(Either::Right(())) => Recursiveness::Recursive,
         CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
-            gcx.dcx().err("recursive struct definition").span(gcx.item_span(id)).emit()
+            gcx.dcx().err_span("recursive struct definition", gcx.item_span(id))
         ),
     }
 }
@@ -1275,12 +1272,12 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             Some(Transient) => {
                 if mut_specified {
                     let msg = "transient cannot be used as data location for constant or immutable variables";
-                    gcx.dcx().err(msg).span(var.span).emit();
+                    gcx.dcx().err_span(msg, var.span);
                 }
                 if var.initializer.is_some() {
                     let msg =
                         "initialization of transient storage state variables is not supported";
-                    gcx.dcx().err(msg).span(var.span).emit();
+                    gcx.dcx().err_span(msg, var.span);
                 }
                 Transient
             }

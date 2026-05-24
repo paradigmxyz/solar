@@ -56,16 +56,10 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
         match ty.same_source_file_level_user_type(gcx, using.source) {
             Ok(()) => {}
             Err(SameSourceFileLevelUserTypeError::NotUserDefined) => {
-                gcx.dcx()
-                    .err("can only use `global` with user-defined types")
-                    .span(using.span)
-                    .emit();
+                gcx.dcx().err_span("can only use `global` with user-defined types", using.span);
             }
             Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel) => {
-                gcx.dcx()
-                    .err("can only use `global` with types defined in the same source unit at file level")
-                    .span(using.span)
-                    .emit();
+                gcx.dcx().err_span("can only use `global` with types defined in the same source unit at file level", using.span);
             }
         }
     }
@@ -75,7 +69,7 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
         && let TyKind::Contract(id) = ty.kind
         && gcx.hir.contract(id).kind.is_library()
     {
-        gcx.dcx().err("invalid use of library name").span(using.span).emit();
+        gcx.dcx().err_span("invalid use of library name", using.span);
     }
 
     for entry in using.entries {
@@ -110,10 +104,7 @@ fn check_using_function<'gcx>(
     let is_library_function =
         function.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
     if !function.is_free() && !is_library_function {
-        gcx.dcx()
-            .err("only file-level functions and library functions can be attached to a type in a `using` statement")
-            .span(entry.span)
-            .emit();
+        gcx.dcx().err_span("only file-level functions and library functions can be attached to a type in a `using` statement", entry.span);
     }
 
     let TyKind::Fn(function_ty) = gcx.type_of_item(function_id.into()).kind else { unreachable!() };
@@ -332,9 +323,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     if contract.kind.is_library() {
         if let Some(receive) = contract.receive {
             gcx.dcx()
-                .err("libraries cannot have receive ether functions")
-                .span(gcx.item_span(receive))
-                .emit();
+                .err_span("libraries cannot have receive ether functions", gcx.item_span(receive));
         }
         return;
     }
@@ -342,10 +331,10 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         let f = gcx.hir.function(receive);
         // Check visibility
         if f.visibility != Visibility::External {
-            gcx.dcx()
-                .err("receive ether function must be defined as `external`")
-                .span(gcx.item_span(receive))
-                .emit();
+            gcx.dcx().err_span(
+                "receive ether function must be defined as `external`",
+                gcx.item_span(receive),
+            );
         }
 
         // Check state mutability
@@ -360,17 +349,13 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check parameters
         if !f.parameters.is_empty() {
             gcx.dcx()
-                .err("receive ether function cannot take parameters")
-                .span(gcx.item_span(receive))
-                .emit();
+                .err_span("receive ether function cannot take parameters", gcx.item_span(receive));
         }
 
         // Check return values
         if !f.returns.is_empty() {
             gcx.dcx()
-                .err("receive ether function cannot return values")
-                .span(gcx.item_span(receive))
-                .emit();
+                .err_span("receive ether function cannot return values", gcx.item_span(receive));
         }
     }
 }
@@ -381,7 +366,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let span = gcx.hir.contract(contract_id).name.span;
     let Some(total_size) = storage_size_upper_bound(gcx, contract_id) else {
-        gcx.dcx().err("contract requires too much storage").span(span).emit();
+        gcx.dcx().err_span("contract requires too much storage", span);
         return;
     };
 
@@ -474,7 +459,7 @@ impl<'gcx> BreakContinueChecker<'gcx> {
     fn check_break_continue(&self, span: Span, kind: &str) {
         if self.loop_depth == 0 {
             let msg = format!("`{kind}` outside of a loop");
-            self.gcx.sess.dcx.err(msg).span(span).emit();
+            self.gcx.sess.dcx.err_span(msg, span);
         }
     }
 }

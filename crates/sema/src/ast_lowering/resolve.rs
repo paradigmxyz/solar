@@ -106,7 +106,7 @@ impl super::LoweringContext<'_> {
                                         .source_map()
                                         .filename_for_diagnostics(&source.file.name)
                                 );
-                                let guar = self.sess.dcx.err(msg).span(import.span).emit();
+                                let guar = self.sess.dcx.err_span(msg, import.span);
                                 let _ = source_scope.declare_res(
                                     self.sess,
                                     &self.hir,
@@ -179,7 +179,7 @@ impl super::LoweringContext<'_> {
                 };
                 if base_id == contract_id {
                     let msg = "contracts cannot inherit from themselves";
-                    self.dcx().err(msg).span(name.span()).emit();
+                    self.dcx().err_span(msg, name.span());
                     continue;
                 }
                 bases.push(base_id);
@@ -400,10 +400,7 @@ impl<'gcx> ResolveContext<'gcx> {
                                 })
                             });
                             if !allowed {
-                                self.dcx()
-                                    .err("can only use modifiers defined in the current contract or in base contracts")
-                                    .span(modifier.name.span())
-                                    .emit();
+                                self.dcx().err_span("can only use modifiers defined in the current contract or in base contracts", modifier.name.span());
                                 continue;
                             }
                         }
@@ -540,7 +537,7 @@ impl<'gcx> ResolveContext<'gcx> {
             return hir::UsingEntryKind::Err(guar);
         }
         if functions.len() != 1 || saw_non_function {
-            let guar = self.dcx().err("expected function name").span(path.span()).emit();
+            let guar = self.dcx().err_span("expected function name", path.span());
             return hir::UsingEntryKind::Err(guar);
         }
         hir::UsingEntryKind::Functions(self.arena.alloc_smallvec(functions))
@@ -1052,9 +1049,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 sym::memory_dash_safe => {
                     if memory_safe {
                         self.dcx()
-                            .err("inline assembly marked memory-safe multiple times")
-                            .span(span)
-                            .emit();
+                            .err_span("inline assembly marked memory-safe multiple times", span);
                     }
                     memory_safe = true;
                 }
@@ -1412,7 +1407,7 @@ impl<'gcx> ResolveContext<'gcx> {
             return Ok(self.arena.alloc_as_slice(Res::Builtin(builtin)));
         }
         if name.name.as_str().starts_with("verbatim_") {
-            return Err(self.dcx().err("unsupported verbatim builtin").span(name.span).emit());
+            return Err(self.dcx().err_span("unsupported verbatim builtin", name.span));
         }
         Err(self.resolver.emit_resolver_error()(ResolverError::new(
             name,
@@ -1767,7 +1762,7 @@ impl<'gcx> ResolveContext<'gcx> {
                     break 'b hir::ExprKind::Payable(self.lower_expr(arg));
                 }
                 let msg = "expected exactly one unnamed argument";
-                let guar = self.sess.dcx.err(msg).span(expr.span).emit();
+                let guar = self.sess.dcx.err_span(msg, expr.span);
                 hir::ExprKind::Err(guar)
             }
             ast::ExprKind::Ternary(cond, then, r#else) => hir::ExprKind::Ternary(
@@ -2052,7 +2047,7 @@ impl<'gcx> SymbolResolver<'gcx> {
     }
 
     fn emit_resolver_error(&self) -> impl Fn(ResolverError) -> ErrorGuaranteed + '_ {
-        move |e| self.dcx.err(e.format()).span(e.span()).emit()
+        move |e| self.dcx.err_span(e.format(), e.span())
     }
 
     fn resolve_path(
@@ -2128,7 +2123,7 @@ impl<'gcx> SymbolResolver<'gcx> {
     }
 
     fn report_expected(&self, expected: &str, found: &str, span: Span) -> ErrorGuaranteed {
-        self.dcx.err(format!("expected {expected}, found {found}")).span(span).emit()
+        self.dcx.err_span(format!("expected {expected}, found {found}"), span)
     }
 }
 

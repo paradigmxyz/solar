@@ -361,7 +361,7 @@ impl<'gcx> ParsingContext<'gcx> {
             return None;
         }
         let Some(path) = path_from_bytes(&path_bytes[..]) else {
-            self.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
+            self.dcx().err_span("import path is not a valid UTF-8 string", span);
             return None;
         };
         self.file_resolver

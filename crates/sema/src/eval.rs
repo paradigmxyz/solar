@@ -17,11 +17,11 @@ pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorG
         Ok(int) => {
             let Some(int) = int.as_u256() else {
                 let msg = "array length cannot be negative";
-                return Err(gcx.dcx().err(msg).span(size.span).emit());
+                return Err(gcx.dcx().err_span(msg, size.span));
             };
             if int.is_zero() {
                 let msg = "array length must be greater than zero";
-                Err(gcx.dcx().err(msg).span(size.span).emit())
+                Err(gcx.dcx().err_span(msg, size.span))
             } else {
                 Ok(int)
             }

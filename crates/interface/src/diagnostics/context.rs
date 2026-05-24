@@ -1,6 +1,7 @@
 use super::{
     BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee, EmittedDiagnostics,
-    ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, SilentEmitter, emitter::HumanEmitter,
+    ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, MultiSpan, SilentEmitter,
+    emitter::HumanEmitter,
 };
 use crate::{Result, SourceMap};
 use anstream::ColorChoice;
@@ -375,6 +376,12 @@ impl DiagCtxt {
     #[track_caller]
     pub fn err(&self, msg: impl Into<DiagMsg>) -> DiagBuilder<'_, ErrorGuaranteed> {
         self.diag(Level::Error, msg)
+    }
+
+    /// Emits an error at `span` with the given `msg`.
+    #[track_caller]
+    pub fn err_span(&self, msg: impl Into<DiagMsg>, span: impl Into<MultiSpan>) -> ErrorGuaranteed {
+        self.err(msg).span(span).emit()
     }
 
     /// Creates a builder at the `Warning` level with the given `msg`.

@@ -320,7 +320,7 @@ impl<'gcx> Resolver<'gcx> {
 
     #[cold]
     fn emit_duplicate_tag_error(&self, tag_name: &str, tag_span: Span) {
-        self.gcx.dcx().err(format!("tag {tag_name} can only be given once")).span(tag_span).emit();
+        self.gcx.dcx().err_span(format!("tag {tag_name} can only be given once"), tag_span);
     }
 
     #[cold]

@@ -26,9 +26,7 @@ pub(super) fn check_using_operator<'gcx>(
     let Some(using_ty) = using_ty else { return };
     let TyKind::Udvt(_, _) = using_ty.kind else {
         gcx.dcx()
-            .err("operators can only be implemented for user-defined value types")
-            .span(entry.span)
-            .emit();
+            .err_span("operators can only be implemented for user-defined value types", entry.span);
         return;
     };
 
