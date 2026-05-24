@@ -34,7 +34,6 @@ struct TypeChecker<'gcx> {
     construction_context: u32,
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    member_builtins: FxHashMap<hir::ExprId, Builtin>,
     builtin_callees: FxHashMap<hir::ExprId, Builtin>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
@@ -67,7 +66,6 @@ impl<'gcx> TypeChecker<'gcx> {
             function: None,
             construction_context: 0,
             types: Default::default(),
-            member_builtins: Default::default(),
             builtin_callees: Default::default(),
             lvalue_context: None,
             in_emit: false,
@@ -323,7 +321,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // No-argument storage array `.push()` is the only call that can be an lvalue.
-                if self.member_builtins.get(&callee.id) != Some(&Builtin::ArrayPush0) {
+                if self.builtin_callees.get(&callee.id) != Some(&Builtin::ArrayPush0) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -1101,7 +1099,6 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
                 if let Some(hir::Res::Builtin(builtin)) = member.res {
-                    self.member_builtins.insert(callee.id, builtin);
                     self.builtin_callees.insert(callee.id, builtin);
                 }
                 self.member_call_ty(receiver_ty, member)
@@ -1900,7 +1897,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | hir::ExprKind::Err(_) => true,
 
             hir::ExprKind::Call(callee, ..) => {
-                self.member_builtins.get(&callee.id) == Some(&Builtin::ArrayPush0)
+                self.builtin_callees.get(&callee.id) == Some(&Builtin::ArrayPush0)
             }
 
             hir::ExprKind::Array(_)
