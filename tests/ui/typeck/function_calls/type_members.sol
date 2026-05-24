@@ -15,6 +15,11 @@ library PointerLib {
         uint256 x;
     }
 
+    enum Choice {
+        A,
+        B
+    }
+
     function ping() public {}
 
     function offset(Pointer ptr, uint256 by) internal pure returns (Pointer next) {

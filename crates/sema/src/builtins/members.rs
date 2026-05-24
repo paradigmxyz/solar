@@ -271,7 +271,22 @@ fn contract_type(
     } else {
         Either::Right(gcx.interface_functions(id).iter().map(|f| f.id))
     };
-    let mut members: MemberListOwned<'_> = functions
+    let type_members = contract
+        .items
+        .iter()
+        .copied()
+        .filter(|&item| {
+            let item = gcx.hir.item(item);
+            (is_library && item.is_visible_as_library_member())
+                || item.is_visible_via_contract_type_access()
+                || (!is_library
+                    && is_base_of_current
+                    && matches!(item, hir::Item::Variable(_))
+                    && item.visibility() > Visibility::Private)
+        })
+        .filter(|item| !matches!(item, hir::ItemId::Function(_)));
+
+    functions
         .map(|id| {
             let item = hir::ItemId::from(id);
             let f = gcx.hir.function(id);
@@ -294,22 +309,11 @@ fn contract_type(
                     attached: false,
                 })
             };
-            Member::with_res(gcx.item_name(item).name, ty, item)
+            (item, ty)
         })
-        .collect();
-
-    if !is_library && is_base_of_current {
-        members.extend(contract.variables().filter_map(|id| {
-            let var = gcx.hir.variable(id);
-            if var.visibility.unwrap_or(Visibility::Internal) <= Visibility::Private {
-                return None;
-            }
-            let item = hir::ItemId::from(id);
-            Some(Member::with_res(gcx.item_name(item).name, gcx.type_of_item(item), item))
-        }));
-    }
-
-    members
+        .chain(type_members.map(|item| (item, gcx.type_of_res(item.into()))))
+        .map(|(item, ty)| Member::with_res(gcx.item_name(item).name, ty, item))
+        .collect()
 }
 
 // `type(T)`
