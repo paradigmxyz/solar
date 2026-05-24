@@ -1,0 +1,56 @@
+error: wrong argument count for function call: 0 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode();
+   │         ━━━━━━━━━━┬─
+   │                   │
+   ╰╴                  expected 2 arguments, found 0
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode(data);
+   │         ━━━━━━━━━━┬─────
+   │                   │
+   ╰╴                  expected 2 arguments, found 1
+
+error: wrong argument count for function call: 3 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode(data, uint256, uint256);
+   │         ━━━━━━━━━━┬───────────────────────
+   │                   │
+   ╰╴                  expected 2 arguments, found 3
+
+error: the second argument to `abi.decode` must be a tuple of types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode(data, uint256, uint256);
+   ╰╴                         ━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode(uint256, uint256);
+   ╰╴                   ━━━━━━━ expected `bytes memory`, found `type(uint256)`
+
+error: the second argument to `abi.decode` must be a tuple of types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode(uint256, uint256);
+   ╰╴                            ━━━━━━━
+
+error: `abi.decode` type tuple components must be types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode(data, (type(uint256)));
+   ╰╴                          ━━━━━━━━━━━━━
+
+error: `abi.decode` type tuple components must be types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_decode.sol:LL:CC
+   │
+LL │         abi.decode(data, ((uint256, int256)));
+   ╰╴                          ━━━━━━━━━━━━━━━━━
+
+error: aborting due to 8 previous errors
+
