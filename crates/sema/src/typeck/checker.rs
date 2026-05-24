@@ -1205,7 +1205,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         };
 
-        if components.len() != function_ty.parameters.len() {
+        let has_empty_component = components.iter().any(|component| component.is_none());
+        if !has_empty_component && components.len() != function_ty.parameters.len() {
             result = result.and(Err(self
                 .dcx()
                 .err(format!(
@@ -1219,11 +1220,6 @@ impl<'gcx> TypeChecker<'gcx> {
 
         for (component, &expected) in components.iter().zip(function_ty.parameters) {
             let Some(component) = component else {
-                result = result.and(Err(self
-                    .dcx()
-                    .err("`abi.encodeCall` argument tuple components cannot be empty")
-                    .span(arguments.span)
-                    .emit()));
                 continue;
             };
             let actual = self.check_expr_once(component);
