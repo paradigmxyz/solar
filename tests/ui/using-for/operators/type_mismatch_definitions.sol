@@ -22,7 +22,7 @@ function div(int256 a, int256 b) pure returns (Int) {
 using {add as +, sub as -, div as /} for Int global;
 
 function f() pure {
-    Int.wrap(0) + Int.wrap(1); //~ ERROR: cannot apply builtin operator
-    Int.wrap(0) - Int.wrap(0); //~ ERROR: cannot apply builtin operator
-    Int.wrap(0) / Int.wrap(0); //~ ERROR: cannot apply builtin operator
+    Int.wrap(0) + Int.wrap(1);
+    Int.wrap(0) - Int.wrap(0);
+    Int.wrap(0) / Int.wrap(0);
 }

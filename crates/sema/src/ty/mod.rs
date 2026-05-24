@@ -71,6 +71,68 @@ pub struct InterfaceFunctions<'gcx> {
     pub inheritance_start: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum UserOperatorCandidate {
+    Function(hir::FunctionId),
+    Err(ErrorGuaranteed),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum UserOperatorParameterError {
+    Unary,
+    Binary,
+    UnaryOrBinary,
+}
+
+impl UserOperatorParameterError {
+    pub(crate) fn expected<'gcx>(self, using_ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> String {
+        match self {
+            Self::Unary => format!("exactly one parameter of type `{}`", using_ty.display(gcx)),
+            Self::Binary => format!("two parameters of type `{}`", using_ty.display(gcx)),
+            Self::UnaryOrBinary => {
+                format!("one or two parameters of type `{}`", using_ty.display(gcx))
+            }
+        }
+    }
+}
+
+pub(crate) fn user_operator_parameter_error<'gcx>(
+    using_ty: Ty<'gcx>,
+    params: &[Ty<'gcx>],
+    op: UserDefinableOperator,
+) -> Option<UserOperatorParameterError> {
+    let is_unary_only = matches!(op, UserDefinableOperator::BitNot);
+    let is_binary_only = !matches!(op, UserDefinableOperator::Sub | UserDefinableOperator::BitNot);
+    let first_matches = params.first().is_some_and(|&ty| ty == using_ty);
+    let first_two_match = params.len() < 2 || params[0] == params[1];
+
+    if is_binary_only && (params.len() != 2 || !first_two_match) {
+        Some(UserOperatorParameterError::Binary)
+    } else if is_unary_only && (params.len() != 1 || !first_matches) {
+        Some(UserOperatorParameterError::Unary)
+    } else if params.len() >= 3 || !first_matches || !first_two_match {
+        Some(UserOperatorParameterError::UnaryOrBinary)
+    } else {
+        None
+    }
+}
+
+pub(crate) fn user_operator_return_type<'gcx>(
+    gcx: Gcx<'gcx>,
+    using_ty: Ty<'gcx>,
+    op: UserDefinableOperator,
+) -> Ty<'gcx> {
+    match op {
+        UserDefinableOperator::Eq
+        | UserDefinableOperator::Ne
+        | UserDefinableOperator::Lt
+        | UserDefinableOperator::Le
+        | UserDefinableOperator::Gt
+        | UserDefinableOperator::Ge => gcx.types.bool,
+        _ => using_ty,
+    }
+}
+
 impl<'gcx> InterfaceFunctions<'gcx> {
     /// Returns all the functions.
     pub fn all(&self) -> &'gcx [InterfaceFunction<'gcx>] {
@@ -727,7 +789,7 @@ impl<'gcx> Gcx<'gcx> {
         contract: Option<hir::ContractId>,
         op: UserDefinableOperator,
         unary: bool,
-        f: &mut dyn FnMut(hir::FunctionId),
+        f: &mut dyn FnMut(UserOperatorCandidate),
     ) {
         let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind else {
             return;
@@ -740,14 +802,30 @@ impl<'gcx> Gcx<'gcx> {
                     && let hir::UsingEntryKind::Functions(candidates) = entry.kind
                 {
                     for &function_id in candidates {
-                        if let TyKind::Fn(function_ty) = self.type_of_item(function_id.into()).kind
-                            && function_ty.parameters.len() == if unary { 1 } else { 2 }
-                            && function_ty.parameters.first().copied() == Some(ty)
-                            && seen.insert(function_id)
+                        if !seen.insert(function_id) {
+                            continue;
+                        }
+
+                        let TyKind::Fn(function_ty) = self.type_of_item(function_id.into()).kind
+                        else {
+                            f(UserOperatorCandidate::Err(ErrorGuaranteed::new_unchecked()));
+                            continue;
+                        };
+                        let params = function_ty.parameters;
+                        if function_ty.state_mutability != StateMutability::Pure
+                            || !self.hir.function(function_id).is_free()
+                            || user_operator_parameter_error(ty, params, op).is_some()
+                            || function_ty.returns != [user_operator_return_type(self, ty, op)]
                         {
-                            f(function_id);
+                            f(UserOperatorCandidate::Err(ErrorGuaranteed::new_unchecked()));
+                        } else if params.len() == if unary { 1 } else { 2 } {
+                            f(UserOperatorCandidate::Function(function_id));
                         }
                     }
+                } else if entry.operator == Some(op)
+                    && let hir::UsingEntryKind::Err(guar) = entry.kind
+                {
+                    f(UserOperatorCandidate::Err(guar));
                 }
             }
         });

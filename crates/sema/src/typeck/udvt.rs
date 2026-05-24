@@ -1,6 +1,9 @@
 use crate::{
     hir,
-    ty::{Gcx, Ty, TyFn, TyKind},
+    ty::{
+        Gcx, Ty, TyFn, TyKind, UserOperatorCandidate, user_operator_parameter_error,
+        user_operator_return_type,
+    },
 };
 use solar_ast::{StateMutability, UserDefinableOperator};
 
@@ -33,21 +36,7 @@ pub(super) fn check_using_operator<'gcx>(
     };
 
     let params = function_ty.parameters;
-    let is_unary_only = matches!(op, UserDefinableOperator::BitNot);
-    let is_binary_only = !matches!(op, UserDefinableOperator::Sub | UserDefinableOperator::BitNot);
-    let first_matches = params.first().is_some_and(|&ty| ty == using_ty);
-    let first_two_match = params.len() < 2 || params[0] == params[1];
-
-    let wrong_params = if is_binary_only && (params.len() != 2 || !first_two_match) {
-        Some(format!("two parameters of type `{}`", using_ty.display(gcx)))
-    } else if is_unary_only && (params.len() != 1 || !first_matches) {
-        Some(format!("exactly one parameter of type `{}`", using_ty.display(gcx)))
-    } else if params.len() >= 3 || !first_matches || !first_two_match {
-        Some(format!("one or two parameters of type `{}`", using_ty.display(gcx)))
-    } else {
-        None
-    };
-    if let Some(expected) = wrong_params {
+    if let Some(err) = user_operator_parameter_error(using_ty, params, op) {
         gcx.dcx()
             .err("wrong parameters in operator definition")
             .span(function.span)
@@ -55,20 +44,13 @@ pub(super) fn check_using_operator<'gcx>(
             .help(format!(
                 "function `{}` needs to have {expected} to be used for operator `{}`",
                 gcx.item_name(function_id).as_str(),
-                op.to_str()
+                op.to_str(),
+                expected = err.expected(using_ty, gcx)
             ))
             .emit();
     }
 
-    let return_ty = match op {
-        UserDefinableOperator::Eq
-        | UserDefinableOperator::Ne
-        | UserDefinableOperator::Lt
-        | UserDefinableOperator::Le
-        | UserDefinableOperator::Gt
-        | UserDefinableOperator::Ge => gcx.types.bool,
-        _ => using_ty,
-    };
+    let return_ty = user_operator_return_type(gcx, using_ty, op);
     let returns = function_ty.returns;
     if returns.len() != 1 || returns[0] != return_ty {
         gcx.dcx()
@@ -92,7 +74,11 @@ pub(super) fn check_using_operator<'gcx>(
             using.contract,
             op,
             params.len() == 1,
-            &mut |_| matches += 1,
+            &mut |candidate| {
+                if let UserOperatorCandidate::Function(_) = candidate {
+                    matches += 1;
+                }
+            },
         );
         if matches >= 2 {
             gcx.dcx()

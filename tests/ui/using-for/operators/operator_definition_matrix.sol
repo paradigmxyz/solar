@@ -117,12 +117,12 @@ using {
 
 contract C {
     function badParamUses(Param a, Param b) public pure {
-        a + b; //~ ERROR: cannot apply builtin operator
-        a * b; //~ ERROR: cannot apply builtin operator
-        a - b; //~ ERROR: cannot apply builtin operator
-        a / b; //~ ERROR: cannot apply builtin operator
-        a % b; //~ ERROR: cannot apply builtin operator
-        ~a; //~ ERROR: cannot apply unary operator
+        a + b;
+        a * b;
+        a - b;
+        a / b;
+        a % b;
+        ~a;
     }
 
     function badReturnUses(Ret a, Ret b) public pure {
@@ -137,6 +137,6 @@ contract C {
         a < b;
         a > b;
         a == b;
-        a != b; //~ ERROR: cannot apply builtin operator
+        a != b;
     }
 }

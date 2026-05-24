@@ -2,7 +2,7 @@ use crate::{
     builtins::{Builtin, members},
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
+    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind, UserOperatorCandidate},
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -794,7 +794,6 @@ impl<'gcx> TypeChecker<'gcx> {
         if !assign && let Some(ty) = self.check_user_binop(op.span, lhs, rhs, op.kind) {
             return ty;
         }
-
         let msg = format!(
             "cannot apply builtin operator `{op}` to `{}` and `{}`",
             lhs.display(self.gcx),
@@ -809,17 +808,19 @@ impl<'gcx> TypeChecker<'gcx> {
     fn check_user_unop(&self, span: Span, ty: Ty<'gcx>, op: hir::UnOpKind) -> Option<Ty<'gcx>> {
         let op = UserDefinableOperator::from_unop(op)?;
         let mut functions = WantOne::Zero;
+        let mut guar = None;
         self.gcx.for_each_user_operator(
             ty,
             self.source,
             self.contract,
             op,
             true,
-            &mut |function| {
-                functions.push(function);
+            &mut |candidate| match candidate {
+                UserOperatorCandidate::Function(function) => functions.push(function),
+                UserOperatorCandidate::Err(err) => guar = Some(err),
             },
         );
-        self.check_user_operator(span, functions)
+        self.check_user_operator(span, functions, guar)
     }
 
     fn check_user_binop(
@@ -831,31 +832,37 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Option<Ty<'gcx>> {
         let op = UserDefinableOperator::from_binop(op)?;
         let mut functions = WantOne::Zero;
+        let mut guar = None;
         self.gcx.for_each_user_operator(
             lhs,
             self.source,
             self.contract,
             op,
             false,
-            &mut |function| {
-                let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind else {
-                    return;
-                };
-                if rhs.convert_implicit_to(function_ty.parameters[1], self.gcx) {
-                    functions.push(function);
+            &mut |candidate| match candidate {
+                UserOperatorCandidate::Function(function) => {
+                    let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind
+                    else {
+                        return;
+                    };
+                    if rhs.convert_implicit_to(function_ty.parameters[1], self.gcx) {
+                        functions.push(function);
+                    }
                 }
+                UserOperatorCandidate::Err(err) => guar = Some(err),
             },
         );
-        self.check_user_operator(span, functions)
+        self.check_user_operator(span, functions, guar)
     }
 
     fn check_user_operator(
         &self,
         span: Span,
         functions: WantOne<hir::FunctionId>,
+        guar: Option<ErrorGuaranteed>,
     ) -> Option<Ty<'gcx>> {
         match functions {
-            WantOne::Zero => None,
+            WantOne::Zero => guar.map(|guar| self.gcx.mk_ty_err(guar)),
             WantOne::One(function) => {
                 let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind else {
                     unreachable!()
