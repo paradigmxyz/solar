@@ -1,21 +1,3 @@
-error: member `only` not found on type `type(library PointerLib)`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
-   │
-LL │         PointerLib.only;
-   ╰╴                   ━━━━
-
-error: member `BASE` not found on type `type(contract ContractTypes)`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
-   │
-LL │         ContractTypes.BASE;
-   ╰╴                      ━━━━
-
-error: member `only` not found on type `type(contract ContractTypes)`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
-   │
-LL │         ContractTypes.only;
-   ╰╴                      ━━━━
-
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
    │
@@ -52,5 +34,5 @@ error: mismatched types
 LL │         emit ExternalFunction(PointerLib.ping);
    ╰╴                              ━━━━━━━━━━━━━━━ expected `function () external`, found `function ()`
 
-error: aborting due to 9 previous errors
+error: aborting due to 6 previous errors
 
