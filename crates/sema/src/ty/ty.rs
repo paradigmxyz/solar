@@ -717,6 +717,7 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
             (Super(_), _) | (_, Super(_)) => Result::Err(TyConvertError::Incompatible),
+
             // byte literal -> bytesN/bytes
             // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
             (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
