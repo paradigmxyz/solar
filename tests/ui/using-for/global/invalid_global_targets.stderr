@@ -7,14 +7,20 @@ LL │ using {id} for uint256 global;
 error: can only use `global` with user-defined types
    ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
    │
-LL │ using {idArray} for uint256[] global;
-   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │ using L for uint256 global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: can only use `global` with user-defined types
    ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
    │
-LL │ using {idFn} for function() internal returns (uint256) global;
-   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │ using L for uint256[] global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using L for function() internal returns (uint256) global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: can only use `global` with user-defined types
    ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
@@ -58,5 +64,5 @@ error: operators can only be implemented for user-defined value types
 LL │ using {addA as +} for A global;
    ╰╴       ━━━━
 
-error: aborting due to 10 previous errors
+error: aborting due to 11 previous errors
 

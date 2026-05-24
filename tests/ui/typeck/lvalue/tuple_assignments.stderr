@@ -19,6 +19,30 @@ LL │         (1, state) = (x, x);
 error: expression has to be an lvalue
    ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
    │
+LL │         (returnsEmptyTuple()) = ();
+   ╰╴         ━━━━━━━━━━━━━━━━━━━
+
+error: tuple components cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (returnsEmptyTuple()) = ();
+   ╰╴         ━━━━━━━━━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (revert()) = ();
+   ╰╴         ━━━━━━━━
+
+error: tuple components cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (revert()) = ();
+   ╰╴         ━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
 LL │         (returnsTuple()) = (uint256(1), uint256(1));
    ╰╴         ━━━━━━━━━━━━━━
 
@@ -27,6 +51,18 @@ error: mismatched number of components
    │
 LL │         (returnsTuple()) = (uint256(1), uint256(1));
    ╰╴        ━━━━━━━━━━━━━━━━   ──────────────────────── expected a tuple with 1 element, found one with 2 elements
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (testPublicTupleCallValues()) = (uint256(1), uint256(1));
+   ╰╴         ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (testPublicTupleCallValues()) = (uint256(1), uint256(1));
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━   ──────────────────────── expected a tuple with 1 element, found one with 2 elements
 
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
@@ -40,5 +76,5 @@ error: mismatched types
 LL │         (, x) = (1, true);
    ╰╴                    ━━━━ expected `uint256`, found `bool`
 
-error: aborting due to 7 previous errors
+error: aborting due to 13 previous errors
 

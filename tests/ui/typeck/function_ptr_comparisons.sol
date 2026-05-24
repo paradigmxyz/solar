@@ -4,7 +4,6 @@
 // ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_of_function_types_internal_eq_2.sol
 // ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_operators_between_internal_and_external_function_pointers.sol
 // ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_operators_external_functions_with_different_parameters.sol
-// ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_operator_for_external_functions_with_call_options.sol
 
 library FunctionComparisonLib {
     function f() public {}

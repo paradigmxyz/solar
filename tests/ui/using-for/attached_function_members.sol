@@ -11,6 +11,10 @@ function add(uint256 self, uint256 x) pure returns (uint256) {
 }
 
 library L {
+    function foo(uint256 self, uint256 x) internal pure returns (uint256) {
+        return self + x;
+    }
+
     function selector(uint256 self) public pure returns (uint256) {
         return self;
     }
@@ -43,6 +47,7 @@ contract C {
         x.ext.address; //~ ERROR: member `address` not found
         x.pick; //~ ERROR: member `pick` not unique
         function(uint256) internal pure returns (uint256) ptr = x.inc; //~ ERROR: mismatched types
+        function(uint256, uint256) internal pure returns (uint256) ptr2 = x.foo; //~ ERROR: mismatched types
         x.inc(1); //~ ERROR: wrong argument count for function call
         x.add(); //~ ERROR: wrong argument count for function call
     }

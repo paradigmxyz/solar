@@ -18,8 +18,25 @@ contract Test {
 
     function returnsTuple() internal returns (uint256, uint256) {}
 
+    function returnsEmptyTuple() internal {}
+
+    function testEmptyTupleCallValue() public {
+        (returnsEmptyTuple()) = (); //~ ERROR: expression has to be an lvalue
+        //~^ ERROR: tuple components cannot be empty
+    }
+
+    function testRevertCallValue() public {
+        (revert()) = (); //~ ERROR: expression has to be an lvalue
+        //~^ ERROR: tuple components cannot be empty
+    }
+
     function testParenthesizedCallValues() public {
         (returnsTuple()) = (uint256(1), uint256(1)); //~ ERROR: expression has to be an lvalue
+        //~^ ERROR: mismatched number of components
+    }
+
+    function testPublicTupleCallValues() public returns (uint256, uint256) {
+        (testPublicTupleCallValues()) = (uint256(1), uint256(1)); //~ ERROR: expression has to be an lvalue
         //~^ ERROR: mismatched number of components
     }
 

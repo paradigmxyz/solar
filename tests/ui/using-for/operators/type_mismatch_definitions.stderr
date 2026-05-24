@@ -1,52 +1,75 @@
 error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
    │
-LL │ ┏ function badParams(uint256 a, uint256 b) pure returns (uint256) {
+LL │ ┏ function add(Int a) pure returns (Int) {
 LL │ ┃
-LL │ ┃
-LL │ ┃     return a + b;
+LL │ ┃     return a;
 LL │ ┃ }
    │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
    │
-LL │ using {badParams as -} for U global;
-   │        ━━━━━━━━━
-   ╰ help: function `badParams` needs to have one or two parameters of type `U` to be used for operator `-`
+LL │ using {add as +, sub as -, div as /} for Int global;
+   │        ━━━
+   ╰ help: function `add` needs to have two parameters of type `Int` to be used for operator `+`
 
-error: wrong return parameters in operator definition
+error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
    │
-LL │ ┏ function badParams(uint256 a, uint256 b) pure returns (uint256) {
+LL │ ┏ function sub(Int a, Int b, Int c) pure returns (Int) {
 LL │ ┃
-LL │ ┃
-LL │ ┃     return a + b;
+LL │ ┃     b; c;
+LL │ ┃     return a;
 LL │ ┃ }
    │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
    │
-LL │ using {badParams as -} for U global;
-   │        ━━━━━━━━━
-   ╰ help: function `badParams` needs to return `U` to be used for operator `-`
+LL │ using {add as +, sub as -, div as /} for Int global;
+   │                  ━━━
+   ╰ help: function `sub` needs to have one or two parameters of type `Int` to be used for operator `-`
 
-error: wrong return parameters in operator definition
+error: wrong parameters in operator definition
    ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
    │
-LL │ ┏ function badReturn(U a, U b) pure returns (uint256) {
+LL │ ┏ function div(int256 a, int256 b) pure returns (Int) {
 LL │ ┃
-LL │ ┃     return U.unwrap(a) + U.unwrap(b);
+LL │ ┃     return Int.wrap(a / b);
 LL │ ┃ }
    │ ┗━┛
    ╰╴
 note: function was used to implement an operator here
    ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
    │
-LL │ using {badReturn as *} for U global;
-   │        ━━━━━━━━━
-   ╰ help: function `badReturn` needs to return `U` to be used for operator `*`
+LL │ using {add as +, sub as -, div as /} for Int global;
+   │                            ━━━
+   ╰ help: function `div` needs to have one or two parameters of type `Int` to be used for operator `/`
 
-error: aborting due to 3 previous errors
+error: cannot apply builtin operator `+` to `Int` and `Int`
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │     Int.wrap(0) + Int.wrap(1);
+   │     ┬────────── ━ ─────────── Int
+   │     │
+   ╰╴    Int
+
+error: cannot apply builtin operator `-` to `Int` and `Int`
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │     Int.wrap(0) - Int.wrap(0);
+   │     ┬────────── ━ ─────────── Int
+   │     │
+   ╰╴    Int
+
+error: cannot apply builtin operator `/` to `Int` and `Int`
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │     Int.wrap(0) / Int.wrap(0);
+   │     ┬────────── ━ ─────────── Int
+   │     │
+   ╰╴    Int
+
+error: aborting due to 6 previous errors
 

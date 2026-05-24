@@ -16,6 +16,12 @@ error: mismatched types
 LL │         function(uint256) internal pure returns (uint256) ptr = x.inc;
    ╰╴                                                                ━━━━━ attached functions cannot be converted into unattached functions
 
+error: mismatched types
+   ╭▸ ROOT/tests/ui/using-for/attached_function_members.sol:LL:CC
+   │
+LL │         function(uint256, uint256) internal pure returns (uint256) ptr2 = x.foo;
+   ╰╴                                                                          ━━━━━ attached functions cannot be converted into unattached functions
+
 error: wrong argument count for function call: 1 arguments given but expected 0
    ╭▸ ROOT/tests/ui/using-for/attached_function_members.sol:LL:CC
    │
@@ -32,5 +38,5 @@ LL │         x.add();
    │              │
    ╰╴             expected 1 argument, found 0
 
-error: aborting due to 5 previous errors
+error: aborting due to 6 previous errors
 

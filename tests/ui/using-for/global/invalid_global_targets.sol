@@ -28,14 +28,6 @@ function idI(I x) pure returns (I) {
     return x;
 }
 
-function idArray(uint256[] memory x) pure returns (uint256[] memory) {
-    return x;
-}
-
-function idFn(function() internal returns (uint256) x) pure returns (function() internal returns (uint256)) {
-    return x;
-}
-
 function addC(C x, C y) pure returns (C) {
     y;
     return x;
@@ -47,8 +39,9 @@ function addA(A x, A y) pure returns (A) {
 }
 
 using {id} for uint256 global; //~ ERROR: can only use `global` with user-defined types
-using {idArray} for uint256[] global; //~ ERROR: can only use `global` with user-defined types
-using {idFn} for function() internal returns (uint256) global; //~ ERROR: can only use `global` with user-defined types
+using L for uint256 global; //~ ERROR: can only use `global` with user-defined types
+using L for uint256[] global; //~ ERROR: can only use `global` with user-defined types
+using L for function() internal returns (uint256) global; //~ ERROR: can only use `global` with user-defined types
 using {idC} for C global; //~ ERROR: can only use `global` with user-defined types
 using {idL} for L global; //~ ERROR: can only use `global` with user-defined types
 using {idI} for I global; //~ ERROR: can only use `global` with user-defined types

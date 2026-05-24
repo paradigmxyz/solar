@@ -1,16 +1,26 @@
-error: function `priv` is private and therefore cannot be attached to a type outside of the library where it is defined
+error: function `privateFunction` is private and therefore cannot be attached to a type outside of the library where it is defined
    ╭▸ ROOT/tests/ui/using-for/invalid/private_library_function.sol:LL:CC
    │
-LL │     using {L.priv} for uint256;
-   │            ━━━━━━
+LL │ using {L.privateFunction} for uint256;
+   │        ━━━━━━━━━━━━━━━━━
    ╰╴
 note: function defined here
    ╭▸ ROOT/tests/ui/using-for/invalid/private_library_function.sol:LL:CC
    │
-LL │ ┏     function priv(uint256 x) private pure returns (uint256) {
-LL │ ┃         return x;
-LL │ ┃     }
-   ╰╴┗━━━━━┛
+LL │     function privateFunction(uint256) private pure {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 1 previous error
+error: function `privateFunction` is private and therefore cannot be attached to a type outside of the library where it is defined
+   ╭▸ ROOT/tests/ui/using-for/invalid/private_library_function.sol:LL:CC
+   │
+LL │     using {L.privateFunction} for uint256;
+   │            ━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid/private_library_function.sol:LL:CC
+   │
+LL │     function privateFunction(uint256) private pure {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
 
