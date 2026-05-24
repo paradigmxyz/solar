@@ -4,12 +4,21 @@ use solar_ast::visit::Visit;
 use solar_data_structures::{BumpExt, Never, smallvec::SmallVec};
 use std::ops::ControlFlow;
 
+fn source_uses_abi_coder_v1(source: &ast::SourceUnit<'_>) -> bool {
+    source.items.iter().any(|item| {
+        let ast::ItemKind::Pragma(pragma) = &item.kind else { return false };
+        let Some((name, value)) = pragma.tokens.as_name_and_value() else { return false };
+        name.as_str() == "abicoder" && value.is_some_and(|value| value.as_str() == "v1")
+    })
+}
+
 impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
     pub(super) fn lower_sources(&mut self) {
         let hir_sources = self.sources.iter_enumerated().map(|(id, source)| {
             let mut hir_source = hir::Source {
                 file: source.file.clone(),
+                abi_coder_v1: source.ast.as_ref().is_some_and(source_uses_abi_coder_v1),
                 imports: self.arena.alloc_slice_copy(&source.imports),
                 items: &[],
                 usings: &[],

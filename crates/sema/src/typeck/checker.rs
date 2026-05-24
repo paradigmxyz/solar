@@ -1126,6 +1126,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Result<(), ErrorGuaranteed> {
         let mut result = Ok(());
         let is_packed = builtin == Builtin::AbiEncodePacked;
+        let uses_old_abi_encoder = is_packed || self.source_uses_abi_coder_v1();
         for expr in exprs {
             let ty = self.check_expr_once(expr);
             if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
@@ -1137,10 +1138,14 @@ impl<'gcx> TypeChecker<'gcx> {
                     .emit()));
                 continue;
             }
-            if is_packed && !type_supported_by_old_abi_encoder(ty) {
+            if uses_old_abi_encoder && !type_supported_by_old_abi_encoder(ty) {
                 result = result.and(Err(self
                     .dcx()
-                    .err("type not supported in packed mode")
+                    .err(if is_packed {
+                        "type not supported in packed mode"
+                    } else {
+                        "type cannot be encoded"
+                    })
                     .span(expr.span)
                     .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
                     .emit()));
@@ -1457,9 +1462,23 @@ impl<'gcx> TypeChecker<'gcx> {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
+            if self.source_uses_abi_coder_v1() && !type_supported_by_old_abi_encoder(ty) {
+                let guar = self
+                    .dcx()
+                    .err("decoding type not supported")
+                    .span(type_expr.span)
+                    .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit();
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
             tys.push(ty);
         }
         self.gcx.mk_tys(&tys)
+    }
+
+    fn source_uses_abi_coder_v1(&self) -> bool {
+        self.gcx.hir.source(self.source).abi_coder_v1
     }
 
     fn check_member_call_callee(
