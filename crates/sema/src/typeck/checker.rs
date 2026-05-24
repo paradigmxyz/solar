@@ -23,7 +23,6 @@ type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNamesSource>);
 
 #[derive(Clone, Copy)]
 enum ParamNamesSource {
-    AbiDecode,
     Function {
         id: hir::FunctionId,
         /// Whether the leading receiver parameter is not visible at the call site.
@@ -35,6 +34,12 @@ enum ParamNamesSource {
     Struct(hir::StructId),
     Event(hir::EventId),
     Error(hir::ErrorId),
+}
+
+#[derive(Clone, Copy)]
+enum AbiDecodeArg {
+    Data,
+    Types,
 }
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
@@ -274,24 +279,22 @@ impl<'gcx> TypeChecker<'gcx> {
                                     .emit(),
                             );
                         }
-                        let builtin = self.builtin_callees.get(&callee.id).copied();
-                        let param_names = if builtin == Some(Builtin::AbiDecode) {
-                            Some(ParamNamesSource::AbiDecode)
-                        } else if let Some(id) = struct_id {
+                        if self.builtin_callees.get(&callee.id) == Some(&Builtin::AbiDecode) {
+                            let args_result = self.check_abi_decode_call_args(expr.span, args);
+                            if let Err(guar) = args_result {
+                                return self.gcx.mk_ty_err(guar);
+                            }
+                            return self.abi_decode_return_type(args);
+                        }
+
+                        let param_names = if let Some(id) = struct_id {
                             Some(ParamNamesSource::Struct(id))
                         } else {
                             self.ty_fn_param_names_source(f)
                         };
-                        let args_result =
-                            self.check_call_args(expr.span, args, f.parameters, param_names);
-                        if let Some(builtin) = builtin {
+                        let _ = self.check_call_args(expr.span, args, f.parameters, param_names);
+                        if let Some(builtin) = self.builtin_callees.get(&callee.id).copied() {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
-                            if builtin == Builtin::AbiDecode {
-                                if let Err(guar) = args_result {
-                                    return self.gcx.mk_ty_err(guar);
-                                }
-                                return self.abi_decode_return_type(args);
-                            }
                         }
                         self.fn_call_return_type(f.returns)
                     }
@@ -1036,9 +1039,6 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn get_param_names_from_source(&self, source: ParamNamesSource) -> ParamNames {
         match source {
-            ParamNamesSource::AbiDecode => {
-                [Some(sym::data), Some(sym::types)].into_iter().collect()
-            }
             ParamNamesSource::Function { id, skips_receiver } => {
                 self.get_call_param_names(id, skips_receiver)
             }
@@ -1125,8 +1125,27 @@ impl<'gcx> TypeChecker<'gcx> {
         builtin: Builtin,
     ) -> Result<(), ErrorGuaranteed> {
         let mut result = Ok(());
+        let is_packed = builtin == Builtin::AbiEncodePacked;
         for expr in exprs {
             let ty = self.check_expr_once(expr);
+            if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
+                result = result.and(Err(self
+                    .dcx()
+                    .err("cannot perform packed encoding for a literal")
+                    .span(expr.span)
+                    .help("convert it to an explicit type first")
+                    .emit()));
+                continue;
+            }
+            if is_packed && !type_supported_by_old_abi_encoder(ty) {
+                result = result.and(Err(self
+                    .dcx()
+                    .err("type not supported in packed mode")
+                    .span(expr.span)
+                    .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit()));
+                continue;
+            }
             if !valid_abi_encodable_arg(ty, self.gcx) {
                 result = result.and(Err(self
                     .dcx()
@@ -1175,15 +1194,33 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         }
 
+        let mut result = Ok(());
+        let arguments_ty = self.check_expr_once(arguments);
+        let TyKind::Tuple(_) = arguments_ty.kind else {
+            if function_ty.parameters.len() != 1 {
+                result = result.and(Err(self
+                    .dcx()
+                    .err(format!(
+                        "wrong argument count for `abi.encodeCall`: 1 argument given but expected {}",
+                        function_ty.parameters.len()
+                    ))
+                    .span(arguments.span)
+                    .emit()));
+            }
+            if let Some(&expected) = function_ty.parameters.first() {
+                result = result.and(self.check_expected(arguments, arguments_ty, expected));
+            }
+            return result;
+        };
+
         let hir::ExprKind::Tuple(components) = arguments.kind else {
             return Err(self
                 .dcx()
-                .err("second argument to `abi.encodeCall` must be a tuple")
+                .err("second argument to `abi.encodeCall` must be an inline tuple")
                 .span(arguments.span)
                 .emit());
         };
 
-        let mut result = Ok(());
         if components.len() != function_ty.parameters.len() {
             result = result.and(Err(self
                 .dcx()
@@ -1209,6 +1246,130 @@ impl<'gcx> TypeChecker<'gcx> {
             result = result.and(self.check_expected(component, actual, expected));
         }
         result
+    }
+
+    fn check_abi_decode_call_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                self.check_abi_decode_positional_args(call_span, args.span, exprs)
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                self.check_abi_decode_named_args(call_span, args.span, named_args)
+            }
+        }
+    }
+
+    fn check_abi_decode_positional_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut result = Ok(());
+        result = result.and(self.check_exact_arg_count(call_span, args_span, exprs.len(), 2));
+
+        if let Some(data) = exprs.first() {
+            result = result.and(self.check_abi_decode_arg(AbiDecodeArg::Data, data));
+        }
+        if let Some(types) = exprs.get(1) {
+            result = result.and(self.check_abi_decode_arg(AbiDecodeArg::Types, types));
+        }
+        for expr in exprs.iter().skip(2) {
+            let _ = self.check_expr_once(expr);
+        }
+
+        result
+    }
+
+    fn check_abi_decode_named_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        named_args: &'gcx [hir::NamedArg<'gcx>],
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut result = Ok(());
+        result = result.and(self.check_exact_arg_count(call_span, args_span, named_args.len(), 2));
+
+        let mut seen_names: SmallVec<[solar_interface::Symbol; 2]> = SmallVec::new();
+        for arg in named_args {
+            let arg_name = arg.name.name;
+            if seen_names.contains(&arg_name) {
+                result = result.and(Err(self
+                    .dcx()
+                    .err(format!("duplicate named argument `{arg_name}`"))
+                    .span(arg.name.span)
+                    .emit()));
+                let _ = self.check_expr_once(&arg.value);
+                continue;
+            }
+            seen_names.push(arg_name);
+
+            if let Some(kind) = abi_decode_arg_kind(arg_name) {
+                result = result.and(self.check_abi_decode_arg(kind, &arg.value));
+            } else {
+                result = result.and(Err(self
+                    .dcx()
+                    .err(format!("named argument `{arg_name}` does not match function declaration"))
+                    .span(arg.name.span)
+                    .emit()));
+                let _ = self.check_expr_once(&arg.value);
+            }
+        }
+
+        result
+    }
+
+    fn check_exact_arg_count(
+        &self,
+        call_span: Span,
+        args_span: Span,
+        found: usize,
+        expected: usize,
+    ) -> Result<(), ErrorGuaranteed> {
+        if found == expected {
+            return Ok(());
+        }
+        Err(self
+            .dcx()
+            .err(format!(
+                "wrong argument count for function call: {found} arguments given but expected {expected}"
+            ))
+            .span(call_span)
+            .span_label(args_span, format!("expected {expected} arguments, found {found}"))
+            .emit())
+    }
+
+    fn check_abi_decode_arg(
+        &mut self,
+        kind: AbiDecodeArg,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        match kind {
+            AbiDecodeArg::Data => {
+                let actual = self.check_expr_once(expr);
+                self.check_expected(expr, actual, self.gcx.types.bytes_ref.memory)
+            }
+            AbiDecodeArg::Types => self.check_abi_decode_types_arg(expr),
+        }
+    }
+
+    fn check_abi_decode_types_arg(
+        &mut self,
+        types: &'gcx hir::Expr<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if matches!(types.kind, hir::ExprKind::Tuple(_)) {
+            Ok(())
+        } else {
+            Err(self
+                .dcx()
+                .err("the second argument to `abi.decode` must be a tuple of types")
+                .span(types.span)
+                .emit())
+        }
     }
 
     fn abi_decode_return_type(&mut self, args: &hir::CallArgs<'gcx>) -> Ty<'gcx> {
@@ -1263,7 +1424,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             };
-            tys.push(ty.with_loc_if_ref(self.gcx, DataLocation::Memory));
+            let mut ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            if matches!(ty.kind, TyKind::Elementary(ElementaryType::Address(false))) {
+                ty = self.gcx.types.address_payable;
+            }
+            tys.push(ty);
         }
         self.gcx.mk_tys(&tys)
     }
@@ -2447,12 +2612,38 @@ fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
         )
 }
 
+fn abi_decode_arg_kind(name: Symbol) -> Option<AbiDecodeArg> {
+    if name == sym::data {
+        Some(AbiDecodeArg::Data)
+    } else if name == sym::types {
+        Some(AbiDecodeArg::Types)
+    } else {
+        None
+    }
+}
+
+fn type_supported_by_old_abi_encoder(ty: Ty<'_>) -> bool {
+    let ty = ty.peel_refs();
+    match ty.kind {
+        TyKind::Struct(_) => false,
+        TyKind::Array(base, _) | TyKind::DynArray(base) => {
+            type_supported_by_old_abi_encoder(base)
+                && !(base.peel_refs().is_array() && base.peel_refs().is_dynamically_sized())
+        }
+        TyKind::Tuple([ty]) => type_supported_by_old_abi_encoder(*ty),
+        TyKind::Tuple(_) => false,
+        TyKind::Slice(array) => type_supported_by_old_abi_encoder(array),
+        _ => true,
+    }
+}
+
 fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
     if ty.references_error() {
         return true;
     }
     match ty.kind {
-        TyKind::Tuple(tys) => tys.iter().all(|&ty| valid_abi_encodable_arg(ty, gcx)),
+        TyKind::Tuple([ty]) => valid_abi_encodable_arg(*ty, gcx),
+        TyKind::Tuple(_) => false,
         TyKind::Error(..)
         | TyKind::Event(..)
         | TyKind::Module(..)

@@ -37,6 +37,24 @@ LL │     bytes.concat({a: data});
 error: `encode` argument cannot be ABI-encoded
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
+LL │     abi.encode(returnsNothing());
+   ╰╴               ━━━━━━━━━━━━━━━━ found `tuple()`
+
+error: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encode(returnsPair());
+   ╰╴               ━━━━━━━━━━━━━ found `tuple(uint256,bytes32)`
+
+error: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encode((returnsOne(), returnsOne()));
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━━━━━━━━━ found `tuple(uint256,uint256)`
+
+error: `encode` argument cannot be ABI-encoded
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
 LL │     abi.encode(uint256);
    ╰╴               ━━━━━━━ found `type(uint256)`
 
@@ -51,6 +69,26 @@ error: named arguments cannot be used for functions that take arbitrary paramete
    │
 LL │     abi.encode({a: value});
    ╰╴              ━━━━━━━━━━━━
+
+error: cannot perform packed encoding for a literal
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodePacked(1);
+   │                      ━
+   │
+   ╰ help: convert it to an explicit type first
+
+error: type not supported in packed mode
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodePacked(nestedArray);
+   ╰╴                     ━━━━━━━━━━━ found `uint256[][] memory`
+
+error: type not supported in packed mode
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodePacked(packedStruct);
+   ╰╴                     ━━━━━━━━━━━━ found `struct PackedStruct memory`
 
 error: `encodePacked` argument cannot be ABI-encoded
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
@@ -88,11 +126,17 @@ error: named arguments cannot be used for functions that take arbitrary paramete
 LL │     abi.encodeWithSelector({selector: selector, a: value});
    ╰╴                          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: second argument to `abi.encodeCall` must be a tuple
+error: wrong argument count for `abi.encodeCall`: 1 argument given but expected 2
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
 LL │     abi.encodeCall(Target.target, value);
    ╰╴                                  ━━━━━
+
+error: second argument to `abi.encodeCall` must be an inline tuple
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodeCall(Target.target, returnsPair());
+   ╰╴                                  ━━━━━━━━━━━━━
 
 error: first argument to `abi.encodeCall` must be a function
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
@@ -135,6 +179,12 @@ error: mismatched types
    │
 LL │     abi.decode(signature, (uint256));
    ╰╴               ━━━━━━━━━ expected `bytes memory`, found `string memory`
+
+error: the second argument to `abi.decode` must be a tuple of types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.decode(data, uint256);
+   ╰╴                     ━━━━━━━
 
 error: `abi.decode` type tuple components must be types
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
@@ -196,5 +246,5 @@ error: first argument to `abi.encodeCall` must be an external function
 LL │         abi.encodeCall(internalTarget, (value));
    ╰╴                       ━━━━━━━━━━━━━━ found `function (uint256) pure`
 
-error: aborting due to 33 previous errors
+error: aborting due to 41 previous errors
 
