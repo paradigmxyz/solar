@@ -40,6 +40,10 @@ abstract contract C is B {
         return super.f() + 1;
     }
 
+    function superSelector() public pure returns (bytes4) {
+        return super.f.selector;
+    }
+
     function viaParentheses() public returns (uint256) {
         return ((super).f)() + 1;
     }

@@ -17,12 +17,21 @@ contract Base {
 }
 
 contract Derived is Base {
+    function baseTypePublicFunctionSelector() public pure returns (bytes4) {
+        return Base.publicBase.selector;
+    }
+
     function baseTypeInternalFunction() public pure returns (uint256) {
         return Base.internalBase(1);
     }
 
     function baseTypePublicFunction() public pure returns (uint256) {
         return Base.publicBase(1);
+    }
+
+    function baseTypePublicFunctionPointer() public pure returns (uint256) {
+        function(uint256) internal pure returns (uint256) pointer = Base.publicBase;
+        return pointer(1);
     }
 
     function baseTypeExternalFunction() public pure returns (uint256) {

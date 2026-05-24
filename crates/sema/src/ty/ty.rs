@@ -811,7 +811,7 @@ impl<'gcx> Ty<'gcx> {
                     }
                     return Result::Err(TyConvertError::Incompatible);
                 }
-                if from_fn.kind != to_fn.kind {
+                if from_fn.kind != to_fn.kind && !(from_fn.is_internal() && to_fn.is_internal()) {
                     return Result::Err(TyConvertError::Incompatible);
                 }
                 // Parameter and return types must match exactly (no implicit conversion).
@@ -1213,6 +1213,10 @@ pub struct TyFn<'gcx> {
 pub enum TyFnKind {
     /// An ordinary internal function value.
     Internal,
+    /// An internal function value for a public function accessed through a qualified name.
+    ///
+    /// It is callable as an internal function, but also has a `.selector` member.
+    InternalWithSelector,
     /// An ordinary external function value.
     External,
     /// A function declaration accessed through a contract type, e.g. `C.f`.
@@ -1241,7 +1245,7 @@ impl<'gcx> TyFn<'gcx> {
     /// Returns whether this is an internal function value.
     #[inline]
     pub fn is_internal(&self) -> bool {
-        self.kind == TyFnKind::Internal
+        matches!(self.kind, TyFnKind::Internal | TyFnKind::InternalWithSelector)
     }
 
     /// Returns whether this is an external function value.
@@ -1286,7 +1290,13 @@ impl<'gcx> TyFn<'gcx> {
     /// Returns whether this function value has a `.selector` member.
     #[inline]
     pub fn has_selector(&self) -> bool {
-        matches!(self.kind, TyFnKind::External | TyFnKind::Declaration | TyFnKind::DelegateCall)
+        matches!(
+            self.kind,
+            TyFnKind::InternalWithSelector
+                | TyFnKind::External
+                | TyFnKind::Declaration
+                | TyFnKind::DelegateCall
+        )
     }
 
     /// Returns whether this function value has an `.address` member.

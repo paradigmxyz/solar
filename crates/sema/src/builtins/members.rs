@@ -337,7 +337,11 @@ fn contract_type_own_function<'gcx>(
                 if matches!(f.visibility, Visibility::Internal | Visibility::Public)
                     && f.body.is_some()
                 {
-                    ty
+                    if f.visibility >= Visibility::Public {
+                        internal_function_with_selector(gcx, ty)
+                    } else {
+                        ty
+                    }
                 } else {
                     declaration_function_ty(gcx, ty)
                 },
@@ -351,6 +355,18 @@ fn declaration_function_ty<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
     gcx.mk_ty_fn(TyFn {
         kind: TyFnKind::Declaration,
+        parameters: fn_ty.parameters,
+        returns: fn_ty.returns,
+        state_mutability: fn_ty.state_mutability,
+        function_id: fn_ty.function_id,
+        attached: false,
+    })
+}
+
+fn internal_function_with_selector<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
+    let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
+    gcx.mk_ty_fn(TyFn {
+        kind: TyFnKind::InternalWithSelector,
         parameters: fn_ty.parameters,
         returns: fn_ty.returns,
         state_mutability: fn_ty.state_mutability,
@@ -398,7 +414,13 @@ fn super_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
             }) {
                 continue;
             }
-            members.push(Member::with_res(name, gcx.type_of_item(item), item));
+            let ty = gcx.type_of_item(item);
+            let ty = if f.visibility >= Visibility::Public {
+                internal_function_with_selector(gcx, ty)
+            } else {
+                ty
+            };
+            members.push(Member::with_res(name, ty, item));
         }
     }
     members
