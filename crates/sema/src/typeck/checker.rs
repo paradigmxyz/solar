@@ -227,7 +227,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, opts) => {
-                let is_abi_decode = is_abi_decode_callee(callee);
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
                     self.check_member_call_callee(callee, receiver, ident, args)
                 } else if let hir::ExprKind::Ident(res) = callee.kind {
@@ -237,11 +236,6 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
                 if let Some(opts) = opts {
                     callee_ty = self.check_call_options(callee_ty, opts.args, opts.span);
-                }
-
-                if is_abi_decode {
-                    self.try_set_not_lvalue(NotLvalueReason::Generic);
-                    return self.check_abi_decode_call(expr.span, args);
                 }
 
                 // Get the function type for struct constructors, keeping struct_id for field names.
@@ -256,10 +250,14 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
-                        if let Some(&builtin) = self.builtin_callees.get(&callee.id)
-                            && self.check_variadic_builtin_args(builtin, args)
-                        {
-                            return self.fn_call_return_type(f.returns);
+                        if let Some(&builtin) = self.builtin_callees.get(&callee.id) {
+                            if builtin == Builtin::AbiDecode {
+                                self.try_set_not_lvalue(NotLvalueReason::Generic);
+                                return self.check_abi_decode_call(expr.span, args);
+                            }
+                            if self.check_variadic_builtin_args(builtin, args) {
+                                return self.fn_call_return_type(f.returns);
+                            }
                         }
                         if f.is_declaration() {
                             return self.gcx.mk_ty_err(
@@ -2295,13 +2293,6 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
     ty.is_ref_at(DataLocation::Calldata)
         || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
-}
-fn is_abi_decode_callee(callee: &hir::Expr<'_>) -> bool {
-    let hir::ExprKind::Member(receiver, ident) = callee.kind else { return false };
-    if ident.name != sym::decode {
-        return false;
-    }
-    matches!(receiver.kind, hir::ExprKind::Ident([hir::Res::Builtin(Builtin::Abi)]))
 }
 
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
