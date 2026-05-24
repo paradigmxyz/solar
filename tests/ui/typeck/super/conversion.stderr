@@ -1,5 +1,5 @@
 error: cannot convert to the super type
-   ╭▸ ROOT/tests/ui/typeck/super_conversion.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/super/conversion.sol:LL:CC
    │
 LL │         super();
    ╰╴        ━━━━━━━

@@ -1,17 +1,17 @@
 error: member `currentOnly` not found on type `type(contract super B)`
-   ╭▸ ROOT/tests/ui/typeck/super_member_access.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/super/member_access.sol:LL:CC
    │
 LL │         super.currentOnly();
    ╰╴              ━━━━━━━━━━━
 
 error: member `externalOnly` not found on type `type(contract super B)`
-   ╭▸ ROOT/tests/ui/typeck/super_member_access.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/super/member_access.sol:LL:CC
    │
 LL │         super.externalOnly();
    ╰╴              ━━━━━━━━━━━━
 
 error: member `unimplemented` not found on type `type(contract super B)`
-   ╭▸ ROOT/tests/ui/typeck/super_member_access.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/super/member_access.sol:LL:CC
    │
 LL │         return super.unimplemented();
    ╰╴                     ━━━━━━━━━━━━━
