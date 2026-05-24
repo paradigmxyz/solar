@@ -50,9 +50,9 @@ function testVariadicBuiltins(
     abi.encodeWithSignature({signature: signature, a: value}); //~ ERROR: named arguments cannot be used for functions that take arbitrary parameters
 
     uint256 single = abi.decode(data, (uint256));
+    uint256 namedSingle = abi.decode({data: data, types: (uint256)});
     abi.decode(signature, (uint256)); //~ ERROR: mismatched types
     abi.decode(data, (value)); //~ ERROR: `abi.decode` type tuple components must be types
-    abi.decode({data: data, types: (uint256)}); //~ ERROR: named arguments cannot be used for functions that take arbitrary parameters
 
     (uint256 a, bool b) = abi.decode(data, (uint256, bool));
     abi.decode(data, (uint256, value)); //~ ERROR: `abi.decode` type tuple components must be types
@@ -67,6 +67,10 @@ contract VariadicLocations {
     string storedString;
     bytes storedBytes;
 
+    function internalTarget(uint256 value) internal pure {
+        value;
+    }
+
     function testConcatLocations(
         string calldata calldataSignature,
         bytes calldata calldataData,
@@ -79,8 +83,12 @@ contract VariadicLocations {
         string.concat(calldataData); //~ ERROR: `string.concat` arguments must be strings
 
         bytes storage storageData = storedBytes;
-        bytes.concat(storedBytes, storageData, calldataData, word);
+        bytes.concat(storedBytes, storageData, calldataData, calldataData[1:], word);
         bytes.concat(value); //~ ERROR: `bytes.concat` arguments must be bytes or fixed bytes
         bytes.concat(calldataSignature); //~ ERROR: `bytes.concat` arguments must be bytes or fixed bytes
+    }
+
+    function testEncodeCallFunctionKinds(uint256 value) external pure {
+        abi.encodeCall(internalTarget, (value)); //~ ERROR: first argument to `abi.encodeCall` must be an external function
     }
 }

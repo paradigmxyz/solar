@@ -23,6 +23,7 @@ type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNamesSource>);
 
 #[derive(Clone, Copy)]
 enum ParamNamesSource {
+    AbiDecode,
     Function {
         id: hir::FunctionId,
         /// Whether the leading receiver parameter is not visible at the call site.
@@ -273,14 +274,17 @@ impl<'gcx> TypeChecker<'gcx> {
                                     .emit(),
                             );
                         }
-                        let param_names = if let Some(id) = struct_id {
+                        let builtin = self.builtin_callees.get(&callee.id).copied();
+                        let param_names = if builtin == Some(Builtin::AbiDecode) {
+                            Some(ParamNamesSource::AbiDecode)
+                        } else if let Some(id) = struct_id {
                             Some(ParamNamesSource::Struct(id))
                         } else {
                             self.ty_fn_param_names_source(f)
                         };
                         let args_result =
                             self.check_call_args(expr.span, args, f.parameters, param_names);
-                        if let Some(&builtin) = self.builtin_callees.get(&callee.id) {
+                        if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                             if builtin == Builtin::AbiDecode {
                                 if let Err(guar) = args_result {
@@ -1032,6 +1036,9 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn get_param_names_from_source(&self, source: ParamNamesSource) -> ParamNames {
         match source {
+            ParamNamesSource::AbiDecode => {
+                [Some(sym::data), Some(sym::types)].into_iter().collect()
+            }
             ParamNamesSource::Function { id, skips_receiver } => {
                 self.get_call_param_names(id, skips_receiver)
             }
@@ -1150,15 +1157,23 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         };
 
-        let function_ty = self.check_expr_once(function);
-        let TyKind::Fn(function_ty) = function_ty.kind else {
+        let ty = self.check_expr_once(function);
+        let TyKind::Fn(function_ty) = ty.kind else {
             return Err(self
                 .dcx()
                 .err("first argument to `abi.encodeCall` must be a function")
                 .span(function.span)
-                .span_label(function.span, format!("found `{}`", function_ty.display(self.gcx)))
+                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
                 .emit());
         };
+        if !matches!(function_ty.kind, TyFnKind::External | TyFnKind::Declaration) {
+            return Err(self
+                .dcx()
+                .err("first argument to `abi.encodeCall` must be an external function")
+                .span(function.span)
+                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit());
+        }
 
         let hir::ExprKind::Tuple(components) = arguments.kind else {
             return Err(self
@@ -1197,11 +1212,21 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn abi_decode_return_type(&mut self, args: &hir::CallArgs<'gcx>) -> Ty<'gcx> {
-        let hir::CallArgsKind::Unnamed(exprs) = args.kind else {
-            unreachable!("`abi.decode` arguments should be checked before deriving return type");
-        };
-        let [_, types_expr] = exprs else {
-            unreachable!("`abi.decode` should have exactly two checked arguments");
+        let types_expr = match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                let [_, types_expr] = exprs else {
+                    unreachable!("`abi.decode` should have exactly two checked arguments");
+                };
+                types_expr
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                let Some(arg) = named_args.iter().find(|arg| arg.name.name == sym::types) else {
+                    unreachable!(
+                        "`abi.decode` named arguments should be checked before deriving return type"
+                    );
+                };
+                &arg.value
+            }
         };
         let types = self.abi_decode_types(types_expr);
         self.fn_call_return_type(types)
@@ -2414,6 +2439,11 @@ fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
         || matches!(
             ty.peel_refs().kind,
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::FixedBytes(_))
+        )
+        || matches!(
+            ty.kind,
+            TyKind::Slice(array)
+                if matches!(array.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
         )
 }
 

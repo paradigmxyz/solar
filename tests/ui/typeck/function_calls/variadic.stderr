@@ -142,12 +142,6 @@ error: `abi.decode` type tuple components must be types
 LL │     abi.decode(data, (value));
    ╰╴                      ━━━━━
 
-error: named arguments cannot be used for functions that take arbitrary parameters
-   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
-   │
-LL │     abi.decode({data: data, types: (uint256)});
-   ╰╴              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
 error: `abi.decode` type tuple components must be types
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
@@ -195,6 +189,12 @@ error: `bytes.concat` arguments must be bytes or fixed bytes
    │
 LL │         bytes.concat(calldataSignature);
    ╰╴                     ━━━━━━━━━━━━━━━━━ found `string calldata`
+
+error: first argument to `abi.encodeCall` must be an external function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │         abi.encodeCall(internalTarget, (value));
+   ╰╴                       ━━━━━━━━━━━━━━ found `function (uint256) pure`
 
 error: aborting due to 33 previous errors
 
