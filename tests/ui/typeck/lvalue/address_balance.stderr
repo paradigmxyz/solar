@@ -1,0 +1,8 @@
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/address_balance.sol:LL:CC
+   │
+LL │         address(0).balance = 7;
+   ╰╴        ━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

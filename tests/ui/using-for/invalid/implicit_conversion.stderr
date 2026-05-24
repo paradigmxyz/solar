@@ -1,0 +1,32 @@
+error: function `id` cannot be attached to type `uint256`
+   ╭▸ ROOT/tests/ui/using-for/invalid/implicit_conversion.sol:LL:CC
+   │
+LL │     using {id} for uint256;
+   │            ━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid/implicit_conversion.sol:LL:CC
+   │
+LL │ ┏ function id(uint16 x) pure returns (uint16) {
+LL │ ┃     return x;
+LL │ ┃ }
+   │ ┗━┛
+   ╰ help: the type cannot be implicitly converted to the first function argument `uint16`
+
+error: function `id` cannot be attached to type `struct S`
+   ╭▸ ROOT/tests/ui/using-for/invalid/implicit_conversion.sol:LL:CC
+   │
+LL │     using {id} for S;
+   │            ━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid/implicit_conversion.sol:LL:CC
+   │
+LL │ ┏ function id(uint16 x) pure returns (uint16) {
+LL │ ┃     return x;
+LL │ ┃ }
+   │ ┗━┛
+   ╰ help: the type cannot be implicitly converted to the first function argument `uint16`
+
+error: aborting due to 2 previous errors
+

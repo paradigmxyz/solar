@@ -1,0 +1,14 @@
+error: user-defined binary operator `+` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/operators/duplicate_same_directive.sol:LL:CC
+   │
+LL │ using {add as +, add2 as +} for U global;
+   ╰╴       ━━━
+
+error: user-defined binary operator `+` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/operators/duplicate_same_directive.sol:LL:CC
+   │
+LL │ using {add as +, add2 as +} for U global;
+   ╰╴                 ━━━━
+
+error: aborting due to 2 previous errors
+
