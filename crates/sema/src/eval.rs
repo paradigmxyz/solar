@@ -17,11 +17,11 @@ pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorG
         Ok(int) => {
             let Some(int) = int.as_u256() else {
                 let msg = "array length cannot be negative";
-                return Err(gcx.dcx().err(msg).span(size.span).emit());
+                return Err(gcx.dcx().emit_err(size.span, msg));
             };
             if int.is_zero() {
                 let msg = "array length must be greater than zero";
-                Err(gcx.dcx().err(msg).span(size.span).emit())
+                Err(gcx.dcx().emit_err(size.span, msg))
             } else {
                 Ok(int)
             }
@@ -77,7 +77,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             _ => {
                 let msg = format!("failed to evaluate constant: {}", err.kind.msg());
                 let label = "evaluation of constant value failed here";
-                self.gcx.dcx().err(msg).span(expr.span).span_label(err.span, label).emit()
+                self.gcx.dcx().emit_err_label(expr.span, msg, err.span, label)
             }
         }
     }
