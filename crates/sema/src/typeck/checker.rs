@@ -1233,7 +1233,8 @@ impl<'gcx> TypeChecker<'gcx> {
         function: &'gcx hir::Expr<'gcx>,
     ) -> Result<&'gcx TyFn<'gcx>, ErrorGuaranteed> {
         let ty = self.check_expr_once(function);
-        match ty.kind {
+        let externally_callable_ty = ty.as_externally_callable_function(false, self.gcx);
+        match externally_callable_ty.kind {
             TyKind::Fn(function_ty)
                 if matches!(function_ty.kind, TyFnKind::External | TyFnKind::Declaration) =>
             {
