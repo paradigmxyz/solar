@@ -1,5 +1,5 @@
 error: cannot instantiate abstract contracts
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_abstract_contract.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/abstract_contract.sol:LL:CC
    │
 LL │         new A();
    ╰╴            ━

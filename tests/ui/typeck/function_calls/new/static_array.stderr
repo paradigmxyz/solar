@@ -1,11 +1,11 @@
 error: cannot instantiate static arrays
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_static_array.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/static_array.sol:LL:CC
    │
 LL │         new uint256[1];
    │             ━━━━━━━━━━
    ╰╴
 help: the length must be placed inside the parentheses after the array type
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_static_array.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/static_array.sol:LL:CC
    │
 LL │         new uint256[1];
    ╰╴                    ━

@@ -1,5 +1,5 @@
 error: library name expected
-   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_contract_directive.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/contract_directive.sol:LL:CC
    │
 LL │     using NotLibrary for uint256;
    │           ━━━━━━━━━━

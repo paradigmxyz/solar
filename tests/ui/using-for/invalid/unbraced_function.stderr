@@ -1,5 +1,5 @@
 error: expected library, found function
-   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_unbraced_function.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/unbraced_function.sol:LL:CC
    │
 LL │     using id256 for uint256;
    ╰╴          ━━━━━

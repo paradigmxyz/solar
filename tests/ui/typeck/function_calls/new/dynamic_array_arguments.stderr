@@ -1,5 +1,5 @@
 error: wrong argument count for function call: 0 arguments given but expected 1
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_dynamic_array_arguments.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/dynamic_array_arguments.sol:LL:CC
    │
 LL │         uint256[] memory y = new uint256[]();
    │                              ━━━━━━━━━━━━━┬─
