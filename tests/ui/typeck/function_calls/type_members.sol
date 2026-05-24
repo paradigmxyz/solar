@@ -54,11 +54,27 @@ contract Base {
     function internalBase(uint256 value) internal pure returns (uint256) {
         return value;
     }
+
+    function publicBase(uint256 value) public pure returns (uint256) {
+        return value;
+    }
+
+    function externalBase(uint256 value) external pure returns (uint256) {
+        return value;
+    }
 }
 
 contract Derived is Base {
     function baseTypeInternalFunction() public pure returns (uint256) {
         return Base.internalBase(1);
+    }
+
+    function baseTypePublicFunction() public pure returns (uint256) {
+        return Base.publicBase(1);
+    }
+
+    function baseTypeExternalFunction() public pure returns (uint256) {
+        return Base.externalBase(1); //~ ERROR: cannot call function via contract type name
     }
 }
 

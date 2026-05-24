@@ -1,6 +1,12 @@
 error: cannot call function via contract type name
    ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
    │
+LL │         return Base.externalBase(1);
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
+   │
 LL │         AbstractBase.abstractBaseFunction();
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -46,5 +52,5 @@ error: member `stateVar` not found on type `type(contract StateVarScope)`
 LL │         value = StateVarScope.stateVar;
    ╰╴                              ━━━━━━━━
 
-error: aborting due to 8 previous errors
+error: aborting due to 9 previous errors
 
