@@ -451,7 +451,7 @@ impl<'gcx> Gcx<'gcx> {
     pub fn mk_ty_err(self, guar: ErrorGuaranteed) -> Ty<'gcx> {
         const { assert!(std::mem::size_of::<ErrorGuaranteed>() == 0) }
         let _ = guar;
-        self.types.__err_do_not_use()
+        self.types.__err_do_not_use
     }
 
     /// Returns the source file with the given path, if it exists.
