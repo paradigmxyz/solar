@@ -2667,8 +2667,7 @@ fn type_supported_by_old_abi_encoder(ty: Ty<'_>) -> bool {
     match ty.kind {
         TyKind::Struct(_) => false,
         TyKind::Array(base, _) | TyKind::DynArray(base) => {
-            type_supported_by_old_abi_encoder(base)
-                && !(base.peel_refs().is_array() && base.peel_refs().is_dynamically_sized())
+            type_supported_by_old_abi_encoder(base) && !base.peel_refs().is_dynamically_sized()
         }
         TyKind::Tuple([ty]) => type_supported_by_old_abi_encoder(*ty),
         TyKind::Tuple(_) => false,
