@@ -291,6 +291,7 @@ pub trait Visit<'hir> {
                 self.visit_ty(&map.key)?;
                 self.visit_ty(&map.value)?;
             }
+            TypeKind::Super(_) => {}
             TypeKind::Custom(_) => {}
             TypeKind::Err(_guar) => {}
         }

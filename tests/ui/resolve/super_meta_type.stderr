@@ -1,4 +1,4 @@
-error: expected item, found builtin
+error: invalid type
    ╭▸ ROOT/tests/ui/resolve/super_meta_type.sol:LL:CC
    │
 LL │         type(super).name;

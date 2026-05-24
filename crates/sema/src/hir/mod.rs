@@ -1762,6 +1762,7 @@ impl<'hir> Type<'hir> {
                 ty.key.visit(hir, f)?;
                 ty.value.visit(hir, f)
             }
+            TypeKind::Super(_) => ControlFlow::Continue(()),
             TypeKind::Custom(_) => ControlFlow::Continue(()),
             TypeKind::Err(_) => ControlFlow::Continue(()),
         }
@@ -1783,6 +1784,9 @@ pub enum TypeKind<'hir> {
 
     /// A custom type name.
     Custom(ItemId),
+
+    /// The `super` type for a contract.
+    Super(ContractId),
 
     Err(ErrorGuaranteed),
 }
