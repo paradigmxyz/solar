@@ -267,7 +267,7 @@ fn contract_type(
                 && if is_library {
                     f.visibility >= Visibility::Internal
                 } else {
-                    f.visibility > Visibility::Private
+                    f.visibility > Visibility::Private && !f.is_getter()
                 }
         }))
     } else {
@@ -297,7 +297,8 @@ fn contract_type(
                 ty.as_externally_callable_function(true, gcx)
             } else if is_library
                 || (is_base_of_current
-                    && matches!(f.visibility, Visibility::Internal | Visibility::Public))
+                    && matches!(f.visibility, Visibility::Internal | Visibility::Public)
+                    && f.body.is_some())
             {
                 ty
             } else {
@@ -323,7 +324,6 @@ fn super_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
     for &base in gcx.hir.contract(id).linearized_bases.iter().skip(1) {
         for function in gcx.hir.contract(base).functions() {
             let f = gcx.hir.function(function);
-            let item = hir::ItemId::from(function);
             if !f.is_ordinary()
                 || f.visibility <= Visibility::Private
                 || f.visibility == Visibility::External
@@ -332,8 +332,10 @@ fn super_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
                 continue;
             }
 
+            let item = hir::ItemId::from(function);
             let name = gcx.item_name(item).name;
             let params = gcx.item_parameter_types(item);
+            // Keep only the most-derived implementation for each override signature.
             if members.iter().any(|member: &Member<'_>| match member.res {
                 Some(hir::Res::Item(item)) => {
                     member.name == name && gcx.item_parameter_types(item) == params

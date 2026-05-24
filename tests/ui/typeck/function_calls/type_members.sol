@@ -7,6 +7,7 @@
 // ported-from: test/libsolidity/syntaxTests/types/contractTypeType/members/assign_function_via_contract_name_to_var.sol
 // ported-from: test/libsolidity/semanticTests/functionTypes/stack_height_check_on_adding_gas_variable_to_function.sol
 // ported-from: test/libsolidity/semanticTests/various/state_variable_under_contract_name.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_implemented_and_unimplemented_with_implemented_call_via_contract.sol
 
 type Pointer is uint256;
 
@@ -61,6 +62,20 @@ contract Derived is Base {
     }
 }
 
+contract ImplementedBase {
+    function abstractBaseFunction() public virtual {}
+}
+
+abstract contract AbstractBase {
+    function abstractBaseFunction() public virtual;
+}
+
+contract DerivedFromAbstract is ImplementedBase, AbstractBase {
+    function abstractBaseFunction() public override(ImplementedBase, AbstractBase) {
+        AbstractBase.abstractBaseFunction(); //~ ERROR: cannot call function via contract type name
+    }
+}
+
 contract C {
     event ExternalFunction(function() external indexed);
 
@@ -111,5 +126,13 @@ contract StateVarScope {
 contract OtherScope {
     function getStateVar() public view returns (uint256 value) {
         value = StateVarScope.stateVar; //~ ERROR: member `stateVar` not found
+    }
+}
+
+contract PublicStateVarScope {
+    uint256 public stateVar = 42;
+
+    function getStateVar() public view returns (uint256 value) {
+        value = PublicStateVarScope.stateVar;
     }
 }
