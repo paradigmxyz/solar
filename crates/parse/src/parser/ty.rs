@@ -102,13 +102,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 } else {
                     "only address types can have state mutability"
                 };
-                self.dcx().err(msg).span(id.span.to(self.prev_token.span)).emit();
+                self.dcx().emit_err(id.span.to(self.prev_token.span), msg);
             }
         }
 
         // TODO: Move to type checking.
         // if matches!(ty, ElementaryType::Fixed(..) | ElementaryType::UFixed(..)) {
-        //     self.dcx().err("`fixed` types are not yet supported").span(id.span).emit();
+        //     self.dcx().emit_err(id.span, "`fixed` types are not yet supported");
         // }
 
         Ok(ty)

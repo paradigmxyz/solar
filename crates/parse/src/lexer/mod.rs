@@ -131,7 +131,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                         } else {
                             "unterminated block comment"
                         };
-                        self.dcx().err(msg).span(self.new_span(start, self.pos)).emit();
+                        self.dcx().emit_err(self.new_span(start, self.pos), msg);
                     }
 
                     // Opening delimiter and closing delimiter are not included into the symbol.
@@ -295,7 +295,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 if !terminated {
                     cold_path();
                     let span = self.new_span(start, end);
-                    let guar = self.dcx().err("unterminated string").span(span).emit();
+                    let guar = self.dcx().emit_err(span, "unterminated string");
                     (TokenLitKind::Err(guar), self.symbol_from_to(start, end))
                 } else {
                     (kind.into(), self.cook_quoted(kind, start, end))
@@ -305,7 +305,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 if empty_int {
                     cold_path();
                     let span = self.new_span(start, end);
-                    self.dcx().err("no valid digits found for number").span(span).emit();
+                    self.dcx().emit_err(span, "no valid digits found for number");
                     (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 } else {
                     if matches!(base, Base::Binary | Base::Octal) {
@@ -322,12 +322,12 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                                 let lo = start + BytePos::from_usize(i);
                                 let hi = lo + BytePos::from_usize(c.len_utf8());
                                 let span = self.new_span(lo, hi);
-                                self.dcx().err(msg).span(span).emit();
+                                self.dcx().emit_err(span, msg);
                             }
                         }
                         */
                         let msg = format!("integers in base {base} are not supported");
-                        self.dcx().err(msg).span(self.new_span(start, end)).emit();
+                        self.dcx().emit_err(self.new_span(start, end), msg);
                     }
                     (TokenLitKind::Integer, self.symbol_from_to(start, end))
                 }
@@ -336,7 +336,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 if empty_exponent {
                     cold_path();
                     let span = self.new_span(start, self.pos);
-                    self.dcx().err("expected at least one digit in exponent").span(span).emit();
+                    self.dcx().emit_err(span, "expected at least one digit in exponent");
                 }
 
                 let unsupported_base =
@@ -344,7 +344,7 @@ impl<'sess, 'src> Lexer<'sess, 'src> {
                 if unsupported_base {
                     cold_path();
                     let msg = format!("{base} rational numbers are not supported");
-                    self.dcx().err(msg).span(self.new_span(start, end)).emit();
+                    self.dcx().emit_err(self.new_span(start, end), msg);
                 }
 
                 (TokenLitKind::Rational, self.symbol_from_to(start, end))
