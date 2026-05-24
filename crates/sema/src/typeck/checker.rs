@@ -16,6 +16,8 @@ use solar_interface::{
 };
 use std::ops::ControlFlow;
 
+mod yul;
+
 type ParamNames = SmallVec<[Option<Symbol>; 8]>;
 type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNamesSource>);
 
@@ -33,8 +35,6 @@ enum ParamNamesSource {
     Event(hir::EventId),
     Error(hir::ErrorId),
 }
-
-mod yul;
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
     let mut checker = TypeChecker::new(gcx, source);
