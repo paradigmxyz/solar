@@ -250,8 +250,6 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
-                        let is_abi_decode =
-                            self.builtin_callees.get(&callee.id) == Some(&Builtin::AbiDecode);
                         if f.is_declaration() {
                             return self.gcx.mk_ty_err(
                                 self.dcx()
@@ -267,6 +265,8 @@ impl<'gcx> TypeChecker<'gcx> {
                                 .map(|id| self.get_call_param_names(id, f.parameters.len()))
                         };
                         self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
+                        let is_abi_decode =
+                            self.builtin_callees.get(&callee.id) == Some(&Builtin::AbiDecode);
                         if is_abi_decode {
                             self.abi_decode_return_type(args)
                         } else {
@@ -1055,7 +1055,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             };
-            let hir::ExprKind::Type(ref ty) = type_expr.kind else {
+            let ty = self.check_expr_once(type_expr);
+            let TyKind::Type(ty) = ty.kind else {
                 let guar = self
                     .dcx()
                     .err("`abi.decode` type tuple components must be types")
@@ -1064,7 +1065,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             };
-            tys.push(self.gcx.type_of_hir_ty(ty).with_loc_if_ref(self.gcx, DataLocation::Memory));
+            tys.push(ty.with_loc_if_ref(self.gcx, DataLocation::Memory));
         }
         self.gcx.mk_tys(&tys)
     }
