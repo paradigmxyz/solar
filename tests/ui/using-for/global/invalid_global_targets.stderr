@@ -7,6 +7,24 @@ LL │ using {id} for uint256 global;
 error: can only use `global` with user-defined types
    ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
    │
+LL │ using L for uint256 global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using L for uint256[] global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using L for function() internal returns (uint256) global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
 LL │ using {idC} for C global;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -22,17 +40,29 @@ error: can only use `global` with user-defined types
 LL │ using {idI} for I global;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: operators can only be implemented for user-defined value types
+error: can only use `global` with user-defined types
    ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
    │
-LL │ using {addE as +} for E global;
-   ╰╴       ━━━━
+LL │ using {addC as +} for C global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: operators can only be implemented for user-defined value types
    ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
    │
-LL │ using {addS as +} for S global;
+LL │ using {addC as +} for C global;
    ╰╴       ━━━━
 
-error: aborting due to 6 previous errors
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {addA as +} for A global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: operators can only be implemented for user-defined value types
+   ╭▸ ROOT/tests/ui/using-for/global/invalid_global_targets.sol:LL:CC
+   │
+LL │ using {addA as +} for A global;
+   ╰╴       ━━━━
+
+error: aborting due to 11 previous errors
 
