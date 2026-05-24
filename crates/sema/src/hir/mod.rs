@@ -269,16 +269,26 @@ impl<'hir> Hir<'hir> {
         &self,
         id: ContractId,
     ) -> impl Iterator<Item = ItemId> + Clone + use<'_, 'hir> {
-        self.contract(id)
-            .self_and_inherited_bases()
-            .iter()
-            .copied()
+        self.contract_and_inherited_bases(id)
             .flat_map(|base| self.contract(base).items.iter().copied())
     }
 
     /// Returns an iterator over all items in a contract, including inheritance.
     pub fn contract_items(&self, id: ContractId) -> impl Iterator<Item = Item<'_, 'hir>> + Clone {
         self.contract_item_ids(id).map(move |id| self.item(id))
+    }
+
+    /// Returns the contract itself followed by its inherited bases.
+    pub fn contract_and_inherited_bases(
+        &self,
+        id: ContractId,
+    ) -> impl Iterator<Item = ContractId> + Clone + use<'_, 'hir> {
+        std::iter::once(id).chain(self.contract(id).inherited_bases().iter().copied())
+    }
+
+    /// Returns `true` if `contract` is `base` or inherits from it.
+    pub fn contract_is_or_inherits_from(&self, contract: ContractId, base: ContractId) -> bool {
+        contract == base || self.contract(contract).inherits_from(base)
     }
 
     /// Creates a builder for constructing HIR nodes.
@@ -763,11 +773,10 @@ pub struct Contract<'hir> {
     pub bases: &'hir [ContractId],
     /// The base arguments, as declared in the source code.
     pub bases_args: &'hir [Modifier<'hir>],
-    /// The linearized contract bases.
+    /// The linearized inherited contract bases.
     ///
-    /// The first element is always the contract itself, followed by its bases in order of
-    /// inheritance. The bases may not be present if the inheritance linearization failed. See
-    /// [`Contract::linearization_failed`].
+    /// The contract itself is not stored in this list. The bases may not be present if the
+    /// inheritance linearization failed. See [`Contract::linearization_failed`].
     pub linearized_bases: &'hir [ContractId],
     /// The constructor base arguments (if any).
     ///
@@ -794,18 +803,12 @@ pub struct Contract<'hir> {
 impl Contract<'_> {
     /// Returns `true` if the inheritance linearization failed.
     pub fn linearization_failed(&self) -> bool {
-        self.linearized_bases.is_empty()
-            || (!self.bases.is_empty() && self.linearized_bases.len() == 1)
+        !self.bases.is_empty() && self.linearized_bases.is_empty()
     }
 
-    /// Returns the contract itself followed by its inherited bases.
-    pub fn self_and_inherited_bases(&self) -> &[ContractId] {
-        self.linearized_bases
-    }
-
-    /// Returns inherited bases, excluding the contract itself.
+    /// Returns inherited bases.
     pub fn inherited_bases(&self) -> &[ContractId] {
-        &self.linearized_bases[1..]
+        self.linearized_bases
     }
 
     /// Returns inherited bases with their resolved constructor arguments.
@@ -818,11 +821,6 @@ impl Contract<'_> {
     /// Returns `true` if this contract inherits from `base`.
     pub fn inherits_from(&self, base: ContractId) -> bool {
         self.inherited_bases().contains(&base)
-    }
-
-    /// Returns `true` if this contract is `base` or inherits from it.
-    pub fn is_or_inherits_from(&self, base: ContractId) -> bool {
-        self.self_and_inherited_bases().contains(&base)
     }
 
     /// Returns an iterator over functions declared in the contract.

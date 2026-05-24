@@ -381,7 +381,7 @@ impl<'gcx> Resolver<'gcx> {
         };
 
         if let Some(contract) = item_contract
-            && !self.gcx.hir.contract(contract).is_or_inherits_from(contract_id)
+            && !self.gcx.hir.contract_is_or_inherits_from(contract, contract_id)
         {
             dcx.emit_err(tag_span, format!(
                 "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",

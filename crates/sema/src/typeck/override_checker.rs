@@ -1039,7 +1039,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         let mut unimplemented: Vec<(OverrideProxy, ContractId)> = Vec::new();
 
-        for &base_id in contract.self_and_inherited_bases() {
+        for base_id in self.gcx.hir.contract_and_inherited_bases(self.contract_id) {
             let base = self.gcx.hir.contract(base_id);
 
             for f_id in base.functions() {
@@ -1049,8 +1049,11 @@ impl<'gcx> OverrideChecker<'gcx> {
                 }
                 if f.body.is_none() {
                     let sig = self.signature(OverrideProxy::Function(f_id));
-                    let is_implemented =
-                        contract.self_and_inherited_bases().iter().any(|&impl_base_id| {
+                    let is_implemented = self
+                        .gcx
+                        .hir
+                        .contract_and_inherited_bases(self.contract_id)
+                        .any(|impl_base_id| {
                             let impl_base = self.gcx.hir.contract(impl_base_id);
                             impl_base.functions().any(|impl_f_id| {
                                 let impl_f = self.gcx.hir.function(impl_f_id);

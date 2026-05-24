@@ -1125,7 +1125,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn select_most_derived_function(&self, candidates: &[hir::Res]) -> Option<hir::Res> {
         let contract = self.contract?;
-        let bases = self.gcx.hir.contract(contract).self_and_inherited_bases();
+        let bases = self.gcx.hir.contract_and_inherited_bases(contract).collect::<Vec<_>>();
 
         let mut selected = None;
         let mut selected_depth = usize::MAX;

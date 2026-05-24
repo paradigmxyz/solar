@@ -195,7 +195,7 @@ impl super::LoweringContext<'_> {
             let mut fallback = None;
             let mut receive = None;
 
-            for &base_id in self.hir.contract(contract_id).self_and_inherited_bases() {
+            for base_id in self.hir.contract_and_inherited_bases(contract_id) {
                 for function_id in self.hir.contract(base_id).functions() {
                     let func = self.hir.function(function_id);
                     let slot = match func.kind {
@@ -394,8 +394,7 @@ impl<'gcx> ResolveContext<'gcx> {
                             let allowed = func.contract.is_some_and(|current| {
                                 modifier_contract.is_some_and(|modifier_contract| {
                                     self.hir
-                                        .contract(current)
-                                        .is_or_inherits_from(modifier_contract)
+                                        .contract_is_or_inherits_from(current, modifier_contract)
                                 })
                             });
                             if !allowed {

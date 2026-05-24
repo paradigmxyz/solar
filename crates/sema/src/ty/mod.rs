@@ -948,18 +948,13 @@ pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
 /// The contract doesn't have to be an interface.
 pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'gcx> {
     let c = gcx.hir.contract(id);
-    let mut inheritance_start = None;
+    let inheritance_start =
+        c.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface()).count();
     let mut signatures_seen = FxHashSet::default();
     let mut hash_collisions = FxHashMap::default();
-    let functions = c.self_and_inherited_bases().iter().flat_map(|&base| {
+    let functions = gcx.hir.contract_and_inherited_bases(id).flat_map(|base| {
         let b = gcx.hir.contract(base);
-        let functions =
-            b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface());
-        if base == id {
-            assert!(inheritance_start.is_none(), "duplicate self ID in linearized_bases");
-            inheritance_start = Some(functions.clone().count());
-        }
-        functions
+        b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface())
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
         let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
@@ -1029,7 +1024,6 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     });
     let functions = gcx.bump().alloc_from_iter(functions);
     trace!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
-    let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
     InterfaceFunctions { functions, inheritance_start }
 }
 

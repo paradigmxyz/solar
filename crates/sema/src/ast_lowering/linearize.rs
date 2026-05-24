@@ -19,13 +19,18 @@ impl super::LoweringContext<'_> {
             for contract_id in source.items.iter().filter_map(hir::ItemId::as_contract) {
                 let _guard = debug_span!("linearize_contract", ?contract_id).entered();
                 self.linearize_contract(contract_id, &mut linearizer);
-                if linearizer.result.is_empty() {
+                if !self.hir.contract(contract_id).bases.is_empty() && linearizer.result.is_empty()
+                {
                     let msg = "linearization of inheritance graph impossible";
                     self.dcx().emit_err(self.hir.contract(contract_id).name.span, msg);
-                    // Always include the contract itself in the linearized bases.
-                    linearizer.result.push(contract_id);
                 }
-                let linearized_bases = &*self.arena.alloc_slice_copy(&linearizer.result);
+                let linearized_bases = if linearizer.result.first() == Some(&contract_id) {
+                    &linearizer.result[1..]
+                } else {
+                    &linearizer.result
+                };
+                debug_assert!(!linearized_bases.contains(&contract_id));
+                let linearized_bases = &*self.arena.alloc_slice_copy(linearized_bases);
                 self.hir.contracts[contract_id].linearized_bases = linearized_bases;
 
                 // Import inherited scopes.
@@ -92,7 +97,6 @@ impl super::LoweringContext<'_> {
         let contract = self.hir.contract(contract_id);
         if contract.bases.is_empty() {
             linearizer.result.clear();
-            linearizer.result.push(contract_id);
             return;
         }
 
@@ -101,13 +105,12 @@ impl super::LoweringContext<'_> {
         for &base_id in contract.bases {
             linearizer.insert(base_id);
             let base = self.hir.contract(base_id);
-            let base_bases = base.self_and_inherited_bases();
-            if base_bases.is_empty() {
+            if base.linearization_failed() {
                 let msg = "definition of base has to precede definition of derived contract";
                 self.dcx().emit_err(contract.name.span, msg);
                 continue;
             }
-            linearizer.insert_bases(base_bases);
+            linearizer.insert_self_and_bases(base_id, base.inherited_bases());
         }
         linearizer.insert(contract_id);
         linearizer.c3_merge();
@@ -135,8 +138,8 @@ impl<T: Copy + Eq + std::fmt::Debug> C3Linearizer<T> {
         self.to_merge.back_mut().unwrap().push_front(id);
     }
 
-    fn insert_bases(&mut self, ids: &[T]) {
-        self.to_merge.push_front(ids.iter().copied().collect());
+    fn insert_self_and_bases(&mut self, id: T, bases: &[T]) {
+        self.to_merge.push_front(std::iter::once(id).chain(bases.iter().copied()).collect());
     }
 
     fn c3_merge(&mut self) {
