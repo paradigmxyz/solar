@@ -1339,27 +1339,22 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
-                let Some((fixed_params, variadic)) = split_variadic_params(param_tys) else {
+                let Some((fixed_exprs, fixed_params, variadic_exprs)) =
+                    split_positional_variadic_args(exprs, param_tys)
+                else {
                     return false;
                 };
-                if variadic {
-                    if exprs.len() < fixed_params.len() {
-                        return false;
-                    }
-                } else if exprs.len() != fixed_params.len() {
-                    return false;
-                }
-                let fixed_match = exprs
+                let fixed_match = fixed_exprs
                     .iter()
                     .zip(fixed_params)
                     .all(|(expr, &param_ty)| self.arg_matches(expr, param_ty));
-                fixed_match
-                    && (!variadic || {
-                        exprs.iter().skip(fixed_params.len()).all(|expr| {
-                            let _ = self.check_expr_once(expr);
-                            true
-                        })
-                    })
+                if !fixed_match {
+                    return false;
+                }
+                for expr in variadic_exprs {
+                    let _ = self.check_expr_once(expr);
+                }
+                true
             }
             hir::CallArgsKind::Named(named_args) => {
                 let Some(names) = param_names else { return false };
@@ -1499,12 +1494,7 @@ impl<'gcx> TypeChecker<'gcx> {
         exprs: &'gcx [hir::Expr<'gcx>],
         param_tys: &[Ty<'gcx>],
     ) {
-        let Some((fixed_params, variadic)) = split_variadic_params(param_tys) else {
-            for expr in exprs {
-                let _ = self.check_expr_once(expr);
-            }
-            return;
-        };
+        let (fixed_params, variadic) = split_variadic_params(param_tys);
 
         if !variadic && exprs.len() != fixed_params.len() {
             self.dcx()
@@ -1544,12 +1534,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit();
         }
 
-        let count = std::cmp::min(exprs.len(), fixed_params.len());
-        for i in 0..count {
-            let actual = self.check_expr_once(&exprs[i]);
-            self.check_expected(&exprs[i], actual, fixed_params[i]);
+        let count = fixed_params.len().min(exprs.len());
+        let (fixed_exprs, extra_exprs) = exprs.split_at(count);
+        for (expr, &param_ty) in fixed_exprs.iter().zip(fixed_params) {
+            let actual = self.check_expr_once(expr);
+            self.check_expected(expr, actual, param_ty);
         }
-        for expr in exprs.iter().skip(count) {
+        for expr in extra_exprs {
             let _ = self.check_expr_once(expr);
         }
     }
@@ -2209,18 +2200,34 @@ fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
         || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
 }
 
-fn split_variadic_params<'a, 'gcx>(param_tys: &'a [Ty<'gcx>]) -> Option<(&'a [Ty<'gcx>], bool)> {
+fn split_variadic_params<'a, 'gcx>(param_tys: &'a [Ty<'gcx>]) -> (&'a [Ty<'gcx>], bool) {
     let Some((&last, fixed)) = param_tys.split_last() else {
-        return Some((param_tys, false));
+        return (param_tys, false);
     };
     if matches!(last.kind, TyKind::Variadic) {
-        return Some((fixed, true));
+        return (fixed, true);
     }
     debug_assert!(
         !param_tys.iter().any(|ty| matches!(ty.kind, TyKind::Variadic)),
         "variadic param must be last"
     );
-    Some((param_tys, false))
+    (param_tys, false)
+}
+
+fn split_positional_variadic_args<'a, 'gcx>(
+    exprs: &'gcx [hir::Expr<'gcx>],
+    param_tys: &'a [Ty<'gcx>],
+) -> Option<(&'gcx [hir::Expr<'gcx>], &'a [Ty<'gcx>], &'gcx [hir::Expr<'gcx>])> {
+    let (fixed_params, variadic) = split_variadic_params(param_tys);
+    if variadic {
+        if exprs.len() <= fixed_params.len() {
+            return None;
+        }
+    } else if exprs.len() != fixed_params.len() {
+        return None;
+    }
+    let (fixed_exprs, variadic_exprs) = exprs.split_at(fixed_params.len());
+    Some((fixed_exprs, fixed_params, variadic_exprs))
 }
 
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
