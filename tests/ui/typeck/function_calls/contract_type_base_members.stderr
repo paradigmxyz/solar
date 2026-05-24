@@ -1,0 +1,14 @@
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
+   │
+LL │         return Base.externalBase(1);
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
+   │
+LL │         AbstractBase.abstractBaseFunction();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

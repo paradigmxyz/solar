@@ -1,27 +1,3 @@
-error: cannot call function via contract type name
-   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
-   │
-LL │         return Base.externalBase(1);
-   ╰╴               ━━━━━━━━━━━━━━━━━━━━
-
-error: cannot call function via contract type name
-   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
-   │
-LL │         AbstractBase.abstractBaseFunction();
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
-   │
-LL │         function() external pure fn = Executor.check;
-   ╰╴                                      ━━━━━━━━━━━━━━ expected `function () pure external`, found `function Executor.check() pure`
-
-error: member `address` not found on type `function Executor.check() pure`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
-   │
-LL │         Executor.check.address;
-   ╰╴                       ━━━━━━━
-
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
    │
@@ -46,11 +22,5 @@ error: mismatched types
 LL │         emit ExternalFunction(PointerLib.ping);
    ╰╴                              ━━━━━━━━━━━━━━━ expected `function () external`, found `function ()`
 
-error: member `stateVar` not found on type `type(contract StateVarScope)`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members.sol:LL:CC
-   │
-LL │         value = StateVarScope.stateVar;
-   ╰╴                              ━━━━━━━━
-
-error: aborting due to 9 previous errors
+error: aborting due to 4 previous errors
 
