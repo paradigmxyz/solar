@@ -42,6 +42,9 @@ struct TypeChecker<'gcx> {
     in_emit: bool,
     /// Whether we're directly inside a revert statement (for the immediate call only).
     in_revert: bool,
+    /// Whether we're directly inside a `require` custom error argument (for the immediate call
+    /// only).
+    in_require_error: bool,
     /// Whether we're checking expressions lowered from inline assembly.
     in_yul: bool,
 }
@@ -70,6 +73,7 @@ impl<'gcx> TypeChecker<'gcx> {
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
+            in_require_error: false,
             in_yul: false,
         }
     }
@@ -227,6 +231,13 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, opts) => {
+                if opts.is_none()
+                    && let hir::ExprKind::Ident(res) = callee.kind
+                    && let Some(ty) = self.check_require_custom_error_call(callee, res, args)
+                {
+                    return ty;
+                }
+
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
                     self.check_member_call_callee(callee, receiver, ident, args)
                 } else if let hir::ExprKind::Ident(res) = callee.kind {
@@ -278,14 +289,14 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
+                        self.in_require_error = false;
                         let event = self.gcx.hir.event(id);
                         let param_names = self.get_param_names(event.parameters);
                         self.check_call_args(expr.span, args, param_tys, Some(&param_names));
                         self.gcx.types.unit
                     }
                     TyKind::Error(param_tys, id) => {
-                        // TODO: Also allow in require(condition, MyError(...)).
-                        if !self.in_revert {
+                        if !self.in_revert && !self.in_require_error {
                             self.dcx()
                                 .err("errors can only be used with revert statements")
                                 .span(expr.span)
@@ -294,6 +305,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
+                        self.in_require_error = false;
                         let error = self.gcx.hir.error(id);
                         let param_names = self.get_param_names(error.parameters);
                         self.check_call_args(expr.span, args, param_tys, Some(&param_names));
@@ -988,6 +1000,51 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
         }
+    }
+
+    fn check_require_custom_error_call(
+        &mut self,
+        callee: &'gcx hir::Expr<'gcx>,
+        res: &'gcx [hir::Res],
+        args: &hir::CallArgs<'gcx>,
+    ) -> Option<Ty<'gcx>> {
+        if !res
+            .iter()
+            .any(|res| matches!(res, hir::Res::Builtin(Builtin::Require | Builtin::RequireMsg)))
+        {
+            return None;
+        }
+
+        let hir::CallArgsKind::Unnamed([condition, error_arg]) = args.kind else {
+            return None;
+        };
+        let hir::ExprKind::Call(error_callee, ..) = error_arg.kind else {
+            return None;
+        };
+        let hir::ExprKind::Ident(error_res) = error_callee.kind else {
+            return None;
+        };
+        if !error_res.iter().any(|res| matches!(res, hir::Res::Item(hir::ItemId::Error(_)))) {
+            return None;
+        }
+
+        self.in_require_error = true;
+        let _ = self.check_expr(error_arg);
+        self.in_require_error = false;
+
+        if !matches!(self.get(error_callee).kind, TyKind::Error(..)) {
+            return None;
+        }
+
+        let require_ty = self.gcx.mk_builtin_fn(
+            &[self.gcx.types.bool, self.gcx.types.unit],
+            StateMutability::Pure,
+            &[],
+        );
+        self.register_ty(callee, require_ty);
+        let _ = self.expect_ty(condition, self.gcx.types.bool);
+        self.try_set_not_lvalue(NotLvalueReason::Generic);
+        Some(self.gcx.types.unit)
     }
 
     fn check_member_call_callee(
