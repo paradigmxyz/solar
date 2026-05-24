@@ -1162,9 +1162,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 continue;
             };
             let actual = self.check_expr_once(component);
-            if let Err(guar) = self.check_expected(component, actual, expected) {
-                result = result.and(Err(guar));
-            }
+            result = result.and(self.check_expected(component, actual, expected));
         }
         result
     }
@@ -1670,9 +1668,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let count = std::cmp::min(exprs.len(), fixed_params.len());
         for i in 0..count {
             let actual = self.check_expr_once(&exprs[i]);
-            if let Err(guar) = self.check_expected(&exprs[i], actual, fixed_params[i]) {
-                result = result.and(Err(guar));
-            }
+            result = result.and(self.check_expected(&exprs[i], actual, fixed_params[i]));
         }
         for expr in exprs.iter().skip(count) {
             let _ = self.check_expr_once(expr);
@@ -1760,9 +1756,7 @@ impl<'gcx> TypeChecker<'gcx> {
             match param_idx {
                 Some(idx) => {
                     let actual = self.check_expr_once(&arg.value);
-                    if let Err(guar) = self.check_expected(&arg.value, actual, param_tys[idx]) {
-                        result = result.and(Err(guar));
-                    }
+                    result = result.and(self.check_expected(&arg.value, actual, param_tys[idx]));
                 }
                 None => {
                     result = result.and(Err(self
