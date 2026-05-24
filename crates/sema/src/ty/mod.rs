@@ -640,7 +640,6 @@ impl<'gcx> Gcx<'gcx> {
                 let value = self.type_of_hir_ty(&mapping.value);
                 TyKind::Mapping(key, value)
             }
-            hir::TypeKind::Super(id) => TyKind::Super(id),
             hir::TypeKind::Custom(item) => return self.type_of_item_simple(item, ty.span),
             hir::TypeKind::Err(guar) => return self.mk_ty_err(guar),
         };

@@ -1780,7 +1780,7 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::Tuple(exprs) => hir::ExprKind::Tuple(self.arena.alloc_slice_fill_iter(
                 exprs.iter().map(|expr| self.lower_expr_opt(expr.as_deref().unspan())),
             )),
-            ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type_call_type(ty)),
+            ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
         };
@@ -1892,19 +1892,6 @@ impl<'gcx> ResolveContext<'gcx> {
             },
         };
         hir::Type { kind, span: ty.span }
-    }
-
-    fn lower_type_call_type(&mut self, ty: &ast::Type<'_>) -> hir::Type<'gcx> {
-        let contract = self.scopes.contract;
-        if let ast::TypeKind::Custom(path) = &ty.kind
-            && path.segments().len() == 1
-            && path.last().name == sym::super_
-            && let Some(contract) = contract
-            && !self.hir.contract(contract).kind.is_library()
-        {
-            return hir::Type { kind: hir::TypeKind::Super(contract), span: ty.span };
-        }
-        self.lower_type(ty)
     }
 
     #[inline]
