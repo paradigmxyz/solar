@@ -21,7 +21,7 @@ type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNamesSource>);
 
 #[derive(Clone, Copy)]
 enum ParamNamesSource {
-    Function(hir::FunctionId, usize),
+    Function { id: hir::FunctionId, skip: usize },
     Struct(hir::StructId),
     Event(hir::EventId),
     Error(hir::ErrorId),
@@ -269,8 +269,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         let param_names = if let Some(id) = struct_id {
                             Some(ParamNamesSource::Struct(id))
                         } else {
-                            f.function_id
-                                .map(|id| ParamNamesSource::Function(id, f.parameters.len()))
+                            self.ty_fn_param_names_source(f)
                         };
                         let args_result =
                             self.check_call_args(expr.span, args, f.parameters, param_names);
@@ -987,12 +986,31 @@ impl<'gcx> TypeChecker<'gcx> {
         params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
     }
 
-    fn get_call_param_names(&self, function: hir::FunctionId, param_count: usize) -> ParamNames {
+    fn get_call_param_names(&self, function: hir::FunctionId, skip: usize) -> ParamNames {
         let mut names = self.get_param_names(self.gcx.hir.function(function).parameters);
-        if names.len() > param_count {
-            names.drain(..names.len() - param_count);
+        if skip != 0 {
+            names.drain(..skip);
         }
         names
+    }
+
+    fn function_param_names_source(
+        &self,
+        function: hir::FunctionId,
+        visible_param_count: usize,
+    ) -> ParamNamesSource {
+        let declared_param_count = self.gcx.hir.function(function).parameters.len();
+        debug_assert!(visible_param_count <= declared_param_count);
+        ParamNamesSource::Function {
+            id: function,
+            skip: declared_param_count - visible_param_count,
+        }
+    }
+
+    fn ty_fn_param_names_source(&self, function_ty: &TyFn<'gcx>) -> Option<ParamNamesSource> {
+        function_ty
+            .function_id
+            .map(|id| self.function_param_names_source(id, function_ty.parameters.len()))
     }
 
     fn get_struct_field_names(
@@ -1010,9 +1028,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn get_param_names_from_source(&self, source: ParamNamesSource) -> ParamNames {
         match source {
-            ParamNamesSource::Function(id, param_count) => {
-                self.get_call_param_names(id, param_count)
-            }
+            ParamNamesSource::Function { id, skip } => self.get_call_param_names(id, skip),
             ParamNamesSource::Struct(id) => self.get_struct_field_names(id),
             ParamNamesSource::Event(id) => self.get_param_names(self.gcx.hir.event(id).parameters),
             ParamNamesSource::Error(id) => self.get_param_names(self.gcx.hir.error(id).parameters),
@@ -1416,9 +1432,7 @@ impl<'gcx> TypeChecker<'gcx> {
     fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallCandidateParams<'gcx>> {
         match ty.kind {
             TyKind::Fn(function_ty) => {
-                let param_names = function_ty
-                    .function_id
-                    .map(|id| ParamNamesSource::Function(id, function_ty.parameters.len()));
+                let param_names = self.ty_fn_param_names_source(function_ty);
                 Some((function_ty.parameters, param_names))
             }
             TyKind::Event(param_tys, id) => Some((param_tys, Some(ParamNamesSource::Event(id)))),
@@ -1471,8 +1485,9 @@ impl<'gcx> TypeChecker<'gcx> {
         } else {
             function_ty.parameters
         };
-        let param_names =
-            function_ty.function_id.map(|id| ParamNamesSource::Function(id, parameters.len()));
+        let param_names = function_ty
+            .function_id
+            .map(|id| self.function_param_names_source(id, parameters.len()));
         Some((parameters, param_names))
     }
 
