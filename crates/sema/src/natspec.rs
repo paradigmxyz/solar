@@ -209,14 +209,13 @@ impl<'gcx> Resolver<'gcx> {
                         if params.contains(&name.name) {
                             local_tags.push(*natspec);
                         } else {
-                            self.gcx
-                                .dcx()
-                                .err(format!(
+                            self.gcx.dcx().emit_err(
+                                tag_span,
+                                format!(
                                     "tag `@param` references non-existent parameter '{}'",
                                     name.name
-                                ))
-                                .span(tag_span)
-                                .emit();
+                                ),
+                            );
                         };
                     }
                     NatSpecKind::Return { .. } => {
@@ -244,14 +243,12 @@ impl<'gcx> Resolver<'gcx> {
                         };
 
                         let return_valid = if state.return_count > return_count {
-                            self.gcx.dcx().err(format!(
+                            self.gcx.dcx().emit_err(tag_span, format!(
                                 "too many `@return` tags: function has {} return value{}, found {}",
                                 return_count,
                                 if return_count == 1 { "" } else { "s" },
                                 state.return_count
-                            ))
-                            .span(tag_span)
-                            .emit();
+                            ));
                             false
                         } else {
                             true
@@ -284,21 +281,19 @@ impl<'gcx> Resolver<'gcx> {
             natspec.content_start as usize,
             natspec.content_end as usize,
         ) else {
-            self.gcx
-                .dcx()
-                .err("tag `@return` does not contain the name of its return parameter")
-                .span(natspec.span)
-                .emit();
+            self.gcx.dcx().emit_err(
+                natspec.span,
+                "tag `@return` does not contain the name of its return parameter",
+            );
             return None;
         };
 
         let name = Symbol::intern(name);
         if !rets.iter().any(|&id| self.gcx.hir.variable(id).name.is_some_and(|n| n.name == name)) {
-            self.gcx
-                .dcx()
-                .err(format!("tag `@return` references non-existent return parameter '{name}'"))
-                .span(natspec.span)
-                .emit();
+            self.gcx.dcx().emit_err(
+                natspec.span,
+                format!("tag `@return` references non-existent return parameter '{name}'"),
+            );
             return None;
         }
 
@@ -311,26 +306,22 @@ impl<'gcx> Resolver<'gcx> {
     #[cold]
     fn emit_forbidden_tag_error(&self, tag_name: &str, tag_span: Span, item_id: hir::ItemId) {
         let item_desc = self.gcx.hir.item(item_id).description();
-        self.gcx
-            .dcx()
-            .err(format!("tag `{tag_name}` not valid for {item_desc}s"))
-            .span(tag_span)
-            .emit();
+        self.gcx.dcx().emit_err(tag_span, format!("tag `{tag_name}` not valid for {item_desc}s"));
     }
 
     #[cold]
     fn emit_duplicate_tag_error(&self, tag_name: &str, tag_span: Span) {
-        self.gcx.dcx().err_span(format!("tag {tag_name} can only be given once"), tag_span);
+        self.gcx.dcx().emit_err(tag_span, format!("tag {tag_name} can only be given once"));
     }
 
     #[cold]
     fn emit_duplicate_param_error(&self, param_name: Symbol, tag_span: Span, prev_span: Span) {
-        self.gcx
-            .dcx()
-            .err(format!("duplicate documentation for parameter '{param_name}'"))
-            .span(tag_span)
-            .span_note(prev_span, "previously documented here")
-            .emit();
+        self.gcx.dcx().emit_err_span_note(
+            tag_span,
+            format!("duplicate documentation for parameter '{param_name}'"),
+            prev_span,
+            "previously documented here",
+        );
     }
 
     /// Helper to validate tags that can only be defined once.
@@ -373,12 +364,13 @@ impl<'gcx> Resolver<'gcx> {
         let contract_id = self.gcx.natspec_contract_in_source(cache_key);
 
         let Some(contract_id) = contract_id else {
-            dcx.err(format!(
-                "tag `@inheritdoc` references inexistent contract \"{}\"",
-                contract_ident.name
-            ))
-            .span(tag_span)
-            .emit();
+            dcx.emit_err(
+                tag_span,
+                format!(
+                    "tag `@inheritdoc` references inexistent contract \"{}\"",
+                    contract_ident.name
+                ),
+            );
             return None;
         };
 
@@ -391,23 +383,19 @@ impl<'gcx> Resolver<'gcx> {
         if let Some(contract) = item_contract {
             let linearized_bases = &self.gcx.hir.contract(contract).linearized_bases;
             if !linearized_bases.contains(&contract_id) {
-                dcx.err(format!(
+                dcx.emit_err(tag_span, format!(
                     "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
                     contract_ident.name
-                ))
-                .span(tag_span)
-                .emit();
+                ));
                 return None;
             }
         }
 
         if self.find_inherited_item(item_id, contract_id).is_none() {
-            dcx.err(format!(
+            dcx.emit_err(tag_span, format!(
                 "tag `@inheritdoc` references contract \"{}\", but the contract does not contain a matching item that can be inherited",
                 contract_ident.name
-            ))
-            .span(tag_span)
-            .emit();
+            ));
             return None;
         }
 

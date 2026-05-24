@@ -465,7 +465,7 @@ impl<'ast> IndexAccessedPath<'ast> {
                 IndexKind::Index(expr) => expr,
                 IndexKind::Range(l, r) => {
                     let msg = "expected array length, got range expression";
-                    parser.dcx().err_span(msg, span);
+                    parser.dcx().emit_err(span, msg);
                     l.or(r)
                 }
             };

@@ -21,7 +21,7 @@ impl super::LoweringContext<'_> {
                 self.linearize_contract(contract_id, &mut linearizer);
                 if linearizer.result.is_empty() {
                     let msg = "linearization of inheritance graph impossible";
-                    self.dcx().err_span(msg, self.hir.contract(contract_id).name.span);
+                    self.dcx().emit_err(self.hir.contract(contract_id).name.span, msg);
                     // Always include the contract itself in the linearized bases.
                     linearizer.result.push(contract_id);
                 }
@@ -104,7 +104,7 @@ impl super::LoweringContext<'_> {
             let base_bases = base.linearized_bases;
             if base_bases.is_empty() {
                 let msg = "definition of base has to precede definition of derived contract";
-                self.dcx().err_span(msg, contract.name.span);
+                self.dcx().emit_err(contract.name.span, msg);
                 continue;
             }
             linearizer.insert_bases(base_bases);

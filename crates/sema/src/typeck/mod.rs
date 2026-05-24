@@ -56,10 +56,10 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
         match ty.same_source_file_level_user_type(gcx, using.source) {
             Ok(()) => {}
             Err(SameSourceFileLevelUserTypeError::NotUserDefined) => {
-                gcx.dcx().err_span("can only use `global` with user-defined types", using.span);
+                gcx.dcx().emit_err(using.span, "can only use `global` with user-defined types");
             }
             Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel) => {
-                gcx.dcx().err_span("can only use `global` with types defined in the same source unit at file level", using.span);
+                gcx.dcx().emit_err(using.span, "can only use `global` with types defined in the same source unit at file level");
             }
         }
     }
@@ -69,7 +69,7 @@ fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<
         && let TyKind::Contract(id) = ty.kind
         && gcx.hir.contract(id).kind.is_library()
     {
-        gcx.dcx().err_span("invalid use of library name", using.span);
+        gcx.dcx().emit_err(using.span, "invalid use of library name");
     }
 
     for entry in using.entries {
@@ -104,31 +104,28 @@ fn check_using_function<'gcx>(
     let is_library_function =
         function.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
     if !function.is_free() && !is_library_function {
-        gcx.dcx().err_span("only file-level functions and library functions can be attached to a type in a `using` statement", entry.span);
+        gcx.dcx().emit_err(entry.span, "only file-level functions and library functions can be attached to a type in a `using` statement");
     }
 
     let TyKind::Fn(function_ty) = gcx.type_of_item(function_id.into()).kind else { unreachable!() };
     if function_ty.parameters.is_empty() {
-        gcx.dcx()
-            .err(format!(
+        gcx.dcx().emit_err_span_note(
+            entry.span,
+            format!(
                 "function `{}` does not have any parameters and therefore cannot be attached",
                 gcx.item_name(function_id).as_str()
-            ))
-            .span(entry.span)
-            .span_note(function.span, "function defined here")
-            .emit();
+            ),
+            function.span,
+            "function defined here",
+        );
         return;
     }
 
     if function.visibility == Visibility::Private && function.contract != using.contract {
-        gcx.dcx()
-            .err(format!(
-                "function `{}` is private and therefore cannot be attached to a type outside of the library where it is defined",
-                gcx.item_name(function_id).as_str()
-            ))
-            .span(entry.span)
-            .span_note(function.span, "function defined here")
-            .emit();
+        gcx.dcx().emit_err_span_note(entry.span, format!(
+            "function `{}` is private and therefore cannot be attached to a type outside of the library where it is defined",
+            gcx.item_name(function_id).as_str()
+        ), function.span, "function defined here");
     }
 
     if let Some(using_ty) = using_ty {
@@ -323,7 +320,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     if contract.kind.is_library() {
         if let Some(receive) = contract.receive {
             gcx.dcx()
-                .err_span("libraries cannot have receive ether functions", gcx.item_span(receive));
+                .emit_err(gcx.item_span(receive), "libraries cannot have receive ether functions");
         }
         return;
     }
@@ -331,9 +328,9 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         let f = gcx.hir.function(receive);
         // Check visibility
         if f.visibility != Visibility::External {
-            gcx.dcx().err_span(
-                "receive ether function must be defined as `external`",
+            gcx.dcx().emit_err(
                 gcx.item_span(receive),
+                "receive ether function must be defined as `external`",
             );
         }
 
@@ -349,13 +346,13 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check parameters
         if !f.parameters.is_empty() {
             gcx.dcx()
-                .err_span("receive ether function cannot take parameters", gcx.item_span(receive));
+                .emit_err(gcx.item_span(receive), "receive ether function cannot take parameters");
         }
 
         // Check return values
         if !f.returns.is_empty() {
             gcx.dcx()
-                .err_span("receive ether function cannot return values", gcx.item_span(receive));
+                .emit_err(gcx.item_span(receive), "receive ether function cannot return values");
         }
     }
 }
@@ -366,7 +363,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let span = gcx.hir.contract(contract_id).name.span;
     let Some(total_size) = storage_size_upper_bound(gcx, contract_id) else {
-        gcx.dcx().err_span("contract requires too much storage", span);
+        gcx.dcx().emit_err(span, "contract requires too much storage");
         return;
     };
 
@@ -459,7 +456,7 @@ impl<'gcx> BreakContinueChecker<'gcx> {
     fn check_break_continue(&self, span: Span, kind: &str) {
         if self.loop_depth == 0 {
             let msg = format!("`{kind}` outside of a loop");
-            self.gcx.sess.dcx.err_span(msg, span);
+            self.gcx.sess.dcx.emit_err(span, msg);
         }
     }
 }

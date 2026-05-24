@@ -3,7 +3,7 @@ use super::{
     ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, MultiSpan, SilentEmitter,
     emitter::HumanEmitter,
 };
-use crate::{Result, SourceMap};
+use crate::{Result, SourceMap, Span};
 use anstream::ColorChoice;
 use solar_config::{ErrorFormat, Opts};
 use solar_data_structures::{map::FxHashSet, sync::Mutex};
@@ -380,8 +380,43 @@ impl DiagCtxt {
 
     /// Emits an error at `span` with the given `msg`.
     #[track_caller]
-    pub fn err_span(&self, msg: impl Into<DiagMsg>, span: impl Into<MultiSpan>) -> ErrorGuaranteed {
+    pub fn emit_err(&self, span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>) -> ErrorGuaranteed {
         self.err(msg).span(span).emit()
+    }
+
+    /// Emits an error at `span` with an attached note.
+    #[track_caller]
+    pub fn emit_err_note(
+        &self,
+        span: impl Into<MultiSpan>,
+        msg: impl Into<DiagMsg>,
+        note: impl Into<DiagMsg>,
+    ) -> ErrorGuaranteed {
+        self.err(msg).span(span).note(note).emit()
+    }
+
+    /// Emits an error at `span` with an attached span note.
+    #[track_caller]
+    pub fn emit_err_span_note(
+        &self,
+        span: impl Into<MultiSpan>,
+        msg: impl Into<DiagMsg>,
+        note_span: impl Into<MultiSpan>,
+        note: impl Into<DiagMsg>,
+    ) -> ErrorGuaranteed {
+        self.err(msg).span(span).span_note(note_span, note).emit()
+    }
+
+    /// Emits an error at `span` with an attached span label.
+    #[track_caller]
+    pub fn emit_err_label(
+        &self,
+        span: impl Into<MultiSpan>,
+        msg: impl Into<DiagMsg>,
+        label_span: Span,
+        label: impl Into<DiagMsg>,
+    ) -> ErrorGuaranteed {
+        self.err(msg).span(span).span_label(label_span, label).emit()
     }
 
     /// Creates a builder at the `Warning` level with the given `msg`.

@@ -85,7 +85,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         if with.is_none() && self.eat(TokenKind::BinOp(BinOpToken::Plus)) {
-            self.dcx().err_span("unary plus is not supported", self.prev_token.span);
+            self.dcx().emit_err(self.prev_token.span, "unary plus is not supported");
         }
 
         let lo = with.as_ref().map(|e| e.span).unwrap_or(self.token.span);
@@ -186,7 +186,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 && *payable
             {
                 let msg = "`address payable` cannot be used in an expression";
-                self.dcx().err_span(msg, ty.span);
+                self.dcx().emit_err(ty.span, msg);
                 *payable = false;
             }
             ExprKind::Type(ty)
