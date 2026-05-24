@@ -57,6 +57,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
             .unwrap_or_else(|| panic!("builtin module {builtin:?} has no inner builtins"))
             .map(|b| Member::of_builtin(gcx, b))
             .collect(),
+        TyKind::Variadic(_) => Default::default(),
         TyKind::Type(ty) => type_type(gcx, ty),
         TyKind::Meta(ty) => meta(gcx, ty),
         TyKind::Err(_guar) => Default::default(),

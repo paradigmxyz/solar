@@ -1,7 +1,7 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir,
-    ty::{Gcx, Ty, TyFnKind},
+    ty::{Gcx, Ty, TyFnKind, VariadicTy},
 };
 use solar_ast::StateMutability as SM;
 use solar_data_structures::map::FxHashMap;
@@ -169,21 +169,16 @@ declare_builtins! {
                            => gcx.types.uint(256);
 
     // `abi`
-    // TODO                => `(T...) pure returns(bytes memory)`
     AbiEncode              => sym::encode
-                           => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
-    // TODO                => `(T...) pure returns(bytes memory)`
+                           => gcx.mk_builtin_fn(&[gcx.mk_ty_variadic(VariadicTy::Any)], SM::Pure, &[gcx.types.bytes_ref.memory]);
     AbiEncodePacked        => sym::encodePacked
-                           => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
-    // TODO                => `(bytes4, T...) pure returns(bytes memory)`
+                           => gcx.mk_builtin_fn(&[gcx.mk_ty_variadic(VariadicTy::Any)], SM::Pure, &[gcx.types.bytes_ref.memory]);
     AbiEncodeWithSelector  => sym::encodeWithSelector
-                           => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
-    // TODO                => `(F, T...) pure returns(bytes memory)`
+                           => gcx.mk_builtin_fn(&[gcx.types.fixed_bytes(4), gcx.mk_ty_variadic(VariadicTy::Any)], SM::Pure, &[gcx.types.bytes_ref.memory]);
     AbiEncodeCall          => sym::encodeCall
-                           => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
-    // TODO                => `(string memory, T...) pure returns(bytes memory)`
+                           => gcx.mk_builtin_fn(&[gcx.mk_ty_variadic(VariadicTy::EncodeCall)], SM::Pure, &[gcx.types.bytes_ref.memory]);
     AbiEncodeWithSignature => sym::encodeWithSignature
-                           => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
+                           => gcx.mk_builtin_fn(&[gcx.types.string_ref.memory, gcx.mk_ty_variadic(VariadicTy::Any)], SM::Pure, &[gcx.types.bytes_ref.memory]);
     // TODO                => `(bytes memory, (T...)) pure returns(T...)`
     AbiDecode              => sym::decode
                            => gcx.mk_builtin_fn(&[], SM::Pure, &[]);
@@ -242,13 +237,11 @@ declare_builtins! {
     UdvtWrap               => sym::wrap   => unreachable!();
     UdvtUnwrap             => sym::unwrap => unreachable!();
 
-    // TODO                => `(string memory...) pure returns(string memory)`
     StringConcat           => sym::concat
-                           => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.string_ref.memory]);
+                           => gcx.mk_builtin_fn(&[gcx.mk_ty_variadic(VariadicTy::String)], SM::Pure, &[gcx.types.string_ref.memory]);
 
-    // TODO                => `(bytes memory...) pure returns(bytes memory)`
     BytesConcat            => sym::concat
-                           => gcx.mk_builtin_fn(&[], SM::Pure, &[gcx.types.bytes_ref.memory]);
+                           => gcx.mk_builtin_fn(&[gcx.mk_ty_variadic(VariadicTy::Bytes)], SM::Pure, &[gcx.types.bytes_ref.memory]);
 
     // Yul EVM builtins.
     YulAdd                 => kw::Add              => gcx.mk_yul_builtin_fn(2, 1);

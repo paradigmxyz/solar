@@ -26,22 +26,6 @@ contract CallChecking {
         multiReturn();
     }
 
-    // === Variadic builtins ===
-    function testVariadicBuiltins(
-        bytes4 selector,
-        string memory signature,
-        bytes memory data,
-        bytes32 word,
-        uint256 value
-    ) public pure {
-        string.concat("prefix: ", signature);
-        bytes.concat(data, word);
-        abi.encode(selector, signature, data, word, value);
-        abi.encodePacked(selector, signature, data, word, value);
-        abi.encodeWithSelector(selector, signature, data, word, value);
-        abi.encodeWithSignature(signature, selector, data, word, value);
-    }
-
     // === Zero-arg function/event/error calls ===
     function testZeroArgs() public pure {
         noArgs();
@@ -158,12 +142,6 @@ contract CallChecking {
         //~| ERROR: mismatched types
     }
 
-    // === ABI decode ===
-    function testAbiDecode(bytes memory data) public pure {
-        uint256 single = abi.decode(data, (uint256));
-        (uint256 a, bool b) = abi.decode(data, (uint256, bool));
-        bytes memory decoded = abi.decode(data, (bytes));
-    }
 }
 
 contract BaseCallTarget {

@@ -2,7 +2,7 @@ use crate::{
     builtins::{Builtin, members},
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
+    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind, VariadicTy},
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -250,14 +250,11 @@ impl<'gcx> TypeChecker<'gcx> {
 
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
-                        if let Some(&builtin) = self.builtin_callees.get(&callee.id) {
-                            if builtin == Builtin::AbiDecode {
-                                self.try_set_not_lvalue(NotLvalueReason::Generic);
-                                return self.check_abi_decode_call(expr.span, args);
-                            }
-                            if self.check_variadic_builtin_args(builtin, args) {
-                                return self.fn_call_return_type(f.returns);
-                            }
+                        if let Some(&builtin) = self.builtin_callees.get(&callee.id)
+                            && builtin == Builtin::AbiDecode
+                        {
+                            self.try_set_not_lvalue(NotLvalueReason::Generic);
+                            return self.check_abi_decode_call(expr.span, args);
                         }
                         if f.is_declaration() {
                             return self.gcx.mk_ty_err(
@@ -1162,105 +1159,6 @@ impl<'gcx> TypeChecker<'gcx> {
         ty
     }
 
-    fn check_variadic_builtin_args(
-        &mut self,
-        builtin: Builtin,
-        args: &hir::CallArgs<'gcx>,
-    ) -> bool {
-        let Some(kind) = VariadicBuiltin::new(builtin) else { return false };
-        let hir::CallArgsKind::Unnamed(exprs) = args.kind else {
-            self.dcx()
-                .err("named arguments cannot be used for functions that take arbitrary parameters")
-                .span(args.span)
-                .emit();
-            if let hir::CallArgsKind::Named(named_args) = args.kind {
-                for arg in named_args {
-                    let _ = self.check_expr_once(&arg.value);
-                }
-            }
-            return true;
-        };
-
-        match kind {
-            VariadicBuiltin::Any => {
-                for expr in exprs {
-                    let _ = self.check_expr_once(expr);
-                }
-            }
-            VariadicBuiltin::Bytes => {
-                for expr in exprs {
-                    let ty = self.check_expr_once(expr);
-                    if ty.is_fixed_bytes() {
-                        continue;
-                    }
-                    self.check_expected(expr, ty, self.gcx.types.bytes_ref.memory);
-                }
-            }
-            VariadicBuiltin::String => {
-                for expr in exprs {
-                    let ty = self.check_expr_once(expr);
-                    self.check_expected(expr, ty, self.gcx.types.string_ref.memory);
-                }
-            }
-            VariadicBuiltin::SelectorPrefixed => {
-                self.check_min_variadic_arg_count(builtin, args.span, exprs.len(), 1);
-                if let Some((selector, rest)) = exprs.split_first() {
-                    let ty = self.check_expr_once(selector);
-                    self.check_expected(selector, ty, self.gcx.types.fixed_bytes(4));
-                    for expr in rest {
-                        let _ = self.check_expr_once(expr);
-                    }
-                }
-            }
-            VariadicBuiltin::SignaturePrefixed => {
-                self.check_min_variadic_arg_count(builtin, args.span, exprs.len(), 1);
-                if let Some((signature, rest)) = exprs.split_first() {
-                    let ty = self.check_expr_once(signature);
-                    self.check_expected(signature, ty, self.gcx.types.string_ref.memory);
-                    for expr in rest {
-                        let _ = self.check_expr_once(expr);
-                    }
-                }
-            }
-            VariadicBuiltin::EncodeCall => {
-                if exprs.len() != 2 {
-                    self.dcx()
-                        .err(format!(
-                            "wrong argument count for function call: {} arguments given but expected 2",
-                            exprs.len()
-                        ))
-                        .span(args.span)
-                        .emit();
-                }
-                for expr in exprs {
-                    let _ = self.check_expr_once(expr);
-                }
-            }
-        }
-        true
-    }
-
-    fn check_min_variadic_arg_count(
-        &self,
-        builtin: Builtin,
-        span: Span,
-        actual: usize,
-        minimum: usize,
-    ) {
-        if actual < minimum {
-            self.dcx()
-                .err(format!(
-                    "wrong argument count for function call: {actual} arguments given but expected at least {minimum}"
-                ))
-                .span(span)
-                .span_label(
-                    span,
-                    format!("`{}` requires at least {minimum} argument", builtin.name()),
-                )
-                .emit();
-        }
-    }
-
     fn check_library_self_call(&self, member: &members::Member<'gcx>, span: Span) {
         let Some(contract_id) = self.contract else { return };
         if !self.gcx.hir.contract(contract_id).kind.is_library() {
@@ -1441,13 +1339,26 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
-                if exprs.len() != param_tys.len() {
+                let Some((fixed_params, variadic)) = split_variadic_params(param_tys) else {
                     return false;
+                };
+                match variadic {
+                    Some(VariadicTy::EncodeCall) if exprs.len() != 2 => return false,
+                    Some(_) if exprs.len() < fixed_params.len() => return false,
+                    None if exprs.len() != fixed_params.len() => return false,
+                    _ => {}
                 }
-                exprs
+                let fixed_match = exprs
                     .iter()
-                    .zip(param_tys)
-                    .all(|(expr, &param_ty)| self.arg_matches(expr, param_ty))
+                    .zip(fixed_params)
+                    .all(|(expr, &param_ty)| self.arg_matches(expr, param_ty));
+                fixed_match
+                    && variadic.is_none_or(|variadic| {
+                        exprs
+                            .iter()
+                            .skip(fixed_params.len())
+                            .all(|expr| self.variadic_arg_matches(expr, variadic))
+                    })
             }
             hir::CallArgsKind::Named(named_args) => {
                 let Some(names) = param_names else { return false };
@@ -1476,6 +1387,25 @@ impl<'gcx> TypeChecker<'gcx> {
     fn arg_matches(&mut self, expr: &'gcx hir::Expr<'gcx>, param_ty: Ty<'gcx>) -> bool {
         let ty = self.check_expr_once(expr);
         ty.try_convert_implicit_to(param_ty, self.gcx).is_ok()
+    }
+
+    fn variadic_arg_matches(&mut self, expr: &'gcx hir::Expr<'gcx>, variadic: VariadicTy) -> bool {
+        let ty = self.check_expr_once(expr);
+        self.variadic_arg_matches_ty(ty, variadic)
+    }
+
+    fn variadic_arg_matches_ty(&self, ty: Ty<'gcx>, variadic: VariadicTy) -> bool {
+        match variadic {
+            VariadicTy::Any => true,
+            VariadicTy::Bytes => {
+                ty.is_fixed_bytes()
+                    || ty.try_convert_implicit_to(self.gcx.types.bytes_ref.memory, self.gcx).is_ok()
+            }
+            VariadicTy::String => {
+                ty.try_convert_implicit_to(self.gcx.types.string_ref.memory, self.gcx).is_ok()
+            }
+            VariadicTy::EncodeCall => true,
+        }
     }
 
     fn check_call_options(
@@ -1587,33 +1517,94 @@ impl<'gcx> TypeChecker<'gcx> {
         exprs: &'gcx [hir::Expr<'gcx>],
         param_tys: &[Ty<'gcx>],
     ) {
-        if exprs.len() != param_tys.len() {
+        let Some((fixed_params, variadic)) = split_variadic_params(param_tys) else {
+            for expr in exprs {
+                let _ = self.check_expr_once(expr);
+            }
+            return;
+        };
+
+        if variadic == Some(VariadicTy::EncodeCall) && exprs.len() != 2 {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected 2",
+                    exprs.len()
+                ))
+                .span(call_span)
+                .span_label(args_span, format!("expected 2 arguments, found {}", exprs.len()))
+                .emit();
+        } else if variadic.is_none() && exprs.len() != fixed_params.len() {
             self.dcx()
                 .err(format!(
                     "wrong argument count for function call: {} arguments given but expected {}",
                     exprs.len(),
-                    param_tys.len()
+                    fixed_params.len()
                 ))
                 .span(call_span)
                 .span_label(
                     args_span,
                     format!(
                         "expected {} argument{}, found {}",
-                        param_tys.len(),
-                        pluralize!(param_tys.len()),
+                        fixed_params.len(),
+                        pluralize!(fixed_params.len()),
+                        exprs.len()
+                    ),
+                )
+                .emit();
+        } else if variadic.is_some() && exprs.len() < fixed_params.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected at least {}",
+                    exprs.len(),
+                    fixed_params.len()
+                ))
+                .span(call_span)
+                .span_label(
+                    args_span,
+                    format!(
+                        "expected at least {} argument{}, found {}",
+                        fixed_params.len(),
+                        pluralize!(fixed_params.len()),
                         exprs.len()
                     ),
                 )
                 .emit();
         }
 
-        let count = std::cmp::min(exprs.len(), param_tys.len());
+        let count = std::cmp::min(exprs.len(), fixed_params.len());
         for i in 0..count {
             let actual = self.check_expr_once(&exprs[i]);
-            self.check_expected(&exprs[i], actual, param_tys[i]);
+            self.check_expected(&exprs[i], actual, fixed_params[i]);
         }
-        for expr in exprs.iter().skip(count) {
-            let _ = self.check_expr_once(expr);
+        if let Some(variadic) = variadic {
+            for expr in exprs.iter().skip(count) {
+                let actual = self.check_expr_once(expr);
+                self.check_variadic_arg(expr, actual, variadic);
+            }
+        } else {
+            for expr in exprs.iter().skip(count) {
+                let _ = self.check_expr_once(expr);
+            }
+        }
+    }
+
+    fn check_variadic_arg(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        actual: Ty<'gcx>,
+        variadic: VariadicTy,
+    ) {
+        match variadic {
+            VariadicTy::Any => {}
+            VariadicTy::Bytes => {
+                if !actual.is_fixed_bytes() {
+                    self.check_expected(expr, actual, self.gcx.types.bytes_ref.memory);
+                }
+            }
+            VariadicTy::String => {
+                self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
+            }
+            VariadicTy::EncodeCall => {}
         }
     }
 
@@ -2205,29 +2196,6 @@ enum MemberAccessError {
     Ambiguous,
 }
 
-enum VariadicBuiltin {
-    Any,
-    Bytes,
-    String,
-    SelectorPrefixed,
-    SignaturePrefixed,
-    EncodeCall,
-}
-
-impl VariadicBuiltin {
-    fn new(builtin: Builtin) -> Option<Self> {
-        Some(match builtin {
-            Builtin::AbiEncode | Builtin::AbiEncodePacked => Self::Any,
-            Builtin::AbiEncodeWithSelector => Self::SelectorPrefixed,
-            Builtin::AbiEncodeCall => Self::EncodeCall,
-            Builtin::AbiEncodeWithSignature => Self::SignaturePrefixed,
-            Builtin::StringConcat => Self::String,
-            Builtin::BytesConcat => Self::Bytes,
-            _ => return None,
-        })
-    }
-}
-
 enum WantOne<T> {
     Zero,
     One(T),
@@ -2293,6 +2261,21 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
     ty.is_ref_at(DataLocation::Calldata)
         || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
+}
+
+fn split_variadic_params<'a, 'gcx>(
+    param_tys: &'a [Ty<'gcx>],
+) -> Option<(&'a [Ty<'gcx>], Option<VariadicTy>)> {
+    let Some((&last, fixed)) = param_tys.split_last() else {
+        return Some((param_tys, None));
+    };
+    if let TyKind::Variadic(variadic) = last.kind {
+        return Some((fixed, Some(variadic)));
+    }
+    if param_tys.iter().any(|ty| matches!(ty.kind, TyKind::Variadic(_))) {
+        return None;
+    }
+    Some((param_tys, None))
 }
 
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
@@ -2418,6 +2401,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Udvt(..)
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
+        | TyKind::Variadic(_)
         | TyKind::Type(_)
         | TyKind::Meta(_) => None,
 
