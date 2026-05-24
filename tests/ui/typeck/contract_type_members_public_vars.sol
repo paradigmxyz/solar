@@ -34,3 +34,31 @@ contract PublicStateVarOtherScope {
         PublicStateVarBase.baseVar(); //~ ERROR: cannot call function via contract type name
     }
 }
+
+contract QualifiedLvalueBase {
+    uint256 public baseVar = 42;
+    uint256 public constant constantVar = 1;
+    uint256 public immutable immutableVar;
+
+    constructor() {
+        QualifiedLvalueBase.immutableVar = 2;
+    }
+}
+
+contract QualifiedLvalueDerived is QualifiedLvalueBase {
+    uint256 public selfVar = 24;
+    uint256 public immutable derivedImmutable;
+
+    constructor() {
+        QualifiedLvalueDerived.derivedImmutable = 3;
+    }
+
+    function setStateVars() public {
+        QualifiedLvalueDerived.selfVar = 1;
+        QualifiedLvalueBase.baseVar = 2;
+
+        QualifiedLvalueBase.constantVar = 3; //~ ERROR: cannot assign to a constant variable
+        QualifiedLvalueBase.immutableVar = 4; //~ ERROR: cannot assign to immutable here
+        QualifiedLvalueDerived.derivedImmutable = 5; //~ ERROR: cannot assign to immutable here
+    }
+}

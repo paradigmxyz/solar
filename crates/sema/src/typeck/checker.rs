@@ -460,12 +460,14 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Ref(inner, _) if matches!(inner.kind, TyKind::Struct(_)) => None,
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
-                            && possible_members.len() == 1
-                            && possible_members[0]
-                                .res
-                                .is_some_and(|res| self.res_not_lvalue_reason(res).is_some()) =>
+                            && possible_members.len() == 1 =>
                     {
-                        Some(NotLvalueReason::Generic)
+                        match possible_members[0].res {
+                            Some(res) if res.as_variable().is_some() => {
+                                self.res_not_lvalue_reason(res)
+                            }
+                            _ => Some(NotLvalueReason::Generic),
+                        }
                     }
                     _ => Some(NotLvalueReason::Generic),
                 };

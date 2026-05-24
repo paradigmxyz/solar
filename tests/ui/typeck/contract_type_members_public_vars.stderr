@@ -52,5 +52,27 @@ error: cannot call function via contract type name
 LL │         PublicStateVarBase.baseVar();
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 7 previous errors
+error: cannot assign to a constant variable
+   ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
+   │
+LL │         QualifiedLvalueBase.constantVar = 3;
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: cannot assign to immutable here
+   ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
+   │
+LL │         QualifiedLvalueBase.immutableVar = 4;
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies
+
+error: cannot assign to immutable here
+   ╭▸ ROOT/tests/ui/typeck/contract_type_members_public_vars.sol:LL:CC
+   │
+LL │         QualifiedLvalueDerived.derivedImmutable = 5;
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: immutables can only be assigned in state variable initializers, constructor arguments, or constructor bodies
+
+error: aborting due to 10 previous errors
 
