@@ -97,6 +97,8 @@ Error messages should follow these conventions:
 - **No full stops**: Error messages should not end with periods
 - **Use backticks for code**: Use `` `identifier` `` instead of `"identifier"` for code references
 - **Main message is concise**: Keep the primary error message short and direct
+- **Propagate guarantees**: Code paths that emit diagnostics should return `Result<(), ErrorGuaranteed>` instead of `bool` where practical, and pass the emitted guarantee to `mk_ty_err` when producing an error type
+- **Avoid unchecked guarantees**: Do not use `ErrorGuaranteed::new_unchecked()` when a real emitted diagnostic guarantee can be propagated
 - **Use subdiagnostics**: Add context via `note`, `help`, and `span_note`:
   - `note`: Additional context about why the error occurred
   - `help`: Actionable suggestion for how to fix the error

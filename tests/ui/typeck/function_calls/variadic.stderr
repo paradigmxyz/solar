@@ -10,6 +10,12 @@ error: `string.concat` arguments must be strings
 LL │     string.concat(data);
    ╰╴                  ━━━━ found `bytes memory`
 
+error: named arguments cannot be used for functions that take arbitrary parameters
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     string.concat({a: signature});
+   ╰╴                 ━━━━━━━━━━━━━━━━
+
 error: `bytes.concat` arguments must be bytes or fixed bytes
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
@@ -21,6 +27,12 @@ error: `bytes.concat` arguments must be bytes or fixed bytes
    │
 LL │     bytes.concat(signature);
    ╰╴                 ━━━━━━━━━ found `string memory`
+
+error: named arguments cannot be used for functions that take arbitrary parameters
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     bytes.concat({a: data});
+   ╰╴                ━━━━━━━━━━━
 
 error: `encode` argument cannot be ABI-encoded
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
@@ -34,6 +46,12 @@ error: `encode` argument cannot be ABI-encoded
 LL │     abi.encode(type(uint256));
    ╰╴               ━━━━━━━━━━━━━ found `type(uint256)`
 
+error: named arguments cannot be used for functions that take arbitrary parameters
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encode({a: value});
+   ╰╴              ━━━━━━━━━━━━
+
 error: `encodePacked` argument cannot be ABI-encoded
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
@@ -46,6 +64,12 @@ error: `encodePacked` argument cannot be ABI-encoded
 LL │     abi.encodePacked(type(uint256));
    ╰╴                     ━━━━━━━━━━━━━ found `type(uint256)`
 
+error: named arguments cannot be used for functions that take arbitrary parameters
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodePacked({a: value});
+   ╰╴                    ━━━━━━━━━━━━
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
@@ -57,6 +81,12 @@ error: `encodeWithSelector` argument cannot be ABI-encoded
    │
 LL │     abi.encodeWithSelector(selector, uint256);
    ╰╴                                     ━━━━━━━ found `type(uint256)`
+
+error: named arguments cannot be used for functions that take arbitrary parameters
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodeWithSelector({selector: selector, a: value});
+   ╰╴                          ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: second argument to `abi.encodeCall` must be a tuple
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
@@ -76,6 +106,12 @@ error: mismatched types
 LL │     abi.encodeCall(Target.target, (signature, word));
    ╰╴                                   ━━━━━━━━━ expected `uint256`, found `string memory`
 
+error: named arguments cannot be used for functions that take arbitrary parameters
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodeCall({functionPointer: Target.target, arguments: (value, word)});
+   ╰╴                  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
@@ -88,6 +124,12 @@ error: `encodeWithSignature` argument cannot be ABI-encoded
 LL │     abi.encodeWithSignature(signature, uint256);
    ╰╴                                       ━━━━━━━ found `type(uint256)`
 
+error: named arguments cannot be used for functions that take arbitrary parameters
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodeWithSignature({signature: signature, a: value});
+   ╰╴                           ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
@@ -99,6 +141,12 @@ error: `abi.decode` type tuple components must be types
    │
 LL │     abi.decode(data, (value));
    ╰╴                      ━━━━━
+
+error: named arguments cannot be used for functions that take arbitrary parameters
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.decode({data: data, types: (uint256)});
+   ╰╴              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: `abi.decode` type tuple components must be types
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
@@ -148,5 +196,5 @@ error: `bytes.concat` arguments must be bytes or fixed bytes
 LL │         bytes.concat(calldataSignature);
    ╰╴                     ━━━━━━━━━━━━━━━━━ found `string calldata`
 
-error: aborting due to 25 previous errors
+error: aborting due to 33 previous errors
 
