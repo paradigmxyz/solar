@@ -15,10 +15,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     return self.gcx.types.uint(256);
                 }
                 return self.gcx.mk_ty_err(
-                    self.dcx()
-                        .err(format!("string literal too long ({len} > 32)"))
-                        .span(lit.span)
-                        .emit(),
+                    self.dcx().emit_err(lit.span, format!("string literal too long ({len} > 32)")),
                 );
             }
             LitKind::Address(_) => return self.gcx.types.uint(256),
@@ -48,16 +45,12 @@ impl<'gcx> TypeChecker<'gcx> {
             if self.in_lvalue() {
                 return Err(self
                     .dcx()
-                    .err("only local variables can be assigned to in inline assembly")
-                    .span(span)
-                    .emit());
+                    .emit_err(span, "only local variables can be assigned to in inline assembly"));
             }
             if let hir::ItemId::Function(_) = item {
                 return Err(self
                     .dcx()
-                    .err("access to functions is not allowed in inline assembly")
-                    .span(span)
-                    .emit());
+                    .emit_err(span, "access to functions is not allowed in inline assembly"));
             }
             return Ok(false);
         };
@@ -66,17 +59,13 @@ impl<'gcx> TypeChecker<'gcx> {
         if var.is_immutable() {
             return Err(self
                 .dcx()
-                .err("assembly access to immutable variables is not supported")
-                .span(span)
-                .emit());
+                .emit_err(span, "assembly access to immutable variables is not supported"));
         }
 
         if var.is_constant() && !self.in_lvalue() && !ty.is_value_type() {
             return Err(self
                 .dcx()
-                .err("only direct number constants are supported in inline assembly")
-                .span(span)
-                .emit());
+                .emit_err(span, "only direct number constants are supported in inline assembly"));
         }
 
         if var.is_state_variable() && !var.is_constant() {
@@ -109,9 +98,7 @@ impl<'gcx> TypeChecker<'gcx> {
         if matches!(ty.kind, TyKind::Fn(f) if f.is_external()) {
             return Err(self
                 .dcx()
-                .err("only types that use one stack slot are supported")
-                .span(span)
-                .emit());
+                .emit_err(span, "only types that use one stack slot are supported"));
         }
 
         Ok(true)
@@ -169,34 +156,26 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(()) => return self.gcx.types.uint(256),
             Err(ErrorKind::NonVariable) => self
                 .dcx()
-                .err("inline assembly suffixes can only be used with variables")
-                .span(member.span)
-                .emit(),
+                .emit_err(member.span, "inline assembly suffixes can only be used with variables"),
             Err(ErrorKind::Immutable) => self
                 .dcx()
-                .err("assembly access to immutable variables is not supported")
-                .span(expr.span)
-                .emit(),
-            Err(ErrorKind::UnsupportedBase) => self
-                .dcx()
-                .err(format!("suffix `.{member}` is not supported by this variable or type"))
-                .span(member.span)
-                .emit(),
+                .emit_err(expr.span, "assembly access to immutable variables is not supported"),
+            Err(ErrorKind::UnsupportedBase) => self.dcx().emit_err(
+                member.span,
+                format!("suffix `.{member}` is not supported by this variable or type"),
+            ),
             Err(ErrorKind::UnsupportedMember(member_set)) => {
-                self.dcx().err(member_set.unsupported_member_message()).span(member.span).emit()
+                self.dcx().emit_err(member.span, member_set.unsupported_member_message())
             }
-            Err(ErrorKind::NonExternalFunction) => self
-                .dcx()
-                .err("only external function pointer variables support `.selector` and `.address`")
-                .span(member.span)
-                .emit(),
+            Err(ErrorKind::NonExternalFunction) => self.dcx().emit_err(
+                member.span,
+                "only external function pointer variables support `.selector` and `.address`",
+            ),
             Err(ErrorKind::Assignment(YulMemberAssignmentError::StateVariable)) => self
                 .dcx()
-                .err("state variables cannot be assigned to in inline assembly")
-                .span(expr.span)
-                .emit(),
+                .emit_err(expr.span, "state variables cannot be assigned to in inline assembly"),
             Err(ErrorKind::Assignment(YulMemberAssignmentError::StorageOffset)) => {
-                self.dcx().err("only `.slot` can be assigned to").span(member.span).emit()
+                self.dcx().emit_err(member.span, "only `.slot` can be assigned to")
             }
         };
 

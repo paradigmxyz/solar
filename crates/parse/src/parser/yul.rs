@@ -229,7 +229,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if cases.is_empty() {
             let span = lo.to(self.prev_token.span);
             if default_case.is_none() {
-                self.dcx().err("`switch` statement has no cases").span(span).emit();
+                self.dcx().emit_err(span, "`switch` statement has no cases");
             } else {
                 self.dcx()
                     .warn("`switch` statement has only a default case")
@@ -309,7 +309,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[track_caller]
     fn expect_single_ident_path(&mut self, path: AstPath<'_>) -> Ident {
         if path.segments().len() > 1 {
-            self.dcx().err("fully-qualified paths aren't allowed here").span(path.span()).emit();
+            self.dcx().emit_err(path.span(), "fully-qualified paths aren't allowed here");
         }
         *path.last()
     }
