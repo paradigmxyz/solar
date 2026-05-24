@@ -252,6 +252,17 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
     } else {
         Either::Right(gcx.interface_functions(id).iter().map(|f| f.id))
     };
+    let type_members = contract
+        .items
+        .iter()
+        .copied()
+        .filter(|&item| {
+            let item = gcx.hir.item(item);
+            (is_library && item.is_visible_as_library_member())
+                || item.is_visible_via_contract_type_access()
+        })
+        .filter(|item| !matches!(item, hir::ItemId::Function(_)));
+
     functions
         .map(|id| {
             let item = hir::ItemId::from(id);
@@ -272,8 +283,10 @@ fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
                     attached: false,
                 })
             };
-            Member::with_res(gcx.item_name(item).name, ty, item)
+            (item, ty)
         })
+        .chain(type_members.map(|item| (item, gcx.type_of_res(item.into()))))
+        .map(|(item, ty)| Member::with_res(gcx.item_name(item).name, ty, item))
         .collect()
 }
 
