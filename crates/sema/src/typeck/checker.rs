@@ -1176,23 +1176,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 .emit());
         };
 
-        let ty = self.check_expr_once(function);
-        let TyKind::Fn(function_ty) = ty.kind else {
-            return Err(self
-                .dcx()
-                .err("first argument to `abi.encodeCall` must be a function")
-                .span(function.span)
-                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
-                .emit());
-        };
-        if !matches!(function_ty.kind, TyFnKind::External | TyFnKind::Declaration) {
-            return Err(self
-                .dcx()
-                .err("first argument to `abi.encodeCall` must be an external function")
-                .span(function.span)
-                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
-                .emit());
-        }
+        let function_ty = self.check_abi_encode_call_function_arg(function)?;
 
         let mut result = Ok(());
         let arguments_ty = self.check_expr_once(arguments);
@@ -1246,6 +1230,44 @@ impl<'gcx> TypeChecker<'gcx> {
             result = result.and(self.check_expected(component, actual, expected));
         }
         result
+    }
+
+    fn check_abi_encode_call_function_arg(
+        &mut self,
+        function: &'gcx hir::Expr<'gcx>,
+    ) -> Result<&'gcx TyFn<'gcx>, ErrorGuaranteed> {
+        let ty = self.check_expr_once(function);
+        match ty.kind {
+            TyKind::Fn(function_ty)
+                if matches!(function_ty.kind, TyFnKind::External | TyFnKind::Declaration) =>
+            {
+                Ok(function_ty)
+            }
+            TyKind::Fn(function_ty) => Err(self
+                .dcx()
+                .err(abi_encode_call_function_kind_message(function_ty.kind))
+                .span(function.span)
+                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit()),
+            TyKind::Event(..) => Err(self
+                .dcx()
+                .err("first argument to `abi.encodeCall` cannot be an event")
+                .span(function.span)
+                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit()),
+            TyKind::Error(..) => Err(self
+                .dcx()
+                .err("first argument to `abi.encodeCall` cannot be an error")
+                .span(function.span)
+                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit()),
+            _ => Err(self
+                .dcx()
+                .err("first argument to `abi.encodeCall` must be a function")
+                .span(function.span)
+                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
+                .emit()),
+        }
     }
 
     fn check_abi_decode_call_args(
@@ -2619,6 +2641,18 @@ fn abi_decode_arg_kind(name: Symbol) -> Option<AbiDecodeArg> {
         Some(AbiDecodeArg::Types)
     } else {
         None
+    }
+}
+
+fn abi_encode_call_function_kind_message(kind: TyFnKind) -> &'static str {
+    match kind {
+        TyFnKind::Internal => "first argument to `abi.encodeCall` must be an external function",
+        TyFnKind::DelegateCall => "first argument to `abi.encodeCall` cannot be a library function",
+        TyFnKind::Creation => "first argument to `abi.encodeCall` cannot be a creation function",
+        TyFnKind::BareCall | TyFnKind::BareDelegateCall | TyFnKind::BareStaticCall => {
+            "first argument to `abi.encodeCall` cannot be a special function"
+        }
+        TyFnKind::External | TyFnKind::Declaration => unreachable!(),
     }
 }
 
