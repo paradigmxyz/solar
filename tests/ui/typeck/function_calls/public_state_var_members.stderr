@@ -1,0 +1,56 @@
+error: expected function, found `uint256`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         PublicStateVarDerived.selfVar();
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         PublicStateVarDerived.selfVar();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: expected function, found `uint256`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         PublicStateVarBase.baseVar();
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: call expression requires function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         PublicStateVarBase.baseVar();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: member `baseVar` not found on type `type(contract super PublicStateVarDerived)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         super.baseVar;
+   ╰╴              ━━━━━━━
+
+error: member `baseVar` not found on type `type(contract super PublicStateVarDerived)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         super.baseVar();
+   ╰╴              ━━━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         PublicStateVarDerived.selfVar();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         PublicStateVarDerived.baseVar();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/public_state_var_members.sol:LL:CC
+   │
+LL │         PublicStateVarBase.baseVar();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 7 previous errors
+
