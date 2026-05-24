@@ -7,15 +7,17 @@ interface Target {
 function testVariadicBuiltins(
     bytes4 selector,
     string memory signature,
+    string calldata calldataSignature,
     bytes memory data,
+    bytes calldata calldataData,
     bytes32 word,
     uint256 value
 ) pure {
-    string.concat("prefix: ", signature);
+    string.concat("prefix: ", signature, calldataSignature);
     string.concat(value); //~ ERROR: `string.concat` arguments must be strings
     string.concat(data); //~ ERROR: `string.concat` arguments must be strings
 
-    bytes.concat(data, word);
+    bytes.concat(data, calldataData, word);
     bytes.concat(value); //~ ERROR: `bytes.concat` arguments must be bytes or fixed bytes
     bytes.concat(signature); //~ ERROR: `bytes.concat` arguments must be bytes or fixed bytes
 
@@ -32,6 +34,7 @@ function testVariadicBuiltins(
     abi.encodeWithSelector(selector, uint256); //~ ERROR: argument cannot be ABI-encoded
 
     abi.encodeCall(Target.target, (value, word));
+    abi.encodeCall(Target.target, value); //~ ERROR: second argument to `abi.encodeCall` must be a tuple
     abi.encodeCall(value, (value, word)); //~ ERROR: first argument to `abi.encodeCall` must be a function
     abi.encodeCall(Target.target, (signature, word)); //~ ERROR: mismatched types
 
@@ -50,4 +53,26 @@ function testVariadicBuiltins(
     bytes memory decoded = abi.decode(data, (bytes));
     abi.decode(data, (bytes, value)); //~ ERROR: `abi.decode` type tuple components must be types
     abi.decode(data, (bytes, 1)); //~ ERROR: `abi.decode` type tuple components must be types
+}
+
+contract VariadicLocations {
+    string storedString;
+    bytes storedBytes;
+
+    function testConcatLocations(
+        string calldata calldataSignature,
+        bytes calldata calldataData,
+        bytes32 word,
+        uint256 value
+    ) external {
+        string storage storageSignature = storedString;
+        string.concat(storedString, storageSignature, calldataSignature);
+        string.concat(value); //~ ERROR: `string.concat` arguments must be strings
+        string.concat(calldataData); //~ ERROR: `string.concat` arguments must be strings
+
+        bytes storage storageData = storedBytes;
+        bytes.concat(storedBytes, storageData, calldataData, word);
+        bytes.concat(value); //~ ERROR: `bytes.concat` arguments must be bytes or fixed bytes
+        bytes.concat(calldataSignature); //~ ERROR: `bytes.concat` arguments must be bytes or fixed bytes
+    }
 }

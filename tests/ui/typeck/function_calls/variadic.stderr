@@ -58,6 +58,12 @@ error: `encodeWithSelector` argument cannot be ABI-encoded
 LL │     abi.encodeWithSelector(selector, uint256);
    ╰╴                                     ━━━━━━━ found `type(uint256)`
 
+error: second argument to `abi.encodeCall` must be a tuple
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │     abi.encodeCall(Target.target, value);
+   ╰╴                                  ━━━━━
+
 error: first argument to `abi.encodeCall` must be a function
    ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
    │
@@ -118,5 +124,29 @@ error: `abi.decode` type tuple components must be types
 LL │     abi.decode(data, (bytes, 1));
    ╰╴                             ━
 
-error: aborting due to 20 previous errors
+error: `string.concat` arguments must be strings
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │         string.concat(value);
+   ╰╴                      ━━━━━ found `uint256`
+
+error: `string.concat` arguments must be strings
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │         string.concat(calldataData);
+   ╰╴                      ━━━━━━━━━━━━ found `bytes calldata`
+
+error: `bytes.concat` arguments must be bytes or fixed bytes
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │         bytes.concat(value);
+   ╰╴                     ━━━━━ found `uint256`
+
+error: `bytes.concat` arguments must be bytes or fixed bytes
+   ╭▸ ROOT/tests/ui/typeck/function_calls/variadic.sol:LL:CC
+   │
+LL │         bytes.concat(calldataSignature);
+   ╰╴                     ━━━━━━━━━━━━━━━━━ found `string calldata`
+
+error: aborting due to 25 previous errors
 

@@ -2,7 +2,7 @@ use crate::{
     builtins::{Builtin, members},
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
+    ty::{Gcx, Ty, TyConvertError, TyFn, TyFnKind, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -929,18 +929,15 @@ impl<'gcx> TypeChecker<'gcx> {
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
     ) -> bool {
-        if self.expr_matches_expected(expr, actual, expected) {
-            return true;
+        match self.expr_matches_expected(expr, actual, expected) {
+            Ok(()) => true,
+            Err(err) => {
+                let mut diag = self.dcx().err("mismatched types").span(expr.span);
+                diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
+                diag.emit();
+                false
+            }
         }
-
-        let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else {
-            return true;
-        };
-
-        let mut diag = self.dcx().err("mismatched types").span(expr.span);
-        diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
-        diag.emit();
-        false
     }
 
     fn expr_matches_expected(
@@ -948,18 +945,17 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
-    ) -> bool {
-        if actual.try_convert_implicit_to(expected, self.gcx).is_ok() {
-            return true;
-        }
+    ) -> Result<(), TyConvertError> {
+        let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return Ok(()) };
 
         if let TyKind::Tuple([ty]) = expected.kind
             && matches!(ty.kind, TyKind::Variadic)
+            && matches!(expr.kind, hir::ExprKind::Tuple(_))
         {
-            return matches!(expr.kind, hir::ExprKind::Tuple(_));
+            return Ok(());
         }
 
-        false
+        Err(err)
     }
 
     fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
@@ -1650,7 +1646,7 @@ impl<'gcx> TypeChecker<'gcx> {
             let actual = self.check_expr_once(&exprs[i]);
             if call_span.is_some() {
                 matches &= self.check_expected(&exprs[i], actual, fixed_params[i]);
-            } else if !self.expr_matches_expected(&exprs[i], actual, fixed_params[i]) {
+            } else if self.expr_matches_expected(&exprs[i], actual, fixed_params[i]).is_err() {
                 matches = false;
             }
         }
@@ -2323,8 +2319,13 @@ fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
 }
 
 fn valid_string_concat_arg(ty: Ty<'_>) -> bool {
-    matches!(ty.kind, TyKind::StringLiteral(true, _))
-        || matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::String))
+    let ty = ty.peel_refs();
+    matches!(ty.kind, TyKind::StringLiteral(true, _) | TyKind::Elementary(ElementaryType::String))
+        || matches!(
+            ty.kind,
+            TyKind::Slice(array)
+                if matches!(array.peel_refs().kind, TyKind::Elementary(ElementaryType::String))
+        )
 }
 
 fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
