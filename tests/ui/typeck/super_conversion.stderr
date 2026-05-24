@@ -1,0 +1,8 @@
+error: cannot convert to the super type
+   ╭▸ ROOT/tests/ui/typeck/super_conversion.sol:LL:CC
+   │
+LL │         super();
+   ╰╴        ━━━━━━━
+
+error: aborting due to 1 previous error
+
