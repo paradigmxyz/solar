@@ -1182,7 +1182,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     }
 }
 
-fn native_members(gcx: _, key: (NativeMembersKey<'gcx>, Option<hir::ContractId>)) -> members::MemberList<'gcx> {
+fn native_members(gcx: _, key: NativeMembersKey<'gcx>) -> members::MemberList<'gcx> {
     let (ty, contract) = key;
     members::native_members(gcx, ty, contract)
 }
