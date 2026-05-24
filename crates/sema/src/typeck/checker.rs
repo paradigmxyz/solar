@@ -23,11 +23,11 @@ type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNamesSource>);
 enum ParamNamesSource {
     Function {
         id: hir::FunctionId,
-        /// Number of leading declaration parameters that are not visible at the call site.
+        /// Whether the leading receiver parameter is not visible at the call site.
         ///
         /// Attached member calls strip the receiver from the visible call parameters,
         /// but named arguments still come from the original function declaration.
-        skip: usize,
+        skips_receiver: bool,
     },
     Struct(hir::StructId),
     Event(hir::EventId),
@@ -993,31 +993,28 @@ impl<'gcx> TypeChecker<'gcx> {
         params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
     }
 
-    fn get_call_param_names(&self, function: hir::FunctionId, skip: usize) -> ParamNames {
+    fn get_call_param_names(&self, function: hir::FunctionId, skips_receiver: bool) -> ParamNames {
         let mut names = self.get_param_names(self.gcx.hir.function(function).parameters);
-        if skip != 0 {
-            names.drain(..skip);
+        if skips_receiver {
+            debug_assert!(!names.is_empty());
+            names.remove(0);
         }
         names
     }
 
-    fn function_param_names_source(
-        &self,
-        function: hir::FunctionId,
-        visible_param_count: usize,
-    ) -> ParamNamesSource {
-        let declared_param_count = self.gcx.hir.function(function).parameters.len();
-        debug_assert!(visible_param_count <= declared_param_count);
-        ParamNamesSource::Function {
-            id: function,
-            skip: declared_param_count - visible_param_count,
-        }
-    }
-
     fn ty_fn_param_names_source(&self, function_ty: &TyFn<'gcx>) -> Option<ParamNamesSource> {
-        function_ty
-            .function_id
-            .map(|id| self.function_param_names_source(id, function_ty.parameters.len()))
+        function_ty.function_id.map(|id| {
+            let declared_param_count = self.gcx.hir.function(id).parameters.len();
+            let visible_param_count = function_ty.parameters.len();
+            debug_assert!(
+                declared_param_count == visible_param_count
+                    || declared_param_count == visible_param_count + 1
+            );
+            ParamNamesSource::Function {
+                id,
+                skips_receiver: declared_param_count == visible_param_count + 1,
+            }
+        })
     }
 
     fn get_struct_field_names(
@@ -1035,7 +1032,9 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn get_param_names_from_source(&self, source: ParamNamesSource) -> ParamNames {
         match source {
-            ParamNamesSource::Function { id, skip } => self.get_call_param_names(id, skip),
+            ParamNamesSource::Function { id, skips_receiver } => {
+                self.get_call_param_names(id, skips_receiver)
+            }
             ParamNamesSource::Struct(id) => self.get_struct_field_names(id),
             ParamNamesSource::Event(id) => self.get_param_names(self.gcx.hir.event(id).parameters),
             ParamNamesSource::Error(id) => self.get_param_names(self.gcx.hir.error(id).parameters),
@@ -1483,18 +1482,17 @@ impl<'gcx> TypeChecker<'gcx> {
         member: &members::Member<'gcx>,
     ) -> Option<CallCandidateParams<'gcx>> {
         let TyKind::Fn(function_ty) = member.ty.kind else { return None };
-        let parameters = if member.attached {
+        let (parameters, skips_receiver) = if member.attached {
             let (&self_ty, parameters) = function_ty.parameters.split_first()?;
             if !receiver_ty.convert_implicit_to(self_ty, self.gcx) {
                 return None;
             }
-            parameters
+            (parameters, true)
         } else {
-            function_ty.parameters
+            (function_ty.parameters, false)
         };
-        let param_names = function_ty
-            .function_id
-            .map(|id| self.function_param_names_source(id, parameters.len()));
+        let param_names =
+            function_ty.function_id.map(|id| ParamNamesSource::Function { id, skips_receiver });
         Some((parameters, param_names))
     }
 
