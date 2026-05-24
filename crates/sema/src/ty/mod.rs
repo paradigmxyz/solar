@@ -43,7 +43,7 @@ use interner::Interner;
 #[allow(clippy::module_inception)]
 mod ty;
 pub(crate) use ty::SameSourceFileLevelUserTypeError;
-pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind, VariadicTy};
+pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
 type NatSpecContractKey = (Symbol, hir::SourceId);
@@ -390,8 +390,8 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::Fn(self.interner.intern_ty_fn(self.bump(), ptr)))
     }
 
-    pub fn mk_ty_variadic(self, ty: VariadicTy) -> Ty<'gcx> {
-        self.mk_ty(TyKind::Variadic(ty))
+    pub fn mk_ty_variadic(self) -> Ty<'gcx> {
+        self.mk_ty(TyKind::Variadic)
     }
 
     pub fn mk_ty_fn_with_kind(

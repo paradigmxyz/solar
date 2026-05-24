@@ -440,7 +440,7 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Tuple(..)
         | TyKind::Module(..)
         | TyKind::BuiltinModule(..)
-        | TyKind::Variadic(..)
+        | TyKind::Variadic
         | TyKind::Event(..)
         | TyKind::Meta(..)
         | TyKind::Err(..)

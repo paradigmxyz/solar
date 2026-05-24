@@ -424,7 +424,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
-            | TyKind::Variadic(_)
+            | TyKind::Variadic
             | TyKind::Struct(_)
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
@@ -474,7 +474,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
-            | TyKind::Variadic(_)
+            | TyKind::Variadic
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
             TyKind::Ref(ty, _)
@@ -1143,7 +1143,7 @@ pub enum TyKind<'gcx> {
     Fn(&'gcx TyFn<'gcx>),
 
     /// Variadic function parameter.
-    Variadic(VariadicTy),
+    Variadic,
 
     /// Contract.
     Contract(hir::ContractId),
@@ -1180,18 +1180,6 @@ pub enum TyKind<'gcx> {
 
     /// An invalid type. Silences further errors.
     Err(ErrorGuaranteed),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum VariadicTy {
-    /// Any number of arbitrary arguments.
-    Any,
-    /// Any number of `bytes memory` or fixed bytes arguments.
-    Bytes,
-    /// Any number of `string memory` arguments.
-    String,
-    /// The `abi.encodeCall` argument list.
-    EncodeCall,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -1334,7 +1322,7 @@ impl TyFlags {
             | TyKind::Struct(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
-            | TyKind::Variadic(_) => {}
+            | TyKind::Variadic => {}
 
             TyKind::Fn(f) => {
                 if f.is_internal() {

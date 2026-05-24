@@ -2,7 +2,7 @@ use crate::{
     builtins::{Builtin, members},
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind, VariadicTy},
+    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -1342,22 +1342,23 @@ impl<'gcx> TypeChecker<'gcx> {
                 let Some((fixed_params, variadic)) = split_variadic_params(param_tys) else {
                     return false;
                 };
-                match variadic {
-                    Some(VariadicTy::EncodeCall) if exprs.len() != 2 => return false,
-                    Some(_) if exprs.len() < fixed_params.len() => return false,
-                    None if exprs.len() != fixed_params.len() => return false,
-                    _ => {}
+                if variadic {
+                    if exprs.len() < fixed_params.len() {
+                        return false;
+                    }
+                } else if exprs.len() != fixed_params.len() {
+                    return false;
                 }
                 let fixed_match = exprs
                     .iter()
                     .zip(fixed_params)
                     .all(|(expr, &param_ty)| self.arg_matches(expr, param_ty));
                 fixed_match
-                    && variadic.is_none_or(|variadic| {
-                        exprs
-                            .iter()
-                            .skip(fixed_params.len())
-                            .all(|expr| self.variadic_arg_matches(expr, variadic))
+                    && (!variadic || {
+                        exprs.iter().skip(fixed_params.len()).all(|expr| {
+                            let _ = self.check_expr_once(expr);
+                            true
+                        })
                     })
             }
             hir::CallArgsKind::Named(named_args) => {
@@ -1387,25 +1388,6 @@ impl<'gcx> TypeChecker<'gcx> {
     fn arg_matches(&mut self, expr: &'gcx hir::Expr<'gcx>, param_ty: Ty<'gcx>) -> bool {
         let ty = self.check_expr_once(expr);
         ty.try_convert_implicit_to(param_ty, self.gcx).is_ok()
-    }
-
-    fn variadic_arg_matches(&mut self, expr: &'gcx hir::Expr<'gcx>, variadic: VariadicTy) -> bool {
-        let ty = self.check_expr_once(expr);
-        self.variadic_arg_matches_ty(ty, variadic)
-    }
-
-    fn variadic_arg_matches_ty(&self, ty: Ty<'gcx>, variadic: VariadicTy) -> bool {
-        match variadic {
-            VariadicTy::Any => true,
-            VariadicTy::Bytes => {
-                ty.is_fixed_bytes()
-                    || ty.try_convert_implicit_to(self.gcx.types.bytes_ref.memory, self.gcx).is_ok()
-            }
-            VariadicTy::String => {
-                ty.try_convert_implicit_to(self.gcx.types.string_ref.memory, self.gcx).is_ok()
-            }
-            VariadicTy::EncodeCall => true,
-        }
     }
 
     fn check_call_options(
@@ -1524,16 +1506,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return;
         };
 
-        if variadic == Some(VariadicTy::EncodeCall) && exprs.len() != 2 {
-            self.dcx()
-                .err(format!(
-                    "wrong argument count for function call: {} arguments given but expected 2",
-                    exprs.len()
-                ))
-                .span(call_span)
-                .span_label(args_span, format!("expected 2 arguments, found {}", exprs.len()))
-                .emit();
-        } else if variadic.is_none() && exprs.len() != fixed_params.len() {
+        if !variadic && exprs.len() != fixed_params.len() {
             self.dcx()
                 .err(format!(
                     "wrong argument count for function call: {} arguments given but expected {}",
@@ -1551,7 +1524,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     ),
                 )
                 .emit();
-        } else if variadic.is_some() && exprs.len() < fixed_params.len() {
+        } else if variadic && exprs.len() < fixed_params.len() {
             self.dcx()
                 .err(format!(
                     "wrong argument count for function call: {} arguments given but expected at least {}",
@@ -1576,35 +1549,8 @@ impl<'gcx> TypeChecker<'gcx> {
             let actual = self.check_expr_once(&exprs[i]);
             self.check_expected(&exprs[i], actual, fixed_params[i]);
         }
-        if let Some(variadic) = variadic {
-            for expr in exprs.iter().skip(count) {
-                let actual = self.check_expr_once(expr);
-                self.check_variadic_arg(expr, actual, variadic);
-            }
-        } else {
-            for expr in exprs.iter().skip(count) {
-                let _ = self.check_expr_once(expr);
-            }
-        }
-    }
-
-    fn check_variadic_arg(
-        &mut self,
-        expr: &'gcx hir::Expr<'gcx>,
-        actual: Ty<'gcx>,
-        variadic: VariadicTy,
-    ) {
-        match variadic {
-            VariadicTy::Any => {}
-            VariadicTy::Bytes => {
-                if !actual.is_fixed_bytes() {
-                    self.check_expected(expr, actual, self.gcx.types.bytes_ref.memory);
-                }
-            }
-            VariadicTy::String => {
-                self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
-            }
-            VariadicTy::EncodeCall => {}
+        for expr in exprs.iter().skip(count) {
+            let _ = self.check_expr_once(expr);
         }
     }
 
@@ -2263,19 +2209,18 @@ fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
         || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
 }
 
-fn split_variadic_params<'a, 'gcx>(
-    param_tys: &'a [Ty<'gcx>],
-) -> Option<(&'a [Ty<'gcx>], Option<VariadicTy>)> {
+fn split_variadic_params<'a, 'gcx>(param_tys: &'a [Ty<'gcx>]) -> Option<(&'a [Ty<'gcx>], bool)> {
     let Some((&last, fixed)) = param_tys.split_last() else {
-        return Some((param_tys, None));
+        return Some((param_tys, false));
     };
-    if let TyKind::Variadic(variadic) = last.kind {
-        return Some((fixed, Some(variadic)));
+    if matches!(last.kind, TyKind::Variadic) {
+        return Some((fixed, true));
     }
-    if param_tys.iter().any(|ty| matches!(ty.kind, TyKind::Variadic(_))) {
-        return None;
-    }
-    Some((param_tys, None))
+    debug_assert!(
+        !param_tys.iter().any(|ty| matches!(ty.kind, TyKind::Variadic)),
+        "variadic param must be last"
+    );
+    Some((param_tys, false))
 }
 
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
@@ -2401,7 +2346,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Udvt(..)
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
-        | TyKind::Variadic(_)
+        | TyKind::Variadic
         | TyKind::Type(_)
         | TyKind::Meta(_) => None,
 
