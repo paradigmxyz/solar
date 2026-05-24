@@ -22,6 +22,8 @@ cargo run -- file.sol                  # Run compiler
 cargo run -- -Zhelp                    # Unstable flags help
 ```
 
+DO NOT USE `cargo test` DIRECTLY IF YOU CAN AVOID IT.
+
 ## Architecture
 
 - **solar-parse**: Lexer and parser
