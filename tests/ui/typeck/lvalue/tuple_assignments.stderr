@@ -1,0 +1,44 @@
+error: cannot assign to a constant variable
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (CONST, state) = (x, x);
+   ╰╴         ━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (1, state) = (x, x);
+   ╰╴         ━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (1, state) = (x, x);
+   ╰╴                      ━ expected `int_literal[1]`, found `uint256`
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (returnsTuple()) = (uint256(1), uint256(1));
+   ╰╴         ━━━━━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (returnsTuple()) = (uint256(1), uint256(1));
+   ╰╴        ━━━━━━━━━━━━━━━━   ──────────────────────── expected a tuple with 1 element, found one with 2 elements
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (x, ) = (true, 1);
+   ╰╴                 ━━━━ expected `uint256`, found `bool`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/lvalue/tuple_assignments.sol:LL:CC
+   │
+LL │         (, x) = (1, true);
+   ╰╴                    ━━━━ expected `uint256`, found `bool`
+
+error: aborting due to 7 previous errors
+

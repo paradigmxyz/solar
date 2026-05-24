@@ -1,0 +1,8 @@
+error: `this` is a builtin, which cannot be indexed in type paths
+   ╭▸ ROOT/tests/ui/using-for/paths/this_qualified_function.sol:LL:CC
+   │
+LL │     using {this.contractFunction} for uint256;
+   ╰╴           ━━━━
+
+error: aborting due to 1 previous error
+

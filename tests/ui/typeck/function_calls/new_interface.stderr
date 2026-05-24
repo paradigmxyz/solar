@@ -1,0 +1,8 @@
+error: cannot instantiate interfaces
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new_interface.sol:LL:CC
+   │
+LL │         new I();
+   ╰╴            ━
+
+error: aborting due to 1 previous error
+

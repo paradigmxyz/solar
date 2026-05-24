@@ -1,0 +1,10 @@
+error: library name expected
+   ╭▸ ROOT/tests/ui/using-for/invalid_contract_directive.sol:LL:CC
+   │
+LL │     using NotLibrary for uint256;
+   │           ━━━━━━━━━━
+   │
+   ╰ help: if you want to attach a function, use `{...}`
+
+error: aborting due to 1 previous error
+

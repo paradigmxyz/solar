@@ -1,0 +1,16 @@
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
+   │
+LL │ using {notPure as /} for U global;
+   │        ━━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
+   │
+LL │ ┏ function notPure(U a, U b) view returns (U) {
+LL │ ┃     return a;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 1 previous error
+

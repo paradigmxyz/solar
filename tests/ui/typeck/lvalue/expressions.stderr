@@ -43,56 +43,8 @@ LL │         arr.push(1) = arr.pop();
 error: expression has to be an lvalue
    ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
    │
-LL │         data.push(0x01) = arr.pop();
-   ╰╴        ━━━━━━━━━━━━━━━
-
-error: expression has to be an lvalue
-   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
-   │
 LL │         arr.pop() = arr.pop();
    ╰╴        ━━━━━━━━━
 
-error: expression has to be an lvalue
-   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
-   │
-LL │         address(0).balance = 7;
-   ╰╴        ━━━━━━━━━━━━━━━━━━
-
-error: expression has to be an lvalue
-   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
-   │
-LL │         g = f;
-   ╰╴        ━
-
-error: expression has to be an lvalue
-   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
-   │
-LL │         this.i = this.h;
-   ╰╴        ━━━━━━
-
-error: expression has to be an lvalue
-   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
-   │
-LL │         delete f;
-   ╰╴               ━
-
-error: expression has to be an lvalue
-   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
-   │
-LL │         delete this.h;
-   ╰╴               ━━━━━━
-
-error: expression has to be an lvalue
-   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
-   │
-LL │         type(MetaTypeMemberLvalues).creationCode = new bytes(6);
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: expression has to be an lvalue
-   ╭▸ ROOT/tests/ui/typeck/lvalue/expressions.sol:LL:CC
-   │
-LL │         type(MetaTypeMemberLvalues).runtimeCode = new bytes(6);
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: aborting due to 16 previous errors
+error: aborting due to 8 previous errors
 

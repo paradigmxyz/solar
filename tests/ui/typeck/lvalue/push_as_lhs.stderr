@@ -1,0 +1,8 @@
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/push_as_lhs.sol:LL:CC
+   │
+LL │         data.push(0x01) = arr.pop();
+   ╰╴        ━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

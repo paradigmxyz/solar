@@ -1,0 +1,14 @@
+error: invalid use of library name
+   ╭▸ ROOT/tests/ui/using-for/invalid_library_for_library.sol:LL:CC
+   │
+LL │ using L for M;
+   ╰╴━━━━━━━━━━━━━━
+
+error: invalid use of library name
+   ╭▸ ROOT/tests/ui/using-for/invalid_library_for_library.sol:LL:CC
+   │
+LL │ using L for L;
+   ╰╴━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

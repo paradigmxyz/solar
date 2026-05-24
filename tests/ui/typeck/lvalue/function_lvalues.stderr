@@ -1,0 +1,14 @@
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/function_lvalues.sol:LL:CC
+   │
+LL │         g = f;
+   ╰╴        ━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/function_lvalues.sol:LL:CC
+   │
+LL │         this.i = this.h;
+   ╰╴        ━━━━━━
+
+error: aborting due to 2 previous errors
+

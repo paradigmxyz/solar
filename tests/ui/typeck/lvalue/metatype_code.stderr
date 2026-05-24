@@ -1,0 +1,14 @@
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/metatype_code.sol:LL:CC
+   │
+LL │         type(MetaTypeMemberLvalues).creationCode = new bytes(6);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/metatype_code.sol:LL:CC
+   │
+LL │         type(MetaTypeMemberLvalues).runtimeCode = new bytes(6);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+
