@@ -1025,10 +1025,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn abi_decode_return_type(&mut self, args: &hir::CallArgs<'gcx>) -> Ty<'gcx> {
         let hir::CallArgsKind::Unnamed(exprs) = args.kind else {
-            return self.gcx.types.err;
+            unreachable!("`abi.decode` arguments should be checked before deriving return type");
         };
         let [_, types_expr] = exprs else {
-            return self.gcx.types.err;
+            unreachable!("`abi.decode` should have exactly two checked arguments");
         };
         let types = self.abi_decode_types(types_expr);
         self.fn_call_return_type(types)

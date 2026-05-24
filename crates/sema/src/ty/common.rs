@@ -4,7 +4,8 @@ use solar_interface::diagnostics::ErrorGuaranteed;
 
 /// Pre-interned types.
 pub struct CommonTypes<'gcx> {
-    pub(crate) err: Ty<'gcx>,
+    #[doc(hidden)]
+    err: Ty<'gcx>,
 
     /// The unit type `()`, AKA empty tuple, void.
     #[doc(alias = "empty_tuple", alias = "void")]
@@ -71,6 +72,12 @@ impl<'gcx> CommonTypes<'gcx> {
             uints: from_fn(|i| mk(Elementary(UInt(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
             fbs: from_fn(|i| mk(Elementary(FixedBytes(TypeSize::new_fb_bytes(i as u8 + 1))))),
         }
+    }
+
+    #[inline]
+    #[doc(hidden)]
+    pub(super) fn __err_do_not_use(&self) -> Ty<'gcx> {
+        self.err
     }
 
     /// `int<bits>`.
