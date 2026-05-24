@@ -10,6 +10,10 @@
 type Pointer is uint256;
 
 library PointerLib {
+    uint256 constant BASE = 1;
+
+    type Amount is uint256;
+
     struct Item {
         uint256 x;
     }
@@ -17,6 +21,14 @@ library PointerLib {
     enum Choice {
         A,
         B
+    }
+
+    error Problem(uint256 value);
+
+    event Signal(uint256 value);
+
+    modifier only() {
+        _;
     }
 
     function ping() public {}
@@ -43,6 +55,31 @@ library PointerLib {
     }
 }
 
+contract ContractTypes {
+    uint256 constant BASE = 1;
+
+    type Amount is uint256;
+
+    struct Item {
+        uint256 x;
+    }
+
+    enum Choice {
+        A,
+        B
+    }
+
+    error Problem(uint256 value);
+
+    event Signal(uint256 value);
+
+    modifier only() {
+        _;
+    }
+
+    function check() public pure {}
+}
+
 interface Executor {
     function execute(uint256 value) external returns (bytes4 magic);
     function check() external pure;
@@ -51,12 +88,26 @@ interface Executor {
 contract C {
     event ExternalFunction(function() external indexed);
 
-    function libraryStructConstructor() public pure returns (PointerLib.Item memory) {
-        return PointerLib.Item(1);
+    function libraryTypes() public pure {
+        PointerLib.BASE;
+        PointerLib.Amount.wrap(1);
+        PointerLib.Item(1);
+        PointerLib.Choice.A;
+        PointerLib.Problem.selector;
+        PointerLib.Signal.selector;
+        PointerLib.only; //~ ERROR: member `only` not found
+        PointerLib.ping.selector;
     }
 
-    function libraryEnumValue() public pure returns (PointerLib.Choice) {
-        return PointerLib.Choice.A;
+    function contractTypes() public pure {
+        ContractTypes.BASE; //~ ERROR: member `BASE` not found
+        ContractTypes.Amount.wrap(1);
+        ContractTypes.Item(1);
+        ContractTypes.Choice.A;
+        ContractTypes.Problem.selector;
+        ContractTypes.Signal.selector;
+        ContractTypes.only; //~ ERROR: member `only` not found
+        ContractTypes.check.selector;
     }
 
     function libraryFunctionPointer() public pure {
