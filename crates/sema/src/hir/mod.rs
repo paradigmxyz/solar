@@ -464,8 +464,6 @@ impl DocId {
 /// A source file.
 pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
-    /// Whether this source explicitly opts into the legacy ABI coder.
-    pub abi_coder_v1: bool,
     /// The individual imports with their resolved source IDs.
     ///
     /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
