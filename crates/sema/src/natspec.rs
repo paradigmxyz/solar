@@ -388,17 +388,16 @@ impl<'gcx> Resolver<'gcx> {
             _ => return None,
         };
 
-        if let Some(contract) = item_contract {
-            let linearized_bases = &self.gcx.hir.contract(contract).linearized_bases;
-            if !linearized_bases.contains(&contract_id) {
-                dcx.err(format!(
-                    "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
-                    contract_ident.name
-                ))
-                .span(tag_span)
-                .emit();
-                return None;
-            }
+        if let Some(contract) = item_contract
+            && !self.gcx.hir.contract(contract).is_or_inherits_from(contract_id)
+        {
+            dcx.err(format!(
+                "tag `@inheritdoc` references contract \"{}\", which is not a base of this contract",
+                contract_ident.name
+            ))
+            .span(tag_span)
+            .emit();
+            return None;
         }
 
         if self.find_inherited_item(item_id, contract_id).is_none() {

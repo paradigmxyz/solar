@@ -195,7 +195,7 @@ impl super::LoweringContext<'_> {
             let mut fallback = None;
             let mut receive = None;
 
-            for &base_id in self.hir.contract(contract_id).linearized_bases {
+            for &base_id in self.hir.contract(contract_id).self_and_inherited_bases() {
                 for function_id in self.hir.contract(base_id).functions() {
                     let func = self.hir.function(function_id);
                     let slot = match func.kind {
@@ -386,17 +386,16 @@ impl<'gcx> ResolveContext<'gcx> {
                     match id {
                         hir::ItemId::Contract(base)
                             if func.kind.is_constructor()
-                                && func.contract.is_some_and(|c| {
-                                    self.hir.contract(c).linearized_bases[1..].contains(&base)
-                                }) => {}
+                                && func
+                                    .contract
+                                    .is_some_and(|c| self.hir.contract(c).inherits_from(base)) => {}
                         hir::ItemId::Function(f) if self.hir.function(f).kind.is_modifier() => {
                             let modifier_contract = self.hir.function(f).contract;
                             let allowed = func.contract.is_some_and(|current| {
                                 modifier_contract.is_some_and(|modifier_contract| {
                                     self.hir
                                         .contract(current)
-                                        .linearized_bases
-                                        .contains(&modifier_contract)
+                                        .is_or_inherits_from(modifier_contract)
                                 })
                             });
                             if !allowed {
@@ -593,15 +592,14 @@ impl<'gcx> ResolveContext<'gcx> {
             return;
         }
 
-        let len = contract.linearized_bases.len() - 1;
+        let len = contract.inherited_bases().len();
         let base_args: &mut [Option<&'gcx hir::Modifier<'gcx>>] =
             self.arena.alloc_from_iter(std::iter::repeat_n(None, len));
         let mut resolve = |base: &'gcx hir::Modifier<'gcx>, is_ctor: bool| {
             let Some(base_id) = base.id.as_contract() else { return };
             let base_idx = contract
-                .linearized_bases
+                .inherited_bases()
                 .iter()
-                .skip(1)
                 .position(|&l| l == base_id)
                 .expect("base contract not found");
 
@@ -1932,7 +1930,7 @@ impl<'gcx> ResolveContext<'gcx> {
                 continue;
             };
 
-            if !self.hir.contract(c).linearized_bases[1..].contains(&id) {
+            if !self.hir.contract(c).inherits_from(id) {
                 self.dcx()
                     .err(format!(
                         "invalid contract `{}` specified in override list",

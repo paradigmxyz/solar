@@ -704,7 +704,7 @@ impl<'gcx> Ty<'gcx> {
             // Contract -> Base contract (inheritance check)
             (Contract(self_contract_id), Contract(other_contract_id)) => {
                 let self_contract = gcx.hir.contract(self_contract_id);
-                if self_contract.linearized_bases.contains(&other_contract_id) {
+                if self_contract.is_or_inherits_from(other_contract_id) {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::NonDerivedContract)
@@ -934,7 +934,7 @@ impl<'gcx> Ty<'gcx> {
             // Contract -> Base contract (inheritance check)
             (Contract(self_contract_id), Contract(other_contract_id)) => {
                 let self_contract = gcx.hir.contract(self_contract_id);
-                if self_contract.linearized_bases.contains(&other_contract_id) {
+                if self_contract.is_or_inherits_from(other_contract_id) {
                     Ok(())
                 } else {
                     Result::Err(TyConvertError::NonDerivedContract)

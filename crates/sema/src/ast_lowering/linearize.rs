@@ -31,7 +31,7 @@ impl super::LoweringContext<'_> {
                 // Import inherited scopes.
                 // https://github.com/argotorg/solidity/blob/2694190d1dbbc90b001aa76f8d7bd0794923c343/libsolidity/analysis/NameAndTypeResolver.cpp#L352
                 let _guard = debug_span!("import_inherited_scopes").entered();
-                for &base_id in &linearized_bases[1..] {
+                for &base_id in self.hir.contract(contract_id).inherited_bases() {
                     let (base_scope, contract_scope) = super::get_two_mut_idx(
                         &mut self.resolver.contract_scopes,
                         base_id,
@@ -101,7 +101,7 @@ impl super::LoweringContext<'_> {
         for &base_id in contract.bases {
             linearizer.insert(base_id);
             let base = self.hir.contract(base_id);
-            let base_bases = base.linearized_bases;
+            let base_bases = base.self_and_inherited_bases();
             if base_bases.is_empty() {
                 let msg = "definition of base has to precede definition of derived contract";
                 self.dcx().err(msg).span(contract.name.span).emit();

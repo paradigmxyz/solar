@@ -270,7 +270,7 @@ impl<'hir> Hir<'hir> {
         id: ContractId,
     ) -> impl Iterator<Item = ItemId> + Clone + use<'_, 'hir> {
         self.contract(id)
-            .linearized_bases
+            .self_and_inherited_bases()
             .iter()
             .copied()
             .flat_map(|base| self.contract(base).items.iter().copied())
@@ -771,7 +771,7 @@ pub struct Contract<'hir> {
     pub linearized_bases: &'hir [ContractId],
     /// The constructor base arguments (if any).
     ///
-    /// The index maps to the position in `linearized_bases[1..]`.
+    /// The index maps to the position in `Contract::inherited_bases`.
     ///
     /// The reference points to either `bases_args` in the original contract, or `modifiers` in the
     /// constructor.
@@ -796,6 +796,33 @@ impl Contract<'_> {
     pub fn linearization_failed(&self) -> bool {
         self.linearized_bases.is_empty()
             || (!self.bases.is_empty() && self.linearized_bases.len() == 1)
+    }
+
+    /// Returns the contract itself followed by its inherited bases.
+    pub fn self_and_inherited_bases(&self) -> &[ContractId] {
+        self.linearized_bases
+    }
+
+    /// Returns inherited bases, excluding the contract itself.
+    pub fn inherited_bases(&self) -> &[ContractId] {
+        &self.linearized_bases[1..]
+    }
+
+    /// Returns inherited bases with their resolved constructor arguments.
+    pub fn inherited_bases_with_args(
+        &self,
+    ) -> impl Iterator<Item = (ContractId, Option<&Modifier<'_>>)> + Clone + use<'_> {
+        self.inherited_bases().iter().copied().zip(self.linearized_bases_args.iter().copied())
+    }
+
+    /// Returns `true` if this contract inherits from `base`.
+    pub fn inherits_from(&self, base: ContractId) -> bool {
+        self.inherited_bases().contains(&base)
+    }
+
+    /// Returns `true` if this contract is `base` or inherits from it.
+    pub fn is_or_inherits_from(&self, base: ContractId) -> bool {
+        self.self_and_inherited_bases().contains(&base)
     }
 
     /// Returns an iterator over functions declared in the contract.

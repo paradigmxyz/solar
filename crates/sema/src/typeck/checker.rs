@@ -1149,7 +1149,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn select_most_derived_function(&self, candidates: &[hir::Res]) -> Option<hir::Res> {
         let contract = self.contract?;
-        let bases = self.gcx.hir.contract(contract).linearized_bases;
+        let bases = self.gcx.hir.contract(contract).self_and_inherited_bases();
 
         let mut selected = None;
         let mut selected_depth = usize::MAX;
@@ -1846,9 +1846,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
         }
 
         // Check base constructor arguments
-        for (&base_id, modifier) in
-            contract.linearized_bases.iter().skip(1).zip(contract.linearized_bases_args.iter())
-        {
+        for (base_id, modifier) in contract.inherited_bases_with_args() {
             // Get constructor parameters if the base has a constructor
             let base_contract = self.gcx.hir.contract(base_id);
             if let Some(ctor_id) = base_contract.ctor {

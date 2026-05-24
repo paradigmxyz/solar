@@ -954,7 +954,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     let mut inheritance_start = None;
     let mut signatures_seen = FxHashSet::default();
     let mut hash_collisions = FxHashMap::default();
-    let functions = c.linearized_bases.iter().flat_map(|&base| {
+    let functions = c.self_and_inherited_bases().iter().flat_map(|&base| {
         let b = gcx.hir.contract(base);
         let functions =
             b.functions().filter(|&f| gcx.hir.function(f).is_part_of_external_interface());

@@ -290,7 +290,7 @@ impl<'gcx> OverrideGraph<'gcx> {
             }
         }
 
-        for &ancestor_id in &contract.linearized_bases[1..] {
+        for &ancestor_id in contract.inherited_bases() {
             if let Some(proxy) = self.find_matching_in_contract(ancestor_id) {
                 return Some(proxy);
             }
@@ -1039,7 +1039,7 @@ impl<'gcx> OverrideChecker<'gcx> {
 
         let mut unimplemented: Vec<(OverrideProxy, ContractId)> = Vec::new();
 
-        for &base_id in contract.linearized_bases.iter() {
+        for &base_id in contract.self_and_inherited_bases() {
             let base = self.gcx.hir.contract(base_id);
 
             for f_id in base.functions() {
@@ -1049,17 +1049,18 @@ impl<'gcx> OverrideChecker<'gcx> {
                 }
                 if f.body.is_none() {
                     let sig = self.signature(OverrideProxy::Function(f_id));
-                    let is_implemented = contract.linearized_bases.iter().any(|&impl_base_id| {
-                        let impl_base = self.gcx.hir.contract(impl_base_id);
-                        impl_base.functions().any(|impl_f_id| {
-                            let impl_f = self.gcx.hir.function(impl_f_id);
-                            if impl_f.body.is_none() || impl_f.name.is_none() {
-                                return false;
-                            }
-                            let impl_sig = self.signature(OverrideProxy::Function(impl_f_id));
-                            impl_sig == sig
-                        })
-                    });
+                    let is_implemented =
+                        contract.self_and_inherited_bases().iter().any(|&impl_base_id| {
+                            let impl_base = self.gcx.hir.contract(impl_base_id);
+                            impl_base.functions().any(|impl_f_id| {
+                                let impl_f = self.gcx.hir.function(impl_f_id);
+                                if impl_f.body.is_none() || impl_f.name.is_none() {
+                                    return false;
+                                }
+                                let impl_sig = self.signature(OverrideProxy::Function(impl_f_id));
+                                impl_sig == sig
+                            })
+                        });
                     if !is_implemented {
                         unimplemented.push((OverrideProxy::Function(f_id), base_id));
                     }
