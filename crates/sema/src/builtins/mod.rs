@@ -179,7 +179,6 @@ declare_builtins! {
                            => gcx.mk_builtin_fn(&[gcx.mk_ty_variadic(VariadicTy::EncodeCall)], SM::Pure, &[gcx.types.bytes_ref.memory]);
     AbiEncodeWithSignature => sym::encodeWithSignature
                            => gcx.mk_builtin_fn(&[gcx.types.string_ref.memory, gcx.mk_ty_variadic(VariadicTy::Any)], SM::Pure, &[gcx.types.bytes_ref.memory]);
-    // TODO                => `(bytes memory, (T...)) pure returns(T...)`
     AbiDecode              => sym::decode
                            => gcx.mk_builtin_fn(&[], SM::Pure, &[]);
 
