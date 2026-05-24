@@ -1001,6 +1001,8 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> ParamNamesSource {
         let declared_param_count = self.gcx.hir.function(function).parameters.len();
         debug_assert!(visible_param_count <= declared_param_count);
+        // Attached member calls strip the receiver from the visible call parameters,
+        // but named arguments still come from the original function declaration.
         ParamNamesSource::Function {
             id: function,
             skip: declared_param_count - visible_param_count,
