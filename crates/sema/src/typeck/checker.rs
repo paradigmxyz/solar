@@ -265,13 +265,13 @@ impl<'gcx> TypeChecker<'gcx> {
                                 .map(|id| self.get_call_param_names(id, f.parameters.len()))
                         };
                         self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
-                        let is_abi_decode =
-                            self.builtin_callees.get(&callee.id) == Some(&Builtin::AbiDecode);
-                        if is_abi_decode {
-                            self.abi_decode_return_type(args)
-                        } else {
-                            self.fn_call_return_type(f.returns)
+                        if let Some(&builtin) = self.builtin_callees.get(&callee.id) {
+                            self.check_builtin_call_args(expr.span, args, builtin);
+                            if builtin == Builtin::AbiDecode {
+                                return self.abi_decode_return_type(args);
+                            }
                         }
+                        self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
                     TyKind::Event(param_tys, id) => {
@@ -1020,6 +1020,125 @@ impl<'gcx> TypeChecker<'gcx> {
                     false
                 }
             }
+        }
+    }
+
+    fn check_builtin_call_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+        builtin: Builtin,
+    ) {
+        let hir::CallArgsKind::Unnamed(exprs) = args.kind else { return };
+        match builtin {
+            Builtin::StringConcat => {
+                for expr in exprs {
+                    let ty = self.check_expr_once(expr);
+                    if !valid_string_concat_arg(ty) {
+                        self.dcx()
+                            .err("`string.concat` arguments must be strings")
+                            .span(expr.span)
+                            .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
+                            .emit();
+                    }
+                }
+            }
+            Builtin::BytesConcat => {
+                for expr in exprs {
+                    let ty = self.check_expr_once(expr);
+                    if !valid_bytes_concat_arg(ty) {
+                        self.dcx()
+                            .err("`bytes.concat` arguments must be bytes or fixed bytes")
+                            .span(expr.span)
+                            .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
+                            .emit();
+                    }
+                }
+            }
+            Builtin::AbiEncode | Builtin::AbiEncodePacked => {
+                self.check_abi_encodable_args(exprs, builtin);
+            }
+            Builtin::AbiEncodeWithSelector | Builtin::AbiEncodeWithSignature => {
+                if let Some((_, exprs)) = exprs.split_first() {
+                    self.check_abi_encodable_args(exprs, builtin);
+                }
+            }
+            Builtin::AbiEncodeCall => self.check_abi_encode_call_args(call_span, args.span, exprs),
+            Builtin::AbiDecode => {}
+            _ => {}
+        }
+    }
+
+    fn check_abi_encodable_args(&mut self, exprs: &'gcx [hir::Expr<'gcx>], builtin: Builtin) {
+        for expr in exprs {
+            let ty = self.check_expr_once(expr);
+            if !valid_abi_encodable_arg(ty, self.gcx) {
+                self.dcx()
+                    .err(format!("`{}` argument cannot be ABI-encoded", builtin.name()))
+                    .span(expr.span)
+                    .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
+                    .emit();
+            }
+        }
+    }
+
+    fn check_abi_encode_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+    ) {
+        let [function, arguments] = exprs else {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for function call: {} arguments given but expected 2",
+                    exprs.len()
+                ))
+                .span(call_span)
+                .span_label(args_span, format!("expected 2 arguments, found {}", exprs.len()))
+                .emit();
+            return;
+        };
+
+        let function_ty = self.check_expr_once(function);
+        let TyKind::Fn(function_ty) = function_ty.kind else {
+            self.dcx()
+                .err("first argument to `abi.encodeCall` must be a function")
+                .span(function.span)
+                .span_label(function.span, format!("found `{}`", function_ty.display(self.gcx)))
+                .emit();
+            return;
+        };
+
+        let hir::ExprKind::Tuple(components) = arguments.kind else {
+            self.dcx()
+                .err("second argument to `abi.encodeCall` must be a tuple")
+                .span(arguments.span)
+                .emit();
+            return;
+        };
+
+        if components.len() != function_ty.parameters.len() {
+            self.dcx()
+                .err(format!(
+                    "wrong argument count for `abi.encodeCall`: {} arguments given but expected {}",
+                    components.len(),
+                    function_ty.parameters.len()
+                ))
+                .span(arguments.span)
+                .emit();
+        }
+
+        for (component, &expected) in components.iter().zip(function_ty.parameters) {
+            let Some(component) = component else {
+                self.dcx()
+                    .err("`abi.encodeCall` argument tuple components cannot be empty")
+                    .span(arguments.span)
+                    .emit();
+                continue;
+            };
+            let actual = self.check_expr_once(component);
+            self.check_expected(component, actual, expected);
         }
     }
 
@@ -2201,6 +2320,36 @@ fn valid_delete(ty: Ty<'_>) -> bool {
 fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
     ty.is_ref_at(DataLocation::Calldata)
         || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
+}
+
+fn valid_string_concat_arg(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::StringLiteral(true, _))
+        || matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::String))
+}
+
+fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::StringLiteral(..))
+        || matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::FixedBytes(_))
+        )
+}
+
+fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
+    if ty.references_error() {
+        return true;
+    }
+    match ty.kind {
+        TyKind::Tuple(tys) => tys.iter().all(|&ty| valid_abi_encodable_arg(ty, gcx)),
+        TyKind::Error(..)
+        | TyKind::Event(..)
+        | TyKind::Module(..)
+        | TyKind::BuiltinModule(..)
+        | TyKind::Type(_)
+        | TyKind::Meta(_)
+        | TyKind::Variadic => false,
+        _ => ty.can_be_exported(gcx),
+    }
 }
 
 fn split_variadic_params<'a, 'gcx>(param_tys: &'a [Ty<'gcx>]) -> (&'a [Ty<'gcx>], bool) {
