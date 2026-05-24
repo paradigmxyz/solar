@@ -3,8 +3,19 @@
 
 type U is uint256;
 
-function notPure(U a, U b) view returns (U) {
+function add(U a, U b) view returns (U) {
     return a;
 }
 
-using {notPure as /} for U global; //~ ERROR: only pure free functions
+function sub(U a, U b) returns (U) {
+    return a;
+}
+
+function mul(U a, U b) payable returns (U) {
+    return a;
+}
+
+using {add as +, sub as -, mul as *} for U global;
+//~^ ERROR: only pure free functions
+//~| ERROR: only pure free functions
+//~| ERROR: only pure free functions

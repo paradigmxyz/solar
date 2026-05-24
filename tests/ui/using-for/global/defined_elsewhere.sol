@@ -7,9 +7,6 @@ library L {
     }
 }
 
-function id256(uint256 x) pure returns (uint256) {
-    return x;
-}
+function idInner(L.Inner memory) pure {}
 
-using {id256} for L.Inner global; //~ ERROR: can only use `global` with types defined in the same source unit at file level
-//~^ ERROR: cannot be attached
+using {idInner} for L.Inner global; //~ ERROR: can only use `global` with types defined in the same source unit at file level

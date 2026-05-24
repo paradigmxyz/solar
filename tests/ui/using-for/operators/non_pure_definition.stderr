@@ -1,16 +1,44 @@
 error: only pure free functions can be used to define operators
    ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
    │
-LL │ using {notPure as /} for U global;
-   │        ━━━━━━━
+LL │ using {add as +, sub as -, mul as *} for U global;
+   │        ━━━
    ╰╴
 note: function defined here
    ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
    │
-LL │ ┏ function notPure(U a, U b) view returns (U) {
+LL │ ┏ function add(U a, U b) view returns (U) {
 LL │ ┃     return a;
 LL │ ┃ }
    ╰╴┗━┛
 
-error: aborting due to 1 previous error
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
+   │
+LL │ using {add as +, sub as -, mul as *} for U global;
+   │                  ━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
+   │
+LL │ ┏ function sub(U a, U b) returns (U) {
+LL │ ┃     return a;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
+   │
+LL │ using {add as +, sub as -, mul as *} for U global;
+   │                            ━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/non_pure_definition.sol:LL:CC
+   │
+LL │ ┏ function mul(U a, U b) payable returns (U) {
+LL │ ┃     return a;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 3 previous errors
 

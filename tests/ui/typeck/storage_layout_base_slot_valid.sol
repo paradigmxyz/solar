@@ -31,4 +31,3 @@ contract MaxValue layout at 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
 contract BoolLiteral layout at true {}
 contract BoolConstant layout at B {}
 contract HexAddress layout at 0xdCad3a6d3569DF655070DEd06cb7A1b2Ccd1D3AF {}
-contract FractionalDivision layout at 3/2 {}
