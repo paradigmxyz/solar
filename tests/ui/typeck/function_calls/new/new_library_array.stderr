@@ -1,5 +1,5 @@
 error: invalid use of a library name
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new_library_array.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_library_array.sol:LL:CC
    │
 LL │         new L[](2);
    ╰╴            ━━━

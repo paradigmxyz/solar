@@ -1,17 +1,17 @@
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_without_emit.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_without_emit.sol:LL:CC
    │
 LL │         MyEvent(1, "hi");
    ╰╴        ━━━━━━━━━━━━━━━━
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_without_emit.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_without_emit.sol:LL:CC
    │
 LL │         uint x = MyEvent(1, "hi");
    ╰╴                 ━━━━━━━━━━━━━━━━
 
 error: mismatched number of components
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_without_emit.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_without_emit.sol:LL:CC
    │
 LL │         uint x = MyEvent(1, "hi");
    │         ━━━━━━━━━┬───────────────━
@@ -19,19 +19,19 @@ LL │         uint x = MyEvent(1, "hi");
    ╰╴                 expected a tuple with 1 element, found one with 0 elements
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_without_emit.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_without_emit.sol:LL:CC
    │
 LL │         this.takeBytes(EmptyEvent());
    ╰╴                       ━━━━━━━━━━━━
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_without_emit.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_without_emit.sol:LL:CC
    │
 LL │         this.takeBytes(EmptyEvent());
    ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `tuple()`
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_without_emit.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_without_emit.sol:LL:CC
    │
 LL │         MyEvent(1, "y");
    ╰╴        ━━━━━━━━━━━━━━━

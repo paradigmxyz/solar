@@ -1,17 +1,17 @@
 error: can only use `global` with types defined in the same source unit at file level
-   ╭▸ ROOT/tests/ui/using-for/global_defined_elsewhere.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/global/global_defined_elsewhere.sol:LL:CC
    │
 LL │ using {id256} for L.Inner global;
    ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: function `id256` cannot be attached to type `struct L.Inner`
-   ╭▸ ROOT/tests/ui/using-for/global_defined_elsewhere.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/global/global_defined_elsewhere.sol:LL:CC
    │
 LL │ using {id256} for L.Inner global;
    │        ━━━━━
    ╰╴
 note: function defined here
-   ╭▸ ROOT/tests/ui/using-for/global_defined_elsewhere.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/global/global_defined_elsewhere.sol:LL:CC
    │
 LL │ ┏ function id256(uint256 x) pure returns (uint256) {
 LL │ ┃     return x;

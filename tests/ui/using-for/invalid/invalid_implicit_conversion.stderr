@@ -1,11 +1,11 @@
 error: function `id8` cannot be attached to type `uint256`
-   ╭▸ ROOT/tests/ui/using-for/invalid_implicit_conversion.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_implicit_conversion.sol:LL:CC
    │
 LL │     using {id8} for uint256;
    │            ━━━
    ╰╴
 note: function defined here
-   ╭▸ ROOT/tests/ui/using-for/invalid_implicit_conversion.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_implicit_conversion.sol:LL:CC
    │
 LL │ ┏ function id8(uint8 x) pure returns (uint8) {
 LL │ ┃     return x;

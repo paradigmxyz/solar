@@ -1,5 +1,5 @@
 error: expression has to be an event invocation
-   ╭▸ ROOT/tests/ui/typeck/function_calls/emit_non_event.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/emit_non_event.sol:LL:CC
    │
 LL │         emit Test();
    ╰╴             ━━━━

@@ -1,5 +1,5 @@
 error: expected function name
-   ╭▸ ROOT/tests/ui/using-for/invalid_non_function.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_non_function.sol:LL:CC
    │
 LL │     using {X} for uint256;
    ╰╴           ━

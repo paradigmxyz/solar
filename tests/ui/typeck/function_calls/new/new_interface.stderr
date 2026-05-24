@@ -1,5 +1,5 @@
 error: cannot instantiate interfaces
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new_interface.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_interface.sol:LL:CC
    │
 LL │         new I();
    ╰╴            ━

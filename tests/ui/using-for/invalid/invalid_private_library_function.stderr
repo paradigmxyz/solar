@@ -1,11 +1,11 @@
 error: function `priv` is private and therefore cannot be attached to a type outside of the library where it is defined
-   ╭▸ ROOT/tests/ui/using-for/invalid_private_library_function.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_private_library_function.sol:LL:CC
    │
 LL │     using {L.priv} for uint256;
    │            ━━━━━━
    ╰╴
 note: function defined here
-   ╭▸ ROOT/tests/ui/using-for/invalid_private_library_function.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_private_library_function.sol:LL:CC
    │
 LL │ ┏     function priv(uint256 x) private pure returns (uint256) {
 LL │ ┃         return x;

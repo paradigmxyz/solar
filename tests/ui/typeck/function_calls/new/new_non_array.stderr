@@ -1,5 +1,5 @@
 error: expected contract or dynamic array type
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new_non_array.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_non_array.sol:LL:CC
    │
 LL │         uint256 x = new uint256(7);
    ╰╴                        ━━━━━━━

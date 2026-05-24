@@ -1,23 +1,23 @@
 error: cannot set option `value`, since the constructor of contract `NonPayableB1` is not payable
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new_nonpayable_call_options.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_nonpayable_call_options.sol:LL:CC
    │
 LL │         new NonPayableB1{value: 10}();
    ╰╴                         ━━━━━
 
 error: cannot set option `value`, since the constructor of contract `NonPayableB2` is not payable
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new_nonpayable_call_options.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_nonpayable_call_options.sol:LL:CC
    │
 LL │         new NonPayableB2{value: 10}();
    ╰╴                         ━━━━━
 
 error: cannot set option `value`, since the constructor of contract `NonPayableB3` is not payable
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new_nonpayable_call_options.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_nonpayable_call_options.sol:LL:CC
    │
 LL │         new NonPayableB3{value: 10}();
    ╰╴                         ━━━━━
 
 error: cannot set option `value`, since the constructor of contract `NonPayableB4` is not payable
-   ╭▸ ROOT/tests/ui/typeck/function_calls/new_nonpayable_call_options.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/new_nonpayable_call_options.sol:LL:CC
    │
 LL │         new NonPayableB4{value: 10}();
    ╰╴                         ━━━━━

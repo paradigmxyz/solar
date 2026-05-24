@@ -1,11 +1,11 @@
 error: invalid use of library name
-   ╭▸ ROOT/tests/ui/using-for/invalid_library_for_library.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_library_for_library.sol:LL:CC
    │
 LL │ using L for M;
    ╰╴━━━━━━━━━━━━━━
 
 error: invalid use of library name
-   ╭▸ ROOT/tests/ui/using-for/invalid_library_for_library.sol:LL:CC
+   ╭▸ ROOT/tests/ui/using-for/invalid/invalid_library_for_library.sol:LL:CC
    │
 LL │ using L for L;
    ╰╴━━━━━━━━━━━━━━

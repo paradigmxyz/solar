@@ -1,41 +1,41 @@
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         emit MyEvent(EmptyEvent(), "x");
    ╰╴                     ━━━━━━━━━━━━
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         emit MyEvent(EmptyEvent(), "x");
    ╰╴                     ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
 error: errors can only be used with revert statements
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         revert MyError(EmptyError(), "x");
    ╰╴                       ━━━━━━━━━━━━
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         revert MyError(EmptyError(), "x");
    ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         bool b = EmptyEvent() == EmptyEvent();
    ╰╴                 ━━━━━━━━━━━━
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         bool b = EmptyEvent() == EmptyEvent();
    ╰╴                                 ━━━━━━━━━━━━
 
 error: cannot apply builtin operator `==` to `tuple()` and `tuple()`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         bool b = EmptyEvent() == EmptyEvent();
    │                  ┬─────────── ━━ ──────────── tuple()
@@ -43,19 +43,19 @@ LL │         bool b = EmptyEvent() == EmptyEvent();
    ╰╴                 tuple()
 
 error: errors can only be used with revert statements
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         bool b = EmptyError() == EmptyError();
    ╰╴                 ━━━━━━━━━━━━
 
 error: errors can only be used with revert statements
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         bool b = EmptyError() == EmptyError();
    ╰╴                                 ━━━━━━━━━━━━
 
 error: cannot apply builtin operator `==` to `tuple()` and `tuple()`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         bool b = EmptyError() == EmptyError();
    │                  ┬─────────── ━━ ──────────── tuple()
@@ -63,49 +63,49 @@ LL │         bool b = EmptyError() == EmptyError();
    ╰╴                 tuple()
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                              ━━━━━━━━━━━━
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                                            ━━━━━━━━━━━━
 
 error: cannot infer array element type
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint[2] memory arr = [EmptyEvent(), EmptyEvent()];
    ╰╴                             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    ╰╴                        ━━━━━━━━━━━━
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    ╰╴                        ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    ╰╴                                       ━━━━━━━━━━━━
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    ╰╴                                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
 error: mismatched number of components
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    │         ━━━━━━━━━┬─────────────────────────────────━
@@ -113,55 +113,55 @@ LL │         uint x = true ? EmptyEvent() : EmptyEvent();
    ╰╴                 expected a tuple with 1 element, found one with 0 elements
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         S memory s = S(EmptyEvent());
    ╰╴                       ━━━━━━━━━━━━
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         S memory s = S(EmptyEvent());
    ╰╴                       ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint v = m[EmptyEvent()];
    ╰╴                   ━━━━━━━━━━━━
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint v = m[EmptyEvent()];
    ╰╴                   ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint v = arr[EmptyEvent()];
    ╰╴                     ━━━━━━━━━━━━
 
 error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint v = arr[EmptyEvent()];
    ╰╴                     ━━━━━━━━━━━━ expected `uint256`, found `tuple()`
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint x = EmptyEvent() + EmptyEvent();
    ╰╴                 ━━━━━━━━━━━━
 
 error: event invocations have to be prefixed by `emit`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint x = EmptyEvent() + EmptyEvent();
    ╰╴                                ━━━━━━━━━━━━
 
 error: cannot apply builtin operator `+` to `tuple()` and `tuple()`
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error_nested_contexts.sol:LL:CC
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/event_error_nested_contexts.sol:LL:CC
    │
 LL │         uint x = EmptyEvent() + EmptyEvent();
    │                  ┬─────────── ━ ──────────── tuple()
