@@ -816,7 +816,13 @@ impl<'gcx> TypeChecker<'gcx> {
             op,
             true,
             &mut |candidate| match candidate {
-                UserOperatorCandidate::Function(function) => functions.push(function),
+                UserOperatorCandidate::Function(candidate) => {
+                    if candidate.has_definition_error {
+                        guar = Some(ErrorGuaranteed::new_unchecked());
+                    } else {
+                        functions.push(candidate.function);
+                    }
+                }
                 UserOperatorCandidate::Err(err) => guar = Some(err),
             },
         );
@@ -840,13 +846,18 @@ impl<'gcx> TypeChecker<'gcx> {
             op,
             false,
             &mut |candidate| match candidate {
-                UserOperatorCandidate::Function(function) => {
-                    let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind
+                UserOperatorCandidate::Function(candidate) => {
+                    if candidate.has_definition_error {
+                        guar = Some(ErrorGuaranteed::new_unchecked());
+                        return;
+                    }
+                    let TyKind::Fn(function_ty) =
+                        self.gcx.type_of_item(candidate.function.into()).kind
                     else {
                         return;
                     };
                     if rhs.convert_implicit_to(function_ty.parameters[1], self.gcx) {
-                        functions.push(function);
+                        functions.push(candidate.function);
                     }
                 }
                 UserOperatorCandidate::Err(err) => guar = Some(err),

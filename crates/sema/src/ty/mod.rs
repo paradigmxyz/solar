@@ -73,8 +73,14 @@ pub struct InterfaceFunctions<'gcx> {
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum UserOperatorCandidate {
-    Function(hir::FunctionId),
+    Function(UserOperatorFunctionCandidate),
     Err(ErrorGuaranteed),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct UserOperatorFunctionCandidate {
+    pub(crate) function: hir::FunctionId,
+    pub(crate) has_definition_error: bool,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -812,14 +818,16 @@ impl<'gcx> Gcx<'gcx> {
                             continue;
                         };
                         let params = function_ty.parameters;
-                        if function_ty.state_mutability != StateMutability::Pure
+                        let has_definition_error = function_ty.state_mutability
+                            != StateMutability::Pure
                             || !self.hir.function(function_id).is_free()
                             || user_operator_parameter_error(ty, params, op).is_some()
-                            || function_ty.returns != [user_operator_return_type(self, ty, op)]
-                        {
-                            f(UserOperatorCandidate::Err(ErrorGuaranteed::new_unchecked()));
-                        } else if params.len() == if unary { 1 } else { 2 } {
-                            f(UserOperatorCandidate::Function(function_id));
+                            || function_ty.returns != [user_operator_return_type(self, ty, op)];
+                        if has_definition_error || params.len() == if unary { 1 } else { 2 } {
+                            f(UserOperatorCandidate::Function(UserOperatorFunctionCandidate {
+                                function: function_id,
+                                has_definition_error,
+                            }));
                         }
                     }
                 } else if entry.operator == Some(op)

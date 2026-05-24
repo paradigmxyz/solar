@@ -75,7 +75,9 @@ pub(super) fn check_using_operator<'gcx>(
             op,
             params.len() == 1,
             &mut |candidate| {
-                if let UserOperatorCandidate::Function(_) = candidate {
+                if let UserOperatorCandidate::Function(candidate) = candidate
+                    && !candidate.has_definition_error
+                {
                     matches += 1;
                 }
             },
