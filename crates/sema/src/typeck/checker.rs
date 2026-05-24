@@ -17,7 +17,15 @@ use solar_interface::{
 use std::ops::ControlFlow;
 
 type ParamNames = SmallVec<[Option<Symbol>; 8]>;
-type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNames>);
+type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNamesSource>);
+
+#[derive(Clone, Copy)]
+enum ParamNamesSource {
+    Function(hir::FunctionId, usize),
+    Struct(hir::StructId),
+    Event(hir::EventId),
+    Error(hir::ErrorId),
+}
 
 mod yul;
 
@@ -258,18 +266,14 @@ impl<'gcx> TypeChecker<'gcx> {
                                     .emit(),
                             );
                         }
-                        let param_names = if let Some(struct_id) = struct_id {
-                            Some(self.get_struct_field_names(struct_id))
+                        let param_names = if let Some(id) = struct_id {
+                            Some(ParamNamesSource::Struct(id))
                         } else {
                             f.function_id
-                                .map(|id| self.get_call_param_names(id, f.parameters.len()))
+                                .map(|id| ParamNamesSource::Function(id, f.parameters.len()))
                         };
-                        let args_result = self.check_call_args(
-                            expr.span,
-                            args,
-                            f.parameters,
-                            param_names.as_deref(),
-                        );
+                        let args_result =
+                            self.check_call_args(expr.span, args, f.parameters, param_names);
                         if let Some(&builtin) = self.builtin_callees.get(&callee.id) {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                             if builtin == Builtin::AbiDecode {
@@ -292,10 +296,12 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
-                        let event = self.gcx.hir.event(id);
-                        let param_names = self.get_param_names(event.parameters);
-                        let _ =
-                            self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        let _ = self.check_call_args(
+                            expr.span,
+                            args,
+                            param_tys,
+                            Some(ParamNamesSource::Event(id)),
+                        );
                         self.gcx.types.unit
                     }
                     TyKind::Error(param_tys, id) => {
@@ -309,10 +315,12 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
-                        let error = self.gcx.hir.error(id);
-                        let param_names = self.get_param_names(error.parameters);
-                        let _ =
-                            self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        let _ = self.check_call_args(
+                            expr.span,
+                            args,
+                            param_tys,
+                            Some(ParamNamesSource::Error(id)),
+                        );
                         self.gcx.types.unit
                     }
                     TyKind::Err(_) => callee_ty,
@@ -1000,12 +1008,23 @@ impl<'gcx> TypeChecker<'gcx> {
             .collect()
     }
 
+    fn get_param_names_from_source(&self, source: ParamNamesSource) -> ParamNames {
+        match source {
+            ParamNamesSource::Function(id, param_count) => {
+                self.get_call_param_names(id, param_count)
+            }
+            ParamNamesSource::Struct(id) => self.get_struct_field_names(id),
+            ParamNamesSource::Event(id) => self.get_param_names(self.gcx.hir.event(id).parameters),
+            ParamNamesSource::Error(id) => self.get_param_names(self.gcx.hir.error(id).parameters),
+        }
+    }
+
     fn check_call_args(
         &mut self,
         call_span: Span,
         args: &hir::CallArgs<'gcx>,
         param_tys: &[Ty<'gcx>],
-        param_names: Option<&[Option<solar_interface::Symbol>]>,
+        param_names: Option<ParamNamesSource>,
     ) -> Result<(), ErrorGuaranteed> {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
@@ -1351,7 +1370,7 @@ impl<'gcx> TypeChecker<'gcx> {
             let Some((param_tys, param_names)) = self.call_candidate_params(ty) else {
                 continue;
             };
-            if self.call_args_match(args, param_tys, param_names.as_deref()) {
+            if self.call_args_match(args, param_tys, param_names) {
                 selected.push(res);
             }
         }
@@ -1399,17 +1418,11 @@ impl<'gcx> TypeChecker<'gcx> {
             TyKind::Fn(function_ty) => {
                 let param_names = function_ty
                     .function_id
-                    .map(|id| self.get_call_param_names(id, function_ty.parameters.len()));
+                    .map(|id| ParamNamesSource::Function(id, function_ty.parameters.len()));
                 Some((function_ty.parameters, param_names))
             }
-            TyKind::Event(param_tys, id) => {
-                let event = self.gcx.hir.event(id);
-                Some((param_tys, Some(self.get_param_names(event.parameters))))
-            }
-            TyKind::Error(param_tys, id) => {
-                let error = self.gcx.hir.error(id);
-                Some((param_tys, Some(self.get_param_names(error.parameters))))
-            }
+            TyKind::Event(param_tys, id) => Some((param_tys, Some(ParamNamesSource::Event(id)))),
+            TyKind::Error(param_tys, id) => Some((param_tys, Some(ParamNamesSource::Error(id)))),
             TyKind::Err(_) => None,
             _ => None,
         }
@@ -1431,7 +1444,7 @@ impl<'gcx> TypeChecker<'gcx> {
         for member in members {
             if let Some((parameters, param_names)) =
                 self.member_call_candidate_params(receiver_ty, member)
-                && self.call_args_match(args, parameters, param_names.as_deref())
+                && self.call_args_match(args, parameters, param_names)
             {
                 selected.push(member);
             }
@@ -1459,7 +1472,7 @@ impl<'gcx> TypeChecker<'gcx> {
             function_ty.parameters
         };
         let param_names =
-            function_ty.function_id.map(|id| self.get_call_param_names(id, parameters.len()));
+            function_ty.function_id.map(|id| ParamNamesSource::Function(id, parameters.len()));
         Some((parameters, param_names))
     }
 
@@ -1467,12 +1480,13 @@ impl<'gcx> TypeChecker<'gcx> {
         &mut self,
         args: &hir::CallArgs<'gcx>,
         param_tys: &[Ty<'gcx>],
-        param_names: Option<&[Option<solar_interface::Symbol>]>,
+        param_names: Option<ParamNamesSource>,
     ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => self.positional_call_args_match(exprs, param_tys),
             hir::CallArgsKind::Named(named_args) => {
-                let Some(names) = param_names else { return false };
+                let Some(param_names) = param_names else { return false };
+                let names = self.get_param_names_from_source(param_names);
                 if named_args.len() != param_tys.len() {
                     return false;
                 }
@@ -1697,7 +1711,7 @@ impl<'gcx> TypeChecker<'gcx> {
         args_span: Span,
         named_args: &'gcx [hir::NamedArg<'gcx>],
         param_tys: &[Ty<'gcx>],
-        param_names: Option<&[Option<solar_interface::Symbol>]>,
+        param_names: Option<ParamNamesSource>,
     ) -> Result<(), ErrorGuaranteed> {
         let Some(param_names) = param_names else {
             let guar = self
@@ -1711,6 +1725,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return Err(guar);
         };
 
+        let param_names = self.get_param_names_from_source(param_names);
         debug_assert_eq!(param_tys.len(), param_names.len());
         let mut result = Ok(());
 
