@@ -1,0 +1,12 @@
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/resolve/shadow_state_variable.sol:LL:CC
+   │
+LL │         uint32 value;
+   │                ━━━━━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/resolve/shadow_state_variable.sol:LL:CC
+   │
+LL │     uint256 value;
+   ╰╴            ━━━━━
+

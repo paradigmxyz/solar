@@ -1589,10 +1589,38 @@ impl<'gcx> ResolveContext<'gcx> {
         self.hir.variables[id].initializer = self.lower_expr_opt(var.initializer.as_deref());
         let mut guar = Ok(());
         if let Some(name) = var.name {
+            if kind == hir::VarKind::Statement {
+                self.warn_if_local_shadows_state_variable(name);
+            }
             let res = Res::Item(hir::ItemId::Variable(id));
             guar = self.scopes.current_scope().declare_res(self.lcx.sess, &self.lcx.hir, name, res);
         }
         (id, guar)
+    }
+
+    fn warn_if_local_shadows_state_variable(&self, name: Ident) {
+        if self.scopes.scopes.iter().rev().any(|scope| scope.resolve(name).is_some()) {
+            return;
+        }
+        let Some(contract) = self.scopes.contract else { return };
+        let Some(decls) = self.resolver.contract_scopes[contract].resolve(name) else {
+            return;
+        };
+        let Some(previous) = decls.iter().find(|decl| {
+            matches!(
+                decl.res,
+                Res::Item(hir::ItemId::Variable(id)) if self.hir.variable(id).is_state_variable()
+            )
+        }) else {
+            return;
+        };
+
+        self.dcx()
+            .warn("this declaration shadows an existing declaration")
+            .code(error_code!(2519))
+            .span(name.span)
+            .span_note(previous.span, "shadowed declaration is here")
+            .emit();
     }
 
     /// Desugars a `while`, `do while`, or `for` loop into a `loop` HIR statement.

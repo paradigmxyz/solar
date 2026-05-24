@@ -1,3 +1,51 @@
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
+   │
+LL │         uint256[] calldata s = data[start:end];
+   │                            ━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
+   │
+LL │     uint256[] s;
+   ╰╴              ━
+
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
+   │
+LL │         uint128[] calldata s = data[start:end];
+   │                            ━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
+   │
+LL │     uint256[] s;
+   ╰╴              ━
+
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
+   │
+LL │         uint256[] memory s = data[start:end];
+   │                          ━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
+   │
+LL │     uint256[] s;
+   ╰╴              ━
+
+warning[2519]: this declaration shadows an existing declaration
+   ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
+   │
+LL │         uint256[] memory s = data[start:end];
+   │                          ━
+   ╰╴
+note: shadowed declaration is here
+   ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
+   │
+LL │     uint256[] s;
+   ╰╴              ━
+
 error: mismatched types
    ╭▸ ROOT/tests/ui/typeck/implicit_slice.sol:LL:CC
    │
@@ -22,5 +70,5 @@ error: mismatched types
 LL │         t = data[start:end];
    ╰╴            ━━━━━━━━━━━━━━━ expected `uint256[] storage`, found `uint256[] calldata slice`
 
-error: aborting due to 4 previous errors
+error: aborting due to 4 previous errors; 4 warnings emitted
 
