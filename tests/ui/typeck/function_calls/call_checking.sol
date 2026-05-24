@@ -141,7 +141,6 @@ contract CallChecking {
         //~^ ERROR: mismatched types
         //~| ERROR: mismatched types
     }
-
 }
 
 contract BaseCallTarget {
