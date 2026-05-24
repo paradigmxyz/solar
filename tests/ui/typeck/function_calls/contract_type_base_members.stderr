@@ -1,3 +1,9 @@
+error: member `selector` not found on type `function () pure returns (uint256)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
+   │
+LL │         return Derived.baseTypePublicFunction.selector;
+   ╰╴                                              ━━━━━━━━
+
 error: cannot call function via contract type name
    ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
    │
@@ -10,5 +16,5 @@ error: cannot call function via contract type name
 LL │         AbstractBase.abstractBaseFunction();
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 2 previous errors
+error: aborting due to 3 previous errors
 

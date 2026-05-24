@@ -267,7 +267,7 @@ fn contract_type(
                 Member::with_res(gcx.item_name(item).name, ty, item)
             }));
         }
-        ContractTypeAccess::Library | ContractTypeAccess::DerivingScope => {
+        ContractTypeAccess::Library | ContractTypeAccess::DerivingScope { .. } => {
             members.extend(contract.functions().filter_map(|id| {
                 let ty = contract_type_own_function(gcx, id, access)?;
                 let item = hir::ItemId::from(id);
@@ -291,7 +291,7 @@ fn contract_type(
 #[derive(Clone, Copy)]
 enum ContractTypeAccess {
     Library,
-    DerivingScope,
+    DerivingScope { same_contract: bool },
     External,
 }
 
@@ -300,10 +300,10 @@ impl ContractTypeAccess {
         let contract = gcx.hir.contract(id);
         if contract.kind.is_library() {
             Self::Library
-        } else if current_contract
-            .is_some_and(|current| gcx.hir.contract(current).linearized_bases.contains(&id))
+        } else if let Some(current) = current_contract
+            && gcx.hir.contract(current).linearized_bases.contains(&id)
         {
-            Self::DerivingScope
+            Self::DerivingScope { same_contract: current == id }
         } else {
             Self::External
         }
@@ -329,7 +329,7 @@ fn contract_type_own_function<'gcx>(
                 ty
             })
         }
-        ContractTypeAccess::DerivingScope
+        ContractTypeAccess::DerivingScope { same_contract }
             if f.visibility > Visibility::Private && !f.is_getter() =>
         {
             let ty = gcx.type_of_item(id.into());
@@ -337,7 +337,7 @@ fn contract_type_own_function<'gcx>(
                 if matches!(f.visibility, Visibility::Internal | Visibility::Public)
                     && f.body.is_some()
                 {
-                    if f.visibility >= Visibility::Public {
+                    if !same_contract && f.visibility >= Visibility::Public {
                         internal_function_with_selector(gcx, ty)
                     } else {
                         ty
@@ -380,7 +380,7 @@ fn contract_type_item_visible(item: hir::Item<'_, '_>, access: ContractTypeAcces
         ContractTypeAccess::Library => {
             item.is_visible_as_library_member() || item.is_visible_via_contract_type_access()
         }
-        ContractTypeAccess::DerivingScope => {
+        ContractTypeAccess::DerivingScope { .. } => {
             item.is_visible_via_contract_type_access()
                 || (matches!(item, hir::Item::Variable(_))
                     && item.visibility() > Visibility::Private)

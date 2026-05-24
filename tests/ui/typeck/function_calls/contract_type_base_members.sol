@@ -17,6 +17,10 @@ contract Base {
 }
 
 contract Derived is Base {
+    function selfTypePublicFunctionSelector() public pure returns (bytes4) {
+        return Derived.baseTypePublicFunction.selector; //~ ERROR: member `selector` not found
+    }
+
     function baseTypePublicFunctionSelector() public pure returns (bytes4) {
         return Base.publicBase.selector;
     }
