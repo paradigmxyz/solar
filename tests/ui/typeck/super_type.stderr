@@ -1,0 +1,26 @@
+error: member `currentOnly` not found on type `type(contract super B)`
+   ╭▸ ROOT/tests/ui/typeck/super_type.sol:LL:CC
+   │
+LL │         super.currentOnly();
+   ╰╴              ━━━━━━━━━━━
+
+error: member `externalOnly` not found on type `type(contract super B)`
+   ╭▸ ROOT/tests/ui/typeck/super_type.sol:LL:CC
+   │
+LL │         super.externalOnly();
+   ╰╴              ━━━━━━━━━━━━
+
+error: member `unimplemented` not found on type `type(contract super B)`
+   ╭▸ ROOT/tests/ui/typeck/super_type.sol:LL:CC
+   │
+LL │         return super.unimplemented();
+   ╰╴                     ━━━━━━━━━━━━━
+
+error: cannot convert to the super type
+   ╭▸ ROOT/tests/ui/typeck/super_type.sol:LL:CC
+   │
+LL │         super();
+   ╰╴        ━━━━━━━
+
+error: aborting due to 4 previous errors
+

@@ -35,6 +35,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Mapping(..) => Default::default(),
         TyKind::Fn(f) => function(gcx, f),
         TyKind::Contract(id) => contract(gcx, id),
+        TyKind::Super(_id) => Default::default(),
         TyKind::Struct(_id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),
         TyKind::Udvt(_ty, _id) => Default::default(),
@@ -228,6 +229,7 @@ fn reference<'gcx>(
 fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
         TyKind::Contract(id) => contract_type(gcx, id, None),
+        TyKind::Super(id) => super_type(gcx, id),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
         }
@@ -314,6 +316,36 @@ fn contract_type(
         .chain(type_members.map(|item| (item, gcx.type_of_res(item.into()))))
         .map(|(item, ty)| Member::with_res(gcx.item_name(item).name, ty, item))
         .collect()
+}
+
+fn super_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
+    let mut members = Vec::new();
+    for &base in gcx.hir.contract(id).linearized_bases.iter().skip(1) {
+        for function in gcx.hir.contract(base).functions() {
+            let f = gcx.hir.function(function);
+            let item = hir::ItemId::from(function);
+            if !f.is_ordinary()
+                || f.visibility <= Visibility::Private
+                || f.visibility == Visibility::External
+                || f.body.is_none()
+            {
+                continue;
+            }
+
+            let name = gcx.item_name(item).name;
+            let params = gcx.item_parameter_types(item);
+            if members.iter().any(|member: &Member<'_>| match member.res {
+                Some(hir::Res::Item(item)) => {
+                    member.name == name && gcx.item_parameter_types(item) == params
+                }
+                _ => false,
+            }) {
+                continue;
+            }
+            members.push(Member::with_res(name, gcx.type_of_item(item), item));
+        }
+    }
+    members
 }
 
 // `type(T)`
