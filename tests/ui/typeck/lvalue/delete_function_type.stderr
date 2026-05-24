@@ -1,0 +1,14 @@
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/delete_function_type.sol:LL:CC
+   │
+LL │         delete f;
+   ╰╴               ━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/lvalue/delete_function_type.sol:LL:CC
+   │
+LL │         delete this.h;
+   ╰╴               ━━━━━━
+
+error: aborting due to 2 previous errors
+
