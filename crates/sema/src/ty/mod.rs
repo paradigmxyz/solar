@@ -715,9 +715,27 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
-        let native = self.native_members((ty, contract));
+        let native =
+            self.native_members_in_context(ty, contract).unwrap_or_else(|| self.native_members(ty));
         let attached = self.attached_functions(ty, source, contract);
         native.iter().copied().chain(attached)
+    }
+
+    fn native_members_in_context(
+        self,
+        ty: Ty<'gcx>,
+        current_contract: Option<hir::ContractId>,
+    ) -> Option<members::MemberList<'gcx>> {
+        let current_contract = current_contract?;
+        let TyKind::Type(ty) = ty.kind else { return None };
+        let TyKind::Contract(id) = ty.kind else { return None };
+        let contract = self.hir.contract(id);
+        if contract.kind.is_library()
+            || !self.hir.contract(current_contract).linearized_bases.contains(&id)
+        {
+            return None;
+        }
+        Some(self.contract_type_members_in_context((id, current_contract)))
     }
 
     pub(crate) fn for_each_user_operator(
@@ -894,8 +912,6 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
         state_mutability
     }
 }
-
-type NativeMembersKey<'gcx> = (Ty<'gcx>, Option<hir::ContractId>);
 
 macro_rules! cached {
     ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
@@ -1182,9 +1198,16 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
     }
 }
 
-fn native_members(gcx: _, key: NativeMembersKey<'gcx>) -> members::MemberList<'gcx> {
-    let (ty, contract) = key;
-    members::native_members(gcx, ty, contract)
+fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
+    members::native_members(gcx, ty)
+}
+
+fn contract_type_members_in_context(
+    gcx: _,
+    key: (hir::ContractId, hir::ContractId)
+) -> members::MemberList<'gcx> {
+    let (id, current_contract) = key;
+    members::contract_type_members_in_context(gcx, id, current_contract)
 }
 }
 
