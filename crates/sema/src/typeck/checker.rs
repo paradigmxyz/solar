@@ -1012,19 +1012,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 self.check_positional_call_args(call_span, args.span, exprs, param_tys)
             }
             hir::CallArgsKind::Named(named_args) => {
-                if let Some(names) = param_names {
-                    self.check_named_call_args(call_span, args.span, named_args, param_tys, names)
-                } else {
-                    let guar = self
-                        .dcx()
-                        .err("named arguments cannot be used for functions that take arbitrary parameters")
-                        .span(args.span)
-                        .emit();
-                    for arg in named_args {
-                        let _ = self.check_expr(&arg.value);
-                    }
-                    Err(guar)
-                }
+                self.check_named_call_args(call_span, args.span, named_args, param_tys, param_names)
             }
         }
     }
@@ -1709,8 +1697,20 @@ impl<'gcx> TypeChecker<'gcx> {
         args_span: Span,
         named_args: &'gcx [hir::NamedArg<'gcx>],
         param_tys: &[Ty<'gcx>],
-        param_names: &[Option<solar_interface::Symbol>],
+        param_names: Option<&[Option<solar_interface::Symbol>]>,
     ) -> Result<(), ErrorGuaranteed> {
+        let Some(param_names) = param_names else {
+            let guar = self
+                .dcx()
+                .err("named arguments cannot be used for functions that take arbitrary parameters")
+                .span(args_span)
+                .emit();
+            for arg in named_args {
+                let _ = self.check_expr(&arg.value);
+            }
+            return Err(guar);
+        };
+
         debug_assert_eq!(param_tys.len(), param_names.len());
         let mut result = Ok(());
 
