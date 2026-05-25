@@ -282,13 +282,17 @@ impl<'gcx> TypeChecker<'gcx> {
                             return self.abi_decode_return_type(args);
                         }
 
+                        let builtin = self.builtin_callees.get(&callee.id).copied();
                         let param_names = if let Some(id) = struct_id {
                             Some(ParamNamesSource::Struct(id))
                         } else {
                             self.ty_fn_param_names_source(f)
                         };
-                        let _ = self.check_call_args(expr.span, args, f.parameters, param_names);
-                        if let Some(builtin) = self.builtin_callees.get(&callee.id).copied() {
+                        if builtin != Some(Builtin::RequireErr) {
+                            let _ =
+                                self.check_call_args(expr.span, args, f.parameters, param_names);
+                        }
+                        if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                         }
                         self.fn_call_return_type(f.returns)
@@ -1096,8 +1100,87 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             Builtin::AbiEncodeCall => self.check_abi_encode_call_args(call_span, args.span, exprs),
             Builtin::AbiDecode => Ok(()),
+            Builtin::RequireErr => self.check_require_error_args(call_span, args.span, exprs),
             _ => Ok(()),
         }
+    }
+
+    fn check_require_error_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+    ) -> Result<(), ErrorGuaranteed> {
+        let [condition, error_arg] = exprs else {
+            return Err(self.dcx().emit_err_label(
+                call_span,
+                format!(
+                    "wrong argument count for function call: {} arguments given but expected 2",
+                    exprs.len()
+                ),
+                args_span,
+                format!("expected 2 arguments, found {}", exprs.len()),
+            ));
+        };
+
+        let actual = self.check_expr_once(condition);
+        let result = self.check_expected(condition, actual, self.gcx.types.bool);
+        result.and(self.check_require_error_arg(error_arg))
+    }
+
+    fn check_require_error_arg(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.types.contains_key(&expr.id) {
+            return self.check_expected(expr, self.get(expr), self.gcx.types.unit);
+        }
+
+        let hir::ExprKind::Call(callee, args, opts) = expr.kind else {
+            let actual = self.check_expr_once(expr);
+            return self.check_expected(expr, actual, self.gcx.types.unit);
+        };
+        if let Some(opts) = opts {
+            let callee_ty = self.check_expr(callee);
+            let _ = self.check_call_options(callee_ty, opts.args, opts.span);
+            return self.check_expected(expr, callee_ty, self.gcx.types.unit);
+        }
+
+        let hir::ExprKind::Ident(res) = callee.kind else {
+            let actual = self.check_expr_once(expr);
+            return self.check_expected(expr, actual, self.gcx.types.unit);
+        };
+        let error_res = res
+            .iter()
+            .copied()
+            .filter(|res| matches!(res, hir::Res::Item(hir::ItemId::Error(_))))
+            .collect::<SmallVec<[_; 4]>>();
+        if error_res.is_empty() {
+            let actual = self.check_expr_once(expr);
+            return self.check_expected(expr, actual, self.gcx.types.unit);
+        }
+
+        let selected = match self.select_call_overload(&error_res, &args) {
+            Ok(res) => res,
+            Err(e) => {
+                let msg = match e {
+                    OverloadError::NotFound => "no matching declarations found",
+                    OverloadError::Ambiguous => "no unique declarations found",
+                };
+                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
+            }
+        };
+        let callee_ty = self.type_of_res(selected);
+        let TyKind::Error(param_tys, id) = callee_ty.kind else {
+            return self.check_expected(expr, callee_ty, self.gcx.types.unit);
+        };
+        if !self.types.contains_key(&callee.id) {
+            self.register_ty(callee, callee_ty);
+        }
+        let result =
+            self.check_call_args(expr.span, &args, param_tys, Some(ParamNamesSource::Error(id)));
+        self.register_ty(expr, self.gcx.types.unit);
+        result
     }
 
     fn check_abi_encodable_args(
@@ -1582,15 +1665,23 @@ impl<'gcx> TypeChecker<'gcx> {
         if let Some(&res @ hir::Res::Err(_)) = res.iter().find(|res| res.is_err()) {
             return Ok(res);
         }
+        if let Some(&res @ hir::Res::Builtin(Builtin::RequireErr)) = res.iter().find(|res| {
+            matches!(res, hir::Res::Builtin(Builtin::RequireErr))
+                && self.require_error_overload_matches(args)
+        }) {
+            return Ok(res);
+        }
 
         let mut selected = SmallVec::<[_; 4]>::new();
         for &res in res {
+            if matches!(res, hir::Res::Builtin(Builtin::RequireErr)) {
+                continue;
+            }
             let ty = self.type_of_res(res);
             let Some((param_tys, param_names)) = self.call_candidate_params(ty) else {
                 continue;
             };
-            let builtin = if let hir::Res::Builtin(builtin) = res { Some(builtin) } else { None };
-            if self.call_args_match(args, param_tys, param_names, builtin) {
+            if self.call_args_match(args, param_tys, param_names) {
                 selected.push(res);
             }
         }
@@ -1662,7 +1753,7 @@ impl<'gcx> TypeChecker<'gcx> {
         for member in members {
             if let Some((parameters, param_names)) =
                 self.member_call_candidate_params(receiver_ty, member)
-                && self.call_args_match(args, parameters, param_names, None)
+                && self.call_args_match(args, parameters, param_names)
             {
                 selected.push(member);
             }
@@ -1699,12 +1790,9 @@ impl<'gcx> TypeChecker<'gcx> {
         args: &hir::CallArgs<'gcx>,
         param_tys: &[Ty<'gcx>],
         param_names: Option<ParamNamesSource>,
-        builtin: Option<Builtin>,
     ) -> bool {
         match args.kind {
-            hir::CallArgsKind::Unnamed(exprs) => {
-                self.positional_call_args_match(exprs, param_tys, builtin)
-            }
+            hir::CallArgsKind::Unnamed(exprs) => self.positional_call_args_match(exprs, param_tys),
             hir::CallArgsKind::Named(named_args) => {
                 let Some(param_names) = param_names else { return false };
                 let names = self.get_param_names_from_source(param_names);
@@ -1881,12 +1969,7 @@ impl<'gcx> TypeChecker<'gcx> {
         &mut self,
         exprs: &'gcx [hir::Expr<'gcx>],
         param_tys: &[Ty<'gcx>],
-        builtin: Option<Builtin>,
     ) -> bool {
-        if builtin == Some(Builtin::RequireErr) {
-            return self.require_error_args_match(exprs, param_tys);
-        }
-
         let (fixed_params, variadic) = split_variadic_params(param_tys);
         if (!variadic && exprs.len() != fixed_params.len())
             || (variadic && exprs.len() < fixed_params.len())
@@ -1908,61 +1991,21 @@ impl<'gcx> TypeChecker<'gcx> {
         true
     }
 
-    fn require_error_args_match(
-        &mut self,
-        exprs: &'gcx [hir::Expr<'gcx>],
-        param_tys: &[Ty<'gcx>],
-    ) -> bool {
-        let ([condition, error_arg], [condition_ty, _]) = (exprs, param_tys) else {
+    fn require_error_overload_matches(&mut self, args: &hir::CallArgs<'gcx>) -> bool {
+        let hir::CallArgsKind::Unnamed([condition, error_arg]) = args.kind else {
             return false;
         };
-        let condition_actual = self.check_expr_once(condition);
-        self.expr_matches_expected(condition, condition_actual, *condition_ty).is_ok()
-            && self.check_require_error_arg(error_arg)
-    }
-
-    fn check_require_error_arg(&mut self, expr: &'gcx hir::Expr<'gcx>) -> bool {
-        if self.types.contains_key(&expr.id) {
-            return self.get(expr).is_unit();
-        }
-
-        let hir::ExprKind::Call(callee, args, opts) = expr.kind else { return false };
-        if opts.is_some() {
+        let actual = self.check_expr_once(condition);
+        if self.expr_matches_expected(condition, actual, self.gcx.types.bool).is_err() {
             return false;
         }
-
+        let hir::ExprKind::Call(callee, ..) = error_arg.kind else {
+            return false;
+        };
         let hir::ExprKind::Ident(res) = callee.kind else {
             return false;
         };
-        let error_res = res
-            .iter()
-            .copied()
-            .filter(|res| matches!(res, hir::Res::Item(hir::ItemId::Error(_))))
-            .collect::<SmallVec<[_; 4]>>();
-        if error_res.is_empty() {
-            return false;
-        }
-
-        let selected = match self.select_call_overload(&error_res, &args) {
-            Ok(res) => res,
-            Err(e) => {
-                let msg = match e {
-                    OverloadError::NotFound => "no matching declarations found",
-                    OverloadError::Ambiguous => "no unique declarations found",
-                };
-                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
-            }
-        };
-        let callee_ty = self.type_of_res(selected);
-
-        let TyKind::Error(param_tys, id) = callee_ty.kind else { return false };
-        if !self.types.contains_key(&callee.id) {
-            self.register_ty(callee, callee_ty);
-        }
-        let _ =
-            self.check_call_args(expr.span, &args, param_tys, Some(ParamNamesSource::Error(id)));
-        self.register_ty(expr, self.gcx.types.unit);
-        true
+        res.iter().any(|res| matches!(res, hir::Res::Item(hir::ItemId::Error(_))))
     }
 
     fn check_named_call_args(
