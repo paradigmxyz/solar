@@ -1,4 +1,4 @@
-error: resolved NatSpec for function `factory`
+error: resolved NatSpec for function `Base.factory`
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
    │
 LL │     function factory() external view returns (address);
@@ -15,7 +15,7 @@ note: @return The factory address
 LL │     /// @return The factory address
    ╰╴         ━━━━━━
 
-error: resolved NatSpec for function `values`
+error: resolved NatSpec for function `Base.values`
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
    │
 LL │     function values(uint key) external view returns (uint);
@@ -37,7 +37,7 @@ note: @return The stored value
 LL │     /// @return The stored value
    ╰╴         ━━━━━━
 
-error: resolved NatSpec for variable `factory`
+error: resolved NatSpec for variable `Child.factory`
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
    │
 LL │     address public override factory;
@@ -54,7 +54,7 @@ note: @return The factory address
 LL │     /// @return The factory address
    ╰╴         ━━━━━━
 
-error: resolved NatSpec for variable `values`
+error: resolved NatSpec for variable `Child.values`
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
    │
 LL │     mapping(uint => uint) public override values;

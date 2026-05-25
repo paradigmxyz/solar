@@ -1,0 +1,53 @@
+error: resolved NatSpec for function `OverloadBase.overloaded`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     function overloaded(address a) public virtual {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: @notice address overload
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     /// @notice address overload
+   ╰╴         ━━━━━━
+note: @param a address parameter
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     /// @param a address parameter
+   ╰╴         ━━━━━
+
+error: resolved NatSpec for function `OverloadBase.overloaded`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     function overloaded(uint a) public virtual {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: @notice uint overload
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     /// @notice uint overload
+   ╰╴         ━━━━━━
+note: @param a uint parameter
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     /// @param a uint parameter
+   ╰╴         ━━━━━
+
+error: resolved NatSpec for function `OverloadChild.overloaded`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     function overloaded(uint a) public override {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: @notice uint overload
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     /// @notice uint overload
+   ╰╴         ━━━━━━
+note: @param a uint parameter
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     /// @param a uint parameter
+   ╰╴         ━━━━━
+
+error: aborting due to 3 previous errors
+

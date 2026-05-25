@@ -1,0 +1,275 @@
+error: resolved NatSpec for function `Base.foo`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │ ┏     function foo(uint x, uint y) public virtual returns (bool success, uint value) {
+LL │ ┃         return (true, x + y);
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @notice Base function notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @notice Base function notice
+   ╰╴         ━━━━━━
+note: @dev Base function dev
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @dev Base function dev
+   ╰╴         ━━━
+note: @param x The x parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param x The x parameter from base
+   ╰╴         ━━━━━
+note: @param y The y parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param y The y parameter from base
+   ╰╴         ━━━━━
+note: @return success Whether the operation succeeded
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return success Whether the operation succeeded
+   ╰╴         ━━━━━━
+note: @return value The result value
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return value The result value
+   ╰╴         ━━━━━━
+note: @custom:security Audited by Base team
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @custom:security Audited by Base team
+   ╰╴         ━━━━━━━━━━━━━━━
+
+error: resolved NatSpec for function `Child1.foo`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │ ┏     function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+LL │ ┃         return (true, x * y);
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @notice Base function notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @notice Base function notice
+   ╰╴         ━━━━━━
+note: @dev Base function dev
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @dev Base function dev
+   ╰╴         ━━━
+note: @param x The x parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param x The x parameter from base
+   ╰╴         ━━━━━
+note: @param y The y parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param y The y parameter from base
+   ╰╴         ━━━━━
+note: @return success Whether the operation succeeded
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return success Whether the operation succeeded
+   ╰╴         ━━━━━━
+note: @return value The result value
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return value The result value
+   ╰╴         ━━━━━━
+
+error: resolved NatSpec for function `Child2.foo`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │ ┏     function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+LL │ ┃         return (false, 0);
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @notice Child2 notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @notice Child2 notice
+   ╰╴         ━━━━━━
+note: @dev Child2 dev
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @dev Child2 dev
+   ╰╴         ━━━
+note: @param x The x parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param x The x parameter from base
+   ╰╴         ━━━━━
+note: @param y The y parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param y The y parameter from base
+   ╰╴         ━━━━━
+note: @return success Whether the operation succeeded
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return success Whether the operation succeeded
+   ╰╴         ━━━━━━
+note: @return value The result value
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return value The result value
+   ╰╴         ━━━━━━
+
+error: resolved NatSpec for function `Child3.foo`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │ ┏     function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+LL │ ┃         return (true, x);
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @param x The x parameter from child3
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param x The x parameter from child3
+   ╰╴         ━━━━━
+note: @notice Base function notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @notice Base function notice
+   ╰╴         ━━━━━━
+note: @dev Base function dev
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @dev Base function dev
+   ╰╴         ━━━
+note: @return success Whether the operation succeeded
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return success Whether the operation succeeded
+   ╰╴         ━━━━━━
+note: @return value The result value
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return value The result value
+   ╰╴         ━━━━━━
+
+error: resolved NatSpec for function `Child4.foo`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │ ┏     function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+LL │ ┃         return (false, x + y);
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @return success Child4 override for success
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return success Child4 override for success
+   ╰╴         ━━━━━━
+note: @notice Base function notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @notice Base function notice
+   ╰╴         ━━━━━━
+note: @dev Base function dev
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @dev Base function dev
+   ╰╴         ━━━
+note: @param x The x parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param x The x parameter from base
+   ╰╴         ━━━━━
+note: @param y The y parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param y The y parameter from base
+   ╰╴         ━━━━━
+
+error: resolved NatSpec for function `Child5.foo`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │ ┏     function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+LL │ ┃         return (true, y);
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @custom:audit Reviewed by Child5 auditor
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @custom:audit Reviewed by Child5 auditor
+   ╰╴         ━━━━━━━━━━━━
+note: @notice Base function notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @notice Base function notice
+   ╰╴         ━━━━━━
+note: @dev Base function dev
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @dev Base function dev
+   ╰╴         ━━━
+note: @param x The x parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param x The x parameter from base
+   ╰╴         ━━━━━
+note: @param y The y parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param y The y parameter from base
+   ╰╴         ━━━━━
+note: @return success Whether the operation succeeded
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return success Whether the operation succeeded
+   ╰╴         ━━━━━━
+note: @return value The result value
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return value The result value
+   ╰╴         ━━━━━━
+
+error: resolved NatSpec for function `GrandChild.foo`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │ ┏     function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
+LL │ ┃         return (true, x - y);
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @notice Base function notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @notice Base function notice
+   ╰╴         ━━━━━━
+note: @dev Base function dev
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @dev Base function dev
+   ╰╴         ━━━
+note: @param x The x parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param x The x parameter from base
+   ╰╴         ━━━━━
+note: @param y The y parameter from base
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @param y The y parameter from base
+   ╰╴         ━━━━━
+note: @return success Whether the operation succeeded
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return success Whether the operation succeeded
+   ╰╴         ━━━━━━
+note: @return value The result value
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @return value The result value
+   ╰╴         ━━━━━━
+
+error: aborting due to 7 previous errors
+
