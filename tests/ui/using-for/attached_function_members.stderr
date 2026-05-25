@@ -38,5 +38,11 @@ LL │         x.add();
    │              │
    ╰╴             expected 1 argument, found 0
 
-error: aborting due to 6 previous errors
+error: member `nonpayableOnly` not found on type `function (uint256) pure returns (uint256)`
+   ╭▸ ROOT/tests/ui/using-for/attached_function_members.sol:LL:CC
+   │
+LL │         return identity.nonpayableOnly(x);
+   ╰╴                        ━━━━━━━━━━━━━━
+
+error: aborting due to 7 previous errors
 

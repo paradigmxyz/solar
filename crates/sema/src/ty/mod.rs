@@ -883,8 +883,24 @@ impl<'gcx> Gcx<'gcx> {
             return true;
         };
         let loc = ty.loc().unwrap_or(DataLocation::Storage);
-        ty == using_ty.with_loc_if_ref(self, loc)
+        using_directive_ty_matches(ty, using_ty.with_loc_if_ref(self, loc))
     }
+}
+
+fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
+    if ty == using_ty {
+        return true;
+    }
+    // HACK: allow attached functions to be called on function declarations. Function type equality
+    // also checks declaration IDs, so this is a quick way to make it work for now.
+    if let (TyKind::Fn(a), TyKind::Fn(b)) = (ty.kind, using_ty.kind) {
+        return a.kind == b.kind
+            && a.parameters == b.parameters
+            && a.returns == b.returns
+            && a.state_mutability == b.state_mutability
+            && a.attached == b.attached;
+    }
+    false
 }
 
 fn compatible_fixed_bytes_type(lit: &hir::Lit<'_>) -> Option<TypeSize> {
