@@ -93,11 +93,7 @@ declare_builtins! {
     Assert                 => sym::assert
                            => gcx.mk_builtin_fn(&[gcx.types.bool], SM::Pure, &[]);
     Require                => sym::require
-                           => gcx.mk_builtin_fn(&[gcx.types.bool], SM::Pure, &[]);
-    RequireErr             => sym::require
                            => gcx.mk_builtin_fn(&[gcx.types.bool, gcx.mk_ty_variadic()], SM::Pure, &[]);
-    RequireMsg             => sym::require
-                           => gcx.mk_builtin_fn(&[gcx.types.bool, gcx.types.string_ref.memory], SM::Pure, &[]);
     Revert                 => kw::Revert
                            => gcx.mk_builtin_fn(&[], SM::Pure, &[]);
     RevertMsg              => kw::Revert
