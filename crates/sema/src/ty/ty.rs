@@ -424,6 +424,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
+            | TyKind::Variadic
             | TyKind::Struct(_)
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
@@ -473,6 +474,7 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
+            | TyKind::Variadic
             | TyKind::Err(_) => ControlFlow::Continue(()),
 
             TyKind::Ref(ty, _)
@@ -1140,6 +1142,9 @@ pub enum TyKind<'gcx> {
     /// Function pointer: `function(...) returns (...)`.
     Fn(&'gcx TyFn<'gcx>),
 
+    /// Variadic function parameter.
+    Variadic,
+
     /// Contract.
     Contract(hir::ContractId),
 
@@ -1316,7 +1321,8 @@ impl TyFlags {
             | TyKind::Enum(_)
             | TyKind::Struct(_)
             | TyKind::Module(_)
-            | TyKind::BuiltinModule(_) => {}
+            | TyKind::BuiltinModule(_)
+            | TyKind::Variadic => {}
 
             TyKind::Fn(f) => {
                 if f.is_internal() {

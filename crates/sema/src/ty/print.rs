@@ -222,6 +222,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::Event(..)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
+            | TyKind::Variadic
             | TyKind::Type(_)
             | TyKind::Meta(_)
             | TyKind::Err(_) => panic!("printing unsupported type as ABI: {ty:?}"),
@@ -351,6 +352,7 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 write!(self.buf, "module {}", s.file.name.display())
             }
             TyKind::BuiltinModule(b) => self.buf.write_str(b.name().as_str()),
+            TyKind::Variadic => self.buf.write_str("..."),
             TyKind::Type(ty) | TyKind::Meta(ty) => {
                 self.buf.write_str("type(")?;
                 self.print(ty)?; // TODO: `richIdentifier`
