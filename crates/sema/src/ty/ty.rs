@@ -844,6 +844,18 @@ impl<'gcx> Ty<'gcx> {
                 if mutability_ok { Ok(()) } else { Result::Err(TyConvertError::Incompatible) }
             }
 
+            // Tuple conversions: element-wise implicit conversion with same length.
+            // See: <https://docs.soliditylang.org/en/latest/types.html#tuple-types>
+            (Tuple(from_tys), Tuple(to_tys)) => {
+                if from_tys.len() != to_tys.len() {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+                for (&from_ty, &to_ty) in std::iter::zip(from_tys, to_tys) {
+                    from_ty.try_convert_implicit_to(to_ty, gcx)?;
+                }
+                Ok(())
+            }
+
             _ => Result::Err(TyConvertError::Incompatible),
         }
     }
@@ -1383,5 +1395,31 @@ impl TyFlags {
         for &ty in tys {
             self.add_ty(ty);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::Compiler;
+    use solar_interface::{ColorChoice, Session};
+
+    #[test]
+    fn tuple_implicit_conversions_are_element_wise() {
+        let sess =
+            Session::builder().with_buffer_emitter(ColorChoice::Never).single_threaded().build();
+        let compiler = Compiler::new(sess);
+
+        compiler.enter_sequential(|compiler| {
+            let gcx = compiler.gcx();
+            let from = gcx.mk_ty_tuple(gcx.mk_tys(&[gcx.types.address_payable, gcx.types.uint(8)]));
+            let to = gcx.mk_ty_tuple(gcx.mk_tys(&[gcx.types.address, gcx.types.uint(256)]));
+            assert!(from.try_convert_implicit_to(to, gcx).is_ok());
+
+            let narrowed = gcx.mk_ty_tuple(gcx.mk_tys(&[gcx.types.address, gcx.types.uint(8)]));
+            assert!(to.try_convert_implicit_to(narrowed, gcx).is_err());
+
+            let shorter = gcx.mk_ty_tuple(gcx.mk_tys(&[gcx.types.address]));
+            assert!(from.try_convert_implicit_to(shorter, gcx).is_err());
+        });
     }
 }
