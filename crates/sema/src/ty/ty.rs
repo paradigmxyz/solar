@@ -874,8 +874,6 @@ impl<'gcx> Ty<'gcx> {
     ///
     /// Explicit conversions are a superset of implicit conversions.
     ///
-    /// Explicit conversions are a superset of implicit conversions.
-    ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
     fn can_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), TyConvertError> {
         use ElementaryType::*;

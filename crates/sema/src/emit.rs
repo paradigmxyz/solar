@@ -59,10 +59,7 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
                     }
                     contract_output.hashes = Some(hashes);
                 }
-                // Bytecode and MIR are handled by the cli/codegen layer
-                // (after analysis), not by sema's emit step.
-                CompilerOutput::Bin | CompilerOutput::BinRuntime | CompilerOutput::Mir => {}
-                _ => {}
+                emit => unreachable!("{emit:?}"),
             }
         }
     }
