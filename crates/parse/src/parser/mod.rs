@@ -31,7 +31,9 @@ const PARSER_RECURSION_LIMIT: usize = 128;
 /// # fn main() {}
 #[doc = include_str!("../../doc-examples/parser.rs")]
 /// ```
-pub struct Parser<'sess, 'ast> {
+type ImportCallback<'cb, 'ast> = dyn FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb;
+
+pub struct Parser<'sess, 'ast, 'cb> {
     /// The parser session.
     pub sess: &'sess Session,
     /// The arena where the AST nodes are allocated.
@@ -60,6 +62,8 @@ pub struct Parser<'sess, 'ast> {
 
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
+    /// Callback invoked after a top-level import directive is parsed.
+    import_callback: Option<std::boxed::Box<ImportCallback<'cb, 'ast>>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -137,7 +141,7 @@ pub enum Recovered {
     Yes,
 }
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Creates a new parser.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
         assert!(sess.is_entered(), "session should be entered before parsing");
@@ -153,9 +157,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             in_yul: false,
             in_contract: false,
             recursion_depth: 0,
+            import_callback: None,
         };
         parser.bump();
         parser
+    }
+
+    /// Sets the import callback.
+    pub fn set_import_callback(
+        &mut self,
+        import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb,
+    ) {
+        self.import_callback = Some(std::boxed::Box::new(import_callback));
     }
 
     /// Creates a new parser from a source code string.
@@ -847,7 +860,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 }
 
 /// Common parsing methods.
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Provides a spanned parser.
     #[track_caller]
     pub fn parse_spanned<T>(
@@ -1225,16 +1238,16 @@ import * as B from "b.sol";
             Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
         sess.enter_sequential(|| {
             let arena = ast::Arena::new();
+            let mut imports = Vec::new();
             let mut parser =
                 Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                     .expect("failed to create parser");
-            let mut imports = Vec::new();
 
-            let ast = parser
-                .parse_file_with_import_callback(|id, span, import| {
-                    imports.push((id, span, import.path.value.as_str().to_string()));
-                })
-                .expect("failed to parse file");
+            parser.set_import_callback(|id, span, import| {
+                imports.push((id, span, import.path.value.as_str().to_string()));
+            });
+            let ast = parser.parse_file().expect("failed to parse file");
+            drop(parser);
 
             assert_eq!(ast.items.len(), 3);
             assert_eq!(imports.len(), 2);

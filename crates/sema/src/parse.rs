@@ -340,11 +340,12 @@ impl<'gcx> ParsingContext<'gcx> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
+        parser.set_import_callback(import_callback);
         if self.sess.opts.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
             None
         } else {
-            parser.parse_file_with_import_callback(import_callback).map_err(|e| e.emit()).ok()
+            parser.parse_file().map_err(|e| e.emit()).ok()
         }
     }
 

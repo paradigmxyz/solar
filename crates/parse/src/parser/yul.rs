@@ -6,7 +6,7 @@ use solar_ast::{
 };
 use solar_interface::{Ident, error_code, kw, sym};
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a Yul object or plain block.
     ///
     /// The plain block gets returned as a Yul object named "object", with a single `code` block.

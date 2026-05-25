@@ -5,44 +5,15 @@ use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_interface::{Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw, sym};
 
-type ImportCallback<'a, 'ast> = &'a mut dyn FnMut(ItemId, Span, &ImportDirective<'ast>);
-
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a source unit.
     #[instrument(level = "debug", skip_all)]
     pub fn parse_file(&mut self) -> PResult<'sess, SourceUnit<'ast>> {
-        self.parse_file_with_import_callback(|_, _, _| {})
-    }
-
-    /// Parses a source unit and calls `import_callback` for each parsed import directive.
-    #[instrument(level = "debug", skip_all)]
-    pub fn parse_file_with_import_callback(
-        &mut self,
-        import_callback: impl FnMut(ItemId, Span, &ImportDirective<'ast>),
-    ) -> PResult<'sess, SourceUnit<'ast>> {
-        self.parse_source_items(TokenKind::Eof, import_callback).map(SourceUnit::new)
-    }
-
-    /// Parses a list of source unit items until the given token is encountered.
-    fn parse_source_items(
-        &mut self,
-        end: TokenKind,
-        mut import_callback: impl FnMut(ItemId, Span, &ImportDirective<'ast>),
-    ) -> PResult<'sess, BoxSlice<'ast, Item<'ast>>> {
-        self.parse_items_inner(end, Some(&mut import_callback))
+        self.parse_items(TokenKind::Eof).map(SourceUnit::new)
     }
 
     /// Parses a list of items until the given token is encountered.
     fn parse_items(&mut self, end: TokenKind) -> PResult<'sess, BoxSlice<'ast, Item<'ast>>> {
-        self.parse_items_inner(end, None)
-    }
-
-    /// Parses a list of items until the given token is encountered.
-    fn parse_items_inner(
-        &mut self,
-        end: TokenKind,
-        mut import_callback: Option<ImportCallback<'_, 'ast>>,
-    ) -> PResult<'sess, BoxSlice<'ast, Item<'ast>>> {
         let get_msg_note = |this: &mut Self| {
             let (prefix, list, link);
             if this.in_contract {
@@ -69,7 +40,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let (_, note) = get_msg_note(self);
                 self.dcx().emit_err_note(item.span, msg, note);
             } else {
-                if let Some(callback) = &mut import_callback
+                if let Some(callback) = &mut self.import_callback
                     && let ItemKind::Import(import) = &item.kind
                 {
                     callback(ItemId::new(items.len()), item.span, import);
@@ -1012,14 +983,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 }
 
-struct SemverVersionParser<'p, 'sess, 'ast> {
-    p: &'p mut Parser<'sess, 'ast>,
+struct SemverVersionParser<'p, 'sess, 'ast, 'cb> {
+    p: &'p mut Parser<'sess, 'ast, 'cb>,
     bumps: u32,
     pos_inside: u32,
 }
 
-impl<'p, 'sess, 'ast> SemverVersionParser<'p, 'sess, 'ast> {
-    fn new(p: &'p mut Parser<'sess, 'ast>) -> Self {
+impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
+    fn new(p: &'p mut Parser<'sess, 'ast, 'cb>) -> Self {
         Self { p, bumps: 0, pos_inside: 0 }
     }
 

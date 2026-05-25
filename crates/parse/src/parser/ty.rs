@@ -4,7 +4,7 @@ use solar_ast::{token::*, *};
 use solar_interface::kw;
 use std::{fmt, ops::RangeInclusive};
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a type.
     #[instrument(level = "trace", skip_all)]
     pub fn parse_type(&mut self) -> PResult<'sess, Type<'ast>> {
