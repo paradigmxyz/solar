@@ -1,6 +1,7 @@
 use super::BoxSlice;
 use crate::token::CommentKind;
 use solar_interface::{Ident, Span, Symbol};
+use std::fmt;
 
 /// A single doc-comment: `/// foo`, `/** bar */`.
 #[derive(Debug)]
@@ -18,8 +19,8 @@ pub struct DocComment<'ast> {
 
 impl<'ast> DocComment<'ast> {
     /// Returns the content of a natspec excluding its tag.
-    pub fn natspec_content(&self, item: &NatSpecItem) -> &str {
-        &self.symbol.as_str()[item.content_range()]
+    pub fn natspec_content<'a>(&self, item: &'a NatSpecItem) -> &'a str {
+        item.content()
     }
 }
 
@@ -30,6 +31,8 @@ pub struct NatSpecItem {
     pub kind: NatSpecKind,
     /// Span of the tag. '@' is not included.
     pub span: Span,
+    /// The symbol containing this tag's content.
+    pub symbol: Symbol,
     /// Byte offset into the doc comment's symbol where this tag's content starts.
     pub content_start: u32,
     /// Byte offset into the doc comment's symbol where this tag's content ends.
@@ -41,12 +44,41 @@ impl NatSpecItem {
     pub fn content_range(&self) -> std::ops::Range<usize> {
         self.content_start as usize..self.content_end as usize
     }
+
+    /// Returns the text content of this natspec item.
+    ///
+    /// The content is extracted from the symbol using the byte offsets.
+    pub fn content(&self) -> &str {
+        &self.symbol.as_str()[self.content_range()]
+    }
+}
+
+impl fmt::Display for NatSpecItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let content = self.content();
+        match self.kind {
+            NatSpecKind::Title => write!(f, "@title {content}"),
+            NatSpecKind::Author => write!(f, "@author {content}"),
+            NatSpecKind::Notice => write!(f, "@notice {content}"),
+            NatSpecKind::Dev => write!(f, "@dev {content}"),
+            NatSpecKind::Param { name } => write!(f, "@param {} {content}", name.name),
+            NatSpecKind::Return { name: Some(name) } => {
+                write!(f, "@return {} {content}", name.name)
+            }
+            NatSpecKind::Return { name: None } => write!(f, "@return {content}"),
+            NatSpecKind::Inheritdoc { contract } => {
+                write!(f, "@inheritdoc {} {content}", contract.name)
+            }
+            NatSpecKind::Custom { name } => write!(f, "@custom:{} {content}", name.name),
+            NatSpecKind::Internal { tag } => write!(f, "@{} {content}", tag.name),
+        }
+    }
 }
 
 /// The kind of a [`NatSpecItem`].
 ///
 /// Reference: <https://docs.soliditylang.org/en/latest/natspec-format.html#tags>
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NatSpecKind {
     /// `@title`
     ///
@@ -70,8 +102,8 @@ pub enum NatSpecKind {
     Param { name: Ident },
     /// `@return <name>`
     ///
-    /// Documents a return variable. The `name` field contains the return variable name.
-    Return { name: Ident },
+    /// Documents a return variable. The optional `name` field contains the return variable name.
+    Return { name: Option<Ident> },
     /// `@inheritdoc <contract>`
     ///
     /// Copies all tags from the base function. The `contract` field contains the contract name.

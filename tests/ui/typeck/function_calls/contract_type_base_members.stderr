@@ -1,0 +1,32 @@
+error: member `selector` not found on type `function (uint256) pure returns (uint256)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
+   │
+LL │         return publicBase.selector;
+   ╰╴                          ━━━━━━━━
+
+error: member `selector` not found on type `function (uint256) pure returns (uint256)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
+   │
+LL │         return internalBase.selector;
+   ╰╴                            ━━━━━━━━
+
+error: member `selector` not found on type `function () pure returns (uint256)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
+   │
+LL │         return Derived.baseTypePublicFunction.selector;
+   ╰╴                                              ━━━━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
+   │
+LL │         return Base.externalBase(1);
+   ╰╴               ━━━━━━━━━━━━━━━━━━━━
+
+error: cannot call function via contract type name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members.sol:LL:CC
+   │
+LL │         AbstractBase.abstractBaseFunction();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+

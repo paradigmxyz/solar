@@ -1,0 +1,75 @@
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │ ┏ function add(Int a) pure returns (Int) {
+LL │ ┃
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │ using {add as +, sub as -, div as /} for Int global;
+   │        ━━━
+   ╰ help: function `add` needs to have two parameters of type `Int` to be used for operator `+`
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │ ┏ function sub(Int a, Int b, Int c) pure returns (Int) {
+LL │ ┃
+LL │ ┃     b; c;
+LL │ ┃     return a;
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │ using {add as +, sub as -, div as /} for Int global;
+   │                  ━━━
+   ╰ help: function `sub` needs to have one or two parameters of type `Int` to be used for operator `-`
+
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │ ┏ function div(int256 a, int256 b) pure returns (Int) {
+LL │ ┃
+LL │ ┃     return Int.wrap(a / b);
+LL │ ┃ }
+   │ ┗━┛
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │ using {add as +, sub as -, div as /} for Int global;
+   │                            ━━━
+   ╰ help: function `div` needs to have one or two parameters of type `Int` to be used for operator `/`
+
+error: cannot apply builtin operator `+` to `Int` and `Int`
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │     Int.wrap(0) + Int.wrap(1);
+   │     ┬────────── ━ ─────────── Int
+   │     │
+   ╰╴    Int
+
+error: cannot apply builtin operator `-` to `Int` and `Int`
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │     Int.wrap(0) - Int.wrap(0);
+   │     ┬────────── ━ ─────────── Int
+   │     │
+   ╰╴    Int
+
+error: cannot apply builtin operator `/` to `Int` and `Int`
+   ╭▸ ROOT/tests/ui/using-for/operators/type_mismatch_definitions.sol:LL:CC
+   │
+LL │     Int.wrap(0) / Int.wrap(0);
+   │     ┬────────── ━ ─────────── Int
+   │     │
+   ╰╴    Int
+
+error: aborting due to 6 previous errors
+

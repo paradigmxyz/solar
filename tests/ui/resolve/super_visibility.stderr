@@ -1,0 +1,14 @@
+error: unresolved symbol `super`
+   ╭▸ ROOT/tests/ui/resolve/super_visibility.sol:LL:CC
+   │
+LL │     super;
+   ╰╴    ━━━━━
+
+error: unresolved symbol `super`
+   ╭▸ ROOT/tests/ui/resolve/super_visibility.sol:LL:CC
+   │
+LL │         super;
+   ╰╴        ━━━━━
+
+error: aborting due to 2 previous errors
+

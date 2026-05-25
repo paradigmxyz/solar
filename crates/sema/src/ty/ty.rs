@@ -1,7 +1,7 @@
 use super::{Gcx, Recursiveness, print::TySolcPrinter};
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
-use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize, Visibility};
+use solar_ast::{DataLocation, ElementaryType, StateMutability, TypeSize};
 use solar_data_structures::{Interned, fmt};
 use solar_interface::diagnostics::ErrorGuaranteed;
 use std::{borrow::Borrow, hash::Hash, ops::ControlFlow};
@@ -36,6 +36,9 @@ pub enum TyConvertError {
     /// Invalid conversion between types.
     InvalidConversion,
 
+    /// Attached function cannot be converted to an unattached function pointer.
+    AttachedFunction,
+
     /// Literal is larger than the target type.
     LiteralTooLarge,
 
@@ -44,6 +47,12 @@ pub enum TyConvertError {
 
     /// Non-payable address cannot be converted to a contract that can receive ether.
     AddressNotPayable,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SameSourceFileLevelUserTypeError {
+    NotUserDefined,
+    NotSameSourceFileLevel,
 }
 
 impl TyConvertError {
@@ -62,6 +71,9 @@ impl TyConvertError {
             }
             Self::Incompatible => {
                 format!("expected `{}`, found `{}`", to.display(gcx), from.display(gcx))
+            }
+            Self::AttachedFunction => {
+                "attached functions cannot be converted into unattached functions".to_string()
             }
             Self::LiteralTooLarge => {
                 format!(
@@ -110,7 +122,7 @@ impl<'gcx> Ty<'gcx> {
 
     #[doc(alias = "with_location_if_reference")]
     pub fn with_loc_if_ref(self, gcx: Gcx<'gcx>, loc: DataLocation) -> Self {
-        if self.is_reference_type() {
+        if self.peel_refs().is_reference_type() {
             return self.with_loc(gcx, loc);
         }
         self
@@ -142,37 +154,53 @@ impl<'gcx> Ty<'gcx> {
         self
     }
 
-    pub fn as_externally_callable_function(self, gcx: Gcx<'gcx>) -> Self {
+    pub fn as_externally_callable_function(self, in_library: bool, gcx: Gcx<'gcx>) -> Self {
+        let TyKind::Fn(f) = self.kind else { return self };
+        let kind = if in_library { TyFnKind::DelegateCall } else { f.kind };
         let is_calldata = |param: &Ty<'_>| param.is_ref_at(DataLocation::Calldata);
         let parameters = self.parameters().unwrap_or_default();
         let returns = self.returns().unwrap_or_default();
         let any_parameter = parameters.iter().any(is_calldata);
         let any_return = returns.iter().any(is_calldata);
-        if !any_parameter && !any_return {
+        if !any_parameter && !any_return && f.kind == kind {
             return self;
         }
-        gcx.mk_ty_fn_ptr(TyFnPtr {
-            parameters: if any_parameter {
-                gcx.mk_ty_iter(parameters.iter().map(|param| {
-                    if is_calldata(param) {
-                        param.with_loc(gcx, DataLocation::Memory)
-                    } else {
-                        *param
-                    }
-                }))
-            } else {
-                parameters
-            },
-            returns: if any_return {
-                gcx.mk_ty_iter(returns.iter().map(|ret| {
-                    if is_calldata(ret) { ret.with_loc(gcx, DataLocation::Memory) } else { *ret }
-                }))
-            } else {
-                returns
-            },
-            state_mutability: self.state_mutability().unwrap_or(StateMutability::NonPayable),
-            visibility: self.visibility().unwrap_or(Visibility::Public),
-            function_id: None,
+        let parameters = if any_parameter {
+            gcx.mk_ty_iter(parameters.iter().map(|param| {
+                if is_calldata(param) { param.with_loc(gcx, DataLocation::Memory) } else { *param }
+            }))
+        } else {
+            parameters
+        };
+        let returns = if any_return {
+            gcx.mk_ty_iter(returns.iter().map(|ret| {
+                if is_calldata(ret) { ret.with_loc(gcx, DataLocation::Memory) } else { *ret }
+            }))
+        } else {
+            returns
+        };
+        gcx.mk_ty_fn(TyFn {
+            kind,
+            parameters,
+            returns,
+            state_mutability: f.state_mutability,
+            function_id: f.function_id,
+            attached: false,
+        })
+    }
+
+    pub fn as_attached_function(self, gcx: Gcx<'gcx>) -> Self {
+        let TyKind::Fn(f) = self.kind else { return self };
+        if f.attached {
+            return self;
+        }
+        gcx.mk_ty_fn(TyFn {
+            kind: f.kind,
+            parameters: f.parameters,
+            returns: f.returns,
+            state_mutability: f.state_mutability,
+            function_id: f.function_id,
+            attached: true,
         })
     }
 
@@ -226,7 +254,11 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_value_type(self) -> bool {
         match self.kind {
             TyKind::Elementary(t) => t.is_value_type(),
-            TyKind::Contract(_) | TyKind::FnPtr(_) | TyKind::Enum(_) | TyKind::Udvt(..) => true,
+            TyKind::Contract(_)
+            | TyKind::Super(_)
+            | TyKind::Fn(_)
+            | TyKind::Enum(_)
+            | TyKind::Udvt(..) => true,
             _ => false,
         }
     }
@@ -236,24 +268,52 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_reference_type(self) -> bool {
         match self.kind {
             TyKind::Elementary(t) => t.is_reference_type(),
-            TyKind::Struct(_) | TyKind::Array(..) | TyKind::DynArray(_) | TyKind::Slice(_) => true,
+            TyKind::Struct(_)
+            | TyKind::Array(..)
+            | TyKind::DynArray(_)
+            | TyKind::Slice(_)
+            | TyKind::Mapping(..) => true,
             _ => false,
         }
     }
 
     /// Returns `true` if the type is recursive.
-    #[inline]
-    pub fn is_recursive(self) -> bool {
-        self.flags.contains(TyFlags::IS_RECURSIVE)
+    pub fn is_recursive(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| match ty.kind {
+            TyKind::Struct(id)
+                if matches!(gcx.struct_recursiveness(id), Recursiveness::Recursive) =>
+            {
+                ControlFlow::Break(())
+            }
+            _ => ControlFlow::Continue(()),
+        })
+        .is_break()
     }
 
     /// Returns `true` if this type contains a mapping.
-    #[inline]
-    pub fn has_mapping(self) -> bool {
-        self.flags.contains(TyFlags::HAS_MAPPING)
+    pub fn has_mapping(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| {
+            if matches!(ty.kind, TyKind::Mapping(..)) {
+                ControlFlow::Break(())
+            } else {
+                ControlFlow::Continue(())
+            }
+        })
+        .is_break()
     }
 
-    /// Returns `true` if this type contains a non-public (internal/private) function pointer.
+    /// Returns `true` if this type contains a library contract type.
+    pub fn contains_library(self, gcx: Gcx<'gcx>) -> bool {
+        self.visit_with_structs(gcx, &mut |ty| match ty.kind {
+            TyKind::Contract(id) if gcx.hir.contract(id).kind.is_library() => {
+                ControlFlow::Break(())
+            }
+            _ => ControlFlow::Continue(()),
+        })
+        .is_break()
+    }
+
+    /// Returns `true` if this type contains a non-public (internal/private) function type.
     #[inline]
     pub fn has_internal_function(self) -> bool {
         self.flags.contains(TyFlags::HAS_INTERNAL_FN)
@@ -273,9 +333,9 @@ impl<'gcx> Ty<'gcx> {
 
     /// Returns `true` if this type can be part of an externally callable function.
     #[inline]
-    pub fn can_be_exported(self) -> bool {
-        !(self.is_recursive()
-            || self.has_mapping()
+    pub fn can_be_exported(self, gcx: Gcx<'gcx>) -> bool {
+        !(self.is_recursive(gcx)
+            || self.has_mapping(gcx)
             || self.has_internal_function()
             || self.references_error())
     }
@@ -284,7 +344,7 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn parameters(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
-            TyKind::FnPtr(f) => f.parameters,
+            TyKind::Fn(f) => f.parameters,
             TyKind::Event(tys, _) | TyKind::Error(tys, _) => tys,
             _ => return None,
         })
@@ -294,7 +354,7 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn returns(self) -> Option<&'gcx [Self]> {
         Some(match self.kind {
-            TyKind::FnPtr(f) => f.returns,
+            TyKind::Fn(f) => f.returns,
             _ => return None,
         })
     }
@@ -303,26 +363,56 @@ impl<'gcx> Ty<'gcx> {
     #[inline]
     pub fn state_mutability(self) -> Option<StateMutability> {
         match self.kind {
-            TyKind::FnPtr(f) => Some(f.state_mutability),
+            TyKind::Fn(f) => Some(f.state_mutability),
             _ => None,
         }
     }
 
-    /// Returns the visibility of the type.
-    #[inline]
-    pub fn visibility(self) -> Option<Visibility> {
-        match self.kind {
-            TyKind::FnPtr(f) => Some(f.visibility),
-            _ => None,
-        }
-    }
-
-    /// Returns the function ID if this is a function pointer type with a specific function.
+    /// Returns the function ID if this is a function type with a specific function.
     #[inline]
     pub fn function_id(self) -> Option<hir::FunctionId> {
         match self.kind {
-            TyKind::FnPtr(f) => f.function_id,
+            TyKind::Fn(f) => f.function_id,
             _ => None,
+        }
+    }
+
+    /// Returns the HIR item ID associated with this type, if any.
+    #[inline]
+    pub fn item_id(self) -> Option<hir::ItemId> {
+        Some(match self.kind {
+            TyKind::Fn(f) => f.function_id?.into(),
+            TyKind::Contract(id) => id.into(),
+            TyKind::Struct(id) => id.into(),
+            TyKind::Enum(id) => id.into(),
+            TyKind::Error(_, id) => id.into(),
+            TyKind::Event(_, id) => id.into(),
+            TyKind::Udvt(_, id) => id.into(),
+            _ => return None,
+        })
+    }
+
+    /// Returns the source ID where this type's HIR item is defined.
+    #[inline]
+    pub fn item_source(self, gcx: Gcx<'gcx>) -> Option<hir::SourceId> {
+        self.peel_refs().item_id().map(|id| gcx.hir.item(id).source())
+    }
+
+    pub(crate) fn same_source_file_level_user_type(
+        self,
+        gcx: Gcx<'gcx>,
+        source: hir::SourceId,
+    ) -> Result<(), SameSourceFileLevelUserTypeError> {
+        let Some(id @ (hir::ItemId::Struct(_) | hir::ItemId::Enum(_) | hir::ItemId::Udvt(_))) =
+            self.peel_refs().item_id()
+        else {
+            return Err(SameSourceFileLevelUserTypeError::NotUserDefined);
+        };
+        let item = gcx.hir.item(id);
+        if item.source() == source && item.contract().is_none() {
+            Ok(())
+        } else {
+            Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel)
         }
     }
 
@@ -334,7 +424,8 @@ impl<'gcx> Ty<'gcx> {
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
-            | TyKind::FnPtr(_)
+            | TyKind::Super(_)
+            | TyKind::Fn(_)
             | TyKind::Enum(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_)
@@ -359,6 +450,55 @@ impl<'gcx> Ty<'gcx> {
             TyKind::Mapping(k, v) => {
                 k.visit(f)?;
                 v.visit(f)
+            }
+        }
+    }
+
+    /// Visits the type, its subtypes, and non-recursive struct fields.
+    fn visit_with_structs<T>(
+        self,
+        gcx: Gcx<'gcx>,
+        f: &mut impl FnMut(Self) -> ControlFlow<T>,
+    ) -> ControlFlow<T> {
+        f(self)?;
+        match self.kind {
+            TyKind::Struct(id) => {
+                if let Recursiveness::None = gcx.struct_recursiveness(id) {
+                    for &ty in gcx.struct_field_types(id) {
+                        ty.visit_with_structs(gcx, f)?;
+                    }
+                }
+                ControlFlow::Continue(())
+            }
+            TyKind::Elementary(_)
+            | TyKind::StringLiteral(..)
+            | TyKind::IntLiteral(..)
+            | TyKind::Contract(_)
+            | TyKind::Super(_)
+            | TyKind::Fn(_)
+            | TyKind::Enum(_)
+            | TyKind::Module(_)
+            | TyKind::BuiltinModule(_)
+            | TyKind::Err(_) => ControlFlow::Continue(()),
+
+            TyKind::Ref(ty, _)
+            | TyKind::DynArray(ty)
+            | TyKind::Array(ty, _)
+            | TyKind::Slice(ty)
+            | TyKind::Udvt(ty, _)
+            | TyKind::Type(ty)
+            | TyKind::Meta(ty) => ty.visit_with_structs(gcx, f),
+
+            TyKind::Error(list, _) | TyKind::Event(list, _) | TyKind::Tuple(list) => {
+                for ty in list {
+                    ty.visit_with_structs(gcx, f)?;
+                }
+                ControlFlow::Continue(())
+            }
+
+            TyKind::Mapping(k, v) => {
+                k.visit_with_structs(gcx, f)?;
+                v.visit_with_structs(gcx, f)
             }
         }
     }
@@ -403,7 +543,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_dynamically_encoded(self, gcx: Gcx<'gcx>) -> bool {
         match self.kind {
             TyKind::Struct(id) => {
-                self.is_recursive()
+                self.is_recursive(gcx)
                     || gcx.struct_field_types(id).iter().any(|ty| ty.is_dynamically_encoded(gcx))
             }
             TyKind::Array(element, _) => element.is_dynamically_encoded(gcx),
@@ -429,7 +569,7 @@ impl<'gcx> Ty<'gcx> {
     pub fn is_signed(self) -> bool {
         matches!(
             self.kind,
-            TyKind::Elementary(ElementaryType::Int(_)) | TyKind::IntLiteral(true, _)
+            TyKind::Elementary(ElementaryType::Int(_)) | TyKind::IntLiteral(true, ..)
         )
     }
 
@@ -576,9 +716,22 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::NonDerivedContract)
                 }
             }
+            (Super(_), _) | (_, Super(_)) => Result::Err(TyConvertError::Incompatible),
+
             // byte literal -> bytesN/bytes
             // See: <https://docs.soliditylang.org/en/latest/types.html#index-34>
             (StringLiteral(_, _), Elementary(Bytes)) => Ok(()),
+            (StringLiteral(_, _), Ref(inner, DataLocation::Memory))
+                if matches!(inner.kind, Elementary(Bytes)) =>
+            {
+                Ok(())
+            }
+            (StringLiteral(true, _), Elementary(String)) => Ok(()),
+            (StringLiteral(true, _), Ref(inner, DataLocation::Memory))
+                if matches!(inner.kind, Elementary(String)) =>
+            {
+                Ok(())
+            }
             (StringLiteral(_, size_from), Elementary(FixedBytes(size_to))) => {
                 if size_from.bytes() <= size_to.bytes() {
                     Ok(())
@@ -586,10 +739,16 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::LiteralTooLarge)
                 }
             }
+            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(FixedBytes(_))) => Ok(()),
+            (IntLiteral(false, _, Some(size_from)), Elementary(FixedBytes(size_to)))
+                if size_from == size_to =>
+            {
+                Ok(())
+            }
 
             // Integer literals can coerce to typed integers if they fit.
             // Non-negative literals can coerce to both uint and int types.
-            (IntLiteral(neg, size), Elementary(UInt(target_size))) => {
+            (IntLiteral(neg, size, _), Elementary(UInt(target_size))) => {
                 // Unsigned: reject negative, check size fits
                 if neg {
                     Result::Err(TyConvertError::Incompatible)
@@ -599,7 +758,7 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::Incompatible)
                 }
             }
-            (IntLiteral(neg, size), Elementary(Int(target_size))) => {
+            (IntLiteral(neg, size, _), Elementary(Int(target_size))) => {
                 // Signed: non-negative values need strict inequality since they use the
                 // positive range [0, 2^(N-1)-1]. Negative values use <= since negative
                 // int_literal[N] can fit in int(N) (e.g., -128 needs 8 bits, fits in int8).
@@ -645,24 +804,24 @@ impl<'gcx> Ty<'gcx> {
 
             // Function pointer conversions.
             // See: <https://docs.soliditylang.org/en/latest/types.html#function-types>
-            (FnPtr(from_fn), FnPtr(to_fn)) => {
+            (Fn(from_fn), Fn(to_fn)) => {
+                if from_fn.attached != to_fn.attached {
+                    if from_fn.attached {
+                        return Result::Err(TyConvertError::AttachedFunction);
+                    }
+                    return Result::Err(TyConvertError::Incompatible);
+                }
+                if from_fn.kind != to_fn.kind && !(from_fn.is_internal() && to_fn.is_internal()) {
+                    return Result::Err(TyConvertError::Incompatible);
+                }
                 // Parameter and return types must match exactly (no implicit conversion).
                 if from_fn.parameters != to_fn.parameters || from_fn.returns != to_fn.returns {
                     return Result::Err(TyConvertError::Incompatible);
                 }
 
-                // Visibility must match.
-                if from_fn.visibility != to_fn.visibility {
-                    return Result::Err(TyConvertError::Incompatible);
-                }
-
-                // Function ID: a FnPtr with an ID can coerce to one without an ID, but not vice
-                // versa.
-                let function_id_ok = match (from_fn.function_id, to_fn.function_id) {
-                    (_, None) => true,
-                    (a, b) => a == b,
-                };
-                if !function_id_ok {
+                // Declaration function values name a concrete declaration accessed through a
+                // contract type and are only compatible with that same declaration.
+                if from_fn.is_declaration() && from_fn.function_id != to_fn.function_id {
                     return Result::Err(TyConvertError::Incompatible);
                 }
 
@@ -713,6 +872,8 @@ impl<'gcx> Ty<'gcx> {
 
     /// Checks if the type is explicitly convertible to the given type.
     ///
+    /// Explicit conversions are a superset of implicit conversions.
+    ///
     /// See: <https://docs.soliditylang.org/en/latest/types.html#explicit-conversions>
     fn can_convert_explicit_to(self, other: Self, gcx: Gcx<'gcx>) -> Result<(), TyConvertError> {
         use ElementaryType::*;
@@ -744,6 +905,7 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::InvalidConversion)
                 }
             }
+            (Ref(from_inner, _), _) if from_inner == other && other.is_reference_type() => Ok(()),
 
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
             (Elementary(FixedBytes(size_from)), Elementary(UInt(size_to)))
@@ -763,9 +925,16 @@ impl<'gcx> Ty<'gcx> {
 
             // address -> address payable.
             (Elementary(Address(false)), Elementary(Address(true))) => Ok(()),
+
+            // Integer literals -> address.
+            (IntLiteral(_, _, Some(TypeSize::ZERO)), Elementary(Address(_))) => Ok(()),
+            (IntLiteral(false, size, _), Elementary(Address(false))) if size.bits() <= 160 => {
+                Ok(())
+            }
+
             // IntLiteral -> IntLiteral: explicit conversion to a literal type shouldn't be
             // possible.
-            (IntLiteral(_, _), IntLiteral(_, _)) => unreachable!(),
+            (IntLiteral(..), IntLiteral(..)) => unreachable!(),
 
             // Int <-> Int: any size allowed (only width changes, sign stays same).
             (Elementary(Int(_)), Elementary(Int(_))) => Ok(()),
@@ -791,9 +960,14 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::NonDerivedContract)
                 }
             }
+            (Super(_), _) | (_, Super(_)) => Result::Err(TyConvertError::InvalidConversion),
 
             // Contract -> address (always allowed)
             (Contract(_), Elementary(Address(false))) => Ok(()),
+            // Library type name -> address.
+            (Type(library), Elementary(Address(false))) if matches!(library.kind, Contract(id) if gcx.hir.contract(id).kind.is_library()) => {
+                Ok(())
+            }
 
             // Contract -> address payable (only if contract can receive ether)
             (Contract(contract_id), Elementary(Address(true))) => {
@@ -860,10 +1034,15 @@ impl<'gcx> Ty<'gcx> {
     ) -> Result<Self, TyConvertError> {
         self.can_convert_explicit_to(other, gcx)?;
 
-        // Handle special case: bytes <-> string with unlocated target inherits source location.
+        // Handle special cases where unlocated reference targets get a data location.
         use ElementaryType::*;
         use TyKind::*;
         Ok(match (self.kind, other.kind) {
+            (StringLiteral(..), Elementary(Bytes)) => gcx.types.bytes_ref.memory,
+            (StringLiteral(true, _), Elementary(String)) => gcx.types.string_ref.memory,
+            (Ref(from_inner, loc), _) if from_inner == other && other.is_reference_type() => {
+                other.with_loc(gcx, loc)
+            }
             (Ref(from_inner, loc), Elementary(Bytes))
                 if matches!(from_inner.kind, Elementary(String)) =>
             {
@@ -882,8 +1061,8 @@ impl<'gcx> Ty<'gcx> {
     #[doc(alias = "mobile_type")]
     pub fn mobile(self, gcx: Gcx<'gcx>) -> Option<Self> {
         Some(match self.kind {
-            TyKind::IntLiteral(false, size) => gcx.types.uint_(size),
-            TyKind::IntLiteral(true, size) => gcx.types.int_(size),
+            TyKind::IntLiteral(false, size, _) => gcx.types.uint_(size),
+            TyKind::IntLiteral(true, size, _) => gcx.types.int_(size),
             TyKind::StringLiteral(..) => gcx.types.string_ref.memory,
             // TODO: basetype.is_dynamically_encoded
             TyKind::Slice(ty)
@@ -895,6 +1074,12 @@ impl<'gcx> Ty<'gcx> {
                 let tys = tys.iter().map(|ty| ty.mobile(gcx)).collect::<Option<Vec<_>>>()?;
                 gcx.mk_ty_tuple(gcx.mk_tys(&tys))
             }
+            TyKind::Error(..)
+            | TyKind::Event(..)
+            | TyKind::Module(..)
+            | TyKind::BuiltinModule(..)
+            | TyKind::Type(_)
+            | TyKind::Meta(_) => return None,
             // TODO: functions
             _ => self,
         })
@@ -949,8 +1134,9 @@ pub enum TyKind<'gcx> {
     /// - only string literals with `len <= N` can coerce to `bytesN`
     StringLiteral(bool, TypeSize),
 
-    /// Any integer or fixed-point number literal. Contains `(negative, min(s.len(), 32))`.
-    IntLiteral(bool, TypeSize),
+    /// Any integer or fixed-point number literal.
+    /// Contains `(negative, minimum bits, compatible fixed-bytes size)`.
+    IntLiteral(bool, TypeSize, Option<TypeSize>),
 
     /// A reference to another type which lives in the data location.
     Ref(Ty<'gcx>, DataLocation),
@@ -973,10 +1159,13 @@ pub enum TyKind<'gcx> {
     Mapping(Ty<'gcx>, Ty<'gcx>),
 
     /// Function pointer: `function(...) returns (...)`.
-    FnPtr(&'gcx TyFnPtr<'gcx>),
+    Fn(&'gcx TyFn<'gcx>),
 
     /// Contract.
     Contract(hir::ContractId),
+
+    /// The `super` type for a contract.
+    Super(hir::ContractId),
 
     /// A struct.
     ///
@@ -1013,16 +1202,122 @@ pub enum TyKind<'gcx> {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash)]
-pub struct TyFnPtr<'gcx> {
+pub struct TyFn<'gcx> {
+    /// The semantic kind of this function value.
+    pub kind: TyFnKind,
+    /// The parameter types.
     pub parameters: &'gcx [Ty<'gcx>],
+    /// The return types.
     pub returns: &'gcx [Ty<'gcx>],
+    /// The function state mutability.
     pub state_mutability: StateMutability,
-    pub visibility: Visibility,
+    /// The declaration this function value refers to, if known.
     pub function_id: Option<hir::FunctionId>,
+    /// Whether the first parameter is bound to a receiver in member-access syntax.
+    pub attached: bool,
 }
 
-impl<'gcx> TyFnPtr<'gcx> {
-    /// Returns an iterator over all the types in the function pointer.
+/// The semantic kind of a function value.
+///
+/// This mirrors the solc `FunctionType::Kind` variants that are relevant to the current type
+/// system.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum TyFnKind {
+    /// An ordinary internal function value.
+    Internal,
+    /// An internal function value for a public function accessed through a qualified name.
+    ///
+    /// It is callable as an internal function, but also has a `.selector` member.
+    InternalWithSelector,
+    /// An ordinary external function value.
+    External,
+    /// A function declaration accessed through a contract type, e.g. `C.f`.
+    Declaration,
+    /// A public library function accessed through the library type, e.g. `L.f`.
+    ///
+    /// It has a `.selector` member, but is not assignable to ordinary function types.
+    DelegateCall,
+    /// A low-level `address.call` function.
+    BareCall,
+    /// A low-level `address.delegatecall` function.
+    BareDelegateCall,
+    /// A low-level `address.staticcall` function.
+    BareStaticCall,
+    /// A contract creation function, e.g. `new C`.
+    Creation,
+}
+
+impl<'gcx> TyFn<'gcx> {
+    /// Returns the semantic kind of this function value.
+    #[inline]
+    pub fn kind(&self) -> TyFnKind {
+        self.kind
+    }
+
+    /// Returns whether this is an internal function value.
+    #[inline]
+    pub fn is_internal(&self) -> bool {
+        matches!(self.kind, TyFnKind::Internal | TyFnKind::InternalWithSelector)
+    }
+
+    /// Returns whether this is an external function value.
+    #[inline]
+    pub fn is_external(&self) -> bool {
+        self.kind == TyFnKind::External
+    }
+
+    /// Returns whether this is a contract-type function declaration value.
+    #[inline]
+    pub fn is_declaration(&self) -> bool {
+        self.kind == TyFnKind::Declaration
+    }
+
+    /// Returns whether this is a public library function value.
+    #[inline]
+    pub fn is_delegate_call(&self) -> bool {
+        self.kind == TyFnKind::DelegateCall
+    }
+
+    /// Returns whether this is a low-level call function.
+    #[inline]
+    pub fn is_bare_call(&self) -> bool {
+        matches!(
+            self.kind,
+            TyFnKind::BareCall | TyFnKind::BareDelegateCall | TyFnKind::BareStaticCall
+        )
+    }
+
+    /// Returns whether this is a contract creation function.
+    #[inline]
+    pub fn is_creation(&self) -> bool {
+        self.kind == TyFnKind::Creation
+    }
+
+    /// Returns whether this function value has a known declaration.
+    #[inline]
+    pub fn has_declaration(&self) -> bool {
+        self.function_id.is_some()
+    }
+
+    /// Returns whether this function value has a `.selector` member.
+    #[inline]
+    pub fn has_selector(&self) -> bool {
+        matches!(
+            self.kind,
+            TyFnKind::InternalWithSelector
+                | TyFnKind::External
+                | TyFnKind::Declaration
+                | TyFnKind::DelegateCall
+        )
+    }
+
+    /// Returns whether this function value has an `.address` member.
+    #[inline]
+    pub fn has_address(&self) -> bool {
+        self.is_external() && !self.attached
+    }
+
+    /// Returns an iterator over all the types in the function value.
     pub fn tys(&self) -> impl DoubleEndedIterator<Item = Ty<'gcx>> + Clone {
         self.parameters.iter().copied().chain(self.returns.iter().copied())
     }
@@ -1032,36 +1327,34 @@ bitflags::bitflags! {
     /// [`Ty`] flags.
     #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
     pub struct TyFlags: u8 {
-        /// Whether this type is recursive.
-        const IS_RECURSIVE = 1 << 0;
-        /// Whether this type contains a mapping.
-        const HAS_MAPPING  = 1 << 1;
         /// Whether an error is reachable.
-        const HAS_ERROR    = 1 << 2;
-        /// Whether this type contains a non-public (internal/private) function pointer.
-        const HAS_INTERNAL_FN = 1 << 3;
+        const HAS_ERROR    = 1 << 0;
+        /// Whether this type contains a non-public (internal/private) function type.
+        const HAS_INTERNAL_FN = 1 << 1;
     }
 }
 
 impl TyFlags {
-    pub(super) fn calculate<'gcx>(gcx: Gcx<'gcx>, ty: &TyKind<'gcx>) -> Self {
+    pub(super) fn calculate(ty: &TyKind<'_>) -> Self {
         let mut flags = Self::empty();
-        flags.add_ty_kind(gcx, ty);
+        flags.add_ty_kind(ty);
         flags
     }
 
-    fn add_ty_kind<'gcx>(&mut self, gcx: Gcx<'gcx>, ty: &TyKind<'gcx>) {
+    fn add_ty_kind(&mut self, ty: &TyKind<'_>) {
         match *ty {
             TyKind::Elementary(_)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Contract(_)
+            | TyKind::Super(_)
             | TyKind::Enum(_)
+            | TyKind::Struct(_)
             | TyKind::Module(_)
             | TyKind::BuiltinModule(_) => {}
 
-            TyKind::FnPtr(f) => {
-                if f.visibility < hir::Visibility::Public {
+            TyKind::Fn(f) => {
+                if f.is_internal() {
                     self.add(Self::HAS_INTERNAL_FN);
                 }
             }
@@ -1081,18 +1374,7 @@ impl TyFlags {
             TyKind::Mapping(k, v) => {
                 self.add_ty(k);
                 self.add_ty(v);
-                self.add(Self::HAS_MAPPING);
             }
-
-            TyKind::Struct(id) => match gcx.struct_recursiveness(id) {
-                Recursiveness::None => self.add_tys(gcx.struct_field_types(id)),
-                Recursiveness::Recursive => {
-                    self.add(Self::IS_RECURSIVE);
-                }
-                Recursiveness::Infinite(_guar) => {
-                    self.add(Self::HAS_ERROR);
-                }
-            },
 
             TyKind::Err(_) => self.add(Self::HAS_ERROR),
         }

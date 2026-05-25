@@ -1,0 +1,20 @@
+error: member `only` not found on type `type(library LibraryTypes)`
+   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
+   │
+LL │         LibraryTypes.only;
+   ╰╴                     ━━━━
+
+error: member `BASE` not found on type `type(contract ContractTypes)`
+   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
+   │
+LL │         ContractTypes.BASE;
+   ╰╴                      ━━━━
+
+error: member `only` not found on type `type(contract ContractTypes)`
+   ╭▸ ROOT/tests/ui/typeck/contract_type_members.sol:LL:CC
+   │
+LL │         ContractTypes.only;
+   ╰╴                      ━━━━
+
+error: aborting due to 3 previous errors
+

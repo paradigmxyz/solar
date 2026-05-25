@@ -21,6 +21,7 @@ pub use solar_interface as interface;
 
 mod ast_lowering;
 mod ast_passes;
+mod natspec;
 
 mod compiler;
 pub use compiler::{Compiler, CompilerRef};
@@ -111,10 +112,14 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     gcx.hir.par_item_ids().for_each(|id| {
         let _ = gcx.type_of_item(id);
         match id {
-            hir::ItemId::Struct(id) => _ = gcx.struct_field_types(id),
+            hir::ItemId::Struct(id) => {
+                let _ = gcx.struct_recursiveness(id);
+                let _ = gcx.struct_field_types(id);
+            }
             hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
             _ => {}
         }
+        natspec::validate_item_docs(gcx, id);
     });
     gcx.sess.dcx.has_errors()?;
 

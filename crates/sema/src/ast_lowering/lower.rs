@@ -1,6 +1,8 @@
 use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
-use solar_data_structures::smallvec::SmallVec;
+use solar_ast::visit::Visit;
+use solar_data_structures::{BumpExt, Never, smallvec::SmallVec};
+use std::ops::ControlFlow;
 
 impl<'gcx> super::LoweringContext<'gcx> {
     #[instrument(level = "debug", skip_all)]
@@ -10,6 +12,8 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 file: source.file.clone(),
                 imports: self.arena.alloc_slice_copy(&source.imports),
                 items: &[],
+                usings: &[],
+                docs: &[],
             };
             if let Some(ast) = &source.ast {
                 let mut items = SmallVec::<[_; 16]>::new();
@@ -26,7 +30,13 @@ impl<'gcx> super::LoweringContext<'gcx> {
                         | ast::ItemKind::Enum(_)
                         | ast::ItemKind::Udvt(_)
                         | ast::ItemKind::Error(_)
-                        | ast::ItemKind::Event(_) => items.push(self.lower_item(item)),
+                        | ast::ItemKind::Event(_) => {
+                            let item_id = self.lower_item(item);
+                            items.push(item_id);
+                            if matches!(item.kind, ast::ItemKind::Function(_)) {
+                                self.collect_yul_functions_in_item(item, &mut items);
+                            }
+                        }
                     }
                 }
                 hir_source.items = self.arena.alloc_slice_copy(&items);
@@ -36,18 +46,55 @@ impl<'gcx> super::LoweringContext<'gcx> {
         self.hir.sources = hir_sources.collect();
     }
 
+    /// Lowers documentation comments from AST to HIR.
+    ///
+    /// Validation happens after parameters are lowered.
+    fn lower_item_docs(&mut self, item: &'gcx ast::Item<'gcx>, item_id: hir::ItemId) -> hir::DocId {
+        if item.docs.is_empty() {
+            return hir::DocId::EMPTY;
+        }
+        let docs = self.copy_doc_comments(&item.docs);
+        self.lower_docs(docs, item_id)
+    }
+
+    fn copy_doc_comments(&self, docs: &ast::DocComments<'_>) -> ast::DocComments<'gcx> {
+        let docs = docs.iter().map(|doc| ast::DocComment {
+            kind: doc.kind,
+            span: doc.span,
+            symbol: doc.symbol,
+            natspec: self.arena.bump().alloc_thin_slice_copy((), doc.natspec),
+        });
+        self.arena.bump().alloc_from_iter_thin((), docs).into()
+    }
+
+    fn lower_docs(&mut self, docs: ast::DocComments<'gcx>, item_id: hir::ItemId) -> hir::DocId {
+        if docs.is_empty() {
+            return hir::DocId::EMPTY;
+        }
+
+        self.hir.docs.push(hir::Doc {
+            source: self.current_source_id,
+            item: item_id,
+            ast_comments: docs,
+        })
+    }
+
     fn lower_contract(
         &mut self,
-        item: &ast::Item<'_>,
+        item: &'gcx ast::Item<'gcx>,
         contract: &'gcx ast::ItemContract<'gcx>,
     ) -> hir::ContractId {
-        let id = self.hir.contracts.push(hir::Contract {
+        let id = self.hir.contracts.next_idx();
+        let doc = self.lower_item_docs(item, hir::ItemId::Contract(id));
+        let pushed_id = self.hir.contracts.push(hir::Contract {
             source: self.current_source_id,
             span: item.span,
             name: contract.name,
             kind: contract.kind,
+            layout: None,
 
             // Set later.
+            doc,
             bases: &mut [],
             bases_args: &[],
             linearized_bases: &[],
@@ -57,8 +104,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
             fallback: None,
             receive: None,
             items: &[],
-            using_directives: &[],
+            usings: &[],
         });
+        debug_assert_eq!(id, pushed_id);
         let prev_contract_id = Option::replace(&mut self.current_contract_id, id);
         debug_assert_eq!(prev_contract_id, None);
 
@@ -85,6 +133,9 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 | ast::ItemKind::Event(_) => self.lower_item(item),
             };
             items.push(id);
+            if matches!(item.kind, ast::ItemKind::Function(_)) {
+                self.collect_yul_functions_in_item(item, &mut items);
+            }
         }
         self.hir.contracts[id].items = self.arena.alloc_slice_copy(&items);
 
@@ -106,7 +157,7 @@ impl<'gcx> super::LoweringContext<'gcx> {
                 } else {
                     hir::VarKind::Global
                 };
-                hir::ItemId::Variable(self.lower_variable(i, kind))
+                hir::ItemId::Variable(self.lower_variable(item, i, kind))
             }
             ast::ItemKind::Struct(i) => hir::ItemId::Struct(self.lower_struct(item, i)),
             ast::ItemKind::Enum(i) => hir::ItemId::Enum(self.lower_enum(item, i)),
@@ -118,9 +169,20 @@ impl<'gcx> super::LoweringContext<'gcx> {
         item_id
     }
 
+    fn collect_yul_functions_in_item(
+        &mut self,
+        item: &'gcx ast::Item<'gcx>,
+        items: &mut SmallVec<[hir::ItemId; 16]>,
+    ) {
+        let ast::ItemKind::Function(function) = &item.kind else { return };
+        let Some(body) = &function.body else { return };
+        let mut collector = YulFunctionCollector { lcx: self, items };
+        let _ = collector.visit_block(body);
+    }
+
     fn lower_function(
         &mut self,
-        item: &ast::Item<'_>,
+        item: &'gcx ast::Item<'gcx>,
         i: &ast::ItemFunction<'_>,
     ) -> hir::FunctionId {
         // handled later: parameters, body, modifiers, override_, returns
@@ -136,12 +198,16 @@ impl<'gcx> super::LoweringContext<'gcx> {
             ref override_,
             returns: _,
         } = *header;
-        self.hir.functions.push(hir::Function {
+        let id = self.hir.functions.next_idx();
+        let doc = self.lower_item_docs(item, hir::ItemId::Function(id));
+        let pushed_id = self.hir.functions.push(hir::Function {
             source: self.current_source_id,
+            doc,
             contract: self.current_contract_id,
             span: item.span,
             name,
             kind,
+            is_yul: false,
             gettee: None,
             modifiers: &[],
             marked_virtual: virtual_.is_some(),
@@ -166,82 +232,184 @@ impl<'gcx> super::LoweringContext<'gcx> {
             returns: &[],
             body: None,
             body_span,
-        })
+        });
+        debug_assert_eq!(id, pushed_id);
+        id
+    }
+
+    fn lower_yul_function_decl(
+        &mut self,
+        function: &'gcx ast::yul::Function<'gcx>,
+    ) -> hir::FunctionId {
+        let id = self.hir.functions.next_idx();
+        let span = function.name.span.with_hi(function.body.span.hi());
+        let pushed_id = self.hir.functions.push(hir::Function {
+            source: self.current_source_id,
+            doc: hir::DocId::EMPTY,
+            contract: self.current_contract_id,
+            span,
+            name: Some(function.name),
+            kind: hir::FunctionKind::Function,
+            is_yul: true,
+            visibility: hir::Visibility::Private,
+            state_mutability: hir::StateMutability::NonPayable,
+            modifiers: &[],
+            marked_virtual: false,
+            virtual_: false,
+            override_: false,
+            overrides: &[],
+            parameters: &[],
+            returns: &[],
+            body: None,
+            body_span: function.body.span,
+            gettee: None,
+        });
+        debug_assert_eq!(id, pushed_id);
+        id
     }
 
     fn lower_variable(
         &mut self,
+        item: &'gcx ast::Item<'gcx>,
         i: &ast::VariableDefinition<'_>,
         kind: hir::VarKind,
     ) -> hir::VariableId {
-        lower_variable_partial(
+        let id = self.hir.variables.next_idx();
+        let doc = self.lower_item_docs(item, hir::ItemId::Variable(id));
+        let pushed_id = lower_variable_partial(
             &mut self.hir,
             i,
             self.current_source_id,
             self.current_contract_id,
             None,
             kind,
-        )
+            doc,
+        );
+        debug_assert_eq!(id, pushed_id);
+        id
     }
 
-    fn lower_struct(&mut self, item: &ast::Item<'_>, i: &ast::ItemStruct<'_>) -> hir::StructId {
+    fn lower_struct(
+        &mut self,
+        item: &'gcx ast::Item<'gcx>,
+        i: &ast::ItemStruct<'_>,
+    ) -> hir::StructId {
         // handled later: fields
         let ast::ItemStruct { name, fields: _ } = *i;
-        self.hir.structs.push(hir::Struct {
+        let id = self.hir.structs.next_idx();
+        let doc = self.lower_item_docs(item, hir::ItemId::Struct(id));
+        let pushed_id = self.hir.structs.push(hir::Struct {
             source: self.current_source_id,
+            doc,
             contract: self.current_contract_id,
             span: item.span,
             name,
             fields: &[],
-        })
+        });
+        debug_assert_eq!(id, pushed_id);
+        id
     }
 
-    fn lower_enum(&mut self, item: &ast::Item<'_>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
+    fn lower_enum(&mut self, item: &'gcx ast::Item<'gcx>, i: &ast::ItemEnum<'_>) -> hir::EnumId {
         let ast::ItemEnum { name, ref variants } = *i;
-        self.hir.enums.push(hir::Enum {
+        let id = self.hir.enums.next_idx();
+        let doc = self.lower_item_docs(item, hir::ItemId::Enum(id));
+        let pushed_id = self.hir.enums.push(hir::Enum {
             source: self.current_source_id,
+            doc,
             contract: self.current_contract_id,
             span: item.span,
             name,
             variants: self.arena.alloc_slice_copy(variants),
-        })
+        });
+        debug_assert_eq!(id, pushed_id);
+        id
     }
 
-    fn lower_udvt(&mut self, item: &ast::Item<'_>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
+    fn lower_udvt(&mut self, item: &'gcx ast::Item<'gcx>, i: &ast::ItemUdvt<'_>) -> hir::UdvtId {
         // Handled later: ty
         let ast::ItemUdvt { name, ty: _ } = *i;
-        self.hir.udvts.push(hir::Udvt {
+        let id = self.hir.udvts.next_idx();
+        let doc = self.lower_item_docs(item, hir::ItemId::Udvt(id));
+        let pushed_id = self.hir.udvts.push(hir::Udvt {
             source: self.current_source_id,
+            doc,
             contract: self.current_contract_id,
             span: item.span,
             name,
             ty: hir::Type::DUMMY,
-        })
+        });
+        debug_assert_eq!(id, pushed_id);
+        id
     }
 
-    fn lower_error(&mut self, item: &ast::Item<'_>, i: &ast::ItemError<'_>) -> hir::ErrorId {
+    fn lower_error(&mut self, item: &'gcx ast::Item<'gcx>, i: &ast::ItemError<'_>) -> hir::ErrorId {
         // handled later: parameters
         let ast::ItemError { name, parameters: _ } = *i;
-        self.hir.errors.push(hir::Error {
+        let id = self.hir.errors.next_idx();
+        let doc = self.lower_item_docs(item, hir::ItemId::Error(id));
+        let pushed_id = self.hir.errors.push(hir::Error {
             source: self.current_source_id,
+            doc,
             contract: self.current_contract_id,
             span: item.span,
             name,
             parameters: &[],
-        })
+        });
+        debug_assert_eq!(id, pushed_id);
+        id
     }
 
-    fn lower_event(&mut self, item: &ast::Item<'_>, i: &ast::ItemEvent<'_>) -> hir::EventId {
+    fn lower_event(&mut self, item: &'gcx ast::Item<'gcx>, i: &ast::ItemEvent<'_>) -> hir::EventId {
         // handled later: parameters
         let ast::ItemEvent { name, parameters: _, anonymous } = *i;
-        self.hir.events.push(hir::Event {
+        let id = self.hir.events.next_idx();
+        let doc = self.lower_item_docs(item, hir::ItemId::Event(id));
+        let pushed_id = self.hir.events.push(hir::Event {
             source: self.current_source_id,
+            doc,
             contract: self.current_contract_id,
             span: item.span,
             name,
             anonymous,
             parameters: &[],
-        })
+        });
+        debug_assert_eq!(id, pushed_id);
+        id
+    }
+}
+
+struct YulFunctionCollector<'a, 'gcx> {
+    lcx: &'a mut super::LoweringContext<'gcx>,
+    items: &'a mut SmallVec<[hir::ItemId; 16]>,
+}
+
+impl<'gcx> Visit<'gcx> for YulFunctionCollector<'_, 'gcx> {
+    type BreakValue = Never;
+
+    // Yul function definitions only appear in statements. Short-circuit expressions.
+    #[inline]
+    fn visit_expr(&mut self, _expr: &'gcx ast::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
+
+    fn visit_yul_function(
+        &mut self,
+        function: &'gcx ast::yul::Function<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let id = self.lcx.lower_yul_function_decl(function);
+        self.lcx.yul_functions.insert(super::yul_function_key(function), id);
+        self.items.push(hir::ItemId::Function(id));
+        self.visit_yul_block(&function.body)
+    }
+
+    // Yul function definitions only appear in statements. Short-circuit expressions.
+    #[inline]
+    fn visit_yul_expr(
+        &mut self,
+        _expr: &'gcx ast::yul::Expr<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
     }
 }
 
@@ -251,8 +419,9 @@ pub(super) fn lower_variable_partial(
     i: &ast::VariableDefinition<'_>,
     source: SourceId,
     contract: Option<ContractId>,
-    function: Option<hir::FunctionId>,
+    parent: Option<hir::ItemId>,
     kind: hir::VarKind,
+    doc: hir::DocId,
 ) -> hir::VariableId {
     // handled later: ty, override_, initializer
     let ast::VariableDefinition {
@@ -268,8 +437,9 @@ pub(super) fn lower_variable_partial(
     } = *i;
     let id = hir.variables.push(hir::Variable {
         source,
+        doc,
         contract,
-        function,
+        parent,
         span,
         kind,
         ty: hir::Type::DUMMY,
@@ -293,8 +463,9 @@ pub(super) fn lower_variable_partial(
 fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::FunctionId {
     let hir::Variable {
         source,
+        doc: _,
         contract,
-        function: _,
+        parent: _,
         span,
         kind,
         ty: _,
@@ -314,10 +485,12 @@ fn generate_partial_getter(hir: &mut hir::Hir<'_>, id: hir::VariableId) -> hir::
     debug_assert!(getter.is_none());
     hir.functions.push(hir::Function {
         source,
+        doc: hir::DocId::EMPTY, // Getters don't have docs
         contract,
         span,
         name,
         kind: ast::FunctionKind::Function,
+        is_yul: false,
         visibility: ast::Visibility::External,
         state_mutability: ast::StateMutability::View,
         modifiers: &[],

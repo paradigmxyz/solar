@@ -1,8 +1,11 @@
-use super::{Interner, Ty, TyFlags, TyKind};
+use super::{Interner, Ty, TyKind};
 use solar_ast::{DataLocation, ElementaryType, TypeSize};
+use solar_interface::diagnostics::ErrorGuaranteed;
 
 /// Pre-interned types.
 pub struct CommonTypes<'gcx> {
+    pub(crate) err: Ty<'gcx>,
+
     /// The unit type `()`, AKA empty tuple, void.
     #[doc(alias = "empty_tuple", alias = "void")]
     pub unit: Ty<'gcx>,
@@ -37,10 +40,7 @@ impl<'gcx> CommonTypes<'gcx> {
         use TyKind::*;
         use std::array::from_fn;
 
-        // NOTE: We need to skip calculating flags here because it would require `Gcx` when we
-        // haven't built one yet. This is fine since elementary types don't have any flags.
-        // If that ever changes, then this closure should also reflect that.
-        let mk = |kind| interner.intern_ty_with_flags(bump, kind, |_| TyFlags::empty());
+        let mk = |kind| interner.intern_ty(bump, kind);
         let mk_refs = |ty| EachDataLoc {
             storage: mk(Ref(ty, DataLocation::Storage)),
             transient: mk(Ref(ty, DataLocation::Transient)),
@@ -52,6 +52,8 @@ impl<'gcx> CommonTypes<'gcx> {
         let bytes = mk(Elementary(Bytes));
 
         Self {
+            err: mk(Err(ErrorGuaranteed::new_unchecked())),
+
             unit: mk(Tuple(&[])),
             // never: mk(Elementary(Never)),
             bool: mk(Elementary(Bool)),

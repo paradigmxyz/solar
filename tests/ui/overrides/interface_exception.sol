@@ -1,5 +1,6 @@
-// Tests for interface override exception (when override is optional vs required)
-// Based on solc tests: interfaceException/*.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/interfaceException/abstract_needed.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/interfaceException/diamond_needed.sol
+// ported-from: test/libsolidity/syntaxTests/inheritance/override/interfaceException/regular_optional.sol
 
 // ==== Valid: single interface - override is optional ====
 interface ISingle {

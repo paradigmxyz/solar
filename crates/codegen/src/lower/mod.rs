@@ -11,7 +11,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
-use solar_interface::{Ident, Symbol};
+use solar_interface::Ident;
 use solar_sema::{
     hir::{self, ContractId, FunctionId as HirFunctionId, VariableId},
     ty::Gcx,
@@ -70,8 +70,6 @@ pub struct Lowerer<'gcx> {
     pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
     pub struct_field_memory_offsets: FxHashMap<(hir::StructId, usize), u64>,
-    /// Stack of Yul local scopes for inline assembly lowering.
-    yul_scopes: Vec<FxHashMap<Symbol, ValueId>>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -97,7 +95,6 @@ impl<'gcx> Lowerer<'gcx> {
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_field_memory_offsets: FxHashMap::default(),
-            yul_scopes: Vec::new(),
         }
     }
 
@@ -183,10 +180,10 @@ impl<'gcx> Lowerer<'gcx> {
     pub fn lower_contract(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
 
-        // Track the current contract for using directive resolution
+        // Track the current contract for using directive resolution.
         self.current_contract_id = Some(contract_id);
 
-        // Mark interfaces - they don't generate deployable bytecode
+        // Mark interfaces - they don't generate deployable bytecode.
         if contract.kind == hir::ContractKind::Interface {
             self.module.is_interface = true;
         }
@@ -754,12 +751,9 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 let ty = self.lower_type_from_var(ret_var);
                 builder.add_return(ty);
+                // Allocate memory for return variables so they can be assigned to
+                // within the function body (e.g., `liquidity = 1` in if/else branches)
                 let offset = self.alloc_local_memory(ret_id);
-                if ret_var.name.is_none() {
-                    continue;
-                }
-
-                // Named return variables are in-scope locals initialized to zero.
                 let offset_val = self.local_memory_addr(&mut builder, offset);
                 if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &ret_var.ty.kind {
                     let struct_size = self.calculate_memory_words_for_type(&ret_var.ty) * 32;
@@ -995,6 +989,12 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             StmtKind::Loop(block, _) => self.collect_assigned_vars_block(block),
+            StmtKind::Switch(switch) => {
+                self.collect_assigned_vars_expr(switch.selector);
+                for case in switch.cases {
+                    self.collect_assigned_vars_block(&case.body);
+                }
+            }
             StmtKind::Return(Some(expr)) | StmtKind::Revert(expr) | StmtKind::Emit(expr) => {
                 self.collect_assigned_vars_expr(expr)
             }
@@ -1004,9 +1004,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.collect_assigned_vars_block(&clause.block);
                 }
             }
-            StmtKind::Assembly(assembly) => {
-                self.collect_assigned_vars_yul_block(&assembly.block);
-            }
+            StmtKind::AssemblyBlock(block) => self.collect_assigned_vars_block(block),
             StmtKind::DeclSingle(_)
             | StmtKind::DeclMulti(_, _)
             | StmtKind::Return(None)
@@ -1014,48 +1012,6 @@ impl<'gcx> Lowerer<'gcx> {
             | StmtKind::Break
             | StmtKind::Placeholder
             | StmtKind::Err(_) => {}
-        }
-    }
-
-    fn collect_assigned_vars_yul_block(&mut self, block: &hir::yul::Block<'_>) {
-        for stmt in block.stmts {
-            self.collect_assigned_vars_yul_stmt(stmt);
-        }
-    }
-
-    fn collect_assigned_vars_yul_stmt(&mut self, stmt: &hir::yul::Stmt<'_>) {
-        use hir::yul::StmtKind;
-        match &stmt.kind {
-            StmtKind::Block(block) => self.collect_assigned_vars_yul_block(block),
-            StmtKind::AssignSingle(path, _) => self.mark_assigned_yul_path(path),
-            StmtKind::AssignMulti(paths, _) => {
-                for path in *paths {
-                    self.mark_assigned_yul_path(path);
-                }
-            }
-            StmtKind::If(_, block) => self.collect_assigned_vars_yul_block(block),
-            StmtKind::For(for_stmt) => {
-                self.collect_assigned_vars_yul_block(&for_stmt.init);
-                self.collect_assigned_vars_yul_block(&for_stmt.step);
-                self.collect_assigned_vars_yul_block(&for_stmt.body);
-            }
-            StmtKind::Switch(switch) => {
-                for case in switch.cases {
-                    self.collect_assigned_vars_yul_block(&case.body);
-                }
-            }
-            StmtKind::FunctionDef(_)
-            | StmtKind::VarDecl(_, _)
-            | StmtKind::Expr(_)
-            | StmtKind::Leave
-            | StmtKind::Break
-            | StmtKind::Continue => {}
-        }
-    }
-
-    fn mark_assigned_yul_path(&mut self, path: &hir::yul::Path<'_>) {
-        if let hir::yul::PathRes::SolidityVariable(var_id) = path.res {
-            self.assigned_vars.insert(var_id);
         }
     }
 
@@ -1109,7 +1065,9 @@ impl<'gcx> Lowerer<'gcx> {
                     self.collect_assigned_vars_expr(e);
                 }
             }
-            ExprKind::Member(base, _) => self.collect_assigned_vars_expr(base),
+            ExprKind::Member(base, _) | ExprKind::YulMember(base, _) => {
+                self.collect_assigned_vars_expr(base)
+            }
             ExprKind::Array(elems) => {
                 for elem in elems.iter() {
                     self.collect_assigned_vars_expr(elem);
@@ -1169,7 +1127,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 false
             }
-            ExprKind::Member(base, _) => {
+            ExprKind::Member(base, _) | ExprKind::YulMember(base, _) => {
                 // Member access itself doesn't contain external calls
                 // but the base might
                 self.has_external_call(base)

@@ -1,0 +1,8 @@
+error: member `id` not found on type `uint256`
+   ╭▸ ROOT/tests/ui/using-for/imports/file_level_using_not_imported.sol:LL:CC
+   │
+LL │     return x.id();
+   ╰╴             ━━
+
+error: aborting due to 1 previous error
+

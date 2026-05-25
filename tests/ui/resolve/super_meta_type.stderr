@@ -1,0 +1,8 @@
+error: expected item, found builtin
+   ╭▸ ROOT/tests/ui/resolve/super_meta_type.sol:LL:CC
+   │
+LL │         type(super).name;
+   ╰╴             ━━━━━
+
+error: aborting due to 1 previous error
+

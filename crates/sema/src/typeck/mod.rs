@@ -1,19 +1,22 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
-    hir::{self, Item, ItemId, Res},
-    ty::{Gcx, Ty, TyKind},
+    hir::{self, Item, ItemId, Res, Visit},
+    ty::{Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind},
 };
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
-use solar_ast::{StateMutability, Visibility};
+use solar_ast::{DataLocation, StateMutability, Visibility};
 use solar_data_structures::{
+    Never,
     map::{FxHashMap, FxHashSet},
     parallel,
 };
-use solar_interface::error_code;
+use solar_interface::{Span, error_code};
+use std::ops::ControlFlow;
 
 mod checker;
 mod override_checker;
+mod udvt;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     parallel!(
@@ -24,17 +27,130 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             check_payable_fallback_without_receive(gcx, id);
             check_external_type_clashes(gcx, id);
             check_receive_function(gcx, id);
+            for using in gcx.hir.contract(id).usings {
+                check_using_directive(gcx, using);
+            }
             check_unimplemented_functions(gcx, id);
             override_checker::check(gcx, id);
         }),
         gcx.hir.par_source_ids().for_each(|id| {
             check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
+            check_break_continue(gcx, id);
+            for using in gcx.hir.source(id).usings {
+                check_using_directive(gcx, using);
+            }
             if gcx.sess.opts.unstable.typeck {
                 // TODO: Parallelize more.
                 checker::check(gcx, id);
             }
         }),
     );
+}
+
+fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {
+    let using_ty = gcx.type_of_using_directive(using);
+
+    if using.global
+        && let Some(ty) = using_ty
+    {
+        match ty.same_source_file_level_user_type(gcx, using.source) {
+            Ok(()) => {}
+            Err(SameSourceFileLevelUserTypeError::NotUserDefined) => {
+                gcx.dcx().emit_err(using.span, "can only use `global` with user-defined types");
+            }
+            Err(SameSourceFileLevelUserTypeError::NotSameSourceFileLevel) => {
+                gcx.dcx().emit_err(using.span, "can only use `global` with types defined in the same source unit at file level");
+            }
+        }
+    }
+
+    if !using.global
+        && let Some(ty) = using_ty
+        && let TyKind::Contract(id) = ty.kind
+        && gcx.hir.contract(id).kind.is_library()
+    {
+        gcx.dcx().emit_err(using.span, "invalid use of library name");
+    }
+
+    for entry in using.entries {
+        match entry.kind {
+            hir::UsingEntryKind::Library(id) => {
+                if !gcx.hir.contract(id).kind.is_library() {
+                    gcx.dcx()
+                        .err("library name expected")
+                        .span(entry.span)
+                        .help("if you want to attach a function, use `{...}`")
+                        .emit();
+                }
+            }
+            hir::UsingEntryKind::Functions(functions) => {
+                for &function in functions {
+                    check_using_function(gcx, using, entry, function, using_ty);
+                }
+            }
+            hir::UsingEntryKind::Err(_) => {}
+        }
+    }
+}
+
+fn check_using_function<'gcx>(
+    gcx: Gcx<'gcx>,
+    using: &hir::UsingDirective<'_>,
+    entry: &hir::UsingEntry<'_>,
+    function_id: hir::FunctionId,
+    using_ty: Option<Ty<'gcx>>,
+) {
+    let function = gcx.hir.function(function_id);
+    let is_library_function =
+        function.contract.is_some_and(|id| gcx.hir.contract(id).kind.is_library());
+    if !function.is_free() && !is_library_function {
+        gcx.dcx().emit_err(entry.span, "only file-level functions and library functions can be attached to a type in a `using` statement");
+    }
+
+    let TyKind::Fn(function_ty) = gcx.type_of_item(function_id.into()).kind else { unreachable!() };
+    if function_ty.parameters.is_empty() {
+        gcx.dcx().emit_err_span_note(
+            entry.span,
+            format!(
+                "function `{}` does not have any parameters and therefore cannot be attached",
+                gcx.item_name(function_id).as_str()
+            ),
+            function.span,
+            "function defined here",
+        );
+        return;
+    }
+
+    if function.visibility == Visibility::Private && function.contract != using.contract {
+        gcx.dcx().emit_err_span_note(entry.span, format!(
+            "function `{}` is private and therefore cannot be attached to a type outside of the library where it is defined",
+            gcx.item_name(function_id).as_str()
+        ), function.span, "function defined here");
+    }
+
+    if let Some(using_ty) = using_ty {
+        let normalized_using_ty = using_ty.with_loc_if_ref(gcx, DataLocation::Storage);
+        let self_ty = function_ty.parameters[0].with_loc_if_ref(gcx, DataLocation::Storage);
+        if !normalized_using_ty.convert_implicit_to(self_ty, gcx) && entry.operator.is_none() {
+            gcx.dcx()
+                .err(format!(
+                    "function `{}` cannot be attached to type `{}`",
+                    gcx.item_name(function_id).as_str(),
+                    using_ty.display(gcx)
+                ))
+                .span(entry.span)
+                .span_note(function.span, "function defined here")
+                .help(format!(
+                    "the type cannot be implicitly converted to the first function argument `{}`",
+                    function_ty.parameters[0].display(gcx)
+                ))
+                .emit();
+        }
+    }
+
+    if let Some(op) = entry.operator {
+        udvt::check_using_operator(gcx, using, entry, function_id, function_ty, using_ty, op);
+    }
 }
 
 fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
@@ -153,7 +269,7 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
 }
 
 fn same_external_params<'gcx>(gcx: Gcx<'gcx>, a: Ty<'gcx>, b: Ty<'gcx>) -> bool {
-    let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(gcx).parameters().unwrap();
+    let key = |ty: Ty<'gcx>| ty.as_externally_callable_function(false, gcx).parameters().unwrap();
     key(a) == key(b)
 }
 
@@ -204,9 +320,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     if contract.kind.is_library() {
         if let Some(receive) = contract.receive {
             gcx.dcx()
-                .err("libraries cannot have receive ether functions")
-                .span(gcx.item_span(receive))
-                .emit();
+                .emit_err(gcx.item_span(receive), "libraries cannot have receive ether functions");
         }
         return;
     }
@@ -214,10 +328,10 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         let f = gcx.hir.function(receive);
         // Check visibility
         if f.visibility != Visibility::External {
-            gcx.dcx()
-                .err("receive ether function must be defined as `external`")
-                .span(gcx.item_span(receive))
-                .emit();
+            gcx.dcx().emit_err(
+                gcx.item_span(receive),
+                "receive ether function must be defined as `external`",
+            );
         }
 
         // Check state mutability
@@ -232,17 +346,13 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         // Check parameters
         if !f.parameters.is_empty() {
             gcx.dcx()
-                .err("receive ether function cannot take parameters")
-                .span(gcx.item_span(receive))
-                .emit();
+                .emit_err(gcx.item_span(receive), "receive ether function cannot take parameters");
         }
 
         // Check return values
         if !f.returns.is_empty() {
             gcx.dcx()
-                .err("receive ether function cannot return values")
-                .span(gcx.item_span(receive))
-                .emit();
+                .emit_err(gcx.item_span(receive), "receive ether function cannot return values");
         }
     }
 }
@@ -253,7 +363,7 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let span = gcx.hir.contract(contract_id).name.span;
     let Some(total_size) = storage_size_upper_bound(gcx, contract_id) else {
-        gcx.dcx().err("contract requires too much storage").span(span).emit();
+        gcx.dcx().emit_err(span, "contract requires too much storage");
         return;
     };
 
@@ -287,9 +397,10 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::IntLiteral(..)
         | TyKind::Mapping(..)
         | TyKind::Contract(..)
+        | TyKind::Super(..)
         | TyKind::Udvt(..)
         | TyKind::Enum(..)
-        | TyKind::FnPtr(..)
+        | TyKind::Fn(..)
         | TyKind::DynArray(..) => Some(U256::from(1)),
         TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
         TyKind::Array(ty, uint) => {
@@ -318,5 +429,72 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Error(..) => {
             unreachable!()
         }
+    }
+}
+
+fn check_break_continue(gcx: Gcx<'_>, source: hir::SourceId) {
+    let mut checker = BreakContinueChecker::new(gcx);
+    let _ = checker.visit_nested_source(source);
+}
+
+struct BreakContinueChecker<'gcx> {
+    gcx: Gcx<'gcx>,
+    loop_depth: u32,
+}
+
+impl<'gcx> BreakContinueChecker<'gcx> {
+    fn new(gcx: Gcx<'gcx>) -> Self {
+        Self { gcx, loop_depth: 0 }
+    }
+
+    fn visit_block(&mut self, block: hir::Block<'gcx>) -> ControlFlow<Never> {
+        for stmt in block.stmts {
+            self.visit_stmt(stmt)?;
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn check_break_continue(&self, span: Span, kind: &str) {
+        if self.loop_depth == 0 {
+            let msg = format!("`{kind}` outside of a loop");
+            self.gcx.sess.dcx.emit_err(span, msg);
+        }
+    }
+}
+
+impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_nested_function(&mut self, id: hir::FunctionId) -> ControlFlow<Self::BreakValue> {
+        let loop_depth = std::mem::replace(&mut self.loop_depth, 0);
+        let r = self.visit_function(self.hir().function(id));
+        self.loop_depth = loop_depth;
+        r
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        match stmt.kind {
+            hir::StmtKind::Break => self.check_break_continue(stmt.span, "break"),
+            hir::StmtKind::Continue => self.check_break_continue(stmt.span, "continue"),
+            hir::StmtKind::Loop(block, _) => {
+                self.loop_depth += 1;
+                let r = self.visit_block(block);
+                self.loop_depth -= 1;
+                return r;
+            }
+            _ => {}
+        }
+
+        self.walk_stmt(stmt)
+    }
+
+    // Statements don't appear in expressions. Short-circuit to avoid walking the full tree.
+    #[inline]
+    fn visit_expr(&mut self, _expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
     }
 }

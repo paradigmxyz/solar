@@ -1,0 +1,8 @@
+error: member `f` not found on type `bytes memory`
+   ╭▸ ROOT/tests/ui/using-for/locations/calldata_rejects_memory.sol:LL:CC
+   │
+LL │         return x.f();
+   ╰╴                 ━
+
+error: aborting due to 1 previous error
+

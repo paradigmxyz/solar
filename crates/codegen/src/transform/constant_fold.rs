@@ -289,7 +289,7 @@ fn analyze_expr_recursive(folder: &ConstantFolder<'_>, expr: &Expr<'_>, stats: &
                 analyze_expr_recursive(folder, e, stats);
             }
         }
-        ExprKind::Member(base, _) => {
+        ExprKind::Member(base, _) | ExprKind::YulMember(base, _) => {
             analyze_expr_recursive(folder, base, stats);
         }
         ExprKind::Assign(left, _, right) => {

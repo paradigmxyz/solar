@@ -1,0 +1,14 @@
+error: the type has to be specified explicitly at file level (cannot use `*`)
+   ╭▸ ROOT/tests/ui/parser/using_library_global_wildcard.sol:LL:CC
+   │
+LL │ using L for * global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━
+
+error: can only globally attach functions to specific types
+   ╭▸ ROOT/tests/ui/parser/using_library_global_wildcard.sol:LL:CC
+   │
+LL │ using L for * global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

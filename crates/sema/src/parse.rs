@@ -233,12 +233,18 @@ impl<'gcx> ParsingContext<'gcx> {
                 continue;
             }
 
-            let ast = self.parse_one(&source.file, arena);
-            let _guard = debug_span!("resolve_imports").entered();
-            for (import_item_id, import_file) in
-                self.resolve_imports(&source.file.clone(), ast.as_ref())
-            {
-                sources.add_import(id, import_item_id, import_file, false);
+            let file = source.file.clone();
+            let parent = parent_path(&file);
+            let imports_len = sources[id].imports.len();
+            let ast = self.parse_one(&file, arena, |item_id, _, import| {
+                let _guard = debug_span!("resolve_import").entered();
+                let Some(import_file) = self.resolve_import_directive(import, parent) else {
+                    return;
+                };
+                sources.add_import(id, item_id, import_file, false);
+            });
+            if ast.is_none() {
+                sources[id].imports.truncate(imports_len);
             }
             sources[id].ast = ast;
         }
@@ -283,23 +289,32 @@ impl<'gcx> ParsingContext<'gcx> {
         arenas: &'ast ThreadLocal<ast::Arena>,
         scope: &rayon::Scope<'scope>,
     ) {
-        // Parse and resolve imports.
-        let ast = self.parse_one(&file, arenas.get_or_default());
-        let imports = {
-            let _guard = debug_span!("resolve_imports").entered();
-            self.resolve_imports(&file, ast.as_ref()).collect::<Vec<_>>()
-        };
+        let mut imports = Vec::new();
+        let parent = parent_path(&file);
+        let ast = self.parse_one(&file, arenas.get_or_default(), |item_id, _, import| {
+            let _guard = debug_span!("resolve_import").entered();
+            let Some(import_file) = self.resolve_import_directive(import, parent) else {
+                return;
+            };
+            imports.push((item_id, import_file.clone()));
 
-        // Set AST, add imports and recursively spawn jobs for parsing them if necessary.
+            let (import_id, is_new) = {
+                let sources = &mut *lock.lock();
+                sources.get_or_insert_file(import_file.clone())
+            };
+            if is_new {
+                self.spawn_parse_job(lock, import_id, import_file, arenas, scope);
+            }
+        });
+
+        // Set AST and add imports.
         let _guard = debug_span!("add_imports").entered();
         let sources = &mut *lock.lock();
         assert!(sources[id].ast.is_none());
         sources[id].ast = ast;
-        for (import_item_id, import_file) in imports {
-            let (import_id, is_new) =
-                sources.add_import(id, import_item_id, import_file.clone(), false);
-            if is_new {
-                self.spawn_parse_job(lock, import_id, import_file, arenas, scope);
+        if sources[id].ast.is_some() {
+            for (import_item_id, import_file) in imports {
+                sources.add_import(id, import_item_id, import_file, false);
             }
         }
     }
@@ -310,9 +325,13 @@ impl<'gcx> ParsingContext<'gcx> {
         &self,
         file: &SourceFile,
         arena: &'ast ast::Arena,
+        import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>),
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
+        if self.resolve_imports {
+            parser.set_import_callback(import_callback);
+        }
         if self.sess.opts.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
             None
@@ -328,10 +347,7 @@ impl<'gcx> ParsingContext<'gcx> {
         file: &SourceFile,
         ast: Option<&ast::SourceUnit<'_>>,
     ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> {
-        let parent = match &file.name {
-            FileName::Real(path) => Some(path.as_path()),
-            FileName::Stdin | FileName::Custom(_) => None,
-        };
+        let parent = parent_path(file);
         let items =
             ast.filter(|_| self.resolve_imports).map(|ast| &ast.items[..]).unwrap_or_default();
         items
@@ -353,15 +369,23 @@ impl<'gcx> ParsingContext<'gcx> {
         import: &ast::ImportDirective<'_>,
         parent: Option<&Path>,
     ) -> Option<Arc<SourceFile>> {
-        let span = import.path.span;
-        let path_str = import.path.value.as_str();
+        self.resolve_import_path(&import.path, parent)
+    }
+
+    fn resolve_import_path(
+        &self,
+        import_path: &ast::StrLit,
+        parent: Option<&Path>,
+    ) -> Option<Arc<SourceFile>> {
+        let span = import_path.span;
+        let path_str = import_path.value.as_str();
         let (path_bytes, any_error) =
             unescape::parse_string_literal(path_str, unescape::StrKind::Str, span, self.sess);
         if any_error {
             return None;
         }
         let Some(path) = path_from_bytes(&path_bytes[..]) else {
-            self.dcx().err("import path is not a valid UTF-8 string").span(span).emit();
+            self.dcx().emit_err(span, "import path is not a valid UTF-8 string");
             return None;
         };
         self.file_resolver
@@ -396,6 +420,13 @@ impl Drop for ParsingContext<'_> {
         // This used to be a call to `bug` but it can be hit legitimately for example when there is
         // an error returned with `?` in between calls to `parse`.
         warn!("`ParsingContext::parse` not called");
+    }
+}
+
+fn parent_path(file: &SourceFile) -> Option<&Path> {
+    match &file.name {
+        FileName::Real(path) => Some(path.as_path()),
+        FileName::Stdin | FileName::Custom(_) => None,
     }
 }
 

@@ -1,0 +1,26 @@
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/non_global_left.sol:LL:CC
+   │
+LL │ using {addLeft as +, negLeft as -} for TransitiveInt;
+   ╰╴       ━━━━━━━
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/non_global_left.sol:LL:CC
+   │
+LL │ using {addLeft as +, negLeft as -} for TransitiveInt;
+   ╰╴                     ━━━━━━━
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/non_global_right.sol:LL:CC
+   │
+LL │ using {addRight as +, negRight as -} for TransitiveInt;
+   ╰╴       ━━━━━━━━
+
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/imports/auxiliary/non_global_right.sol:LL:CC
+   │
+LL │ using {addRight as +, negRight as -} for TransitiveInt;
+   ╰╴                      ━━━━━━━━
+
+error: aborting due to 4 previous errors
+

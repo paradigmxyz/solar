@@ -355,6 +355,49 @@ pub enum UserDefinableOperator {
 }
 
 impl UserDefinableOperator {
+    /// Returns the user-definable operator for a unary operator, if any.
+    pub const fn from_unop(op: UnOpKind) -> Option<Self> {
+        Some(match op {
+            UnOpKind::Neg => Self::Sub,
+            UnOpKind::BitNot => Self::BitNot,
+            UnOpKind::PreInc
+            | UnOpKind::PreDec
+            | UnOpKind::Not
+            | UnOpKind::PostInc
+            | UnOpKind::PostDec => {
+                return None;
+            }
+        })
+    }
+
+    /// Returns the user-definable operator for a binary operator, if any.
+    pub const fn from_binop(op: BinOpKind) -> Option<Self> {
+        Some(match op {
+            BinOpKind::BitAnd => Self::BitAnd,
+            BinOpKind::BitOr => Self::BitOr,
+            BinOpKind::BitXor => Self::BitXor,
+            BinOpKind::Add => Self::Add,
+            BinOpKind::Div => Self::Div,
+            BinOpKind::Rem => Self::Rem,
+            BinOpKind::Mul => Self::Mul,
+            BinOpKind::Sub => Self::Sub,
+            BinOpKind::Eq => Self::Eq,
+            BinOpKind::Ge => Self::Ge,
+            BinOpKind::Gt => Self::Gt,
+            BinOpKind::Le => Self::Le,
+            BinOpKind::Lt => Self::Lt,
+            BinOpKind::Ne => Self::Ne,
+            BinOpKind::Or
+            | BinOpKind::And
+            | BinOpKind::Shr
+            | BinOpKind::Shl
+            | BinOpKind::Sar
+            | BinOpKind::Pow => {
+                return None;
+            }
+        })
+    }
+
     /// Returns this operator as a binary or unary operator.
     pub const fn to_op(self) -> Either<UnOpKind, BinOpKind> {
         match self {
