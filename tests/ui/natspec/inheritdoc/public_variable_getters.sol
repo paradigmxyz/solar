@@ -6,6 +6,7 @@ interface Base {
     /// @return The factory address
     //~^ NOTE: @return The factory address
     function factory() external view returns (address);
+    //~^ ERROR: resolved NatSpec for function `factory`
 
     /// @notice Base value notice
     //~^ NOTE: @notice Base value notice
@@ -14,6 +15,7 @@ interface Base {
     /// @return The stored value
     //~^ NOTE: @return The stored value
     function values(uint key) external view returns (uint);
+    //~^ ERROR: resolved NatSpec for function `values`
 }
 
 contract Child is Base {

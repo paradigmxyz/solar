@@ -296,7 +296,7 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_max_storage_sizes: bool,
 
-    /// Print resolved `@inheritdoc` NatSpec docs as diagnostics for UI tests.
+    /// Print resolved NatSpec docs as diagnostics for UI tests.
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_natspec: bool,
 

@@ -53,14 +53,8 @@ impl TagPermissions {
 pub(crate) fn validate_item_docs(gcx: Gcx<'_>, item_id: hir::ItemId) {
     let doc_id = gcx.hir.item(item_id).doc();
     if !doc_id.is_empty() {
-        let print_natspec = gcx.sess.opts.unstable.print_natspec
-            && gcx.hir.doc(doc_id).ast_comments.iter().any(|doc| {
-                doc.natspec
-                    .iter()
-                    .any(|item| matches!(item.kind, ast::NatSpecKind::Inheritdoc { .. }))
-            });
         let docs = gcx.natspec_doc_comments(doc_id);
-        if print_natspec {
+        if gcx.sess.opts.unstable.print_natspec {
             emit_natspec_debug(gcx, item_id, docs);
         }
     }
@@ -87,29 +81,9 @@ fn emit_natspec_debug(gcx: Gcx<'_>, item_id: hir::ItemId, docs: &[hir::NatSpecIt
     let mut diag =
         gcx.dcx().err(format!("resolved NatSpec for {item_desc} {item_name}")).span(item.span());
     for item in docs {
-        diag = diag.span_note(item.span, format_natspec_item(item));
+        diag = diag.span_note(item.span, item.to_string());
     }
     diag.emit();
-}
-
-fn format_natspec_item(item: &hir::NatSpecItem) -> String {
-    let content = item.content();
-    match item.kind {
-        hir::NatSpecKind::Title => format!("@title {content}"),
-        hir::NatSpecKind::Author => format!("@author {content}"),
-        hir::NatSpecKind::Notice => format!("@notice {content}"),
-        hir::NatSpecKind::Dev => format!("@dev {content}"),
-        hir::NatSpecKind::Param { name } => format!("@param {} {content}", name.name),
-        hir::NatSpecKind::Return { name: Some(name) } => {
-            format!("@return {} {content}", name.name)
-        }
-        hir::NatSpecKind::Return { name: None } => format!("@return {content}"),
-        hir::NatSpecKind::Inheritdoc { contract } => {
-            format!("@inheritdoc {} {content}", contract.name)
-        }
-        hir::NatSpecKind::Custom { name } => format!("@custom:{} {content}", name.name),
-        hir::NatSpecKind::Internal { tag } => format!("@{tag} {content}", tag = tag.name),
-    }
 }
 
 struct Resolver<'gcx> {
