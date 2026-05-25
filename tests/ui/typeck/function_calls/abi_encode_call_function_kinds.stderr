@@ -1,0 +1,44 @@
+error: first argument to `abi.encodeCall` must be an external function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_function_kinds.sol:LL:CC
+   │
+LL │         abi.encodeCall(internalTarget, (value));
+   ╰╴                       ━━━━━━━━━━━━━━ found `function (uint256) pure`
+
+error: first argument to `abi.encodeCall` cannot be a library function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_function_kinds.sol:LL:CC
+   │
+LL │         abi.encodeCall(Lib.externalTarget, (value));
+   ╰╴                       ━━━━━━━━━━━━━━━━━━ found `function (uint256)`
+
+error: first argument to `abi.encodeCall` cannot be a creation function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_function_kinds.sol:LL:CC
+   │
+LL │         abi.encodeCall(new C, (value));
+   ╰╴                       ━━━━━ found `function () returns (contract C)`
+
+error: first argument to `abi.encodeCall` cannot be a special function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_function_kinds.sol:LL:CC
+   │
+LL │         abi.encodeCall(address(this).call, (data));
+   ╰╴                       ━━━━━━━━━━━━━━━━━━ found `function (bytes memory) payable returns (bool,bytes memory)`
+
+error: first argument to `abi.encodeCall` cannot be an event
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_function_kinds.sol:LL:CC
+   │
+LL │         abi.encodeCall(CustomEvent, (value));
+   ╰╴                       ━━━━━━━━━━━ found `event C.CustomEvent(uint256)`
+
+error: first argument to `abi.encodeCall` cannot be an error
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_function_kinds.sol:LL:CC
+   │
+LL │         abi.encodeCall(CustomError, (value));
+   ╰╴                       ━━━━━━━━━━━ found `error CustomError(uint256)`
+
+error: first argument to `abi.encodeCall` must be a function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_function_kinds.sol:LL:CC
+   │
+LL │         abi.encodeCall(value, (value));
+   ╰╴                       ━━━━━ found `uint256`
+
+error: aborting due to 7 previous errors
+

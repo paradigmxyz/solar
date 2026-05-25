@@ -1007,6 +1007,7 @@ symbols! {
         transfer,
         transient,
         tx,
+        types,
         underscore: "_",
         unwrap,
         value,

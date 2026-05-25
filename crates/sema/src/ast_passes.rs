@@ -184,7 +184,10 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
                 let name = name.as_str();
                 let value = value.as_ref().map(ast::IdentOrStrLit::as_str);
                 match (name, value) {
-                    ("abicoder", Some("v1" | "v2")) => {}
+                    ("abicoder", Some("v1")) => {
+                        self.dcx().err("ABI coder v1 is not supported").span(self.item_span).emit();
+                    }
+                    ("abicoder", Some("v2")) => {}
                     ("experimental", Some("ABIEncoderV2")) => {}
                     ("experimental", Some("SMTChecker")) => {}
                     ("experimental", Some("solidity")) => {
