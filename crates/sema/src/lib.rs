@@ -108,7 +108,8 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
         dump_hir(gcx, dump.paths.as_deref())?;
     }
 
-    let lower_item = |id| {
+    // Lower HIR types.
+    gcx.hir.par_item_ids().for_each(|id| {
         let _ = gcx.type_of_item(id);
         match id {
             hir::ItemId::Struct(id) => {
@@ -119,14 +120,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
             _ => {}
         }
         natspec::validate_item_docs(gcx, id);
-    };
-
-    // Lower HIR types.
-    if gcx.sess.opts.unstable.print_natspec {
-        gcx.hir.item_ids().for_each(lower_item);
-    } else {
-        gcx.hir.par_item_ids().for_each(lower_item);
-    }
+    });
     gcx.sess.dcx.has_errors()?;
 
     typeck::check(gcx);
