@@ -1214,6 +1214,42 @@ mod tests {
     }
 
     #[test]
+    fn parse_file_import_callback() {
+        let src = r#"
+import "a.sol";
+contract C {}
+import * as B from "b.sol";
+"#;
+
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = ast::Arena::new();
+            let mut parser =
+                Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                    .expect("failed to create parser");
+            let mut imports = Vec::new();
+
+            let ast = parser
+                .parse_file_with_import_callback(|id, span, import| {
+                    imports.push((id, span, import.path.value.as_str().to_string()));
+                })
+                .expect("failed to parse file");
+
+            assert_eq!(ast.items.len(), 3);
+            assert_eq!(imports.len(), 2);
+            assert_eq!(imports[0].0, ast::ItemId::new(0));
+            assert_eq!(imports[0].2, "a.sol");
+            assert_eq!(imports[1].0, ast::ItemId::new(2));
+            assert_eq!(imports[1].2, "b.sol");
+            assert_eq!(
+                sess.source_map().span_to_snippet(imports[0].1).unwrap(),
+                r#"import "a.sol";"#
+            );
+        });
+    }
+
+    #[test]
     fn parse_natspec_line_cmnts() {
         let src = r#"
 /// @title MyContract
