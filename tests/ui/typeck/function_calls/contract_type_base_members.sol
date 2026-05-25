@@ -1,5 +1,7 @@
 //@compile-flags: -Ztypeck
 
+// ported-from: test/libsolidity/semanticTests/functionTypes/selector_1.sol
+// ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/484_function_types_selector_1.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/override_implemented_and_unimplemented_with_implemented_call_via_contract.sol
 
 contract Base {
@@ -14,9 +16,21 @@ contract Base {
     function externalBase(uint256 value) external pure returns (uint256) {
         return value;
     }
+
+    function ownPublicFunctionSelector() public pure returns (bytes4) {
+        return publicBase.selector; //~ ERROR: member `selector` not found
+    }
 }
 
 contract Derived is Base {
+    function inheritedPublicFunctionSelector() public pure returns (bytes4) {
+        return publicBase.selector;
+    }
+
+    function inheritedInternalFunctionSelector() public pure returns (bytes4) {
+        return internalBase.selector; //~ ERROR: member `selector` not found
+    }
+
     function selfTypePublicFunctionSelector() public pure returns (bytes4) {
         return Derived.baseTypePublicFunction.selector; //~ ERROR: member `selector` not found
     }

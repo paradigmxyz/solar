@@ -729,15 +729,23 @@ impl<'gcx> Gcx<'gcx> {
         current_contract: Option<hir::ContractId>,
     ) -> Option<members::MemberList<'gcx>> {
         let current_contract = current_contract?;
-        let TyKind::Type(ty) = ty.kind else { return None };
-        let TyKind::Contract(id) = ty.kind else { return None };
-        let contract = self.hir.contract(id);
-        if contract.kind.is_library()
-            || !self.hir.contract(current_contract).linearized_bases.contains(&id)
-        {
-            return None;
+        match ty.kind {
+            TyKind::Type(ty) => {
+                let TyKind::Contract(id) = ty.kind else { return None };
+                let contract = self.hir.contract(id);
+                if contract.kind.is_library()
+                    || !self.hir.contract(current_contract).linearized_bases.contains(&id)
+                {
+                    return None;
+                }
+                Some(self.contract_type_members_in_context((id, current_contract)))
+            }
+            TyKind::Fn(f) if f.kind == TyFnKind::Internal => {
+                let id = f.function_id?;
+                Some(self.internal_function_members_in_context((id, current_contract)))
+            }
+            _ => None,
         }
-        Some(self.contract_type_members_in_context((id, current_contract)))
     }
 
     pub(crate) fn for_each_user_operator(
@@ -1226,6 +1234,14 @@ fn contract_type_members_in_context(
 ) -> members::MemberList<'gcx> {
     let (id, current_contract) = key;
     members::contract_type_members_in_context(gcx, id, current_contract)
+}
+
+fn internal_function_members_in_context(
+    gcx: _,
+    key: (hir::FunctionId, hir::ContractId)
+) -> members::MemberList<'gcx> {
+    let (id, current_contract) = key;
+    gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
 }
 }
 

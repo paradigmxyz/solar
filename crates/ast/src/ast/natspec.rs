@@ -1,6 +1,7 @@
 use super::BoxSlice;
 use crate::token::CommentKind;
 use solar_interface::{Ident, Span, Symbol};
+use std::fmt;
 
 /// A single doc-comment: `/// foo`, `/** bar */`.
 #[derive(Debug)]
@@ -49,6 +50,28 @@ impl NatSpecItem {
     /// The content is extracted from the symbol using the byte offsets.
     pub fn content(&self) -> &str {
         &self.symbol.as_str()[self.content_range()]
+    }
+}
+
+impl fmt::Display for NatSpecItem {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let content = self.content();
+        match self.kind {
+            NatSpecKind::Title => write!(f, "@title {content}"),
+            NatSpecKind::Author => write!(f, "@author {content}"),
+            NatSpecKind::Notice => write!(f, "@notice {content}"),
+            NatSpecKind::Dev => write!(f, "@dev {content}"),
+            NatSpecKind::Param { name } => write!(f, "@param {} {content}", name.name),
+            NatSpecKind::Return { name: Some(name) } => {
+                write!(f, "@return {} {content}", name.name)
+            }
+            NatSpecKind::Return { name: None } => write!(f, "@return {content}"),
+            NatSpecKind::Inheritdoc { contract } => {
+                write!(f, "@inheritdoc {} {content}", contract.name)
+            }
+            NatSpecKind::Custom { name } => write!(f, "@custom:{} {content}", name.name),
+            NatSpecKind::Internal { tag } => write!(f, "@{} {content}", tag.name),
+        }
     }
 }
 
