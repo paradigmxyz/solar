@@ -236,9 +236,9 @@ impl<'gcx> ParsingContext<'gcx> {
             let file = source.file.clone();
             let parent = parent_path(&file);
             let imports_len = sources[id].imports.len();
-            let ast = self.parse_one(&file, arena, |item_id, _, path| {
+            let ast = self.parse_one(&file, arena, |item_id, _, import| {
                 let _guard = debug_span!("resolve_import").entered();
-                let Some(import_file) = self.resolve_import_path(path, parent) else {
+                let Some(import_file) = self.resolve_import_directive(import, parent) else {
                     return;
                 };
                 sources.add_import(id, item_id, import_file, false);
@@ -291,9 +291,9 @@ impl<'gcx> ParsingContext<'gcx> {
     ) {
         let mut imports = Vec::new();
         let parent = parent_path(&file);
-        let ast = self.parse_one(&file, arenas.get_or_default(), |item_id, _, path| {
+        let ast = self.parse_one(&file, arenas.get_or_default(), |item_id, _, import| {
             let _guard = debug_span!("resolve_import").entered();
-            let Some(import_file) = self.resolve_import_path(path, parent) else {
+            let Some(import_file) = self.resolve_import_directive(import, parent) else {
                 return;
             };
             imports.push((item_id, import_file.clone()));
@@ -325,7 +325,7 @@ impl<'gcx> ParsingContext<'gcx> {
         &self,
         file: &SourceFile,
         arena: &'ast ast::Arena,
-        import_callback: impl FnMut(ast::ItemId, Span, &ast::StrLit),
+        import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>),
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);

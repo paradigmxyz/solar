@@ -62,7 +62,8 @@ pub struct Parser<'sess, 'ast, 'cb> {
     recursion_depth: usize,
     /// Callback invoked after a top-level import directive is parsed.
     #[allow(clippy::type_complexity)]
-    import_callback: Option<std::boxed::Box<dyn FnMut(ast::ItemId, Span, &ast::StrLit) + 'cb>>,
+    import_callback:
+        Option<std::boxed::Box<dyn FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -165,7 +166,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Sets the import callback.
     pub fn set_import_callback(
         &mut self,
-        import_callback: impl FnMut(ast::ItemId, Span, &ast::StrLit) + 'cb,
+        import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb,
     ) {
         self.import_callback = Some(std::boxed::Box::new(import_callback));
     }
@@ -1242,8 +1243,8 @@ import * as B from "b.sol";
                 Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                     .expect("failed to create parser");
 
-            parser.set_import_callback(|id, span, path| {
-                imports.push((id, span, path.value.as_str().to_string()));
+            parser.set_import_callback(|id, span, import| {
+                imports.push((id, span, import.path.value.as_str().to_string()));
             });
             let ast = parser.parse_file().expect("failed to parse file");
             drop(parser);

@@ -43,7 +43,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 if let Some(callback) = &mut self.import_callback
                     && let ItemKind::Import(import) = &item.kind
                 {
-                    callback(ItemId::new(items.len()), item.span, &import.path);
+                    callback(ItemId::new(items.len()), item.span, import);
                 }
                 items.push(item);
             }
