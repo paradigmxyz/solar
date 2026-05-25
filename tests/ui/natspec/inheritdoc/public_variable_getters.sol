@@ -6,7 +6,7 @@ interface Base {
     /// @return The factory address
     //~^ NOTE: @return The factory address
     function factory() external view returns (address);
-    //~^ ERROR: resolved NatSpec for function
+    //~^ ERROR: resolved NatSpec for function `Base.factory`
 
     /// @notice Base value notice
     //~^ NOTE: @notice Base value notice
@@ -15,15 +15,15 @@ interface Base {
     /// @return The stored value
     //~^ NOTE: @return The stored value
     function values(uint key) external view returns (uint);
-    //~^ ERROR: resolved NatSpec for function
+    //~^ ERROR: resolved NatSpec for function `Base.values`
 }
 
 contract Child is Base {
     /// @inheritdoc Base
     address public override factory;
-    //~^ ERROR: resolved NatSpec for variable
+    //~^ ERROR: resolved NatSpec for variable `Child.factory`
 
     /// @inheritdoc Base
     mapping(uint => uint) public override values;
-    //~^ ERROR: resolved NatSpec for variable
+    //~^ ERROR: resolved NatSpec for variable `Child.values`
 }

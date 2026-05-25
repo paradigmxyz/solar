@@ -15,14 +15,14 @@ contract Base {
     //~^ NOTE: @return value The result value
     /// @custom:security Audited by Base team
     //~^ NOTE: @custom:security Audited by Base team
-    function foo(uint x, uint y) public virtual returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function
+    function foo(uint x, uint y) public virtual returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function `Base.foo`
         return (true, x + y);
     }
 }
 
 contract Child1 is Base {
     /// @inheritdoc Base
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function `Child1.foo`
         return (true, x * y);
     }
 }
@@ -33,7 +33,7 @@ contract Child2 is Base {
     /// @dev Child2 dev
     //~^ NOTE: @dev Child2 dev
     /// @inheritdoc Base
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function `Child2.foo`
         return (false, 0);
     }
 }
@@ -42,7 +42,7 @@ contract Child3 is Base {
     /// @param x The x parameter from child3
     //~^ NOTE: @param x The x parameter from child3
     /// @inheritdoc Base
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function `Child3.foo`
         return (true, x);
     }
 }
@@ -51,7 +51,7 @@ contract Child4 is Base {
     /// @return success Child4 override for success
     //~^ NOTE: @return success Child4 override for success
     /// @inheritdoc Base
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function `Child4.foo`
         return (false, x + y);
     }
 }
@@ -60,14 +60,14 @@ contract Child5 is Base {
     /// @custom:audit Reviewed by Child5 auditor
     //~^ NOTE: @custom:audit Reviewed by Child5 auditor
     /// @inheritdoc Base
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function `Child5.foo`
         return (true, y);
     }
 }
 
 contract GrandChild is Child1 {
     /// @inheritdoc Child1
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function
+    function foo(uint x, uint y) public virtual override returns (bool success, uint value) { //~ ERROR: resolved NatSpec for function `GrandChild.foo`
         return (true, x - y);
     }
 }
