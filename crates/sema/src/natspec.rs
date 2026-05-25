@@ -1,4 +1,7 @@
-use crate::{hir, ty::Gcx};
+use crate::{
+    hir,
+    ty::{Gcx, Ty, TyAbiPrinter, TyAbiPrinterMode, TyKind},
+};
 use solar_ast as ast;
 use solar_data_structures::{map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{Ident, Span, Symbol};
@@ -50,7 +53,10 @@ impl TagPermissions {
 pub(crate) fn validate_item_docs(gcx: Gcx<'_>, item_id: hir::ItemId) {
     let doc_id = gcx.hir.item(item_id).doc();
     if !doc_id.is_empty() {
-        let _ = gcx.natspec_doc_comments(doc_id);
+        let docs = gcx.natspec_doc_comments(doc_id);
+        if gcx.sess.opts.unstable.print_natspec {
+            emit_natspec_debug(gcx, doc_id, item_id, docs);
+        }
     }
 }
 
@@ -62,6 +68,38 @@ pub(crate) fn resolve_doc_comments<'gcx>(
         return &[];
     }
     Resolver::new(gcx).resolve_doc(doc_id)
+}
+
+fn emit_natspec_debug(
+    gcx: Gcx<'_>,
+    doc_id: hir::DocId,
+    item_id: hir::ItemId,
+    docs: &[hir::NatSpecItem],
+) {
+    if docs.is_empty() {
+        return;
+    }
+
+    let item = gcx.hir.item(item_id);
+    let item_desc = item.description();
+    let item_name = if item.name().is_some() {
+        format!("`{}`", gcx.item_canonical_name(item_id))
+    } else {
+        "<unnamed>".into()
+    };
+    let mut diag =
+        gcx.dcx().err(format!("resolved NatSpec for {item_desc} {item_name}")).span(item.span());
+    let resolver = Resolver::new(gcx);
+    if let Some((span, inherited_item)) = resolver.find_inheritdoc_target(doc_id) {
+        diag = diag.span_note(
+            span,
+            format!("inherits NatSpec from {}", resolver.format_inherited_item(inherited_item)),
+        );
+    }
+    for item in docs {
+        diag = diag.span_note(item.span, item.to_string());
+    }
+    diag.emit();
 }
 
 struct Resolver<'gcx> {
@@ -450,6 +488,34 @@ impl<'gcx> Resolver<'gcx> {
         self.gcx.arena().alloc_slice_copy(&merged)
     }
 
+    fn find_inheritdoc_target(&self, doc_id: hir::DocId) -> Option<(Span, hir::ItemId)> {
+        let doc = self.gcx.hir.doc(doc_id);
+        for doc_comment in doc.ast_comments.iter() {
+            for item in doc_comment.natspec.iter() {
+                if let ast::NatSpecKind::Inheritdoc { contract } = &item.kind
+                    && let Some(contract_id) =
+                        self.gcx.natspec_contract_in_source((contract.name, doc.source))
+                    && let Some(inherited_item) = self.find_inherited_item(doc.item, contract_id)
+                {
+                    return Some((item.span, inherited_item));
+                }
+            }
+        }
+
+        None
+    }
+
+    fn format_inherited_item(&self, item_id: hir::ItemId) -> String {
+        let item = self.gcx.hir.item(item_id);
+        let mut name = self.gcx.item_canonical_name(item_id).to_string();
+        if let Some(params) = self.item_callable_parameter_types(item_id) {
+            TyAbiPrinter::new(self.gcx, &mut name, TyAbiPrinterMode::Signature)
+                .print_tuple(params.iter().copied())
+                .unwrap();
+        }
+        format!("{} `{name}`", item.description())
+    }
+
     /// Finds the item in a contract that matches the given item (for inheritance).
     fn find_inherited_item(
         &self,
@@ -475,412 +541,44 @@ impl<'gcx> Resolver<'gcx> {
         item_id: hir::ItemId,
         base_item_id: hir::ItemId,
     ) -> bool {
-        match (item_id, base_item_id) {
-            (hir::ItemId::Function(id), hir::ItemId::Function(base_id)) => {
-                let item = self.gcx.hir.function(id);
-                let base = self.gcx.hir.function(base_id);
-                item.kind == base.kind
-                    && self.gcx.item_parameter_types(item_id)
-                        == self.gcx.item_parameter_types(base_item_id)
+        if let Some(item_kind) = self.item_function_kind(item_id)
+            && let Some(base_kind) = self.item_function_kind(base_item_id)
+            && item_kind == base_kind
+        {
+            if !item_kind.is_function() {
+                return true;
             }
-            (hir::ItemId::Variable(_), hir::ItemId::Variable(_)) => true,
-            _ => false,
+
+            if let Some(item_params) = self.item_callable_parameter_types(item_id)
+                && let Some(base_params) = self.item_callable_parameter_types(base_item_id)
+            {
+                return item_params == base_params;
+            }
+        }
+
+        false
+    }
+
+    fn item_function_kind(&self, item_id: hir::ItemId) -> Option<ast::FunctionKind> {
+        match item_id {
+            hir::ItemId::Function(id) => Some(self.gcx.hir.function(id).kind),
+            hir::ItemId::Variable(id) if self.gcx.hir.variable(id).is_public() => {
+                Some(ast::FunctionKind::Function)
+            }
+            _ => None,
         }
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use crate::Compiler;
-    use solar_interface::{ColorChoice, Session, sym};
-    use std::path::PathBuf;
-
-    #[test]
-    fn natspec_inheritdoc_merges_tags() {
-        use crate::hir::NatSpecKind;
-
-        let src = r#"
-contract Base {
-    /**
-     * @notice Base function notice
-     * @dev Base function dev
-     * @param x The x parameter from base
-     * @param y The y parameter from base
-     * @return success Whether the operation succeeded
-     * @return value The result value
-     * @custom:security Audited by Base team
-     **/
-    function foo(uint x, uint y) public virtual returns (bool success, uint value) {
-        return (true, x + y);
-    }
-}
-
-contract Child1 is Base {
-    /// @inheritdoc Base
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
-        return (true, x * y);
-    }
-}
-
-contract Child2 is Base {
-    /// @notice Child2 notice - overrides base
-    /// @dev Child2 dev - overrides base
-    /// @inheritdoc Base
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
-        return (false, 0);
-    }
-}
-
-contract Child3 is Base {
-    /**
-     * @param x The x parameter from child3
-     * @inheritdoc Base
-     **/
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
-        return (true, x);
-    }
-}
-
-contract Child4 is Base {
-    /// @return success Child4 override for success
-    /// @inheritdoc Base
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
-        return (false, x + y);
-    }
-}
-
-contract Child5 is Base {
-    /**
-    * @custom:audit Reviewed by Child5 auditor
-    * @inheritdoc Base
-    **/
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
-        return (true, y);
-    }
-}
-
-contract GrandChild is Child1 {
-    /// @inheritdoc Child1
-    function foo(uint x, uint y) public virtual override returns (bool success, uint value) {
-        return (true, x - y);
-    }
-}
-"#;
-        let compiler = lower_source(src);
-        compiler.enter_sequential(|c| {
-            let gcx = c.gcx();
-
-            let get_comments = |contract_name: &str, func_name: &str| {
-                gcx.hir
-                    .functions()
-                    .find(|f| {
-                        f.contract.is_some_and(|cid| {
-                            gcx.hir.contract(cid).name.as_str() == contract_name
-                                && f.name.is_some_and(|n| n.as_str() == func_name)
-                        })
-                    })
-                    .map(|func| gcx.natspec_doc_comments(func.doc))
-                    .unwrap_or_else(|| panic!("{contract_name}.{func_name} not found"))
-            };
-
-            let base = get_comments("Base", "foo");
-            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Notice)), 1);
-            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Dev)), 1);
-            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Param { .. })), 2);
-            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Return { .. })), 2);
-            assert_eq!(count_tags(base, |k| matches!(k, NatSpecKind::Custom { .. })), 1);
-            assert_tag_contains(
-                base,
-                |k| matches!(k, NatSpecKind::Notice),
-                "Base function notice",
-                "Base @notice",
-            );
-            assert_tag_contains(
-                base,
-                |k| matches!(k, NatSpecKind::Dev),
-                "Base function dev",
-                "Base @dev",
-            );
-            assert_tag_contains(
-                base,
-                |k| matches!(k, NatSpecKind::Param { name } if name.name == sym::x),
-                "x parameter from base",
-                "Base @param x",
-            );
-            assert_tag_contains(
-                base,
-                |k| matches!(k, NatSpecKind::Param { name } if name.name.as_str() == "y"),
-                "y parameter from base",
-                "Base @param y",
-            );
-            assert_tag_contains(
-                base,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "success"),
-                "operation succeeded",
-                "Base @return success",
-            );
-            assert_tag_contains(
-                base,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "value"),
-                "result value",
-                "Base @return value",
-            );
-            assert_tag_contains(
-                base,
-                |k| matches!(k, NatSpecKind::Custom { name } if name.name.as_str() == "security"),
-                "Audited by Base team",
-                "Base @custom:security",
-            );
-
-            let c = get_comments("Child1", "foo");
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Notice)), 1);
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Dev)), 1);
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Param { .. })), 2);
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Return { .. })), 2);
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Custom { .. })), 0);
-
-            let c = get_comments("Child2", "foo");
-            assert_tag_contains(
-                c,
-                |k| matches!(k, NatSpecKind::Notice),
-                "Child2 notice",
-                "Child2 @notice",
-            );
-            assert_tag_contains(
-                c,
-                |k| matches!(k, NatSpecKind::Dev),
-                "Child2 dev",
-                "Child2 @dev",
-            );
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Param { .. })), 2);
-
-            let c = get_comments("Child3", "foo");
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Param { .. })), 1);
-            assert_tag_contains(
-                c,
-                |k| matches!(k, NatSpecKind::Param { name } if name.name == sym::x),
-                "from child3",
-                "Child3 @param x",
-            );
-            assert!(!c.iter().any(
-                |i| matches!(i.kind, NatSpecKind::Param { name } if name.name.as_str() == "y")
-            ));
-
-            let c = get_comments("Child4", "foo");
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Return { .. })), 1);
-            assert_tag_contains(
-                c,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "success"),
-                "Child4 override",
-                "Child4 @return success",
-            );
-            assert!(!c.iter().any(
-                |i| matches!(i.kind, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "value")
-            ));
-
-            let c = get_comments("Child5", "foo");
-            assert_eq!(count_tags(c, |k| matches!(k, NatSpecKind::Custom { .. })), 1);
-            assert!(!c.iter().any(
-                |i| matches!(i.kind, NatSpecKind::Custom { name } if name.name.as_str() == "security")
-            ));
-            assert!(
-                c.iter().any(
-                    |i| matches!(i.kind, NatSpecKind::Custom { name } if name.name.as_str() == "audit")
-                )
-            );
-
-            let g = get_comments("GrandChild", "foo");
-            assert_tag_contains(
-                g,
-                |k| matches!(k, NatSpecKind::Notice),
-                "Base function notice",
-                "GrandChild @notice",
-            );
-            assert_eq!(count_tags(g, |k| matches!(k, NatSpecKind::Param { .. })), 2);
-            assert_eq!(count_tags(g, |k| matches!(k, NatSpecKind::Custom { .. })), 0);
-        });
-    }
-
-    #[test]
-    fn natspec_inheritdoc_matches_overload_signature() {
-        use crate::hir::NatSpecKind;
-
-        let src = r#"
-contract OverloadBase {
-    /// @notice address overload
-    /// @param a address parameter
-    function overloaded(address a) public virtual {}
-
-    /// @notice uint overload
-    /// @param a uint parameter
-    function overloaded(uint a) public virtual {}
-}
-
-contract OverloadChild is OverloadBase {
-    /// @inheritdoc OverloadBase
-    function overloaded(uint a) public override {}
-}
-"#;
-        let compiler = lower_source(src);
-        compiler.enter_sequential(|c| {
-            let overloaded = function_comments(c.gcx(), "OverloadChild", "overloaded");
-            assert_tag_contains(
-                overloaded,
-                |k| matches!(k, NatSpecKind::Notice),
-                "uint overload",
-                "OverloadChild @notice",
-            );
-            assert_tag_contains(
-                overloaded,
-                |k| matches!(k, NatSpecKind::Param { name } if name.name.as_str() == "a"),
-                "uint parameter",
-                "OverloadChild @param a",
-            );
-            assert!(
-                !overloaded.iter().any(|item| item.content().contains("address")),
-                "OverloadChild inherited docs from the wrong overload"
-            );
-        });
-    }
-
-    #[test]
-    fn natspec_public_variable_return_docs() {
-        use crate::hir::NatSpecKind;
-
-        let src = r#"
-contract VariableDocs {
-    /// @return The number of decimals
-    uint8 public decimals;
-}
-"#;
-        let compiler = lower_source(src);
-        compiler.enter_sequential(|c| {
-            let decimals = variable_comments(c.gcx(), "VariableDocs", "decimals");
-            assert_tag_contains(
-                decimals,
-                |k| matches!(k, NatSpecKind::Return { name: None }),
-                "The number of decimals",
-                "VariableDocs.decimals @return",
-            );
-        });
-    }
-
-    #[test]
-    fn natspec_return_docs_resolve_names() {
-        use crate::hir::NatSpecKind;
-
-        let src = r#"
-contract ReturnDocs {
-    /// @return the value
-    function unnamedReturn() public pure returns (uint) {
-        return 1;
-    }
-
-    /// @return result The value
-    function namedReturn() public pure returns (uint result) {
-        return 1;
-    }
-}
-"#;
-        let compiler = lower_source(src);
-        compiler.enter_sequential(|c| {
-            let unnamed = function_comments(c.gcx(), "ReturnDocs", "unnamedReturn");
-            assert_tag_contains(
-                unnamed,
-                |k| matches!(k, NatSpecKind::Return { name: None }),
-                "the value",
-                "ReturnDocs.unnamedReturn @return",
-            );
-
-            let named = function_comments(c.gcx(), "ReturnDocs", "namedReturn");
-            assert_tag_contains(
-                named,
-                |k| matches!(k, NatSpecKind::Return { name: Some(n) } if n.name.as_str() == "result"),
-                "The value",
-                "ReturnDocs.namedReturn @return result",
-            );
-        });
-    }
-
-    fn function_id(
-        gcx: crate::ty::Gcx<'_>,
-        contract_name: &str,
-        func_name: &str,
-    ) -> crate::hir::FunctionId {
-        gcx.hir
-            .functions_enumerated()
-            .find(|(_, f)| {
-                f.contract.is_some_and(|cid| {
-                    gcx.hir.contract(cid).name.as_str() == contract_name
-                        && f.name.is_some_and(|n| n.as_str() == func_name)
-                })
-            })
-            .map(|(id, _)| id)
-            .unwrap_or_else(|| panic!("{contract_name}.{func_name} not found"))
-    }
-
-    fn function_comments<'gcx>(
-        gcx: crate::ty::Gcx<'gcx>,
-        contract_name: &str,
-        func_name: &str,
-    ) -> &'gcx [crate::hir::NatSpecItem] {
-        let id = function_id(gcx, contract_name, func_name);
-        gcx.natspec_doc_comments(gcx.hir.function(id).doc)
-    }
-
-    fn variable_comments<'gcx>(
-        gcx: crate::ty::Gcx<'gcx>,
-        contract_name: &str,
-        var_name: &str,
-    ) -> &'gcx [crate::hir::NatSpecItem] {
-        gcx.hir
-            .variables()
-            .find(|v| {
-                v.contract.is_some_and(|cid| {
-                    gcx.hir.contract(cid).name.as_str() == contract_name
-                        && v.name.is_some_and(|n| n.as_str() == var_name)
-                })
-            })
-            .map(|var| gcx.natspec_doc_comments(var.doc))
-            .unwrap_or_else(|| panic!("{contract_name}.{var_name} not found"))
-    }
-
-    fn lower_source(src: &str) -> Compiler {
-        let sess =
-            Session::builder().with_buffer_emitter(ColorChoice::Never).single_threaded().build();
-        let mut compiler = Compiler::new(sess);
-
-        let _ = compiler.enter_mut(|compiler| -> solar_interface::Result<_> {
-            let mut parsing_context = compiler.parse();
-            let file = compiler
-                .sess()
-                .source_map()
-                .new_source_file(PathBuf::from("test.sol"), src.to_string())
-                .unwrap();
-            parsing_context.add_file(file);
-            parsing_context.parse();
-            let _ = compiler.lower_asts()?;
-            let _ = compiler.analysis()?;
-            Ok(())
-        });
-
-        compiler
-    }
-
-    fn count_tags(
-        comments: &[crate::hir::NatSpecItem],
-        kind: fn(&crate::hir::NatSpecKind) -> bool,
-    ) -> usize {
-        comments.iter().filter(|i| kind(&i.kind)).count()
-    }
-
-    fn assert_tag_contains(
-        comments: &[crate::hir::NatSpecItem],
-        kind_matcher: fn(&crate::hir::NatSpecKind) -> bool,
-        expected_content: &str,
-        msg: &str,
-    ) {
-        let tag = comments.iter().find(|i| kind_matcher(&i.kind)).expect(msg);
-        assert!(tag.content().contains(expected_content), "{}: Got: {}", msg, tag.content());
+    fn item_callable_parameter_types(&self, item_id: hir::ItemId) -> Option<&'gcx [Ty<'gcx>]> {
+        let ty = match item_id {
+            hir::ItemId::Function(id) => self.gcx.type_of_item(id.into()),
+            hir::ItemId::Variable(id) => {
+                let getter_id = self.gcx.hir.variable(id).getter?;
+                self.gcx.type_of_item(getter_id.into())
+            }
+            _ => return None,
+        };
+        let ty = ty.as_externally_callable_function(false, self.gcx);
+        if let TyKind::Fn(fn_ty) = ty.kind { Some(fn_ty.parameters) } else { None }
     }
 }

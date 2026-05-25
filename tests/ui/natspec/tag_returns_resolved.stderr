@@ -1,0 +1,30 @@
+error: resolved NatSpec for function `ReturnDocs.unnamedReturn`
+   ╭▸ ROOT/tests/ui/natspec/tag_returns_resolved.sol:LL:CC
+   │
+LL │ ┏     function unnamedReturn() public pure returns (uint) {
+LL │ ┃         return 1;
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @return the value
+   ╭▸ ROOT/tests/ui/natspec/tag_returns_resolved.sol:LL:CC
+   │
+LL │     /// @return the value
+   ╰╴         ━━━━━━
+
+error: resolved NatSpec for function `ReturnDocs.namedReturn`
+   ╭▸ ROOT/tests/ui/natspec/tag_returns_resolved.sol:LL:CC
+   │
+LL │ ┏     function namedReturn() public pure returns (uint result) {
+LL │ ┃         return 1;
+LL │ ┃     }
+   │ ┗━━━━━┛
+   ╰╴
+note: @return result The value
+   ╭▸ ROOT/tests/ui/natspec/tag_returns_resolved.sol:LL:CC
+   │
+LL │     /// @return result The value
+   ╰╴         ━━━━━━
+
+error: aborting due to 2 previous errors
+

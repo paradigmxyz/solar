@@ -1,0 +1,14 @@
+error: resolved NatSpec for variable `VariableDocs.decimals`
+   ╭▸ ROOT/tests/ui/natspec/tag_variables_resolved.sol:LL:CC
+   │
+LL │     uint8 public decimals;
+   │     ━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: @return The number of decimals
+   ╭▸ ROOT/tests/ui/natspec/tag_variables_resolved.sol:LL:CC
+   │
+LL │     /// @return The number of decimals
+   ╰╴         ━━━━━━
+
+error: aborting due to 1 previous error
+

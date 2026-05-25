@@ -47,6 +47,8 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - **Unit tests**: In source files
 - **UI tests**: In `tests/ui/`, verify compiler output
+- Prefer UI tests over unit tests for end-to-end Solidity behavior, especially
+  diagnostics, semantic analysis, and compiler-output checks.
 - Auxiliary files go in an `auxiliary/` subdirectory next to the UI test that needs
   imports or secondary source files. Do not use `aux/`: Windows rejects it.
 
