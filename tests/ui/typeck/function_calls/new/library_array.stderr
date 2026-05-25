@@ -1,0 +1,8 @@
+error: invalid use of a library name
+   ╭▸ ROOT/tests/ui/typeck/function_calls/new/library_array.sol:LL:CC
+   │
+LL │         new L[](2);
+   ╰╴            ━━━
+
+error: aborting due to 1 previous error
+

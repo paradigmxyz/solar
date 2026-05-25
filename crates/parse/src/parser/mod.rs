@@ -696,7 +696,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             if !sep.trailing_sep_allowed && trailing {
                 let msg = format!("trailing `{sep_kind}` separator is not allowed");
-                self.dcx().err(msg).span(self.prev_token.span).emit();
+                self.dcx().emit_err(self.prev_token.span, msg);
             }
         }
 

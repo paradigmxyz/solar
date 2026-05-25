@@ -3,7 +3,6 @@ use crate::{
     hir,
     ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
-use either::Either;
 use solar_ast::{DataLocation, ElementaryType, StateMutability as SM, Visibility};
 use solar_data_structures::BumpExt;
 use solar_interface::Symbol;
@@ -35,6 +34,7 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Mapping(..) => Default::default(),
         TyKind::Fn(f) => function(gcx, f),
         TyKind::Contract(id) => contract(gcx, id),
+        TyKind::Super(_id) => Default::default(),
         TyKind::Struct(_id) => expected_ref(),
         TyKind::Enum(_id) => Default::default(),
         TyKind::Udvt(_ty, _id) => Default::default(),
@@ -61,6 +61,14 @@ pub(crate) fn native_members<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberList<'
         TyKind::Meta(ty) => meta(gcx, ty),
         TyKind::Err(_guar) => Default::default(),
     })
+}
+
+pub(crate) fn contract_type_members_in_context<'gcx>(
+    gcx: Gcx<'gcx>,
+    id: hir::ContractId,
+    current_contract: hir::ContractId,
+) -> MemberList<'gcx> {
+    gcx.bump().alloc_vec(contract_type(gcx, id, Some(current_contract)))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -196,11 +204,11 @@ fn reference<'gcx>(
                 Member::of_builtin(gcx, Builtin::ArrayLength),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush0,
-                    gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
+                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPush,
-                    gcx.mk_builtin_fn(&[this], SM::NonPayable, &[inner]),
+                    gcx.mk_builtin_fn(&[this, inner], SM::NonPayable, &[]),
                 ),
                 Member::with_attached_builtin(
                     Builtin::ArrayPop,
@@ -219,7 +227,8 @@ fn reference<'gcx>(
 // `Enum.Variant`, `Udvt.wrap`
 fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
-        TyKind::Contract(id) => contract_type(gcx, id),
+        TyKind::Contract(id) => contract_type(gcx, id, None),
+        TyKind::Super(id) => super_type(gcx, id),
         TyKind::Enum(id) => {
             gcx.hir.enumm(id).variants.iter().map(|v| Member::new(v.name, ty)).collect()
         }
@@ -241,40 +250,180 @@ fn type_type<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     }
 }
 
-fn contract_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
+fn contract_type(
+    gcx: Gcx<'_>,
+    id: hir::ContractId,
+    current_contract: Option<hir::ContractId>,
+) -> MemberListOwned<'_> {
     let contract = gcx.hir.contract(id);
-    let is_library = contract.kind.is_library();
-    let functions = if is_library {
-        Either::Left(contract.functions().filter(|&id| {
-            let f = gcx.hir.function(id);
-            f.is_ordinary() && f.visibility >= Visibility::Internal
-        }))
-    } else {
-        Either::Right(gcx.interface_functions(id).iter().map(|f| f.id))
-    };
-    functions
-        .map(|id| {
-            let item = hir::ItemId::from(id);
-            let f = gcx.hir.function(id);
+    let access = ContractTypeAccess::new(gcx, id, current_contract);
+    let mut members = Vec::new();
+
+    match access {
+        ContractTypeAccess::External => {
+            members.extend(gcx.interface_functions(id).iter().map(|f| {
+                let item = hir::ItemId::from(f.id);
+                let ty = declaration_function_ty(gcx, gcx.type_of_item(item));
+                Member::with_res(gcx.item_name(item).name, ty, item)
+            }));
+        }
+        ContractTypeAccess::Library | ContractTypeAccess::DerivingScope { .. } => {
+            members.extend(contract.functions().filter_map(|id| {
+                let ty = contract_type_own_function(gcx, id, access)?;
+                let item = hir::ItemId::from(id);
+                Some(Member::with_res(gcx.item_name(item).name, ty, item))
+            }));
+        }
+    }
+
+    members.extend(contract.items.iter().copied().filter_map(|item| {
+        if matches!(item, hir::ItemId::Function(_))
+            || !contract_type_item_visible(gcx.hir.item(item), access)
+        {
+            return None;
+        }
+        Some(Member::with_res(gcx.item_name(item).name, gcx.type_of_res(item.into()), item))
+    }));
+
+    members
+}
+
+#[derive(Clone, Copy)]
+enum ContractTypeAccess {
+    Library,
+    DerivingScope { same_contract: bool },
+    External,
+}
+
+impl ContractTypeAccess {
+    fn new(gcx: Gcx<'_>, id: hir::ContractId, current_contract: Option<hir::ContractId>) -> Self {
+        let contract = gcx.hir.contract(id);
+        if contract.kind.is_library() {
+            Self::Library
+        } else if let Some(current) = current_contract
+            && gcx.hir.contract(current).linearized_bases.contains(&id)
+        {
+            Self::DerivingScope { same_contract: current == id }
+        } else {
+            Self::External
+        }
+    }
+}
+
+fn contract_type_own_function<'gcx>(
+    gcx: Gcx<'gcx>,
+    id: hir::FunctionId,
+    access: ContractTypeAccess,
+) -> Option<Ty<'gcx>> {
+    let f = gcx.hir.function(id);
+    if !f.is_ordinary() {
+        return None;
+    }
+
+    match access {
+        ContractTypeAccess::Library if f.visibility >= Visibility::Internal => {
             let ty = gcx.type_of_item(id.into());
-            let ty = if is_library && f.visibility >= Visibility::Public {
+            Some(if f.visibility >= Visibility::Public {
                 ty.as_externally_callable_function(true, gcx)
-            } else if is_library {
-                ty
             } else {
-                let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
-                gcx.mk_ty_fn(TyFn {
-                    kind: TyFnKind::Declaration,
-                    parameters: fn_ty.parameters,
-                    returns: fn_ty.returns,
-                    state_mutability: fn_ty.state_mutability,
-                    function_id: fn_ty.function_id,
-                    attached: false,
-                })
+                ty
+            })
+        }
+        ContractTypeAccess::DerivingScope { same_contract }
+            if f.visibility > Visibility::Private && !f.is_getter() =>
+        {
+            let ty = gcx.type_of_item(id.into());
+            Some(
+                if matches!(f.visibility, Visibility::Internal | Visibility::Public)
+                    && f.body.is_some()
+                {
+                    if !same_contract && f.visibility >= Visibility::Public {
+                        internal_function_with_selector(gcx, ty)
+                    } else {
+                        ty
+                    }
+                } else {
+                    declaration_function_ty(gcx, ty)
+                },
+            )
+        }
+        _ => None,
+    }
+}
+
+fn declaration_function_ty<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
+    let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
+    gcx.mk_ty_fn(TyFn {
+        kind: TyFnKind::Declaration,
+        parameters: fn_ty.parameters,
+        returns: fn_ty.returns,
+        state_mutability: fn_ty.state_mutability,
+        function_id: fn_ty.function_id,
+        attached: false,
+    })
+}
+
+fn internal_function_with_selector<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
+    let TyKind::Fn(fn_ty) = ty.kind else { unreachable!() };
+    gcx.mk_ty_fn(TyFn {
+        kind: TyFnKind::InternalWithSelector,
+        parameters: fn_ty.parameters,
+        returns: fn_ty.returns,
+        state_mutability: fn_ty.state_mutability,
+        function_id: fn_ty.function_id,
+        attached: false,
+    })
+}
+
+fn contract_type_item_visible(item: hir::Item<'_, '_>, access: ContractTypeAccess) -> bool {
+    match access {
+        ContractTypeAccess::Library => {
+            item.is_visible_as_library_member() || item.is_visible_via_contract_type_access()
+        }
+        ContractTypeAccess::DerivingScope { .. } => {
+            item.is_visible_via_contract_type_access()
+                || (matches!(item, hir::Item::Variable(_))
+                    && item.visibility() > Visibility::Private)
+        }
+        ContractTypeAccess::External => item.is_visible_via_contract_type_access(),
+    }
+}
+
+fn super_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
+    let mut members = Vec::new();
+    for &base in gcx.hir.contract(id).linearized_bases.iter().skip(1) {
+        for function in gcx.hir.contract(base).functions() {
+            let f = gcx.hir.function(function);
+            if !f.is_ordinary()
+                || f.visibility <= Visibility::Private
+                || f.visibility == Visibility::External
+                || f.body.is_none()
+            {
+                continue;
+            }
+
+            let item = hir::ItemId::from(function);
+            let name = gcx.item_name(item).name;
+            let params = gcx.item_parameter_types(item);
+            // Keep only the most-derived implementation for each override signature.
+            if members.iter().any(|member: &Member<'_>| match member.res {
+                Some(hir::Res::Item(item)) => {
+                    member.name == name && gcx.item_parameter_types(item) == params
+                }
+                _ => false,
+            }) {
+                continue;
+            }
+            let ty = gcx.type_of_item(item);
+            let ty = if f.visibility >= Visibility::Public {
+                internal_function_with_selector(gcx, ty)
+            } else {
+                ty
             };
-            Member::with_res(gcx.item_name(item).name, ty, item)
-        })
-        .collect()
+            members.push(Member::with_res(name, ty, item));
+        }
+    }
+    members
 }
 
 // `type(T)`

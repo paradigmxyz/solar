@@ -634,6 +634,24 @@ impl<'hir> Item<'_, 'hir> {
         }) && self.visibility() != Visibility::External
     }
 
+    /// Returns `true` if the item is visible as a library member.
+    #[inline]
+    pub fn is_visible_as_library_member(self) -> bool {
+        self.visibility() >= Visibility::Internal
+    }
+
+    /// Returns `true` if the item is visible through contract type access.
+    #[inline]
+    pub fn is_visible_via_contract_type_access(self) -> bool {
+        match self {
+            Item::Function(f) => f.is_ordinary() && f.visibility >= Visibility::Public,
+            Item::Struct(_) | Item::Enum(_) | Item::Udvt(_) | Item::Error(_) | Item::Event(_) => {
+                true
+            }
+            Item::Contract(_) | Item::Variable(_) => false,
+        }
+    }
+
     /// Returns `true` if the item is public or external.
     #[inline]
     pub fn is_public(&self) -> bool {

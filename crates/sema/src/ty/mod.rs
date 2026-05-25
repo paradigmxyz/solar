@@ -662,7 +662,7 @@ impl<'gcx> Gcx<'gcx> {
             | hir::ItemId::Udvt(_) => self.type_of_item(id),
             _ => {
                 let msg = "name has to refer to a valid user-defined type";
-                self.mk_ty_err(self.dcx().err(msg).span(span).emit())
+                self.mk_ty_err(self.dcx().emit_err(span, msg))
             }
         }
     }
@@ -693,16 +693,13 @@ impl<'gcx> Gcx<'gcx> {
                 )
                 .unwrap_or_else(|| {
                     self.mk_ty_err(
-                        self.dcx()
-                            .err("integer literal is greater than 2**256")
-                            .span(lit.span)
-                            .emit(),
+                        self.dcx().emit_err(lit.span, "integer literal is greater than 2**256"),
                     )
                 })
             }
-            solar_ast::LitKind::Rational(_) => self.mk_ty_err(
-                self.dcx().err("rational literals are not supported").span(lit.span).emit(),
-            ),
+            solar_ast::LitKind::Rational(_) => {
+                self.mk_ty_err(self.dcx().emit_err(lit.span, "rational literals are not supported"))
+            }
             solar_ast::LitKind::Address(_) => self.types.address,
             solar_ast::LitKind::Bool(_) => self.types.bool,
             &solar_ast::LitKind::Err(guar) => self.mk_ty_err(guar),
@@ -715,9 +712,27 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
-        let native = self.native_members(ty);
+        let native =
+            self.native_members_in_context(ty, contract).unwrap_or_else(|| self.native_members(ty));
         let attached = self.attached_functions(ty, source, contract);
         native.iter().copied().chain(attached)
+    }
+
+    fn native_members_in_context(
+        self,
+        ty: Ty<'gcx>,
+        current_contract: Option<hir::ContractId>,
+    ) -> Option<members::MemberList<'gcx>> {
+        let current_contract = current_contract?;
+        let TyKind::Type(ty) = ty.kind else { return None };
+        let TyKind::Contract(id) = ty.kind else { return None };
+        let contract = self.hir.contract(id);
+        if contract.kind.is_library()
+            || !self.hir.contract(current_contract).linearized_bases.contains(&id)
+        {
+            return None;
+        }
+        Some(self.contract_type_members_in_context((id, current_contract)))
     }
 
     pub(crate) fn for_each_user_operator(
@@ -876,6 +891,8 @@ fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
     if ty == using_ty {
         return true;
     }
+    // HACK: allow attached functions to be called on function declarations. Function type equality
+    // also checks declaration IDs, so this is a quick way to make it work for now.
     if let (TyKind::Fn(a), TyKind::Fn(b)) = (ty.kind, using_ty.kind) {
         return a.kind == b.kind
             && a.parameters == b.parameters
@@ -1015,7 +1032,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                     format!("this type cannot be parameter or return type of a public {kind}")
                 };
                 let span = gcx.hir.variable(var_id).ty.span;
-                result = Err(gcx.dcx().err(msg).span(span).emit());
+                result = Err(gcx.dcx().emit_err(span, msg));
             }
         }
         if result.is_err() {
@@ -1124,7 +1141,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 TyKind::Udvt(ty, id)
             } else {
                 let msg = "the underlying type of UDVTs must be an elementary value type";
-                return gcx.mk_ty_err(gcx.dcx().err(msg).span(udvt.ty.span).emit());
+                return gcx.mk_ty_err(gcx.dcx().emit_err(udvt.ty.span, msg));
             }
         }
         hir::ItemId::Error(id) => {
@@ -1150,7 +1167,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         let s = gcx.hir.strukt(id);
 
         if cd.depth() >= 256 {
-            let guar = gcx.dcx().err("struct is too deeply nested").span(s.span).emit();
+            let guar = gcx.dcx().emit_err(s.span, "struct is too deeply nested");
             return CycleDetectorResult::Break(Either::Left(guar));
         }
 
@@ -1189,13 +1206,21 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         CycleDetectorResult::Break(Either::Left(guar)) => Recursiveness::Infinite(guar),
         CycleDetectorResult::Break(Either::Right(())) => Recursiveness::Recursive,
         CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
-            gcx.dcx().err("recursive struct definition").span(gcx.item_span(id)).emit()
+            gcx.dcx().emit_err(gcx.item_span(id), "recursive struct definition")
         ),
     }
 }
 
 fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
     members::native_members(gcx, ty)
+}
+
+fn contract_type_members_in_context(
+    gcx: _,
+    key: (hir::ContractId, hir::ContractId)
+) -> members::MemberList<'gcx> {
+    let (id, current_contract) = key;
+    members::contract_type_members_in_context(gcx, id, current_contract)
 }
 }
 
@@ -1289,12 +1314,12 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             Some(Transient) => {
                 if mut_specified {
                     let msg = "transient cannot be used as data location for constant or immutable variables";
-                    gcx.dcx().err(msg).span(var.span).emit();
+                    gcx.dcx().emit_err(var.span, msg);
                 }
                 if var.initializer.is_some() {
                     let msg =
                         "initialization of transient storage state variables is not supported";
-                    gcx.dcx().err(msg).span(var.span).emit();
+                    gcx.dcx().emit_err(var.span, msg);
                 }
                 Transient
             }
