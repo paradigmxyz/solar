@@ -235,18 +235,16 @@ impl<'gcx> ParsingContext<'gcx> {
 
             let file = source.file.clone();
             let parent = parent_path(&file);
-            let mut imports = Vec::new();
+            let imports_len = sources[id].imports.len();
             let ast = self.parse_one(&file, arena, |item_id, _, path| {
                 let _guard = debug_span!("resolve_import").entered();
                 let Some(import_file) = self.resolve_import_path(path, parent) else {
                     return;
                 };
-                imports.push((item_id, import_file));
+                sources.add_import(id, item_id, import_file, false);
             });
-            if ast.is_some() {
-                for (import_item_id, import_file) in imports {
-                    sources.add_import(id, import_item_id, import_file, false);
-                }
+            if ast.is_none() {
+                sources[id].imports.truncate(imports_len);
             }
             sources[id].ast = ast;
         }
