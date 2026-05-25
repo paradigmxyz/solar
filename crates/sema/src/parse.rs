@@ -327,7 +327,7 @@ impl<'gcx> ParsingContext<'gcx> {
         }
     }
 
-    /// Parses a single file, calling `import_callback` for every parsed import directive.
+    /// Parses a single file.
     #[instrument(level = "debug", skip_all, fields(file = %file.name.display()))]
     fn parse_one<'ast>(
         &self,
