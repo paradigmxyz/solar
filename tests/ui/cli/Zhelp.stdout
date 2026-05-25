@@ -30,6 +30,9 @@ Options:
       -Zprint-max-storage-sizes
           Print contracts' max storage sizes
 
+      -Zprint-natspec
+          Print resolved `@inheritdoc` NatSpec docs as diagnostics for UI tests
+
       -Ztypeck
           Type check the program. WIP
 

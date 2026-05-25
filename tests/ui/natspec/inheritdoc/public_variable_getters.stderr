@@ -1,0 +1,41 @@
+error: resolved NatSpec for variable `factory`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
+   │
+LL │     address public override factory;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: @notice Base factory notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
+   │
+LL │     /// @notice Base factory notice
+   ╰╴         ━━━━━━
+note: @return The factory address
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
+   │
+LL │     /// @return The factory address
+   ╰╴         ━━━━━━
+
+error: resolved NatSpec for variable `values`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
+   │
+LL │     mapping(uint => uint) public override values;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: @notice Base value notice
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
+   │
+LL │     /// @notice Base value notice
+   ╰╴         ━━━━━━
+note: @param key The key to look up
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
+   │
+LL │     /// @param key The key to look up
+   ╰╴         ━━━━━
+note: @return The stored value
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/public_variable_getters.sol:LL:CC
+   │
+LL │     /// @return The stored value
+   ╰╴         ━━━━━━
+
+error: aborting due to 2 previous errors
+

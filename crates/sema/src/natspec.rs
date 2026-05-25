@@ -1,4 +1,7 @@
-use crate::{hir, ty::Gcx};
+use crate::{
+    hir,
+    ty::{Gcx, Ty, TyKind},
+};
 use solar_ast as ast;
 use solar_data_structures::{map::FxHashSet, smallvec::SmallVec};
 use solar_interface::{Ident, Span, Symbol};
@@ -50,7 +53,16 @@ impl TagPermissions {
 pub(crate) fn validate_item_docs(gcx: Gcx<'_>, item_id: hir::ItemId) {
     let doc_id = gcx.hir.item(item_id).doc();
     if !doc_id.is_empty() {
-        let _ = gcx.natspec_doc_comments(doc_id);
+        let print_natspec = gcx.sess.opts.unstable.print_natspec
+            && gcx.hir.doc(doc_id).ast_comments.iter().any(|doc| {
+                doc.natspec
+                    .iter()
+                    .any(|item| matches!(item.kind, ast::NatSpecKind::Inheritdoc { .. }))
+            });
+        let docs = gcx.natspec_doc_comments(doc_id);
+        if print_natspec {
+            emit_natspec_debug(gcx, item_id, docs);
+        }
     }
 }
 
@@ -62,6 +74,42 @@ pub(crate) fn resolve_doc_comments<'gcx>(
         return &[];
     }
     Resolver::new(gcx).resolve_doc(doc_id)
+}
+
+fn emit_natspec_debug(gcx: Gcx<'_>, item_id: hir::ItemId, docs: &[hir::NatSpecItem]) {
+    if docs.is_empty() {
+        return;
+    }
+
+    let item = gcx.hir.item(item_id);
+    let item_desc = item.description();
+    let item_name = item.name().map_or("<unnamed>".into(), |name| format!("`{}`", name.name));
+    let mut diag =
+        gcx.dcx().err(format!("resolved NatSpec for {item_desc} {item_name}")).span(item.span());
+    for item in docs {
+        diag = diag.span_note(item.span, format_natspec_item(item));
+    }
+    diag.emit();
+}
+
+fn format_natspec_item(item: &hir::NatSpecItem) -> String {
+    let content = item.content();
+    match item.kind {
+        hir::NatSpecKind::Title => format!("@title {content}"),
+        hir::NatSpecKind::Author => format!("@author {content}"),
+        hir::NatSpecKind::Notice => format!("@notice {content}"),
+        hir::NatSpecKind::Dev => format!("@dev {content}"),
+        hir::NatSpecKind::Param { name } => format!("@param {} {content}", name.name),
+        hir::NatSpecKind::Return { name: Some(name) } => {
+            format!("@return {} {content}", name.name)
+        }
+        hir::NatSpecKind::Return { name: None } => format!("@return {content}"),
+        hir::NatSpecKind::Inheritdoc { contract } => {
+            format!("@inheritdoc {} {content}", contract.name)
+        }
+        hir::NatSpecKind::Custom { name } => format!("@custom:{} {content}", name.name),
+        hir::NatSpecKind::Internal { tag } => format!("@{tag} {content}", tag = tag.name),
+    }
 }
 
 struct Resolver<'gcx> {
@@ -475,17 +523,45 @@ impl<'gcx> Resolver<'gcx> {
         item_id: hir::ItemId,
         base_item_id: hir::ItemId,
     ) -> bool {
-        match (item_id, base_item_id) {
-            (hir::ItemId::Function(id), hir::ItemId::Function(base_id)) => {
-                let item = self.gcx.hir.function(id);
-                let base = self.gcx.hir.function(base_id);
-                item.kind == base.kind
-                    && self.gcx.item_parameter_types(item_id)
-                        == self.gcx.item_parameter_types(base_item_id)
+        if let Some(item_kind) = self.item_function_kind(item_id)
+            && let Some(base_kind) = self.item_function_kind(base_item_id)
+            && item_kind == base_kind
+        {
+            if !item_kind.is_function() {
+                return true;
             }
-            (hir::ItemId::Variable(_), hir::ItemId::Variable(_)) => true,
-            _ => false,
+
+            if let Some(item_params) = self.item_callable_parameter_types(item_id)
+                && let Some(base_params) = self.item_callable_parameter_types(base_item_id)
+            {
+                return item_params == base_params;
+            }
         }
+
+        false
+    }
+
+    fn item_function_kind(&self, item_id: hir::ItemId) -> Option<ast::FunctionKind> {
+        match item_id {
+            hir::ItemId::Function(id) => Some(self.gcx.hir.function(id).kind),
+            hir::ItemId::Variable(id) if self.gcx.hir.variable(id).is_public() => {
+                Some(ast::FunctionKind::Function)
+            }
+            _ => None,
+        }
+    }
+
+    fn item_callable_parameter_types(&self, item_id: hir::ItemId) -> Option<&'gcx [Ty<'gcx>]> {
+        let ty = match item_id {
+            hir::ItemId::Function(id) => self.gcx.type_of_item(id.into()),
+            hir::ItemId::Variable(id) => {
+                let getter_id = self.gcx.hir.variable(id).getter?;
+                self.gcx.type_of_item(getter_id.into())
+            }
+            _ => return None,
+        };
+        let ty = ty.as_externally_callable_function(false, self.gcx);
+        if let TyKind::Fn(fn_ty) = ty.kind { Some(fn_ty.parameters) } else { None }
     }
 }
 
