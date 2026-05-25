@@ -38,9 +38,8 @@ bitflags::bitflags! {
 impl TagPermissions {
     fn from_item_id(item_id: hir::ItemId) -> Self {
         match item_id {
-            hir::ItemId::Contract(_) | hir::ItemId::Struct(_) | hir::ItemId::Enum(_) => {
-                Self::TITLE_AUTHOR | Self::RETURN
-            }
+            hir::ItemId::Contract(_) | hir::ItemId::Enum(_) => Self::TITLE_AUTHOR | Self::RETURN,
+            hir::ItemId::Struct(_) => Self::TITLE_AUTHOR | Self::PARAM | Self::RETURN,
             hir::ItemId::Function(_) => Self::PARAM | Self::INHERITDOC | Self::RETURN,
             hir::ItemId::Variable(_) => Self::INHERITDOC | Self::RETURN,
             hir::ItemId::Event(_) => Self::PARAM,
@@ -220,6 +219,11 @@ impl<'gcx> Resolver<'gcx> {
                     NatSpecKind::Param { name } => {
                         if !permissions.contains(TagPermissions::PARAM) {
                             self.emit_forbidden_tag_error("@param", tag_span, item_id);
+                            continue;
+                        }
+
+                        if matches!(item_id, hir::ItemId::Struct(_)) {
+                            local_tags.push(*natspec);
                             continue;
                         }
 
