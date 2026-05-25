@@ -22,6 +22,8 @@ mod yul;
 /// Maximum allowed recursive descent depth for selected parser entry points.
 const PARSER_RECURSION_LIMIT: usize = 128;
 
+type ImportCallback<'cb> = dyn FnMut(ast::ItemId, Span, &ast::StrLit) + 'cb;
+
 /// Solidity and Yul parser.
 ///
 /// # Examples
@@ -31,8 +33,6 @@ const PARSER_RECURSION_LIMIT: usize = 128;
 /// # fn main() {}
 #[doc = include_str!("../../doc-examples/parser.rs")]
 /// ```
-type ImportCallback<'cb> = dyn FnMut(ast::ItemId, Span, ast::StrLit) + 'cb;
-
 pub struct Parser<'sess, 'ast, 'cb> {
     /// The parser session.
     pub sess: &'sess Session,
@@ -166,7 +166,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Sets the import callback.
     pub fn set_import_callback(
         &mut self,
-        import_callback: impl FnMut(ast::ItemId, Span, ast::StrLit) + 'cb,
+        import_callback: impl FnMut(ast::ItemId, Span, &ast::StrLit) + 'cb,
     ) {
         self.import_callback = Some(std::boxed::Box::new(import_callback));
     }
