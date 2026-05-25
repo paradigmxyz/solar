@@ -16,8 +16,6 @@ use solar_parse::{Lexer, Parser, unescape};
 use std::{fmt, path::Path, sync::Arc};
 use thread_local::ThreadLocal;
 
-type ParseImportCallback<'a> = &'a mut dyn FnMut(ast::ItemId, Span, &ast::StrLit);
-
 /// Builder for parsing sources into a [`Compiler`](crate::Compiler).
 ///
 /// Created from [`CompilerRef::parse`](crate::CompilerRef::parse).
@@ -238,18 +236,13 @@ impl<'gcx> ParsingContext<'gcx> {
             let file = source.file.clone();
             let parent = parent_path(&file);
             let mut imports = Vec::new();
-            let mut import_callback = |item_id, _, path: &ast::StrLit| {
+            let ast = self.parse_one(&file, arena, |item_id, _, path| {
                 let _guard = debug_span!("resolve_import").entered();
                 let Some(import_file) = self.resolve_import_path(path, parent) else {
                     return;
                 };
                 imports.push((item_id, import_file));
-            };
-            let ast = self.parse_one(
-                &file,
-                arena,
-                self.resolve_imports.then_some(&mut import_callback as ParseImportCallback<'_>),
-            );
+            });
             if ast.is_some() {
                 for (import_item_id, import_file) in imports {
                     sources.add_import(id, import_item_id, import_file, false);
@@ -300,7 +293,7 @@ impl<'gcx> ParsingContext<'gcx> {
     ) {
         let mut imports = Vec::new();
         let parent = parent_path(&file);
-        let mut import_callback = |item_id, _, path: &ast::StrLit| {
+        let ast = self.parse_one(&file, arenas.get_or_default(), |item_id, _, path| {
             let _guard = debug_span!("resolve_import").entered();
             let Some(import_file) = self.resolve_import_path(path, parent) else {
                 return;
@@ -314,12 +307,7 @@ impl<'gcx> ParsingContext<'gcx> {
             if is_new {
                 self.spawn_parse_job(lock, import_id, import_file, arenas, scope);
             }
-        };
-        let ast = self.parse_one(
-            &file,
-            arenas.get_or_default(),
-            self.resolve_imports.then_some(&mut import_callback as ParseImportCallback<'_>),
-        );
+        });
 
         // Set AST and add imports.
         let _guard = debug_span!("add_imports").entered();
@@ -339,14 +327,12 @@ impl<'gcx> ParsingContext<'gcx> {
         &self,
         file: &SourceFile,
         arena: &'ast ast::Arena,
-        import_callback: Option<ParseImportCallback<'_>>,
+        import_callback: impl FnMut(ast::ItemId, Span, &ast::StrLit),
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
-        if let Some(import_callback) = import_callback {
-            parser.set_import_callback(move |item_id, span, path| {
-                import_callback(item_id, span, path);
-            });
+        if self.resolve_imports {
+            parser.set_import_callback(import_callback);
         }
         if self.sess.opts.language.is_yul() {
             let _file = parser.parse_yul_file_object().map_err(|e| e.emit());
