@@ -31,7 +31,7 @@ const PARSER_RECURSION_LIMIT: usize = 128;
 /// # fn main() {}
 #[doc = include_str!("../../doc-examples/parser.rs")]
 /// ```
-pub struct Parser<'sess, 'ast> {
+pub struct Parser<'sess, 'ast, 'cb> {
     /// The parser session.
     pub sess: &'sess Session,
     /// The arena where the AST nodes are allocated.
@@ -60,6 +60,10 @@ pub struct Parser<'sess, 'ast> {
 
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
+    /// Callback invoked after a top-level import directive is parsed.
+    #[allow(clippy::type_complexity)]
+    import_callback:
+        Option<std::boxed::Box<dyn FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -137,7 +141,7 @@ pub enum Recovered {
     Yes,
 }
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Creates a new parser.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
         assert!(sess.is_entered(), "session should be entered before parsing");
@@ -153,9 +157,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             in_yul: false,
             in_contract: false,
             recursion_depth: 0,
+            import_callback: None,
         };
         parser.bump();
         parser
+    }
+
+    /// Sets the import callback.
+    pub fn set_import_callback(
+        &mut self,
+        import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb,
+    ) {
+        self.import_callback = Some(std::boxed::Box::new(import_callback));
     }
 
     /// Creates a new parser from a source code string.
@@ -847,7 +860,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 }
 
 /// Common parsing methods.
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Provides a spanned parser.
     #[track_caller]
     pub fn parse_spanned<T>(
@@ -1211,6 +1224,42 @@ mod tests {
             let actual = &symbol.as_str()[item.content_start as usize..item.content_end as usize];
             assert_eq!(actual.trim(), expected.trim());
         }
+    }
+
+    #[test]
+    fn parse_file_import_callback() {
+        let src = r#"
+import "a.sol";
+contract C {}
+import * as B from "b.sol";
+"#;
+
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = ast::Arena::new();
+            let mut imports = Vec::new();
+            let mut parser =
+                Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                    .expect("failed to create parser");
+
+            parser.set_import_callback(|id, span, import| {
+                imports.push((id, span, import.path.value.as_str().to_string()));
+            });
+            let ast = parser.parse_file().expect("failed to parse file");
+            drop(parser);
+
+            assert_eq!(ast.items.len(), 3);
+            assert_eq!(imports.len(), 2);
+            assert_eq!(imports[0].0, ast::ItemId::new(0));
+            assert_eq!(imports[0].2, "a.sol");
+            assert_eq!(imports[1].0, ast::ItemId::new(2));
+            assert_eq!(imports[1].2, "b.sol");
+            assert_eq!(
+                sess.source_map().span_to_snippet(imports[0].1).unwrap(),
+                r#"import "a.sol";"#
+            );
+        });
     }
 
     #[test]

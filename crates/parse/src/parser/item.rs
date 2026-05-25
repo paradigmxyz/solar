@@ -5,7 +5,7 @@ use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_interface::{Ident, Span, Spanned, diagnostics::DiagMsg, error_code, kw, sym};
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a source unit.
     #[instrument(level = "debug", skip_all)]
     pub fn parse_file(&mut self) -> PResult<'sess, SourceUnit<'ast>> {
@@ -40,6 +40,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 let (_, note) = get_msg_note(self);
                 self.dcx().emit_err_note(item.span, msg, note);
             } else {
+                if let Some(callback) = &mut self.import_callback
+                    && let ItemKind::Import(import) = &item.kind
+                {
+                    callback(ItemId::new(items.len()), item.span, import);
+                }
                 items.push(item);
             }
         }
@@ -978,14 +983,14 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     }
 }
 
-struct SemverVersionParser<'p, 'sess, 'ast> {
-    p: &'p mut Parser<'sess, 'ast>,
+struct SemverVersionParser<'p, 'sess, 'ast, 'cb> {
+    p: &'p mut Parser<'sess, 'ast, 'cb>,
     bumps: u32,
     pos_inside: u32,
 }
 
-impl<'p, 'sess, 'ast> SemverVersionParser<'p, 'sess, 'ast> {
-    fn new(p: &'p mut Parser<'sess, 'ast>) -> Self {
+impl<'p, 'sess, 'ast, 'cb> SemverVersionParser<'p, 'sess, 'ast, 'cb> {
+    fn new(p: &'p mut Parser<'sess, 'ast, 'cb>) -> Self {
         Self { p, bumps: 0, pos_inside: 0 }
     }
 

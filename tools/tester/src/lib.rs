@@ -205,6 +205,13 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         Spanned::dummy(is_check_fail || has_annotations).into();
     let code = if is_check_fail || (has_annotations && src.contains("ERROR:")) { 1 } else { 0 };
     config.comment_defaults.base().exit_status = Spanned::dummy(code).into();
+
+    if src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@compile-flags:") && (line.contains("-j") || line.contains("--threads"))
+    }) {
+        config.program.args.retain(|arg| arg != "-j1");
+    }
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.
