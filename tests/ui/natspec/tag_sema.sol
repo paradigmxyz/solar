@@ -23,6 +23,8 @@ contract ValidItems {
     /// @title User information
     /// @notice Contains user data
     /// @dev Stored in mapping
+    /// @param addr User address
+    /// @param balance User balance
     struct User {
         address addr;
         uint balance;
@@ -100,4 +102,13 @@ contract InvalidParamName {
     /// @param y Invalid parameter name
     //~^ ERROR: tag `@param` references non-existent parameter 'y'
     function foo(uint x) public {}
+}
+
+contract StructParamDocs {
+    /// @param value Valid field name
+    /// @param value Duplicate struct field docs are accepted for solc compatibility
+    /// @param missing Unknown struct field docs are accepted for solc compatibility
+    struct User {
+        uint value;
+    }
 }
