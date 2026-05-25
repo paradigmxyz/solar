@@ -54,6 +54,30 @@ error: type `struct C.WithMapping calldata` is only valid in storage because it 
 LL │     function g(WithMapping calldata w) internal {}
    ╰╴               ━━━━━━━━━━━━━━━━━━━━━━
 
+error: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     function tooLargeMemory(uint[85678901234] memory a) public pure {}
+   ╰╴                            ━━━━━━━━━━━━━━━━━
+
+error: type too large for memory
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     function justTooLargeMemory(uint[134217728] memory a) public pure {}
+   ╰╴                                ━━━━━━━━━━━━━━━
+
+error: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     function tooLargeCalldata(uint[85678901234] calldata a) external pure {}
+   ╰╴                              ━━━━━━━━━━━━━━━━━
+
+error: type too large for calldata
+   ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
+   │
+LL │     function justTooLargeCalldata(uint[134217728] calldata a) external pure {}
+   ╰╴                                  ━━━━━━━━━━━━━━━
+
 error: uninitialized mapping
    ╭▸ ROOT/tests/ui/typeck/var_decl_rules.sol:LL:CC
    │
@@ -62,5 +86,5 @@ LL │         mapping(uint => uint) storage s;
    │
    ╰ note: mappings cannot be created dynamically, you have to assign them from a state variable
 
-error: aborting due to 10 previous errors
+error: aborting due to 14 previous errors
 
