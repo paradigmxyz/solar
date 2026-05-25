@@ -1064,12 +1064,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 for expr in exprs {
                     let ty = self.check_expr_once(expr);
                     if !valid_string_concat_arg(ty) {
-                        result = result.and(Err(self
-                            .dcx()
-                            .err("`string.concat` arguments must be strings")
-                            .span(expr.span)
-                            .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
-                            .emit()));
+                        result = result.and(Err(self.dcx().emit_err_label(
+                            expr.span,
+                            "`string.concat` arguments must be strings",
+                            expr.span,
+                            format!("found `{}`", ty.display(self.gcx)),
+                        )));
                     }
                 }
                 result
@@ -1079,12 +1079,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 for expr in exprs {
                     let ty = self.check_expr_once(expr);
                     if !valid_bytes_concat_arg(ty) {
-                        result = result.and(Err(self
-                            .dcx()
-                            .err("`bytes.concat` arguments must be bytes or fixed bytes")
-                            .span(expr.span)
-                            .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
-                            .emit()));
+                        result = result.and(Err(self.dcx().emit_err_label(
+                            expr.span,
+                            "`bytes.concat` arguments must be bytes or fixed bytes",
+                            expr.span,
+                            format!("found `{}`", ty.display(self.gcx)),
+                        )));
                     }
                 }
                 result
@@ -1124,21 +1124,21 @@ impl<'gcx> TypeChecker<'gcx> {
                 continue;
             }
             if is_packed && !type_supported_by_old_abi_encoder(ty) {
-                result = result.and(Err(self
-                    .dcx()
-                    .err("type not supported in packed mode")
-                    .span(expr.span)
-                    .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
-                    .emit()));
+                result = result.and(Err(self.dcx().emit_err_label(
+                    expr.span,
+                    "type not supported in packed mode",
+                    expr.span,
+                    format!("found `{}`", ty.display(self.gcx)),
+                )));
                 continue;
             }
             if !valid_abi_encodable_arg(ty, self.gcx) {
-                result = result.and(Err(self
-                    .dcx()
-                    .err(format!("`{}` argument cannot be ABI-encoded", builtin.name()))
-                    .span(expr.span)
-                    .span_label(expr.span, format!("found `{}`", ty.display(self.gcx)))
-                    .emit()));
+                result = result.and(Err(self.dcx().emit_err_label(
+                    expr.span,
+                    format!("`{}` argument cannot be ABI-encoded", builtin.name()),
+                    expr.span,
+                    format!("found `{}`", ty.display(self.gcx)),
+                )));
             }
         }
         result
@@ -1151,15 +1151,15 @@ impl<'gcx> TypeChecker<'gcx> {
         exprs: &'gcx [hir::Expr<'gcx>],
     ) -> Result<(), ErrorGuaranteed> {
         let [function, arguments] = exprs else {
-            return Err(self
-                .dcx()
-                .err(format!(
+            return Err(self.dcx().emit_err_label(
+                call_span,
+                format!(
                     "wrong argument count for function call: {} arguments given but expected 2",
                     exprs.len()
-                ))
-                .span(call_span)
-                .span_label(args_span, format!("expected 2 arguments, found {}", exprs.len()))
-                .emit());
+                ),
+                args_span,
+                format!("expected 2 arguments, found {}", exprs.len()),
+            ));
         };
 
         let function_ty = self.check_abi_encode_call_function_arg(function)?;
@@ -1168,14 +1168,13 @@ impl<'gcx> TypeChecker<'gcx> {
         let arguments_ty = self.check_expr_once(arguments);
         let TyKind::Tuple(_) = arguments_ty.kind else {
             if function_ty.parameters.len() != 1 {
-                result = result.and(Err(self
-                    .dcx()
-                    .err(format!(
+                result = result.and(Err(self.dcx().emit_err(
+                    arguments.span,
+                    format!(
                         "wrong argument count for `abi.encodeCall`: 1 argument given but expected {}",
                         function_ty.parameters.len()
-                    ))
-                    .span(arguments.span)
-                    .emit()));
+                    ),
+                )));
             }
             if let Some(&expected) = function_ty.parameters.first() {
                 result = result.and(self.check_expected(arguments, arguments_ty, expected));
@@ -1184,24 +1183,22 @@ impl<'gcx> TypeChecker<'gcx> {
         };
 
         let hir::ExprKind::Tuple(components) = arguments.kind else {
-            return Err(self
-                .dcx()
-                .err("second argument to `abi.encodeCall` must be an inline tuple")
-                .span(arguments.span)
-                .emit());
+            return Err(self.dcx().emit_err(
+                arguments.span,
+                "second argument to `abi.encodeCall` must be an inline tuple",
+            ));
         };
 
         let has_empty_component = components.iter().any(|component| component.is_none());
         if !has_empty_component && components.len() != function_ty.parameters.len() {
-            result = result.and(Err(self
-                .dcx()
-                .err(format!(
+            result = result.and(Err(self.dcx().emit_err(
+                arguments.span,
+                format!(
                     "wrong argument count for `abi.encodeCall`: {} arguments given but expected {}",
                     components.len(),
                     function_ty.parameters.len()
-                ))
-                .span(arguments.span)
-                .emit()));
+                ),
+            )));
         }
 
         for (component, &expected) in components.iter().zip(function_ty.parameters) {
@@ -1226,30 +1223,30 @@ impl<'gcx> TypeChecker<'gcx> {
             {
                 Ok(function_ty)
             }
-            TyKind::Fn(function_ty) => Err(self
-                .dcx()
-                .err(abi_encode_call_function_kind_message(function_ty.kind))
-                .span(function.span)
-                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
-                .emit()),
-            TyKind::Event(..) => Err(self
-                .dcx()
-                .err("first argument to `abi.encodeCall` cannot be an event")
-                .span(function.span)
-                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
-                .emit()),
-            TyKind::Error(..) => Err(self
-                .dcx()
-                .err("first argument to `abi.encodeCall` cannot be an error")
-                .span(function.span)
-                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
-                .emit()),
-            _ => Err(self
-                .dcx()
-                .err("first argument to `abi.encodeCall` must be a function")
-                .span(function.span)
-                .span_label(function.span, format!("found `{}`", ty.display(self.gcx)))
-                .emit()),
+            TyKind::Fn(function_ty) => Err(self.dcx().emit_err_label(
+                function.span,
+                abi_encode_call_function_kind_message(function_ty.kind),
+                function.span,
+                format!("found `{}`", ty.display(self.gcx)),
+            )),
+            TyKind::Event(..) => Err(self.dcx().emit_err_label(
+                function.span,
+                "first argument to `abi.encodeCall` cannot be an event",
+                function.span,
+                format!("found `{}`", ty.display(self.gcx)),
+            )),
+            TyKind::Error(..) => Err(self.dcx().emit_err_label(
+                function.span,
+                "first argument to `abi.encodeCall` cannot be an error",
+                function.span,
+                format!("found `{}`", ty.display(self.gcx)),
+            )),
+            _ => Err(self.dcx().emit_err_label(
+                function.span,
+                "first argument to `abi.encodeCall` must be a function",
+                function.span,
+                format!("found `{}`", ty.display(self.gcx)),
+            )),
         }
     }
 
@@ -1305,9 +1302,7 @@ impl<'gcx> TypeChecker<'gcx> {
             if seen_names.contains(&arg_name) {
                 result = result.and(Err(self
                     .dcx()
-                    .err(format!("duplicate named argument `{arg_name}`"))
-                    .span(arg.name.span)
-                    .emit()));
+                    .emit_err(arg.name.span, format!("duplicate named argument `{arg_name}`"))));
                 let _ = self.check_expr_once(&arg.value);
                 continue;
             }
@@ -1316,11 +1311,10 @@ impl<'gcx> TypeChecker<'gcx> {
             if let Some(kind) = abi_decode_arg_kind(arg_name) {
                 result = result.and(self.check_abi_decode_arg(kind, &arg.value));
             } else {
-                result = result.and(Err(self
-                    .dcx()
-                    .err(format!("named argument `{arg_name}` does not match function declaration"))
-                    .span(arg.name.span)
-                    .emit()));
+                result = result.and(Err(self.dcx().emit_err(
+                    arg.name.span,
+                    format!("named argument `{arg_name}` does not match function declaration"),
+                )));
                 let _ = self.check_expr_once(&arg.value);
             }
         }
@@ -1338,14 +1332,14 @@ impl<'gcx> TypeChecker<'gcx> {
         if found == expected {
             return Ok(());
         }
-        Err(self
-            .dcx()
-            .err(format!(
+        Err(self.dcx().emit_err_label(
+            call_span,
+            format!(
                 "wrong argument count for function call: {found} arguments given but expected {expected}"
-            ))
-            .span(call_span)
-            .span_label(args_span, format!("expected {expected} arguments, found {found}"))
-            .emit())
+            ),
+            args_span,
+            format!("expected {expected} arguments, found {found}"),
+        ))
     }
 
     fn check_abi_decode_arg(
@@ -1369,11 +1363,10 @@ impl<'gcx> TypeChecker<'gcx> {
         if matches!(types.kind, hir::ExprKind::Tuple(_)) {
             Ok(())
         } else {
-            Err(self
-                .dcx()
-                .err("the second argument to `abi.decode` must be a tuple of types")
-                .span(types.span)
-                .emit())
+            Err(self.dcx().emit_err(
+                types.span,
+                "the second argument to `abi.decode` must be a tuple of types",
+            ))
         }
     }
 
@@ -1400,11 +1393,10 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn abi_decode_types(&mut self, expr: &'gcx hir::Expr<'gcx>) -> &'gcx [Ty<'gcx>] {
         let hir::ExprKind::Tuple(type_exprs) = expr.kind else {
-            let guar = self
-                .dcx()
-                .err("the second argument to `abi.decode` must be a tuple of types")
-                .span(expr.span)
-                .emit();
+            let guar = self.dcx().emit_err(
+                expr.span,
+                "the second argument to `abi.decode` must be a tuple of types",
+            );
             return self.gcx.mk_tys(&[self.gcx.mk_ty_err(guar)]);
         };
 
@@ -1413,9 +1405,7 @@ impl<'gcx> TypeChecker<'gcx> {
             let Some(type_expr) = type_expr else {
                 let guar = self
                     .dcx()
-                    .err("`abi.decode` type tuple components cannot be empty")
-                    .span(expr.span)
-                    .emit();
+                    .emit_err(expr.span, "`abi.decode` type tuple components cannot be empty");
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             };
@@ -1423,9 +1413,7 @@ impl<'gcx> TypeChecker<'gcx> {
             let TyKind::Type(ty) = ty.kind else {
                 let guar = self
                     .dcx()
-                    .err("`abi.decode` type tuple components must be types")
-                    .span(type_expr.span)
-                    .emit();
+                    .emit_err(type_expr.span, "`abi.decode` type tuple components must be types");
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             };
@@ -1434,12 +1422,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 ty = self.gcx.types.address_payable;
             }
             if !valid_abi_decodable_type(ty, self.gcx) {
-                let guar = self
-                    .dcx()
-                    .err("decoding type not supported")
-                    .span(type_expr.span)
-                    .span_label(type_expr.span, format!("found `{}`", ty.display(self.gcx)))
-                    .emit();
+                let guar = self.dcx().emit_err_label(
+                    type_expr.span,
+                    "decoding type not supported",
+                    type_expr.span,
+                    format!("found `{}`", ty.display(self.gcx)),
+                );
                 tys.push(self.gcx.mk_ty_err(guar));
                 continue;
             }
@@ -1913,11 +1901,10 @@ impl<'gcx> TypeChecker<'gcx> {
         param_names: Option<ParamNamesSource>,
     ) -> Result<(), ErrorGuaranteed> {
         let Some(param_names) = param_names else {
-            let guar = self
-                .dcx()
-                .err("named arguments cannot be used for functions that take arbitrary parameters")
-                .span(args_span)
-                .emit();
+            let guar = self.dcx().emit_err(
+                args_span,
+                "named arguments cannot be used for functions that take arbitrary parameters",
+            );
             for arg in named_args {
                 let _ = self.check_expr(&arg.value);
             }
