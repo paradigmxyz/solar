@@ -1,0 +1,8 @@
+error: expected function name
+   ╭▸ ROOT/tests/ui/using-for/overloads/braced_free_overload_rejected.sol:LL:CC
+   │
+LL │ using {f} for uint256;
+   ╰╴       ━
+
+error: aborting due to 1 previous error
+

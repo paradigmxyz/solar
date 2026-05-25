@@ -1,0 +1,16 @@
+error: function `zero` does not have any parameters and therefore cannot be attached
+   ╭▸ ROOT/tests/ui/using-for/invalid/free_no_parameters.sol:LL:CC
+   │
+LL │     using {zero} for uint256;
+   │            ━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/invalid/free_no_parameters.sol:LL:CC
+   │
+LL │ ┏ function zero() pure returns (uint256) {
+LL │ ┃     return 0;
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 1 previous error
+

@@ -1,11 +1,9 @@
 //! Statement lowering.
 
 use super::{LoopContext, Lowerer};
-use crate::mir::{BlockId, FunctionBuilder, MirType, Value, ValueId};
+use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
-use rustc_hash::FxHashMap;
-use solar_interface::{Symbol, kw};
-use solar_sema::hir::{self, StmtKind, yul as hir_yul};
+use solar_sema::hir::{self, StmtKind};
 
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers a block of statements.
@@ -49,6 +47,10 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_loop(builder, block, *source);
             }
 
+            StmtKind::Switch(switch) => {
+                self.lower_switch(builder, switch);
+            }
+
             StmtKind::Return(value) => {
                 self.lower_return(builder, *value);
             }
@@ -85,743 +87,13 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_block(builder, block);
             }
 
-            StmtKind::Assembly(assembly) => {
-                self.lower_yul_block(builder, &assembly.block);
+            StmtKind::AssemblyBlock(block) => {
+                self.lower_block(builder, block);
             }
 
             StmtKind::Err(_) => {}
         }
     }
-
-    fn lower_yul_block(&mut self, builder: &mut FunctionBuilder<'_>, block: &hir_yul::Block<'_>) {
-        self.enter_yul_scope();
-        for stmt in block.stmts {
-            self.lower_yul_stmt(builder, stmt);
-            if builder.func().block(builder.current_block()).is_terminated() {
-                break;
-            }
-        }
-        self.exit_yul_scope();
-    }
-
-    fn lower_yul_stmt(&mut self, builder: &mut FunctionBuilder<'_>, stmt: &hir_yul::Stmt<'_>) {
-        match &stmt.kind {
-            hir_yul::StmtKind::Block(block) => self.lower_yul_block(builder, block),
-            hir_yul::StmtKind::AssignSingle(path, expr) => {
-                let value = self.lower_yul_expr(builder, expr);
-                self.assign_yul_path(builder, path, value);
-            }
-            hir_yul::StmtKind::Expr(expr) => {
-                let _ = self.lower_yul_expr(builder, expr);
-            }
-            hir_yul::StmtKind::If(cond, body) => self.lower_yul_if(builder, cond, body),
-            hir_yul::StmtKind::VarDecl(names, init) => {
-                if names.len() != 1 {
-                    self.unsupported_yul_stmt(builder, stmt, "multiple variable declaration");
-                    return;
-                }
-                let value = init.map(|expr| self.lower_yul_expr(builder, expr));
-                for name in *names {
-                    let value = value.unwrap_or_else(|| builder.imm_u64(0));
-                    self.declare_yul_variable(name.name, value);
-                }
-            }
-            hir_yul::StmtKind::AssignMulti(_, _) => {
-                self.unsupported_yul_stmt(builder, stmt, "multiple assignment");
-            }
-            hir_yul::StmtKind::For(_) => self.unsupported_yul_stmt(builder, stmt, "for statement"),
-            hir_yul::StmtKind::Switch(_) => {
-                self.unsupported_yul_stmt(builder, stmt, "switch statement");
-            }
-            hir_yul::StmtKind::Leave => self.unsupported_yul_stmt(builder, stmt, "leave statement"),
-            hir_yul::StmtKind::Break => self.unsupported_yul_stmt(builder, stmt, "break statement"),
-            hir_yul::StmtKind::Continue => {
-                self.unsupported_yul_stmt(builder, stmt, "continue statement");
-            }
-            hir_yul::StmtKind::FunctionDef(_) => {
-                self.unsupported_yul_stmt(builder, stmt, "function definition");
-            }
-        }
-    }
-
-    fn lower_yul_if(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        cond: &hir_yul::Expr<'_>,
-        body: &hir_yul::Block<'_>,
-    ) {
-        let before_scopes = self.yul_scopes.clone();
-        let cond_block = builder.current_block();
-        let then_block = builder.create_block();
-        let cont_block = builder.create_block();
-        let cond = self.lower_yul_expr(builder, cond);
-        builder.branch(cond, then_block, cont_block);
-
-        builder.switch_to_block(then_block);
-        self.lower_yul_block(builder, body);
-        let then_exit = builder.current_block();
-        let then_reaches_cont = !builder.func().block(then_exit).is_terminated();
-        let then_scopes = self.yul_scopes.clone();
-        if then_reaches_cont {
-            builder.jump(cont_block);
-        }
-
-        builder.switch_to_block(cont_block);
-        if then_reaches_cont {
-            self.merge_yul_if_scopes(builder, cond_block, then_exit, before_scopes, then_scopes);
-        } else {
-            self.yul_scopes = before_scopes;
-        }
-    }
-
-    fn lower_yul_expr(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        expr: &hir_yul::Expr<'_>,
-    ) -> ValueId {
-        match &expr.kind {
-            hir_yul::ExprKind::Path(path) => self.lower_yul_path(builder, path),
-            hir_yul::ExprKind::Lit(lit) => self.lower_literal(builder, lit),
-            hir_yul::ExprKind::Call(call) => self.lower_yul_call(builder, call),
-        }
-    }
-
-    fn lower_yul_call(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        call: &hir_yul::ExprCall<'_>,
-    ) -> ValueId {
-        let args: Vec<_> =
-            call.arguments.iter().map(|arg| self.lower_yul_expr(builder, arg)).collect();
-        if let Some(expected) = Self::supported_yul_builtin_arity(call.name.name)
-            && args.len() != expected
-        {
-            self.gcx
-                .dcx()
-                .err(format!(
-                    "wrong number of arguments for Yul builtin `{}`: expected {}, found {}",
-                    call.name.name,
-                    expected,
-                    args.len()
-                ))
-                .span(call.name.span)
-                .emit();
-            return builder.imm_u64(0);
-        }
-
-        match call.name.name {
-            kw::Add => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.add(a, b)
-            }
-            kw::Sub => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.sub(a, b)
-            }
-            kw::Mul => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.mul(a, b)
-            }
-            kw::Div => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.div(a, b)
-            }
-            kw::Sdiv => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.sdiv(a, b)
-            }
-            kw::Mod => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.mod_(a, b)
-            }
-            kw::Smod => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.smod(a, b)
-            }
-            kw::Exp => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.exp(a, b)
-            }
-            kw::And => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.and(a, b)
-            }
-            kw::Or => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.or(a, b)
-            }
-            kw::Xor => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.xor(a, b)
-            }
-            kw::Not => {
-                let a = Self::yul_arg(&args, 0);
-                builder.not(a)
-            }
-            kw::Shl => {
-                let shift = Self::yul_arg(&args, 0);
-                let value = Self::yul_arg(&args, 1);
-                builder.shl(shift, value)
-            }
-            kw::Shr => {
-                let shift = Self::yul_arg(&args, 0);
-                let value = Self::yul_arg(&args, 1);
-                builder.shr(shift, value)
-            }
-            kw::Sar => {
-                let shift = Self::yul_arg(&args, 0);
-                let value = Self::yul_arg(&args, 1);
-                builder.sar(shift, value)
-            }
-            kw::Lt => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.lt(a, b)
-            }
-            kw::Slt => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.slt(a, b)
-            }
-            kw::Gt => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.gt(a, b)
-            }
-            kw::Sgt => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.sgt(a, b)
-            }
-            kw::Eq => {
-                let a = Self::yul_arg(&args, 0);
-                let b = Self::yul_arg(&args, 1);
-                builder.eq(a, b)
-            }
-            kw::Iszero => {
-                let a = Self::yul_arg(&args, 0);
-                builder.iszero(a)
-            }
-            kw::Byte => {
-                let index = Self::yul_arg(&args, 0);
-                let value = Self::yul_arg(&args, 1);
-                Self::lower_yul_byte(builder, index, value)
-            }
-            kw::Mload => {
-                let offset = Self::yul_arg(&args, 0);
-                builder.mload(offset)
-            }
-            kw::Mstore => {
-                let offset = Self::yul_arg(&args, 0);
-                let value = Self::yul_arg(&args, 1);
-                builder.mstore(offset, value);
-                builder.imm_u64(0)
-            }
-            kw::Mstore8 => {
-                let offset = Self::yul_arg(&args, 0);
-                let value = Self::yul_arg(&args, 1);
-                builder.mstore8(offset, value);
-                builder.imm_u64(0)
-            }
-            kw::Msize => builder.msize(),
-            kw::Mcopy => {
-                let dest = Self::yul_arg(&args, 0);
-                let src = Self::yul_arg(&args, 1);
-                let len = Self::yul_arg(&args, 2);
-                builder.mcopy(dest, src, len);
-                builder.imm_u64(0)
-            }
-            kw::Sload => {
-                let slot = Self::yul_arg(&args, 0);
-                builder.sload(slot)
-            }
-            kw::Sstore => {
-                let slot = Self::yul_arg(&args, 0);
-                let value = Self::yul_arg(&args, 1);
-                builder.sstore(slot, value);
-                builder.imm_u64(0)
-            }
-            kw::Tload => {
-                let slot = Self::yul_arg(&args, 0);
-                builder.tload(slot)
-            }
-            kw::Tstore => {
-                let slot = Self::yul_arg(&args, 0);
-                let value = Self::yul_arg(&args, 1);
-                builder.tstore(slot, value);
-                builder.imm_u64(0)
-            }
-            kw::Calldataload => {
-                let offset = Self::yul_arg(&args, 0);
-                builder.calldataload(offset)
-            }
-            kw::Calldatasize => builder.calldatasize(),
-            kw::Calldatacopy => {
-                let dest = Self::yul_arg(&args, 0);
-                let offset = Self::yul_arg(&args, 1);
-                let size = Self::yul_arg(&args, 2);
-                builder.calldatacopy(dest, offset, size);
-                builder.imm_u64(0)
-            }
-            kw::Extcodesize => {
-                let addr = Self::yul_arg(&args, 0);
-                builder.extcodesize(addr)
-            }
-            kw::Extcodecopy => {
-                let addr = Self::yul_arg(&args, 0);
-                let dest = Self::yul_arg(&args, 1);
-                let offset = Self::yul_arg(&args, 2);
-                let size = Self::yul_arg(&args, 3);
-                builder.extcodecopy(addr, dest, offset, size);
-                builder.imm_u64(0)
-            }
-            kw::Extcodehash => {
-                let addr = Self::yul_arg(&args, 0);
-                builder.extcodehash(addr)
-            }
-            kw::Returndatasize => builder.returndatasize(),
-            kw::Returndatacopy => {
-                let dest = Self::yul_arg(&args, 0);
-                let offset = Self::yul_arg(&args, 1);
-                let size = Self::yul_arg(&args, 2);
-                builder.returndatacopy(dest, offset, size);
-                builder.imm_u64(0)
-            }
-            kw::Address => builder.address(),
-            kw::Balance => {
-                let addr = Self::yul_arg(&args, 0);
-                builder.balance(addr)
-            }
-            kw::Selfbalance => builder.selfbalance(),
-            kw::Caller => builder.caller(),
-            kw::Callvalue => builder.callvalue(),
-            kw::Origin => builder.origin(),
-            kw::Gasprice => builder.gasprice(),
-            kw::Blockhash => {
-                let block_num = Self::yul_arg(&args, 0);
-                builder.blockhash(block_num)
-            }
-            kw::Coinbase => builder.coinbase(),
-            kw::Timestamp => builder.timestamp(),
-            kw::Number => builder.number(),
-            kw::Difficulty | kw::Prevrandao => builder.prevrandao(),
-            kw::Gaslimit => builder.gaslimit(),
-            kw::Chainid => builder.chainid(),
-            kw::Gas => builder.gas(),
-            kw::Basefee => builder.basefee(),
-            kw::Blobbasefee => builder.blobbasefee(),
-            kw::Blobhash => {
-                let index = Self::yul_arg(&args, 0);
-                builder.blobhash(index)
-            }
-            kw::Keccak256 => {
-                let offset = Self::yul_arg(&args, 0);
-                let size = Self::yul_arg(&args, 1);
-                builder.keccak256(offset, size)
-            }
-            kw::Call => {
-                let gas = Self::yul_arg(&args, 0);
-                let addr = Self::yul_arg(&args, 1);
-                let value = Self::yul_arg(&args, 2);
-                let args_offset = Self::yul_arg(&args, 3);
-                let args_size = Self::yul_arg(&args, 4);
-                let ret_offset = Self::yul_arg(&args, 5);
-                let ret_size = Self::yul_arg(&args, 6);
-                builder.call(gas, addr, value, args_offset, args_size, ret_offset, ret_size)
-            }
-            kw::Staticcall => {
-                let gas = Self::yul_arg(&args, 0);
-                let addr = Self::yul_arg(&args, 1);
-                let args_offset = Self::yul_arg(&args, 2);
-                let args_size = Self::yul_arg(&args, 3);
-                let ret_offset = Self::yul_arg(&args, 4);
-                let ret_size = Self::yul_arg(&args, 5);
-                builder.staticcall(gas, addr, args_offset, args_size, ret_offset, ret_size)
-            }
-            kw::Delegatecall => {
-                let gas = Self::yul_arg(&args, 0);
-                let addr = Self::yul_arg(&args, 1);
-                let args_offset = Self::yul_arg(&args, 2);
-                let args_size = Self::yul_arg(&args, 3);
-                let ret_offset = Self::yul_arg(&args, 4);
-                let ret_size = Self::yul_arg(&args, 5);
-                builder.delegatecall(gas, addr, args_offset, args_size, ret_offset, ret_size)
-            }
-            kw::Create => {
-                let value = Self::yul_arg(&args, 0);
-                let offset = Self::yul_arg(&args, 1);
-                let size = Self::yul_arg(&args, 2);
-                builder.create(value, offset, size)
-            }
-            kw::Create2 => {
-                let value = Self::yul_arg(&args, 0);
-                let offset = Self::yul_arg(&args, 1);
-                let size = Self::yul_arg(&args, 2);
-                let salt = Self::yul_arg(&args, 3);
-                builder.create2(value, offset, size, salt)
-            }
-            kw::Log0 => {
-                let offset = Self::yul_arg(&args, 0);
-                let size = Self::yul_arg(&args, 1);
-                builder.log0(offset, size);
-                builder.imm_u64(0)
-            }
-            kw::Log1 => {
-                let offset = Self::yul_arg(&args, 0);
-                let size = Self::yul_arg(&args, 1);
-                let topic1 = Self::yul_arg(&args, 2);
-                builder.log1(offset, size, topic1);
-                builder.imm_u64(0)
-            }
-            kw::Log2 => {
-                let offset = Self::yul_arg(&args, 0);
-                let size = Self::yul_arg(&args, 1);
-                let topic1 = Self::yul_arg(&args, 2);
-                let topic2 = Self::yul_arg(&args, 3);
-                builder.log2(offset, size, topic1, topic2);
-                builder.imm_u64(0)
-            }
-            kw::Log3 => {
-                let offset = Self::yul_arg(&args, 0);
-                let size = Self::yul_arg(&args, 1);
-                let topic1 = Self::yul_arg(&args, 2);
-                let topic2 = Self::yul_arg(&args, 3);
-                let topic3 = Self::yul_arg(&args, 4);
-                builder.log3(offset, size, topic1, topic2, topic3);
-                builder.imm_u64(0)
-            }
-            kw::Log4 => {
-                let offset = Self::yul_arg(&args, 0);
-                let size = Self::yul_arg(&args, 1);
-                let topic1 = Self::yul_arg(&args, 2);
-                let topic2 = Self::yul_arg(&args, 3);
-                let topic3 = Self::yul_arg(&args, 4);
-                let topic4 = Self::yul_arg(&args, 5);
-                builder.log4(offset, size, topic1, topic2, topic3, topic4);
-                builder.imm_u64(0)
-            }
-            kw::Revert => {
-                let offset = Self::yul_arg(&args, 0);
-                let size = Self::yul_arg(&args, 1);
-                builder.revert(offset, size);
-                builder.imm_u64(0)
-            }
-            kw::Stop => {
-                builder.stop();
-                builder.imm_u64(0)
-            }
-            kw::Invalid => {
-                builder.invalid();
-                builder.imm_u64(0)
-            }
-            kw::Pop => builder.imm_u64(0),
-            _ => {
-                let message = match call.res {
-                    hir_yul::CallRes::Builtin => {
-                        format!("unsupported Yul builtin `{}`", call.name.name)
-                    }
-                    hir_yul::CallRes::Function => {
-                        format!("unsupported Yul function `{}`", call.name.name)
-                    }
-                    hir_yul::CallRes::Unknown => {
-                        format!("undefined Yul function `{}`", call.name.name)
-                    }
-                };
-                self.gcx.dcx().err(message).span(call.name.span).emit();
-                builder.imm_u64(0)
-            }
-        }
-    }
-
-    fn lower_yul_byte(
-        builder: &mut FunctionBuilder<'_>,
-        index: ValueId,
-        value: ValueId,
-    ) -> ValueId {
-        let in_range = {
-            let limit = builder.imm_u64(32);
-            builder.lt(index, limit)
-        };
-        let shift = {
-            let last = builder.imm_u64(31);
-            let byte_width = builder.imm_u64(8);
-            let from_right = builder.sub(last, index);
-            builder.mul(from_right, byte_width)
-        };
-        let shifted = builder.shr(shift, value);
-        let mask = builder.imm_u64(0xff);
-        let byte = builder.and(shifted, mask);
-        let zero = builder.imm_u64(0);
-        builder.select(in_range, byte, zero)
-    }
-
-    fn yul_arg(args: &[ValueId], index: usize) -> ValueId {
-        args[index]
-    }
-
-    fn supported_yul_builtin_arity(name: Symbol) -> Option<usize> {
-        Some(match name {
-            kw::Add
-            | kw::Sub
-            | kw::Mul
-            | kw::Div
-            | kw::Sdiv
-            | kw::Mod
-            | kw::Smod
-            | kw::Exp
-            | kw::And
-            | kw::Or
-            | kw::Xor
-            | kw::Shl
-            | kw::Shr
-            | kw::Sar
-            | kw::Lt
-            | kw::Slt
-            | kw::Gt
-            | kw::Sgt
-            | kw::Eq
-            | kw::Byte => 2,
-            kw::Not
-            | kw::Iszero
-            | kw::Mload
-            | kw::Sload
-            | kw::Tload
-            | kw::Calldataload
-            | kw::Extcodesize
-            | kw::Extcodehash
-            | kw::Balance
-            | kw::Blockhash
-            | kw::Blobhash
-            | kw::Pop => 1,
-            kw::Mstore
-            | kw::Mstore8
-            | kw::Sstore
-            | kw::Tstore
-            | kw::Keccak256
-            | kw::Log0
-            | kw::Revert => 2,
-            kw::Mcopy | kw::Calldatacopy | kw::Returndatacopy | kw::Create | kw::Log1 => 3,
-            kw::Extcodecopy | kw::Create2 | kw::Log2 => 4,
-            kw::Log3 => 5,
-            kw::Staticcall | kw::Delegatecall | kw::Log4 => 6,
-            kw::Call => 7,
-            kw::Msize
-            | kw::Calldatasize
-            | kw::Returndatasize
-            | kw::Address
-            | kw::Selfbalance
-            | kw::Caller
-            | kw::Callvalue
-            | kw::Origin
-            | kw::Gasprice
-            | kw::Coinbase
-            | kw::Timestamp
-            | kw::Number
-            | kw::Difficulty
-            | kw::Prevrandao
-            | kw::Gaslimit
-            | kw::Chainid
-            | kw::Gas
-            | kw::Basefee
-            | kw::Blobbasefee
-            | kw::Stop
-            | kw::Invalid => 0,
-            _ => return None,
-        })
-    }
-
-    fn unsupported_yul_stmt(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        stmt: &hir_yul::Stmt<'_>,
-        kind: &str,
-    ) {
-        self.gcx.dcx().err(format!("unsupported Yul {kind}")).span(stmt.span).emit();
-        builder.invalid();
-    }
-
-    fn merge_yul_if_scopes(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        false_pred: BlockId,
-        then_pred: BlockId,
-        before_scopes: Vec<FxHashMap<Symbol, ValueId>>,
-        then_scopes: Vec<FxHashMap<Symbol, ValueId>>,
-    ) {
-        self.yul_scopes = before_scopes;
-        if self.yul_scopes.len() != then_scopes.len() {
-            return;
-        }
-
-        for (scope_idx, then_scope) in then_scopes.iter().enumerate() {
-            for (&name, &then_value) in then_scope {
-                let Some(&before_value) = self.yul_scopes[scope_idx].get(&name) else {
-                    continue;
-                };
-                if before_value == then_value {
-                    continue;
-                }
-
-                let ty = Self::value_ty(builder, before_value);
-                let phi =
-                    builder.phi(ty, vec![(false_pred, before_value), (then_pred, then_value)]);
-                self.yul_scopes[scope_idx].insert(name, phi);
-            }
-        }
-    }
-
-    fn value_ty(builder: &FunctionBuilder<'_>, value: ValueId) -> MirType {
-        match builder.func().value(value) {
-            Value::Inst(inst) => {
-                builder.func().instruction(*inst).result_ty.unwrap_or(MirType::uint256())
-            }
-            value => value.ty(),
-        }
-    }
-
-    fn enter_yul_scope(&mut self) {
-        self.yul_scopes.push(Default::default());
-    }
-
-    fn exit_yul_scope(&mut self) {
-        self.yul_scopes.pop();
-    }
-
-    fn declare_yul_variable(&mut self, name: Symbol, value: ValueId) {
-        let scope = self.yul_scopes.last_mut().expect("missing Yul scope");
-        scope.insert(name, value);
-    }
-
-    fn lookup_yul_variable(&self, name: Symbol) -> Option<ValueId> {
-        self.yul_scopes.iter().rev().find_map(|scope| scope.get(&name).copied())
-    }
-
-    fn assign_yul_variable(&mut self, name: Symbol, value: ValueId) -> bool {
-        for scope in self.yul_scopes.iter_mut().rev() {
-            if let Some(local) = scope.get_mut(&name) {
-                *local = value;
-                return true;
-            }
-        }
-        false
-    }
-
-    fn yul_path_symbol(path: &hir_yul::Path<'_>) -> Option<Symbol> {
-        match path.segments {
-            [ident] => Some(ident.name),
-            _ => None,
-        }
-    }
-
-    fn undefined_yul_variable(&mut self, path: &hir_yul::Path<'_>, name: Symbol) {
-        self.gcx.dcx().err(format!("undefined Yul variable `{name}`")).span(path.span).emit();
-    }
-
-    fn unsupported_yul_path(&mut self, path: &hir_yul::Path<'_>, kind: &str) {
-        self.gcx.dcx().err(format!("unsupported Yul {kind}")).span(path.span).emit();
-    }
-
-    fn lower_yul_path(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        path: &hir_yul::Path<'_>,
-    ) -> ValueId {
-        match path.res {
-            hir_yul::PathRes::SolidityVariable(var_id) => {
-                self.lower_solidity_variable_by_id(builder, var_id)
-            }
-            hir_yul::PathRes::StorageSlot(var_id) => {
-                let slot = self.storage_slots.get(&var_id).copied().unwrap_or(0);
-                builder.imm_u64(slot)
-            }
-            hir_yul::PathRes::StorageOffset(_) => builder.imm_u64(0),
-            hir_yul::PathRes::YulVariable => {
-                let Some(name) = Self::yul_path_symbol(path) else {
-                    self.unsupported_yul_path(path, "path expression");
-                    return builder.imm_u64(0);
-                };
-                match self.lookup_yul_variable(name) {
-                    Some(value) => value,
-                    None => {
-                        self.undefined_yul_variable(path, name);
-                        builder.imm_u64(0)
-                    }
-                }
-            }
-            hir_yul::PathRes::Err => builder.imm_u64(0),
-        }
-    }
-
-    fn lower_solidity_variable_by_id(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        var_id: hir::VariableId,
-    ) -> ValueId {
-        if let Some(&val) = self.locals.get(&var_id) {
-            return val;
-        }
-
-        if let Some(offset) = self.get_local_memory_offset(&var_id) {
-            let offset_val = self.local_memory_addr(builder, offset);
-            return builder.mload(offset_val);
-        }
-
-        if let Some(&slot) = self.storage_slots.get(&var_id) {
-            let slot_val = builder.imm_u64(slot);
-            return builder.sload(slot_val);
-        }
-
-        builder.imm_u64(0)
-    }
-
-    fn assign_yul_path(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        path: &hir_yul::Path<'_>,
-        value: ValueId,
-    ) {
-        match path.res {
-            hir_yul::PathRes::YulVariable => {
-                let Some(name) = Self::yul_path_symbol(path) else {
-                    self.unsupported_yul_path(path, "assignment target");
-                    return;
-                };
-                if !self.assign_yul_variable(name, value) {
-                    self.undefined_yul_variable(path, name);
-                }
-            }
-            hir_yul::PathRes::SolidityVariable(var_id) => {
-                if let Some(offset) = self.get_local_memory_offset(&var_id) {
-                    let offset_val = self.local_memory_addr(builder, offset);
-                    builder.mstore(offset_val, value);
-                } else if let Some(local) = self.locals.get_mut(&var_id) {
-                    *local = value;
-                } else if let Some(&slot) = self.storage_slots.get(&var_id) {
-                    let slot_val = builder.imm_u64(slot);
-                    builder.sstore(slot_val, value);
-                }
-            }
-            hir_yul::PathRes::StorageSlot(_) => {
-                self.unsupported_yul_path(path, "storage slot assignment target");
-            }
-            hir_yul::PathRes::StorageOffset(_) => {
-                self.unsupported_yul_path(path, "storage offset assignment target");
-            }
-            hir_yul::PathRes::Err => {}
-        }
-    }
-
     /// Lowers a single variable declaration.
     /// Variables that are never assigned after declaration and don't involve external calls
     /// are kept as SSA values. Variables that are assigned later or initialized from external
@@ -981,6 +253,38 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(else_stmt) = else_stmt {
             builder.switch_to_block(else_block);
             self.lower_stmt(builder, else_stmt);
+            if !builder.func().block(builder.current_block()).is_terminated() {
+                builder.jump(merge_block);
+            }
+        }
+
+        builder.switch_to_block(merge_block);
+    }
+
+    /// Lowers a switch statement.
+    fn lower_switch(&mut self, builder: &mut FunctionBuilder<'_>, switch: &hir::StmtSwitch<'_>) {
+        let selector = self.lower_expr(builder, switch.selector);
+        let merge_block = builder.create_block();
+        let mut case_blocks = Vec::new();
+        let mut body_blocks = Vec::new();
+        let mut default_block = merge_block;
+
+        for case in switch.cases {
+            let block = builder.create_block();
+            if let Some(constant) = case.constant {
+                let value = self.lower_literal(builder, constant);
+                case_blocks.push((value, block));
+            } else {
+                default_block = block;
+            }
+            body_blocks.push((case, block));
+        }
+
+        builder.switch(selector, default_block, case_blocks);
+
+        for (case, block) in body_blocks {
+            builder.switch_to_block(block);
+            self.lower_block(builder, &case.body);
             if !builder.func().block(builder.current_block()).is_terminated() {
                 builder.jump(merge_block);
             }
@@ -1365,7 +669,13 @@ impl<'gcx> Lowerer<'gcx> {
         if let ExprKind::Call(callee, args, call_opts) = &expr.kind {
             // Check if this is a member access (external call)
             if let ExprKind::Member(base, member) = &callee.kind {
-                return self.lower_try_member_call(builder, base, *member, args, *call_opts);
+                return self.lower_try_member_call(
+                    builder,
+                    base,
+                    *member,
+                    args,
+                    (*call_opts).map(|opts| opts.args),
+                );
             }
         }
 

@@ -1,0 +1,8 @@
+error: can only use modifiers defined in the current contract or in base contracts
+   ╭▸ ROOT/tests/ui/resolve/library_modifier_via_using.sol:LL:CC
+   │
+LL │     function f() L.m public {}
+   ╰╴                 ━━━
+
+error: aborting due to 1 previous error
+

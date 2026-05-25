@@ -1,0 +1,8 @@
+//@compile-flags: -Ztypeck
+// ported-from: test/libsolidity/syntaxTests/using/file_level_inactive_after_import.sol
+
+import "./auxiliary/file_level_using.sol";
+
+function f(uint256 x) pure returns (uint256) {
+    return x.id(); //~ ERROR: member `id` not found
+}

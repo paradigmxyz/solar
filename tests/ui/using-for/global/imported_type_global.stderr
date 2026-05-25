@@ -1,0 +1,14 @@
+error: can only use `global` with types defined in the same source unit at file level
+   ╭▸ ROOT/tests/ui/using-for/global/imported_type_global.sol:LL:CC
+   │
+LL │ using {idS} for ImportedS global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: can only use `global` with types defined in the same source unit at file level
+   ╭▸ ROOT/tests/ui/using-for/global/imported_type_global.sol:LL:CC
+   │
+LL │ using {idU} for ImportedU global;
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

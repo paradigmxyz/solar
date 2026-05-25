@@ -1,0 +1,302 @@
+error: inline assembly expression statements cannot return values
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             add(1, 2)
+   ╰╴            ━━━━━━━━━
+
+error: inline assembly expression statements cannot return values
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pair()
+   ╰╴            ━━━━━━
+
+error: only local variables are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(state)
+   │                 ━━━━━
+   │
+   ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
+
+error: only local variables are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             state := 1
+   │             ━━━━━
+   │
+   ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
+
+error: only local variables are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(udvtState)
+   │                 ━━━━━━━━━
+   │
+   ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
+
+error: only local variables are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             udvtState := 1
+   │             ━━━━━━━━━
+   │
+   ╰ help: use `.slot` and `.offset` to access storage or transient storage variables
+
+error: cannot assign to a constant variable
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             constantValue := 1
+   ╰╴            ━━━━━━━━━━━━━
+
+error: string literal too long (33 > 32)
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefg")
+   ╰╴                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: string literal too long (33 > 32)
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(hex"123456789012345678901234567890123456789012345678901234567890123456")
+   ╰╴                ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: only direct number constants are supported in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(stringConstant)
+   ╰╴                ━━━━━━━━━━━━━━
+
+error: assembly access to immutable variables is not supported
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(immutableValue)
+   ╰╴                ━━━━━━━━━━━━━━
+
+error: assembly access to immutable variables is not supported
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(immutableValue.slot)
+   ╰╴                ━━━━━━━━━━━━━━
+
+error: storage variables only support `.slot` and `.offset`
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(state.length)
+   ╰╴                      ━━━━━━
+
+error: state variables cannot be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             state.slot := 1
+   ╰╴            ━━━━━
+
+error: storage reference variables need a suffix in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(storageRef)
+   │                 ━━━━━━━━━━
+   │
+   ╰ help: use `.slot` or `.offset`
+
+error: only `.slot` can be assigned to
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             storageRef.offset := 1
+   ╰╴                       ━━━━━━
+
+error: storage variables only support `.slot` and `.offset`
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(storageRef.length)
+   ╰╴                           ━━━━━━
+
+error: calldata variables need a suffix in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(data)
+   │                 ━━━━
+   │
+   ╰ help: use `.offset` or `.length`
+
+error: calldata variables only support `.offset` and `.length`
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(data.slot)
+   ╰╴                     ━━━━
+
+error: suffix `.slot` is not supported by this variable or type
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(local.slot)
+   ╰╴                      ━━━━
+
+error: only types that use one stack slot are supported
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(extFn)
+   ╰╴                ━━━━━
+
+error: only types that use one stack slot are supported
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             extFn := 0
+   ╰╴            ━━━━━
+
+error: function pointer variables only support `.selector` and `.address`
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(extFn.slot)
+   ╰╴                      ━━━━
+
+error: only external function pointer variables support `.selector` and `.address`
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(intFn.selector)
+   ╰╴                      ━━━━━━━━
+
+error: access to functions is not allowed in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(helper)
+   ╰╴                ━━━━━━
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             helper := 1
+   ╰╴            ━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             helper := 1
+   ╰╴            ━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(Other)
+   ╰╴                ━━━━━ expected `uint256`, found `type(contract Other)`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Other := 1
+   ╰╴            ━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Other := 1
+   ╰╴            ━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(StructValue)
+   ╰╴                ━━━━━━━━━━━ expected `uint256`, found `type(struct C.StructValue)`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             StructValue := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             StructValue := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(Choice)
+   ╰╴                ━━━━━━ expected `uint256`, found `type(enum C.Choice)`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Choice := 1
+   ╰╴            ━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Choice := 1
+   ╰╴            ━━━━━━
+
+error: inline assembly suffixes can only be used with variables
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(Choice.A)
+   ╰╴                       ━
+
+error: inline assembly suffixes can only be used with variables
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Choice.A := 1
+   ╰╴                   ━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             Choice.A := 1
+   ╰╴                   ━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(U256)
+   ╰╴                ━━━━ expected `uint256`, found `type(U256)`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             U256 := 1
+   ╰╴            ━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             U256 := 1
+   ╰╴            ━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(CustomError)
+   ╰╴                ━━━━━━━━━━━ expected `uint256`, found `error C.CustomError()`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             CustomError := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             CustomError := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             pop(CustomEvent)
+   ╰╴                ━━━━━━━━━━━ expected `uint256`, found `event C.CustomEvent()`
+
+error: only local variables can be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             CustomEvent := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: expression has to be an lvalue
+   ╭▸ ROOT/tests/ui/typeck/yul_type_checking.sol:LL:CC
+   │
+LL │             CustomEvent := 1
+   ╰╴            ━━━━━━━━━━━
+
+error: aborting due to 48 previous errors
+

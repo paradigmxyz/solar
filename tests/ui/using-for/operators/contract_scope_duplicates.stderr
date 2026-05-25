@@ -1,0 +1,8 @@
+error: operators can only be defined in a global `using for` directive
+   ╭▸ ROOT/tests/ui/using-for/operators/contract_scope_duplicates.sol:LL:CC
+   │
+LL │     using {add2 as +} for Int;
+   ╰╴           ━━━━
+
+error: aborting due to 1 previous error
+

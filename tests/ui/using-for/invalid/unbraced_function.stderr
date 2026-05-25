@@ -1,0 +1,8 @@
+error: expected library, found function
+   ╭▸ ROOT/tests/ui/using-for/invalid/unbraced_function.sol:LL:CC
+   │
+LL │     using id256 for uint256;
+   ╰╴          ━━━━━
+
+error: aborting due to 1 previous error
+

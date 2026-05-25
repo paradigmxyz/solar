@@ -1,0 +1,8 @@
+error: the type has to be specified explicitly when attaching specific functions
+   ╭▸ ROOT/tests/ui/parser/using_function_wildcard.sol:LL:CC
+   │
+LL │     using {f} for *;
+   ╰╴    ━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

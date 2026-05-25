@@ -31,7 +31,7 @@ const PARSER_RECURSION_LIMIT: usize = 128;
 /// # fn main() {}
 #[doc = include_str!("../../doc-examples/parser.rs")]
 /// ```
-pub struct Parser<'sess, 'ast> {
+pub struct Parser<'sess, 'ast, 'cb> {
     /// The parser session.
     pub sess: &'sess Session,
     /// The arena where the AST nodes are allocated.
@@ -60,6 +60,10 @@ pub struct Parser<'sess, 'ast> {
 
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
+    /// Callback invoked after a top-level import directive is parsed.
+    #[allow(clippy::type_complexity)]
+    import_callback:
+        Option<std::boxed::Box<dyn FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -137,7 +141,7 @@ pub enum Recovered {
     Yes,
 }
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Creates a new parser.
     pub fn new(sess: &'sess Session, arena: &'ast ast::Arena, tokens: Vec<Token>) -> Self {
         assert!(sess.is_entered(), "session should be entered before parsing");
@@ -153,9 +157,18 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             in_yul: false,
             in_contract: false,
             recursion_depth: 0,
+            import_callback: None,
         };
         parser.bump();
         parser
+    }
+
+    /// Sets the import callback.
+    pub fn set_import_callback(
+        &mut self,
+        import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb,
+    ) {
+        self.import_callback = Some(std::boxed::Box::new(import_callback));
     }
 
     /// Creates a new parser from a source code string.
@@ -696,7 +709,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             }
             if !sep.trailing_sep_allowed && trailing {
                 let msg = format!("trailing `{sep_kind}` separator is not allowed");
-                self.dcx().err(msg).span(self.prev_token.span).emit();
+                self.dcx().emit_err(self.prev_token.span, msg);
             }
         }
 
@@ -847,7 +860,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 }
 
 /// Common parsing methods.
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Provides a spanned parser.
     #[track_caller]
     pub fn parse_spanned<T>(
@@ -900,7 +913,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     /// Parses either an identifier or a Yul EVM builtin.
     fn parse_yul_path_ident(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
-        if !ident.is_yul_evm_builtin() && ident.is_reserved(true) {
+        if !ident.is_yul_builtin() && ident.is_reserved(true) {
             self.expected_ident_found_err().emit();
         }
         self.bump();
@@ -1053,6 +1066,7 @@ fn parse_natspec(
         items.push(ast::NatSpecItem {
             kind: ast::NatSpecKind::Notice,
             span: comment_span,
+            symbol: comment_symbol,
             content_start: 0,
             content_end: content.len() as u32,
         });
@@ -1068,6 +1082,7 @@ fn parse_natspec(
         items: &mut SmallVec<[ast::NatSpecItem; 6]>,
         kind: &mut Option<ast::NatSpecKind>,
         span: &mut Option<Span>,
+        symbol: Symbol,
         content_start: usize,
         content_end: usize,
     ) {
@@ -1075,6 +1090,7 @@ fn parse_natspec(
             items.push(ast::NatSpecItem {
                 span: span.take().unwrap(),
                 kind: k,
+                symbol,
                 content_start: content_start as u32,
                 content_end: content_end as u32,
             });
@@ -1103,12 +1119,20 @@ fn parse_natspec(
             && is_line_start(line_start, line_start + tag_offset)
         {
             let tag_start = line_start + tag_offset + 1;
-            flush_item(&mut items, &mut kind, &mut span, content_start, prev_line_end);
+            flush_item(
+                &mut items,
+                &mut kind,
+                &mut span,
+                comment_symbol,
+                content_start,
+                prev_line_end,
+            );
 
             // Skip leading whitespace after '@'
             let tag_slice = &bytes[tag_start..line_end];
             let trimmed = tag_slice.len() - tag_slice.trim_ascii_start().len();
-            let (tag, rest_start) = split_once_ws(content, bytes, tag_start + trimmed, line_end);
+            let (tag, rest_start) =
+                crate::natspec::split_once_ws(content, tag_start + trimmed, line_end);
 
             // Calculate span: from first non-whitespace char after '@' to end of tag name.
             let tag_lo =
@@ -1122,18 +1146,18 @@ fn parse_natspec(
                 "author" => ast::NatSpecKind::Author,
                 "notice" => ast::NatSpecKind::Notice,
                 "dev" => ast::NatSpecKind::Dev,
-                "param" | "return" | "inheritdoc" => {
+                "param" | "inheritdoc" => {
                     let (name, content_start_pos) =
-                        split_once_ws(content, bytes, rest_start, line_end);
+                        crate::natspec::split_once_ws(content, rest_start, line_end);
                     content_start = content_start_pos;
                     let ident = Ident::new(Symbol::intern(name), comment_span);
                     match tag {
                         "param" => ast::NatSpecKind::Param { name: ident },
-                        "return" => ast::NatSpecKind::Return { name: ident },
                         "inheritdoc" => ast::NatSpecKind::Inheritdoc { contract: ident },
                         _ => unreachable!(),
                     }
                 }
+                "return" => ast::NatSpecKind::Return { name: None },
                 _ => {
                     if let Some(custom_tag) = tag.strip_prefix("custom:") {
                         let ident = Ident::new(Symbol::intern(custom_tag), comment_span);
@@ -1160,27 +1184,8 @@ fn parse_natspec(
         prev_line_end = line_end;
         line_start = line_end + 1;
     }
-    flush_item(&mut items, &mut kind, &mut span, content_start, bytes.len());
+    flush_item(&mut items, &mut kind, &mut span, comment_symbol, content_start, bytes.len());
     Some(items)
-}
-
-/// Splits a string slice at the first whitespace character using the `memchr` crate.
-/// Returns the content up to the whitespace and the position of the first following non-blank char.
-#[inline]
-fn split_once_ws<'a>(
-    content: &'a str,
-    bytes: &'a [u8],
-    start: usize,
-    end: usize,
-) -> (&'a str, usize) {
-    if let Some(ws_pos) =
-        memchr::memchr3(b' ', b'\t', b'\r', &bytes[start..end]).map(|offset| start + offset)
-    {
-        let rest = &bytes[ws_pos..end];
-        (&content[start..ws_pos], ws_pos + (rest.len() - rest.trim_ascii_start().len()))
-    } else {
-        (&content[start..end], end)
-    }
 }
 
 #[cfg(test)]
@@ -1205,7 +1210,7 @@ mod tests {
             ast::NatSpecKind::Notice if kind == "notice" => None,
             ast::NatSpecKind::Dev if kind == "dev" => None,
             ast::NatSpecKind::Param { name } if kind == "param" => Some(name.name.as_str()),
-            ast::NatSpecKind::Return { name } if kind == "return" => Some(name.name.as_str()),
+            ast::NatSpecKind::Return { .. } if kind == "return" => None,
             ast::NatSpecKind::Inheritdoc { contract } if kind == "inheritdoc" => {
                 Some(contract.name.as_str())
             }
@@ -1219,6 +1224,42 @@ mod tests {
             let actual = &symbol.as_str()[item.content_start as usize..item.content_end as usize];
             assert_eq!(actual.trim(), expected.trim());
         }
+    }
+
+    #[test]
+    fn parse_file_import_callback() {
+        let src = r#"
+import "a.sol";
+contract C {}
+import * as B from "b.sol";
+"#;
+
+        let sess =
+            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
+        sess.enter_sequential(|| {
+            let arena = ast::Arena::new();
+            let mut imports = Vec::new();
+            let mut parser =
+                Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
+                    .expect("failed to create parser");
+
+            parser.set_import_callback(|id, span, import| {
+                imports.push((id, span, import.path.value.as_str().to_string()));
+            });
+            let ast = parser.parse_file().expect("failed to parse file");
+            drop(parser);
+
+            assert_eq!(ast.items.len(), 3);
+            assert_eq!(imports.len(), 2);
+            assert_eq!(imports[0].0, ast::ItemId::new(0));
+            assert_eq!(imports[0].2, "a.sol");
+            assert_eq!(imports[1].0, ast::ItemId::new(2));
+            assert_eq!(imports[1].2, "b.sol");
+            assert_eq!(
+                sess.source_map().span_to_snippet(imports[0].1).unwrap(),
+                r#"import "a.sol";"#
+            );
+        });
     }
 
     #[test]
@@ -1264,7 +1305,7 @@ mod tests {
             check(4, &span4, "notice", None, Some("and continues here"));
             check(5, "dev", "dev", None, Some("This is dev documentation"));
             check(6, "param", "param", Some("x"), Some("The input parameter"));
-            check(7, "return", "return", Some("result"), Some("The return value"));
+            check(7, "return", "return", None, Some("result The return value"));
             check(8, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
             check(9, "custom:security", "custom", Some("security"), Some("High priority"));
             check(10, "solidity", "internal", Some("solidity"), Some("memory-safe"));
@@ -1316,7 +1357,7 @@ mod tests {
             check(2, "notice", "notice", None, Some("This is a notice\n * that spans multiple lines\n * and continues here"));
             check(3, "dev", "dev", None, Some("This is dev documentation"));
             check(4, "param", "param", Some("x"), Some("The input parameter"));
-            check(5, "return", "return", Some("result"), Some("The return value"));
+            check(5, "return", "return", None, Some("result The return value"));
             check(6, "inheritdoc", "inheritdoc", Some("BaseContract"), Some(""));
             check(7, "custom:security", "custom", Some("security"), Some("High priority"));
             check(8, "src", "internal", Some("src"), Some("0:123:456"));

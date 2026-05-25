@@ -1,0 +1,82 @@
+error: function call options have already been set
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │         this.h{gas: 42}{value: 5}();
+   │         ━━━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: combine them into a single `{...}` option
+
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │         return this.g{gas: 42}.address == this.g.address &&
+   │                      ━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │         return this.g{gas: 42}.address == this.g.address &&
+   ╰╴               ━━━━━━━━━━━━━━━
+
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.g{gas: 42}.selector == this.g.selector &&
+   │                   ━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.g{gas: 42}.selector == this.g.selector &&
+   ╰╴            ━━━━━━━━━━━━━━━
+
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42}.address == this.h.address &&
+   │                   ━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42}.address == this.h.address &&
+   ╰╴            ━━━━━━━━━━━━━━━
+
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42}.selector == this.h.selector &&
+   │                   ━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42}.selector == this.h.selector &&
+   ╰╴            ━━━━━━━━━━━━━━━
+
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42, value: 5}.address == this.h.address &&
+   │                   ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42, value: 5}.address == this.h.address &&
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: call options must be part of a call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42, value: 5}.selector == this.h.selector;
+   │                   ━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: this expression is not a function call expression
+   ╭▸ ROOT/tests/ui/typeck/function_calls/call_options_standalone.sol:LL:CC
+   │
+LL │             this.h{gas: 42, value: 5}.selector == this.h.selector;
+   ╰╴            ━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 7 previous errors
+

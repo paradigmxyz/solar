@@ -1,0 +1,44 @@
+error: unresolved symbol `pair`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │             x, y := pair(1)
+   ╰╴                    ━━━━
+
+error: unresolved symbol `nested`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │             x := nested(1)
+   ╰╴                 ━━━━━━
+
+error: unresolved symbol `pair`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │             x := pair(1)
+   ╰╴                 ━━━━
+
+error: unresolved symbol `side_effect_only`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │             side_effect_only(x)
+   ╰╴            ━━━━━━━━━━━━━━━━
+
+error: unresolved symbol `inner`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │             y := inner(1)
+   ╰╴                 ━━━━━
+
+error: unresolved symbol `r`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │                     c := r
+   ╰╴                         ━
+
+error: unresolved symbol `a`
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │                     r := a
+   ╰╴                         ━
+
+error: aborting due to 7 previous errors
+

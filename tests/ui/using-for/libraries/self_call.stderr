@@ -1,0 +1,14 @@
+error: libraries cannot call their own functions externally
+   ╭▸ ROOT/tests/ui/using-for/libraries/self_call.sol:LL:CC
+   │
+LL │         return x.ext() + x.pub() + x.inner() + x.priv();
+   ╰╴                 ━━━
+
+error: libraries cannot call their own functions externally
+   ╭▸ ROOT/tests/ui/using-for/libraries/self_call.sol:LL:CC
+   │
+LL │         return x.ext() + x.pub() + x.inner() + x.priv();
+   ╰╴                           ━━━
+
+error: aborting due to 2 previous errors
+

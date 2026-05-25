@@ -106,6 +106,16 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Mod(a, b), Some(MirType::uint256()))
     }
 
+    /// Emits an addmod instruction.
+    pub fn addmod(&mut self, a: ValueId, b: ValueId, n: ValueId) -> ValueId {
+        self.emit_inst(InstKind::AddMod(a, b, n), Some(MirType::uint256()))
+    }
+
+    /// Emits a mulmod instruction.
+    pub fn mulmod(&mut self, a: ValueId, b: ValueId, n: ValueId) -> ValueId {
+        self.emit_inst(InstKind::MulMod(a, b, n), Some(MirType::uint256()))
+    }
+
     /// Emits a smod instruction.
     pub fn smod(&mut self, a: ValueId, b: ValueId) -> ValueId {
         self.emit_inst(InstKind::SMod(a, b), Some(MirType::int256()))
@@ -179,6 +189,16 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits an iszero instruction.
     pub fn iszero(&mut self, a: ValueId) -> ValueId {
         self.emit_inst(InstKind::IsZero(a), Some(MirType::Bool))
+    }
+
+    /// Emits a byte instruction.
+    pub fn byte(&mut self, index: ValueId, value: ValueId) -> ValueId {
+        self.emit_inst(InstKind::Byte(index, value), Some(MirType::uint256()))
+    }
+
+    /// Emits a signextend instruction.
+    pub fn signextend(&mut self, size: ValueId, value: ValueId) -> ValueId {
+        self.emit_inst(InstKind::SignExtend(size, value), Some(MirType::int256()))
     }
 
     /// Emits an mload instruction.
@@ -506,7 +526,7 @@ impl<'a> FunctionBuilder<'a> {
 
     /// Emits a phi instruction.
     pub fn phi(&mut self, ty: MirType, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        self.emit_inst(InstKind::Phi(incoming), Some(ty))
+        self.func.alloc_value(Value::Phi { ty, incoming })
     }
 
     /// Sets a jump terminator.
@@ -525,6 +545,19 @@ impl<'a> FunctionBuilder<'a> {
         block.successors.push(else_block);
         self.func.blocks[then_block].predecessors.push(self.current_block);
         self.func.blocks[else_block].predecessors.push(self.current_block);
+    }
+
+    /// Sets a switch terminator.
+    pub fn switch(&mut self, value: ValueId, default: BlockId, cases: Vec<(ValueId, BlockId)>) {
+        let current = self.current_block;
+        self.func.blocks[current].terminator =
+            Some(Terminator::Switch { value, default, cases: cases.clone() });
+        self.func.blocks[current].successors.push(default);
+        self.func.blocks[default].predecessors.push(current);
+        for (_, case_block) in cases {
+            self.func.blocks[current].successors.push(case_block);
+            self.func.blocks[case_block].predecessors.push(current);
+        }
     }
 
     /// Sets a return terminator.
@@ -546,6 +579,12 @@ impl<'a> FunctionBuilder<'a> {
     /// Sets an invalid terminator.
     pub fn invalid(&mut self) {
         self.func.blocks[self.current_block].terminator = Some(Terminator::Invalid);
+    }
+
+    /// Sets a selfdestruct terminator.
+    pub fn selfdestruct(&mut self, recipient: ValueId) {
+        self.func.blocks[self.current_block].terminator =
+            Some(Terminator::SelfDestruct { recipient });
     }
 
     /// Returns a reference to the function.

@@ -3,7 +3,7 @@
 .idea
 /*.sol
 /*.yul
-/tmp/
+/tmp
 .DS_Store
 solc-test-output*
 solar-test-output*

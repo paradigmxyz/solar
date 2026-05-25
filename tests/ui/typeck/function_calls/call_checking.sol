@@ -142,3 +142,15 @@ contract CallChecking {
         //~| ERROR: mismatched types
     }
 }
+
+contract BaseCallTarget {
+    function ownerCheck() internal view virtual {}
+}
+
+contract DerivedCallTarget is BaseCallTarget {
+    function testMostDerivedCall() public view {
+        ownerCheck();
+    }
+
+    function ownerCheck() internal view virtual override {}
+}

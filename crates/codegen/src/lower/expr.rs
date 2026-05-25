@@ -7,7 +7,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
-use solar_interface::{Ident, Symbol, kw, sym};
+use solar_interface::{Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -89,7 +89,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Call(callee, args, call_opts) => {
-                self.lower_call(builder, callee, args, *call_opts)
+                self.lower_call(builder, callee, args, (*call_opts).map(|opts| opts.args))
             }
 
             ExprKind::Index(base, index) => {
@@ -348,6 +348,8 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mload(base_val)
             }
 
+            ExprKind::YulMember(base, member) => self.lower_yul_member(builder, base, *member),
+
             ExprKind::Assign(lhs, op, rhs) => {
                 let rhs_val = self.lower_expr(builder, rhs);
                 // Handle compound assignment (+=, -=, etc.)
@@ -541,6 +543,55 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::This => builder.address(),
             _ => builder.imm_u64(0),
         }
+    }
+
+    fn lower_yul_member(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> ValueId {
+        let ExprKind::Ident(res_slice) = &base.kind else {
+            self.gcx
+                .dcx()
+                .err(format!("unsupported Yul member `.{}`", member.name))
+                .span(member.span)
+                .emit();
+            return builder.imm_u64(0);
+        };
+
+        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+            self.gcx
+                .dcx()
+                .err(format!("unsupported Yul member `.{}`", member.name))
+                .span(member.span)
+                .emit();
+            return builder.imm_u64(0);
+        };
+
+        match member.name {
+            sym::slot => {
+                if let Some(&slot) = self.storage_slots.get(var_id) {
+                    return builder.imm_u64(slot);
+                }
+                if let Some(&slot) = self.locals.get(var_id) {
+                    return slot;
+                }
+                if let Some(offset) = self.get_local_memory_offset(var_id) {
+                    let offset = self.local_memory_addr(builder, offset);
+                    return builder.mload(offset);
+                }
+            }
+            sym::offset => return builder.imm_u64(0),
+            _ => {}
+        }
+
+        self.gcx
+            .dcx()
+            .err(format!("unsupported Yul member `.{}`", member.name))
+            .span(member.span)
+            .emit();
+        builder.imm_u64(0)
     }
 
     /// Checks if a HIR type is a signed integer type.
@@ -1212,6 +1263,13 @@ impl<'gcx> Lowerer<'gcx> {
                 let base_val = self.lower_expr(builder, base);
                 builder.mstore(base_val, rhs);
             }
+            ExprKind::YulMember(_, member) => {
+                self.gcx
+                    .dcx()
+                    .err(format!("unsupported Yul assignment target `.{}`", member.name))
+                    .span(member.span)
+                    .emit();
+            }
             _ => {}
         }
     }
@@ -1600,8 +1658,393 @@ impl<'gcx> Lowerer<'gcx> {
                 // Returns bytes memory (length + data)
                 self.lower_abi_encode_packed(builder, args)
             }
+            Builtin::YulAdd
+            | Builtin::YulSub
+            | Builtin::YulMul
+            | Builtin::YulDiv
+            | Builtin::YulMod
+            | Builtin::YulExp
+            | Builtin::YulNot
+            | Builtin::YulAnd
+            | Builtin::YulOr
+            | Builtin::YulXor
+            | Builtin::YulShl
+            | Builtin::YulShr
+            | Builtin::YulSar
+            | Builtin::YulStop
+            | Builtin::YulSdiv
+            | Builtin::YulSmod
+            | Builtin::YulLt
+            | Builtin::YulGt
+            | Builtin::YulSlt
+            | Builtin::YulSgt
+            | Builtin::YulEq
+            | Builtin::YulIszero
+            | Builtin::YulByte
+            | Builtin::YulClz
+            | Builtin::YulAddmod
+            | Builtin::YulMulmod
+            | Builtin::YulSignextend
+            | Builtin::YulKeccak256
+            | Builtin::YulAddress
+            | Builtin::YulBalance
+            | Builtin::YulSelfbalance
+            | Builtin::YulCaller
+            | Builtin::YulCallvalue
+            | Builtin::YulCalldataload
+            | Builtin::YulCalldatasize
+            | Builtin::YulCalldatacopy
+            | Builtin::YulCodesize
+            | Builtin::YulCodecopy
+            | Builtin::YulExtcodesize
+            | Builtin::YulExtcodecopy
+            | Builtin::YulReturndatasize
+            | Builtin::YulReturndatacopy
+            | Builtin::YulExtcodehash
+            | Builtin::YulMload
+            | Builtin::YulMstore
+            | Builtin::YulMstore8
+            | Builtin::YulSload
+            | Builtin::YulSstore
+            | Builtin::YulTload
+            | Builtin::YulTstore
+            | Builtin::YulMsize
+            | Builtin::YulGas
+            | Builtin::YulLog0
+            | Builtin::YulLog1
+            | Builtin::YulLog2
+            | Builtin::YulLog3
+            | Builtin::YulLog4
+            | Builtin::YulCreate
+            | Builtin::YulCreate2
+            | Builtin::YulCall
+            | Builtin::YulCallcode
+            | Builtin::YulDelegatecall
+            | Builtin::YulStaticcall
+            | Builtin::YulExtcall
+            | Builtin::YulExtdelegatecall
+            | Builtin::YulExtstaticcall
+            | Builtin::YulReturn
+            | Builtin::YulRevert
+            | Builtin::YulSelfdestruct
+            | Builtin::YulInvalid
+            | Builtin::YulChainid
+            | Builtin::YulBasefee
+            | Builtin::YulBlobbasefee
+            | Builtin::YulBlobhash
+            | Builtin::YulCoinbase
+            | Builtin::YulDifficulty
+            | Builtin::YulPrevrandao
+            | Builtin::YulGaslimit
+            | Builtin::YulNumber
+            | Builtin::YulTimestamp
+            | Builtin::YulGasprice
+            | Builtin::YulOrigin
+            | Builtin::YulBlockhash
+            | Builtin::YulPop
+            | Builtin::YulMcopy => self.lower_yul_builtin_call(builder, builtin, args),
             _ => builder.imm_u64(0),
         }
+    }
+
+    fn lower_yul_builtin_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        builtin: Builtin,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let arg_vals: Vec<ValueId> =
+            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+        if let Some(expected) = Self::yul_builtin_arity(builtin)
+            && arg_vals.len() != expected
+        {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "wrong number of arguments for Yul builtin `{}`: expected {}, found {}",
+                    builtin.name(),
+                    expected,
+                    arg_vals.len()
+                ))
+                .span(args.span)
+                .emit();
+            return builder.imm_u64(0);
+        }
+
+        match builtin {
+            Builtin::YulAdd => builder.add(arg_vals[0], arg_vals[1]),
+            Builtin::YulSub => builder.sub(arg_vals[0], arg_vals[1]),
+            Builtin::YulMul => builder.mul(arg_vals[0], arg_vals[1]),
+            Builtin::YulDiv => builder.div(arg_vals[0], arg_vals[1]),
+            Builtin::YulSdiv => builder.sdiv(arg_vals[0], arg_vals[1]),
+            Builtin::YulMod => builder.mod_(arg_vals[0], arg_vals[1]),
+            Builtin::YulSmod => builder.smod(arg_vals[0], arg_vals[1]),
+            Builtin::YulAddmod => builder.addmod(arg_vals[0], arg_vals[1], arg_vals[2]),
+            Builtin::YulMulmod => builder.mulmod(arg_vals[0], arg_vals[1], arg_vals[2]),
+            Builtin::YulExp => builder.exp(arg_vals[0], arg_vals[1]),
+            Builtin::YulSignextend => builder.signextend(arg_vals[0], arg_vals[1]),
+            Builtin::YulAnd => builder.and(arg_vals[0], arg_vals[1]),
+            Builtin::YulOr => builder.or(arg_vals[0], arg_vals[1]),
+            Builtin::YulXor => builder.xor(arg_vals[0], arg_vals[1]),
+            Builtin::YulNot => builder.not(arg_vals[0]),
+            Builtin::YulByte => builder.byte(arg_vals[0], arg_vals[1]),
+            Builtin::YulShl => builder.shl(arg_vals[0], arg_vals[1]),
+            Builtin::YulShr => builder.shr(arg_vals[0], arg_vals[1]),
+            Builtin::YulSar => builder.sar(arg_vals[0], arg_vals[1]),
+            Builtin::YulLt => builder.lt(arg_vals[0], arg_vals[1]),
+            Builtin::YulGt => builder.gt(arg_vals[0], arg_vals[1]),
+            Builtin::YulSlt => builder.slt(arg_vals[0], arg_vals[1]),
+            Builtin::YulSgt => builder.sgt(arg_vals[0], arg_vals[1]),
+            Builtin::YulEq => builder.eq(arg_vals[0], arg_vals[1]),
+            Builtin::YulIszero => builder.iszero(arg_vals[0]),
+            Builtin::YulMload => builder.mload(arg_vals[0]),
+            Builtin::YulMstore => {
+                builder.mstore(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulMstore8 => {
+                builder.mstore8(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulMsize => builder.msize(),
+            Builtin::YulMcopy => {
+                builder.mcopy(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulSload => builder.sload(arg_vals[0]),
+            Builtin::YulSstore => {
+                builder.sstore(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulTload => builder.tload(arg_vals[0]),
+            Builtin::YulTstore => {
+                builder.tstore(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulCalldataload => builder.calldataload(arg_vals[0]),
+            Builtin::YulCalldatasize => builder.calldatasize(),
+            Builtin::YulCalldatacopy => {
+                builder.calldatacopy(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulCodesize => builder.codesize(),
+            Builtin::YulCodecopy => {
+                builder.codecopy(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulExtcodesize => builder.extcodesize(arg_vals[0]),
+            Builtin::YulExtcodecopy => {
+                builder.extcodecopy(arg_vals[0], arg_vals[1], arg_vals[2], arg_vals[3]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulExtcodehash => builder.extcodehash(arg_vals[0]),
+            Builtin::YulReturndatasize => builder.returndatasize(),
+            Builtin::YulReturndatacopy => {
+                builder.returndatacopy(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulAddress => builder.address(),
+            Builtin::YulBalance => builder.balance(arg_vals[0]),
+            Builtin::YulSelfbalance => builder.selfbalance(),
+            Builtin::YulCaller => builder.caller(),
+            Builtin::YulCallvalue => builder.callvalue(),
+            Builtin::YulOrigin => builder.origin(),
+            Builtin::YulGasprice => builder.gasprice(),
+            Builtin::YulBlockhash => builder.blockhash(arg_vals[0]),
+            Builtin::YulCoinbase => builder.coinbase(),
+            Builtin::YulTimestamp => builder.timestamp(),
+            Builtin::YulNumber => builder.number(),
+            Builtin::YulDifficulty | Builtin::YulPrevrandao => builder.prevrandao(),
+            Builtin::YulGaslimit => builder.gaslimit(),
+            Builtin::YulChainid => builder.chainid(),
+            Builtin::YulGas => builder.gas(),
+            Builtin::YulBasefee => builder.basefee(),
+            Builtin::YulBlobbasefee => builder.blobbasefee(),
+            Builtin::YulBlobhash => builder.blobhash(arg_vals[0]),
+            Builtin::YulKeccak256 => builder.keccak256(arg_vals[0], arg_vals[1]),
+            Builtin::YulCall => builder.call(
+                arg_vals[0],
+                arg_vals[1],
+                arg_vals[2],
+                arg_vals[3],
+                arg_vals[4],
+                arg_vals[5],
+                arg_vals[6],
+            ),
+            Builtin::YulStaticcall => builder.staticcall(
+                arg_vals[0],
+                arg_vals[1],
+                arg_vals[2],
+                arg_vals[3],
+                arg_vals[4],
+                arg_vals[5],
+            ),
+            Builtin::YulDelegatecall => builder.delegatecall(
+                arg_vals[0],
+                arg_vals[1],
+                arg_vals[2],
+                arg_vals[3],
+                arg_vals[4],
+                arg_vals[5],
+            ),
+            Builtin::YulCreate => builder.create(arg_vals[0], arg_vals[1], arg_vals[2]),
+            Builtin::YulCreate2 => {
+                builder.create2(arg_vals[0], arg_vals[1], arg_vals[2], arg_vals[3])
+            }
+            Builtin::YulLog0 => {
+                builder.log0(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulLog1 => {
+                builder.log1(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulLog2 => {
+                builder.log2(arg_vals[0], arg_vals[1], arg_vals[2], arg_vals[3]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulLog3 => {
+                builder.log3(arg_vals[0], arg_vals[1], arg_vals[2], arg_vals[3], arg_vals[4]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulLog4 => {
+                builder.log4(
+                    arg_vals[0],
+                    arg_vals[1],
+                    arg_vals[2],
+                    arg_vals[3],
+                    arg_vals[4],
+                    arg_vals[5],
+                );
+                builder.imm_u64(0)
+            }
+            Builtin::YulRevert => {
+                builder.revert(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulStop => {
+                builder.stop();
+                builder.imm_u64(0)
+            }
+            Builtin::YulInvalid => {
+                builder.invalid();
+                builder.imm_u64(0)
+            }
+            Builtin::YulSelfdestruct => {
+                builder.selfdestruct(arg_vals[0]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulPop => builder.imm_u64(0),
+            Builtin::YulClz
+            | Builtin::YulCallcode
+            | Builtin::YulExtcall
+            | Builtin::YulExtdelegatecall
+            | Builtin::YulExtstaticcall
+            | Builtin::YulReturn => self.unsupported_yul_builtin(builder, builtin, args.span),
+            _ => unreachable!("non-Yul builtin passed to Yul lowering"),
+        }
+    }
+
+    fn yul_builtin_arity(builtin: Builtin) -> Option<usize> {
+        Some(match builtin {
+            Builtin::YulStop
+            | Builtin::YulAddress
+            | Builtin::YulSelfbalance
+            | Builtin::YulCaller
+            | Builtin::YulCallvalue
+            | Builtin::YulCalldatasize
+            | Builtin::YulCodesize
+            | Builtin::YulReturndatasize
+            | Builtin::YulMsize
+            | Builtin::YulGas
+            | Builtin::YulInvalid
+            | Builtin::YulChainid
+            | Builtin::YulBasefee
+            | Builtin::YulBlobbasefee
+            | Builtin::YulCoinbase
+            | Builtin::YulDifficulty
+            | Builtin::YulPrevrandao
+            | Builtin::YulGaslimit
+            | Builtin::YulNumber
+            | Builtin::YulTimestamp
+            | Builtin::YulGasprice
+            | Builtin::YulOrigin => 0,
+            Builtin::YulNot
+            | Builtin::YulIszero
+            | Builtin::YulClz
+            | Builtin::YulBalance
+            | Builtin::YulCalldataload
+            | Builtin::YulExtcodesize
+            | Builtin::YulExtcodehash
+            | Builtin::YulMload
+            | Builtin::YulSload
+            | Builtin::YulTload
+            | Builtin::YulBlobhash
+            | Builtin::YulBlockhash
+            | Builtin::YulPop
+            | Builtin::YulSelfdestruct => 1,
+            Builtin::YulAdd
+            | Builtin::YulSub
+            | Builtin::YulMul
+            | Builtin::YulDiv
+            | Builtin::YulMod
+            | Builtin::YulExp
+            | Builtin::YulAnd
+            | Builtin::YulOr
+            | Builtin::YulXor
+            | Builtin::YulShl
+            | Builtin::YulShr
+            | Builtin::YulSar
+            | Builtin::YulSdiv
+            | Builtin::YulSmod
+            | Builtin::YulLt
+            | Builtin::YulGt
+            | Builtin::YulSlt
+            | Builtin::YulSgt
+            | Builtin::YulEq
+            | Builtin::YulByte
+            | Builtin::YulSignextend
+            | Builtin::YulKeccak256
+            | Builtin::YulMstore
+            | Builtin::YulMstore8
+            | Builtin::YulSstore
+            | Builtin::YulTstore
+            | Builtin::YulLog0
+            | Builtin::YulReturn
+            | Builtin::YulRevert => 2,
+            Builtin::YulAddmod
+            | Builtin::YulMulmod
+            | Builtin::YulCalldatacopy
+            | Builtin::YulCodecopy
+            | Builtin::YulReturndatacopy
+            | Builtin::YulMcopy
+            | Builtin::YulLog1
+            | Builtin::YulCreate
+            | Builtin::YulExtdelegatecall
+            | Builtin::YulExtstaticcall => 3,
+            Builtin::YulExtcodecopy
+            | Builtin::YulLog2
+            | Builtin::YulCreate2
+            | Builtin::YulExtcall => 4,
+            Builtin::YulLog3 => 5,
+            Builtin::YulDelegatecall | Builtin::YulStaticcall | Builtin::YulLog4 => 6,
+            Builtin::YulCall | Builtin::YulCallcode => 7,
+            _ => return None,
+        })
+    }
+
+    fn unsupported_yul_builtin(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        builtin: Builtin,
+        span: Span,
+    ) -> ValueId {
+        self.gcx
+            .dcx()
+            .err(format!("unsupported Yul builtin `{}`", builtin.name()))
+            .span(span)
+            .emit();
+        builder.imm_u64(0)
     }
 
     /// Lowers a member function call (e.g., counter.increment()).
@@ -3292,7 +3735,8 @@ impl<'gcx> Lowerer<'gcx> {
                 None
             }
             hir::StmtKind::Loop(..)
-            | hir::StmtKind::Assembly(_)
+            | hir::StmtKind::AssemblyBlock(_)
+            | hir::StmtKind::Switch(_)
             | hir::StmtKind::Emit(_)
             | hir::StmtKind::Revert(_)
             | hir::StmtKind::Break
@@ -3418,8 +3862,8 @@ impl<'gcx> Lowerer<'gcx> {
         // Get the type of the base expression
         let base_ty = self.get_expr_type(base)?;
 
-        // Search through using directives in the contract
-        for using in contract.using_directives {
+        // Search through source- and contract-level using directives.
+        for using in self.gcx.hir.source(contract.source).usings.iter().chain(contract.usings) {
             // Check if this using directive applies to the base type
             let type_matches = if let Some(ref target_ty) = using.ty {
                 // Check if the types match
@@ -3433,36 +3877,58 @@ impl<'gcx> Lowerer<'gcx> {
                 continue;
             }
 
-            // Look for a matching function in the library
-            let library = self.gcx.hir.contract(using.library);
-            for func_id in library.functions() {
-                let func = self.gcx.hir.function(func_id);
-
-                // Check if the function name matches
-                if func.name.map(|n| n.name) != Some(member_name) {
+            for entry in using.entries {
+                if entry.operator.is_some() {
                     continue;
                 }
 
-                // The function must be internal or private (library functions called via using)
-                if !matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private)
-                {
-                    continue;
+                match &entry.kind {
+                    hir::UsingEntryKind::Library(library) => {
+                        for func_id in self.gcx.hir.contract(*library).functions() {
+                            let func = self.gcx.hir.function(func_id);
+                            if func.name.map(|n| n.name) != Some(member_name) {
+                                continue;
+                            }
+                            if self.using_function_matches(&base_ty, func_id) {
+                                return Some(func_id);
+                            }
+                        }
+                    }
+                    hir::UsingEntryKind::Functions(functions) => {
+                        for &func_id in *functions {
+                            let func = self.gcx.hir.function(func_id);
+                            let name = entry.name.or_else(|| func.name.map(|n| n.name));
+                            if name != Some(member_name) {
+                                continue;
+                            }
+                            if self.using_function_matches(&base_ty, func_id) {
+                                return Some(func_id);
+                            }
+                        }
+                    }
+                    hir::UsingEntryKind::Err(_) => {}
                 }
-
-                let Some(&first_param_id) = func.parameters.first() else {
-                    continue;
-                };
-                let first_param = self.gcx.hir.variable(first_param_id);
-                if !self.types_match_for_using(&base_ty, &first_param.ty) {
-                    continue;
-                }
-
-                // Found a matching function
-                return Some(func_id);
             }
         }
 
         None
+    }
+
+    fn using_function_matches(
+        &self,
+        base_ty: &solar_sema::ty::Ty<'_>,
+        func_id: hir::FunctionId,
+    ) -> bool {
+        let func = self.gcx.hir.function(func_id);
+        if !matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private) {
+            return false;
+        }
+
+        let Some(&first_param_id) = func.parameters.first() else {
+            return false;
+        };
+        let first_param = self.gcx.hir.variable(first_param_id);
+        self.types_match_for_using(base_ty, &first_param.ty)
     }
 
     /// Gets the type of an expression for using directive matching.
