@@ -22,8 +22,6 @@ mod yul;
 /// Maximum allowed recursive descent depth for selected parser entry points.
 const PARSER_RECURSION_LIMIT: usize = 128;
 
-type ImportCallback<'cb> = dyn FnMut(ast::ItemId, Span, &ast::StrLit) + 'cb;
-
 /// Solidity and Yul parser.
 ///
 /// # Examples
@@ -63,7 +61,8 @@ pub struct Parser<'sess, 'ast, 'cb> {
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
     /// Callback invoked after a top-level import directive is parsed.
-    import_callback: Option<std::boxed::Box<ImportCallback<'cb>>>,
+    #[allow(clippy::type_complexity)]
+    import_callback: Option<std::boxed::Box<dyn FnMut(ast::ItemId, Span, &ast::StrLit) + 'cb>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
