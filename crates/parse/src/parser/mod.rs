@@ -31,7 +31,7 @@ const PARSER_RECURSION_LIMIT: usize = 128;
 /// # fn main() {}
 #[doc = include_str!("../../doc-examples/parser.rs")]
 /// ```
-type ImportCallback<'cb, 'ast> = dyn FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb;
+type ImportCallback<'cb> = dyn FnMut(ast::ItemId, Span, ast::StrLit) + 'cb;
 
 pub struct Parser<'sess, 'ast, 'cb> {
     /// The parser session.
@@ -63,7 +63,7 @@ pub struct Parser<'sess, 'ast, 'cb> {
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
     /// Callback invoked after a top-level import directive is parsed.
-    import_callback: Option<std::boxed::Box<ImportCallback<'cb, 'ast>>>,
+    import_callback: Option<std::boxed::Box<ImportCallback<'cb>>>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -166,7 +166,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Sets the import callback.
     pub fn set_import_callback(
         &mut self,
-        import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb,
+        import_callback: impl FnMut(ast::ItemId, Span, ast::StrLit) + 'cb,
     ) {
         self.import_callback = Some(std::boxed::Box::new(import_callback));
     }
@@ -1243,8 +1243,8 @@ import * as B from "b.sol";
                 Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), src)
                     .expect("failed to create parser");
 
-            parser.set_import_callback(|id, span, import| {
-                imports.push((id, span, import.path.value.as_str().to_string()));
+            parser.set_import_callback(|id, span, path| {
+                imports.push((id, span, path.value.as_str().to_string()));
             });
             let ast = parser.parse_file().expect("failed to parse file");
             drop(parser);

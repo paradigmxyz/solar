@@ -233,12 +233,23 @@ impl<'gcx> ParsingContext<'gcx> {
                 continue;
             }
 
-            let ast = self.parse_one(&source.file, arena);
-            let _guard = debug_span!("resolve_imports").entered();
-            for (import_item_id, import_file) in
-                self.resolve_imports(&source.file.clone(), ast.as_ref())
-            {
-                sources.add_import(id, import_item_id, import_file, false);
+            let file = source.file.clone();
+            let parent = parent_path(&file);
+            let mut imports = Vec::new();
+            let ast = self.parse_one_with_import_callback(&file, arena, |item_id, _, path| {
+                if !self.resolve_imports {
+                    return;
+                }
+                let _guard = debug_span!("resolve_import").entered();
+                let Some(import_file) = self.resolve_import_path(path, parent) else {
+                    return;
+                };
+                imports.push((item_id, import_file));
+            });
+            if ast.is_some() {
+                for (import_item_id, import_file) in imports {
+                    sources.add_import(id, import_item_id, import_file, false);
+                }
             }
             sources[id].ast = ast;
         }
@@ -288,12 +299,12 @@ impl<'gcx> ParsingContext<'gcx> {
         let ast = self.parse_one_with_import_callback(
             &file,
             arenas.get_or_default(),
-            |item_id, _, import| {
+            |item_id, _, path| {
                 if !self.resolve_imports {
                     return;
                 }
                 let _guard = debug_span!("resolve_import").entered();
-                let Some(import_file) = self.resolve_import_directive(import, parent) else {
+                let Some(import_file) = self.resolve_import_path(path, parent) else {
                     return;
                 };
                 imports.push((item_id, import_file.clone()));
@@ -320,23 +331,13 @@ impl<'gcx> ParsingContext<'gcx> {
         }
     }
 
-    /// Parses a single file.
-    #[instrument(level = "debug", skip_all, fields(file = %file.name.display()))]
-    fn parse_one<'ast>(
-        &self,
-        file: &SourceFile,
-        arena: &'ast ast::Arena,
-    ) -> Option<ast::SourceUnit<'ast>> {
-        self.parse_one_with_import_callback(file, arena, |_, _, _| {})
-    }
-
     /// Parses a single file, calling `import_callback` for every parsed import directive.
     #[instrument(level = "debug", skip_all, fields(file = %file.name.display()))]
     fn parse_one_with_import_callback<'ast>(
         &self,
         file: &SourceFile,
         arena: &'ast ast::Arena,
-        import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>),
+        import_callback: impl FnMut(ast::ItemId, Span, ast::StrLit),
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
@@ -378,8 +379,16 @@ impl<'gcx> ParsingContext<'gcx> {
         import: &ast::ImportDirective<'_>,
         parent: Option<&Path>,
     ) -> Option<Arc<SourceFile>> {
-        let span = import.path.span;
-        let path_str = import.path.value.as_str();
+        self.resolve_import_path(import.path.clone(), parent)
+    }
+
+    fn resolve_import_path(
+        &self,
+        import_path: ast::StrLit,
+        parent: Option<&Path>,
+    ) -> Option<Arc<SourceFile>> {
+        let span = import_path.span;
+        let path_str = import_path.value.as_str();
         let (path_bytes, any_error) =
             unescape::parse_string_literal(path_str, unescape::StrKind::Str, span, self.sess);
         if any_error {
