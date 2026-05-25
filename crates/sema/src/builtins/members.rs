@@ -426,6 +426,25 @@ fn super_type(gcx: Gcx<'_>, id: hir::ContractId) -> MemberListOwned<'_> {
     members
 }
 
+pub(crate) fn internal_function_members_in_context<'gcx>(
+    gcx: Gcx<'gcx>,
+    id: hir::FunctionId,
+    current_contract: hir::ContractId,
+) -> MemberListOwned<'gcx> {
+    // Solc exposes `.selector` on internal function types only from a derived contract scope.
+    let function = gcx.hir.function(id);
+    let Some(defining_contract) = function.contract else {
+        return MemberListOwned::default();
+    };
+    if current_contract == defining_contract
+        || !function.is_part_of_external_interface()
+        || !gcx.hir.contract(current_contract).linearized_bases.contains(&defining_contract)
+    {
+        return MemberListOwned::default();
+    }
+    Member::of_builtins(gcx, [Builtin::FunctionSelector])
+}
+
 // `type(T)`
 fn meta<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>) -> MemberListOwned<'gcx> {
     match ty.kind {
