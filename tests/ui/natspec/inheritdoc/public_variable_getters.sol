@@ -20,10 +20,12 @@ interface Base {
 
 contract Child is Base {
     /// @inheritdoc Base
+    //~^ NOTE: inherits NatSpec from function `Base.factory()`
     address public override factory;
     //~^ ERROR: resolved NatSpec for variable `Child.factory`
 
     /// @inheritdoc Base
+    //~^ NOTE: inherits NatSpec from function `Base.values(uint256)`
     mapping(uint => uint) public override values;
     //~^ ERROR: resolved NatSpec for variable `Child.values`
 }

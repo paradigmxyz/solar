@@ -38,6 +38,11 @@ error: resolved NatSpec for function `OverloadChild.overloaded`
 LL │     function overloaded(uint a) public override {}
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
+note: inherits NatSpec from function `OverloadBase.overloaded(uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
+   │
+LL │     /// @inheritdoc OverloadBase
+   ╰╴         ━━━━━━━━━━
 note: @notice uint overload
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/overload_signature.sol:LL:CC
    │

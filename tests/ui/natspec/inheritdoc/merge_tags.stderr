@@ -50,6 +50,11 @@ LL │ ┃         return (true, x * y);
 LL │ ┃     }
    │ ┗━━━━━┛
    ╰╴
+note: inherits NatSpec from function `Base.foo(uint256,uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base
+   ╰╴         ━━━━━━━━━━
 note: @notice Base function notice
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
    │
@@ -89,6 +94,11 @@ LL │ ┃         return (false, 0);
 LL │ ┃     }
    │ ┗━━━━━┛
    ╰╴
+note: inherits NatSpec from function `Base.foo(uint256,uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base
+   ╰╴         ━━━━━━━━━━
 note: @notice Child2 notice
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
    │
@@ -128,6 +138,11 @@ LL │ ┃         return (true, x);
 LL │ ┃     }
    │ ┗━━━━━┛
    ╰╴
+note: inherits NatSpec from function `Base.foo(uint256,uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base
+   ╰╴         ━━━━━━━━━━
 note: @param x The x parameter from child3
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
    │
@@ -162,6 +177,11 @@ LL │ ┃         return (false, x + y);
 LL │ ┃     }
    │ ┗━━━━━┛
    ╰╴
+note: inherits NatSpec from function `Base.foo(uint256,uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base
+   ╰╴         ━━━━━━━━━━
 note: @return success Child4 override for success
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
    │
@@ -196,6 +216,11 @@ LL │ ┃         return (true, y);
 LL │ ┃     }
    │ ┗━━━━━┛
    ╰╴
+note: inherits NatSpec from function `Base.foo(uint256,uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @inheritdoc Base
+   ╰╴         ━━━━━━━━━━
 note: @custom:audit Reviewed by Child5 auditor
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
    │
@@ -240,6 +265,11 @@ LL │ ┃         return (true, x - y);
 LL │ ┃     }
    │ ┗━━━━━┛
    ╰╴
+note: inherits NatSpec from function `Child1.foo(uint256,uint256)`
+   ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
+   │
+LL │     /// @inheritdoc Child1
+   ╰╴         ━━━━━━━━━━
 note: @notice Base function notice
    ╭▸ ROOT/tests/ui/natspec/inheritdoc/merge_tags.sol:LL:CC
    │

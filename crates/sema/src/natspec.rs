@@ -1,6 +1,6 @@
 use crate::{
     hir,
-    ty::{Gcx, Ty, TyKind},
+    ty::{Gcx, Ty, TyAbiPrinter, TyAbiPrinterMode, TyKind},
 };
 use solar_ast as ast;
 use solar_data_structures::{map::FxHashSet, smallvec::SmallVec};
@@ -55,7 +55,7 @@ pub(crate) fn validate_item_docs(gcx: Gcx<'_>, item_id: hir::ItemId) {
     if !doc_id.is_empty() {
         let docs = gcx.natspec_doc_comments(doc_id);
         if gcx.sess.opts.unstable.print_natspec {
-            emit_natspec_debug(gcx, item_id, docs);
+            emit_natspec_debug(gcx, doc_id, item_id, docs);
         }
     }
 }
@@ -70,7 +70,12 @@ pub(crate) fn resolve_doc_comments<'gcx>(
     Resolver::new(gcx).resolve_doc(doc_id)
 }
 
-fn emit_natspec_debug(gcx: Gcx<'_>, item_id: hir::ItemId, docs: &[hir::NatSpecItem]) {
+fn emit_natspec_debug(
+    gcx: Gcx<'_>,
+    doc_id: hir::DocId,
+    item_id: hir::ItemId,
+    docs: &[hir::NatSpecItem],
+) {
     if docs.is_empty() {
         return;
     }
@@ -84,6 +89,13 @@ fn emit_natspec_debug(gcx: Gcx<'_>, item_id: hir::ItemId, docs: &[hir::NatSpecIt
     };
     let mut diag =
         gcx.dcx().err(format!("resolved NatSpec for {item_desc} {item_name}")).span(item.span());
+    let resolver = Resolver::new(gcx);
+    if let Some((span, inherited_item)) = resolver.find_inheritdoc_target(doc_id) {
+        diag = diag.span_note(
+            span,
+            format!("inherits NatSpec from {}", resolver.format_inherited_item(inherited_item)),
+        );
+    }
     for item in docs {
         diag = diag.span_note(item.span, item.to_string());
     }
@@ -474,6 +486,34 @@ impl<'gcx> Resolver<'gcx> {
         }
 
         self.gcx.arena().alloc_slice_copy(&merged)
+    }
+
+    fn find_inheritdoc_target(&self, doc_id: hir::DocId) -> Option<(Span, hir::ItemId)> {
+        let doc = self.gcx.hir.doc(doc_id);
+        for doc_comment in doc.ast_comments.iter() {
+            for item in doc_comment.natspec.iter() {
+                if let ast::NatSpecKind::Inheritdoc { contract } = &item.kind
+                    && let Some(contract_id) =
+                        self.gcx.natspec_contract_in_source((contract.name, doc.source))
+                    && let Some(inherited_item) = self.find_inherited_item(doc.item, contract_id)
+                {
+                    return Some((item.span, inherited_item));
+                }
+            }
+        }
+
+        None
+    }
+
+    fn format_inherited_item(&self, item_id: hir::ItemId) -> String {
+        let item = self.gcx.hir.item(item_id);
+        let mut name = self.gcx.item_canonical_name(item_id).to_string();
+        if let Some(params) = self.item_callable_parameter_types(item_id) {
+            TyAbiPrinter::new(self.gcx, &mut name, TyAbiPrinterMode::Signature)
+                .print_tuple(params.iter().copied())
+                .unwrap();
+        }
+        format!("{} `{name}`", item.description())
     }
 
     /// Finds the item in a contract that matches the given item (for inheritance).

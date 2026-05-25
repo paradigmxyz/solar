@@ -18,6 +18,7 @@ contract OverloadBase {
 
 contract OverloadChild is OverloadBase {
     /// @inheritdoc OverloadBase
+    //~^ NOTE: inherits NatSpec from function `OverloadBase.overloaded(uint256)`
     function overloaded(uint a) public override {}
     //~^ ERROR: resolved NatSpec for function `OverloadChild.overloaded`
 }
