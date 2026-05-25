@@ -2,21 +2,25 @@
 ; module @FunctionCall
 fn @double(arg0: u256) -> u256 {
   bb0 (entry):
-    v1 = add arg0, arg0
-    ret v1
+    v1 = internal_frame_addr 128
+    v3 = mstore v1, 0
+    v4 = add arg0, arg0
+    ret v4
 }
 
 fn @quadruple(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, arg0
-    v4 = add v2, v2
-    ret v4
+    v3 = mstore 128, 0
+    v5 = add arg0, arg0
+    v7 = add v5, v5
+    ret v7
 }
 
 fn @sum_then_double(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, arg1
-    v4 = add v2, v2
-    ret v4
+    v4 = mstore 128, 0
+    v5 = add arg0, arg1
+    v7 = add v5, v5
+    ret v7
 }
 

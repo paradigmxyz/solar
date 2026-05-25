@@ -2,23 +2,25 @@
 ; module @Mapping
 fn @balances(arg0: u256) -> u256 {
   bb0 (entry):
-    v3 = mstore 0, arg0
-    v5 = mstore 32, 0
-    v7 = keccak256 0, 64
-    v8 = sload v7
-    ret v8
+    v3 = mstore 128, 0
+    v6 = mstore 0, arg0
+    v8 = mstore 32, 0
+    v10 = keccak256 0, 64
+    v11 = sload v10
+    ret v11
 }
 
 fn @allowances(arg0: address, arg1: address) -> u256 {
   bb0 (entry):
-    v4 = mstore 0, arg0
-    v6 = mstore 32, 1
-    v8 = keccak256 0, 64
-    v10 = mstore 0, arg1
-    v12 = mstore 32, v8
-    v14 = keccak256 0, 64
-    v15 = sload v14
-    ret v15
+    v4 = mstore 128, 0
+    v7 = mstore 0, arg0
+    v9 = mstore 32, 1
+    v11 = keccak256 0, 64
+    v13 = mstore 0, arg1
+    v15 = mstore 32, v11
+    v17 = keccak256 0, 64
+    v18 = sload v17
+    ret v18
 }
 
 fn @set_balance(arg0: u256, arg1: u256) {
@@ -58,13 +60,14 @@ fn @approve(arg0: address, arg1: address, arg2: u256) {
 
 fn @get_allowance(arg0: address, arg1: address) -> u256 {
   bb0 (entry):
-    v4 = mstore 0, arg0
-    v6 = mstore 32, 1
-    v8 = keccak256 0, 64
-    v10 = mstore 0, arg1
-    v12 = mstore 32, v8
-    v14 = keccak256 0, 64
-    v15 = sload v14
-    ret v15
+    v4 = mstore 128, 0
+    v7 = mstore 0, arg0
+    v9 = mstore 32, 1
+    v11 = keccak256 0, 64
+    v13 = mstore 0, arg1
+    v15 = mstore 32, v11
+    v17 = keccak256 0, 64
+    v18 = sload v17
+    ret v18
 }
 

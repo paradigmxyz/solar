@@ -2,44 +2,45 @@
 ; module @NestedLoops
 fn @sum_grid(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v4 = mstore 160, 0
-    v7 = mstore 192, 0
+    v4 = mstore 128, 0
+    v7 = mstore 160, 0
+    v10 = mstore 192, 0
     jump bb1
   bb1:
-    v9 = mload 192
-    v10 = lt v9, arg0
-    br v10, bb4, bb5
+    v12 = mload 192
+    v13 = lt v12, arg0
+    br v13, bb4, bb5
   bb2:
-    v40 = mload 160
-    ret v40
+    v43 = mload 160
+    ret v43
   bb3:
-    v34 = mload 192
-    v36 = add v34, 1
-    v38 = mstore 192, v36
+    v37 = mload 192
+    v39 = add v37, 1
+    v41 = mstore 192, v39
     jump bb1
   bb4:
-    v13 = mstore 224, 0
+    v16 = mstore 224, 0
     jump bb6
   bb5:
     jump bb2
   bb6:
-    v15 = mload 224
-    v16 = lt v15, arg1
-    br v16, bb9, bb10
+    v18 = mload 224
+    v19 = lt v18, arg1
+    br v19, bb9, bb10
   bb7:
     jump bb3
   bb8:
-    v28 = mload 224
-    v30 = add v28, 1
-    v32 = mstore 224, v30
+    v31 = mload 224
+    v33 = add v31, 1
+    v35 = mstore 224, v33
     jump bb6
   bb9:
-    v18 = mload 160
-    v20 = mload 192
-    v22 = mload 224
-    v23 = mul v20, v22
-    v24 = add v18, v23
-    v26 = mstore 160, v24
+    v21 = mload 160
+    v23 = mload 192
+    v25 = mload 224
+    v26 = mul v23, v25
+    v27 = add v21, v26
+    v29 = mstore 160, v27
     jump bb8
   bb10:
     jump bb7
@@ -47,46 +48,47 @@ fn @sum_grid(arg0: u256, arg1: u256) -> u256 {
 
 fn @find_first(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v4 = mstore 160, 0
+    v4 = mstore 128, 0
+    v7 = mstore 160, 0
     jump bb1
   bb1:
-    v6 = mload 160
-    v7 = lt v6, arg0
-    br v7, bb4, bb5
+    v9 = mload 160
+    v10 = lt v9, arg0
+    br v10, bb4, bb5
   bb2:
     ret arg0
   bb3:
-    v29 = mload 160
-    v31 = add v29, 1
-    v33 = mstore 160, v31
+    v32 = mload 160
+    v34 = add v32, 1
+    v36 = mstore 160, v34
     jump bb1
   bb4:
-    v10 = mstore 192, 0
+    v13 = mstore 192, 0
     jump bb6
   bb5:
     jump bb2
   bb6:
-    v12 = mload 192
-    v13 = lt v12, arg0
-    br v13, bb9, bb10
+    v15 = mload 192
+    v16 = lt v15, arg0
+    br v16, bb9, bb10
   bb7:
     jump bb3
   bb8:
-    v23 = mload 192
-    v25 = add v23, 1
-    v27 = mstore 192, v25
+    v26 = mload 192
+    v28 = add v26, 1
+    v30 = mstore 192, v28
     jump bb6
   bb9:
-    v15 = mload 160
-    v17 = mload 192
-    v18 = add v15, v17
-    v19 = eq v18, arg1
-    br v19, bb11, bb12
+    v18 = mload 160
+    v20 = mload 192
+    v21 = add v18, v20
+    v22 = eq v21, arg1
+    br v22, bb11, bb12
   bb10:
     jump bb7
   bb11:
-    v21 = mload 160
-    ret v21
+    v24 = mload 160
+    ret v24
   bb12:
     jump bb8
 }

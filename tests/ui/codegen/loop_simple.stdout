@@ -2,26 +2,27 @@
 ; module @LoopSimple
 fn @sum_to(arg0: u256) -> u256 {
   bb0 (entry):
-    v3 = mstore 160, 0
-    v6 = mstore 192, 0
+    v3 = mstore 128, 0
+    v6 = mstore 160, 0
+    v9 = mstore 192, 0
     jump bb1
   bb1:
-    v8 = mload 192
-    v9 = lt v8, arg0
-    br v9, bb4, bb5
+    v11 = mload 192
+    v12 = lt v11, arg0
+    br v12, bb4, bb5
   bb2:
-    v24 = mload 160
-    ret v24
+    v27 = mload 160
+    ret v27
   bb3:
-    v18 = mload 192
-    v20 = add v18, 1
-    v22 = mstore 192, v20
+    v21 = mload 192
+    v23 = add v21, 1
+    v25 = mstore 192, v23
     jump bb1
   bb4:
-    v11 = mload 160
-    v13 = mload 192
-    v14 = add v11, v13
-    v16 = mstore 160, v14
+    v14 = mload 160
+    v16 = mload 192
+    v17 = add v14, v16
+    v19 = mstore 160, v17
     jump bb3
   bb5:
     jump bb2

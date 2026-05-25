@@ -2,19 +2,22 @@
 ; module @Linear
 fn @add(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, arg1
-    ret v2
+    v4 = mstore 128, 0
+    v5 = add arg0, arg1
+    ret v5
 }
 
 fn @sub(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = sub arg0, arg1
-    ret v2
+    v4 = mstore 128, 0
+    v5 = sub arg0, arg1
+    ret v5
 }
 
 fn @add_one(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, 1
-    ret v2
+    v3 = mstore 128, 0
+    v5 = add arg0, 1
+    ret v5
 }
 

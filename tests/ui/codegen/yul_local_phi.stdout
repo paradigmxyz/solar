@@ -3,13 +3,17 @@
 fn @branchLocal(arg0: u256) -> u256 {
   bb0 (entry):
     v3 = mstore 128, 0
-    br arg0, bb1, bb2
+    v6 = mstore 160, 1
+    v8 = eq arg0, 0
+    v9 = iszero v8
+    br v9, bb1, bb2
   bb1:
+    v12 = mstore 160, 2
     jump bb2
   bb2:
-    v6 = phi [bb0: 1], [bb1: 2]
-    v8 = mstore 128, v6
-    v10 = mload 128
-    ret v10
+    v14 = mload 160
+    v16 = mstore 128, v14
+    v18 = mload 128
+    ret v18
 }
 
