@@ -455,12 +455,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Ref(inner, _) if matches!(inner.kind, TyKind::Struct(_)) => None,
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
-                            && possible_members.len() == 1
-                            && possible_members[0]
-                                .res
-                                .is_some_and(|res| self.res_not_lvalue_reason(res).is_some()) =>
+                            && let [member] = possible_members.as_slice()
+                            && let Some(res) = member.res
+                            && res.as_variable().is_some() =>
                     {
-                        Some(NotLvalueReason::Generic)
+                        self.res_not_lvalue_reason(res)
                     }
                     _ => Some(NotLvalueReason::Generic),
                 };
@@ -882,6 +881,11 @@ impl<'gcx> TypeChecker<'gcx> {
         to: Ty<'gcx>,
         args: &'gcx hir::CallArgs<'gcx>,
     ) -> Ty<'gcx> {
+        if matches!(to.kind, TyKind::Super(_)) {
+            return self
+                .gcx
+                .mk_ty_err(self.dcx().err("cannot convert to the super type").span(span).emit());
+        }
         let WantOne::One(from_expr) = args.exprs().collect::<WantOne<_>>() else {
             return self.gcx.mk_ty_err(
                 self.dcx().emit_err(args.span, "expected exactly one unnamed argument"),
@@ -1757,12 +1761,16 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn type_of_res(&self, res: hir::Res) -> Ty<'gcx> {
         match res {
-            hir::Res::Builtin(Builtin::This | Builtin::Super) => self
+            hir::Res::Builtin(Builtin::This) => self
                 .contract
                 .map(|contract| self.gcx.type_of_item(contract.into()))
                 .unwrap_or_else(|| self.gcx.mk_ty_misc_err()),
-            // TODO: Different type for super
-            // hir::Res::Builtin(Builtin::Super) => {}
+            hir::Res::Builtin(Builtin::Super) => self
+                .contract
+                .map(|contract| {
+                    self.gcx.mk_ty(TyKind::Type(self.gcx.mk_ty(TyKind::Super(contract))))
+                })
+                .unwrap_or_else(|| self.gcx.mk_ty_misc_err()),
             res => self.gcx.type_of_res(res),
         }
     }
@@ -2188,6 +2196,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Udvt(..)
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
+        | TyKind::Super(_)
         | TyKind::Type(_)
         | TyKind::Meta(_) => None,
 
@@ -2214,7 +2223,6 @@ fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Optio
 
 fn valid_meta_type(ty: Ty<'_>) -> bool {
     debug_assert!(!matches!(ty.kind, TyKind::Type(_)));
-    // TODO: Disallow super
     matches!(
         ty.kind,
         TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))

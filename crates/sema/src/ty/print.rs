@@ -218,6 +218,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::IntLiteral(..)
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
+            | TyKind::Super(_)
             | TyKind::Error(..)
             | TyKind::Event(..)
             | TyKind::Module(_)
@@ -278,6 +279,10 @@ impl<'gcx, W: fmt::Write> TySolcPrinter<'gcx, W> {
                 let c = self.gcx.hir.contract(id);
                 self.buf.write_str(if c.kind.is_library() { "library" } else { "contract" })?;
                 write!(self.buf, " {}", c.name)
+            }
+            TyKind::Super(id) => {
+                let c = self.gcx.hir.contract(id);
+                write!(self.buf, "contract super {}", c.name)
             }
             TyKind::Fn(f) => {
                 self.buf.write_str("function ")?;
