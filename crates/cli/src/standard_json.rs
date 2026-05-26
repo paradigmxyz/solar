@@ -140,19 +140,45 @@ fn default_language() -> String {
 }
 
 pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
-    let mut input = String::new();
-    io::stdin().read_to_string(&mut input)?;
-    if opts.unstable.ui_testing {
-        input = strip_json_comments(&input);
-    }
+    let source_map = Arc::new(SourceMap::empty());
+    let (emitter, diagnostics) = InMemoryEmitter::new();
+    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+        flags.update_from_opts(&opts);
+        flags.track_diagnostics = opts.unstable.track_diagnostics;
+    });
 
-    let output = match serde_json::from_str::<CompilerInput>(&input) {
-        Ok(input) => compile(input, &mut opts),
-        Err(e) => CompilerOutput {
-            errors: vec![json_error("JSONError", format!("JSON parse error: {e}"))],
-            ..Default::default()
-        },
+    let mut input = String::new();
+    let mut output = match io::stdin().read_to_string(&mut input) {
+        Ok(_) => {
+            if opts.unstable.ui_testing {
+                input = strip_json_comments(&input);
+            }
+            match serde_json::from_str::<CompilerInput>(&input) {
+                Ok(input) => compile(input, &mut opts, Arc::clone(&source_map), dcx),
+                Err(e) => {
+                    dcx.err(format!("JSON parse error: {e}")).emit();
+                    CompilerOutput::default()
+                }
+            }
+        }
+        Err(e) => {
+            dcx.err(format!("failed to read standard JSON input: {e}")).emit();
+            CompilerOutput::default()
+        }
     };
+
+    let emitted = diagnostics.read().clone();
+    output.errors = solc_diagnostics_to_json(
+        &emitted,
+        Arc::clone(&source_map),
+        opts.unstable.ui_testing,
+        opts.error_format_human,
+        opts.diagnostic_width,
+    );
+
+    if has_error(&output.errors) {
+        output.contracts.clear();
+    }
 
     let stdout = io::stdout();
     let mut stdout = io::BufWriter::new(stdout.lock());
@@ -165,19 +191,24 @@ pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
     stdout.flush()
 }
 
-fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
+fn compile(
+    input: CompilerInput,
+    opts: &mut Opts,
+    source_map: Arc<SourceMap>,
+    dcx: DiagCtxt,
+) -> CompilerOutput {
     let mut output = CompilerOutput::default();
 
     let mut remappings = Vec::with_capacity(input.settings.remappings.len());
     for remapping in &input.settings.remappings {
         match remapping.parse::<ImportRemapping>() {
             Ok(remapping) => remappings.push(remapping),
-            Err(e) => output
-                .errors
-                .push(json_error("JSONError", format!("invalid remapping `{remapping}`: {e}"))),
+            Err(e) => {
+                dcx.err(format!("invalid remapping `{remapping}`: {e}")).emit();
+            }
         }
     }
-    if !output.errors.is_empty() {
+    if dcx.has_errors().is_err() {
         return output;
     }
 
@@ -192,9 +223,7 @@ fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
         "Solidity" | "solidity" => Language::Solidity,
         "Yul" | "yul" => Language::Yul,
         language => {
-            output
-                .errors
-                .push(json_error("JSONError", format!("unsupported language `{language}`")));
+            dcx.err(format!("unsupported language `{language}`")).emit();
             return output;
         }
     };
@@ -202,12 +231,6 @@ fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
         input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
     opts.input = input.sources.keys().cloned().collect();
 
-    let source_map = Arc::new(SourceMap::empty());
-    let (emitter, diagnostics) = InMemoryEmitter::new();
-    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
-        flags.update_from_opts(opts);
-        flags.track_diagnostics = opts.unstable.track_diagnostics;
-    });
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
         .dcx(dcx)
@@ -267,19 +290,6 @@ fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
 
     if output.sources.is_empty() {
         output.sources = source_outputs(&source_map);
-    }
-
-    let emitted = diagnostics.read().clone();
-    output.errors = solc_diagnostics_to_json(
-        &emitted,
-        Arc::clone(&source_map),
-        opts.unstable.ui_testing,
-        opts.error_format_human,
-        opts.diagnostic_width,
-    );
-
-    if has_error(&output.errors) {
-        output.contracts.clear();
     }
 
     output
@@ -367,17 +377,6 @@ impl EvmOutput {
 
 fn has_error(errors: &[Value]) -> bool {
     errors.iter().any(|error| error.get("severity").and_then(Value::as_str) == Some("error"))
-}
-
-fn json_error(error_type: &str, message: String) -> Value {
-    json!({
-        "component": "general",
-        "errorCode": null,
-        "formattedMessage": message,
-        "message": message,
-        "severity": "error",
-        "type": error_type,
-    })
 }
 
 fn strip_json_comments(input: &str) -> String {
