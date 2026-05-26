@@ -25,7 +25,9 @@ pub use emitter::{
     SilentEmitter,
 };
 #[cfg(feature = "json")]
-pub use emitter::{JsonEmitter, solc_diagnostics_to_json};
+pub use emitter::{
+    JsonEmitter, Severity, SolcDiagnostic, SourceLocation, solc_diagnostics_to_json,
+};
 
 mod message;
 pub use message::{DiagMsg, MultiSpan, SpanLabel};

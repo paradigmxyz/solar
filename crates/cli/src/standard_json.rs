@@ -3,7 +3,7 @@ use serde_json::{Value, json};
 use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
 use solar_interface::{
     SourceMap,
-    diagnostics::{DiagCtxt, InMemoryEmitter, solc_diagnostics_to_json},
+    diagnostics::{DiagCtxt, InMemoryEmitter, SolcDiagnostic, solc_diagnostics_to_json},
 };
 use std::{
     collections::BTreeMap,
@@ -48,7 +48,7 @@ struct OutputSelection(BTreeMap<String, BTreeMap<String, Vec<String>>>);
 #[derive(Debug, Default, Serialize)]
 struct CompilerOutput {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    errors: Vec<Value>,
+    errors: Vec<SolcDiagnostic>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     sources: BTreeMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -375,8 +375,8 @@ impl EvmOutput {
     }
 }
 
-fn has_error(errors: &[Value]) -> bool {
-    errors.iter().any(|error| error.get("severity").and_then(Value::as_str) == Some("error"))
+fn has_error(errors: &[SolcDiagnostic]) -> bool {
+    errors.iter().any(SolcDiagnostic::is_error)
 }
 
 fn strip_json_comments(input: &str) -> String {

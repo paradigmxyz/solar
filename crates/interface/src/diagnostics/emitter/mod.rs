@@ -8,7 +8,7 @@ pub use human::{HumanBufferEmitter, HumanEmitter};
 #[cfg(feature = "json")]
 mod json;
 #[cfg(feature = "json")]
-pub use json::{JsonEmitter, solc_diagnostics_to_json};
+pub use json::{JsonEmitter, Severity, SolcDiagnostic, SourceLocation, solc_diagnostics_to_json};
 
 mod mem;
 pub use mem::InMemoryEmitter;

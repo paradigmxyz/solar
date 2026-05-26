@@ -277,7 +277,7 @@ pub fn solc_diagnostics_to_json(
     ui_testing: bool,
     human_kind: HumanEmitterKind,
     terminal_width: Option<usize>,
-) -> Vec<serde_json::Value> {
+) -> Vec<SolcDiagnostic> {
     let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map)
         .ui_testing(ui_testing)
         .human_kind(human_kind)
@@ -286,7 +286,7 @@ pub fn solc_diagnostics_to_json(
         .iter()
         .map(|diagnostic| {
             let mut diagnostic = diagnostic.clone();
-            serde_json::to_value(emitter.solc_diagnostic(&mut diagnostic)).unwrap()
+            emitter.solc_diagnostic(&mut diagnostic)
         })
         .collect()
 }
@@ -356,32 +356,39 @@ struct DiagnosticCode {
 
 // Solc JSON format.
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct SolcDiagnostic {
-    source_location: Option<SourceLocation>,
-    secondary_source_locations: Vec<SourceLocation>,
-    r#type: String,
-    component: String,
-    severity: Severity,
-    error_code: Option<String>,
-    message: String,
-    formatted_message: Option<String>,
+pub struct SolcDiagnostic {
+    pub source_location: Option<SourceLocation>,
+    pub secondary_source_locations: Vec<SourceLocation>,
+    pub r#type: String,
+    pub component: String,
+    pub severity: Severity,
+    pub error_code: Option<String>,
+    pub message: String,
+    pub formatted_message: Option<String>,
 }
 
-#[derive(Serialize)]
-struct SourceLocation {
-    file: String,
-    start: u32,
-    end: u32,
+impl SolcDiagnostic {
+    /// Returns `true` if this diagnostic has error severity.
+    pub fn is_error(&self) -> bool {
+        matches!(self.severity, Severity::Error)
+    }
+}
+
+#[derive(Debug, Serialize)]
+pub struct SourceLocation {
+    pub file: String,
+    pub start: u32,
+    pub end: u32,
     // Some if it's a secondary source location.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    message: Option<String>,
+    pub message: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
-enum Severity {
+pub enum Severity {
     Error,
     Warning,
     Info,
