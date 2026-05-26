@@ -6,7 +6,7 @@ pub const SHORT_VERSION: &str = env!("SHORT_VERSION");
 
 /// The long version information.
 #[cfg(feature = "version")]
-pub const LONG_VERSION: &str = concat!(
+pub const VERSION: &str = concat!(
     env!("LONG_VERSION0"),
     "\n",
     env!("LONG_VERSION1"),
@@ -18,13 +18,9 @@ pub const LONG_VERSION: &str = concat!(
     env!("LONG_VERSION4"),
 );
 
-/// The solc-compatible version information.
-#[cfg(feature = "version")]
-pub const SOLC_VERSION: &str = env!("SOLC_VERSION");
-
 /// The solc-compatible long version information.
 #[cfg(feature = "version")]
-pub const SOLC_LONG_VERSION: &str =
+pub const SOLC_VERSION: &str =
     concat!(env!("SOLC_LONG_VERSION0"), "\n", env!("SOLC_LONG_VERSION1"));
 
 /// The semver version information.
@@ -32,17 +28,17 @@ pub const SEMVER_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Returns the short version selected for the current environment.
 #[cfg(feature = "version")]
-pub fn version() -> &'static str {
-    if foundry() { SOLC_VERSION } else { SHORT_VERSION }
+pub fn short_version() -> &'static str {
+    SHORT_VERSION
 }
 
 /// Returns the long version selected for the current environment.
 #[cfg(feature = "version")]
-pub fn long_version() -> &'static str {
-    if foundry() { SOLC_LONG_VERSION } else { LONG_VERSION }
+pub fn version() -> &'static str {
+    if solc_wrapper() { SOLC_VERSION } else { VERSION }
 }
 
 #[cfg(feature = "version")]
-fn foundry() -> bool {
-    matches!(std::env::var("FOUNDRY").as_deref(), Ok("1"))
+fn solc_wrapper() -> bool {
+    std::env::var_os("SOLC_WRAPPER").is_some_and(|x| x == "1")
 }

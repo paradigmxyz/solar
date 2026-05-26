@@ -16,8 +16,8 @@ use clap::{Parser, ValueHint};
 #[cfg_attr(feature = "clap", derive(Parser))]
 #[cfg_attr(feature = "clap", command(
     name = "solar",
-    version = crate::version::version(),
-    long_version = crate::version::long_version(),
+    version = crate::version::short_version(),
+    long_version = crate::version::version(),
     arg_required_else_help = true,
 ))]
 #[allow(clippy::manual_non_exhaustive)]
