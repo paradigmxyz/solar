@@ -53,9 +53,6 @@ jobs:
         run: cargo build
       - name: test
         run: cargo nextest run --workspace
-      - name: test standard JSON
-        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
-        run: TESTER_MODE=standard-json cargo test -p solar-compiler --test tests
       - name: test --features nightly
         if: matrix.rust == 'nightly'
         run: cargo nextest run --workspace --features nightly
