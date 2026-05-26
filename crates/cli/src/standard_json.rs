@@ -24,10 +24,10 @@ use std::{
 #[serde(rename_all = "camelCase")]
 struct CompilerInput<'a> {
     #[serde(default = "default_language")]
-    language: JsonString<'a>,
+    language: CowStr<'a>,
     #[serde(default)]
     #[serde(borrow)]
-    sources: BTreeMap<JsonString<'a>, SourceInput<'a>>,
+    sources: BTreeMap<CowStr<'a>, SourceInput<'a>>,
     #[serde(default)]
     #[serde(borrow)]
     settings: Settings<'a>,
@@ -36,10 +36,10 @@ struct CompilerInput<'a> {
 #[derive(Debug, Deserialize)]
 struct SourceInput<'a> {
     #[serde(borrow)]
-    content: Option<JsonString<'a>>,
+    content: Option<CowStr<'a>>,
     #[serde(default)]
     #[serde(borrow)]
-    urls: Vec<JsonString<'a>>,
+    urls: Vec<CowStr<'a>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -47,19 +47,19 @@ struct SourceInput<'a> {
 struct Settings<'a> {
     #[serde(default)]
     #[serde(borrow)]
-    remappings: Vec<JsonString<'a>>,
+    remappings: Vec<CowStr<'a>>,
     #[serde(default)]
     #[serde(borrow)]
     output_selection: OutputSelection<'a>,
     #[serde(borrow)]
-    stop_after: Option<JsonString<'a>>,
+    stop_after: Option<CowStr<'a>>,
     #[serde(borrow)]
-    evm_version: Option<JsonString<'a>>,
+    evm_version: Option<CowStr<'a>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 struct OutputSelection<'a>(
-    #[serde(borrow)] BTreeMap<JsonString<'a>, BTreeMap<JsonString<'a>, Vec<JsonString<'a>>>>,
+    #[serde(borrow)] BTreeMap<CowStr<'a>, BTreeMap<CowStr<'a>, Vec<CowStr<'a>>>>,
 );
 
 #[derive(Debug, Default, Serialize)]
@@ -72,22 +72,33 @@ struct CompilerOutput<'a> {
     contracts: BTreeMap<String, BTreeMap<String, ContractOutput>>,
 }
 
+/// JSON string wrapper that borrows from the standard-json input when possible.
+///
+/// Serde's generic `Cow<'de, str>` implementation deserializes through the
+/// owned representation, so direct `Cow<'de, str>` fields allocate even when
+/// the JSON backend can provide `visit_borrowed_str`. `#[serde(borrow)]` on the
+/// containing fields is still needed to thread the input lifetime to this type,
+/// and this visitor is what selects `Cow::Borrowed` for unescaped strings and
+/// `Cow::Owned` when the deserializer has to materialize an escaped string.
+///
+/// See <https://github.com/serde-rs/serde/issues/1852> and
+/// <https://github.com/serde-rs/serde/issues/914>.
 #[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
-struct JsonString<'a>(Cow<'a, str>);
+struct CowStr<'a>(Cow<'a, str>);
 
-impl JsonString<'_> {
+impl CowStr<'_> {
     fn as_cow(&self) -> &Cow<'_, str> {
         &self.0
     }
 }
 
-impl AsRef<str> for JsonString<'_> {
+impl AsRef<str> for CowStr<'_> {
     fn as_ref(&self) -> &str {
         &self.0
     }
 }
 
-impl Deref for JsonString<'_> {
+impl Deref for CowStr<'_> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
@@ -95,33 +106,33 @@ impl Deref for JsonString<'_> {
     }
 }
 
-impl Borrow<str> for JsonString<'_> {
+impl Borrow<str> for CowStr<'_> {
     fn borrow(&self) -> &str {
         &self.0
     }
 }
 
-impl fmt::Display for JsonString<'_> {
+impl fmt::Display for CowStr<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.0)
     }
 }
 
-impl From<JsonString<'_>> for String {
-    fn from(value: JsonString<'_>) -> Self {
+impl From<CowStr<'_>> for String {
+    fn from(value: CowStr<'_>) -> Self {
         value.0.into_owned()
     }
 }
 
-impl<'de: 'a, 'a> Deserialize<'de> for JsonString<'a> {
+impl<'de: 'a, 'a> Deserialize<'de> for CowStr<'a> {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        struct JsonStringVisitor;
+        struct CowStrVisitor;
 
-        impl<'de> Visitor<'de> for JsonStringVisitor {
-            type Value = JsonString<'de>;
+        impl<'de> Visitor<'de> for CowStrVisitor {
+            type Value = CowStr<'de>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a JSON string")
@@ -131,25 +142,25 @@ impl<'de: 'a, 'a> Deserialize<'de> for JsonString<'a> {
             where
                 E: de::Error,
             {
-                Ok(JsonString(Cow::Borrowed(value)))
+                Ok(CowStr(Cow::Borrowed(value)))
             }
 
             fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(JsonString(Cow::Owned(value.to_string())))
+                Ok(CowStr(Cow::Owned(value.to_string())))
             }
 
             fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
             where
                 E: de::Error,
             {
-                Ok(JsonString(Cow::Owned(value)))
+                Ok(CowStr(Cow::Owned(value)))
             }
         }
 
-        deserializer.deserialize_str(JsonStringVisitor)
+        deserializer.deserialize_str(CowStrVisitor)
     }
 }
 
@@ -226,20 +237,20 @@ impl OutputSelection<'_> {
     fn source_maps(
         &self,
         source: &str,
-    ) -> impl Iterator<Item = &BTreeMap<JsonString<'_>, Vec<JsonString<'_>>>> {
+    ) -> impl Iterator<Item = &BTreeMap<CowStr<'_>, Vec<CowStr<'_>>>> {
         [source, "*"].into_iter().filter_map(|source| self.0.get(source))
     }
 }
 
 fn contract_maps<'a, 'b>(
-    contracts: &'a BTreeMap<JsonString<'b>, Vec<JsonString<'b>>>,
+    contracts: &'a BTreeMap<CowStr<'b>, Vec<CowStr<'b>>>,
     contract: &'a str,
-) -> impl Iterator<Item = &'a Vec<JsonString<'b>>> {
+) -> impl Iterator<Item = &'a Vec<CowStr<'b>>> {
     [contract, "*"].into_iter().filter_map(|contract| contracts.get(contract))
 }
 
-fn default_language<'a>() -> JsonString<'a> {
-    JsonString(Cow::Borrowed("Solidity"))
+fn default_language<'a>() -> CowStr<'a> {
+    CowStr(Cow::Borrowed("Solidity"))
 }
 
 struct StandardJsonFileLoader;
@@ -377,7 +388,7 @@ struct InputCowStats {
 }
 
 impl InputCowStats {
-    fn add(&mut self, value: &JsonString<'_>) {
+    fn add(&mut self, value: &CowStr<'_>) {
         match value.as_cow() {
             Cow::Borrowed(_) => self.borrowed += 1,
             Cow::Owned(_) => self.owned += 1,
