@@ -2,13 +2,14 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language};
 use solar_interface::{
-    SourceMap,
+    Result, SourceMap,
     diagnostics::{InMemoryEmitter, solc_diagnostics_to_json},
 };
-use solar_sema::CompilerRef;
+use solar_sema::{CompilerRef, ParsingContext};
 use std::{
     collections::BTreeMap,
     io::{self, Read as _, Write as _},
+    ops::ControlFlow,
     path::PathBuf,
     str::FromStr,
 };
@@ -139,84 +140,22 @@ fn default_language() -> String {
     "Solidity".to_string()
 }
 
-pub(crate) fn run_in_default(compiler: &mut CompilerRef<'_>) -> solar_interface::Result {
-    let (emitter, diagnostics) = InMemoryEmitter::new();
-    let previous_emitter = compiler.dcx().set_emitter(Box::new(emitter));
-    compiler.dcx().set_flags(|flags| {
-        flags.update_from_opts(&compiler.sess().opts);
-        flags.track_diagnostics = compiler.sess().opts.unstable.track_diagnostics;
-    });
-
-    let output = compile(compiler);
-    let source_map = compiler.sess().clone_source_map();
-    let emitted = diagnostics.read().clone();
-    let errors = solc_diagnostics_to_json(
-        &emitted,
-        source_map,
-        compiler.sess().opts.unstable.ui_testing,
-        compiler.sess().opts.error_format_human,
-        compiler.sess().opts.diagnostic_width,
-    );
-    compiler.dcx().set_emitter(previous_emitter);
-
-    write_output(compiler, CompilerOutput { errors, ..output })
+#[derive(Default)]
+pub(crate) struct StandardJsonInput {
+    sources: Option<BTreeMap<String, SourceInput>>,
+    output_selection: OutputSelection,
+    remappings: Vec<ImportRemapping>,
 }
 
-fn compile(compiler: &mut CompilerRef<'_>) -> CompilerOutput {
-    let mut output = CompilerOutput::default();
-
-    let mut input_json = String::new();
-    if let Err(e) = io::stdin().read_to_string(&mut input_json) {
-        compiler.dcx().err(format!("failed to read standard JSON input: {e}")).emit();
-        return output;
+impl StandardJsonInput {
+    pub(crate) fn can_run_pipeline(&self) -> bool {
+        self.sources.is_some()
     }
 
-    let input = match serde_json::from_str::<CompilerInput>(&strip_json_comments(&input_json)) {
-        Ok(input) => input,
-        Err(e) => {
-            compiler.dcx().err(format!("JSON parse error: {e}")).emit();
-            return output;
-        }
-    };
+    pub(crate) fn load_sources(&mut self, pcx: &mut ParsingContext<'_>) -> Result {
+        pcx.file_resolver.add_import_remappings(std::mem::take(&mut self.remappings));
 
-    let mut remappings = Vec::with_capacity(input.settings.remappings.len());
-    for remapping in &input.settings.remappings {
-        match remapping.parse::<ImportRemapping>() {
-            Ok(remapping) => remappings.push(remapping),
-            Err(e) => {
-                compiler.dcx().err(format!("invalid remapping `{remapping}`: {e}")).emit();
-            }
-        }
-    }
-    if compiler.dcx().has_errors().is_err() {
-        return output;
-    }
-
-    let _evm_version = input
-        .settings
-        .evm_version
-        .as_deref()
-        .and_then(|version| EvmVersion::from_str(version).ok());
-    let language = match input.language.as_str() {
-        "Solidity" | "solidity" => Language::Solidity,
-        "Yul" | "yul" => Language::Yul,
-        language => {
-            compiler.dcx().err(format!("unsupported language `{language}`")).emit();
-            return output;
-        }
-    };
-    if language.is_yul() && !compiler.sess().opts.unstable.parse_yul {
-        compiler.dcx().err("Yul is not supported yet").emit();
-        return output;
-    }
-    let _stop_after =
-        input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
-
-    let output_selection = input.settings.output_selection;
-    let sources = input.sources;
-
-    let compile_result = crate::run_pipeline(compiler, |pcx| {
-        pcx.file_resolver.add_import_remappings(remappings);
+        let Some(sources) = self.sources.take() else { return Ok(()) };
         for (name, source) in sources {
             let Some(content) = source.content else {
                 let message = if source.urls.is_empty() {
@@ -232,38 +171,136 @@ fn compile(compiler: &mut CompilerRef<'_>) -> CompilerOutput {
             };
             pcx.add_file(file);
         }
+
         Ok(())
+    }
+}
+
+pub(crate) fn with_context(
+    compiler: &mut CompilerRef<'_>,
+    f: impl FnOnce(&mut StandardJsonInput, &mut CompilerRef<'_>) -> Result<ControlFlow<()>>,
+) -> Result {
+    let (emitter, diagnostics) = InMemoryEmitter::new();
+    let previous_emitter = compiler.dcx().set_emitter(Box::new(emitter));
+    compiler.dcx().set_flags(|flags| {
+        flags.update_from_opts(&compiler.sess().opts);
+        flags.track_diagnostics = compiler.sess().opts.unstable.track_diagnostics;
     });
 
-    output.sources = source_outputs(compiler.sess().source_map());
+    let mut input = StandardJsonInput::read(compiler);
+    let pipeline_result = f(&mut input, compiler);
+    let output = input.make_output(compiler, &pipeline_result);
+    let source_map = compiler.sess().clone_source_map();
+    let emitted = diagnostics.read().clone();
+    let errors = solc_diagnostics_to_json(
+        &emitted,
+        source_map,
+        compiler.sess().opts.unstable.ui_testing,
+        compiler.sess().opts.error_format_human,
+        compiler.sess().opts.diagnostic_width,
+    );
+    compiler.dcx().set_emitter(previous_emitter);
 
-    if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
-        let gcx = compiler.gcx();
-        for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-            let source = gcx.hir.source(contract.source);
-            let source_name = source.file.name.display().to_string();
-            let contract_name = contract.name.to_string();
-            let contract_output = make_contract_output(
-                gcx,
-                contract_id,
-                &output_selection,
-                &source_name,
-                &contract_name,
-            );
-            if !contract_output.is_empty() {
-                output
-                    .contracts
-                    .entry(source_name)
-                    .or_default()
-                    .insert(contract_name, contract_output);
+    write_output(compiler, CompilerOutput { errors, ..output })
+}
+
+impl StandardJsonInput {
+    fn read(compiler: &mut CompilerRef<'_>) -> Self {
+        let mut input_json = String::new();
+        if let Err(e) = io::stdin().read_to_string(&mut input_json) {
+            compiler.dcx().err(format!("failed to read standard JSON input: {e}")).emit();
+            return Self::default();
+        }
+
+        let input = match serde_json::from_str::<CompilerInput>(&strip_json_comments(&input_json)) {
+            Ok(input) => input,
+            Err(e) => {
+                compiler.dcx().err(format!("JSON parse error: {e}")).emit();
+                return Self::default();
             }
+        };
+
+        let mut remappings = Vec::with_capacity(input.settings.remappings.len());
+        for remapping in &input.settings.remappings {
+            match remapping.parse::<ImportRemapping>() {
+                Ok(remapping) => remappings.push(remapping),
+                Err(e) => {
+                    compiler.dcx().err(format!("invalid remapping `{remapping}`: {e}")).emit();
+                }
+            }
+        }
+        if compiler.dcx().has_errors().is_err() {
+            return Self { remappings, ..Default::default() };
+        }
+
+        let _evm_version = input
+            .settings
+            .evm_version
+            .as_deref()
+            .and_then(|version| EvmVersion::from_str(version).ok());
+        let language = match input.language.as_str() {
+            "Solidity" | "solidity" => Language::Solidity,
+            "Yul" | "yul" => Language::Yul,
+            language => {
+                compiler.dcx().err(format!("unsupported language `{language}`")).emit();
+                return Self { remappings, ..Default::default() };
+            }
+        };
+        if language.is_yul() && !compiler.sess().opts.unstable.parse_yul {
+            compiler.dcx().err("Yul is not supported yet").emit();
+            return Self { remappings, ..Default::default() };
+        }
+        let _stop_after = input
+            .settings
+            .stop_after
+            .as_deref()
+            .and_then(|stage| CompilerStage::from_str(stage).ok());
+
+        Self {
+            sources: Some(input.sources),
+            output_selection: input.settings.output_selection,
+            remappings,
         }
     }
 
-    output
+    fn make_output(
+        &self,
+        compiler: &CompilerRef<'_>,
+        pipeline_result: &Result<ControlFlow<()>>,
+    ) -> CompilerOutput {
+        let mut output = CompilerOutput {
+            sources: source_outputs(compiler.sess().source_map()),
+            ..Default::default()
+        };
+
+        if pipeline_result.is_ok() && compiler.dcx().has_errors().is_ok() && self.sources.is_none()
+        {
+            add_contract_outputs(compiler, &self.output_selection, &mut output);
+        }
+
+        output
+    }
 }
 
-fn write_output(compiler: &CompilerRef<'_>, mut output: CompilerOutput) -> solar_interface::Result {
+fn add_contract_outputs(
+    compiler: &CompilerRef<'_>,
+    output_selection: &OutputSelection,
+    output: &mut CompilerOutput,
+) {
+    let gcx = compiler.gcx();
+    for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+        let source = gcx.hir.source(contract.source);
+        let source_name = source.file.name.display().to_string();
+        let contract_name = contract.name.to_string();
+        let contract_output =
+            make_contract_output(gcx, contract_id, output_selection, &source_name, &contract_name);
+        if !contract_output.is_empty() {
+            output.contracts.entry(source_name).or_default().insert(contract_name, contract_output);
+        }
+    }
+}
+
+fn write_output(compiler: &CompilerRef<'_>, mut output: CompilerOutput) -> Result {
     if has_error(&output.errors) {
         output.contracts.clear();
     }

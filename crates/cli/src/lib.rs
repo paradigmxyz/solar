@@ -52,35 +52,44 @@ pub fn run_compiler_args(opts: Opts) -> Result {
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
     if compiler.sess().opts.standard_json {
-        return standard_json::run_in_default(compiler);
+        return standard_json::with_context(compiler, |input, compiler| {
+            if input.can_run_pipeline() {
+                run_pipeline(compiler, |pcx| input.load_sources(pcx))
+            } else {
+                Ok(ControlFlow::Break(()))
+            }
+        });
     }
 
-    run_pipeline(compiler, |pcx| {
-        // Partition arguments into three categories:
-        // - `stdin`: `-`, occurrences after the first are ignored
-        // - remappings: `[context:]prefix=path`, already parsed as part of `Opts`
-        // - paths: everything else
-        let mut seen_stdin = false;
-        let mut paths = Vec::new();
-        for arg in pcx.sess.opts.input.clone() {
-            if arg == "-" {
-                if !seen_stdin {
-                    pcx.load_stdin()?;
-                }
-                seen_stdin = true;
-                continue;
-            }
+    run_pipeline(compiler, load_default_sources)
+        .map(|_| ())
+        .and(finish_diagnostics(compiler.gcx().sess))
+}
 
-            if arg.contains('=') {
-                continue;
+fn load_default_sources(pcx: &mut ParsingContext<'_>) -> Result {
+    // Partition arguments into three categories:
+    // - `stdin`: `-`, occurrences after the first are ignored
+    // - remappings: `[context:]prefix=path`, already parsed as part of `Opts`
+    // - paths: everything else
+    let mut seen_stdin = false;
+    let mut paths = Vec::new();
+    for arg in pcx.sess.opts.input.clone() {
+        if arg == "-" {
+            if !seen_stdin {
+                pcx.load_stdin()?;
             }
-
-            paths.push(arg);
+            seen_stdin = true;
+            continue;
         }
 
-        pcx.par_load_files(paths)
-    })
-    .map(|_| ())
+        if arg.contains('=') {
+            continue;
+        }
+
+        paths.push(arg);
+    }
+
+    pcx.par_load_files(paths)
 }
 
 pub(crate) fn run_pipeline(
@@ -114,26 +123,11 @@ pub(crate) fn run_pipeline(
 }
 
 fn run_compiler_with(opts: Opts, f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send) -> Result {
-    let finish = !opts.standard_json;
     let mut sess = Session::new(opts);
     sess.infer_language();
-    run_compiler_session_with(sess, f, finish)
-}
-
-pub(crate) fn run_compiler_session_with(
-    sess: Session,
-    f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
-    finish: bool,
-) -> Result {
     sess.validate()?;
     let mut compiler = solar_sema::Compiler::new(sess);
-    compiler.enter_mut(|compiler| {
-        let mut r = f(compiler);
-        if finish {
-            r = r.and(finish_diagnostics(compiler.gcx().sess));
-        }
-        r
-    })
+    compiler.enter_mut(f)
 }
 
 fn finish_diagnostics(sess: &Session) -> Result {
