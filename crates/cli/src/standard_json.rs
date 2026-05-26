@@ -383,17 +383,23 @@ impl JsonTreeStats {
 #[derive(Default)]
 struct InputCowStats {
     borrowed: usize,
+    borrowed_bytes: usize,
     owned: usize,
-    bytes: usize,
+    owned_bytes: usize,
 }
 
 impl InputCowStats {
     fn add(&mut self, value: &CowStr<'_>) {
         match value.as_cow() {
-            Cow::Borrowed(_) => self.borrowed += 1,
-            Cow::Owned(_) => self.owned += 1,
+            Cow::Borrowed(value) => {
+                self.borrowed += 1;
+                self.borrowed_bytes += value.len();
+            }
+            Cow::Owned(value) => {
+                self.owned += 1;
+                self.owned_bytes += value.len();
+            }
         }
-        self.bytes += value.as_ref().len();
     }
 }
 
@@ -445,8 +451,8 @@ fn print_standard_json_stats(raw_input: &str, input: &CompilerInput<'_>) {
         input.settings.output_selection.0.len(),
     );
     eprintln!(
-        "standard-json-stats: cow_borrowed={} cow_owned={} cow_string_bytes={}",
-        cows.borrowed, cows.owned, cows.bytes,
+        "standard-json-stats: cow_borrowed={} cow_borrowed_bytes={} cow_owned={} cow_owned_bytes={}",
+        cows.borrowed, cows.borrowed_bytes, cows.owned, cows.owned_bytes,
     );
 }
 
