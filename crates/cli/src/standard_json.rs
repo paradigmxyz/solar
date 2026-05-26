@@ -1,4 +1,5 @@
 use indexmap::IndexMap;
+use rustc_hash::FxBuildHasher;
 use serde::{
     Deserialize, Serialize,
     de::{self, Visitor},
@@ -21,6 +22,8 @@ use std::{
     sync::Arc,
 };
 
+type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CompilerInput<'a> {
@@ -28,7 +31,7 @@ struct CompilerInput<'a> {
     language: CowStr<'a>,
     #[serde(default)]
     #[serde(borrow)]
-    sources: IndexMap<CowStr<'a>, SourceInput<'a>>,
+    sources: FxIndexMap<CowStr<'a>, SourceInput<'a>>,
     #[serde(default)]
     #[serde(borrow)]
     settings: Settings<'a>,
@@ -60,7 +63,7 @@ struct Settings<'a> {
 
 #[derive(Debug, Default, Deserialize)]
 struct OutputSelection<'a>(
-    #[serde(borrow)] IndexMap<CowStr<'a>, IndexMap<CowStr<'a>, Vec<CowStr<'a>>>>,
+    #[serde(borrow)] FxIndexMap<CowStr<'a>, FxIndexMap<CowStr<'a>, Vec<CowStr<'a>>>>,
 );
 
 #[derive(Debug, Default, Serialize)]
@@ -238,13 +241,13 @@ impl OutputSelection<'_> {
     fn source_maps(
         &self,
         source: &str,
-    ) -> impl Iterator<Item = &IndexMap<CowStr<'_>, Vec<CowStr<'_>>>> {
+    ) -> impl Iterator<Item = &FxIndexMap<CowStr<'_>, Vec<CowStr<'_>>>> {
         [source, "*"].into_iter().filter_map(|source| self.0.get(source))
     }
 }
 
 fn contract_maps<'a, 'b>(
-    contracts: &'a IndexMap<CowStr<'b>, Vec<CowStr<'b>>>,
+    contracts: &'a FxIndexMap<CowStr<'b>, Vec<CowStr<'b>>>,
     contract: &'a str,
 ) -> impl Iterator<Item = &'a Vec<CowStr<'b>>> {
     [contract, "*"].into_iter().filter_map(|contract| contracts.get(contract))

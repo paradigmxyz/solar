@@ -3009,6 +3009,7 @@ dependencies = [
  "indexmap",
  "libc",
  "mimalloc",
+ "rustc-hash",
  "serde",
  "serde_json",
  "solar-config",
