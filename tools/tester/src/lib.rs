@@ -33,7 +33,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         args.format = ui_test::Format::Terse;
     }
 
-    let mut modes = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul][..];
+    let mut modes = &[Mode::Ui, Mode::StandardJson, Mode::SolcSolidity, Mode::SolcYul][..];
     let mode_tmp;
     if let Ok(mode) = std::env::var("TESTER_MODE") {
         mode_tmp = Mode::parse(&mode).ok_or_else(|| eyre!("invalid mode: {mode}"))?;
@@ -65,7 +65,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
 
     let path = match mode {
-        Mode::Ui => "tests/ui/",
+        Mode::Ui | Mode::StandardJson => "tests/ui/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
@@ -82,14 +82,33 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
-            program: cmd.into(),
+            program: if matches!(mode, Mode::StandardJson) { "sh".into() } else { cmd.into() },
             args: {
-                let mut args =
-                    vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"];
+                let mut args = if matches!(mode, Mode::StandardJson) {
+                    vec![
+                        "-c".into(),
+                        concat!(
+                            "out=$(mktemp \"${TMPDIR:-/tmp}/solar-standard-json.XXXXXX\") || exit 1; ",
+                            "trap 'rm -f \"$out\"' EXIT; ",
+                            "\"$1\" --standard-json --pretty-json < \"$2\" > \"$out\"; ",
+                            "status=$?; cat \"$out\"; ",
+                            "if [ \"$status\" -ne 0 ]; then exit \"$status\"; fi; ",
+                            "FileCheck \"$2\" < \"$out\"",
+                        )
+                        .into(),
+                        "solar-standard-json".into(),
+                        cmd.as_os_str().to_os_string(),
+                    ]
+                } else {
+                    vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
+                        .into_iter()
+                        .map(Into::into)
+                        .collect()
+                };
                 if mode.is_solc() {
-                    args.push("--stop-after=parsing");
+                    args.push("--stop-after=parsing".into());
                 }
-                args.into_iter().map(Into::into).collect()
+                args
             },
             out_dir_flag: None,
             input_file_flag: None,
@@ -153,7 +172,9 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
 
     config.with_args(args);
 
-    if mode.is_solc() {
+    if matches!(mode, Mode::StandardJson) {
+        config.output_conflict_handling = ui_test::ignore_output_conflict;
+    } else if mode.is_solc() {
         // Override `bless` handler, since we don't want to write Solc tests.
         config.output_conflict_handling = ui_test::ignore_output_conflict;
         // Skip parsing comments since they result in false positives.
@@ -175,12 +196,20 @@ fn get_host() -> &'static str {
 }
 
 fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
-    path.extension().filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?;
+    match cfg.mode {
+        Mode::StandardJson => {
+            path.extension().filter(|&ext| ext == "jsonc")?;
+        }
+        _ => {
+            path.extension()
+                .filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?;
+        }
+    }
     if !ui_test::default_any_file_filter(path, config) {
         return Some(false);
     }
     let skip = match cfg.mode {
-        Mode::Ui => false,
+        Mode::Ui | Mode::StandardJson => false,
         Mode::SolcSolidity => solc::solidity::should_skip(path).is_err(),
         Mode::SolcYul => solc::yul::should_skip(path).is_err(),
     };
@@ -195,6 +224,11 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 
     if cfg.mode.is_solc() {
         return solc_per_file_config(config, src, path, cfg);
+    }
+    if matches!(cfg.mode, Mode::StandardJson) {
+        config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
+        config.comment_defaults.base().exit_status = Spanned::dummy(0).into();
+        return;
     }
 
     assert_eq!(config.comment_start, "//");
@@ -246,6 +280,7 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
 #[derive(Clone, Copy)]
 enum Mode {
     Ui,
+    StandardJson,
     SolcSolidity,
     SolcYul,
 }
@@ -254,6 +289,7 @@ impl Mode {
     fn parse(s: &str) -> Option<Self> {
         Some(match s {
             "ui" => Self::Ui,
+            "standard-json" => Self::StandardJson,
             "solc-solidity" => Self::SolcSolidity,
             "solc-yul" => Self::SolcYul,
             _ => return None,
@@ -263,6 +299,7 @@ impl Mode {
     fn to_str(self) -> &'static str {
         match self {
             Self::Ui => "ui",
+            Self::StandardJson => "standard-json",
             Self::SolcSolidity => "solc-solidity",
             Self::SolcYul => "solc-yul",
         }

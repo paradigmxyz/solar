@@ -20,12 +20,12 @@ mod context;
 pub use context::{DiagCtxt, DiagCtxtFlags};
 
 mod emitter;
-#[cfg(feature = "json")]
-pub use emitter::JsonEmitter;
 pub use emitter::{
     DynEmitter, Emitter, HumanBufferEmitter, HumanEmitter, InMemoryEmitter, LocalEmitter,
     SilentEmitter,
 };
+#[cfg(feature = "json")]
+pub use emitter::{JsonEmitter, solc_diagnostics_to_json};
 
 mod message;
 pub use message::{DiagMsg, MultiSpan, SpanLabel};

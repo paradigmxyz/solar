@@ -100,6 +100,10 @@ pub struct Opts {
     #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
     pub emit: Vec<CompilerOutput>,
 
+    /// Switch to Standard JSON input/output mode.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub standard_json: bool,
+
     /// Coloring.
     #[cfg_attr(
         feature = "clap",

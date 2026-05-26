@@ -3008,6 +3008,8 @@ dependencies = [
  "clap",
  "libc",
  "mimalloc",
+ "serde",
+ "serde_json",
  "solar-config",
  "solar-interface",
  "solar-sema",

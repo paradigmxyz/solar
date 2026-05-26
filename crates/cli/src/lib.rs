@@ -12,6 +12,8 @@ use std::ops::ControlFlow;
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
+mod standard_json;
+
 pub mod utils;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
@@ -45,6 +47,12 @@ where
 }
 
 pub fn run_compiler_args(opts: Opts) -> Result {
+    if opts.standard_json {
+        standard_json::run(opts)
+            .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
+        return Ok(());
+    }
+
     run_compiler_with(opts, run_default)
 }
 

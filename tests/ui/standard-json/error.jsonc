@@ -1,0 +1,23 @@
+// CHECK: "errors": [
+// CHECK: "sourceLocation": {
+// CHECK: "file": "Bad.sol"
+// CHECK: "severity": "error"
+// CHECK: "type": "Exception"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "Bad.sol": {
+      "content": "contract Bad { function f( public {} }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

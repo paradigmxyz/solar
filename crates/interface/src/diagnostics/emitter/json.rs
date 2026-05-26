@@ -270,6 +270,27 @@ impl JsonEmitter {
     }
 }
 
+/// Converts diagnostics to solc-compatible JSON values.
+pub fn solc_diagnostics_to_json(
+    diagnostics: &[crate::diagnostics::Diag],
+    source_map: Arc<SourceMap>,
+    ui_testing: bool,
+    human_kind: HumanEmitterKind,
+    terminal_width: Option<usize>,
+) -> Vec<serde_json::Value> {
+    let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map)
+        .ui_testing(ui_testing)
+        .human_kind(human_kind)
+        .terminal_width(terminal_width);
+    diagnostics
+        .iter()
+        .map(|diagnostic| {
+            let mut diagnostic = diagnostic.clone();
+            serde_json::to_value(emitter.solc_diagnostic(&mut diagnostic)).unwrap()
+        })
+        .collect()
+}
+
 // Rustc-like JSON format.
 
 #[derive(Serialize)]

@@ -36,6 +36,9 @@ Options:
           
           [possible values: abi, hashes]
 
+      --standard-json
+          Switch to Standard JSON input/output mode
+
   -Z <FLAG>
           Unstable flags. WARNING: these are completely unstable, and may change at any time.
           
