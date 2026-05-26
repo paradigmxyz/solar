@@ -33,9 +33,23 @@ jobs:
           submodules: true
       - name: Checkout submodules
         run: git submodule update --checkout
-      - name: Install LLVM
-        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+      - name: Install LLVM (apt)
+        if: matrix.os == 'ubuntu-latest'
         run: sudo .github/scripts/install_llvm_ubuntu.sh
+      - name: Install LLVM (brew)
+        if: matrix.os == 'macos-latest'
+        run: |
+          v=22
+          brew install "llvm@${v}"
+          prefix="$(brew --prefix llvm@${v})"
+          echo "${prefix}/bin" >> $GITHUB_PATH
+      - name: Install LLVM (choco)
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install llvm -y --no-progress
+          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: FileCheck
+        run: FileCheck --version
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
