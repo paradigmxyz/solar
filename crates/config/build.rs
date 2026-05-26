@@ -36,13 +36,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rustc-env=SHORT_VERSION={short_version}");
 
     let solc_compat_version = format!("0.8.30+commit.{sha_short}.solar.{version}");
+    println!("cargo:rustc-env=SOLC_VERSION={solc_compat_version}");
+
     let long_version = format!(
-        "the Solidity compiler\n\
-         Version: {solc_compat_version}",
+        "the Solar compiler\n\
+         Version: {short_version}",
     );
     assert_eq!(long_version.lines().count(), 2); // `version.rs` must be updated as well.
     for (i, line) in long_version.lines().enumerate() {
         println!("cargo:rustc-env=LONG_VERSION{i}={line}");
+    }
+
+    let solc_long_version = format!(
+        "the Solidity compiler\n\
+         Version: {solc_compat_version}",
+    );
+    assert_eq!(solc_long_version.lines().count(), 2); // `version.rs` must be updated as well.
+    for (i, line) in solc_long_version.lines().enumerate() {
+        println!("cargo:rustc-env=SOLC_LONG_VERSION{i}={line}");
     }
 
     Ok(())
