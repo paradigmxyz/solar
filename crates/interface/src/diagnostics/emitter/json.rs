@@ -7,7 +7,7 @@ use crate::{
 use anstream::ColorChoice;
 use serde::Serialize;
 use solar_config::HumanEmitterKind;
-use std::{io, sync::Arc};
+use std::{borrow::Cow, io, sync::Arc};
 
 /// Diagnostic emitter that emits diagnostics as JSON.
 pub struct JsonEmitter {
@@ -20,6 +20,10 @@ pub struct JsonEmitter {
 
 impl Emitter for JsonEmitter {
     fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
+        self.emit_diagnostic_ref(diagnostic);
+    }
+
+    fn emit_diagnostic_ref(&mut self, diagnostic: &Diag) {
         if self.rustc_like {
             let diagnostic = self.diagnostic(diagnostic);
             self.emit(&EmitTyped::Diagnostic(diagnostic))
@@ -82,7 +86,7 @@ impl JsonEmitter {
         Emitter::source_map(self).unwrap()
     }
 
-    fn diagnostic(&mut self, diagnostic: &mut Diag) -> Diagnostic {
+    fn diagnostic(&mut self, diagnostic: &Diag) -> Diagnostic {
         // Unlike the human emitter, all suggestions are preserved as separate diagnostic children.
         let children = diagnostic
             .children
@@ -93,7 +97,9 @@ impl JsonEmitter {
 
         Diagnostic {
             message: diagnostic.label().into_owned(),
-            code: diagnostic.id().map(|code| DiagnosticCode { code, explanation: None }),
+            code: diagnostic
+                .id()
+                .map(|code| DiagnosticCode { code: code.to_string(), explanation: None }),
             level: diagnostic.level.to_str(),
             spans: self.spans(&diagnostic.span),
             children,
@@ -188,7 +194,11 @@ impl JsonEmitter {
         }
     }
 
-    fn solc_diagnostic(&mut self, diagnostic: &mut crate::diagnostics::Diag) -> SolcDiagnostic {
+    /// Converts a diagnostic to a solc-compatible JSON diagnostic.
+    pub fn solc_diagnostic<'a>(
+        &mut self,
+        diagnostic: &'a crate::diagnostics::Diag,
+    ) -> SolcDiagnostic<'a> {
         let primary = diagnostic.span.primary_span();
         let file = primary
             .map(|span| {
@@ -207,9 +217,9 @@ impl JsonEmitter {
             secondary_source_locations: diagnostic
                 .children
                 .iter()
-                .map(|sub| self.solc_span(&sub.span, &file, Some(sub.label().into_owned())))
+                .map(|sub| self.solc_span(&sub.span, &file, Some(sub.label())))
                 .collect(),
-            r#type: match severity {
+            r#type: Cow::Borrowed(match severity {
                 Severity::Error => match diagnostic.level {
                     Level::Bug => "InternalCompilerError",
                     Level::Fatal => "FatalError",
@@ -218,26 +228,30 @@ impl JsonEmitter {
                 },
                 Severity::Warning => "Warning",
                 Severity::Info => "Info",
-            }
-            .into(),
-            component: "general".into(),
+            }),
+            component: Cow::Borrowed("general"),
             severity,
-            error_code: diagnostic.id(),
-            message: diagnostic.label().into_owned(),
-            formatted_message: Some(self.emit_diagnostic_to_buffer(diagnostic)),
+            error_code: diagnostic.id().map(Cow::Borrowed),
+            message: diagnostic.label(),
+            formatted_message: Some(Cow::Owned(self.emit_diagnostic_to_buffer(diagnostic))),
         }
     }
 
-    fn solc_span(&self, span: &MultiSpan, file: &str, message: Option<String>) -> SourceLocation {
+    fn solc_span<'a>(
+        &self,
+        span: &MultiSpan,
+        file: &str,
+        message: Option<Cow<'a, str>>,
+    ) -> SourceLocation<'a> {
         let sm = &**self.source_map();
         let sp = span.primary_span();
         SourceLocation {
             file: sp
                 .map(|span| {
                     let start = sm.lookup_char_pos(span.lo());
-                    sm.filename_for_diagnostics(&start.file.name).to_string()
+                    Cow::Owned(sm.filename_for_diagnostics(&start.file.name).to_string())
                 })
-                .unwrap_or_else(|| file.into()),
+                .unwrap_or_else(|| Cow::Owned(file.to_owned())),
             start: sp
                 .map(|span| {
                     let start = sm.lookup_char_pos(span.lo());
@@ -254,8 +268,8 @@ impl JsonEmitter {
         }
     }
 
-    fn emit_diagnostic_to_buffer(&mut self, diagnostic: &mut crate::diagnostics::Diag) -> String {
-        self.human_emitter.emit_diagnostic(diagnostic);
+    fn emit_diagnostic_to_buffer(&mut self, diagnostic: &crate::diagnostics::Diag) -> String {
+        self.human_emitter.emit_diagnostic_ref(diagnostic);
         std::mem::take(self.human_emitter.buffer_mut())
     }
 
@@ -268,27 +282,6 @@ impl JsonEmitter {
         self.writer.write_all(b"\n")?;
         self.writer.flush()
     }
-}
-
-/// Converts diagnostics to solc-compatible JSON values.
-pub fn solc_diagnostics_to_json(
-    diagnostics: &[crate::diagnostics::Diag],
-    source_map: Arc<SourceMap>,
-    ui_testing: bool,
-    human_kind: HumanEmitterKind,
-    terminal_width: Option<usize>,
-) -> Vec<SolcDiagnostic> {
-    let mut emitter = JsonEmitter::new(Box::new(io::sink()), source_map)
-        .ui_testing(ui_testing)
-        .human_kind(human_kind)
-        .terminal_width(terminal_width);
-    diagnostics
-        .iter()
-        .map(|diagnostic| {
-            let mut diagnostic = diagnostic.clone();
-            emitter.solc_diagnostic(&mut diagnostic)
-        })
-        .collect()
 }
 
 // Rustc-like JSON format.
@@ -358,18 +351,25 @@ struct DiagnosticCode {
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SolcDiagnostic {
-    pub source_location: Option<SourceLocation>,
-    pub secondary_source_locations: Vec<SourceLocation>,
-    pub r#type: String,
-    pub component: String,
+pub struct SolcDiagnostic<'a> {
+    #[serde(borrow)]
+    pub source_location: Option<SourceLocation<'a>>,
+    #[serde(borrow)]
+    pub secondary_source_locations: Vec<SourceLocation<'a>>,
+    #[serde(borrow)]
+    pub r#type: Cow<'a, str>,
+    #[serde(borrow)]
+    pub component: Cow<'a, str>,
     pub severity: Severity,
-    pub error_code: Option<String>,
-    pub message: String,
-    pub formatted_message: Option<String>,
+    #[serde(borrow)]
+    pub error_code: Option<Cow<'a, str>>,
+    #[serde(borrow)]
+    pub message: Cow<'a, str>,
+    #[serde(borrow)]
+    pub formatted_message: Option<Cow<'a, str>>,
 }
 
-impl SolcDiagnostic {
+impl SolcDiagnostic<'_> {
     /// Returns `true` if this diagnostic has error severity.
     pub fn is_error(&self) -> bool {
         matches!(self.severity, Severity::Error)
@@ -377,13 +377,15 @@ impl SolcDiagnostic {
 }
 
 #[derive(Debug, Serialize)]
-pub struct SourceLocation {
-    pub file: String,
+pub struct SourceLocation<'a> {
+    #[serde(borrow)]
+    pub file: Cow<'a, str>,
     pub start: u32,
     pub end: u32,
     // Some if it's a secondary source location.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub message: Option<String>,
+    #[serde(borrow)]
+    pub message: Option<Cow<'a, str>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -404,5 +406,36 @@ fn to_severity(level: Level) -> Severity {
         | Level::Help
         | Level::OnceHelp
         | Level::Allow => Severity::Info,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn solc_diagnostic_serializes_borrowed_strings() {
+        let diagnostic = SolcDiagnostic {
+            source_location: Some(SourceLocation {
+                file: Cow::Borrowed("input.sol"),
+                start: 0,
+                end: 1,
+                message: Some(Cow::Borrowed("borrowed \"message\"")),
+            }),
+            secondary_source_locations: Vec::new(),
+            r#type: Cow::Borrowed("Exception\nquoted"),
+            component: Cow::Borrowed("general"),
+            severity: Severity::Error,
+            error_code: Some(Cow::Borrowed("1234")),
+            message: Cow::Borrowed("borrowed message"),
+            formatted_message: None,
+        };
+
+        let json = serde_json::to_string(&diagnostic).unwrap();
+        assert!(json.contains(r#""type":"Exception\nquoted""#));
+        assert!(json.contains(r#""message":"borrowed \"message\"""#));
+
+        assert!(matches!(diagnostic.r#type, Cow::Borrowed(_)));
+        assert!(matches!(diagnostic.component, Cow::Borrowed("general")));
     }
 }

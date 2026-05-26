@@ -25,9 +25,7 @@ pub use emitter::{
     SilentEmitter,
 };
 #[cfg(feature = "json")]
-pub use emitter::{
-    JsonEmitter, Severity, SolcDiagnostic, SourceLocation, solc_diagnostics_to_json,
-};
+pub use emitter::{JsonEmitter, Severity, SolcDiagnostic, SourceLocation};
 
 mod message;
 pub use message::{DiagMsg, MultiSpan, SpanLabel};
@@ -125,9 +123,9 @@ impl DiagId {
         Self { s: Cow::Owned(format!("{id:04}")) }
     }
 
-    /// Returns the string representation of the diagnostic ID.
-    pub fn as_string(&self) -> String {
-        self.s.to_string()
+    /// Returns the diagnostic ID as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.s
     }
 }
 
@@ -716,9 +714,9 @@ impl Diag {
         self.level
     }
 
-    /// Returns the code of this diagnostic as a string.
-    pub fn id(&self) -> Option<String> {
-        self.code.as_ref().map(|code| code.as_string())
+    /// Returns the code of this diagnostic as a string slice.
+    pub fn id(&self) -> Option<&str> {
+        self.code.as_ref().map(|code| code.as_str())
     }
 
     /// Fields used for `PartialEq` and `Hash` implementations.
@@ -1098,6 +1096,26 @@ note: mutable variables should use mixedCase
 
 "#]]
         );
+    }
+
+    #[test]
+    fn test_emit_diagnostic_ref_preserves_inline_suggestion() {
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span).span_suggestion(
+            var_span,
+            "mutable variables should use mixedCase",
+            var_sugg,
+            Applicability::MachineApplicable,
+        );
+
+        let sm = std::sync::Arc::new(source_map::SourceMap::empty());
+        sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
+        let mut emitter = HumanBufferEmitter::new(ColorChoice::Never).source_map(Some(sm));
+        emitter.emit_diagnostic_ref(&diag);
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
     }
 
     #[test]

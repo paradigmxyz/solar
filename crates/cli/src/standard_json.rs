@@ -3,12 +3,13 @@ use serde_json::{Value, json};
 use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
 use solar_interface::{
     SourceMap,
-    diagnostics::{DiagCtxt, InMemoryEmitter, SolcDiagnostic, solc_diagnostics_to_json},
+    diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
+    source_map::FileLoader,
 };
 use std::{
     collections::BTreeMap,
     io::{self, Read, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
 };
@@ -46,9 +47,9 @@ struct Settings {
 struct OutputSelection(BTreeMap<String, BTreeMap<String, Vec<String>>>);
 
 #[derive(Debug, Default, Serialize)]
-struct CompilerOutput {
+struct CompilerOutput<'a> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    errors: Vec<SolcDiagnostic>,
+    errors: Vec<SolcDiagnostic<'a>>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     sources: BTreeMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
@@ -139,8 +140,36 @@ fn default_language() -> String {
     "Solidity".to_string()
 }
 
+struct StandardJsonFileLoader;
+
+impl FileLoader for StandardJsonFileLoader {
+    fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+        Err(disallowed_io(path))
+    }
+
+    fn load_stdin(&self) -> io::Result<String> {
+        Err(disallowed_io(Path::new("stdin")))
+    }
+
+    fn load_file(&self, path: &Path) -> io::Result<String> {
+        Err(disallowed_io(path))
+    }
+
+    fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
+        Err(disallowed_io(path))
+    }
+}
+
+fn disallowed_io(path: &Path) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        format!("standard JSON mode cannot read `{}` from the filesystem", path.display()),
+    )
+}
+
 pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
     let source_map = Arc::new(SourceMap::empty());
+    source_map.set_file_loader(StandardJsonFileLoader);
     let (emitter, diagnostics) = InMemoryEmitter::new();
     let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.update_from_opts(&opts));
 
@@ -163,13 +192,13 @@ pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
         }
     }
 
-    output.errors = solc_diagnostics_to_json(
-        &diagnostics.read(),
-        Arc::clone(&source_map),
-        opts.unstable.ui_testing,
-        opts.error_format_human,
-        opts.diagnostic_width,
-    );
+    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map))
+        .ui_testing(opts.unstable.ui_testing)
+        .human_kind(opts.error_format_human)
+        .terminal_width(opts.diagnostic_width);
+    let diagnostics = diagnostics.read();
+    output.errors =
+        diagnostics.iter().map(|diagnostic| emitter.solc_diagnostic(diagnostic)).collect();
 
     if output.errors.iter().any(SolcDiagnostic::is_error) {
         output.contracts.clear();
@@ -191,7 +220,7 @@ fn compile(
     opts: &mut Opts,
     source_map: Arc<SourceMap>,
     dcx: DiagCtxt,
-    output: &mut CompilerOutput,
+    output: &mut CompilerOutput<'_>,
 ) {
     let mut remappings = Vec::with_capacity(input.settings.remappings.len());
     for remapping in &input.settings.remappings {

@@ -53,8 +53,9 @@ unsafe impl Send for HumanEmitter {}
 
 impl Emitter for HumanEmitter {
     fn emit_diagnostic(&mut self, diag: &mut Diag) {
-        let mut primary_span = Cow::Borrowed(&diag.span);
-        self.primary_span_formatted(&mut primary_span, &mut diag.suggestions);
+        let mut primary_span = Cow::Owned(std::mem::take(&mut diag.span));
+        let mut suggestions = Cow::Owned(std::mem::take(&mut diag.suggestions));
+        self.primary_span_formatted(&mut primary_span, &mut suggestions);
 
         self.emit_messages_default(
             &diag.level,
@@ -62,7 +63,25 @@ impl Emitter for HumanEmitter {
             &diag.code,
             &primary_span,
             &diag.children,
-            &diag.suggestions,
+            &suggestions,
+        );
+
+        diag.span = primary_span.into_owned();
+        diag.suggestions = suggestions.into_owned();
+    }
+
+    fn emit_diagnostic_ref(&mut self, diag: &Diag) {
+        let mut primary_span = Cow::Borrowed(&diag.span);
+        let mut suggestions = Cow::Borrowed(&diag.suggestions);
+        self.primary_span_formatted(&mut primary_span, &mut suggestions);
+
+        self.emit_messages_default(
+            &diag.level,
+            &diag.messages,
+            &diag.code,
+            &primary_span,
+            &diag.children,
+            &suggestions,
         );
     }
 
@@ -214,7 +233,7 @@ impl HumanEmitter {
         };
 
         if let Some(c) = code {
-            title = title.id(c.as_string());
+            title = title.id(c.as_str());
             // Unlike rustc, there is no URL associated with DiagId yet.
             // TODO: Add URL mapping
             // if let TerminalUrl::Yes = self.terminal_url {
@@ -520,6 +539,11 @@ impl Emitter for HumanBufferEmitter {
     #[inline]
     fn emit_diagnostic(&mut self, diagnostic: &mut Diag) {
         self.inner.emit_diagnostic(diagnostic);
+    }
+
+    #[inline]
+    fn emit_diagnostic_ref(&mut self, diagnostic: &Diag) {
+        self.inner.emit_diagnostic_ref(diagnostic);
     }
 
     #[inline]
