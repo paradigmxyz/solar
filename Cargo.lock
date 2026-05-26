@@ -3006,6 +3006,7 @@ dependencies = [
  "alloy-primitives",
  "cfg-if",
  "clap",
+ "indexmap",
  "libc",
  "mimalloc",
  "serde",
