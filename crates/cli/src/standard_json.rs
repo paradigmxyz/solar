@@ -142,41 +142,36 @@ fn default_language() -> String {
 pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
     let source_map = Arc::new(SourceMap::empty());
     let (emitter, diagnostics) = InMemoryEmitter::new();
-    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
-        flags.update_from_opts(&opts);
-        flags.track_diagnostics = opts.unstable.track_diagnostics;
-    });
+    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.update_from_opts(&opts));
 
+    let mut output = CompilerOutput::default();
     let mut input = String::new();
-    let mut output = match io::stdin().read_to_string(&mut input) {
+    match io::stdin().read_to_string(&mut input) {
         Ok(_) => {
             if opts.unstable.ui_testing {
                 input = strip_json_comments(&input);
             }
             match serde_json::from_str::<CompilerInput>(&input) {
-                Ok(input) => compile(input, &mut opts, Arc::clone(&source_map), dcx),
+                Ok(input) => compile(input, &mut opts, Arc::clone(&source_map), dcx, &mut output),
                 Err(e) => {
                     dcx.err(format!("JSON parse error: {e}")).emit();
-                    CompilerOutput::default()
                 }
             }
         }
         Err(e) => {
             dcx.err(format!("failed to read standard JSON input: {e}")).emit();
-            CompilerOutput::default()
         }
-    };
+    }
 
-    let emitted = diagnostics.read().clone();
     output.errors = solc_diagnostics_to_json(
-        &emitted,
+        &diagnostics.read(),
         Arc::clone(&source_map),
         opts.unstable.ui_testing,
         opts.error_format_human,
         opts.diagnostic_width,
     );
 
-    if has_error(&output.errors) {
+    if output.errors.iter().any(SolcDiagnostic::is_error) {
         output.contracts.clear();
     }
 
@@ -196,9 +191,8 @@ fn compile(
     opts: &mut Opts,
     source_map: Arc<SourceMap>,
     dcx: DiagCtxt,
-) -> CompilerOutput {
-    let mut output = CompilerOutput::default();
-
+    output: &mut CompilerOutput,
+) {
     let mut remappings = Vec::with_capacity(input.settings.remappings.len());
     for remapping in &input.settings.remappings {
         match remapping.parse::<ImportRemapping>() {
@@ -209,7 +203,7 @@ fn compile(
         }
     }
     if dcx.has_errors().is_err() {
-        return output;
+        return;
     }
 
     opts.import_remappings = remappings;
@@ -224,7 +218,7 @@ fn compile(
         "Yul" | "yul" => Language::Yul,
         language => {
             dcx.err(format!("unsupported language `{language}`")).emit();
-            return output;
+            return;
         }
     };
     opts.stop_after =
@@ -291,8 +285,6 @@ fn compile(
     if output.sources.is_empty() {
         output.sources = source_outputs(&source_map);
     }
-
-    output
 }
 
 fn source_outputs(source_map: &SourceMap) -> BTreeMap<String, SourceOutput> {
@@ -373,10 +365,6 @@ impl EvmOutput {
             && self.bytecode.is_none()
             && self.deployed_bytecode.is_none()
     }
-}
-
-fn has_error(errors: &[SolcDiagnostic]) -> bool {
-    errors.iter().any(SolcDiagnostic::is_error)
 }
 
 fn strip_json_comments(input: &str) -> String {
