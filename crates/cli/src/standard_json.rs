@@ -1,5 +1,8 @@
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde::{
+    Deserialize, Serialize,
+    de::{self, Visitor},
+};
+use serde_json::{Map, Value, json};
 use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
 use solar_interface::{
     SourceMap,
@@ -7,8 +10,11 @@ use solar_interface::{
     source_map::FileLoader,
 };
 use std::{
+    borrow::{Borrow, Cow},
     collections::BTreeMap,
+    fmt,
     io::{self, Read, Write},
+    ops::Deref,
     path::{Path, PathBuf},
     str::FromStr,
     sync::Arc,
@@ -16,35 +22,45 @@ use std::{
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct CompilerInput {
+struct CompilerInput<'a> {
     #[serde(default = "default_language")]
-    language: String,
+    language: JsonString<'a>,
     #[serde(default)]
-    sources: BTreeMap<String, SourceInput>,
+    #[serde(borrow)]
+    sources: BTreeMap<JsonString<'a>, SourceInput<'a>>,
     #[serde(default)]
-    settings: Settings,
+    #[serde(borrow)]
+    settings: Settings<'a>,
 }
 
 #[derive(Debug, Deserialize)]
-struct SourceInput {
-    content: Option<String>,
+struct SourceInput<'a> {
+    #[serde(borrow)]
+    content: Option<JsonString<'a>>,
     #[serde(default)]
-    urls: Vec<String>,
+    #[serde(borrow)]
+    urls: Vec<JsonString<'a>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Settings {
+struct Settings<'a> {
     #[serde(default)]
-    remappings: Vec<String>,
+    #[serde(borrow)]
+    remappings: Vec<JsonString<'a>>,
     #[serde(default)]
-    output_selection: OutputSelection,
-    stop_after: Option<String>,
-    evm_version: Option<String>,
+    #[serde(borrow)]
+    output_selection: OutputSelection<'a>,
+    #[serde(borrow)]
+    stop_after: Option<JsonString<'a>>,
+    #[serde(borrow)]
+    evm_version: Option<JsonString<'a>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct OutputSelection(BTreeMap<String, BTreeMap<String, Vec<String>>>);
+struct OutputSelection<'a>(
+    #[serde(borrow)] BTreeMap<JsonString<'a>, BTreeMap<JsonString<'a>, Vec<JsonString<'a>>>>,
+);
 
 #[derive(Debug, Default, Serialize)]
 struct CompilerOutput<'a> {
@@ -54,6 +70,87 @@ struct CompilerOutput<'a> {
     sources: BTreeMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     contracts: BTreeMap<String, BTreeMap<String, ContractOutput>>,
+}
+
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+struct JsonString<'a>(Cow<'a, str>);
+
+impl JsonString<'_> {
+    fn as_cow(&self) -> &Cow<'_, str> {
+        &self.0
+    }
+}
+
+impl AsRef<str> for JsonString<'_> {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for JsonString<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Borrow<str> for JsonString<'_> {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for JsonString<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<JsonString<'_>> for String {
+    fn from(value: JsonString<'_>) -> Self {
+        value.0.into_owned()
+    }
+}
+
+impl<'de: 'a, 'a> Deserialize<'de> for JsonString<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct JsonStringVisitor;
+
+        impl<'de> Visitor<'de> for JsonStringVisitor {
+            type Value = JsonString<'de>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a JSON string")
+            }
+
+            fn visit_borrowed_str<E>(self, value: &'de str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(JsonString(Cow::Borrowed(value)))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(JsonString(Cow::Owned(value.to_string())))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(JsonString(Cow::Owned(value)))
+            }
+        }
+
+        deserializer.deserialize_str(JsonStringVisitor)
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -109,35 +206,40 @@ impl BytecodeOutput {
     }
 }
 
-impl OutputSelection {
+impl OutputSelection<'_> {
     fn selects(&self, source: &str, contract: &str, keys: &[&str]) -> bool {
         self.source_maps(source).any(|contracts| {
             contract_maps(contracts, contract).any(|items| {
                 items.iter().any(|item| {
-                    item == "*"
+                    item.as_ref() == "*"
                         || keys.iter().any(|key| {
-                            item == key
-                                || key.strip_prefix(item).is_some_and(|rest| rest.starts_with('.'))
+                            item.as_ref() == *key
+                                || key
+                                    .strip_prefix(item.as_ref())
+                                    .is_some_and(|rest| rest.starts_with('.'))
                         })
                 })
             })
         })
     }
 
-    fn source_maps(&self, source: &str) -> impl Iterator<Item = &BTreeMap<String, Vec<String>>> {
+    fn source_maps(
+        &self,
+        source: &str,
+    ) -> impl Iterator<Item = &BTreeMap<JsonString<'_>, Vec<JsonString<'_>>>> {
         [source, "*"].into_iter().filter_map(|source| self.0.get(source))
     }
 }
 
-fn contract_maps<'a>(
-    contracts: &'a BTreeMap<String, Vec<String>>,
+fn contract_maps<'a, 'b>(
+    contracts: &'a BTreeMap<JsonString<'b>, Vec<JsonString<'b>>>,
     contract: &'a str,
-) -> impl Iterator<Item = &'a Vec<String>> {
+) -> impl Iterator<Item = &'a Vec<JsonString<'b>>> {
     [contract, "*"].into_iter().filter_map(|contract| contracts.get(contract))
 }
 
-fn default_language() -> String {
-    "Solidity".to_string()
+fn default_language<'a>() -> JsonString<'a> {
+    JsonString(Cow::Borrowed("Solidity"))
 }
 
 struct StandardJsonFileLoader;
@@ -180,8 +282,13 @@ pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
             if opts.unstable.ui_testing {
                 input = strip_json_comments(&input);
             }
-            match serde_json::from_str::<CompilerInput>(&input) {
-                Ok(input) => compile(input, &mut opts, Arc::clone(&source_map), dcx, &mut output),
+            match serde_json::from_str::<CompilerInput<'_>>(&input) {
+                Ok(compiler_input) => {
+                    if opts.unstable.standard_json_stats {
+                        print_standard_json_stats(&input, &compiler_input);
+                    }
+                    compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
+                }
                 Err(e) => {
                     dcx.err(format!("JSON parse error: {e}")).emit();
                 }
@@ -215,8 +322,156 @@ pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
     stdout.flush()
 }
 
+#[derive(Default)]
+struct JsonTreeStats {
+    nodes: usize,
+    objects: usize,
+    arrays: usize,
+    strings: usize,
+    numbers: usize,
+    bools: usize,
+    nulls: usize,
+    object_entries: usize,
+    array_elements: usize,
+    object_key_bytes: usize,
+    string_bytes: usize,
+}
+
+impl JsonTreeStats {
+    fn add_value(&mut self, value: &Value) {
+        self.nodes += 1;
+        match value {
+            Value::Null => self.nulls += 1,
+            Value::Bool(_) => self.bools += 1,
+            Value::Number(_) => self.numbers += 1,
+            Value::String(value) => {
+                self.strings += 1;
+                self.string_bytes += value.len();
+            }
+            Value::Array(values) => {
+                self.arrays += 1;
+                self.array_elements += values.len();
+                for value in values {
+                    self.add_value(value);
+                }
+            }
+            Value::Object(values) => self.add_object(values),
+        }
+    }
+
+    fn add_object(&mut self, values: &Map<String, Value>) {
+        self.objects += 1;
+        self.object_entries += values.len();
+        for (key, value) in values {
+            self.object_key_bytes += key.len();
+            self.add_value(value);
+        }
+    }
+}
+
+#[derive(Default)]
+struct InputCowStats {
+    borrowed: usize,
+    owned: usize,
+    bytes: usize,
+}
+
+impl InputCowStats {
+    fn add(&mut self, value: &JsonString<'_>) {
+        match value.as_cow() {
+            Cow::Borrowed(_) => self.borrowed += 1,
+            Cow::Owned(_) => self.owned += 1,
+        }
+        self.bytes += value.as_ref().len();
+    }
+}
+
+fn print_standard_json_stats(raw_input: &str, input: &CompilerInput<'_>) {
+    let mut tree = JsonTreeStats::default();
+    match serde_json::from_str::<Value>(raw_input) {
+        Ok(value) => tree.add_value(&value),
+        Err(error) => {
+            eprintln!("standard-json-stats: failed to parse JSON tree: {error}");
+            return;
+        }
+    }
+
+    let mut cows = InputCowStats::default();
+    count_input_cows(input, &mut cows);
+
+    let source_content_count =
+        input.sources.values().filter(|source| source.content.is_some()).count();
+    let source_content_bytes = input
+        .sources
+        .values()
+        .filter_map(|source| source.content.as_ref())
+        .map(|content| content.len())
+        .sum::<usize>();
+    let source_url_count = input.sources.values().map(|source| source.urls.len()).sum::<usize>();
+
+    eprintln!(
+        "standard-json-stats: input_bytes={} nodes={} objects={} arrays={} strings={} numbers={} bools={} nulls={} object_entries={} array_elements={} object_key_bytes={} string_bytes={}",
+        raw_input.len(),
+        tree.nodes,
+        tree.objects,
+        tree.arrays,
+        tree.strings,
+        tree.numbers,
+        tree.bools,
+        tree.nulls,
+        tree.object_entries,
+        tree.array_elements,
+        tree.object_key_bytes,
+        tree.string_bytes,
+    );
+    eprintln!(
+        "standard-json-stats: sources={} source_content_count={} source_content_bytes={} source_url_count={} remappings={} output_selection_sources={}",
+        input.sources.len(),
+        source_content_count,
+        source_content_bytes,
+        source_url_count,
+        input.settings.remappings.len(),
+        input.settings.output_selection.0.len(),
+    );
+    eprintln!(
+        "standard-json-stats: cow_borrowed={} cow_owned={} cow_string_bytes={}",
+        cows.borrowed, cows.owned, cows.bytes,
+    );
+}
+
+fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
+    stats.add(&input.language);
+    for (name, source) in &input.sources {
+        stats.add(name);
+        if let Some(content) = &source.content {
+            stats.add(content);
+        }
+        for url in &source.urls {
+            stats.add(url);
+        }
+    }
+    for remapping in &input.settings.remappings {
+        stats.add(remapping);
+    }
+    if let Some(stop_after) = &input.settings.stop_after {
+        stats.add(stop_after);
+    }
+    if let Some(evm_version) = &input.settings.evm_version {
+        stats.add(evm_version);
+    }
+    for (source, contracts) in &input.settings.output_selection.0 {
+        stats.add(source);
+        for (contract, items) in contracts {
+            stats.add(contract);
+            for item in items {
+                stats.add(item);
+            }
+        }
+    }
+}
+
 fn compile(
-    input: CompilerInput,
+    input: CompilerInput<'_>,
     opts: &mut Opts,
     source_map: Arc<SourceMap>,
     dcx: DiagCtxt,
@@ -242,7 +497,7 @@ fn compile(
         .as_deref()
         .and_then(|version| EvmVersion::from_str(version).ok())
         .unwrap_or(opts.evm_version);
-    opts.language = match input.language.as_str() {
+    opts.language = match input.language.as_ref() {
         "Solidity" | "solidity" => Language::Solidity,
         "Yul" | "yul" => Language::Yul,
         language => {
@@ -252,7 +507,7 @@ fn compile(
     };
     opts.stop_after =
         input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
-    opts.input = input.sources.keys().cloned().collect();
+    opts.input = input.sources.keys().map(ToString::to_string).collect();
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -276,7 +531,7 @@ fn compile(
                         };
                         return Err(pcx.dcx().err(message).emit());
                     };
-                    files.push((PathBuf::from(name), content));
+                    files.push((PathBuf::from(name.as_ref()), content));
                 }
                 pcx.par_load_files_with_contents(files)
             });
@@ -328,7 +583,7 @@ fn source_outputs(source_map: &SourceMap) -> BTreeMap<String, SourceOutput> {
 fn make_contract_output(
     gcx: solar_sema::Gcx<'_>,
     contract_id: solar_sema::hir::ContractId,
-    output_selection: &OutputSelection,
+    output_selection: &OutputSelection<'_>,
     source_name: &str,
     contract_name: &str,
 ) -> ContractOutput {

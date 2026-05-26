@@ -292,6 +292,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
 
+    /// Print Standard JSON input stats.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub standard_json_stats: bool,
+
     /// Run the span visitor after parsing.
     #[cfg_attr(feature = "clap", arg(long))]
     pub span_visitor: bool,
