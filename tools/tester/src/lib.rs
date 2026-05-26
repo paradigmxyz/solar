@@ -33,7 +33,9 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         args.format = ui_test::Format::Terse;
     }
 
-    let mut modes = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul][..];
+    let default_modes =
+        if get_host().contains("windows") { DEFAULT_MODES_WINDOWS } else { DEFAULT_MODES };
+    let mut modes = default_modes;
     let mode_tmp;
     if let Ok(mode) = std::env::var("TESTER_MODE") {
         mode_tmp = Mode::parse(&mode).ok_or_else(|| eyre!("invalid mode: {mode}"))?;
@@ -284,6 +286,9 @@ enum Mode {
     SolcSolidity,
     SolcYul,
 }
+
+const DEFAULT_MODES: &[Mode] = &[Mode::Ui, Mode::StandardJson, Mode::SolcSolidity, Mode::SolcYul];
+const DEFAULT_MODES_WINDOWS: &[Mode] = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul];
 
 impl Mode {
     fn parse(s: &str) -> Option<Self> {
