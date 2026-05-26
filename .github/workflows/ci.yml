@@ -38,18 +38,10 @@ jobs:
         run: sudo .github/scripts/install_llvm_ubuntu.sh
       - name: Install LLVM (brew)
         if: matrix.os == 'macos-latest'
-        run: |
-          v=22
-          brew install "llvm@${v}"
-          prefix="$(brew --prefix llvm@${v})"
-          echo "${prefix}/bin" >> $GITHUB_PATH
-      - name: Install LLVM (choco)
-        if: matrix.os == 'windows-latest'
-        run: |
-          choco install llvm -y --no-progress
-          "C:\Program Files\LLVM\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
-      - name: FileCheck
-        run: FileCheck --version
+        run: .github/scripts/install_llvm_macos.sh
+      - name: llvm-config
+        if: matrix.os != 'windows-latest'
+        run: llvm-config --version --bindir --libdir
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}

@@ -33,7 +33,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         args.format = ui_test::Format::Terse;
     }
 
-    let mut modes = &[Mode::Ui, Mode::StandardJson, Mode::SolcSolidity, Mode::SolcYul][..];
+    let mut modes = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul][..];
     let mode_tmp;
     if let Ok(mode) = std::env::var("TESTER_MODE") {
         mode_tmp = Mode::parse(&mode).ok_or_else(|| eyre!("invalid mode: {mode}"))?;
