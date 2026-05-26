@@ -76,6 +76,160 @@ struct CompilerOutput<'a> {
     contracts: BTreeMap<String, BTreeMap<String, ContractOutput>>,
 }
 
+pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
+    let source_map = Arc::new(SourceMap::empty());
+    source_map.set_file_loader(StandardJsonFileLoader);
+    let (emitter, diagnostics) = InMemoryEmitter::new();
+    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.update_from_opts(&opts));
+
+    let mut output = CompilerOutput::default();
+    let mut input = String::new();
+    match io::stdin().read_to_string(&mut input) {
+        Ok(_) => {
+            if opts.unstable.ui_testing {
+                input = strip_json_comments(&input);
+            }
+            match serde_json::from_str::<CompilerInput<'_>>(&input) {
+                Ok(compiler_input) => {
+                    if opts.unstable.standard_json_stats {
+                        print_standard_json_stats(&input, &compiler_input);
+                    }
+                    compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
+                }
+                Err(e) => {
+                    dcx.err(format!("JSON parse error: {e}")).emit();
+                }
+            }
+        }
+        Err(e) => {
+            dcx.err(format!("failed to read standard JSON input: {e}")).emit();
+        }
+    }
+
+    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map))
+        .ui_testing(opts.unstable.ui_testing)
+        .human_kind(opts.error_format_human)
+        .terminal_width(opts.diagnostic_width);
+    let diagnostics = diagnostics.read();
+    output.errors =
+        diagnostics.iter().map(|diagnostic| emitter.solc_diagnostic(diagnostic)).collect();
+
+    if output.errors.iter().any(SolcDiagnostic::is_error) {
+        output.contracts.clear();
+    }
+
+    let stdout = io::stdout();
+    let mut stdout = io::BufWriter::new(stdout.lock());
+    if opts.pretty_json {
+        serde_json::to_writer_pretty(&mut stdout, &output)?;
+    } else {
+        serde_json::to_writer(&mut stdout, &output)?;
+    }
+    stdout.write_all(b"\n")?;
+    stdout.flush()
+}
+
+fn compile(
+    input: CompilerInput<'_>,
+    opts: &mut Opts,
+    source_map: Arc<SourceMap>,
+    dcx: DiagCtxt,
+    output: &mut CompilerOutput<'_>,
+) {
+    let mut remappings = Vec::with_capacity(input.settings.remappings.len());
+    for remapping in &input.settings.remappings {
+        match remapping.parse::<ImportRemapping>() {
+            Ok(remapping) => remappings.push(remapping),
+            Err(e) => {
+                dcx.err(format!("invalid remapping `{remapping}`: {e}")).emit();
+            }
+        }
+    }
+    if dcx.has_errors().is_err() {
+        return;
+    }
+
+    opts.import_remappings = remappings;
+    opts.evm_version = input
+        .settings
+        .evm_version
+        .as_deref()
+        .and_then(|version| EvmVersion::from_str(version).ok())
+        .unwrap_or(opts.evm_version);
+    opts.language = match input.language.as_ref() {
+        "Solidity" | "solidity" => Language::Solidity,
+        "Yul" | "yul" => Language::Yul,
+        language => {
+            dcx.err(format!("unsupported language `{language}`")).emit();
+            return;
+        }
+    };
+    opts.stop_after =
+        input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
+    opts.input = input.sources.keys().map(ToString::to_string).collect();
+
+    let sess = solar_interface::Session::builder()
+        .source_map(Arc::clone(&source_map))
+        .dcx(dcx)
+        .opts(opts.clone())
+        .build();
+
+    let output_selection = input.settings.output_selection;
+    let sources = input.sources;
+    let _ = crate::run_compiler_session_with(
+        sess,
+        |compiler| {
+            let compile_result = crate::run_pipeline(compiler, |pcx| {
+                let mut files = Vec::with_capacity(sources.len());
+                for (name, source) in sources {
+                    let Some(content) = source.content else {
+                        let message = if source.urls.is_empty() {
+                            format!("source `{name}` is missing `content`")
+                        } else {
+                            format!("source URLs are not supported for `{name}`")
+                        };
+                        return Err(pcx.dcx().err(message).emit());
+                    };
+                    files.push((PathBuf::from(name.as_ref()), content));
+                }
+                pcx.par_load_files_with_contents(files)
+            });
+
+            output.sources = source_outputs(compiler.sess().source_map());
+
+            if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
+                let gcx = compiler.gcx();
+                for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+                    let source = gcx.hir.source(contract.source);
+                    let source_name = source.file.name.display().to_string();
+                    let contract_name = contract.name.to_string();
+                    let contract_output = make_contract_output(
+                        gcx,
+                        contract_id,
+                        &output_selection,
+                        &source_name,
+                        &contract_name,
+                    );
+                    if !contract_output.is_empty() {
+                        output
+                            .contracts
+                            .entry(source_name)
+                            .or_default()
+                            .insert(contract_name, contract_output);
+                    }
+                }
+            }
+
+            compile_result.map(|_| ())
+        },
+        false,
+    );
+
+    if output.sources.is_empty() {
+        output.sources = source_outputs(&source_map);
+    }
+}
+
 /// JSON string wrapper that borrows from the standard-json input when possible.
 ///
 /// Serde's generic `Cow<'de, str>` implementation deserializes through the
@@ -284,59 +438,6 @@ fn disallowed_io(path: &Path) -> io::Error {
     )
 }
 
-pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
-    let source_map = Arc::new(SourceMap::empty());
-    source_map.set_file_loader(StandardJsonFileLoader);
-    let (emitter, diagnostics) = InMemoryEmitter::new();
-    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.update_from_opts(&opts));
-
-    let mut output = CompilerOutput::default();
-    let mut input = String::new();
-    match io::stdin().read_to_string(&mut input) {
-        Ok(_) => {
-            if opts.unstable.ui_testing {
-                input = strip_json_comments(&input);
-            }
-            match serde_json::from_str::<CompilerInput<'_>>(&input) {
-                Ok(compiler_input) => {
-                    if opts.unstable.standard_json_stats {
-                        print_standard_json_stats(&input, &compiler_input);
-                    }
-                    compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
-                }
-                Err(e) => {
-                    dcx.err(format!("JSON parse error: {e}")).emit();
-                }
-            }
-        }
-        Err(e) => {
-            dcx.err(format!("failed to read standard JSON input: {e}")).emit();
-        }
-    }
-
-    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map))
-        .ui_testing(opts.unstable.ui_testing)
-        .human_kind(opts.error_format_human)
-        .terminal_width(opts.diagnostic_width);
-    let diagnostics = diagnostics.read();
-    output.errors =
-        diagnostics.iter().map(|diagnostic| emitter.solc_diagnostic(diagnostic)).collect();
-
-    if output.errors.iter().any(SolcDiagnostic::is_error) {
-        output.contracts.clear();
-    }
-
-    let stdout = io::stdout();
-    let mut stdout = io::BufWriter::new(stdout.lock());
-    if opts.pretty_json {
-        serde_json::to_writer_pretty(&mut stdout, &output)?;
-    } else {
-        serde_json::to_writer(&mut stdout, &output)?;
-    }
-    stdout.write_all(b"\n")?;
-    stdout.flush()
-}
-
 #[derive(Default)]
 struct JsonTreeStats {
     nodes: usize,
@@ -488,107 +589,6 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
                 stats.add(item);
             }
         }
-    }
-}
-
-fn compile(
-    input: CompilerInput<'_>,
-    opts: &mut Opts,
-    source_map: Arc<SourceMap>,
-    dcx: DiagCtxt,
-    output: &mut CompilerOutput<'_>,
-) {
-    let mut remappings = Vec::with_capacity(input.settings.remappings.len());
-    for remapping in &input.settings.remappings {
-        match remapping.parse::<ImportRemapping>() {
-            Ok(remapping) => remappings.push(remapping),
-            Err(e) => {
-                dcx.err(format!("invalid remapping `{remapping}`: {e}")).emit();
-            }
-        }
-    }
-    if dcx.has_errors().is_err() {
-        return;
-    }
-
-    opts.import_remappings = remappings;
-    opts.evm_version = input
-        .settings
-        .evm_version
-        .as_deref()
-        .and_then(|version| EvmVersion::from_str(version).ok())
-        .unwrap_or(opts.evm_version);
-    opts.language = match input.language.as_ref() {
-        "Solidity" | "solidity" => Language::Solidity,
-        "Yul" | "yul" => Language::Yul,
-        language => {
-            dcx.err(format!("unsupported language `{language}`")).emit();
-            return;
-        }
-    };
-    opts.stop_after =
-        input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
-    opts.input = input.sources.keys().map(ToString::to_string).collect();
-
-    let sess = solar_interface::Session::builder()
-        .source_map(Arc::clone(&source_map))
-        .dcx(dcx)
-        .opts(opts.clone())
-        .build();
-
-    let output_selection = input.settings.output_selection;
-    let sources = input.sources;
-    let _ = crate::run_compiler_session_with(
-        sess,
-        |compiler| {
-            let compile_result = crate::run_pipeline(compiler, |pcx| {
-                let mut files = Vec::with_capacity(sources.len());
-                for (name, source) in sources {
-                    let Some(content) = source.content else {
-                        let message = if source.urls.is_empty() {
-                            format!("source `{name}` is missing `content`")
-                        } else {
-                            format!("source URLs are not supported for `{name}`")
-                        };
-                        return Err(pcx.dcx().err(message).emit());
-                    };
-                    files.push((PathBuf::from(name.as_ref()), content));
-                }
-                pcx.par_load_files_with_contents(files)
-            });
-
-            output.sources = source_outputs(compiler.sess().source_map());
-
-            if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
-                let gcx = compiler.gcx();
-                for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-                    let source = gcx.hir.source(contract.source);
-                    let source_name = source.file.name.display().to_string();
-                    let contract_name = contract.name.to_string();
-                    let contract_output = make_contract_output(
-                        gcx,
-                        contract_id,
-                        &output_selection,
-                        &source_name,
-                        &contract_name,
-                    );
-                    if !contract_output.is_empty() {
-                        output
-                            .contracts
-                            .entry(source_name)
-                            .or_default()
-                            .insert(contract_name, contract_output);
-                    }
-                }
-            }
-
-            compile_result.map(|_| ())
-        },
-        false,
-    );
-
-    if output.sources.is_empty() {
-        output.sources = source_outputs(&source_map);
     }
 }
 
