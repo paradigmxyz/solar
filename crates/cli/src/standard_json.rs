@@ -1,16 +1,16 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language};
+use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
 use solar_interface::{
     SourceMap,
-    diagnostics::{InMemoryEmitter, solc_diagnostics_to_json},
+    diagnostics::{DiagCtxt, InMemoryEmitter, solc_diagnostics_to_json},
 };
-use solar_sema::CompilerRef;
 use std::{
     collections::BTreeMap,
-    io::{self, Read as _, Write as _},
+    io::{self, Read, Write},
     path::PathBuf,
     str::FromStr,
+    sync::Arc,
 };
 
 #[derive(Debug, Deserialize)]
@@ -139,149 +139,156 @@ fn default_language() -> String {
     "Solidity".to_string()
 }
 
-pub(crate) fn run_in_default(compiler: &mut CompilerRef<'_>) -> solar_interface::Result {
-    let (emitter, diagnostics) = InMemoryEmitter::new();
-    let previous_emitter = compiler.dcx().set_emitter(Box::new(emitter));
-    compiler.dcx().set_flags(|flags| {
-        flags.update_from_opts(&compiler.sess().opts);
-        flags.track_diagnostics = compiler.sess().opts.unstable.track_diagnostics;
-    });
+pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
+    let mut input = String::new();
+    io::stdin().read_to_string(&mut input)?;
 
-    let output = compile(compiler);
-    let source_map = compiler.sess().clone_source_map();
-    let emitted = diagnostics.read().clone();
-    let errors = solc_diagnostics_to_json(
-        &emitted,
-        source_map,
-        compiler.sess().opts.unstable.ui_testing,
-        compiler.sess().opts.error_format_human,
-        compiler.sess().opts.diagnostic_width,
-    );
-    compiler.dcx().set_emitter(previous_emitter);
+    let output = match serde_json::from_str::<CompilerInput>(&strip_json_comments(&input)) {
+        Ok(input) => compile(input, &mut opts),
+        Err(e) => CompilerOutput {
+            errors: vec![json_error("JSONError", format!("JSON parse error: {e}"))],
+            ..Default::default()
+        },
+    };
 
-    write_output(compiler, CompilerOutput { errors, ..output })
+    let stdout = io::stdout();
+    let mut stdout = io::BufWriter::new(stdout.lock());
+    if opts.pretty_json {
+        serde_json::to_writer_pretty(&mut stdout, &output)?;
+    } else {
+        serde_json::to_writer(&mut stdout, &output)?;
+    }
+    stdout.write_all(b"\n")?;
+    stdout.flush()
 }
 
-fn compile(compiler: &mut CompilerRef<'_>) -> CompilerOutput {
+fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
     let mut output = CompilerOutput::default();
-
-    let mut input_json = String::new();
-    if let Err(e) = io::stdin().read_to_string(&mut input_json) {
-        compiler.dcx().err(format!("failed to read standard JSON input: {e}")).emit();
-        return output;
-    }
-
-    let input = match serde_json::from_str::<CompilerInput>(&strip_json_comments(&input_json)) {
-        Ok(input) => input,
-        Err(e) => {
-            compiler.dcx().err(format!("JSON parse error: {e}")).emit();
-            return output;
-        }
-    };
 
     let mut remappings = Vec::with_capacity(input.settings.remappings.len());
     for remapping in &input.settings.remappings {
         match remapping.parse::<ImportRemapping>() {
             Ok(remapping) => remappings.push(remapping),
-            Err(e) => {
-                compiler.dcx().err(format!("invalid remapping `{remapping}`: {e}")).emit();
-            }
+            Err(e) => output
+                .errors
+                .push(json_error("JSONError", format!("invalid remapping `{remapping}`: {e}"))),
         }
     }
-    if compiler.dcx().has_errors().is_err() {
+    if !output.errors.is_empty() {
         return output;
     }
 
-    let _evm_version = input
+    opts.import_remappings = remappings;
+    opts.evm_version = input
         .settings
         .evm_version
         .as_deref()
-        .and_then(|version| EvmVersion::from_str(version).ok());
-    let language = match input.language.as_str() {
+        .and_then(|version| EvmVersion::from_str(version).ok())
+        .unwrap_or(opts.evm_version);
+    opts.language = match input.language.as_str() {
         "Solidity" | "solidity" => Language::Solidity,
         "Yul" | "yul" => Language::Yul,
         language => {
-            compiler.dcx().err(format!("unsupported language `{language}`")).emit();
+            output
+                .errors
+                .push(json_error("JSONError", format!("unsupported language `{language}`")));
             return output;
         }
     };
-    if language.is_yul() && !compiler.sess().opts.unstable.parse_yul {
-        compiler.dcx().err("Yul is not supported yet").emit();
-        return output;
-    }
-    let _stop_after =
+    opts.stop_after =
         input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
+    opts.input = input.sources.keys().cloned().collect();
+
+    let source_map = Arc::new(SourceMap::empty());
+    let (emitter, diagnostics) = InMemoryEmitter::new();
+    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+        flags.update_from_opts(opts);
+        flags.track_diagnostics = opts.unstable.track_diagnostics;
+    });
+    let sess = solar_interface::Session::builder()
+        .source_map(Arc::clone(&source_map))
+        .dcx(dcx)
+        .opts(opts.clone())
+        .build();
 
     let output_selection = input.settings.output_selection;
     let sources = input.sources;
+    let _ = crate::run_compiler_session_with(
+        sess,
+        |compiler| {
+            let compile_result = crate::run_pipeline(compiler, |pcx| {
+                for (name, source) in sources {
+                    let Some(content) = source.content else {
+                        let message = if source.urls.is_empty() {
+                            format!("source `{name}` is missing `content`")
+                        } else {
+                            format!("source URLs are not supported for `{name}`")
+                        };
+                        return Err(pcx.dcx().err(message).emit());
+                    };
+                    let file =
+                        match pcx.sess.source_map().new_source_file(PathBuf::from(name), content) {
+                            Ok(file) => file,
+                            Err(e) => {
+                                return Err(pcx
+                                    .dcx()
+                                    .err(format!("failed to load source: {e}"))
+                                    .emit());
+                            }
+                        };
+                    pcx.add_file(file);
+                }
+                Ok(())
+            });
 
-    let compile_result = crate::run_pipeline(compiler, |pcx| {
-        pcx.file_resolver.add_import_remappings(remappings);
-        for (name, source) in sources {
-            let Some(content) = source.content else {
-                let message = if source.urls.is_empty() {
-                    format!("source `{name}` is missing `content`")
-                } else {
-                    format!("source URLs are not supported for `{name}`")
-                };
-                return Err(pcx.dcx().err(message).emit());
-            };
-            let file = match pcx.sess.source_map().new_source_file(PathBuf::from(name), content) {
-                Ok(file) => file,
-                Err(e) => return Err(pcx.dcx().err(format!("failed to load source: {e}")).emit()),
-            };
-            pcx.add_file(file);
-        }
-        Ok(())
-    });
+            output.sources = source_outputs(compiler.sess().source_map());
 
-    output.sources = source_outputs(compiler.sess().source_map());
-
-    if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
-        let gcx = compiler.gcx();
-        for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-            let source = gcx.hir.source(contract.source);
-            let source_name = source.file.name.display().to_string();
-            let contract_name = contract.name.to_string();
-            let contract_output = make_contract_output(
-                gcx,
-                contract_id,
-                &output_selection,
-                &source_name,
-                &contract_name,
-            );
-            if !contract_output.is_empty() {
-                output
-                    .contracts
-                    .entry(source_name)
-                    .or_default()
-                    .insert(contract_name, contract_output);
+            if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
+                let gcx = compiler.gcx();
+                for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+                    let source = gcx.hir.source(contract.source);
+                    let source_name = source.file.name.display().to_string();
+                    let contract_name = contract.name.to_string();
+                    let contract_output = make_contract_output(
+                        gcx,
+                        contract_id,
+                        &output_selection,
+                        &source_name,
+                        &contract_name,
+                    );
+                    if !contract_output.is_empty() {
+                        output
+                            .contracts
+                            .entry(source_name)
+                            .or_default()
+                            .insert(contract_name, contract_output);
+                    }
+                }
             }
-        }
+
+            compile_result.map(|_| ())
+        },
+        false,
+    );
+
+    if output.sources.is_empty() {
+        output.sources = source_outputs(&source_map);
     }
 
-    output
-}
+    let emitted = diagnostics.read().clone();
+    output.errors = solc_diagnostics_to_json(
+        &emitted,
+        Arc::clone(&source_map),
+        opts.unstable.ui_testing,
+        opts.error_format_human,
+        opts.diagnostic_width,
+    );
 
-fn write_output(compiler: &CompilerRef<'_>, mut output: CompilerOutput) -> solar_interface::Result {
     if has_error(&output.errors) {
         output.contracts.clear();
     }
 
-    let stdout = io::stdout();
-    let mut stdout = io::BufWriter::new(stdout.lock());
-    let result = (|| {
-        if compiler.sess().opts.pretty_json {
-            serde_json::to_writer_pretty(&mut stdout, &output).map_err(|e| e.to_string())?;
-        } else {
-            serde_json::to_writer(&mut stdout, &output).map_err(|e| e.to_string())?;
-        }
-        stdout.write_all(b"\n").map_err(|e| e.to_string())?;
-        stdout.flush().map_err(|e| e.to_string())
-    })();
-    result.map_err(|e| {
-        compiler.dcx().err(format!("failed to write standard JSON output: {e}")).emit()
-    })
+    output
 }
 
 fn source_outputs(source_map: &SourceMap) -> BTreeMap<String, SourceOutput> {
@@ -366,6 +373,17 @@ impl EvmOutput {
 
 fn has_error(errors: &[Value]) -> bool {
     errors.iter().any(|error| error.get("severity").and_then(Value::as_str) == Some("error"))
+}
+
+fn json_error(error_type: &str, message: String) -> Value {
+    json!({
+        "component": "general",
+        "errorCode": null,
+        "formattedMessage": message,
+        "message": message,
+        "severity": "error",
+        "type": error_type,
+    })
 }
 
 fn strip_json_comments(input: &str) -> String {

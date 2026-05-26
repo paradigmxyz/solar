@@ -47,14 +47,16 @@ where
 }
 
 pub fn run_compiler_args(opts: Opts) -> Result {
+    if opts.standard_json {
+        standard_json::run(opts)
+            .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
+        return Ok(());
+    }
+
     run_compiler_with(opts, run_default)
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
-    if compiler.sess().opts.standard_json {
-        return standard_json::run_in_default(compiler);
-    }
-
     run_pipeline(compiler, |pcx| {
         // Partition arguments into three categories:
         // - `stdin`: `-`, occurrences after the first are ignored
@@ -114,10 +116,9 @@ pub(crate) fn run_pipeline(
 }
 
 fn run_compiler_with(opts: Opts, f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send) -> Result {
-    let finish = !opts.standard_json;
     let mut sess = Session::new(opts);
     sess.infer_language();
-    run_compiler_session_with(sess, f, finish)
+    run_compiler_session_with(sess, f, true)
 }
 
 pub(crate) fn run_compiler_session_with(
