@@ -142,8 +142,11 @@ fn default_language() -> String {
 pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
     let mut input = String::new();
     io::stdin().read_to_string(&mut input)?;
+    if opts.unstable.ui_testing {
+        input = strip_json_comments(&input);
+    }
 
-    let output = match serde_json::from_str::<CompilerInput>(&strip_json_comments(&input)) {
+    let output = match serde_json::from_str::<CompilerInput>(&input) {
         Ok(input) => compile(input, &mut opts),
         Err(e) => CompilerOutput {
             errors: vec![json_error("JSONError", format!("JSON parse error: {e}"))],
@@ -217,6 +220,7 @@ fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
         sess,
         |compiler| {
             let compile_result = crate::run_pipeline(compiler, |pcx| {
+                let mut files = Vec::with_capacity(sources.len());
                 for (name, source) in sources {
                     let Some(content) = source.content else {
                         let message = if source.urls.is_empty() {
@@ -226,19 +230,9 @@ fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
                         };
                         return Err(pcx.dcx().err(message).emit());
                     };
-                    let file =
-                        match pcx.sess.source_map().new_source_file(PathBuf::from(name), content) {
-                            Ok(file) => file,
-                            Err(e) => {
-                                return Err(pcx
-                                    .dcx()
-                                    .err(format!("failed to load source: {e}"))
-                                    .emit());
-                            }
-                        };
-                    pcx.add_file(file);
+                    files.push((PathBuf::from(name), content));
                 }
-                Ok(())
+                pcx.par_load_files_with_contents(files)
             });
 
             output.sources = source_outputs(compiler.sess().source_map());

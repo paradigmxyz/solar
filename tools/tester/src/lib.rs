@@ -90,7 +90,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                         concat!(
                             "out=$(mktemp \"${TMPDIR:-/tmp}/solar-standard-json.XXXXXX\") || exit 1; ",
                             "trap 'rm -f \"$out\"' EXIT; ",
-                            "\"$1\" --standard-json --pretty-json < \"$2\" > \"$out\"; ",
+                            "\"$1\" --standard-json --pretty-json -Zui-testing < \"$2\" > \"$out\"; ",
                             "status=$?; cat \"$out\"; ",
                             "if [ \"$status\" -ne 0 ]; then exit \"$status\"; fi; ",
                             "FileCheck \"$2\" < \"$out\"",
