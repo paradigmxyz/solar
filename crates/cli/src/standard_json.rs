@@ -5,11 +5,9 @@ use solar_interface::{
     SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, solc_diagnostics_to_json},
 };
-use solar_sema::Compiler;
 use std::{
     collections::BTreeMap,
     io::{self, Read, Write},
-    ops::ControlFlow,
     path::PathBuf,
     str::FromStr,
     sync::Arc,
@@ -212,41 +210,70 @@ fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
         .dcx(dcx)
         .opts(opts.clone())
         .build();
-    let mut compiler = Compiler::new(sess);
 
-    let compile_result = compiler.enter_mut(|compiler| -> solar_interface::Result<()> {
-        let mut pcx = compiler.parse();
-        for (name, source) in input.sources {
-            let Some(content) = source.content else {
-                let message = if source.urls.is_empty() {
-                    format!("source `{name}` is missing `content`")
-                } else {
-                    format!("source URLs are not supported for `{name}`")
-                };
-                return Err(compiler.dcx().err(message).emit());
-            };
-            let file = match compiler
-                .sess()
-                .source_map()
-                .new_source_file(PathBuf::from(name), content)
-            {
-                Ok(file) => file,
-                Err(e) => {
-                    return Err(compiler.dcx().err(format!("failed to load source: {e}")).emit());
+    let output_selection = input.settings.output_selection;
+    let sources = input.sources;
+    let _ = crate::run_compiler_session_with(
+        sess,
+        |compiler| {
+            let compile_result = crate::run_pipeline(compiler, |pcx| {
+                for (name, source) in sources {
+                    let Some(content) = source.content else {
+                        let message = if source.urls.is_empty() {
+                            format!("source `{name}` is missing `content`")
+                        } else {
+                            format!("source URLs are not supported for `{name}`")
+                        };
+                        return Err(pcx.dcx().err(message).emit());
+                    };
+                    let file =
+                        match pcx.sess.source_map().new_source_file(PathBuf::from(name), content) {
+                            Ok(file) => file,
+                            Err(e) => {
+                                return Err(pcx
+                                    .dcx()
+                                    .err(format!("failed to load source: {e}"))
+                                    .emit());
+                            }
+                        };
+                    pcx.add_file(file);
                 }
-            };
-            pcx.add_file(file);
-        }
-        pcx.parse();
+                Ok(())
+            });
 
-        let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
-        if matches!(compiler.analysis()?, ControlFlow::Break(())) {
-            return Ok(());
-        }
-        Ok(())
-    });
+            output.sources = source_outputs(compiler.sess().source_map());
 
-    output.sources = source_outputs(&source_map);
+            if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
+                let gcx = compiler.gcx();
+                for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+                    let source = gcx.hir.source(contract.source);
+                    let source_name = source.file.name.display().to_string();
+                    let contract_name = contract.name.to_string();
+                    let contract_output = make_contract_output(
+                        gcx,
+                        contract_id,
+                        &output_selection,
+                        &source_name,
+                        &contract_name,
+                    );
+                    if !contract_output.is_empty() {
+                        output
+                            .contracts
+                            .entry(source_name)
+                            .or_default()
+                            .insert(contract_name, contract_output);
+                    }
+                }
+            }
+
+            compile_result.map(|_| ())
+        },
+        false,
+    );
+
+    if output.sources.is_empty() {
+        output.sources = source_outputs(&source_map);
+    }
 
     let emitted = diagnostics.read().clone();
     output.errors = solc_diagnostics_to_json(
@@ -257,29 +284,8 @@ fn compile(input: CompilerInput, opts: &mut Opts) -> CompilerOutput {
         opts.diagnostic_width,
     );
 
-    if compile_result.is_ok() && !has_error(&output.errors) {
-        compiler.enter(|compiler| {
-            let gcx = compiler.gcx();
-            for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-                let source = gcx.hir.source(contract.source);
-                let source_name = source.file.name.display().to_string();
-                let contract_name = contract.name.to_string();
-                let contract_output = make_contract_output(
-                    gcx,
-                    contract_id,
-                    &input.settings.output_selection,
-                    &source_name,
-                    &contract_name,
-                );
-                if !contract_output.is_empty() {
-                    output
-                        .contracts
-                        .entry(source_name)
-                        .or_default()
-                        .insert(contract_name, contract_output);
-                }
-            }
-        });
+    if has_error(&output.errors) {
+        output.contracts.clear();
     }
 
     output
