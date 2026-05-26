@@ -35,17 +35,32 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let short_version = format!("{version_suffixed} ({sha_short} {timestamp})");
     println!("cargo:rustc-env=SHORT_VERSION={short_version}");
 
-    let solc_compat_version = format!("0.8.30+commit.{sha_short}.solar.{version}");
-    println!("cargo:rustc-env=SOLC_VERSION={solc_compat_version}");
+    // Use the out dir to determine the profile being used
+    let out_dir = env::var("OUT_DIR").unwrap();
+    let profile = out_dir.rsplit(std::path::MAIN_SEPARATOR).nth(3).unwrap();
 
+    let mut cargo_features = env::var("VERGEN_CARGO_FEATURES").unwrap();
+    let ignore = ["clap", "version", "serde"];
+    for feature in ignore {
+        cargo_features = cargo_features
+            .replace(&format!(",{feature}"), "")
+            .replace(&format!("{feature},"), "")
+            .replace(feature, "");
+    }
     let long_version = format!(
-        "the Solar compiler\n\
-         Version: {short_version}",
+        "Version: {version}\n\
+         Commit SHA: {sha}\n\
+         Build Timestamp: {timestamp}\n\
+         Build Features: {cargo_features}\n\
+         Build Profile: {profile}",
     );
-    assert_eq!(long_version.lines().count(), 2); // `version.rs` must be updated as well.
+    assert_eq!(long_version.lines().count(), 5); // `version.rs` must be updated as well.
     for (i, line) in long_version.lines().enumerate() {
         println!("cargo:rustc-env=LONG_VERSION{i}={line}");
     }
+
+    let solc_compat_version = format!("0.8.30+commit.{sha_short}.solar.{version}");
+    println!("cargo:rustc-env=SOLC_VERSION={solc_compat_version}");
 
     let solc_long_version = format!(
         "the Solidity compiler\n\

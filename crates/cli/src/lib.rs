@@ -8,10 +8,7 @@
 use clap::Parser as _;
 use solar_interface::{Result, Session};
 use solar_sema::{CompilerRef, ParsingContext};
-use std::{
-    ffi::{OsStr, OsString},
-    ops::ControlFlow,
-};
+use std::ops::ControlFlow;
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
@@ -38,26 +35,6 @@ pub mod signal_handler {
 use alloy_primitives as _;
 
 use tracing as _;
-
-pub fn try_print_version(itr: impl IntoIterator<Item = OsString>) -> bool {
-    let mut itr = itr.into_iter();
-    let _ = itr.next();
-    for arg in itr {
-        let arg = arg.as_os_str();
-        if arg == OsStr::new("--") {
-            break;
-        }
-        if arg == OsStr::new("--version") {
-            println!("solar {}", version::long_version());
-            return true;
-        }
-        if arg == OsStr::new("-V") {
-            println!("solar {}", version::SHORT_VERSION);
-            return true;
-        }
-    }
-    false
-}
 
 pub fn parse_args<I, T>(itr: I) -> Result<Opts, clap::Error>
 where

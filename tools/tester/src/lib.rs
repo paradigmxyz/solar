@@ -78,6 +78,17 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
          you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
+    let standard_json_script = r#"out=$(mktemp "${TMPDIR:-/tmp}/solar-standard-json.XXXXXX") || exit 1
+trap 'rm -f "$out"' EXIT
+"$1" --standard-json --pretty-json -Zui-testing < "$2" > "$out"
+status=$?
+cat "$out"
+if [ "$status" -ne 0 ]; then
+    exit "$status"
+fi
+FileCheck "$2" < "$out"
+"#;
+
     let mut config = ui_test::Config {
         // `host` and `target` are used for `//@ignore-...` comments.
         host: Some(get_host().to_string()),
@@ -89,15 +100,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                 let mut args = if matches!(mode, Mode::StandardJson) {
                     vec![
                         "-c".into(),
-                        concat!(
-                            "out=$(mktemp \"${TMPDIR:-/tmp}/solar-standard-json.XXXXXX\") || exit 1; ",
-                            "trap 'rm -f \"$out\"' EXIT; ",
-                            "\"$1\" --standard-json --pretty-json -Zui-testing < \"$2\" > \"$out\"; ",
-                            "status=$?; cat \"$out\"; ",
-                            "if [ \"$status\" -ne 0 ]; then exit \"$status\"; fi; ",
-                            "FileCheck \"$2\" < \"$out\"",
-                        )
-                        .into(),
+                        standard_json_script.into(),
                         "solar-standard-json".into(),
                         cmd.as_os_str().to_os_string(),
                     ]
@@ -174,9 +177,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
 
     config.with_args(args);
 
-    if matches!(mode, Mode::StandardJson) {
-        config.output_conflict_handling = ui_test::ignore_output_conflict;
-    } else if mode.is_solc() {
+    if mode.is_solc() {
         // Override `bless` handler, since we don't want to write Solc tests.
         config.output_conflict_handling = ui_test::ignore_output_conflict;
         // Skip parsing comments since they result in false positives.
