@@ -59,7 +59,8 @@ pub(crate) fn emit(gcx: Gcx<'_>) {
                     }
                     contract_output.hashes = Some(hashes);
                 }
-                emit => unreachable!("{emit:?}"),
+                CompilerOutput::Bin | CompilerOutput::BinRuntime | CompilerOutput::Mir => {}
+                _ => {}
             }
         }
     }
