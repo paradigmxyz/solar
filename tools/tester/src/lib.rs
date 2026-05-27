@@ -33,7 +33,9 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         args.format = ui_test::Format::Terse;
     }
 
-    let mut modes = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul][..];
+    let default_modes =
+        if get_host().contains("windows") { DEFAULT_MODES_WINDOWS } else { DEFAULT_MODES };
+    let mut modes = default_modes;
     let mode_tmp;
     if let Ok(mode) = std::env::var("TESTER_MODE") {
         mode_tmp = Mode::parse(&mode).ok_or_else(|| eyre!("invalid mode: {mode}"))?;
@@ -65,7 +67,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
 
     let path = match mode {
-        Mode::Ui => "tests/ui/",
+        Mode::Ui | Mode::StandardJson => "tests/ui/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
@@ -76,20 +78,42 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
          you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
+    let standard_json_script = r#"out=$(mktemp "${TMPDIR:-/tmp}/solar-standard-json.XXXXXX") || exit 1
+trap 'rm -f "$out"' EXIT
+"$1" --standard-json --pretty-json -Zui-testing < "$2" > "$out"
+status=$?
+cat "$out"
+if [ "$status" -ne 0 ]; then
+    exit "$status"
+fi
+FileCheck "$2" < "$out"
+"#;
+
     let mut config = ui_test::Config {
         // `host` and `target` are used for `//@ignore-...` comments.
         host: Some(get_host().to_string()),
         target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
-            program: cmd.into(),
+            program: if matches!(mode, Mode::StandardJson) { "sh".into() } else { cmd.into() },
             args: {
-                let mut args =
-                    vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"];
+                let mut args = if matches!(mode, Mode::StandardJson) {
+                    vec![
+                        "-c".into(),
+                        standard_json_script.into(),
+                        "solar-standard-json".into(),
+                        cmd.as_os_str().to_os_string(),
+                    ]
+                } else {
+                    vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
+                        .into_iter()
+                        .map(Into::into)
+                        .collect()
+                };
                 if mode.is_solc() {
-                    args.push("--stop-after=parsing");
+                    args.push("--stop-after=parsing".into());
                 }
-                args.into_iter().map(Into::into).collect()
+                args
             },
             out_dir_flag: None,
             input_file_flag: None,
@@ -175,12 +199,20 @@ fn get_host() -> &'static str {
 }
 
 fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
-    path.extension().filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?;
+    match cfg.mode {
+        Mode::StandardJson => {
+            path.extension().filter(|&ext| ext == "jsonc")?;
+        }
+        _ => {
+            path.extension()
+                .filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?;
+        }
+    }
     if !ui_test::default_any_file_filter(path, config) {
         return Some(false);
     }
     let skip = match cfg.mode {
-        Mode::Ui => false,
+        Mode::Ui | Mode::StandardJson => false,
         Mode::SolcSolidity => solc::solidity::should_skip(path).is_err(),
         Mode::SolcYul => solc::yul::should_skip(path).is_err(),
     };
@@ -196,6 +228,11 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if cfg.mode.is_solc() {
         return solc_per_file_config(config, src, path, cfg);
     }
+    if matches!(cfg.mode, Mode::StandardJson) {
+        config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
+        config.comment_defaults.base().exit_status = Spanned::dummy(0).into();
+        return;
+    }
 
     assert_eq!(config.comment_start, "//");
     let has_annotations = src.contains("//~");
@@ -205,6 +242,13 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         Spanned::dummy(is_check_fail || has_annotations).into();
     let code = if is_check_fail || (has_annotations && src.contains("ERROR:")) { 1 } else { 0 };
     config.comment_defaults.base().exit_status = Spanned::dummy(code).into();
+
+    if src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@compile-flags:") && (line.contains("-j") || line.contains("--threads"))
+    }) {
+        config.program.args.retain(|arg| arg != "-j1");
+    }
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.
@@ -239,14 +283,19 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
 #[derive(Clone, Copy)]
 enum Mode {
     Ui,
+    StandardJson,
     SolcSolidity,
     SolcYul,
 }
+
+const DEFAULT_MODES: &[Mode] = &[Mode::Ui, Mode::StandardJson, Mode::SolcSolidity, Mode::SolcYul];
+const DEFAULT_MODES_WINDOWS: &[Mode] = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul];
 
 impl Mode {
     fn parse(s: &str) -> Option<Self> {
         Some(match s {
             "ui" => Self::Ui,
+            "standard-json" => Self::StandardJson,
             "solc-solidity" => Self::SolcSolidity,
             "solc-yul" => Self::SolcYul,
             _ => return None,
@@ -256,6 +305,7 @@ impl Mode {
     fn to_str(self) -> &'static str {
         match self {
             Self::Ui => "ui",
+            Self::StandardJson => "standard-json",
             Self::SolcSolidity => "solc-solidity",
             Self::SolcYul => "solc-yul",
         }

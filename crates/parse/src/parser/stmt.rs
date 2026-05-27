@@ -5,7 +5,7 @@ use solar_ast::{token::*, *};
 use solar_data_structures::CollectAndApply;
 use solar_interface::{Ident, Span, SpannedOption, kw, sym};
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a statement.
     #[instrument(level = "trace", skip_all)]
     pub fn parse_stmt(&mut self) -> PResult<'sess, Stmt<'ast>> {
@@ -437,7 +437,7 @@ struct IndexAccessedPath<'ast> {
 }
 
 impl<'ast> IndexAccessedPath<'ast> {
-    fn into_ty(self, parser: &mut Parser<'_, 'ast>) -> Option<Type<'ast>> {
+    fn into_ty(self, parser: &mut Parser<'_, 'ast, '_>) -> Option<Type<'ast>> {
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2617
         let mut path = self.path.into_iter();
         let first = path.next()?;
@@ -477,7 +477,7 @@ impl<'ast> IndexAccessedPath<'ast> {
         Some(ty)
     }
 
-    fn into_expr(self, parser: &mut Parser<'_, 'ast>) -> Option<Box<'ast, Expr<'ast>>> {
+    fn into_expr(self, parser: &mut Parser<'_, 'ast, '_>) -> Option<Box<'ast, Expr<'ast>>> {
         // https://github.com/argotorg/solidity/blob/194b114664c7daebc2ff68af3c573272f5d28913/libsolidity/parsing/Parser.cpp#L2658
         let mut path = self.path.into_iter();
 

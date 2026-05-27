@@ -717,9 +717,35 @@ impl<'gcx> Gcx<'gcx> {
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
     ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
-        let native = self.native_members(ty);
+        let native =
+            self.native_members_in_context(ty, contract).unwrap_or_else(|| self.native_members(ty));
         let attached = self.attached_functions(ty, source, contract);
         native.iter().copied().chain(attached)
+    }
+
+    fn native_members_in_context(
+        self,
+        ty: Ty<'gcx>,
+        current_contract: Option<hir::ContractId>,
+    ) -> Option<members::MemberList<'gcx>> {
+        let current_contract = current_contract?;
+        match ty.kind {
+            TyKind::Type(ty) => {
+                let TyKind::Contract(id) = ty.kind else { return None };
+                let contract = self.hir.contract(id);
+                if contract.kind.is_library()
+                    || !self.hir.contract(current_contract).linearized_bases.contains(&id)
+                {
+                    return None;
+                }
+                Some(self.contract_type_members_in_context((id, current_contract)))
+            }
+            TyKind::Fn(f) if f.kind == TyFnKind::Internal => {
+                let id = f.function_id?;
+                Some(self.internal_function_members_in_context((id, current_contract)))
+            }
+            _ => None,
+        }
     }
 
     pub(crate) fn for_each_user_operator(
@@ -870,8 +896,24 @@ impl<'gcx> Gcx<'gcx> {
             return true;
         };
         let loc = ty.loc().unwrap_or(DataLocation::Storage);
-        ty == using_ty.with_loc_if_ref(self, loc)
+        using_directive_ty_matches(ty, using_ty.with_loc_if_ref(self, loc))
     }
+}
+
+fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
+    if ty == using_ty {
+        return true;
+    }
+    // HACK: allow attached functions to be called on function declarations. Function type equality
+    // also checks declaration IDs, so this is a quick way to make it work for now.
+    if let (TyKind::Fn(a), TyKind::Fn(b)) = (ty.kind, using_ty.kind) {
+        return a.kind == b.kind
+            && a.parameters == b.parameters
+            && a.returns == b.returns
+            && a.state_mutability == b.state_mutability
+            && a.attached == b.attached;
+    }
+    false
 }
 
 fn compatible_fixed_bytes_type(lit: &hir::Lit<'_>) -> Option<TypeSize> {
@@ -1184,6 +1226,22 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
 
 fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
     members::native_members(gcx, ty)
+}
+
+fn contract_type_members_in_context(
+    gcx: _,
+    key: (hir::ContractId, hir::ContractId)
+) -> members::MemberList<'gcx> {
+    let (id, current_contract) = key;
+    members::contract_type_members_in_context(gcx, id, current_contract)
+}
+
+fn internal_function_members_in_context(
+    gcx: _,
+    key: (hir::FunctionId, hir::ContractId)
+) -> members::MemberList<'gcx> {
+    let (id, current_contract) = key;
+    gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
 }
 }
 

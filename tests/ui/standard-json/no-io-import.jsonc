@@ -1,0 +1,20 @@
+// CHECK: "errors": [
+// CHECK: "message": "file tests/ui/standard-json/auxiliary/on-disk.sol not found"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import \"tests/ui/standard-json/auxiliary/on-disk.sol\"; contract A is OnDisk {}"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

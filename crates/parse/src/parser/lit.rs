@@ -7,7 +7,7 @@ use solar_ast::{token::*, *};
 use solar_interface::{ByteSymbol, Session, Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::{borrow::Cow, fmt};
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a literal with an optional subdenomination.
     ///
     /// Note that the subdenomination gets applied to the literal directly, and is returned just for

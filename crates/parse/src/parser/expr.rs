@@ -4,7 +4,7 @@ use solar_ast::{token::*, *};
 
 use solar_interface::kw;
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses an expression.
     #[inline]
     pub fn parse_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {

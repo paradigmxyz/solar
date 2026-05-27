@@ -495,12 +495,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Ref(inner, _) if matches!(inner.kind, TyKind::Struct(_)) => None,
                     TyKind::Type(ty)
                         if matches!(ty.kind, TyKind::Contract(_))
-                            && possible_members.len() == 1
-                            && possible_members[0]
-                                .res
-                                .is_some_and(|res| self.res_not_lvalue_reason(res).is_some()) =>
+                            && let [member] = possible_members.as_slice()
+                            && let Some(res) = member.res
+                            && res.as_variable().is_some() =>
                     {
-                        Some(NotLvalueReason::Generic)
+                        self.res_not_lvalue_reason(res)
                     }
                     _ => Some(NotLvalueReason::Generic),
                 };
@@ -922,6 +921,11 @@ impl<'gcx> TypeChecker<'gcx> {
         to: Ty<'gcx>,
         args: &'gcx hir::CallArgs<'gcx>,
     ) -> Ty<'gcx> {
+        if matches!(to.kind, TyKind::Super(_)) {
+            return self
+                .gcx
+                .mk_ty_err(self.dcx().err("cannot convert to the super type").span(span).emit());
+        }
         let WantOne::One(from_expr) = args.exprs().collect::<WantOne<_>>() else {
             return self.gcx.mk_ty_err(
                 self.dcx().emit_err(args.span, "expected exactly one unnamed argument"),
@@ -2107,6 +2111,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let var = self.gcx.hir.variable(id);
         let _ = self.visit_ty(&var.ty);
         let ty = self.gcx.type_of_item(id.into());
+        self.check_var_type_size(var, ty);
 
         if let Some(init) = var.initializer {
             if var.is_state_variable() && ty.has_mapping(self.gcx) {
@@ -2166,6 +2171,42 @@ impl<'gcx> TypeChecker<'gcx> {
         }
 
         ty
+    }
+
+    fn check_var_type_size(&self, var: &hir::Variable<'gcx>, ty: Ty<'gcx>) {
+        if let Some(loc @ (DataLocation::Memory | DataLocation::Calldata)) = ty.loc()
+            && let Some(size) = self.ty_memory_static_size(ty.peel_refs())
+            && size >= u32::MAX
+        {
+            self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
+        }
+    }
+
+    fn ty_memory_static_size(&self, ty: Ty<'gcx>) -> Option<U256> {
+        match ty.kind {
+            TyKind::Array(elem, len) => {
+                let elem_size = if elem.is_dynamically_sized() {
+                    U256::from(32)
+                } else {
+                    self.ty_memory_static_size(elem)?
+                };
+                len.checked_mul(elem_size)
+            }
+            TyKind::Struct(id) => {
+                let mut size = U256::ZERO;
+                for &field_ty in self.gcx.struct_field_types(id) {
+                    let field_size = if field_ty.is_dynamically_sized() {
+                        U256::from(32)
+                    } else {
+                        self.ty_memory_static_size(field_ty)?
+                    };
+                    size = size.checked_add(field_size)?;
+                }
+                Some(size)
+            }
+            TyKind::Ref(inner, _) => self.ty_memory_static_size(inner),
+            _ => Some(U256::from(32)),
+        }
     }
 
     fn check_decl(
@@ -2353,12 +2394,16 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn type_of_res(&self, res: hir::Res) -> Ty<'gcx> {
         match res {
-            hir::Res::Builtin(Builtin::This | Builtin::Super) => self
+            hir::Res::Builtin(Builtin::This) => self
                 .contract
                 .map(|contract| self.gcx.type_of_item(contract.into()))
                 .unwrap_or_else(|| self.gcx.mk_ty_misc_err()),
-            // TODO: Different type for super
-            // hir::Res::Builtin(Builtin::Super) => {}
+            hir::Res::Builtin(Builtin::Super) => self
+                .contract
+                .map(|contract| {
+                    self.gcx.mk_ty(TyKind::Type(self.gcx.mk_ty(TyKind::Super(contract))))
+                })
+                .unwrap_or_else(|| self.gcx.mk_ty_misc_err()),
             res => self.gcx.type_of_res(res),
         }
     }
@@ -2696,7 +2741,9 @@ fn abi_decode_arg_kind(name: Symbol) -> Option<AbiDecodeArg> {
 
 fn abi_encode_call_function_kind_message(kind: TyFnKind) -> &'static str {
     match kind {
-        TyFnKind::Internal => "first argument to `abi.encodeCall` must be an external function",
+        TyFnKind::Internal | TyFnKind::InternalWithSelector => {
+            "first argument to `abi.encodeCall` must be an external function"
+        }
         TyFnKind::DelegateCall => "first argument to `abi.encodeCall` cannot be a library function",
         TyFnKind::Creation => "first argument to `abi.encodeCall` cannot be a creation function",
         TyFnKind::BareCall | TyFnKind::BareDelegateCall | TyFnKind::BareStaticCall => {
@@ -2893,6 +2940,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
         | TyKind::Variadic
+        | TyKind::Super(_)
         | TyKind::Type(_)
         | TyKind::Meta(_) => None,
 
@@ -2919,7 +2967,6 @@ fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Optio
 
 fn valid_meta_type(ty: Ty<'_>) -> bool {
     debug_assert!(!matches!(ty.kind, TyKind::Type(_)));
-    // TODO: Disallow super
     matches!(
         ty.kind,
         TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))

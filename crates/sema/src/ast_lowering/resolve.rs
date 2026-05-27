@@ -137,8 +137,10 @@ impl super::LoweringContext<'_> {
                 let span = Span::DUMMY;
                 let this = Declaration { res: Res::Builtin(Builtin::This), span };
                 let _ = self.declare_in(&mut scope, sym::this, this);
-                let super_ = Declaration { res: Res::Builtin(Builtin::Super), span };
-                let _ = self.declare_in(&mut scope, sym::super_, super_);
+                if !contract.kind.is_library() {
+                    let super_ = Declaration { res: Res::Builtin(Builtin::Super), span };
+                    let _ = self.declare_in(&mut scope, sym::super_, super_);
+                }
 
                 for &item_id in contract.items {
                     if let hir::ItemId::Function(id) = item_id
