@@ -226,10 +226,6 @@ fn compile(
         },
         false,
     );
-
-    if output.sources.is_empty() {
-        output.sources = source_outputs(&source_map);
-    }
 }
 
 /// JSON string wrapper that borrows from the standard-json input when possible.
@@ -592,15 +588,6 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
             }
         }
     }
-}
-
-fn source_outputs(source_map: &SourceMap) -> BTreeMap<String, SourceOutput> {
-    source_map
-        .files()
-        .iter()
-        .enumerate()
-        .map(|(id, file)| (file.name.display().to_string(), SourceOutput { id: id as u32 }))
-        .collect()
 }
 
 fn source_outputs_from_compiler(

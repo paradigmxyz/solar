@@ -92,7 +92,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
 pub(crate) fn run_pipeline(
     compiler: &mut CompilerRef<'_>,
     load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result,
-    after_lowering: impl FnOnce(&CompilerRef<'_>),
+    after_parsing: impl FnOnce(&CompilerRef<'_>),
 ) -> Result<ControlFlow<()>> {
     let sess = compiler.gcx().sess;
     if sess.opts.language.is_yul() && !sess.opts.unstable.parse_yul {
@@ -109,10 +109,12 @@ pub(crate) fn run_pipeline(
         return Err(sess.dcx.err(msg).note(note).emit());
     }
 
+    compiler.sources_mut().topo_sort();
+    after_parsing(compiler);
+
     let ControlFlow::Continue(()) = compiler.lower_asts()? else {
         return Ok(ControlFlow::Break(()));
     };
-    after_lowering(compiler);
     compiler.drop_asts();
     let ControlFlow::Continue(()) = compiler.analysis()? else {
         return Ok(ControlFlow::Break(()));
