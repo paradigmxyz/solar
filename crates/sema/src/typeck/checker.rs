@@ -282,13 +282,17 @@ impl<'gcx> TypeChecker<'gcx> {
                             return self.abi_decode_return_type(args);
                         }
 
+                        let builtin = self.builtin_callees.get(&callee.id).copied();
                         let param_names = if let Some(id) = struct_id {
                             Some(ParamNamesSource::Struct(id))
                         } else {
                             self.ty_fn_param_names_source(f)
                         };
-                        let _ = self.check_call_args(expr.span, args, f.parameters, param_names);
-                        if let Some(builtin) = self.builtin_callees.get(&callee.id).copied() {
+                        if builtin != Some(Builtin::Require) {
+                            let _ =
+                                self.check_call_args(expr.span, args, f.parameters, param_names);
+                        }
+                        if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
                         }
                         self.fn_call_return_type(f.returns)
@@ -313,7 +317,6 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.gcx.types.unit
                     }
                     TyKind::Error(param_tys, id) => {
-                        // TODO: Also allow in require(condition, MyError(...)).
                         if !self.in_revert {
                             self.dcx().emit_err(
                                 expr.span,
@@ -1057,6 +1060,10 @@ impl<'gcx> TypeChecker<'gcx> {
         args: &hir::CallArgs<'gcx>,
         builtin: Builtin,
     ) -> Result<(), ErrorGuaranteed> {
+        if builtin == Builtin::Require {
+            return self.check_require_args(call_span, args);
+        }
+
         let hir::CallArgsKind::Unnamed(exprs) = args.kind else { return Ok(()) };
         match builtin {
             Builtin::StringConcat => {
@@ -1103,6 +1110,105 @@ impl<'gcx> TypeChecker<'gcx> {
             Builtin::AbiDecode => Ok(()),
             _ => Ok(()),
         }
+    }
+
+    fn check_require_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        let hir::CallArgsKind::Unnamed(exprs) = args.kind else {
+            let hir::CallArgsKind::Named(named_args) = args.kind else { unreachable!() };
+            let guar = self.dcx().emit_err(
+                args.span,
+                "named arguments cannot be used for functions that take arbitrary parameters",
+            );
+            for arg in named_args {
+                let _ = self.check_expr_once(&arg.value);
+            }
+            return Err(guar);
+        };
+
+        match exprs {
+            [condition] => {
+                let actual = self.check_expr_once(condition);
+                self.check_expected(condition, actual, self.gcx.types.bool)
+            }
+            [condition, message_or_error] => {
+                let actual = self.check_expr_once(condition);
+                let result = self.check_expected(condition, actual, self.gcx.types.bool);
+                result.and(self.check_require_message_or_error(message_or_error))
+            }
+            _ => Err(self.dcx().emit_err_label(
+                call_span,
+                format!(
+                    "wrong argument count for function call: {} arguments given but expected 1 or 2",
+                    exprs.len()
+                ),
+                args.span,
+                format!("expected 1 or 2 arguments, found {}", exprs.len()),
+            )),
+        }
+    }
+
+    fn check_require_message_or_error(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if self.types.contains_key(&expr.id) {
+            let ty = self.get(expr);
+            return if ty.is_unit() {
+                Ok(())
+            } else {
+                self.check_expected(expr, ty, self.gcx.types.string_ref.memory)
+            };
+        }
+
+        let hir::ExprKind::Call(callee, args, opts) = expr.kind else {
+            let actual = self.check_expr_once(expr);
+            return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
+        };
+        if let Some(opts) = opts {
+            let callee_ty = self.check_expr(callee);
+            let _ = self.check_call_options(callee_ty, opts.args, opts.span);
+            return self.check_expected(expr, callee_ty, self.gcx.types.string_ref.memory);
+        }
+
+        let hir::ExprKind::Ident(res) = callee.kind else {
+            let actual = self.check_expr_once(expr);
+            return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
+        };
+        let error_res = res
+            .iter()
+            .copied()
+            .filter(|res| matches!(res, hir::Res::Item(hir::ItemId::Error(_))))
+            .collect::<SmallVec<[_; 4]>>();
+        if error_res.is_empty() {
+            let actual = self.check_expr_once(expr);
+            return self.check_expected(expr, actual, self.gcx.types.string_ref.memory);
+        }
+
+        let selected = match self.select_call_overload(&error_res, &args) {
+            Ok(res) => res,
+            Err(e) => {
+                let msg = match e {
+                    OverloadError::NotFound => "no matching declarations found",
+                    OverloadError::Ambiguous => "no unique declarations found",
+                };
+                hir::Res::Err(self.dcx().emit_err(callee.span, msg))
+            }
+        };
+        let callee_ty = self.type_of_res(selected);
+        let TyKind::Error(param_tys, id) = callee_ty.kind else {
+            return self.check_expected(expr, callee_ty, self.gcx.types.string_ref.memory);
+        };
+        if !self.types.contains_key(&callee.id) {
+            self.register_ty(callee, callee_ty);
+        }
+        let result =
+            self.check_call_args(expr.span, &args, param_tys, Some(ParamNamesSource::Error(id)));
+        self.register_ty(expr, self.gcx.types.unit);
+        result
     }
 
     fn check_abi_encodable_args(
