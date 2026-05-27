@@ -1,10 +1,12 @@
 #[cfg(feature = "version")]
 use std::{
     env,
-    io::Read,
     path::Path,
     process::{Command, Stdio},
 };
+
+#[cfg(feature = "version")]
+const SOLC_VERSION_FALLBACK: &str = "0.8.35";
 
 #[cfg(feature = "version")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -89,20 +91,12 @@ fn solc_version() -> Result<String, Box<dyn std::error::Error>> {
     let solc_dir = Path::new(&manifest_dir).join("../../testdata/solidity");
 
     println!("cargo:rerun-if-changed={}", solc_dir.join(".git").display());
-    println!("cargo:rerun-if-changed={}", solc_dir.join("CMakeLists.txt").display());
 
     if let Ok(tag) = git(&solc_dir, ["describe", "--tags", "--exact-match", "HEAD"]) {
         return Ok(normalize_solc_tag(&tag));
     }
 
-    let head = git(&solc_dir, ["rev-parse", "HEAD"])?;
-    if let Ok(tags) = git(&solc_dir, ["ls-remote", "--tags", "origin"])
-        && let Some(tag) = tag_for_head(&tags, &head)
-    {
-        return Ok(normalize_solc_tag(tag));
-    }
-
-    solc_version_from_cmake(&solc_dir)
+    Ok(SOLC_VERSION_FALLBACK.to_string())
 }
 
 #[cfg(feature = "version")]
@@ -120,45 +114,6 @@ fn git<const N: usize>(dir: &Path, args: [&str; N]) -> Result<String, Box<dyn st
 }
 
 #[cfg(feature = "version")]
-fn tag_for_head<'a>(tags: &'a str, head: &str) -> Option<&'a str> {
-    let mut first = None;
-    for line in tags.lines() {
-        let Some((sha, tag)) = line.split_once('\t') else {
-            continue;
-        };
-        if sha != head {
-            continue;
-        }
-        let Some(tag) = tag.strip_prefix("refs/tags/") else {
-            continue;
-        };
-        let tag = tag.strip_suffix("^{}").unwrap_or(tag);
-        if first.is_none() {
-            first = Some(tag);
-        }
-        if !tag.contains('-') {
-            return Some(tag);
-        }
-    }
-    first
-}
-
-#[cfg(feature = "version")]
 fn normalize_solc_tag(tag: &str) -> String {
     tag.trim_start_matches('v').to_string()
-}
-
-#[cfg(feature = "version")]
-fn solc_version_from_cmake(dir: &Path) -> Result<String, Box<dyn std::error::Error>> {
-    let mut cmake = String::new();
-    std::fs::File::open(dir.join("CMakeLists.txt"))?.read_to_string(&mut cmake)?;
-    for line in cmake.lines() {
-        let line = line.trim();
-        if let Some(version) = line.strip_prefix("set(PROJECT_VERSION \"")
-            && let Some(version) = version.strip_suffix("\")")
-        {
-            return Ok(version.to_string());
-        }
-    }
-    Err("failed to determine solc version from submodule".into())
 }
