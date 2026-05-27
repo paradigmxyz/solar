@@ -1,385 +1,805 @@
-//! Standard JSON input/output mode compatible with solc.
-//!
-//! This module handles the `--standard-json` flag, allowing Solar to be used
-//! as a drop-in replacement for solc in tools like Foundry.
-
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use indexmap::IndexMap;
+use rustc_hash::FxBuildHasher;
+use serde::{
+    Deserialize, Serialize,
+    de::{self, Visitor},
+};
+use serde_json::{Map, Value, json};
 use solar_codegen::{EvmCodegen, FxHashMap, lower};
-use solar_config::{ImportRemapping, Opts};
-use solar_interface::Session;
-use solar_sema::{Compiler, hir::ContractId};
+use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
+use solar_interface::{
+    Result, SourceMap,
+    diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
+    source_map::FileLoader,
+};
+use solar_sema::hir::ContractId;
 use std::{
+    borrow::{Borrow, Cow},
     collections::BTreeMap,
+    fmt,
     io::{self, Read, Write},
-    ops::ControlFlow,
+    ops::Deref,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::Arc,
 };
 
-/// Type alias for internal contract data: (ABI, deployment_hex, runtime_hex)
-type ContractData = (Vec<Value>, String, String);
-/// Type alias for the contracts map: source_name -> contract_name -> ContractData
-type ContractsMap = BTreeMap<String, BTreeMap<String, ContractData>>;
+type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 
-/// Standard JSON input format (subset of solc's format).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct StandardJsonInput {
-    /// Source language (should be "Solidity").
-    pub language: String,
-    /// Source files.
-    pub sources: BTreeMap<String, SourceInput>,
-    /// Compiler settings.
+struct CompilerInput<'a> {
+    #[serde(default = "default_language")]
+    language: CowStr<'a>,
     #[serde(default)]
-    pub settings: Settings,
+    #[serde(borrow)]
+    sources: FxIndexMap<CowStr<'a>, SourceInput<'a>>,
+    #[serde(default)]
+    #[serde(borrow)]
+    settings: Settings<'a>,
 }
 
-/// A source file in the standard JSON input.
 #[derive(Debug, Deserialize)]
-pub struct SourceInput {
-    /// Source code content.
-    pub content: Option<String>,
-    /// URLs to fetch source from (not yet supported).
-    pub urls: Option<Vec<String>>,
+struct SourceInput<'a> {
+    #[serde(borrow)]
+    content: Option<CowStr<'a>>,
+    #[serde(default)]
+    #[serde(borrow)]
+    urls: Vec<CowStr<'a>>,
 }
 
-/// Compiler settings.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct Settings {
-    /// Remappings.
+struct Settings<'a> {
     #[serde(default)]
-    pub remappings: Vec<String>,
-    /// Output selection.
+    #[serde(borrow)]
+    remappings: Vec<CowStr<'a>>,
     #[serde(default)]
-    pub output_selection: BTreeMap<String, BTreeMap<String, Vec<String>>>,
-    /// Optimizer settings.
-    #[serde(default)]
-    pub optimizer: OptimizerSettings,
-    /// EVM version.
-    pub evm_version: Option<String>,
+    #[serde(borrow)]
+    output_selection: OutputSelection<'a>,
+    #[serde(borrow)]
+    stop_after: Option<CowStr<'a>>,
+    #[serde(borrow)]
+    evm_version: Option<CowStr<'a>>,
 }
 
-/// Optimizer settings.
 #[derive(Debug, Default, Deserialize)]
-pub struct OptimizerSettings {
-    /// Whether optimization is enabled.
-    #[serde(default)]
-    pub enabled: bool,
-    /// Number of optimization runs.
-    #[serde(default)]
-    pub runs: Option<u32>,
+struct OutputSelection<'a>(
+    #[serde(borrow)] FxIndexMap<CowStr<'a>, FxIndexMap<CowStr<'a>, Vec<CowStr<'a>>>>,
+);
+
+#[derive(Debug, Default, Serialize)]
+struct CompilerOutput<'a> {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    errors: Vec<SolcDiagnostic<'a>>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    sources: BTreeMap<String, SourceOutput>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    contracts: BTreeMap<String, BTreeMap<String, ContractOutput>>,
 }
 
-/// Standard JSON output format.
-#[derive(Debug, Serialize)]
-pub struct StandardJsonOutput {
-    /// Compilation errors and warnings.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub errors: Vec<OutputError>,
-    /// Compiled contracts.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub contracts: BTreeMap<String, BTreeMap<String, ContractOutput>>,
-    /// Source information.
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    pub sources: BTreeMap<String, SourceOutput>,
-}
+pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
+    let source_map = Arc::new(SourceMap::empty());
+    source_map.set_file_loader(StandardJsonFileLoader);
+    let (emitter, diagnostics) = InMemoryEmitter::new();
+    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.update_from_opts(&opts));
 
-/// An error or warning in the output.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct OutputError {
-    /// Component that generated the error.
-    pub component: String,
-    /// Error code.
-    pub error_code: String,
-    /// Formatted message for display.
-    pub formatted_message: String,
-    /// Error message.
-    pub message: String,
-    /// Severity: "error" or "warning".
-    pub severity: String,
-    /// Error type.
-    #[serde(rename = "type")]
-    pub error_type: String,
-}
-
-/// Contract compilation output.
-#[derive(Debug, Serialize)]
-pub struct ContractOutput {
-    /// Contract ABI.
-    pub abi: Vec<Value>,
-    /// EVM-related outputs.
-    pub evm: EvmOutput,
-}
-
-/// EVM outputs.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct EvmOutput {
-    /// Creation bytecode.
-    pub bytecode: BytecodeOutput,
-    /// Deployed bytecode.
-    pub deployed_bytecode: BytecodeOutput,
-}
-
-/// Bytecode output.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct BytecodeOutput {
-    /// The bytecode as a hex string.
-    pub object: String,
-    /// Opcodes (not yet implemented).
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub opcodes: String,
-    /// Source map (not yet implemented).
-    #[serde(skip_serializing_if = "String::is_empty")]
-    pub source_map: String,
-    /// Link references.
-    pub link_references: BTreeMap<String, Value>,
-    /// Generated sources.
-    pub generated_sources: Vec<Value>,
-    /// Function debug data.
-    pub function_debug_data: BTreeMap<String, Value>,
-}
-
-impl BytecodeOutput {
-    fn new(bytecode: String) -> Self {
-        Self {
-            object: bytecode,
-            opcodes: String::new(),
-            source_map: String::new(),
-            link_references: BTreeMap::new(),
-            generated_sources: Vec::new(),
-            function_debug_data: BTreeMap::new(),
-        }
-    }
-}
-
-/// Source file output.
-#[derive(Debug, Serialize)]
-pub struct SourceOutput {
-    /// Source ID.
-    pub id: u32,
-}
-
-/// Runs the compiler in standard JSON mode.
-pub fn run_standard_json() -> io::Result<()> {
-    // Read input from stdin
-    let mut input_str = String::new();
-    io::stdin().read_to_string(&mut input_str)?;
-
-    // Parse input
-    let input: StandardJsonInput = match serde_json::from_str(&input_str) {
-        Ok(input) => input,
-        Err(e) => {
-            let output = StandardJsonOutput {
-                errors: vec![OutputError {
-                    component: "general".to_string(),
-                    error_code: "1".to_string(),
-                    formatted_message: format!("JSON parse error: {e}"),
-                    message: e.to_string(),
-                    severity: "error".to_string(),
-                    error_type: "JSONError".to_string(),
-                }],
-                contracts: BTreeMap::new(),
-                sources: BTreeMap::new(),
-            };
-            let json = serde_json::to_string(&output)?;
-            io::stdout().write_all(json.as_bytes())?;
-            return Ok(());
-        }
-    };
-
-    // Compile and produce output
-    let output = compile_standard_json(input);
-    let json = serde_json::to_string(&output)?;
-    io::stdout().write_all(json.as_bytes())?;
-
-    Ok(())
-}
-
-/// Compiles sources from standard JSON input.
-fn compile_standard_json(input: StandardJsonInput) -> StandardJsonOutput {
-    let mut output = StandardJsonOutput {
-        errors: Vec::new(),
-        contracts: BTreeMap::new(),
-        sources: BTreeMap::new(),
-    };
-
-    // Create a temporary directory for source files
-    let temp_dir = match tempfile::tempdir() {
-        Ok(dir) => dir,
-        Err(e) => {
-            output.errors.push(OutputError {
-                component: "general".to_string(),
-                error_code: "1".to_string(),
-                formatted_message: format!("Failed to create temp directory: {e}"),
-                message: e.to_string(),
-                severity: "error".to_string(),
-                error_type: "InternalError".to_string(),
-            });
-            return output;
-        }
-    };
-
-    // Write source files to temp directory
-    let mut source_paths = Vec::new();
-    for (name, source) in &input.sources {
-        if let Some(content) = &source.content {
-            let path = temp_dir.path().join(name);
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
+    let mut output = CompilerOutput::default();
+    let mut input = String::new();
+    match io::stdin().read_to_string(&mut input) {
+        Ok(_) => {
+            if opts.unstable.ui_testing {
+                input = strip_json_comments(&input);
             }
-            if let Err(e) = std::fs::write(&path, content) {
-                output.errors.push(OutputError {
-                    component: "general".to_string(),
-                    error_code: "1".to_string(),
-                    formatted_message: format!("Failed to write source file {name}: {e}"),
-                    message: e.to_string(),
-                    severity: "error".to_string(),
-                    error_type: "InternalError".to_string(),
-                });
-                return output;
-            }
-            source_paths.push((name.clone(), path));
-        }
-    }
-
-    // Add source IDs
-    for (idx, (name, _)) in source_paths.iter().enumerate() {
-        output.sources.insert(name.clone(), SourceOutput { id: idx as u32 });
-    }
-
-    // Parse import remappings from JSON input
-    let import_remappings: Vec<ImportRemapping> =
-        input.settings.remappings.iter().filter_map(|s| s.parse().ok()).collect();
-
-    // Build opts with remappings and base_path
-    let opts = Opts {
-        import_remappings,
-        base_path: Some(temp_dir.path().to_path_buf()),
-        ..Default::default()
-    };
-
-    // Create session with buffer emitter (to capture errors as JSON)
-    let sess = Session::builder()
-        .with_buffer_emitter(solar_interface::ColorChoice::Never)
-        .opts(opts)
-        .build();
-
-    let mut compiler = Compiler::new(sess);
-
-    // Parse and compile
-    let compile_result = compiler.enter_mut(|compiler| -> solar_interface::Result<ContractsMap> {
-        // Parse files
-        let mut pcx = compiler.parse();
-        let paths: Vec<&std::path::Path> = source_paths.iter().map(|(_, p)| p.as_path()).collect();
-        pcx.load_files(paths)?;
-        pcx.parse();
-
-        // Lower ASTs
-        let ControlFlow::Continue(()) = compiler.lower_asts()? else {
-            return Ok(BTreeMap::new());
-        };
-
-        // Analysis
-        let ControlFlow::Continue(()) = compiler.analysis()? else {
-            return Ok(BTreeMap::new());
-        };
-
-        let gcx = compiler.gcx();
-
-        // Two-pass compilation to support `new Contract()` expressions:
-        // Pass 1: Compile all contracts to get their bytecodes
-        let mut all_bytecodes: FxHashMap<ContractId, Vec<u8>> = FxHashMap::default();
-
-        for (contract_id, _contract) in gcx.hir.contracts_enumerated() {
-            // Lower to MIR (without child bytecodes for first pass)
-            let mut module = lower::lower_contract(gcx, contract_id);
-
-            // Generate deployment bytecode
-            let mut codegen = EvmCodegen::new();
-            let (deployment_bytecode, _runtime_bytecode) =
-                codegen.generate_deployment_bytecode(&mut module);
-
-            all_bytecodes.insert(contract_id, deployment_bytecode);
-        }
-
-        // Pass 2: Recompile with bytecodes available for `new` expressions
-        let mut contracts_output: ContractsMap = BTreeMap::new();
-
-        for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-            // Find source file name for this contract by matching the file path
-            let source = gcx.hir.source(contract.source);
-            let source_name = source_paths
-                .iter()
-                .find(|(_, path)| source.file.name == **path)
-                .map(|(name, _)| name.clone())
-                .unwrap_or_else(|| "Unknown.sol".to_string());
-
-            // Lower to MIR with all bytecodes available
-            let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
-
-            // Generate bytecode (deployment and runtime)
-            let mut codegen = EvmCodegen::new();
-            let (deployment_bytecode, runtime_bytecode) =
-                codegen.generate_deployment_bytecode(&mut module);
-            let deployment_hex = alloy_primitives::hex::encode(&deployment_bytecode);
-            let runtime_hex = alloy_primitives::hex::encode(&runtime_bytecode);
-
-            // Generate ABI using proper method that includes inherited functions
-            let abi = gcx
-                .contract_abi(contract_id)
-                .into_iter()
-                .map(|item| serde_json::to_value(&item).unwrap())
-                .collect();
-
-            let contract_name = contract.name.to_string();
-            contracts_output
-                .entry(source_name)
-                .or_default()
-                .insert(contract_name, (abi, deployment_hex, runtime_hex));
-        }
-
-        Ok(contracts_output)
-    });
-
-    // Handle compilation result
-    match compile_result {
-        Ok(contracts) => {
-            for (source_name, source_contracts) in contracts {
-                for (contract_name, (abi, deployment_bytecode, runtime_bytecode)) in
-                    source_contracts
-                {
-                    let contract_output = ContractOutput {
-                        abi,
-                        evm: EvmOutput {
-                            bytecode: BytecodeOutput::new(deployment_bytecode),
-                            deployed_bytecode: BytecodeOutput::new(runtime_bytecode),
-                        },
-                    };
-                    output
-                        .contracts
-                        .entry(source_name.clone())
-                        .or_default()
-                        .insert(contract_name, contract_output);
+            match serde_json::from_str::<CompilerInput<'_>>(&input) {
+                Ok(compiler_input) => {
+                    if opts.unstable.standard_json_stats {
+                        print_standard_json_stats(&input, &compiler_input);
+                    }
+                    compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
+                }
+                Err(e) => {
+                    dcx.err(format!("JSON parse error: {e}")).emit();
                 }
             }
         }
-        Err(_) => {
-            // Collect diagnostics from the session
-            if let Err(errs) = compiler.sess().emitted_errors().unwrap() {
-                output.errors.push(OutputError {
-                    component: "general".to_string(),
-                    error_code: "1".to_string(),
-                    formatted_message: errs.to_string(),
-                    message: errs.to_string(),
-                    severity: "error".to_string(),
-                    error_type: "CompilerError".to_string(),
-                });
-            }
+        Err(e) => {
+            dcx.err(format!("failed to read standard JSON input: {e}")).emit();
         }
     }
 
+    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map))
+        .ui_testing(opts.unstable.ui_testing)
+        .human_kind(opts.error_format_human)
+        .terminal_width(opts.diagnostic_width);
+    let diagnostics = diagnostics.read();
+    output.errors =
+        diagnostics.iter().map(|diagnostic| emitter.solc_diagnostic(diagnostic)).collect();
+
+    if output.errors.iter().any(SolcDiagnostic::is_error) {
+        output.contracts.clear();
+    }
+
+    let stdout = io::stdout();
+    let mut stdout = io::BufWriter::new(stdout.lock());
+    if opts.pretty_json {
+        serde_json::to_writer_pretty(&mut stdout, &output)?;
+    } else {
+        serde_json::to_writer(&mut stdout, &output)?;
+    }
+    stdout.write_all(b"\n")?;
+    stdout.flush()
+}
+
+fn compile(
+    input: CompilerInput<'_>,
+    opts: &mut Opts,
+    source_map: Arc<SourceMap>,
+    dcx: DiagCtxt,
+    output: &mut CompilerOutput<'_>,
+) {
+    let mut remappings = Vec::with_capacity(input.settings.remappings.len());
+    for remapping in &input.settings.remappings {
+        match remapping.parse::<ImportRemapping>() {
+            Ok(remapping) => remappings.push(remapping),
+            Err(e) => {
+                dcx.err(format!("invalid remapping `{remapping}`: {e}")).emit();
+            }
+        }
+    }
+    if dcx.has_errors().is_err() {
+        return;
+    }
+
+    opts.import_remappings = remappings;
+    opts.evm_version = input
+        .settings
+        .evm_version
+        .as_deref()
+        .and_then(|version| EvmVersion::from_str(version).ok())
+        .unwrap_or(opts.evm_version);
+    opts.language = match input.language.as_ref() {
+        "Solidity" | "solidity" => Language::Solidity,
+        "Yul" | "yul" => Language::Yul,
+        language => {
+            dcx.err(format!("unsupported language `{language}`")).emit();
+            return;
+        }
+    };
+    opts.stop_after =
+        input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
+    opts.input = input.sources.keys().map(ToString::to_string).collect();
+
+    let sess = solar_interface::Session::builder()
+        .source_map(Arc::clone(&source_map))
+        .dcx(dcx)
+        .opts(opts.clone())
+        .build();
+
+    let output_selection = input.settings.output_selection;
+    let sources = input.sources;
+    let _ = crate::run_compiler_session_with(
+        sess,
+        |compiler| {
+            let compile_result = crate::run_pipeline(
+                compiler,
+                |pcx| {
+                    let mut files = Vec::with_capacity(sources.len());
+                    for (name, source) in sources {
+                        let Some(content) = source.content else {
+                            let message = if source.urls.is_empty() {
+                                format!("source `{name}` is missing `content`")
+                            } else {
+                                format!("source URLs are not supported for `{name}`")
+                            };
+                            return Err(pcx.dcx().err(message).emit());
+                        };
+                        files.push((PathBuf::from(name.as_ref()), content));
+                    }
+                    pcx.par_load_files_with_contents(files)
+                },
+                |compiler| output.sources = source_outputs_from_compiler(compiler),
+            );
+
+            if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
+                let gcx = compiler.gcx();
+                let bytecodes = if needs_bytecode_output(gcx, &output_selection) {
+                    Some(generate_contract_bytecodes(gcx)?)
+                } else {
+                    None
+                };
+
+                for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+                    let source = gcx.hir.source(contract.source);
+                    let source_name = source.file.name.display().to_string();
+                    let contract_name = contract.name.to_string();
+                    let contract_output = make_contract_output(
+                        gcx,
+                        contract_id,
+                        &output_selection,
+                        &source_name,
+                        &contract_name,
+                        bytecodes.as_ref(),
+                    );
+                    if !contract_output.is_empty() {
+                        output
+                            .contracts
+                            .entry(source_name)
+                            .or_default()
+                            .insert(contract_name, contract_output);
+                    }
+                }
+            }
+
+            compile_result.map(|_| ())
+        },
+        false,
+    );
+}
+
+/// JSON string wrapper that borrows from the standard-json input when possible.
+///
+/// Serde's generic `Cow<'de, str>` implementation deserializes through the
+/// owned representation, so direct `Cow<'de, str>` fields allocate even when
+/// the JSON backend can provide `visit_borrowed_str`. `#[serde(borrow)]` on the
+/// containing fields is still needed to thread the input lifetime to this type,
+/// and this visitor is what selects `Cow::Borrowed` for unescaped strings and
+/// `Cow::Owned` when the deserializer has to materialize an escaped string.
+///
+/// See <https://github.com/serde-rs/serde/issues/1852> and
+/// <https://github.com/serde-rs/serde/issues/914>.
+#[derive(Clone, Debug, Default, Eq, Hash, Ord, PartialEq, PartialOrd)]
+struct CowStr<'a>(Cow<'a, str>);
+
+impl CowStr<'_> {
+    fn as_cow(&self) -> &Cow<'_, str> {
+        &self.0
+    }
+}
+
+impl AsRef<str> for CowStr<'_> {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
+impl Deref for CowStr<'_> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Borrow<str> for CowStr<'_> {
+    fn borrow(&self) -> &str {
+        &self.0
+    }
+}
+
+impl fmt::Display for CowStr<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.0)
+    }
+}
+
+impl From<CowStr<'_>> for String {
+    fn from(value: CowStr<'_>) -> Self {
+        value.0.into_owned()
+    }
+}
+
+impl<'de: 'a, 'a> Deserialize<'de> for CowStr<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct CowStrVisitor;
+
+        impl<'de> Visitor<'de> for CowStrVisitor {
+            type Value = CowStr<'de>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a JSON string")
+            }
+
+            fn visit_borrowed_str<E>(self, value: &'de str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CowStr(Cow::Borrowed(value)))
+            }
+
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CowStr(Cow::Owned(value.to_string())))
+            }
+
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(CowStr(Cow::Owned(value)))
+            }
+        }
+
+        deserializer.deserialize_str(CowStrVisitor)
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct SourceOutput {
+    id: u32,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ContractOutput {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    abi: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    userdoc: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    devdoc: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    storage_layout: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    evm: Option<EvmOutput>,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct EvmOutput {
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    method_identifiers: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    bytecode: Option<BytecodeOutput>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    deployed_bytecode: Option<BytecodeOutput>,
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct BytecodeOutput {
+    object: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    opcodes: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    source_map: String,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    link_references: BTreeMap<String, Value>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    immutable_references: BTreeMap<String, Value>,
+}
+
+struct GeneratedBytecodes {
+    deployment: String,
+    runtime: String,
+}
+
+impl BytecodeOutput {
+    fn empty() -> Self {
+        Self::default()
+    }
+
+    fn new(object: String) -> Self {
+        Self { object, ..Self::default() }
+    }
+}
+
+impl OutputSelection<'_> {
+    fn selects(&self, source: &str, contract: &str, keys: &[&str]) -> bool {
+        self.source_maps(source).any(|contracts| {
+            contract_maps(contracts, contract).any(|items| {
+                items.iter().any(|item| {
+                    item.as_ref() == "*"
+                        || keys.iter().any(|key| {
+                            item.as_ref() == *key
+                                || key
+                                    .strip_prefix(item.as_ref())
+                                    .is_some_and(|rest| rest.starts_with('.'))
+                        })
+                })
+            })
+        })
+    }
+
+    fn source_maps(
+        &self,
+        source: &str,
+    ) -> impl Iterator<Item = &FxIndexMap<CowStr<'_>, Vec<CowStr<'_>>>> {
+        [source, "*"].into_iter().filter_map(|source| self.0.get(source))
+    }
+}
+
+fn contract_maps<'a, 'b>(
+    contracts: &'a FxIndexMap<CowStr<'b>, Vec<CowStr<'b>>>,
+    contract: &'a str,
+) -> impl Iterator<Item = &'a Vec<CowStr<'b>>> {
+    [contract, "*"].into_iter().filter_map(|contract| contracts.get(contract))
+}
+
+fn default_language<'a>() -> CowStr<'a> {
+    CowStr(Cow::Borrowed("Solidity"))
+}
+
+struct StandardJsonFileLoader;
+
+impl FileLoader for StandardJsonFileLoader {
+    fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+        Err(disallowed_io(path))
+    }
+
+    fn load_stdin(&self) -> io::Result<String> {
+        Err(disallowed_io(Path::new("stdin")))
+    }
+
+    fn load_file(&self, path: &Path) -> io::Result<String> {
+        Err(disallowed_io(path))
+    }
+
+    fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
+        Err(disallowed_io(path))
+    }
+}
+
+fn disallowed_io(path: &Path) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::PermissionDenied,
+        format!("standard JSON mode cannot read `{}` from the filesystem", path.display()),
+    )
+}
+
+#[derive(Default)]
+struct JsonTreeStats {
+    nodes: usize,
+    objects: usize,
+    arrays: usize,
+    strings: usize,
+    numbers: usize,
+    bools: usize,
+    nulls: usize,
+    object_entries: usize,
+    array_elements: usize,
+    object_key_bytes: usize,
+    string_bytes: usize,
+}
+
+impl JsonTreeStats {
+    fn add_value(&mut self, value: &Value) {
+        self.nodes += 1;
+        match value {
+            Value::Null => self.nulls += 1,
+            Value::Bool(_) => self.bools += 1,
+            Value::Number(_) => self.numbers += 1,
+            Value::String(value) => {
+                self.strings += 1;
+                self.string_bytes += value.len();
+            }
+            Value::Array(values) => {
+                self.arrays += 1;
+                self.array_elements += values.len();
+                for value in values {
+                    self.add_value(value);
+                }
+            }
+            Value::Object(values) => self.add_object(values),
+        }
+    }
+
+    fn add_object(&mut self, values: &Map<String, Value>) {
+        self.objects += 1;
+        self.object_entries += values.len();
+        for (key, value) in values {
+            self.object_key_bytes += key.len();
+            self.add_value(value);
+        }
+    }
+}
+
+#[derive(Default)]
+struct InputCowStats {
+    borrowed: usize,
+    borrowed_bytes: usize,
+    owned: usize,
+    owned_bytes: usize,
+}
+
+impl InputCowStats {
+    fn add(&mut self, value: &CowStr<'_>) {
+        match value.as_cow() {
+            Cow::Borrowed(value) => {
+                self.borrowed += 1;
+                self.borrowed_bytes += value.len();
+            }
+            Cow::Owned(value) => {
+                self.owned += 1;
+                self.owned_bytes += value.len();
+            }
+        }
+    }
+}
+
+fn print_standard_json_stats(raw_input: &str, input: &CompilerInput<'_>) {
+    let mut tree = JsonTreeStats::default();
+    match serde_json::from_str::<Value>(raw_input) {
+        Ok(value) => tree.add_value(&value),
+        Err(error) => {
+            eprintln!("standard-json-stats: failed to parse JSON tree: {error}");
+            return;
+        }
+    }
+
+    let mut cows = InputCowStats::default();
+    count_input_cows(input, &mut cows);
+
+    let source_content_count =
+        input.sources.values().filter(|source| source.content.is_some()).count();
+    let source_content_bytes = input
+        .sources
+        .values()
+        .filter_map(|source| source.content.as_ref())
+        .map(|content| content.len())
+        .sum::<usize>();
+    let source_url_count = input.sources.values().map(|source| source.urls.len()).sum::<usize>();
+
+    eprintln!(
+        "standard-json-stats: input_bytes={} nodes={} objects={} arrays={} strings={} numbers={} bools={} nulls={} object_entries={} array_elements={} object_key_bytes={} string_bytes={}",
+        raw_input.len(),
+        tree.nodes,
+        tree.objects,
+        tree.arrays,
+        tree.strings,
+        tree.numbers,
+        tree.bools,
+        tree.nulls,
+        tree.object_entries,
+        tree.array_elements,
+        tree.object_key_bytes,
+        tree.string_bytes,
+    );
+    eprintln!(
+        "standard-json-stats: sources={} source_content_count={} source_content_bytes={} source_url_count={} remappings={} output_selection_sources={}",
+        input.sources.len(),
+        source_content_count,
+        source_content_bytes,
+        source_url_count,
+        input.settings.remappings.len(),
+        input.settings.output_selection.0.len(),
+    );
+    eprintln!(
+        "standard-json-stats: cow_borrowed={} cow_borrowed_bytes={} cow_owned={} cow_owned_bytes={}",
+        cows.borrowed, cows.borrowed_bytes, cows.owned, cows.owned_bytes,
+    );
+}
+
+fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
+    stats.add(&input.language);
+    for (name, source) in &input.sources {
+        stats.add(name);
+        if let Some(content) = &source.content {
+            stats.add(content);
+        }
+        for url in &source.urls {
+            stats.add(url);
+        }
+    }
+    for remapping in &input.settings.remappings {
+        stats.add(remapping);
+    }
+    if let Some(stop_after) = &input.settings.stop_after {
+        stats.add(stop_after);
+    }
+    if let Some(evm_version) = &input.settings.evm_version {
+        stats.add(evm_version);
+    }
+    for (source, contracts) in &input.settings.output_selection.0 {
+        stats.add(source);
+        for (contract, items) in contracts {
+            stats.add(contract);
+            for item in items {
+                stats.add(item);
+            }
+        }
+    }
+}
+
+fn source_outputs_from_compiler(
+    compiler: &solar_sema::CompilerRef<'_>,
+) -> BTreeMap<String, SourceOutput> {
+    compiler
+        .gcx()
+        .sources
+        .iter_enumerated()
+        .map(|(id, source)| {
+            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+        })
+        .collect()
+}
+
+fn make_contract_output(
+    gcx: solar_sema::Gcx<'_>,
+    contract_id: solar_sema::hir::ContractId,
+    output_selection: &OutputSelection<'_>,
+    source_name: &str,
+    contract_name: &str,
+    bytecodes: Option<&FxHashMap<ContractId, GeneratedBytecodes>>,
+) -> ContractOutput {
+    let mut output = ContractOutput::default();
+
+    if output_selection.selects(source_name, contract_name, &["abi"]) {
+        output.abi = Some(serde_json::to_value(gcx.contract_abi(contract_id)).unwrap());
+    }
+    if output_selection.selects(source_name, contract_name, &["userdoc"]) {
+        output.userdoc = Some(json!({ "kind": "user", "methods": {}, "version": 1 }));
+    }
+    if output_selection.selects(source_name, contract_name, &["devdoc"]) {
+        output.devdoc = Some(json!({ "kind": "dev", "methods": {}, "version": 1 }));
+    }
+    if output_selection.selects(source_name, contract_name, &["storageLayout"]) {
+        output.storage_layout = Some(json!({ "storage": [], "types": {} }));
+    }
+
+    let mut evm = EvmOutput::default();
+    if output_selection.selects(source_name, contract_name, &["evm.methodIdentifiers"]) {
+        for function in gcx.interface_functions(contract_id) {
+            evm.method_identifiers.insert(
+                gcx.item_signature(function.id.into()).to_string(),
+                alloy_primitives::hex::encode(function.selector),
+            );
+        }
+    }
+    if output_selection.selects(
+        source_name,
+        contract_name,
+        &["evm.bytecode", "evm.bytecode.object"],
+    ) {
+        evm.bytecode = Some(
+            bytecodes
+                .and_then(|bytecodes| bytecodes.get(&contract_id))
+                .map(|bytecodes| BytecodeOutput::new(bytecodes.deployment.clone()))
+                .unwrap_or_else(BytecodeOutput::empty),
+        );
+    }
+    if output_selection.selects(
+        source_name,
+        contract_name,
+        &["evm.deployedBytecode", "evm.deployedBytecode.object"],
+    ) {
+        evm.deployed_bytecode = Some(
+            bytecodes
+                .and_then(|bytecodes| bytecodes.get(&contract_id))
+                .map(|bytecodes| BytecodeOutput::new(bytecodes.runtime.clone()))
+                .unwrap_or_else(BytecodeOutput::empty),
+        );
+    }
+    if !evm.is_empty() {
+        output.evm = Some(evm);
+    }
+
     output
+}
+
+fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSelection<'_>) -> bool {
+    gcx.hir.contracts_enumerated().any(|(_, contract)| {
+        let source = gcx.hir.source(contract.source);
+        let source_name = source.file.name.display().to_string();
+        let contract_name = contract.name.to_string();
+        output_selection.selects(
+            &source_name,
+            &contract_name,
+            &[
+                "evm.bytecode",
+                "evm.bytecode.object",
+                "evm.deployedBytecode",
+                "evm.deployedBytecode.object",
+            ],
+        )
+    })
+}
+
+fn generate_contract_bytecodes(
+    gcx: solar_sema::Gcx<'_>,
+) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
+    let mut all_bytecodes = FxHashMap::default();
+    for contract_id in gcx.hir.contract_ids() {
+        let mut module = lower::lower_contract(gcx, contract_id);
+        gcx.dcx().has_errors()?;
+        let mut codegen = EvmCodegen::new();
+        let (deployment, _) = codegen.generate_deployment_bytecode(&mut module);
+        all_bytecodes.insert(contract_id, deployment);
+    }
+
+    let mut bytecodes = FxHashMap::default();
+    for contract_id in gcx.hir.contract_ids() {
+        let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
+        gcx.dcx().has_errors()?;
+        let mut codegen = EvmCodegen::new();
+        let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
+        bytecodes.insert(
+            contract_id,
+            GeneratedBytecodes {
+                deployment: alloy_primitives::hex::encode(deployment),
+                runtime: alloy_primitives::hex::encode(runtime),
+            },
+        );
+    }
+
+    Ok(bytecodes)
+}
+
+impl ContractOutput {
+    fn is_empty(&self) -> bool {
+        self.abi.is_none()
+            && self.metadata.is_none()
+            && self.userdoc.is_none()
+            && self.devdoc.is_none()
+            && self.storage_layout.is_none()
+            && self.evm.is_none()
+    }
+}
+
+impl EvmOutput {
+    fn is_empty(&self) -> bool {
+        self.method_identifiers.is_empty()
+            && self.bytecode.is_none()
+            && self.deployed_bytecode.is_none()
+    }
+}
+
+fn strip_json_comments(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    let mut in_string = false;
+    let mut escaped = false;
+
+    while let Some(ch) = chars.next() {
+        if in_string {
+            out.push(ch);
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match ch {
+            '"' => {
+                in_string = true;
+                out.push(ch);
+            }
+            '/' if chars.peek() == Some(&'/') => {
+                chars.next();
+                for ch in chars.by_ref() {
+                    if ch == '\n' {
+                        out.push('\n');
+                        break;
+                    }
+                }
+            }
+            '/' if chars.peek() == Some(&'*') => {
+                chars.next();
+                let mut prev = '\0';
+                for ch in chars.by_ref() {
+                    if ch == '\n' {
+                        out.push('\n');
+                    }
+                    if prev == '*' && ch == '/' {
+                        break;
+                    }
+                    prev = ch;
+                }
+            }
+            _ => out.push(ch),
+        }
+    }
+
+    out
 }

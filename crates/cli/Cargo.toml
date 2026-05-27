@@ -26,7 +26,8 @@ cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-tempfile.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
+rustc-hash.workspace = true
 
 tracing.workspace = true
 tracing-subscriber = { workspace = true, optional = true, features = [

@@ -1,0 +1,28 @@
+// CHECK: "sources": {
+// CHECK: "A.sol": {
+// CHECK: "id": 0
+// CHECK: "contracts": {
+// CHECK: "A.sol": {
+// CHECK: "Counter": {
+// CHECK: "abi": [
+// CHECK: "name": "number"
+// CHECK: "methodIdentifiers": {
+// CHECK: "number()":
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "contract Counter { uint256 public number; function setNumber(uint256 value) public { number = value; } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi",
+          "evm.methodIdentifiers"
+        ]
+      }
+    }
+  }
+}

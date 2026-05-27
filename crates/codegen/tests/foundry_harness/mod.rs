@@ -284,6 +284,8 @@ fn run_forge_test_solar(
         .arg(out_dir)
         .arg("--cache-path")
         .arg(cache_dir)
+        // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
+        .env("SOLC_WRAPPER", "1")
         .env("FOUNDRY_SOLC", get_solar_binary());
 
     // Add forge match filters if specified

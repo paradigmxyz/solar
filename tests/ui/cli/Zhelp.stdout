@@ -24,6 +24,9 @@ Options:
       -Zast-stats
           Print AST stats
 
+      -Zstandard-json-stats
+          Print Standard JSON input stats
+
       -Zspan-visitor
           Run the span visitor after parsing
 

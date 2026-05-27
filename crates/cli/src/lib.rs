@@ -8,14 +8,14 @@
 use clap::Parser as _;
 use solar_config::CompilerOutput;
 use solar_interface::{Result, Session};
-use solar_sema::CompilerRef;
+use solar_sema::{CompilerRef, ParsingContext};
 use std::ops::ControlFlow;
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
-pub mod utils;
+mod standard_json;
 
-pub mod standard_json;
+pub mod utils;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
 pub mod signal_handler;
@@ -48,12 +48,9 @@ where
 }
 
 pub fn run_compiler_args(opts: Opts) -> Result {
-    // Handle --standard-json mode
     if opts.standard_json {
-        if let Err(e) = standard_json::run_standard_json() {
-            eprintln!("Error in standard-json mode: {e}");
-            return Err(solar_interface::diagnostics::ErrorGuaranteed::new_unchecked());
-        }
+        standard_json::run(opts)
+            .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
         return Ok(());
     }
 
@@ -61,37 +58,50 @@ pub fn run_compiler_args(opts: Opts) -> Result {
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
+    run_pipeline(
+        compiler,
+        |pcx| {
+            // Partition arguments into three categories:
+            // - `stdin`: `-`, occurrences after the first are ignored
+            // - remappings: `[context:]prefix=path`, already parsed as part of `Opts`
+            // - paths: everything else
+            let mut seen_stdin = false;
+            let mut paths = Vec::new();
+            for arg in pcx.sess.opts.input.clone() {
+                if arg == "-" {
+                    if !seen_stdin {
+                        pcx.load_stdin()?;
+                    }
+                    seen_stdin = true;
+                    continue;
+                }
+
+                if arg.contains('=') {
+                    continue;
+                }
+
+                paths.push(arg);
+            }
+
+            pcx.par_load_files(paths)
+        },
+        |_| {},
+    )
+    .map(|_| ())
+}
+
+pub(crate) fn run_pipeline(
+    compiler: &mut CompilerRef<'_>,
+    load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result,
+    after_parsing: impl FnOnce(&CompilerRef<'_>),
+) -> Result<ControlFlow<()>> {
     let sess = compiler.gcx().sess;
     if sess.opts.language.is_yul() && !sess.opts.unstable.parse_yul {
         return Err(sess.dcx.err("Yul is not supported yet").emit());
     }
 
     let mut pcx = compiler.parse();
-
-    // Partition arguments into three categories:
-    // - `stdin`: `-`, occurrences after the first are ignored
-    // - remappings: `[context:]prefix=path`, already parsed as part of `Opts`
-    // - paths: everything else
-    let mut seen_stdin = false;
-    let mut paths = Vec::new();
-    for arg in sess.opts.input.iter().map(String::as_str) {
-        if arg == "-" {
-            if !seen_stdin {
-                pcx.load_stdin()?;
-            }
-            seen_stdin = true;
-            continue;
-        }
-
-        if arg.contains('=') {
-            continue;
-        }
-
-        paths.push(arg);
-    }
-
-    pcx.par_load_files(paths)?;
-
+    load_sources(&mut pcx)?;
     pcx.parse();
 
     if compiler.gcx().sources.is_empty() {
@@ -100,16 +110,23 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
         return Err(sess.dcx.err(msg).note(note).emit());
     }
 
-    let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
+    compiler.sources_mut().topo_sort();
+    after_parsing(compiler);
+
+    let ControlFlow::Continue(()) = compiler.lower_asts()? else {
+        return Ok(ControlFlow::Break(()));
+    };
     compiler.drop_asts();
-    let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
+    let ControlFlow::Continue(()) = compiler.analysis()? else {
+        return Ok(ControlFlow::Break(()));
+    };
 
     // Handle MIR emit if requested (does not require bytecode generation).
     if sess.opts.emit.contains(&CompilerOutput::Mir) {
         emit_mir(compiler)?;
     }
 
-    // Handle bytecode emit if requested
+    // Handle bytecode emit if requested.
     let needs_bytecode = sess
         .opts
         .emit
@@ -120,7 +137,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
         emit_bytecode(compiler)?;
     }
 
-    Ok(())
+    Ok(ControlFlow::Continue(()))
 }
 
 /// Emit textual MIR for all contracts using solar-codegen.
@@ -243,12 +260,21 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
 fn run_compiler_with(opts: Opts, f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send) -> Result {
     let mut sess = Session::new(opts);
     sess.infer_language();
-    sess.validate()?;
+    run_compiler_session_with(sess, f, true)
+}
 
+pub(crate) fn run_compiler_session_with(
+    sess: Session,
+    f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
+    finish: bool,
+) -> Result {
+    sess.validate()?;
     let mut compiler = solar_sema::Compiler::new(sess);
     compiler.enter_mut(|compiler| {
         let mut r = f(compiler);
-        r = r.and(finish_diagnostics(compiler.gcx().sess));
+        if finish {
+            r = r.and(finish_diagnostics(compiler.gcx().sess));
+        }
         r
     })
 }
