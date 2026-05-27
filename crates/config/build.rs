@@ -1,7 +1,11 @@
 #[cfg(feature = "version")]
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    use std::env;
+use std::{env, io::Read, path::Path};
 
+#[cfg(feature = "version")]
+const SOLC_VERSION_FALLBACK: &str = "0.8.35";
+
+#[cfg(feature = "version")]
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cargo = vergen::Cargo::builder().features(true).target_triple(true).build();
     let build = vergen::Build::builder().build_timestamp(true).build();
     let git = vergen::Gitcl::builder().describe(false, true, None).dirty(true).sha(false).build();
@@ -59,8 +63,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("cargo:rustc-env=LONG_VERSION{i}={line}");
     }
 
+    let solc_version = solc_version();
+    let solc_compat_version = format!("{solc_version}+commit.{sha_short}.solar.{version}");
+
+    let solc_long_version = format!(
+        "the Solidity compiler\n\
+         Version: {solc_compat_version}",
+    );
+    assert_eq!(solc_long_version.lines().count(), 2); // `version.rs` must be updated as well.
+    for (i, line) in solc_long_version.lines().enumerate() {
+        println!("cargo:rustc-env=SOLC_LONG_VERSION{i}={line}");
+    }
+
     Ok(())
 }
 
 #[cfg(not(feature = "version"))]
 fn main() {}
+
+#[cfg(feature = "version")]
+fn solc_version() -> String {
+    let Ok(manifest_dir) = env::var("CARGO_MANIFEST_DIR") else {
+        return SOLC_VERSION_FALLBACK.to_string();
+    };
+    let solc_dir = Path::new(&manifest_dir).join("../../testdata/solidity");
+
+    println!("cargo:rerun-if-changed={}", solc_dir.join("CMakeLists.txt").display());
+
+    solc_version_from_cmake(&solc_dir).unwrap_or_else(|_| SOLC_VERSION_FALLBACK.to_string())
+}
+
+#[cfg(feature = "version")]
+fn solc_version_from_cmake(dir: &Path) -> Result<String, Box<dyn std::error::Error>> {
+    let mut cmake = String::new();
+    std::fs::File::open(dir.join("CMakeLists.txt"))?.read_to_string(&mut cmake)?;
+    for line in cmake.lines() {
+        let line = line.trim();
+        if let Some(version) = line.strip_prefix("set(PROJECT_VERSION \"")
+            && let Some(version) = version.strip_suffix("\")")
+        {
+            return Ok(version.to_string());
+        }
+    }
+    Err("failed to determine solc version from CMakeLists.txt".into())
+}

@@ -8,7 +8,7 @@ pub use human::{HumanBufferEmitter, HumanEmitter};
 #[cfg(feature = "json")]
 mod json;
 #[cfg(feature = "json")]
-pub use json::JsonEmitter;
+pub use json::{JsonEmitter, Severity, SolcDiagnostic, SourceLocation};
 
 mod mem;
 pub use mem::InMemoryEmitter;
@@ -20,6 +20,12 @@ pub type DynEmitter = dyn Emitter + Send;
 pub trait Emitter: Any {
     /// Emits a diagnostic.
     fn emit_diagnostic(&mut self, diagnostic: &mut Diag);
+
+    /// Emits a diagnostic by reference.
+    fn emit_diagnostic_ref(&mut self, diagnostic: &Diag) {
+        let mut diagnostic = diagnostic.clone();
+        self.emit_diagnostic(&mut diagnostic);
+    }
 
     /// Returns a reference to the source map, if any.
     #[inline]
@@ -46,7 +52,7 @@ pub trait Emitter: Any {
     fn primary_span_formatted<'a>(
         &self,
         primary_span: &mut Cow<'a, MultiSpan>,
-        suggestions: &mut Suggestions,
+        suggestions: &mut Cow<'a, Suggestions>,
     ) {
         if let Some((sugg, rest)) = &suggestions.split_first()
             // if there are multiple suggestions, print them all in full
@@ -80,7 +86,7 @@ pub trait Emitter: Any {
             primary_span.to_mut().push_span_label(part.span, msg);
 
             // Since we only return the modified primary_span, we disable suggestions.
-            *suggestions = Suggestions::Disabled;
+            *suggestions.to_mut() = Suggestions::Disabled;
         } else {
             // Do nothing.
         }

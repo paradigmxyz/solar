@@ -16,8 +16,8 @@ use clap::{Parser, ValueHint};
 #[cfg_attr(feature = "clap", derive(Parser))]
 #[cfg_attr(feature = "clap", command(
     name = "solar",
-    version = crate::version::SHORT_VERSION,
-    long_version = crate::version::LONG_VERSION,
+    version = crate::version::short_version(),
+    long_version = crate::version::version(),
     arg_required_else_help = true,
 ))]
 #[allow(clippy::manual_non_exhaustive)]
@@ -99,6 +99,10 @@ pub struct Opts {
     /// Comma separated list of types of output for the compiler to emit.
     #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
     pub emit: Vec<CompilerOutput>,
+
+    /// Switch to Standard JSON input/output mode.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub standard_json: bool,
 
     /// Coloring.
     #[cfg_attr(
@@ -287,6 +291,10 @@ pub struct UnstableOpts {
     /// Print AST stats.
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
+
+    /// Print Standard JSON input stats.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub standard_json_stats: bool,
 
     /// Run the span visitor after parsing.
     #[cfg_attr(feature = "clap", arg(long))]

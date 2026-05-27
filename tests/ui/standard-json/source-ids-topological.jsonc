@@ -1,0 +1,29 @@
+// CHECK: "sources": {
+// CHECK: "A.sol": {
+// CHECK-NEXT: "id": 3
+// CHECK: "B.sol": {
+// CHECK-NEXT: "id": 1
+// CHECK: "C.sol": {
+// CHECK-NEXT: "id": 2
+// CHECK: "D.sol": {
+// CHECK-NEXT: "id": 0
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import './B.sol'; import './C.sol'; contract A is B, C {}"
+    },
+    "B.sol": {
+      "content": "import './D.sol'; contract B is D {}"
+    },
+    "C.sol": {
+      "content": "import './D.sol'; contract C is D {}"
+    },
+    "D.sol": {
+      "content": "contract D {}"
+    }
+  },
+  "settings": {
+    "outputSelection": {}
+  }
+}
