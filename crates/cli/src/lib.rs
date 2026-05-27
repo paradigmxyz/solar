@@ -57,37 +57,42 @@ pub fn run_compiler_args(opts: Opts) -> Result {
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
-    run_pipeline(compiler, |pcx| {
-        // Partition arguments into three categories:
-        // - `stdin`: `-`, occurrences after the first are ignored
-        // - remappings: `[context:]prefix=path`, already parsed as part of `Opts`
-        // - paths: everything else
-        let mut seen_stdin = false;
-        let mut paths = Vec::new();
-        for arg in pcx.sess.opts.input.clone() {
-            if arg == "-" {
-                if !seen_stdin {
-                    pcx.load_stdin()?;
+    run_pipeline(
+        compiler,
+        |pcx| {
+            // Partition arguments into three categories:
+            // - `stdin`: `-`, occurrences after the first are ignored
+            // - remappings: `[context:]prefix=path`, already parsed as part of `Opts`
+            // - paths: everything else
+            let mut seen_stdin = false;
+            let mut paths = Vec::new();
+            for arg in pcx.sess.opts.input.clone() {
+                if arg == "-" {
+                    if !seen_stdin {
+                        pcx.load_stdin()?;
+                    }
+                    seen_stdin = true;
+                    continue;
                 }
-                seen_stdin = true;
-                continue;
+
+                if arg.contains('=') {
+                    continue;
+                }
+
+                paths.push(arg);
             }
 
-            if arg.contains('=') {
-                continue;
-            }
-
-            paths.push(arg);
-        }
-
-        pcx.par_load_files(paths)
-    })
+            pcx.par_load_files(paths)
+        },
+        |_| {},
+    )
     .map(|_| ())
 }
 
 pub(crate) fn run_pipeline(
     compiler: &mut CompilerRef<'_>,
     load_sources: impl FnOnce(&mut ParsingContext<'_>) -> Result,
+    after_lowering: impl FnOnce(&CompilerRef<'_>),
 ) -> Result<ControlFlow<()>> {
     let sess = compiler.gcx().sess;
     if sess.opts.language.is_yul() && !sess.opts.unstable.parse_yul {
@@ -107,6 +112,7 @@ pub(crate) fn run_pipeline(
     let ControlFlow::Continue(()) = compiler.lower_asts()? else {
         return Ok(ControlFlow::Break(()));
     };
+    after_lowering(compiler);
     compiler.drop_asts();
     let ControlFlow::Continue(()) = compiler.analysis()? else {
         return Ok(ControlFlow::Break(()));

@@ -179,23 +179,25 @@ fn compile(
     let _ = crate::run_compiler_session_with(
         sess,
         |compiler| {
-            let compile_result = crate::run_pipeline(compiler, |pcx| {
-                let mut files = Vec::with_capacity(sources.len());
-                for (name, source) in sources {
-                    let Some(content) = source.content else {
-                        let message = if source.urls.is_empty() {
-                            format!("source `{name}` is missing `content`")
-                        } else {
-                            format!("source URLs are not supported for `{name}`")
+            let compile_result = crate::run_pipeline(
+                compiler,
+                |pcx| {
+                    let mut files = Vec::with_capacity(sources.len());
+                    for (name, source) in sources {
+                        let Some(content) = source.content else {
+                            let message = if source.urls.is_empty() {
+                                format!("source `{name}` is missing `content`")
+                            } else {
+                                format!("source URLs are not supported for `{name}`")
+                            };
+                            return Err(pcx.dcx().err(message).emit());
                         };
-                        return Err(pcx.dcx().err(message).emit());
-                    };
-                    files.push((PathBuf::from(name.as_ref()), content));
-                }
-                pcx.par_load_files_with_contents(files)
-            });
-
-            output.sources = source_outputs(compiler.sess().source_map());
+                        files.push((PathBuf::from(name.as_ref()), content));
+                    }
+                    pcx.par_load_files_with_contents(files)
+                },
+                |compiler| output.sources = source_outputs_from_compiler(compiler),
+            );
 
             if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
                 let gcx = compiler.gcx();
@@ -598,6 +600,19 @@ fn source_outputs(source_map: &SourceMap) -> BTreeMap<String, SourceOutput> {
         .iter()
         .enumerate()
         .map(|(id, file)| (file.name.display().to_string(), SourceOutput { id: id as u32 }))
+        .collect()
+}
+
+fn source_outputs_from_compiler(
+    compiler: &solar_sema::CompilerRef<'_>,
+) -> BTreeMap<String, SourceOutput> {
+    compiler
+        .gcx()
+        .sources
+        .iter_enumerated()
+        .map(|(id, source)| {
+            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+        })
         .collect()
 }
 
