@@ -33,6 +33,7 @@ contract C {
         bool a = x.pick(y);
         uint256 b = x.pick(z);
         uint256 c = x.pair({x: 2, y: 3});
+        x.pair({self: 1, x: 2}); //~ ERROR: named argument `self` does not match function declaration
         uint256 d = x.onlySelf();
         uint256 e = x.onlySelf(z);
     }

@@ -1,0 +1,20 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_conversions.sol:LL:CC
+   │
+LL │         abi.encodeCall(Target.takesPayableAddress, (address(0)));
+   ╰╴                                                   ━━━━━━━━━━━━ expected `address payable`, found `address`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_conversions.sol:LL:CC
+   │
+LL │         abi.encodeCall(Target.takesCalldataFunction, (this.calldataString));
+   ╰╴                                                     ━━━━━━━━━━━━━━━━━━━━━ expected `function (string calldata) external`, found `function (string memory) external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_conversions.sol:LL:CC
+   │
+LL │         abi.encodeCall(Target.takesCalldataFunction, (this.memoryString));
+   ╰╴                                                     ━━━━━━━━━━━━━━━━━━━ expected `function (string calldata) external`, found `function (string memory) external`
+
+error: aborting due to 3 previous errors
+

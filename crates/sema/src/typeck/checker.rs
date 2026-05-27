@@ -2,7 +2,7 @@ use crate::{
     builtins::{Builtin, members},
     eval::ConstantEvaluator,
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
+    ty::{Gcx, Ty, TyConvertError, TyFn, TyFnKind, TyKind},
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -16,10 +16,31 @@ use solar_interface::{
 };
 use std::ops::ControlFlow;
 
-type ParamNames = SmallVec<[Option<Symbol>; 8]>;
-type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNames>);
-
 mod yul;
+
+type ParamNames = SmallVec<[Option<Symbol>; 8]>;
+type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNamesSource>);
+
+#[derive(Clone, Copy)]
+enum ParamNamesSource {
+    Function {
+        id: hir::FunctionId,
+        /// Whether the leading receiver parameter is not visible at the call site.
+        ///
+        /// Attached member calls strip the receiver from the visible call parameters,
+        /// but named arguments still come from the original function declaration.
+        skips_receiver: bool,
+    },
+    Struct(hir::StructId),
+    Event(hir::EventId),
+    Error(hir::ErrorId),
+}
+
+#[derive(Clone, Copy)]
+enum AbiDecodeArg {
+    Data,
+    Types,
+}
 
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
     let mut checker = TypeChecker::new(gcx, source);
@@ -34,7 +55,7 @@ struct TypeChecker<'gcx> {
     construction_context: u32,
 
     types: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    member_builtins: FxHashMap<hir::ExprId, Builtin>,
+    builtin_callees: FxHashMap<hir::ExprId, Builtin>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
 
@@ -66,7 +87,7 @@ impl<'gcx> TypeChecker<'gcx> {
             function: None,
             construction_context: 0,
             types: Default::default(),
-            member_builtins: Default::default(),
+            builtin_callees: Default::default(),
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
@@ -112,7 +133,7 @@ impl<'gcx> TypeChecker<'gcx> {
     ) -> Ty<'gcx> {
         let ty = self.check_expr_with_noexpect(expr, expected);
         if let Some(expected) = expected {
-            self.check_expected(expr, ty, expected);
+            let _ = self.check_expected(expr, ty, expected);
         }
         ty
     }
@@ -253,13 +274,23 @@ impl<'gcx> TypeChecker<'gcx> {
                                 "cannot call function via contract type name",
                             ));
                         }
-                        let param_names = if let Some(struct_id) = struct_id {
-                            Some(self.get_struct_field_names(struct_id))
+                        if self.builtin_callees.get(&callee.id) == Some(&Builtin::AbiDecode) {
+                            let args_result = self.check_abi_decode_call_args(expr.span, args);
+                            if let Err(guar) = args_result {
+                                return self.gcx.mk_ty_err(guar);
+                            }
+                            return self.abi_decode_return_type(args);
+                        }
+
+                        let param_names = if let Some(id) = struct_id {
+                            Some(ParamNamesSource::Struct(id))
                         } else {
-                            f.function_id
-                                .map(|id| self.get_call_param_names(id, f.parameters.len()))
+                            self.ty_fn_param_names_source(f)
                         };
-                        self.check_call_args(expr.span, args, f.parameters, param_names.as_deref());
+                        let _ = self.check_call_args(expr.span, args, f.parameters, param_names);
+                        if let Some(builtin) = self.builtin_callees.get(&callee.id).copied() {
+                            let _ = self.check_builtin_call_args(expr.span, args, builtin);
+                        }
                         self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
@@ -273,9 +304,12 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
-                        let event = self.gcx.hir.event(id);
-                        let param_names = self.get_param_names(event.parameters);
-                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        let _ = self.check_call_args(
+                            expr.span,
+                            args,
+                            param_tys,
+                            Some(ParamNamesSource::Event(id)),
+                        );
                         self.gcx.types.unit
                     }
                     TyKind::Error(param_tys, id) => {
@@ -289,9 +323,12 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
-                        let error = self.gcx.hir.error(id);
-                        let param_names = self.get_param_names(error.parameters);
-                        self.check_call_args(expr.span, args, param_tys, Some(&param_names));
+                        let _ = self.check_call_args(
+                            expr.span,
+                            args,
+                            param_tys,
+                            Some(ParamNamesSource::Error(id)),
+                        );
                         self.gcx.types.unit
                     }
                     TyKind::Err(_) => callee_ty,
@@ -305,7 +342,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // No-argument storage array `.push()` is the only call that can be an lvalue.
-                if self.member_builtins.get(&callee.id) != Some(&Builtin::ArrayPush0) {
+                if self.builtin_callees.get(&callee.id) != Some(&Builtin::ArrayPush0) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -589,7 +626,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         };
                         if ty.is_unit() { empty_err(self, expr.span) } else { ty }
                     } else if self.in_lvalue() {
-                        self.gcx.mk_ty_err(ErrorGuaranteed::new_unchecked())
+                        self.gcx.types.unit
                     } else {
                         empty_err(self, expr.span)
                     }
@@ -725,7 +762,7 @@ impl<'gcx> TypeChecker<'gcx> {
             if let Some(_) = lhs_component
                 && let Some(rhs_component) = rhs_components.and_then(|components| components[i])
             {
-                self.check_expected(rhs_component, rhs_types[i], lhs_component_ty);
+                let _ = self.check_expected(rhs_component, rhs_types[i], lhs_component_ty);
             }
         }
     }
@@ -908,12 +945,33 @@ impl<'gcx> TypeChecker<'gcx> {
         expr: &'gcx hir::Expr<'gcx>,
         actual: Ty<'gcx>,
         expected: Ty<'gcx>,
-    ) {
-        let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return };
+    ) -> Result<(), ErrorGuaranteed> {
+        match self.expr_matches_expected(expr, actual, expected) {
+            Ok(()) => Ok(()),
+            Err(err) => {
+                let mut diag = self.dcx().err("mismatched types").span(expr.span);
+                diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
+                Err(diag.emit())
+            }
+        }
+    }
 
-        let mut diag = self.dcx().err("mismatched types").span(expr.span);
-        diag = diag.span_label(expr.span, err.message(actual, expected, self.gcx));
-        diag.emit();
+    fn expr_matches_expected(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+        actual: Ty<'gcx>,
+        expected: Ty<'gcx>,
+    ) -> Result<(), TyConvertError> {
+        let Err(err) = actual.try_convert_implicit_to(expected, self.gcx) else { return Ok(()) };
+
+        if let TyKind::Tuple([ty]) = expected.kind
+            && matches!(ty.kind, TyKind::Variadic)
+            && matches!(expr.kind, hir::ExprKind::Tuple(_))
+        {
+            return Ok(());
+        }
+
+        Err(err)
     }
 
     fn fn_call_return_type(&self, returns: &'gcx [Ty<'gcx>]) -> Ty<'gcx> {
@@ -928,12 +986,28 @@ impl<'gcx> TypeChecker<'gcx> {
         params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
     }
 
-    fn get_call_param_names(&self, function: hir::FunctionId, param_count: usize) -> ParamNames {
+    fn get_call_param_names(&self, function: hir::FunctionId, skips_receiver: bool) -> ParamNames {
         let mut names = self.get_param_names(self.gcx.hir.function(function).parameters);
-        if names.len() > param_count {
-            names.drain(..names.len() - param_count);
+        if skips_receiver {
+            debug_assert!(!names.is_empty());
+            names.remove(0);
         }
         names
+    }
+
+    fn ty_fn_param_names_source(&self, function_ty: &TyFn<'gcx>) -> Option<ParamNamesSource> {
+        function_ty.function_id.map(|id| {
+            let declared_param_count = self.gcx.hir.function(id).parameters.len();
+            let visible_param_count = function_ty.parameters.len();
+            debug_assert!(
+                declared_param_count == visible_param_count
+                    || declared_param_count == visible_param_count + 1
+            );
+            ParamNamesSource::Function {
+                id,
+                skips_receiver: declared_param_count == visible_param_count + 1,
+            }
+        })
     }
 
     fn get_struct_field_names(
@@ -949,28 +1023,417 @@ impl<'gcx> TypeChecker<'gcx> {
             .collect()
     }
 
+    fn get_param_names_from_source(&self, source: ParamNamesSource) -> ParamNames {
+        match source {
+            ParamNamesSource::Function { id, skips_receiver } => {
+                self.get_call_param_names(id, skips_receiver)
+            }
+            ParamNamesSource::Struct(id) => self.get_struct_field_names(id),
+            ParamNamesSource::Event(id) => self.get_param_names(self.gcx.hir.event(id).parameters),
+            ParamNamesSource::Error(id) => self.get_param_names(self.gcx.hir.error(id).parameters),
+        }
+    }
+
     fn check_call_args(
         &mut self,
         call_span: Span,
         args: &hir::CallArgs<'gcx>,
         param_tys: &[Ty<'gcx>],
-        param_names: Option<&[Option<solar_interface::Symbol>]>,
-    ) {
+        param_names: Option<ParamNamesSource>,
+    ) -> Result<(), ErrorGuaranteed> {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
-                self.check_positional_call_args(call_span, args.span, exprs, param_tys);
+                self.check_positional_call_args(call_span, args.span, exprs, param_tys)
             }
             hir::CallArgsKind::Named(named_args) => {
-                if let Some(names) = param_names {
-                    self.check_named_call_args(call_span, args.span, named_args, param_tys, names);
-                } else {
-                    self.dcx().emit_err(args.span, "named arguments cannot be used for functions that take arbitrary parameters");
-                    for arg in named_args {
-                        let _ = self.check_expr(&arg.value);
-                    }
-                }
+                self.check_named_call_args(call_span, args.span, named_args, param_tys, param_names)
             }
         }
+    }
+
+    fn check_builtin_call_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+        builtin: Builtin,
+    ) -> Result<(), ErrorGuaranteed> {
+        let hir::CallArgsKind::Unnamed(exprs) = args.kind else { return Ok(()) };
+        match builtin {
+            Builtin::StringConcat => {
+                let mut result = Ok(());
+                for expr in exprs {
+                    let ty = self.check_expr_once(expr);
+                    if !valid_string_concat_arg(ty) {
+                        result = result.and(Err(self.dcx().emit_err_label(
+                            expr.span,
+                            "`string.concat` arguments must be strings",
+                            expr.span,
+                            format!("found `{}`", ty.display(self.gcx)),
+                        )));
+                    }
+                }
+                result
+            }
+            Builtin::BytesConcat => {
+                let mut result = Ok(());
+                for expr in exprs {
+                    let ty = self.check_expr_once(expr);
+                    if !valid_bytes_concat_arg(ty) {
+                        result = result.and(Err(self.dcx().emit_err_label(
+                            expr.span,
+                            "`bytes.concat` arguments must be bytes or fixed bytes",
+                            expr.span,
+                            format!("found `{}`", ty.display(self.gcx)),
+                        )));
+                    }
+                }
+                result
+            }
+            Builtin::AbiEncode | Builtin::AbiEncodePacked => {
+                self.check_abi_encodable_args(exprs, builtin)
+            }
+            Builtin::AbiEncodeWithSelector | Builtin::AbiEncodeWithSignature => {
+                if let Some((_, exprs)) = exprs.split_first() {
+                    self.check_abi_encodable_args(exprs, builtin)
+                } else {
+                    Ok(())
+                }
+            }
+            Builtin::AbiEncodeCall => self.check_abi_encode_call_args(call_span, args.span, exprs),
+            Builtin::AbiDecode => Ok(()),
+            _ => Ok(()),
+        }
+    }
+
+    fn check_abi_encodable_args(
+        &mut self,
+        exprs: &'gcx [hir::Expr<'gcx>],
+        builtin: Builtin,
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut result = Ok(());
+        let is_packed = builtin == Builtin::AbiEncodePacked;
+        for expr in exprs {
+            let ty = self.check_expr_once(expr);
+            if is_packed && matches!(ty.kind, TyKind::IntLiteral(..)) {
+                result = result.and(Err(self
+                    .dcx()
+                    .err("cannot perform packed encoding for a literal")
+                    .span(expr.span)
+                    .help("convert it to an explicit type first")
+                    .emit()));
+                continue;
+            }
+            if is_packed && !type_supported_by_old_abi_encoder(ty) {
+                result = result.and(Err(self.dcx().emit_err_label(
+                    expr.span,
+                    "type not supported in packed mode",
+                    expr.span,
+                    format!("found `{}`", ty.display(self.gcx)),
+                )));
+                continue;
+            }
+            if !valid_abi_encodable_arg(ty, self.gcx) {
+                result = result.and(Err(self.dcx().emit_err_label(
+                    expr.span,
+                    format!("`{}` argument cannot be ABI-encoded", builtin.name()),
+                    expr.span,
+                    format!("found `{}`", ty.display(self.gcx)),
+                )));
+            }
+        }
+        result
+    }
+
+    fn check_abi_encode_call_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+    ) -> Result<(), ErrorGuaranteed> {
+        let [function, arguments] = exprs else {
+            return Err(self.dcx().emit_err_label(
+                call_span,
+                format!(
+                    "wrong argument count for function call: {} arguments given but expected 2",
+                    exprs.len()
+                ),
+                args_span,
+                format!("expected 2 arguments, found {}", exprs.len()),
+            ));
+        };
+
+        let function_ty = self.check_abi_encode_call_function_arg(function)?;
+
+        let mut result = Ok(());
+        let arguments_ty = self.check_expr_once(arguments);
+        let TyKind::Tuple(_) = arguments_ty.kind else {
+            if function_ty.parameters.len() != 1 {
+                result = result.and(Err(self.dcx().emit_err(
+                    arguments.span,
+                    format!(
+                        "wrong argument count for `abi.encodeCall`: 1 argument given but expected {}",
+                        function_ty.parameters.len()
+                    ),
+                )));
+            }
+            if let Some(&expected) = function_ty.parameters.first() {
+                result = result.and(self.check_expected(arguments, arguments_ty, expected));
+            }
+            return result;
+        };
+
+        let hir::ExprKind::Tuple(components) = arguments.kind else {
+            return Err(self.dcx().emit_err(
+                arguments.span,
+                "second argument to `abi.encodeCall` must be an inline tuple",
+            ));
+        };
+
+        let has_empty_component = components.iter().any(|component| component.is_none());
+        if !has_empty_component && components.len() != function_ty.parameters.len() {
+            result = result.and(Err(self.dcx().emit_err(
+                arguments.span,
+                format!(
+                    "wrong argument count for `abi.encodeCall`: {} arguments given but expected {}",
+                    components.len(),
+                    function_ty.parameters.len()
+                ),
+            )));
+        }
+
+        for (component, &expected) in components.iter().zip(function_ty.parameters) {
+            let Some(component) = component else {
+                continue;
+            };
+            let actual = self.check_expr_once(component);
+            result = result.and(self.check_expected(component, actual, expected));
+        }
+        result
+    }
+
+    fn check_abi_encode_call_function_arg(
+        &mut self,
+        function: &'gcx hir::Expr<'gcx>,
+    ) -> Result<&'gcx TyFn<'gcx>, ErrorGuaranteed> {
+        let ty = self.check_expr_once(function);
+        let externally_callable_ty = ty.as_externally_callable_function(false, self.gcx);
+        match externally_callable_ty.kind {
+            TyKind::Fn(function_ty)
+                if matches!(function_ty.kind, TyFnKind::External | TyFnKind::Declaration) =>
+            {
+                Ok(function_ty)
+            }
+            TyKind::Fn(function_ty) => Err(self.dcx().emit_err_label(
+                function.span,
+                abi_encode_call_function_kind_message(function_ty.kind),
+                function.span,
+                format!("found `{}`", ty.display(self.gcx)),
+            )),
+            TyKind::Event(..) => Err(self.dcx().emit_err_label(
+                function.span,
+                "first argument to `abi.encodeCall` cannot be an event",
+                function.span,
+                format!("found `{}`", ty.display(self.gcx)),
+            )),
+            TyKind::Error(..) => Err(self.dcx().emit_err_label(
+                function.span,
+                "first argument to `abi.encodeCall` cannot be an error",
+                function.span,
+                format!("found `{}`", ty.display(self.gcx)),
+            )),
+            _ => Err(self.dcx().emit_err_label(
+                function.span,
+                "first argument to `abi.encodeCall` must be a function",
+                function.span,
+                format!("found `{}`", ty.display(self.gcx)),
+            )),
+        }
+    }
+
+    fn check_abi_decode_call_args(
+        &mut self,
+        call_span: Span,
+        args: &hir::CallArgs<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                self.check_abi_decode_positional_args(call_span, args.span, exprs)
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                self.check_abi_decode_named_args(call_span, args.span, named_args)
+            }
+        }
+    }
+
+    fn check_abi_decode_positional_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        exprs: &'gcx [hir::Expr<'gcx>],
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut result = Ok(());
+        result = result.and(self.check_exact_arg_count(call_span, args_span, exprs.len(), 2));
+
+        if let Some(data) = exprs.first() {
+            result = result.and(self.check_abi_decode_arg(AbiDecodeArg::Data, data));
+        }
+        if let Some(types) = exprs.get(1) {
+            result = result.and(self.check_abi_decode_arg(AbiDecodeArg::Types, types));
+        }
+        for expr in exprs.iter().skip(2) {
+            let _ = self.check_expr_once(expr);
+        }
+
+        result
+    }
+
+    fn check_abi_decode_named_args(
+        &mut self,
+        call_span: Span,
+        args_span: Span,
+        named_args: &'gcx [hir::NamedArg<'gcx>],
+    ) -> Result<(), ErrorGuaranteed> {
+        let mut result = Ok(());
+        result = result.and(self.check_exact_arg_count(call_span, args_span, named_args.len(), 2));
+
+        let mut seen_names: SmallVec<[solar_interface::Symbol; 2]> = SmallVec::new();
+        for arg in named_args {
+            let arg_name = arg.name.name;
+            if seen_names.contains(&arg_name) {
+                result = result.and(Err(self
+                    .dcx()
+                    .emit_err(arg.name.span, format!("duplicate named argument `{arg_name}`"))));
+                let _ = self.check_expr_once(&arg.value);
+                continue;
+            }
+            seen_names.push(arg_name);
+
+            if let Some(kind) = abi_decode_arg_kind(arg_name) {
+                result = result.and(self.check_abi_decode_arg(kind, &arg.value));
+            } else {
+                result = result.and(Err(self.dcx().emit_err(
+                    arg.name.span,
+                    format!("named argument `{arg_name}` does not match function declaration"),
+                )));
+                let _ = self.check_expr_once(&arg.value);
+            }
+        }
+
+        result
+    }
+
+    fn check_exact_arg_count(
+        &self,
+        call_span: Span,
+        args_span: Span,
+        found: usize,
+        expected: usize,
+    ) -> Result<(), ErrorGuaranteed> {
+        if found == expected {
+            return Ok(());
+        }
+        Err(self.dcx().emit_err_label(
+            call_span,
+            format!(
+                "wrong argument count for function call: {found} arguments given but expected {expected}"
+            ),
+            args_span,
+            format!("expected {expected} arguments, found {found}"),
+        ))
+    }
+
+    fn check_abi_decode_arg(
+        &mut self,
+        kind: AbiDecodeArg,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        match kind {
+            AbiDecodeArg::Data => {
+                let actual = self.check_expr_once(expr);
+                self.check_expected(expr, actual, self.gcx.types.bytes_ref.memory)
+            }
+            AbiDecodeArg::Types => self.check_abi_decode_types_arg(expr),
+        }
+    }
+
+    fn check_abi_decode_types_arg(
+        &mut self,
+        types: &'gcx hir::Expr<'gcx>,
+    ) -> Result<(), ErrorGuaranteed> {
+        if matches!(types.kind, hir::ExprKind::Tuple(_)) {
+            Ok(())
+        } else {
+            Err(self.dcx().emit_err(
+                types.span,
+                "the second argument to `abi.decode` must be a tuple of types",
+            ))
+        }
+    }
+
+    fn abi_decode_return_type(&mut self, args: &hir::CallArgs<'gcx>) -> Ty<'gcx> {
+        let types_expr = match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => {
+                let [_, types_expr] = exprs else {
+                    unreachable!("`abi.decode` should have exactly two checked arguments");
+                };
+                types_expr
+            }
+            hir::CallArgsKind::Named(named_args) => {
+                let Some(arg) = named_args.iter().find(|arg| arg.name.name == sym::types) else {
+                    unreachable!(
+                        "`abi.decode` named arguments should be checked before deriving return type"
+                    );
+                };
+                &arg.value
+            }
+        };
+        let types = self.abi_decode_types(types_expr);
+        self.fn_call_return_type(types)
+    }
+
+    fn abi_decode_types(&mut self, expr: &'gcx hir::Expr<'gcx>) -> &'gcx [Ty<'gcx>] {
+        let hir::ExprKind::Tuple(type_exprs) = expr.kind else {
+            let guar = self.dcx().emit_err(
+                expr.span,
+                "the second argument to `abi.decode` must be a tuple of types",
+            );
+            return self.gcx.mk_tys(&[self.gcx.mk_ty_err(guar)]);
+        };
+
+        let mut tys = Vec::with_capacity(type_exprs.len());
+        for type_expr in type_exprs {
+            let Some(type_expr) = type_expr else {
+                let guar = self
+                    .dcx()
+                    .emit_err(expr.span, "`abi.decode` type tuple components cannot be empty");
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            };
+            let ty = self.check_expr_once(type_expr);
+            let TyKind::Type(ty) = ty.kind else {
+                let guar = self
+                    .dcx()
+                    .emit_err(type_expr.span, "`abi.decode` type tuple components must be types");
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            };
+            let mut ty = ty.with_loc_if_ref(self.gcx, DataLocation::Memory);
+            if matches!(ty.kind, TyKind::Elementary(ElementaryType::Address(false))) {
+                ty = self.gcx.types.address_payable;
+            }
+            if !valid_abi_decodable_type(ty, self.gcx) {
+                let guar = self.dcx().emit_err_label(
+                    type_expr.span,
+                    "decoding type not supported",
+                    type_expr.span,
+                    format!("found `{}`", ty.display(self.gcx)),
+                );
+                tys.push(self.gcx.mk_ty_err(guar));
+                continue;
+            }
+            tys.push(ty);
+        }
+        self.gcx.mk_tys(&tys)
     }
 
     fn check_member_call_callee(
@@ -997,7 +1460,7 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
                 if let Some(hir::Res::Builtin(builtin)) = member.res {
-                    self.member_builtins.insert(callee.id, builtin);
+                    self.builtin_callees.insert(callee.id, builtin);
                 }
                 self.member_call_ty(receiver_ty, member)
             }
@@ -1055,6 +1518,9 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         };
         let ty = self.type_of_res(res);
+        if let hir::Res::Builtin(builtin) = res {
+            self.builtin_callees.insert(callee.id, builtin);
+        }
         self.register_ty(callee, ty);
         ty
     }
@@ -1116,7 +1582,7 @@ impl<'gcx> TypeChecker<'gcx> {
             let Some((param_tys, param_names)) = self.call_candidate_params(ty) else {
                 continue;
             };
-            if self.call_args_match(args, param_tys, param_names.as_deref()) {
+            if self.call_args_match(args, param_tys, param_names) {
                 selected.push(res);
             }
         }
@@ -1162,19 +1628,11 @@ impl<'gcx> TypeChecker<'gcx> {
     fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallCandidateParams<'gcx>> {
         match ty.kind {
             TyKind::Fn(function_ty) => {
-                let param_names = function_ty
-                    .function_id
-                    .map(|id| self.get_call_param_names(id, function_ty.parameters.len()));
+                let param_names = self.ty_fn_param_names_source(function_ty);
                 Some((function_ty.parameters, param_names))
             }
-            TyKind::Event(param_tys, id) => {
-                let event = self.gcx.hir.event(id);
-                Some((param_tys, Some(self.get_param_names(event.parameters))))
-            }
-            TyKind::Error(param_tys, id) => {
-                let error = self.gcx.hir.error(id);
-                Some((param_tys, Some(self.get_param_names(error.parameters))))
-            }
+            TyKind::Event(param_tys, id) => Some((param_tys, Some(ParamNamesSource::Event(id)))),
+            TyKind::Error(param_tys, id) => Some((param_tys, Some(ParamNamesSource::Error(id)))),
             TyKind::Err(_) => None,
             _ => None,
         }
@@ -1196,7 +1654,7 @@ impl<'gcx> TypeChecker<'gcx> {
         for member in members {
             if let Some((parameters, param_names)) =
                 self.member_call_candidate_params(receiver_ty, member)
-                && self.call_args_match(args, parameters, param_names.as_deref())
+                && self.call_args_match(args, parameters, param_names)
             {
                 selected.push(member);
             }
@@ -1214,17 +1672,17 @@ impl<'gcx> TypeChecker<'gcx> {
         member: &members::Member<'gcx>,
     ) -> Option<CallCandidateParams<'gcx>> {
         let TyKind::Fn(function_ty) = member.ty.kind else { return None };
-        let parameters = if member.attached {
+        let (parameters, skips_receiver) = if member.attached {
             let (&self_ty, parameters) = function_ty.parameters.split_first()?;
             if !receiver_ty.convert_implicit_to(self_ty, self.gcx) {
                 return None;
             }
-            parameters
+            (parameters, true)
         } else {
-            function_ty.parameters
+            (function_ty.parameters, false)
         };
         let param_names =
-            function_ty.function_id.map(|id| self.get_call_param_names(id, parameters.len()));
+            function_ty.function_id.map(|id| ParamNamesSource::Function { id, skips_receiver });
         Some((parameters, param_names))
     }
 
@@ -1232,20 +1690,13 @@ impl<'gcx> TypeChecker<'gcx> {
         &mut self,
         args: &hir::CallArgs<'gcx>,
         param_tys: &[Ty<'gcx>],
-        param_names: Option<&[Option<solar_interface::Symbol>]>,
+        param_names: Option<ParamNamesSource>,
     ) -> bool {
         match args.kind {
-            hir::CallArgsKind::Unnamed(exprs) => {
-                if exprs.len() != param_tys.len() {
-                    return false;
-                }
-                exprs
-                    .iter()
-                    .zip(param_tys)
-                    .all(|(expr, &param_ty)| self.arg_matches(expr, param_ty))
-            }
+            hir::CallArgsKind::Unnamed(exprs) => self.positional_call_args_match(exprs, param_tys),
             hir::CallArgsKind::Named(named_args) => {
-                let Some(names) = param_names else { return false };
+                let Some(param_names) = param_names else { return false };
+                let names = self.get_param_names_from_source(param_names);
                 if named_args.len() != param_tys.len() {
                     return false;
                 }
@@ -1365,33 +1816,80 @@ impl<'gcx> TypeChecker<'gcx> {
         args_span: Span,
         exprs: &'gcx [hir::Expr<'gcx>],
         param_tys: &[Ty<'gcx>],
-    ) {
-        if exprs.len() != param_tys.len() {
-            self.dcx().emit_err_label(
+    ) -> Result<(), ErrorGuaranteed> {
+        let (fixed_params, variadic) = split_variadic_params(param_tys);
+        let mut result = Ok(());
+
+        if !variadic && exprs.len() != fixed_params.len() {
+            result = result.and(Err(self.dcx().emit_err_label(
                 call_span,
                 format!(
                     "wrong argument count for function call: {} arguments given but expected {}",
                     exprs.len(),
-                    param_tys.len()
+                    fixed_params.len()
                 ),
                 args_span,
                 format!(
                     "expected {} argument{}, found {}",
-                    param_tys.len(),
-                    pluralize!(param_tys.len()),
+                    fixed_params.len(),
+                    pluralize!(fixed_params.len()),
                     exprs.len()
                 ),
-            );
+            )));
+        } else if variadic && exprs.len() < fixed_params.len() {
+            result = result.and(Err(self.dcx().emit_err_label(
+                call_span,
+                format!(
+                    "wrong argument count for function call: {} arguments given but expected at least {}",
+                    exprs.len(),
+                    fixed_params.len()
+                ),
+                args_span,
+                format!(
+                    "expected at least {} argument{}, found {}",
+                    fixed_params.len(),
+                    pluralize!(fixed_params.len()),
+                    exprs.len()
+                ),
+            )));
         }
 
-        let count = std::cmp::min(exprs.len(), param_tys.len());
+        let count = std::cmp::min(exprs.len(), fixed_params.len());
         for i in 0..count {
             let actual = self.check_expr_once(&exprs[i]);
-            self.check_expected(&exprs[i], actual, param_tys[i]);
+            result = result.and(self.check_expected(&exprs[i], actual, fixed_params[i]));
         }
         for expr in exprs.iter().skip(count) {
             let _ = self.check_expr_once(expr);
         }
+
+        result
+    }
+
+    fn positional_call_args_match(
+        &mut self,
+        exprs: &'gcx [hir::Expr<'gcx>],
+        param_tys: &[Ty<'gcx>],
+    ) -> bool {
+        let (fixed_params, variadic) = split_variadic_params(param_tys);
+        if (!variadic && exprs.len() != fixed_params.len())
+            || (variadic && exprs.len() < fixed_params.len())
+        {
+            return false;
+        }
+
+        let count = std::cmp::min(exprs.len(), fixed_params.len());
+        for i in 0..count {
+            let actual = self.check_expr_once(&exprs[i]);
+            if self.expr_matches_expected(&exprs[i], actual, fixed_params[i]).is_err() {
+                return false;
+            }
+        }
+        for expr in exprs.iter().skip(count) {
+            let _ = self.check_expr_once(expr);
+        }
+
+        true
     }
 
     fn check_named_call_args(
@@ -1400,12 +1898,25 @@ impl<'gcx> TypeChecker<'gcx> {
         args_span: Span,
         named_args: &'gcx [hir::NamedArg<'gcx>],
         param_tys: &[Ty<'gcx>],
-        param_names: &[Option<solar_interface::Symbol>],
-    ) {
+        param_names: Option<ParamNamesSource>,
+    ) -> Result<(), ErrorGuaranteed> {
+        let Some(param_names) = param_names else {
+            let guar = self.dcx().emit_err(
+                args_span,
+                "named arguments cannot be used for functions that take arbitrary parameters",
+            );
+            for arg in named_args {
+                let _ = self.check_expr(&arg.value);
+            }
+            return Err(guar);
+        };
+
+        let param_names = self.get_param_names_from_source(param_names);
         debug_assert_eq!(param_tys.len(), param_names.len());
+        let mut result = Ok(());
 
         if named_args.len() != param_tys.len() {
-            self.dcx().emit_err_label(
+            result = result.and(Err(self.dcx().emit_err_label(
                 call_span,
                 format!(
                     "wrong argument count for function call: {} arguments given but expected {}",
@@ -1419,7 +1930,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     pluralize!(param_tys.len()),
                     named_args.len()
                 ),
-            );
+            )));
         }
 
         let mut seen_names: SmallVec<[solar_interface::Symbol; 8]> = SmallVec::new();
@@ -1428,8 +1939,9 @@ impl<'gcx> TypeChecker<'gcx> {
             let arg_name = arg.name.name;
 
             if seen_names.contains(&arg_name) {
-                self.dcx()
-                    .emit_err(arg.name.span, format!("duplicate named argument `{arg_name}`"));
+                result = result.and(Err(self
+                    .dcx()
+                    .emit_err(arg.name.span, format!("duplicate named argument `{arg_name}`"))));
                 let _ = self.check_expr_once(&arg.value);
                 continue;
             }
@@ -1440,17 +1952,19 @@ impl<'gcx> TypeChecker<'gcx> {
             match param_idx {
                 Some(idx) => {
                     let actual = self.check_expr_once(&arg.value);
-                    self.check_expected(&arg.value, actual, param_tys[idx]);
+                    result = result.and(self.check_expected(&arg.value, actual, param_tys[idx]));
                 }
                 None => {
-                    self.dcx().emit_err(
+                    result = result.and(Err(self.dcx().emit_err(
                         arg.name.span,
                         format!("named argument `{arg_name}` does not match function declaration"),
-                    );
+                    )));
                     let _ = self.check_expr_once(&arg.value);
                 }
             }
         }
+
+        result
     }
 
     fn check_expr_once(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
@@ -1620,7 +2134,7 @@ impl<'gcx> TypeChecker<'gcx> {
         for ((&var, &ty), &expr) in decls.iter().zip(value_types).zip(exprs) {
             let (Some(var), Some(expr)) = (var, expr) else { continue };
             let var_ty = self.check_var_(var, false);
-            self.check_expected(expr, ty, var_ty);
+            let _ = self.check_expected(expr, ty, var_ty);
         }
         // TODO: checks from https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L1219
     }
@@ -1698,7 +2212,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | hir::ExprKind::Err(_) => true,
 
             hir::ExprKind::Call(callee, ..) => {
-                self.member_builtins.get(&callee.id) == Some(&Builtin::ArrayPush0)
+                self.builtin_callees.get(&callee.id) == Some(&Builtin::ArrayPush0)
             }
 
             hir::ExprKind::Array(_)
@@ -1861,7 +2375,7 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
                             let actual_arg_ty = self.with_construction_context(|this| {
                                 this.check_expr_kind(arg_expr, Some(*expected_arg_ty))
                             });
-                            self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
+                            let _ = self.check_expected(arg_expr, actual_arg_ty, *expected_arg_ty);
                         }
                     }
                 }
@@ -2073,6 +2587,116 @@ fn is_calldata_sliceable(ty: Ty<'_>) -> bool {
         || matches!(ty.kind, TyKind::Slice(array) if array.data_stored_in(DataLocation::Calldata))
 }
 
+fn valid_string_concat_arg(ty: Ty<'_>) -> bool {
+    let ty = ty.peel_refs();
+    matches!(ty.kind, TyKind::StringLiteral(true, _) | TyKind::Elementary(ElementaryType::String))
+        || matches!(
+            ty.kind,
+            TyKind::Slice(array)
+                if matches!(array.peel_refs().kind, TyKind::Elementary(ElementaryType::String))
+        )
+}
+
+fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
+    matches!(ty.kind, TyKind::StringLiteral(..))
+        || matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::FixedBytes(_))
+        )
+        || matches!(
+            ty.kind,
+            TyKind::Slice(array)
+                if matches!(array.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
+        )
+}
+
+fn abi_decode_arg_kind(name: Symbol) -> Option<AbiDecodeArg> {
+    if name == sym::data {
+        Some(AbiDecodeArg::Data)
+    } else if name == sym::types {
+        Some(AbiDecodeArg::Types)
+    } else {
+        None
+    }
+}
+
+fn abi_encode_call_function_kind_message(kind: TyFnKind) -> &'static str {
+    match kind {
+        TyFnKind::Internal | TyFnKind::InternalWithSelector => {
+            "first argument to `abi.encodeCall` must be an external function"
+        }
+        TyFnKind::DelegateCall => "first argument to `abi.encodeCall` cannot be a library function",
+        TyFnKind::Creation => "first argument to `abi.encodeCall` cannot be a creation function",
+        TyFnKind::BareCall | TyFnKind::BareDelegateCall | TyFnKind::BareStaticCall => {
+            "first argument to `abi.encodeCall` cannot be a special function"
+        }
+        TyFnKind::External | TyFnKind::Declaration => unreachable!(),
+    }
+}
+
+fn type_supported_by_old_abi_encoder(ty: Ty<'_>) -> bool {
+    let ty = ty.peel_refs();
+    match ty.kind {
+        TyKind::Struct(_) => false,
+        TyKind::Array(base, _) | TyKind::DynArray(base) => {
+            type_supported_by_old_abi_encoder(base) && !base.peel_refs().is_dynamically_sized()
+        }
+        TyKind::Tuple([ty]) => type_supported_by_old_abi_encoder(*ty),
+        TyKind::Tuple(_) => false,
+        TyKind::Slice(array) => type_supported_by_old_abi_encoder(array),
+        _ => true,
+    }
+}
+
+fn valid_abi_decodable_type<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
+    if ty.references_error() {
+        return true;
+    }
+    match ty.kind {
+        TyKind::Error(..)
+        | TyKind::Event(..)
+        | TyKind::Module(..)
+        | TyKind::BuiltinModule(..)
+        | TyKind::Type(_)
+        | TyKind::Meta(_)
+        | TyKind::Variadic
+        | TyKind::Tuple(_) => false,
+        _ => ty.can_be_exported(gcx),
+    }
+}
+
+fn valid_abi_encodable_arg<'gcx>(ty: Ty<'gcx>, gcx: Gcx<'gcx>) -> bool {
+    if ty.references_error() {
+        return true;
+    }
+    match ty.kind {
+        TyKind::Tuple([ty]) => valid_abi_encodable_arg(*ty, gcx),
+        TyKind::Tuple(_) => false,
+        TyKind::Error(..)
+        | TyKind::Event(..)
+        | TyKind::Module(..)
+        | TyKind::BuiltinModule(..)
+        | TyKind::Type(_)
+        | TyKind::Meta(_)
+        | TyKind::Variadic => false,
+        _ => ty.can_be_exported(gcx),
+    }
+}
+
+fn split_variadic_params<'a, 'gcx>(param_tys: &'a [Ty<'gcx>]) -> (&'a [Ty<'gcx>], bool) {
+    let Some((&last, fixed)) = param_tys.split_last() else {
+        return (param_tys, false);
+    };
+    if matches!(last.kind, TyKind::Variadic) {
+        return (fixed, true);
+    }
+    debug_assert!(
+        !param_tys.iter().any(|ty| matches!(ty.kind, TyKind::Variadic)),
+        "variadic param must be last"
+    );
+    (param_tys, false)
+}
+
 fn valid_unop(ty: Ty<'_>, op: hir::UnOpKind) -> bool {
     if ty.references_error() {
         return true;
@@ -2196,6 +2820,7 @@ fn binop_common_type<'gcx>(
         | TyKind::Udvt(..)
         | TyKind::Module(_)
         | TyKind::BuiltinModule(_)
+        | TyKind::Variadic
         | TyKind::Super(_)
         | TyKind::Type(_)
         | TyKind::Meta(_) => None,

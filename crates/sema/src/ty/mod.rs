@@ -390,6 +390,10 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::Fn(self.interner.intern_ty_fn(self.bump(), ptr)))
     }
 
+    pub fn mk_ty_variadic(self) -> Ty<'gcx> {
+        self.mk_ty(TyKind::Variadic)
+    }
+
     pub fn mk_ty_fn_with_kind(
         self,
         kind: TyFnKind,
@@ -444,9 +448,10 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     #[inline]
-    pub fn mk_ty_err(self, _guar: ErrorGuaranteed) -> Ty<'gcx> {
+    pub fn mk_ty_err(self, guar: ErrorGuaranteed) -> Ty<'gcx> {
         const { assert!(std::mem::size_of::<ErrorGuaranteed>() == 0) }
-        self.types.err
+        let _ = guar;
+        self.types.__err_do_not_use
     }
 
     /// Returns the source file with the given path, if it exists.

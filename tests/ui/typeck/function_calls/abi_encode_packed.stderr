@@ -1,0 +1,46 @@
+error: cannot perform packed encoding for a literal
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_packed.sol:LL:CC
+   │
+LL │         abi.encodePacked(1);
+   │                          ━
+   │
+   ╰ help: convert it to an explicit type first
+
+error: type not supported in packed mode
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_packed.sol:LL:CC
+   │
+LL │         abi.encodePacked(structs);
+   ╰╴                         ━━━━━━━ found `struct C.S[] memory`
+
+error: type not supported in packed mode
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_packed.sol:LL:CC
+   │
+LL │         abi.encodePacked(nestedArray);
+   ╰╴                         ━━━━━━━━━━━ found `uint256[][] memory`
+
+error: type not supported in packed mode
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_packed.sol:LL:CC
+   │
+LL │         abi.encodePacked(memoryStrings);
+   ╰╴                         ━━━━━━━━━━━━━ found `string[] memory`
+
+error: type not supported in packed mode
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_packed.sol:LL:CC
+   │
+LL │         abi.encodePacked(memoryBytes);
+   ╰╴                         ━━━━━━━━━━━ found `bytes[] memory`
+
+error: type not supported in packed mode
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_packed.sol:LL:CC
+   │
+LL │         abi.encodePacked(storageStrings);
+   ╰╴                         ━━━━━━━━━━━━━━ found `string[] storage`
+
+error: type not supported in packed mode
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_packed.sol:LL:CC
+   │
+LL │         abi.encodePacked(storageBytes);
+   ╰╴                         ━━━━━━━━━━━━ found `bytes[] storage`
+
+error: aborting due to 7 previous errors
+
