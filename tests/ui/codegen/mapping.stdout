@@ -1,0 +1,73 @@
+// === ROOT/tests/ui/codegen/mapping.sol:Mapping ===
+; module @Mapping
+fn @balances(arg0: u256) -> u256 {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v6 = mstore 0, arg0
+    v8 = mstore 32, 0
+    v10 = keccak256 0, 64
+    v11 = sload v10
+    ret v11
+}
+
+fn @allowances(arg0: address, arg1: address) -> u256 {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v7 = mstore 0, arg0
+    v9 = mstore 32, 1
+    v11 = keccak256 0, 64
+    v13 = mstore 0, arg1
+    v15 = mstore 32, v11
+    v17 = keccak256 0, 64
+    v18 = sload v17
+    ret v18
+}
+
+fn @set_balance(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v4 = mstore 0, arg0
+    v6 = mstore 32, 0
+    v8 = keccak256 0, 64
+    v9 = sstore v8, arg1
+    stop
+}
+
+fn @add_balance(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v4 = mstore 0, arg0
+    v6 = mstore 32, 0
+    v8 = keccak256 0, 64
+    v9 = sload v8
+    v10 = add v9, arg1
+    v13 = mstore 0, arg0
+    v15 = mstore 32, 0
+    v17 = keccak256 0, 64
+    v18 = sstore v17, v10
+    stop
+}
+
+fn @approve(arg0: address, arg1: address, arg2: u256) {
+  bb0 (entry):
+    v5 = mstore 0, arg0
+    v7 = mstore 32, 1
+    v9 = keccak256 0, 64
+    v11 = mstore 0, arg1
+    v13 = mstore 32, v9
+    v15 = keccak256 0, 64
+    v16 = sstore v15, arg2
+    stop
+}
+
+fn @get_allowance(arg0: address, arg1: address) -> u256 {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v7 = mstore 0, arg0
+    v9 = mstore 32, 1
+    v11 = keccak256 0, 64
+    v13 = mstore 0, arg1
+    v15 = mstore 32, v11
+    v17 = keccak256 0, 64
+    v18 = sload v17
+    ret v18
+}
+

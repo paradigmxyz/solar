@@ -18,9 +18,16 @@ fn main() -> anyhow::Result<()> {
     match flags.subcommand {
         flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
+
+            // The MIR test mode runs `solar-mir-opt` on `.mir` files. The
+            // test binary locates it via current_exe() in the target dir,
+            // so we need to make sure it's built before running tests.
+            // Always pre-build it — it's cheap and avoids surprising skips.
+            cmd!(sh, "cargo build --package=solar-mir-opt").run()?;
+
             let mut cmd = cmd!(sh, "cargo test");
             if let Some(t) = test_name {
-                if matches!(t.as_str(), "ui" | "solc-solidity" | "solc-yul") {
+                if matches!(t.as_str(), "ui" | "mir" | "solc-solidity" | "solc-yul") {
                     cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", &t);
                 } else {
                     cmd = cmd.arg(t);

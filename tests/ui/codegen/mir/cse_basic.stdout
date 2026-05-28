@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/mir/cse_basic.mir (after cse) ===
+; module @CseBasic
+fn @redundant_add(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, arg1
+    v4 = add v2, v2
+    ret v4
+}
+

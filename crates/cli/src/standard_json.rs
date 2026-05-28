@@ -5,12 +5,14 @@ use serde::{
     de::{self, Visitor},
 };
 use serde_json::{Map, Value, json};
+use solar_codegen::{EvmCodegen, FxHashMap, lower};
 use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
 use solar_interface::{
-    SourceMap,
+    Result, SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::FileLoader,
 };
+use solar_sema::hir::ContractId;
 use std::{
     borrow::{Borrow, Cow},
     collections::BTreeMap,
@@ -201,6 +203,12 @@ fn compile(
 
             if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
                 let gcx = compiler.gcx();
+                let bytecodes = if needs_bytecode_output(gcx, &output_selection) {
+                    Some(generate_contract_bytecodes(gcx)?)
+                } else {
+                    None
+                };
+
                 for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                     let source = gcx.hir.source(contract.source);
                     let source_name = source.file.name.display().to_string();
@@ -211,6 +219,7 @@ fn compile(
                         &output_selection,
                         &source_name,
                         &contract_name,
+                        bytecodes.as_ref(),
                     );
                     if !contract_output.is_empty() {
                         output
@@ -367,9 +376,18 @@ struct BytecodeOutput {
     immutable_references: BTreeMap<String, Value>,
 }
 
+struct GeneratedBytecodes {
+    deployment: String,
+    runtime: String,
+}
+
 impl BytecodeOutput {
     fn empty() -> Self {
         Self::default()
+    }
+
+    fn new(object: String) -> Self {
+        Self { object, ..Self::default() }
     }
 }
 
@@ -609,6 +627,7 @@ fn make_contract_output(
     output_selection: &OutputSelection<'_>,
     source_name: &str,
     contract_name: &str,
+    bytecodes: Option<&FxHashMap<ContractId, GeneratedBytecodes>>,
 ) -> ContractOutput {
     let mut output = ContractOutput::default();
 
@@ -639,20 +658,78 @@ fn make_contract_output(
         contract_name,
         &["evm.bytecode", "evm.bytecode.object"],
     ) {
-        evm.bytecode = Some(BytecodeOutput::empty());
+        evm.bytecode = Some(
+            bytecodes
+                .and_then(|bytecodes| bytecodes.get(&contract_id))
+                .map(|bytecodes| BytecodeOutput::new(bytecodes.deployment.clone()))
+                .unwrap_or_else(BytecodeOutput::empty),
+        );
     }
     if output_selection.selects(
         source_name,
         contract_name,
         &["evm.deployedBytecode", "evm.deployedBytecode.object"],
     ) {
-        evm.deployed_bytecode = Some(BytecodeOutput::empty());
+        evm.deployed_bytecode = Some(
+            bytecodes
+                .and_then(|bytecodes| bytecodes.get(&contract_id))
+                .map(|bytecodes| BytecodeOutput::new(bytecodes.runtime.clone()))
+                .unwrap_or_else(BytecodeOutput::empty),
+        );
     }
     if !evm.is_empty() {
         output.evm = Some(evm);
     }
 
     output
+}
+
+fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSelection<'_>) -> bool {
+    gcx.hir.contracts_enumerated().any(|(_, contract)| {
+        let source = gcx.hir.source(contract.source);
+        let source_name = source.file.name.display().to_string();
+        let contract_name = contract.name.to_string();
+        output_selection.selects(
+            &source_name,
+            &contract_name,
+            &[
+                "evm.bytecode",
+                "evm.bytecode.object",
+                "evm.deployedBytecode",
+                "evm.deployedBytecode.object",
+            ],
+        )
+    })
+}
+
+fn generate_contract_bytecodes(
+    gcx: solar_sema::Gcx<'_>,
+) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
+    let mut all_bytecodes = FxHashMap::default();
+    for contract_id in gcx.hir.contract_ids() {
+        let mut module = lower::lower_contract(gcx, contract_id);
+        gcx.dcx().has_errors()?;
+        let mut codegen = EvmCodegen::new();
+        let (deployment, _) = codegen.generate_deployment_bytecode(&mut module);
+        all_bytecodes.insert(contract_id, deployment);
+    }
+
+    let mut bytecodes = FxHashMap::default();
+    for contract_id in gcx.hir.contract_ids() {
+        let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
+        gcx.dcx().has_errors()?;
+        let mut codegen = EvmCodegen::new();
+        let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
+        bytecodes.insert(
+            contract_id,
+            GeneratedBytecodes {
+                deployment: alloy_primitives::hex::encode(deployment),
+                runtime: alloy_primitives::hex::encode(runtime),
+            },
+        );
+    }
+
+    Ok(bytecodes)
 }
 
 impl ContractOutput {

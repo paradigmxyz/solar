@@ -1,0 +1,34 @@
+// === ROOT/tests/ui/codegen/multi_return.sol:MultiReturn ===
+; module @MultiReturn
+fn @div_mod(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v7 = mstore 160, 0
+    v8 = div arg0, arg1
+    v9 = mod arg0, arg1
+    ret v8, v9
+}
+
+fn @min_max(arg0: u256, arg1: u256) -> (u256, u256) {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v7 = mstore 160, 0
+    v8 = lt arg0, arg1
+    br v8, bb1, bb2
+  bb1:
+    ret arg0, arg1
+  bb2:
+    ret arg1, arg0
+}
+
+fn @triple(arg0: u256) -> (u256, u256, u256) {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v6 = mstore 160, 0
+    v9 = mstore 192, 0
+    v10 = add arg0, arg0
+    v11 = add arg0, arg0
+    v12 = add v11, arg0
+    ret arg0, v10, v12
+}
+

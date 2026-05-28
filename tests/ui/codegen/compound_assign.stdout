@@ -1,0 +1,51 @@
+// === ROOT/tests/ui/codegen/compound_assign.sol:CompoundAssign ===
+; module @CompoundAssign
+fn @value() -> u256 {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = sload 0
+    ret v4
+}
+
+fn @add_to_value(arg0: u256) {
+  bb0 (entry):
+    v2 = sload 0
+    v3 = add v2, arg0
+    v5 = sstore 0, v3
+    stop
+}
+
+fn @sub_from_value(arg0: u256) {
+  bb0 (entry):
+    v2 = sload 0
+    v3 = sub v2, arg0
+    v5 = sstore 0, v3
+    stop
+}
+
+fn @mul_value(arg0: u256) {
+  bb0 (entry):
+    v2 = sload 0
+    v3 = mul v2, arg0
+    v5 = sstore 0, v3
+    stop
+}
+
+fn @bump_post() -> u256 {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = sload 0
+    v6 = add v4, 1
+    v8 = sstore 0, v6
+    ret v4
+}
+
+fn @bump_pre() -> u256 {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = sload 0
+    v6 = add v4, 1
+    v8 = sstore 0, v6
+    ret v6
+}
+

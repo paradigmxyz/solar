@@ -3012,6 +3012,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
+ "solar-codegen",
  "solar-config",
  "solar-interface",
  "solar-sema",
@@ -3021,6 +3022,24 @@ dependencies = [
  "tracing-samply",
  "tracing-subscriber",
  "tracing-tracy",
+]
+
+[[package]]
+name = "solar-codegen"
+version = "0.1.8"
+dependencies = [
+ "alloy-primitives",
+ "derive_more",
+ "rustc-hash",
+ "serde_json",
+ "smallvec",
+ "snapbox",
+ "solar-ast",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-sema",
+ "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -3108,6 +3127,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "solar-mir-opt"
+version = "0.1.8"
+dependencies = [
+ "solar-codegen",
+ "solar-interface",
+ "solar-sema",
 ]
 
 [[package]]

@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/codegen/storage.sol:Storage ===
+; module @Storage
+fn @count() -> u256 {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = sload 0
+    ret v4
+}
+
+fn @increment() {
+  bb0 (entry):
+    v1 = sload 0
+    v3 = add v1, 1
+    v5 = sstore 0, v3
+    stop
+}
+
+fn @set(arg0: u256) {
+  bb0 (entry):
+    v2 = sstore 0, arg0
+    stop
+}
+
+fn @get() -> u256 {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = sload 0
+    ret v4
+}
+

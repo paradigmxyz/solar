@@ -12,6 +12,148 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  compile-time:
+    name: compile-time regression
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Download baseline (main branch)
+        id: baseline
+        continue-on-error: true
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          workflow: bench.yml
+          branch: main
+          name: compile-time-baseline
+          path: baseline
+
+      - name: Run compile-time benchmarks
+        id: bench
+        run: |
+          ./scripts/ci_compile_bench.sh --output-dir target/compile-bench
+          echo "results_file=target/compile-bench/results.json" >> "$GITHUB_OUTPUT"
+
+      - name: Compare against baseline
+        id: compare
+        if: steps.baseline.outcome == 'success'
+        continue-on-error: true
+        run: |
+          ./scripts/ci_compile_bench.sh \
+            --baseline baseline/results.json \
+            --compare target/compile-bench/results.json \
+            --threshold 5 \
+            > target/compile-bench/comparison.json
+
+      - name: Generate markdown report
+        id: report
+        run: |
+          REPORT_FILE="target/compile-bench/report.md"
+          {
+            echo "## ⏱️ Compile-Time Benchmark Results"
+            echo ""
+            echo "**Commit:** \`$(git rev-parse --short HEAD)\`"
+            echo ""
+            
+            if [[ -f "target/compile-bench/comparison.json" ]]; then
+              python3 -c "
+import json
+with open('target/compile-bench/comparison.json') as f:
+    c = json.load(f)
+
+if c.get('regressions'):
+    print('### ⚠️ Regressions Detected (>${} threshold)'.format(c['threshold_pct']))
+    print()
+    print('| Test | Parse | Δ | Sema | Δ |')
+    print('|------|-------|---|------|---|')
+    for r in c['regressions']:
+        print(f\"| {r['name']} | {r['parse_curr']:.2f}ms | +{r['parse_diff_pct']:.1f}% | {r['sema_curr']:.2f}ms | +{r['sema_diff_pct']:.1f}% |\")
+    print()
+
+if c.get('improvements'):
+    print('### ✅ Improvements')
+    print()
+    print('| Test | Parse | Δ | Sema | Δ |')
+    print('|------|-------|---|------|---|')
+    for r in c['improvements']:
+        print(f\"| {r['name']} | {r['parse_curr']:.2f}ms | {r['parse_diff_pct']:+.1f}% | {r['sema_curr']:.2f}ms | {r['sema_diff_pct']:+.1f}% |\")
+    print()
+
+if not c.get('regressions') and not c.get('improvements'):
+    print('✅ No significant changes detected.')
+    print()
+"
+            else
+              echo "ℹ️ No baseline available for comparison (first run on main)."
+              echo ""
+            fi
+            
+            echo "<details>"
+            echo "<summary>📊 Full Results</summary>"
+            echo ""
+            echo "| Test | Lines | Parse (ms) | Sema (ms) |"
+            echo "|------|-------|-----------|----------|"
+            python3 -c "
+import json
+with open('target/compile-bench/results.json') as f:
+    r = json.load(f)
+for t in r['results']:
+    print(f\"| {t['name']} | {t['lines']} | {t['parse_ms']:.2f} | {t['sema_ms']:.2f} |\")
+"
+            echo ""
+            echo "</details>"
+          } > "$REPORT_FILE"
+          
+          # Set output for PR comment
+          {
+            echo 'report<<EOF'
+            cat "$REPORT_FILE"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: compile-time-bench
+          message: ${{ steps.report.outputs.report }}
+
+      - name: Upload results as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-time-results
+          path: target/compile-bench/
+          retention-days: 30
+
+      - name: Save baseline (main only)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: compile-time-baseline
+          path: target/compile-bench/results.json
+          retention-days: 90
+
+      - name: Check for regressions
+        if: steps.compare.outcome == 'failure'
+        run: |
+          echo "::warning::Compile-time regression detected! Check the benchmark report."
+          # Don't fail the job - just warn
+          exit 0
+
   codspeed:
     runs-on: ubuntu-latest
     permissions:

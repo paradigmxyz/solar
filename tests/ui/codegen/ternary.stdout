@@ -1,0 +1,64 @@
+// === ROOT/tests/ui/codegen/ternary.sol:Ternary ===
+; module @Ternary
+fn @max(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v5 = gt arg0, arg1
+    br v5, bb1, bb2
+  bb1:
+    v7 = mstore 0, arg0
+    jump bb3
+  bb2:
+    v9 = mstore 0, arg1
+    jump bb3
+  bb3:
+    v11 = mload 0
+    ret v11
+}
+
+fn @clamp(arg0: u256, arg1: u256, arg2: u256) -> u256 {
+  bb0 (entry):
+    v5 = mstore 128, 0
+    v6 = lt arg0, arg1
+    br v6, bb1, bb2
+  bb1:
+    v8 = mstore 0, arg1
+    jump bb3
+  bb2:
+    v9 = gt arg0, arg2
+    br v9, bb4, bb5
+  bb3:
+    v19 = mload 0
+    v21 = mload 0
+    ret v21
+  bb4:
+    v11 = mstore 0, arg2
+    jump bb6
+  bb5:
+    v13 = mstore 0, arg0
+    jump bb6
+  bb6:
+    v15 = mload 0
+    v17 = mstore 0, v15
+    jump bb3
+}
+
+fn @abs_diff(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v5 = lt arg0, arg1
+    v6 = iszero v5
+    br v6, bb1, bb2
+  bb1:
+    v7 = sub arg0, arg1
+    v9 = mstore 0, v7
+    jump bb3
+  bb2:
+    v10 = sub arg1, arg0
+    v12 = mstore 0, v10
+    jump bb3
+  bb3:
+    v14 = mload 0
+    ret v14
+}
+

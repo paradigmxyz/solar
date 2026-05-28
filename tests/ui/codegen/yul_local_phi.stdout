@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/yul_local_phi.sol:YulLocalPhi ===
+; module @YulLocalPhi
+fn @branchLocal(arg0: u256) -> u256 {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v6 = mstore 160, 1
+    v8 = eq arg0, 0
+    v9 = iszero v8
+    br v9, bb1, bb2
+  bb1:
+    v12 = mstore 160, 2
+    jump bb2
+  bb2:
+    v14 = mload 160
+    v16 = mstore 128, v14
+    v18 = mload 128
+    ret v18
+}
+

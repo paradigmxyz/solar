@@ -1,0 +1,13 @@
+//@ignore-host: windows
+//@compile-flags: --passes jump-threading,cfg-simplify,dce
+; module @Pipeline
+fn @noisy(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = add arg0, 1
+    v2 = mul arg0, arg0
+    jump bb1
+  bb1:
+    jump bb2
+  bb2:
+    ret v1
+}

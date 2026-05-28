@@ -248,7 +248,7 @@ macro_rules! mk_init_cx {
 /// Symbol resolution context.
 pub(super) struct ResolveContext<'gcx> {
     pub(super) lcx: super::LoweringContext<'gcx>,
-    scopes: SymbolResolverScopes,
+    pub(super) scopes: SymbolResolverScopes,
     function_id: Option<hir::FunctionId>,
     yul_scopes: Vec<usize>,
     yul_function_scope: Option<usize>,
@@ -2127,7 +2127,7 @@ impl<'gcx> SymbolResolver<'gcx> {
 
 /// Mutable symbol resolution state.
 #[derive(Debug)]
-struct SymbolResolverScopes {
+pub(super) struct SymbolResolverScopes {
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
     scopes: Vec<Declarations>,

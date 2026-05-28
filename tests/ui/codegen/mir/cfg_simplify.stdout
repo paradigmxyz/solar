@@ -1,0 +1,14 @@
+// === ROOT/tests/ui/codegen/mir/cfg_simplify.mir (after cfg-simplify) ===
+; module @CfgSimplify
+fn @sequential(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, 1
+    v4 = add v2, 1
+    v6 = add v4, 1
+    ret v6
+  bb1:
+    invalid
+  bb2:
+    invalid
+}
+

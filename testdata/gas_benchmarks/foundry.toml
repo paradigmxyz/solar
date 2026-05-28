@@ -1,0 +1,14 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+solc = "0.8.28"
+
+# Gas reporting
+gas_reports = ["*"]
+
+# EVM version
+evm_version = "cancun"
+
+[profile.default.fuzz]
+runs = 256

@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/codegen/base_constructor.sol:Base ===
+; module @Base
+fn @value() -> u256 {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = sload 0
+    ret v4
+}
+
+fn @_anonymous(arg0: u256) {
+  bb0 (entry):
+    v2 = sstore 0, arg0
+    stop
+}
+
+// === ROOT/tests/ui/codegen/base_constructor.sol:Derived ===
+; module @Derived
+fn @_anonymous(arg0: u256) {
+  bb0 (entry):
+    v2 = sstore 0, arg0
+    stop
+}
+
+fn @value() -> u256 {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = sload 0
+    ret v4
+}
+

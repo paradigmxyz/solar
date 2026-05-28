@@ -1,0 +1,23 @@
+// === ROOT/tests/ui/codegen/linear.sol:Linear ===
+; module @Linear
+fn @add(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v5 = add arg0, arg1
+    ret v5
+}
+
+fn @sub(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v5 = sub arg0, arg1
+    ret v5
+}
+
+fn @add_one(arg0: u256) -> u256 {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v5 = add arg0, 1
+    ret v5
+}
+

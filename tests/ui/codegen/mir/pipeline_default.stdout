@@ -1,0 +1,12 @@
+// === ROOT/tests/ui/codegen/mir/pipeline_default.mir (after pipeline-default) ===
+; module @PipelineDefault
+fn @noisy(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, 1
+    ret v2
+  bb1:
+    invalid
+  bb2:
+    invalid
+}
+
