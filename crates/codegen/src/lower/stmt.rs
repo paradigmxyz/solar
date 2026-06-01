@@ -482,7 +482,24 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.ret(ret_vals);
                 } else {
                     let ret_val = self.lower_expr(builder, expr);
-                    builder.ret([ret_val]);
+                    // A bare `return f()` where `f` returns multiple values: the
+                    // first value is `ret_val`; the rest were written to scratch
+                    // memory at offset `i * 32` by the call (internal_call copies
+                    // them there, external calls via returndata), mirroring what
+                    // `lower_multi_var_decl` reads. Recover them so all N values
+                    // are returned instead of just the first.
+                    let n = builder.func().returns.len();
+                    if n > 1 {
+                        let mut ret_vals = Vec::with_capacity(n);
+                        ret_vals.push(ret_val);
+                        for i in 1..n {
+                            let offset = builder.imm_u64((i * 32) as u64);
+                            ret_vals.push(builder.mload(offset));
+                        }
+                        builder.ret(ret_vals);
+                    } else {
+                        builder.ret([ret_val]);
+                    }
                 }
             }
         } else {

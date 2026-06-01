@@ -303,8 +303,8 @@ impl<'a> FunctionBuilder<'a> {
         function: FunctionId,
         args: Vec<ValueId>,
         result_ty: Option<MirType>,
+        returns: usize,
     ) -> ValueId {
-        let returns = usize::from(result_ty.is_some());
         self.emit_inst(InstKind::InternalCall { function, args, returns }, result_ty)
     }
 

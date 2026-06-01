@@ -3856,7 +3856,10 @@ impl<'gcx> Lowerer<'gcx> {
                     .first()
                     .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
                 let mir_id = self.ensure_function_lowered(func_id);
-                return builder.internal_call(mir_id, arg_vals, result_ty);
+                // Pass the full return arity (not just the single result type) so
+                // the backend copies return values 2..N into scratch memory for
+                // multi-value destructures and `return`s.
+                return builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len());
             }
 
             if func.returns.is_empty() {
@@ -3949,6 +3952,20 @@ impl<'gcx> Lowerer<'gcx> {
 
         if let Some(value) = self.lower_library_block_return(builder, body) {
             return value;
+        }
+
+        // Implicit named returns: the body assigned the named return variables
+        // (e.g. `success = ...; result = ...;` with no explicit `return`). Write
+        // returns 1..N to scratch memory at offset `i * 32` so the caller's
+        // `lower_multi_var_decl` (which reads `mload(i * 32)`) recovers them; the
+        // first return flows back as the MIR value below.
+        if func.returns.len() > 1 {
+            for (i, &return_id) in func.returns.iter().enumerate().skip(1) {
+                if let Some(&value) = self.locals.get(&return_id) {
+                    let offset = builder.imm_u64((i * 32) as u64);
+                    builder.mstore(offset, value);
+                }
+            }
         }
 
         if let Some(&return_id) = func.returns.first()

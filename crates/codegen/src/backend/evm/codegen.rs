@@ -1561,6 +1561,19 @@ impl EvmCodegen {
             self.scheduler.stack.push(result);
         }
 
+        // Copy return values 2..N from the callee frame into scratch memory at
+        // offset `i * 32`, matching what the caller's `lower_multi_var_decl`
+        // reads via `mload(i * 32)`. This must happen before the frame pointer is
+        // restored below, while the callee frame is still addressable. The first
+        // return flows back as `result` on the stack (above); these copies have a
+        // net-zero stack effect so they leave it untouched.
+        for i in 1..returns {
+            self.emit_current_internal_frame_addr(64 + (args.len() as u64) * 32 + (i as u64) * 32);
+            self.asm.emit_op(opcodes::MLOAD);
+            self.asm.emit_push(U256::from((i as u64) * 32));
+            self.asm.emit_op(opcodes::MSTORE);
+        }
+
         // Restore the caller frame pointer. If a result is on the stack, this leaves it there.
         self.emit_current_internal_frame_addr(32);
         self.asm.emit_op(opcodes::MLOAD);
