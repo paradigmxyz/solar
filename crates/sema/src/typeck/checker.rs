@@ -2875,7 +2875,16 @@ fn binop_common_type<'gcx>(
             }
             match op {
                 Shl | Shr | Sar => valid_shift(gcx, ty, other, op),
-                Pow => (!other.is_signed()).then_some(ty),
+                Pow if other.is_signed() => None,
+                // A literal base raised to a non-constant exponent is a runtime
+                // value, not a constant; solc types it `uint256` (`int256` for a
+                // negative literal), matching the shift rule.
+                Pow if matches!(ty.kind, TyKind::IntLiteral(..))
+                    && !matches!(other.kind, TyKind::IntLiteral(..)) =>
+                {
+                    Some(if ty.is_signed() { gcx.types.int(256) } else { gcx.types.uint(256) })
+                }
+                Pow => Some(ty),
                 And | Or => None,
                 _ => ty.common_type(other, gcx),
             }
