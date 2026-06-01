@@ -2865,7 +2865,7 @@ fn binop_common_type<'gcx>(
                 return None;
             }
             match op {
-                Shl | Shr | Sar => valid_shift(ty, other, op),
+                Shl | Shr | Sar => valid_shift(gcx, ty, other, op),
                 Pow => (!other.is_signed()).then_some(ty),
                 And | Or => None,
                 _ => ty.common_type(other, gcx),
@@ -2874,7 +2874,7 @@ fn binop_common_type<'gcx>(
 
         TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => {
             if op.is_shift() {
-                return valid_shift(ty, other, op);
+                return valid_shift(gcx, ty, other, op);
             }
             if let Some(common_type) = ty.common_type(other, gcx)
                 && common_type.is_fixed_bytes()
@@ -2941,7 +2941,12 @@ fn binop_common_type<'gcx>(
     }
 }
 
-fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Option<Ty<'gcx>> {
+fn valid_shift<'gcx>(
+    gcx: Gcx<'gcx>,
+    ty: Ty<'gcx>,
+    other: Ty<'gcx>,
+    op: hir::BinOpKind,
+) -> Option<Ty<'gcx>> {
     debug_assert!(op.is_shift());
     // `>>>` is only allowed in fixed-point numbers.
     if matches!(op, hir::BinOpKind::Sar) {
@@ -2952,6 +2957,13 @@ fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Optio
         TyKind::Elementary(hir::ElementaryType::UInt(_)) | TyKind::IntLiteral(false, ..)
     ) {
         return None;
+    }
+    // A literal left operand shifted by a non-constant amount produces a runtime
+    // value, not a compile-time constant. solc gives it a full-width type
+    // (`uint256`, or `int256` for a negative literal); match that so e.g.
+    // `bytes32(1 << role)` type-checks.
+    if matches!(ty.kind, TyKind::IntLiteral(..)) && !matches!(other.kind, TyKind::IntLiteral(..)) {
+        return Some(if ty.is_signed() { gcx.types.int(256) } else { gcx.types.uint(256) });
     }
     Some(ty)
 }
