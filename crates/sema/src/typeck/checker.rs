@@ -45,6 +45,7 @@ enum AbiDecodeArg {
 pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
     let mut checker = TypeChecker::new(gcx, source);
     let _ = checker.visit_nested_source(source);
+    gcx.register_expr_types(checker.types);
 }
 
 struct TypeChecker<'gcx> {

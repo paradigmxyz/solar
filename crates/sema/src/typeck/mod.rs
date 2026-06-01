@@ -499,3 +499,84 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
         ControlFlow::Continue(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Compiler, hir::ExprKind};
+    use solar_interface::{
+        Session,
+        config::{Opts, UnstableOpts},
+    };
+    use std::path::PathBuf;
+
+    const SOURCE: &str = r#"
+contract C {
+    function f(uint256 x) public pure returns (uint256) {
+        return x + 1;
+    }
+}
+"#;
+
+    struct FirstBinaryExpr<'hir> {
+        hir: &'hir hir::Hir<'hir>,
+    }
+
+    impl<'hir> Visit<'hir> for FirstBinaryExpr<'hir> {
+        type BreakValue = &'hir hir::Expr<'hir>;
+
+        fn hir(&self) -> &'hir hir::Hir<'hir> {
+            self.hir
+        }
+
+        fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
+            if matches!(expr.kind, ExprKind::Binary(..)) {
+                ControlFlow::Break(expr)
+            } else {
+                self.walk_expr(expr)
+            }
+        }
+    }
+
+    fn binary_expr_type(typeck: bool) -> Option<String> {
+        let sess = Session::builder()
+            .opts(Opts {
+                unstable: UnstableOpts { typeck, ..Default::default() },
+                ..Default::default()
+            })
+            .with_test_emitter()
+            .build();
+        let mut compiler = Compiler::new(sess);
+
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            let file =
+                c.sess().source_map().new_source_file(PathBuf::from("test.sol"), SOURCE).unwrap();
+            pcx.add_file(file);
+            pcx.parse();
+
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            let source = gcx.hir.source_ids().next().unwrap();
+            let mut visitor = FirstBinaryExpr { hir: &gcx.hir };
+            let ControlFlow::Break(expr) = visitor.visit_nested_source(source) else {
+                panic!("missing binary expression")
+            };
+            gcx.type_of_expr(expr.id).map(|ty| ty.display(gcx).to_string())
+        })
+    }
+
+    #[test]
+    fn expression_types_are_available_after_typeck() {
+        assert_eq!(binary_expr_type(true).as_deref(), Some("uint256"));
+    }
+
+    #[test]
+    fn expression_types_are_empty_without_typeck() {
+        assert_eq!(binary_expr_type(false), None);
+    }
+}

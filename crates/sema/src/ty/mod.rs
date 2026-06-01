@@ -12,6 +12,7 @@ use solar_data_structures::{
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
+    sync::RwLock,
     trustme,
 };
 use solar_interface::{
@@ -225,6 +226,7 @@ pub struct GlobalCtxt<'gcx> {
     stage: AtomicCompilerStage,
 
     pub types: CommonTypes<'gcx>,
+    expr_types: RwLock<FxHashMap<hir::ExprId, Ty<'gcx>>>,
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
@@ -258,6 +260,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
                 &interner,
                 unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump(),
             ),
+            expr_types: Default::default(),
 
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
@@ -388,6 +391,33 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
         self.mk_ty(TyKind::Fn(self.interner.intern_ty_fn(self.bump(), ptr)))
+    }
+
+    /// Returns the type inferred for the given expression, if available.
+    ///
+    /// Expression types are populated by the experimental type checker, which currently only runs
+    /// when `-Ztypeck` is enabled.
+    #[inline]
+    pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.expr_types.read().get(&id).copied()
+    }
+
+    pub(crate) fn register_expr_types(
+        self,
+        types: impl IntoIterator<Item = (hir::ExprId, Ty<'gcx>)>,
+    ) {
+        let mut expr_types = self.expr_types.write();
+        for (id, ty) in types {
+            if let Some(prev_ty) = expr_types.insert(id, ty) {
+                self.dcx()
+                    .bug(format!(
+                        "expression {id:?} already has type {}; tried to register {}",
+                        prev_ty.display(self),
+                        ty.display(self),
+                    ))
+                    .emit();
+            }
+        }
     }
 
     pub fn mk_ty_variadic(self) -> Ty<'gcx> {
