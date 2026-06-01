@@ -287,6 +287,13 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 // Paths are not allowed in call expressions, but Solc parses them anyway.
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
+            } else if path.segments().len() == 1 && path.first().is_reserved_yul_builtin() {
+                // Instructional-style bare EVM builtin (e.g. `chainId := chainid`),
+                // accepted by older Solidity inline assembly. It is equivalent to a
+                // zero-argument call (`chainid()`), so parse it as one; argument arity
+                // is validated later during semantic analysis.
+                let call = ExprCall { name: *path.first(), arguments: Default::default() };
+                Ok(ExprKind::Call(call))
             } else {
                 self.check_valid_path(&path);
                 Ok(ExprKind::Path(path))
