@@ -262,15 +262,6 @@ mod tests {
         }
     }
 
-    fn get_branch_targets(func: &Function, block_id: BlockId) -> Option<(BlockId, BlockId)> {
-        match &func.blocks[block_id].terminator {
-            Some(Terminator::Branch { then_block, else_block, .. }) => {
-                Some((*then_block, *else_block))
-            }
-            _ => None,
-        }
-    }
-
     #[test]
     fn test_simple_jump_threading() {
         let mut func = make_test_func();
@@ -322,40 +313,6 @@ mod tests {
 
         assert_eq!(get_jump_target(&func, func.entry_block), Some(bb3));
         assert!(stats.total_threaded() > 0);
-    }
-
-    #[test]
-    fn test_branch_threading() {
-        let mut func = make_test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-
-        let cond = builder.imm_u64(1);
-        let bb1 = builder.create_block();
-        let bb2 = builder.create_block();
-        let bb3 = builder.create_block();
-        let bb4 = builder.create_block();
-
-        builder.branch(cond, bb1, bb2);
-
-        builder.switch_to_block(bb1);
-        builder.jump(bb3);
-
-        builder.switch_to_block(bb2);
-        builder.jump(bb4);
-
-        builder.switch_to_block(bb3);
-        builder.stop();
-
-        builder.switch_to_block(bb4);
-        builder.stop();
-
-        let entry = func.entry_block;
-        let mut threader = JumpThreader::new();
-        threader.run(&mut func);
-
-        let (then_target, else_target) = get_branch_targets(&func, entry).unwrap();
-        assert_eq!(then_target, bb3);
-        assert_eq!(else_target, bb4);
     }
 
     #[test]

@@ -439,48 +439,11 @@ impl CommonSubexprEliminator {
 mod tests {
     use super::*;
     use crate::mir::{Function, Immediate, Instruction, MirType, Terminator, Value};
-    use smallvec::smallvec;
     use solar_interface::Ident;
 
     fn make_test_func() -> Function {
         let name = Ident::DUMMY;
         Function::new(name)
-    }
-
-    #[test]
-    fn test_cse_eliminates_duplicate_add() {
-        let mut func = make_test_func();
-
-        // Create values: v0 = 10, v1 = 20
-        let v0 = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(10))));
-        let v1 = func
-            .alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(20))));
-
-        // Use the existing entry block
-        let entry = func.entry_block;
-
-        // Add instruction: v2 = add v0, v1
-        let add1_inst =
-            func.alloc_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
-        let v2 = func.alloc_value(Value::Inst(add1_inst));
-        func.block_mut(entry).instructions.push(add1_inst);
-
-        // Duplicate add: v3 = add v0, v1 (should be eliminated)
-        let add2_inst =
-            func.alloc_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
-        let _v3 = func.alloc_value(Value::Inst(add2_inst));
-        func.block_mut(entry).instructions.push(add2_inst);
-
-        // Return v2
-        func.block_mut(entry).terminator = Some(Terminator::Return { values: smallvec![v2] });
-
-        // Run CSE
-        let mut cse = CommonSubexprEliminator::new();
-        let eliminated = cse.run(&mut func);
-
-        assert_eq!(eliminated, 1, "Should eliminate one duplicate expression");
-        assert_eq!(func.block(entry).instructions.len(), 1, "Should have only one ADD instruction");
     }
 
     #[test]

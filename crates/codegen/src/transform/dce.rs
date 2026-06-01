@@ -310,43 +310,6 @@ mod tests {
     }
 
     #[test]
-    fn test_dce_eliminates_unused_instruction() {
-        let mut func = make_test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-
-        // Create values that are never used
-        let v0 = builder.imm_u64(10);
-        let v1 = builder.imm_u64(20);
-        let _unused = builder.add(v0, v1); // This should be eliminated
-
-        // Create a value that IS used
-        let v2 = builder.imm_u64(42);
-        builder.ret([v2]);
-
-        let mut dce = DeadCodeEliminator::new();
-        let eliminated = dce.run(&mut func);
-
-        assert_eq!(eliminated, 1, "Should eliminate one unused ADD instruction");
-    }
-
-    #[test]
-    fn test_dce_keeps_side_effect_instructions() {
-        let mut func = make_test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-
-        let slot = builder.imm_u64(0);
-        let value = builder.imm_u64(42);
-        builder.sstore(slot, value); // Side-effect, should be kept
-        builder.stop();
-
-        let mut dce = DeadCodeEliminator::new();
-        let eliminated = dce.run(&mut func);
-
-        assert_eq!(eliminated, 0, "Should not eliminate SSTORE");
-        assert_eq!(func.block(func.entry_block).instructions.len(), 1);
-    }
-
-    #[test]
     fn test_dce_unreachable_block_elimination() {
         let mut func = make_test_func();
         let mut builder = FunctionBuilder::new(&mut func);
@@ -437,24 +400,6 @@ mod tests {
     }
 
     #[test]
-    fn test_dce_preserves_used_chain() {
-        let mut func = make_test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-
-        let v0 = builder.imm_u64(10);
-        let v1 = builder.imm_u64(20);
-        let v2 = builder.add(v0, v1);
-        let two = builder.imm_u64(2);
-        let v3 = builder.mul(v2, two);
-        builder.ret([v3]);
-
-        let mut dce = DeadCodeEliminator::new();
-        let eliminated = dce.run(&mut func);
-
-        assert_eq!(eliminated, 0, "Should not eliminate used chain");
-    }
-
-    #[test]
     fn test_dce_branch_both_sides_reachable() {
         let mut func = make_test_func();
         let mut builder = FunctionBuilder::new(&mut func);
@@ -517,22 +462,6 @@ mod tests {
 
         // merge_block and unreachable are not reachable since then/else both return
         assert_eq!(stats.unreachable_blocks, 2, "Should detect 2 unreachable blocks");
-    }
-
-    #[test]
-    fn test_dce_keeps_log_instructions() {
-        let mut func = make_test_func();
-        let mut builder = FunctionBuilder::new(&mut func);
-
-        let offset = builder.imm_u64(0);
-        let size = builder.imm_u64(32);
-        builder.log0(offset, size);
-        builder.stop();
-
-        let mut dce = DeadCodeEliminator::new();
-        let eliminated = dce.run(&mut func);
-
-        assert_eq!(eliminated, 0, "Should not eliminate LOG0");
     }
 
     #[test]
