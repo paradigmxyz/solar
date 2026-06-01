@@ -6,12 +6,12 @@
 //! - Stack scheduling to generate DUP/SWAP sequences
 //! - Two-pass assembly for label resolution
 
+use super::{
+    assembler::{Assembler, Label, opcodes},
+    stack::{ScheduledOp, SpillSlot, StackOp, StackScheduler},
+};
 use crate::{
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
-    codegen::{
-        assembler::{Assembler, Label, opcodes},
-        stack::{ScheduledOp, SpillSlot, StackOp, StackScheduler},
-    },
     mir::{BlockId, Function, FunctionId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
         AnalysisManager, CfgSimplifyPass, DcePass, JumpThreadingPass, LivenessAnalysis, PassManager,
@@ -2227,6 +2227,28 @@ impl EvmCodegen {
 impl Default for EvmCodegen {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// The artifact produced by the EVM backend: deployment and runtime bytecode.
+#[derive(Clone, Debug, Default)]
+pub struct EvmArtifact {
+    /// Deployment (init) bytecode that, when run, returns the runtime code.
+    pub deployment: Vec<u8>,
+    /// Runtime bytecode, i.e. the code stored on-chain.
+    pub runtime: Vec<u8>,
+}
+
+impl crate::backend::Backend for EvmCodegen {
+    type Output = EvmArtifact;
+
+    fn name(&self) -> &str {
+        "evm"
+    }
+
+    fn lower_module(&mut self, module: &mut Module) -> EvmArtifact {
+        let (deployment, runtime) = self.generate_deployment_bytecode(module);
+        EvmArtifact { deployment, runtime }
     }
 }
 

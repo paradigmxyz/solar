@@ -22,14 +22,17 @@ pub use mir::{
 pub mod analysis;
 pub use analysis::{InductionVariable, Liveness, LivenessInfo, Loop, LoopAnalyzer, LoopInfo};
 
+pub mod backend;
+pub use backend::{
+    Backend,
+    evm::{
+        AssembledCode, Assembler, EvmArtifact, EvmCodegen, Label, PeepholeOptimizer, SpillManager,
+        SpillSlot, StackModel, StackScheduler,
+    },
+};
+
 pub mod lower;
 pub use lower::Lowerer;
-
-pub mod codegen;
-pub use codegen::{
-    AssembledCode, Assembler, EvmCodegen, Label, PeepholeOptimizer, SpillManager, SpillSlot,
-    StackModel, StackScheduler,
-};
 
 pub mod pass;
 pub mod transform;

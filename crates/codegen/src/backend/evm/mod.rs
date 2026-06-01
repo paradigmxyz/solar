@@ -1,4 +1,5 @@
-//! Code generation from MIR to EVM bytecode.
+//! The EVM backend: the reference [`Backend`](crate::backend::Backend)
+//! implementation, lowering MIR to EVM bytecode.
 //!
 //! This module contains:
 //! - `EvmCodegen`: The main EVM code generator
@@ -7,7 +8,7 @@
 //! - `stack`: Stack scheduling for DUP/SWAP generation
 
 mod evm;
-pub use evm::EvmCodegen;
+pub use evm::{EvmArtifact, EvmCodegen};
 
 pub mod assembler;
 pub use assembler::{AssembledCode, Assembler, Label};
