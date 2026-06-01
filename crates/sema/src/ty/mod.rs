@@ -12,7 +12,6 @@ use solar_data_structures::{
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
-    sync::RwLock,
     trustme,
 };
 use solar_interface::{
@@ -26,7 +25,7 @@ use std::{
     hash::Hash,
     ops::ControlFlow,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -226,7 +225,7 @@ pub struct GlobalCtxt<'gcx> {
     stage: AtomicCompilerStage,
 
     pub types: CommonTypes<'gcx>,
-    expr_types: RwLock<FxHashMap<hir::ExprId, Ty<'gcx>>>,
+    expr_types: OnceLock<FxHashMap<hir::ExprId, Ty<'gcx>>>,
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
@@ -399,24 +398,12 @@ impl<'gcx> Gcx<'gcx> {
     /// when `-Ztypeck` is enabled.
     #[inline]
     pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
-        self.expr_types.read().get(&id).copied()
+        self.expr_types.get()?.get(&id).copied()
     }
 
-    pub(crate) fn register_expr_types(
-        self,
-        types: impl IntoIterator<Item = (hir::ExprId, Ty<'gcx>)>,
-    ) {
-        let mut expr_types = self.expr_types.write();
-        for (id, ty) in types {
-            if let Some(prev_ty) = expr_types.insert(id, ty) {
-                self.dcx()
-                    .bug(format!(
-                        "expression {id:?} already has type {}; tried to register {}",
-                        prev_ty.display(self),
-                        ty.display(self),
-                    ))
-                    .emit();
-            }
+    pub(crate) fn set_expr_types(self, types: FxHashMap<hir::ExprId, Ty<'gcx>>) {
+        if self.expr_types.set(types).is_err() {
+            self.dcx().bug("expression types are already initialized").emit();
         }
     }
 

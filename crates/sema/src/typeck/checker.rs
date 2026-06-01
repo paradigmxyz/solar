@@ -42,10 +42,13 @@ enum AbiDecodeArg {
     Types,
 }
 
-pub(super) fn check(gcx: Gcx<'_>, source: hir::SourceId) {
+pub(super) fn check<'gcx>(
+    gcx: Gcx<'gcx>,
+    source: hir::SourceId,
+) -> FxHashMap<hir::ExprId, Ty<'gcx>> {
     let mut checker = TypeChecker::new(gcx, source);
     let _ = checker.visit_nested_source(source);
-    gcx.register_expr_types(checker.types);
+    checker.types
 }
 
 struct TypeChecker<'gcx> {
