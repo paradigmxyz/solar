@@ -1,5 +1,8 @@
 # Solar Foundry Tester
 
+> Scope: this is a local gas-parity and curated-codegen smoke harness. Comprehensive
+> runtime equivalence against solc lives in [`solidity-compiler-benchmarks`](https://github.com/walnuthq/solidity-compiler-benchmarks), which is the source of truth for runtime-mismatch checks.
+
 ## Foundry Integration Tests
 
 These tests compare Solar's EVM codegen against solc by:
