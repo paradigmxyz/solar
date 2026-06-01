@@ -2469,8 +2469,13 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             let base_contract = self.gcx.hir.contract(base_id);
             if let Some(ctor_id) = base_contract.ctor {
                 let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
-                // Check if arguments were provided and validate count
-                if let Some(modifier) = modifier {
+                // Check if arguments were provided and validate count. `is Base`
+                // without parentheses provides no arguments here (deferred to a
+                // derived contract, or the contract is abstract), so only
+                // validate when arguments are actually given.
+                if let Some(modifier) = modifier
+                    && !modifier.args.is_dummy()
+                {
                     let arg_count = modifier.args.exprs().len();
                     if arg_count != ctor_param_types.len() {
                         self.dcx().emit_err(modifier.span, format!(
