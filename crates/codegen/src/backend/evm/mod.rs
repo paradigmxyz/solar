@@ -7,8 +7,8 @@
 //! - `PeepholeOptimizer`: Bytecode-level pattern optimizations (not yet integrated)
 //! - `stack`: Stack scheduling for DUP/SWAP generation
 
-mod evm;
-pub use evm::{EvmArtifact, EvmCodegen};
+mod codegen;
+pub use codegen::{EvmArtifact, EvmCodegen};
 
 pub mod assembler;
 pub use assembler::{AssembledCode, Assembler, Label};
