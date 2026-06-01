@@ -12,6 +12,33 @@ pub(crate) use errors::emit_unescape_error;
 
 pub use solar_ast::StrKind;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UnescapedUnit {
+    Byte(u8),
+    CodePoint(u32),
+}
+
+impl UnescapedUnit {
+    fn code_point(self) -> u32 {
+        match self {
+            Self::Byte(byte) => byte as u32,
+            Self::CodePoint(code) => code,
+        }
+    }
+
+    fn write(self, dst: &mut [u8]) -> usize {
+        match self {
+            Self::Byte(byte) => {
+                dst[0] = byte;
+                1
+            }
+            // NOTE: We can't use `char::encode_utf8` because `code` can be an invalid unicode
+            // code.
+            Self::CodePoint(code) => super::utf8::encode_utf8_raw(code, dst).len(),
+        }
+    }
+}
+
 pub fn parse_string_literal<'a>(
     src: &'a str,
     kind: StrKind,
@@ -73,8 +100,7 @@ where
     let mut dst = unsafe { slice::from_raw_parts_mut(dst_buf.as_mut_ptr(), dst_buf.capacity()) };
     unescape_literal_unchecked(src, kind, |range, res| match res {
         Ok(c) => {
-            // NOTE: We can't use `char::encode_utf8` because `c` can be an invalid unicode code.
-            let written = super::utf8::encode_utf8_raw(c, dst).len();
+            let written = c.write(dst);
 
             // SAFETY: Unescaping guarantees that the final unescaped byte array is shorter than
             // the initial string.
@@ -98,7 +124,9 @@ where
     F: FnMut(Range<usize>, Result<u32, EscapeError>),
 {
     if needs_unescape(src, kind) {
-        unescape_literal_unchecked(src, kind, callback)
+        unescape_literal_unchecked(src, kind, |range, res| {
+            callback(range, res.map(UnescapedUnit::code_point));
+        });
     } else {
         for (i, ch) in src.char_indices() {
             callback(i..i + ch.len_utf8(), Ok(ch as u32));
@@ -111,7 +139,7 @@ where
 /// See [`unescape_literal`] for more details.
 fn unescape_literal_unchecked<F>(src: &str, kind: StrKind, callback: F)
 where
-    F: FnMut(Range<usize>, Result<u32, EscapeError>),
+    F: FnMut(Range<usize>, Result<UnescapedUnit, EscapeError>),
 {
     match kind {
         StrKind::Str | StrKind::Unicode => {
@@ -135,20 +163,20 @@ fn needs_unescape(src: &str, kind: StrKind) -> bool {
     }
 }
 
-fn scan_escape(chars: &mut Chars<'_>) -> Result<u32, EscapeError> {
+fn scan_escape(chars: &mut Chars<'_>) -> Result<UnescapedUnit, EscapeError> {
     // Previous character was '\\', unescape what follows.
     // https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityLexer.EscapeSequence
     // Note that hex and unicode escape codes are not validated since string literals are allowed
     // to contain invalid UTF-8.
-    Ok(match chars.next().ok_or(EscapeError::LoneSlash)? {
+    let unit = match chars.next().ok_or(EscapeError::LoneSlash)? {
         // Both quotes are always valid escapes.
-        '\'' => '\'' as u32,
-        '"' => '"' as u32,
+        '\'' => UnescapedUnit::CodePoint('\'' as u32),
+        '"' => UnescapedUnit::CodePoint('"' as u32),
 
-        '\\' => '\\' as u32,
-        'n' => '\n' as u32,
-        'r' => '\r' as u32,
-        't' => '\t' as u32,
+        '\\' => UnescapedUnit::CodePoint('\\' as u32),
+        'n' => UnescapedUnit::CodePoint('\n' as u32),
+        'r' => UnescapedUnit::CodePoint('\r' as u32),
+        't' => UnescapedUnit::CodePoint('\t' as u32),
 
         'x' => {
             // Parse hexadecimal character code.
@@ -158,7 +186,7 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<u32, EscapeError> {
                 let d = d.to_digit(16).ok_or(EscapeError::InvalidHexEscape)?;
                 value = value * 16 + d;
             }
-            value
+            UnescapedUnit::Byte(value as u8)
         }
 
         'u' => {
@@ -169,11 +197,12 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<u32, EscapeError> {
                 let d = d.to_digit(16).ok_or(EscapeError::InvalidUnicodeEscape)?;
                 value = value * 16 + d;
             }
-            value
+            UnescapedUnit::CodePoint(value)
         }
 
         _ => return Err(EscapeError::InvalidEscape),
-    })
+    };
+    Ok(unit)
 }
 
 /// Unescape characters in a string literal.
@@ -181,7 +210,7 @@ fn scan_escape(chars: &mut Chars<'_>) -> Result<u32, EscapeError> {
 /// See [`unescape_literal`] for more details.
 fn unescape_str<F>(src: &str, is_unicode: bool, mut callback: F)
 where
-    F: FnMut(Range<usize>, Result<u32, EscapeError>),
+    F: FnMut(Range<usize>, Result<UnescapedUnit, EscapeError>),
 {
     let mut chars = src.chars();
     // The `start` and `end` computation here is complicated because
@@ -211,7 +240,7 @@ where
                 Err(EscapeError::BareCarriageReturn)
             }
             c if !is_unicode && !c.is_ascii() => Err(EscapeError::StrNonAsciiChar),
-            c => Ok(c as u32),
+            c => Ok(UnescapedUnit::CodePoint(c as u32)),
         };
         let end = src.len() - chars.as_str().len();
         callback(start..end, res);
@@ -223,7 +252,7 @@ where
 /// Reports errors if multiple newlines are encountered.
 fn skip_ascii_whitespace<F>(chars: &mut Chars<'_>, mut start: usize, callback: &mut F)
 where
-    F: FnMut(Range<usize>, Result<u32, EscapeError>),
+    F: FnMut(Range<usize>, Result<UnescapedUnit, EscapeError>),
 {
     // Skip the first newline.
     let mut nl = chars.next();
@@ -255,7 +284,7 @@ where
 /// See [`unescape_literal`] for more details.
 fn unescape_hex_str<F>(src: &str, mut callback: F)
 where
-    F: FnMut(Range<usize>, Result<u32, EscapeError>),
+    F: FnMut(Range<usize>, Result<UnescapedUnit, EscapeError>),
 {
     let mut chars = src.char_indices();
     if src.starts_with("0x") || src.starts_with("0X") {
@@ -286,7 +315,7 @@ where
                 }
             }
             c if !c.is_ascii_hexdigit() => Err(EscapeError::HexNotHexDigit),
-            c => Ok(c as u32),
+            c => Ok(UnescapedUnit::CodePoint(c as u32)),
         };
 
         if res.is_ok() {
@@ -309,6 +338,19 @@ mod tests {
     use EscapeError::*;
 
     type ExErr = (Range<usize>, EscapeError);
+
+    #[track_caller]
+    fn check_parse(kind: StrKind, src: &str, expected: &[u8]) {
+        let out = try_parse_string_literal(src, kind, |_, e| panic!("{e:?}"));
+        assert_eq!(&*out, expected, "{kind:?}: {src:?}");
+    }
+
+    #[track_caller]
+    fn check_unescape(kind: StrKind, src: &str, expected: &str) {
+        let mut out = String::new();
+        unescape_literal(src, kind, |_, c| out.push(char::try_from(c.unwrap()).unwrap()));
+        assert_eq!(out, expected, "{kind:?}: {src:?}");
+    }
 
     fn check(kind: StrKind, src: &str, expected_str: &str, expected_errs: &[ExErr]) {
         let panic_str = format!("{kind:?}: {src:?}");
@@ -356,7 +398,6 @@ mod tests {
             (r"\xzf", "f", &[(0..3, InvalidHexEscape)]),
             (r"\xzz", "z", &[(0..3, InvalidHexEscape)]),
             (r"\x69", "\x69", &[]),
-            (r"\xE8", "è", &[]),
             (r"\u", "", &[(0..2, UnicodeEscapeTooShort)]),
             (r"\u1", "", &[(0..3, UnicodeEscapeTooShort)]),
             (r"\uz", "", &[(0..3, InvalidUnicodeEscape)]),
@@ -405,6 +446,15 @@ mod tests {
             check(StrKind::Str, src, expected_str, expected_errs);
             check(StrKind::Unicode, src, expected_str, expected_errs);
         }
+
+        check_unescape(StrKind::Str, r"\xE8", "è");
+        check_unescape(StrKind::Unicode, r"\xE8", "è");
+        check_parse(StrKind::Str, r"\xE8", b"\xE8");
+        check_parse(StrKind::Unicode, r"\xE8", b"\xE8");
+        check_parse(StrKind::Str, r"\u00e8", "è".as_bytes());
+        check_parse(StrKind::Unicode, r"\u00e8", "è".as_bytes());
+        check_parse(StrKind::Str, r"\xE8\u00e8", b"\xE8\xc3\xa8");
+        check_parse(StrKind::Unicode, r"\xE8\u00e8", b"\xE8\xc3\xa8");
     }
 
     #[test]

@@ -4,8 +4,6 @@ use solar_interface::diagnostics::ErrorGuaranteed;
 
 /// Pre-interned types.
 pub struct CommonTypes<'gcx> {
-    pub(crate) err: Ty<'gcx>,
-
     /// The unit type `()`, AKA empty tuple, void.
     #[doc(alias = "empty_tuple", alias = "void")]
     pub unit: Ty<'gcx>,
@@ -30,6 +28,8 @@ pub struct CommonTypes<'gcx> {
     ints: [Ty<'gcx>; 32],
     uints: [Ty<'gcx>; 32],
     fbs: [Ty<'gcx>; 32],
+
+    pub(super) __err_do_not_use: Ty<'gcx>,
 }
 
 impl<'gcx> CommonTypes<'gcx> {
@@ -52,8 +52,6 @@ impl<'gcx> CommonTypes<'gcx> {
         let bytes = mk(Elementary(Bytes));
 
         Self {
-            err: mk(Err(ErrorGuaranteed::new_unchecked())),
-
             unit: mk(Tuple(&[])),
             // never: mk(Elementary(Never)),
             bool: mk(Elementary(Bool)),
@@ -70,6 +68,8 @@ impl<'gcx> CommonTypes<'gcx> {
             ints: from_fn(|i| mk(Elementary(Int(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
             uints: from_fn(|i| mk(Elementary(UInt(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
             fbs: from_fn(|i| mk(Elementary(FixedBytes(TypeSize::new_fb_bytes(i as u8 + 1))))),
+
+            __err_do_not_use: mk(Err(ErrorGuaranteed::new_unchecked())),
         }
     }
 

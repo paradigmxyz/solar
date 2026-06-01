@@ -1,0 +1,70 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f1, ("test"));
+   ╰╴                                ━━━━━━━━ expected `int256`, found `utf8_string_literal[4]`
+
+error: wrong argument count for `abi.encodeCall`: 2 arguments given but expected 1
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f1, (1, 2));
+   ╰╴                                ━━━━━━
+
+error: wrong argument count for `abi.encodeCall`: 0 arguments given but expected 1
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f1, ());
+   ╰╴                                ━━
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f1);
+   │         ━━━━━━━━━━━━━━┬────────
+   │                       │
+   ╰╴                      expected 2 arguments, found 1
+
+error: wrong argument count for `abi.encodeCall`: 1 argument given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f2, [1, 2]);
+   ╰╴                                ━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f2, [1, 2]);
+   ╰╴                                ━━━━━━ expected `int256`, found `uint8[2] memory`
+
+error: wrong argument count for `abi.encodeCall`: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f2, ((1, 2)));
+   ╰╴                                ━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f2, ((1, 2)));
+   ╰╴                                 ━━━━━━ expected `int256`, found `tuple(int_literal[1],int_literal[2])`
+
+error: tuple components cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f1, (1,));
+   ╰╴                                ━━━━
+
+error: tuple components cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f2, (, 1));
+   ╰╴                                ━━━━━
+
+error: second argument to `abi.encodeCall` must be an inline tuple
+   ╭▸ ROOT/tests/ui/typeck/function_calls/abi_encode_call_args.sol:LL:CC
+   │
+LL │         abi.encodeCall(this.f2, returnsPair());
+   ╰╴                                ━━━━━━━━━━━━━
+
+error: aborting due to 11 previous errors
+
