@@ -4460,6 +4460,10 @@ impl<'gcx> Lowerer<'gcx> {
         use hir::TypeKind;
         use solar_sema::ty::TyKind;
 
+        // A reference-type receiver (struct/array/bytes) has type `Ref(_, loc)`;
+        // strip the data location so it matches the location-less target type.
+        let expr_ty = expr_ty.peel_refs();
+
         match (&expr_ty.kind, &target_ty.kind) {
             // Elementary types (uint256, bool, etc.)
             (TyKind::Elementary(e1), TypeKind::Elementary(e2)) => e1 == e2,
