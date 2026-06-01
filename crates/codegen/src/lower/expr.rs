@@ -4193,8 +4193,19 @@ impl<'gcx> Lowerer<'gcx> {
         self.types_match_for_using(base_ty, &first_param.ty)
     }
 
-    /// Gets the type of an expression for using directive matching.
+    /// Gets the type of an expression. Prefers the type computed by sema's type
+    /// checker (recorded during analysis whenever codegen runs); falls back to
+    /// re-deriving it from the HIR for any expression the checker didn't record.
     fn get_expr_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'_>> {
+        if let Some(ty) = self.gcx.type_of_expr(expr.id) {
+            return Some(ty);
+        }
+        self.get_expr_type_fallback(expr)
+    }
+
+    /// Re-derives the type of an expression by walking the HIR. Used as a
+    /// fallback when sema's type checker did not record a type for it.
+    fn get_expr_type_fallback(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'_>> {
         // Case 1: Variable - get its declared type
         if let ExprKind::Ident(res_slice) = &expr.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()

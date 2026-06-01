@@ -21,7 +21,7 @@ mod udvt;
 pub(crate) fn check(gcx: Gcx<'_>) {
     let mut expr_types = None;
     parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {
-        if gcx.sess.opts.unstable.typeck {
+        if gcx.sess.opts.unstable.typeck || gcx.sess.opts.emit.iter().any(|e| e.is_codegen()) {
             expr_types = Some(
                 gcx.hir
                     .par_source_ids()
