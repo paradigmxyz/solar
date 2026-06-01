@@ -1601,7 +1601,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.imm_u64(0)
             }
-            Builtin::Require | Builtin::RequireMsg | Builtin::Assert => {
+            Builtin::Require | Builtin::Assert => {
                 let mut exprs = args.exprs();
                 if let Some(first) = exprs.next() {
                     let cond = self.lower_expr(builder, first);
