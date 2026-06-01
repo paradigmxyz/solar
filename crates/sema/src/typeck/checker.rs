@@ -2512,7 +2512,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             }
             hir::TypeKind::Mapping(mapping) => {
                 let _ = self.check_mapping_key_type(&mapping.key);
-                self.visit_ty(&mapping.value)?;
+                self.visit_ty(&mapping.key)?;
+                // Return after visiting the children: falling through to `walk_ty`
+                // would visit them a second time, double-typechecking (e.g. the
+                // size expression of a fixed-array value type).
+                return self.visit_ty(&mapping.value);
             }
             // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
             // hir::TypeKind::Function(func) => {
