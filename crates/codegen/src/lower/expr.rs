@@ -576,6 +576,15 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.imm_u64(0);
         };
 
+        // For a calldata array/bytes parameter, its lowered value is the ABI
+        // head: the offset (relative to the start of the args, i.e. after the
+        // 4-byte selector) to the length word. So the length word is at calldata
+        // position `4 + head`, and the first element at `4 + head + 32`.
+        let calldata_head = (self.gcx.hir.variable(*var_id).data_location
+            == Some(solar_ast::DataLocation::Calldata))
+        .then(|| self.locals.get(var_id).copied())
+        .flatten();
+
         match member.name {
             sym::slot => {
                 if let Some(&slot) = self.storage_slots.get(var_id) {
@@ -589,7 +598,20 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.mload(offset);
                 }
             }
-            sym::offset => return builder.imm_u64(0),
+            sym::offset => {
+                if let Some(head) = calldata_head {
+                    let base = builder.imm_u64(4 + 32);
+                    return builder.add(base, head);
+                }
+                return builder.imm_u64(0);
+            }
+            sym::length => {
+                if let Some(head) = calldata_head {
+                    let four = builder.imm_u64(4);
+                    let pos = builder.add(four, head);
+                    return builder.calldataload(pos);
+                }
+            }
             _ => {}
         }
 
