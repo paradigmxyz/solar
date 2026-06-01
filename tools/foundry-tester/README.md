@@ -1,4 +1,4 @@
-# Solar Codegen Tests
+# Solar Foundry Tester
 
 ## Foundry Integration Tests
 
@@ -17,13 +17,13 @@ These tests compare Solar's EVM codegen against solc by:
 
 ```bash
 # Run all foundry integration tests (sequential to avoid port conflicts)
-cargo test -p solar-codegen --test foundry -- --test-threads=1
+cargo test -p solar-foundry-tester --test foundry -- --test-threads=1
 
 # Run with output
-cargo test -p solar-codegen --test foundry -- --test-threads=1 --nocapture
+cargo test -p solar-foundry-tester --test foundry -- --test-threads=1 --nocapture
 
 # Run a specific level
-cargo test -p solar-codegen --test foundry test_level3 -- --test-threads=1 --nocapture
+cargo test -p solar-foundry-tester --test foundry test_level3 -- --test-threads=1 --nocapture
 ```
 
 ### Test Levels

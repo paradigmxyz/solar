@@ -3034,7 +3034,6 @@ dependencies = [
  "alloy-primitives",
  "derive_more",
  "rustc-hash",
- "serde_json",
  "smallvec",
  "snapbox",
  "solar-ast",
@@ -3091,6 +3090,13 @@ name = "solar-examples"
 version = "0.1.8"
 dependencies = [
  "solar-compiler",
+]
+
+[[package]]
+name = "solar-foundry-tester"
+version = "0.1.8"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]

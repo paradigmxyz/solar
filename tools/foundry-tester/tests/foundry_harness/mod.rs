@@ -5,7 +5,7 @@
 //! 2. Running `forge test` with solc (baseline)
 //! 3. Comparing gas usage and test results
 //!
-//! Run with: cargo test -p solar-codegen --test foundry
+//! Run with: cargo test -p solar-foundry-tester --test foundry
 #![allow(clippy::uninlined_format_args, clippy::collapsible_if, clippy::disallowed_methods)]
 
 use std::{
