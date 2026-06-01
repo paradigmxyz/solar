@@ -15,7 +15,6 @@ on:
       - "crates/sema/**"
       - "crates/solar/**"
       - "tests/ui/codegen/**"
-      - "tools/solar-mir-opt/**"
       - "tools/tester/**"
   pull_request:
     paths:
@@ -28,7 +27,6 @@ on:
       - "crates/sema/**"
       - "crates/solar/**"
       - "tests/ui/codegen/**"
-      - "tools/solar-mir-opt/**"
       - "tools/tester/**"
   workflow_dispatch:
     inputs:

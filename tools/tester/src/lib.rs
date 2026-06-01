@@ -14,11 +14,9 @@ mod utils;
 
 /// Runs all the tests.
 ///
-/// `cmd` is the path to the `solar` binary used by `Mode::Ui`,
-/// `Mode::SolcSolidity`, and `Mode::SolcYul`. `mir_opt_cmd` is the path to
-/// the `solar-mir-opt` binary used by `Mode::Mir`. If `mir_opt_cmd` is `None`,
-/// requesting `Mode::Mir` will return an error.
-pub fn run_tests(cmd: &'static Path, mir_opt_cmd: Option<&'static Path>) -> Result<()> {
+/// `cmd` is the path to the `solar` binary used by all modes. `Mode::Mir`
+/// invokes it as `solar mir-opt …`.
+pub fn run_tests(cmd: &'static Path) -> Result<()> {
     ui_test::color_eyre::install()?;
 
     let mut args = ui_test::Args::test()?;
@@ -41,20 +39,18 @@ pub fn run_tests(cmd: &'static Path, mir_opt_cmd: Option<&'static Path>) -> Resu
     let default_modes =
         if get_host().contains("windows") { DEFAULT_MODES_WINDOWS } else { DEFAULT_MODES };
     let mut modes = default_modes.to_vec();
-    if mir_opt_cmd.is_some() {
-        modes.insert(1, Mode::Mir);
-    }
+    modes.insert(1, Mode::Mir);
 
     // TESTER_MODE can be a single mode or a comma-separated list.
-    // The "ui" alias also implicitly runs the "mir" mode (if available),
-    // since they share the same `tests/ui/` tree and users typically want
-    // `cargo uitest` to cover both.
+    // The "ui" alias also implicitly runs the "mir" mode, since they share the
+    // same `tests/ui/` tree and users typically want `cargo uitest` to cover
+    // both.
     if let Ok(mode_str) = std::env::var("TESTER_MODE") {
         let mut requested = Vec::new();
         for name in mode_str.split(',') {
             let m = Mode::parse(name.trim()).ok_or_else(|| eyre!("invalid mode: {name}"))?;
             requested.push(m);
-            if name.trim() == "ui" && mir_opt_cmd.is_some() && !requested.contains(&Mode::Mir) {
+            if name.trim() == "ui" && !requested.contains(&Mode::Mir) {
                 requested.push(Mode::Mir);
             }
         }
@@ -64,13 +60,8 @@ pub fn run_tests(cmd: &'static Path, mir_opt_cmd: Option<&'static Path>) -> Resu
     let tmp_dir = tempfile::tempdir()?;
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
     for &mode in &modes {
-        let mode_cmd = match mode {
-            Mode::Mir => mir_opt_cmd
-                .ok_or_else(|| eyre!("Mode::Mir requested but no solar-mir-opt binary path"))?,
-            _ => cmd,
-        };
         let cfg = MyConfig::<'static> { mode, tmp_dir };
-        let config = config(mode_cmd, &args, mode);
+        let config = config(cmd, &args, mode);
 
         let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
         let gha_emitter = ui_test::status_emitter::Gha { name: mode.to_string(), group: true };
@@ -123,8 +114,9 @@ FileCheck "$2" < "$out"
             program: if matches!(mode, Mode::StandardJson) { "sh".into() } else { cmd.into() },
             args: {
                 let mut args: Vec<OsString> = match mode {
-                    // solar-mir-opt doesn't accept the same flags as solar.
-                    Mode::Mir => Vec::new(),
+                    // `Mir` mode runs `solar mir-opt …`, which doesn't accept
+                    // the normal compiler flags.
+                    Mode::Mir => vec!["mir-opt".into()],
                     Mode::StandardJson => vec![
                         "-c".into(),
                         standard_json_script.into(),
@@ -312,7 +304,7 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Ui,
-    /// MIR-level tests: runs `solar-mir-opt` on `.mir` files under
+    /// MIR-level tests: runs `solar mir-opt` on `.mir` files under
     /// `tests/ui/codegen/mir/`.
     Mir,
     StandardJson,

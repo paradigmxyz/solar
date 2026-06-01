@@ -3133,15 +3133,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "solar-mir-opt"
-version = "0.1.8"
-dependencies = [
- "solar-codegen",
- "solar-interface",
- "solar-sema",
-]
-
-[[package]]
 name = "solar-parse"
 version = "0.1.8"
 dependencies = [

@@ -15,6 +15,7 @@ pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
 mod standard_json;
 
+pub mod mir_opt;
 pub mod utils;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]

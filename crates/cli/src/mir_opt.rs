@@ -1,36 +1,13 @@
-//! `solar-mir-opt` — run one or more MIR transformation passes and print the
-//! resulting MIR.
+//! The `solar mir-opt` subcommand — run one or more MIR transformation passes
+//! and print the resulting MIR.
 //!
 //! This is the Solar equivalent of LLVM's `opt`. It accepts either a Solidity
-//! file (`.sol`) — which is parsed, lowered to MIR, and then transformed —
-//! or a textual MIR file (`.mir`) — which is parsed directly. After running
-//! the requested pass pipeline, it prints the resulting MIR.
+//! file (`.sol`) — which is parsed, lowered to MIR, and then transformed — or a
+//! textual MIR file (`.mir`) — which is parsed directly. After running the
+//! requested pass pipeline, it prints the resulting MIR.
 //!
-//! ## Usage
-//!
-//! ```text
-//! solar-mir-opt --passes <name1,name2,...> [--print-after-each] <input>
-//! solar-mir-opt --pass <name> <input>          # alias for --passes <name>
-//! solar-mir-opt -h | --help
-//! ```
-//!
-//! ## Supported passes
-//!
-//! - `dce`             — Dead Code Elimination (fixed-point)
-//! - `cfg-simplify`    — CFG Simplification (fixed-point)
-//! - `jump-threading`  — Jump Threading (fixed-point)
-//! - `none`            — No transform; just lower/parse and print
-//!
-//! Multiple passes can be chained: `--passes jump-threading,cfg-simplify,dce`.
-//! With `--print-after-each`, the binary prints the MIR state after each pass
-//! in the chain (useful for inspecting intermediate states).
-//!
-//! ## Input formats
-//!
-//! - `.sol` — Solidity contract; lowered through the normal compiler pipeline
-//! - `.mir` — Textual MIR; parsed via `solar_codegen::mir::parse_module`
-
-#![allow(unused_crate_dependencies)]
+//! It is an unstable, internal tool used by the `Mir` test mode; it is not part
+//! of the stable CLI surface.
 
 use solar_codegen::{
     lower,
@@ -42,16 +19,16 @@ use solar_codegen::{
 };
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
-use std::{ops::ControlFlow, path::Path, process::ExitCode};
+use std::{ffi::OsString, ops::ControlFlow, path::Path, process::ExitCode};
 
 const HELP: &str = "\
-solar-mir-opt — run one or more MIR passes on a Solidity or MIR file
+solar mir-opt — run one or more MIR passes on a Solidity or MIR file
 
 Usage:
-    solar-mir-opt --passes <names> [--print-after-each] <input>
-    solar-mir-opt --pass <name> <input>          # alias for --passes <name>
-    solar-mir-opt --pipeline-default <input>     # canonical codegen pipeline
-    solar-mir-opt -h | --help
+    solar mir-opt --passes <names> [--print-after-each] <input>
+    solar mir-opt --pass <name> <input>          # alias for --passes <name>
+    solar mir-opt --pipeline-default <input>     # canonical codegen pipeline
+    solar mir-opt -h | --help
 
 Options:
     --passes <names>     Comma-separated list of passes to run in order
@@ -77,7 +54,7 @@ Input formats:
 ";
 
 /// The canonical pass list run by `EvmCodegen::run_optimization_passes`.
-/// Keep in sync with `crates/codegen/src/codegen/evm.rs`.
+/// Keep in sync with `crates/codegen/src/backend/evm/evm.rs`.
 const DEFAULT_PIPELINE: &[&str] = &["jump-threading", "cfg-simplify", "dce"];
 
 struct Args {
@@ -93,13 +70,13 @@ struct Args {
     input: String,
 }
 
-fn parse_args() -> Result<Args, String> {
-    let argv: Vec<String> = std::env::args().collect();
+/// Parses the arguments following `mir-opt`.
+fn parse_args(argv: &[String]) -> Result<Args, String> {
     let mut passes: Option<Vec<String>> = None;
     let mut pipeline_default = false;
     let mut print_after_each = false;
     let mut input: Option<String> = None;
-    let mut i = 1;
+    let mut i = 0;
     while i < argv.len() {
         match argv[i].as_str() {
             "-h" | "--help" => {
@@ -288,8 +265,12 @@ fn process_sol(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
-fn main() -> ExitCode {
-    let args = match parse_args() {
+/// Entry point for the `mir-opt` subcommand. `argv` is the arguments following
+/// `mir-opt` (i.e. excluding the program name and the subcommand itself).
+pub fn run(argv: &[OsString]) -> ExitCode {
+    let argv: Vec<String> = argv.iter().map(|a| a.to_string_lossy().into_owned()).collect();
+
+    let args = match parse_args(&argv) {
         Ok(args) => args,
         Err(e) => {
             eprintln!("error: {e}");
