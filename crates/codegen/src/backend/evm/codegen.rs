@@ -1519,6 +1519,13 @@ impl EvmCodegen {
         self.emit_new_internal_frame_addr(32);
         self.asm.emit_op(opcodes::MSTORE);
 
+        // Spill values that are live after this call BEFORE consuming the
+        // arguments. An argument that is also used later (e.g. a flag passed to
+        // a helper and then stored, as in `tryAdd`) would otherwise be popped by
+        // the arg-store loop below and then lost when the stack is cleared for
+        // the call, leaving it unavailable at its later use.
+        self.spill_live_stack_values(func, liveness, block, inst_idx);
+
         for (i, &arg) in args.iter().enumerate() {
             self.emit_value(func, arg);
             self.emit_new_internal_frame_addr(64 + (i as u64) * 32);
@@ -1526,7 +1533,6 @@ impl EvmCodegen {
             self.scheduler.stack.pop();
         }
 
-        self.spill_live_stack_values(func, liveness, block, inst_idx);
         self.pop_all_stack_values();
         self.scheduler.clear_stack();
 
