@@ -786,14 +786,14 @@ mod tests {
     #[test]
     #[ignore] // Requires forge-std which is not available in CI
     fn test_unifap_v2_create() {
-        test_project_solar("unifap-v2-create", "testdata/unifap-v2-create");
+        test_project_solar("unifap-v2-create", "testdata/foundry/unifap-v2-create");
     }
 
     // Example: run only mint-related tests
     #[test]
     #[ignore] // Example - enable when debugging specific tests
     fn test_unifap_mint_only() {
-        TestConfig::new("unifap-v2-create", "testdata/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "testdata/foundry/unifap-v2-create")
             .test_filter("testMint")
             .run();
     }
@@ -802,7 +802,7 @@ mod tests {
     #[test]
     #[ignore] // Example - enable when debugging specific contracts
     fn test_unifap_pair_only() {
-        TestConfig::new("unifap-v2-create", "testdata/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "testdata/foundry/unifap-v2-create")
             .contract_filter("UnifapV2Pair")
             .run();
     }
@@ -811,7 +811,7 @@ mod tests {
     #[test]
     #[ignore] // Example - enable when debugging
     fn test_unifap_pair_swap() {
-        TestConfig::new("unifap-v2-create", "testdata/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "testdata/foundry/unifap-v2-create")
             .contract_filter("UnifapV2Pair")
             .test_filter("testSwap")
             .run();
