@@ -916,6 +916,19 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::InvalidConversion)
                 }
             }
+
+            // A calldata `bytes` slice (`data[i:j]`) converts like `bytes`: to
+            // fixed-bytes, `bytes`, or `string`.
+            (Slice(underlying), other_kind)
+                if matches!(underlying.peel_refs().kind, Elementary(Bytes)) =>
+            {
+                match other_kind {
+                    Elementary(FixedBytes(_) | Bytes | String) => Ok(()),
+                    Ref(inner, _) if matches!(inner.kind, Elementary(Bytes | String)) => Ok(()),
+                    _ => Result::Err(TyConvertError::InvalidConversion),
+                }
+            }
+
             (Ref(from_inner, _), _) if from_inner == other && other.is_reference_type() => Ok(()),
 
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
