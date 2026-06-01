@@ -1077,6 +1077,12 @@ impl<'gcx> Ty<'gcx> {
             {
                 gcx.types.string.with_loc(gcx, loc)
             }
+            // A calldata `bytes` slice converted to `bytes`/`string` stays in
+            // calldata (it is a view), so the result is `bytes`/`string calldata`.
+            (Slice(_), Elementary(Bytes)) => gcx.types.bytes.with_loc(gcx, DataLocation::Calldata),
+            (Slice(_), Elementary(String)) => {
+                gcx.types.string.with_loc(gcx, DataLocation::Calldata)
+            }
             _ => other,
         })
     }
