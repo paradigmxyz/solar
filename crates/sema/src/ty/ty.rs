@@ -693,6 +693,15 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // A reference type (in any data location) is convertible to its
+            // location-less base type. This arises for mapping keys, whose key
+            // type carries no location: e.g. indexing `mapping(string => ...)`
+            // with a `string memory`/`string calldata` value, or the implicit
+            // public getter whose key parameter is `string calldata`.
+            (Ref(from_inner, _), to) if !matches!(to, Ref(..)) => {
+                from_inner.try_convert_implicit_to(other, gcx)
+            }
+
             // Array slices are implicitly convertible to arrays of their underlying element type.
             // Note: conversion to storage pointers is NOT allowed.
             // See: <https://docs.soliditylang.org/en/latest/types.html#array-slices>
