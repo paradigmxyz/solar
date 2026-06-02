@@ -24,6 +24,23 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
 
 // === ROOT/tests/ui/codegen/multi_return_call.sol:C ===
 ; module @C
+fn @sat(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v4 = mstore 128, 0
+    v5 = internal_call fn1, 2, arg0, arg1
+    v7 = mstore 160, v5
+    v9 = mload 32
+    v11 = mstore 192, v9
+    v13 = mload 160
+    v14 = iszero v13
+    br v14, bb1, bb2
+  bb1:
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+  bb2:
+    v17 = mload 192
+    ret v17
+}
+
 fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
   bb0 (entry):
     v2 = internal_frame_addr 160
@@ -46,28 +63,11 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
     ret v18, v20
 }
 
-fn @sat(arg0: u256, arg1: u256) -> u256 {
-  bb0 (entry):
-    v4 = mstore 128, 0
-    v5 = internal_call fn0, 2, arg0, arg1
-    v7 = mstore 160, v5
-    v9 = mload 32
-    v11 = mstore 192, v9
-    v13 = mload 160
-    v14 = iszero v13
-    br v14, bb1, bb2
-  bb1:
-    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-  bb2:
-    v17 = mload 192
-    ret v17
-}
-
 fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) {
   bb0 (entry):
     v4 = mstore 128, 0
     v7 = mstore 160, 0
-    v8 = internal_call fn0, 2, arg0, arg1
+    v8 = internal_call fn1, 2, arg0, arg1
     v10 = mload 32
     ret v8, v10
 }

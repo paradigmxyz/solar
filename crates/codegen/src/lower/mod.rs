@@ -63,6 +63,11 @@ pub struct Lowerer<'gcx> {
     inline_stack: Vec<HirFunctionId>,
     /// HIR functions already lowered into this MIR module.
     hir_to_mir_functions: FxHashMap<HirFunctionId, FunctionId>,
+    /// Internal-convention copies of public functions, lowered on demand so that
+    /// public functions can be called internally/recursively via `internal_call`.
+    hir_to_internal_mir_functions: FxHashMap<HirFunctionId, FunctionId>,
+    /// Cache of whether a function is (directly) self-recursive.
+    recursive_functions: FxHashMap<HirFunctionId, bool>,
     /// Functions currently being lowered on demand.
     lowering_functions: FxHashSet<HirFunctionId>,
     /// Whether the current function body is constructor code.
@@ -95,6 +100,8 @@ impl<'gcx> Lowerer<'gcx> {
             storage_ref_locals: FxHashSet::default(),
             inline_stack: Vec::new(),
             hir_to_mir_functions: FxHashMap::default(),
+            hir_to_internal_mir_functions: FxHashMap::default(),
+            recursive_functions: FxHashMap::default(),
             lowering_functions: FxHashSet::default(),
             lowering_constructor: false,
             lowering_internal_function: false,
@@ -654,7 +661,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
-        let mir_id = self.lower_function(func_id);
+        let mir_id = self.lower_function(func_id, false);
         self.lowering_functions.remove(&func_id);
 
         self.locals = saved_locals;
@@ -668,12 +675,55 @@ impl<'gcx> Lowerer<'gcx> {
         mir_id
     }
 
-    fn lower_function(&mut self, func_id: hir::FunctionId) -> FunctionId {
+    /// Lowers a public function with the internal-frame calling convention so it
+    /// can be called via `internal_call` (e.g. recursion). The result is cached
+    /// separately from the external entry; the id is registered before the body
+    /// is lowered so the copy's own recursive call resolves to itself.
+    pub(super) fn ensure_internal_mir_function(&mut self, func_id: hir::FunctionId) -> FunctionId {
+        if let Some(&mir_id) = self.hir_to_internal_mir_functions.get(&func_id) {
+            return mir_id;
+        }
+
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_next_local_memory_offset = self.next_local_memory_offset;
+        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+        let saved_current_contract_id = self.current_contract_id;
+        let saved_lowering_constructor = self.lowering_constructor;
+        let saved_lowering_internal_function = self.lowering_internal_function;
+
+        self.current_contract_id = self.gcx.hir.function(func_id).contract;
+        let mir_id = self.lower_function(func_id, true);
+
+        self.locals = saved_locals;
+        self.local_memory_slots = saved_local_memory_slots;
+        self.next_local_memory_offset = saved_next_local_memory_offset;
+        self.assigned_vars = saved_assigned_vars;
+        self.current_contract_id = saved_current_contract_id;
+        self.lowering_constructor = saved_lowering_constructor;
+        self.lowering_internal_function = saved_lowering_internal_function;
+
+        mir_id
+    }
+
+    /// Lowers a function to MIR. When `force_internal` is set, the function is
+    /// lowered with the internal-frame convention (no selector) regardless of its
+    /// visibility, and registered in `hir_to_internal_mir_functions`.
+    fn lower_function(&mut self, func_id: hir::FunctionId, force_internal: bool) -> FunctionId {
         let hir_func = self.gcx.hir.function(func_id);
 
         let func_name = hir_func.name.unwrap_or_else(|| {
             Ident::new(solar_interface::Symbol::intern("_anonymous"), solar_interface::Span::DUMMY)
         });
+
+        // Reserve and register the MIR id before lowering the body so a recursive
+        // self-call resolves to this function instead of an empty placeholder.
+        let mir_id = self.module.add_function(Function::new(func_name));
+        if force_internal {
+            self.hir_to_internal_mir_functions.insert(func_id, mir_id);
+        } else {
+            self.hir_to_mir_functions.insert(func_id, mir_id);
+        }
 
         let mut mir_func = Function::new(func_name);
 
@@ -685,15 +735,16 @@ impl<'gcx> Lowerer<'gcx> {
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
         };
 
-        // Only regular public/external functions get selectors.
+        // Only regular public/external functions get selectors. An internal copy
+        // (force_internal) uses the internal-frame convention with no selector.
         // Constructor, receive, and fallback don't have selectors.
         let is_special = mir_func.attributes.is_constructor
             || mir_func.attributes.is_receive
             || mir_func.attributes.is_fallback;
-        if mir_func.is_public() && !is_special {
+        let uses_external_abi = mir_func.is_public() && !is_special && !force_internal;
+        if uses_external_abi {
             mir_func.selector = Some(self.compute_selector(hir_func));
         }
-        let uses_external_abi = mir_func.is_public() && !is_special;
         let uses_internal_frame = !uses_external_abi && !is_special;
 
         self.locals.clear();
@@ -821,8 +872,7 @@ impl<'gcx> Lowerer<'gcx> {
                 self.next_local_memory_offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
         }
 
-        let mir_id = self.module.add_function(mir_func);
-        self.hir_to_mir_functions.insert(func_id, mir_id);
+        *self.module.function_mut(mir_id) = mir_func;
         mir_id
     }
 

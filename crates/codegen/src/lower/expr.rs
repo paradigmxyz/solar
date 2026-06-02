@@ -3679,33 +3679,32 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_inline_void_call(builder, func_id, arg_vals);
         }
 
-        // The SSA inline path (`lower_library_body_simple`) binds locals as
-        // immutable SSA values, so it cannot model a loop: the induction variable
-        // never advances and a bare-ident call to such a function (e.g.
-        // `return sumTo(n)`) inlines an infinite loop that runs out of gas. Route
-        // functions whose body contains a loop through the memory-backed
-        // non-inlined path instead. Kept narrow on purpose — loop-free functions
-        // inline correctly, and widening this exposed latent stack bugs in the
-        // non-inlined path. A self-recursive call (callee currently being lowered)
-        // stays inlined, where cycle detection breaks the recursion.
-        //
-        // Restricted to internal/private callees: only they use the internal-frame
-        // calling convention that `internal_call` expects. A public function uses
-        // the external ABI (calldata args, `RETURN`), so routing it through
-        // `internal_call` mismatches conventions and corrupts the stack.
-        let is_internal =
-            matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private);
-        if !self.lowering_constructor
-            && is_internal
-            && !self.lowering_functions.contains(&func_id)
-            && !self.function_returns_memory_reference(func)
-            && Self::body_contains_loop(func)
+        // The SSA inline path (`lower_library_body_simple`) only models a
+        // straight-line body that ends in a `return`. Anything else — a loop, an
+        // `if`, a multi-statement control flow — is lowered as a real
+        // `internal_call` instead, where the memory-backed internal frame handles
+        // reassigned locals, loops, and recursion correctly. Recursive functions
+        // with a simple ternary body (which `is_simple_return_function` accepts)
+        // are caught separately so inlining doesn't hit the cycle placeholder.
+        // Simple, non-recursive functions still inline. Internal/private callees
+        // use the internal-frame convention directly; a public callee is compiled
+        // for the external ABI, so it needs an internal-frame copy
+        // (`ensure_internal_mir_function`) for `internal_call` to target.
+        let needs_call =
+            !Self::is_simple_return_function(func) || self.function_is_recursive(func_id);
+        if !self.lowering_constructor && !self.function_returns_memory_reference(func) && needs_call
         {
             let result_ty = func
                 .returns
                 .first()
                 .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
-            let mir_id = self.ensure_function_lowered(func_id);
+            let is_internal =
+                matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private);
+            let mir_id = if is_internal {
+                self.ensure_function_lowered(func_id)
+            } else {
+                self.ensure_internal_mir_function(func_id)
+            };
             return builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len());
         }
 
@@ -3967,24 +3966,108 @@ impl<'gcx> Lowerer<'gcx> {
             })
     }
 
-    /// Whether the function body contains a loop (possibly nested in a block or
-    /// `if`). Such functions cannot be inlined by the SSA `lower_library_body_simple`
-    /// path, which doesn't model a mutable induction variable.
-    fn body_contains_loop(func: &hir::Function<'_>) -> bool {
-        fn stmt_has_loop(stmt: &hir::Stmt<'_>) -> bool {
-            match &stmt.kind {
-                hir::StmtKind::Loop(..) => true,
-                hir::StmtKind::Block(block) | hir::StmtKind::UncheckedBlock(block) => {
-                    block.stmts.iter().any(stmt_has_loop)
-                }
-                hir::StmtKind::If(_, then_stmt, else_stmt) => {
-                    stmt_has_loop(then_stmt)
-                        || else_stmt.is_some_and(|else_stmt| stmt_has_loop(else_stmt))
-                }
-                _ => false,
-            }
+    /// Whether `func_id` directly calls itself (cached). A recursive function
+    /// must be lowered as a real `internal_call`: inlining it hits the cycle
+    /// detector and substitutes a `0` placeholder.
+    fn function_is_recursive(&mut self, func_id: hir::FunctionId) -> bool {
+        if let Some(&cached) = self.recursive_functions.get(&func_id) {
+            return cached;
         }
-        func.body.is_some_and(|body| body.stmts.iter().any(stmt_has_loop))
+        let func = self.gcx.hir.function(func_id);
+        let result =
+            func.body.is_some_and(|body| body.stmts.iter().any(|s| self.stmt_calls(s, func_id)));
+        self.recursive_functions.insert(func_id, result);
+        result
+    }
+
+    /// Whether a statement (recursively) contains a call to `target`.
+    fn stmt_calls(&self, stmt: &hir::Stmt<'_>, target: hir::FunctionId) -> bool {
+        use hir::StmtKind;
+        match &stmt.kind {
+            StmtKind::Expr(e)
+            | StmtKind::Return(Some(e))
+            | StmtKind::Revert(e)
+            | StmtKind::Emit(e) => self.expr_calls(e, target),
+            StmtKind::Block(b) | StmtKind::UncheckedBlock(b) | StmtKind::AssemblyBlock(b) => {
+                b.stmts.iter().any(|s| self.stmt_calls(s, target))
+            }
+            StmtKind::If(c, t, e) => {
+                self.expr_calls(c, target)
+                    || self.stmt_calls(t, target)
+                    || e.is_some_and(|e| self.stmt_calls(e, target))
+            }
+            StmtKind::Loop(b, _) => b.stmts.iter().any(|s| self.stmt_calls(s, target)),
+            StmtKind::Switch(sw) => {
+                self.expr_calls(sw.selector, target)
+                    || sw
+                        .cases
+                        .iter()
+                        .any(|c| c.body.stmts.iter().any(|s| self.stmt_calls(s, target)))
+            }
+            StmtKind::Try(t) => {
+                self.expr_calls(&t.expr, target)
+                    || t.clauses
+                        .iter()
+                        .any(|cl| cl.block.stmts.iter().any(|s| self.stmt_calls(s, target)))
+            }
+            StmtKind::DeclSingle(var_id) => self
+                .gcx
+                .hir
+                .variable(*var_id)
+                .initializer
+                .is_some_and(|init| self.expr_calls(init, target)),
+            StmtKind::DeclMulti(_, init) => self.expr_calls(init, target),
+            StmtKind::Return(None)
+            | StmtKind::Continue
+            | StmtKind::Break
+            | StmtKind::Placeholder
+            | StmtKind::Err(_) => false,
+        }
+    }
+
+    /// Whether an expression (recursively) contains a call to `target`.
+    fn expr_calls(&self, expr: &hir::Expr<'_>, target: hir::FunctionId) -> bool {
+        match &expr.kind {
+            ExprKind::Call(callee, args, _) => {
+                if let ExprKind::Ident(res) = &callee.kind
+                    && res.iter().any(
+                        |r| matches!(r, hir::Res::Item(hir::ItemId::Function(f)) if *f == target),
+                    )
+                {
+                    return true;
+                }
+                self.expr_calls(callee, target) || args.exprs().any(|a| self.expr_calls(a, target))
+            }
+            ExprKind::Binary(l, _, r) | ExprKind::Assign(l, _, r) => {
+                self.expr_calls(l, target) || self.expr_calls(r, target)
+            }
+            ExprKind::Unary(_, e)
+            | ExprKind::Member(e, _)
+            | ExprKind::YulMember(e, _)
+            | ExprKind::Payable(e)
+            | ExprKind::Delete(e) => self.expr_calls(e, target),
+            ExprKind::Ternary(c, t, f) => {
+                self.expr_calls(c, target)
+                    || self.expr_calls(t, target)
+                    || self.expr_calls(f, target)
+            }
+            ExprKind::Index(b, i) => {
+                self.expr_calls(b, target) || i.is_some_and(|i| self.expr_calls(i, target))
+            }
+            ExprKind::Slice(b, s, e) => {
+                self.expr_calls(b, target)
+                    || s.is_some_and(|s| self.expr_calls(s, target))
+                    || e.is_some_and(|e| self.expr_calls(e, target))
+            }
+            ExprKind::Array(es) => es.iter().any(|e| self.expr_calls(e, target)),
+            ExprKind::Tuple(es) => es.iter().flatten().any(|e| self.expr_calls(e, target)),
+            ExprKind::New(_)
+            | ExprKind::TypeCall(_)
+            | ExprKind::Lit(_)
+            | ExprKind::Ident(_)
+            | ExprKind::Type(_)
+            | ExprKind::Err(_) => false,
+        }
     }
 
     /// Lowers a simple library function body.
