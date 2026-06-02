@@ -411,6 +411,19 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn allocate_memory_dynamic(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        size: ValueId,
+    ) -> ValueId {
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let ptr = builder.mload(free_ptr_addr);
+        let new_free_ptr = builder.add(ptr, size);
+        let free_ptr_addr = builder.imm_u64(0x40);
+        builder.mstore(free_ptr_addr, new_free_ptr);
+        ptr
+    }
+
     fn lower_return_value_for_ty(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -428,8 +441,8 @@ impl<'gcx> Lowerer<'gcx> {
         self.lower_expr(builder, expr)
     }
 
-    /// Decodes a short storage `bytes`/`string` slot into the memory layout the
-    /// ABI encoder expects: `[length][data-word]`.
+    /// Decodes a storage `bytes`/`string` slot into the memory layout the ABI
+    /// encoder expects: `[length][data...]`.
     pub(super) fn materialize_storage_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -439,27 +452,75 @@ impl<'gcx> Lowerer<'gcx> {
         let one = builder.imm_u64(1);
         let long_bit = builder.and(word, one);
         let is_long = builder.eq(long_bit, one);
-        let short_block = builder.create_block();
-        let long_block = builder.create_block();
-        builder.branch(is_long, long_block, short_block);
 
-        builder.switch_to_block(long_block);
-        // TODO(phase4): copy long storage bytes/string data from keccak256(slot).
-        // Phase 2 intentionally rejects this instead of returning corrupt data.
-        builder.invalid();
-
-        builder.switch_to_block(short_block);
-        let ptr = self.allocate_memory(builder, 64);
         let low_byte_mask = builder.imm_u64(0xff);
         let len_low = builder.and(word, low_byte_mask);
         let shift = builder.imm_u64(1);
-        let len = builder.shr(shift, len_low);
+        let short_len = builder.shr(shift, len_low);
+        let long_len = builder.shr(shift, word);
+        let len = builder.select(is_long, long_len, short_len);
+
+        let word_size = builder.imm_u64(32);
+        let thirty_one = builder.imm_u64(31);
+        let padded_mask = builder.not(thirty_one);
+        let len_plus_rounding = builder.add(len, thirty_one);
+        let padded = builder.and(len_plus_rounding, padded_mask);
+        let is_empty = builder.iszero(padded);
+        let data_size = builder.select(is_empty, word_size, padded);
+        let total_size = builder.add(word_size, data_size);
+
+        let scratch_base = self.allocate_memory(builder, 96);
+        let ptr = self.allocate_memory_dynamic(builder, total_size);
         builder.mstore(ptr, len);
+        let data_ptr = builder.add(ptr, word_size);
+
+        let short_block = builder.create_block();
+        let long_block = builder.create_block();
+        let done_block = builder.create_block();
+        builder.branch(is_long, long_block, short_block);
+
+        builder.switch_to_block(short_block);
         let data_mask = builder.imm_u256(U256::MAX - U256::from(0xffu64));
         let data = builder.and(word, data_mask);
-        let word_size = builder.imm_u64(32);
-        let data_ptr = builder.add(ptr, word_size);
         builder.mstore(data_ptr, data);
+        builder.jump(done_block);
+
+        builder.switch_to_block(long_block);
+        builder.mstore(scratch_base, slot);
+        let data_slot = builder.keccak256(scratch_base, word_size);
+        let remaining = builder.div(padded, word_size);
+        let remaining_slot = self.offset_ptr(builder, scratch_base, 32);
+        let storage_slot_slot = self.offset_ptr(builder, scratch_base, 64);
+        builder.mstore(scratch_base, data_ptr);
+        builder.mstore(remaining_slot, remaining);
+        builder.mstore(storage_slot_slot, data_slot);
+
+        let cond_block = builder.create_block();
+        let body_block = builder.create_block();
+        builder.jump(cond_block);
+
+        builder.switch_to_block(cond_block);
+        let remaining = builder.mload(remaining_slot);
+        let zero = builder.imm_u64(0);
+        let has_remaining = builder.gt(remaining, zero);
+        builder.branch(has_remaining, body_block, done_block);
+
+        builder.switch_to_block(body_block);
+        let current_storage_slot = builder.mload(storage_slot_slot);
+        let data_word = builder.sload(current_storage_slot);
+        let current_dst = builder.mload(scratch_base);
+        builder.mstore(current_dst, data_word);
+        let next_storage_slot = builder.add(current_storage_slot, one);
+        builder.mstore(storage_slot_slot, next_storage_slot);
+        let word_size = builder.imm_u64(32);
+        let next_dst = builder.add(current_dst, word_size);
+        builder.mstore(scratch_base, next_dst);
+        let remaining = builder.mload(remaining_slot);
+        let next_remaining = builder.sub(remaining, one);
+        builder.mstore(remaining_slot, next_remaining);
+        builder.jump(cond_block);
+
+        builder.switch_to_block(done_block);
         ptr
     }
 

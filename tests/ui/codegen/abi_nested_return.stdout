@@ -78,6 +78,7 @@ fn @structArray(arg0: u256) -> memptr {
     v99 = sub v98, v39
     returndata v39, v99
 }
+
 fn @nestedArray(arg0: u256) -> memptr {
   bb0 (entry):
     v3 = mstore 128, 0
@@ -157,3 +158,4 @@ fn @nestedArray(arg0: u256) -> memptr {
     v96 = sub v95, v36
     returndata v36, v96
 }
+
