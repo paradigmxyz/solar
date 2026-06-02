@@ -19,32 +19,68 @@ mod override_checker;
 mod udvt;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
-    parallel!(
-        gcx.sess,
-        gcx.hir.par_contract_ids().for_each(|id| {
-            check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
-            check_storage_size_upper_bound(gcx, id);
-            check_payable_fallback_without_receive(gcx, id);
-            check_external_type_clashes(gcx, id);
-            check_receive_function(gcx, id);
-            for using in gcx.hir.contract(id).usings {
-                check_using_directive(gcx, using);
-            }
-            check_unimplemented_functions(gcx, id);
-            override_checker::check(gcx, id);
-        }),
-        gcx.hir.par_source_ids().for_each(|id| {
-            check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
-            check_break_continue(gcx, id);
-            for using in gcx.hir.source(id).usings {
-                check_using_directive(gcx, using);
-            }
-            if gcx.sess.opts.unstable.typeck {
-                // TODO: Parallelize more.
-                checker::check(gcx, id);
-            }
-        }),
-    );
+    let mut expr_types = None;
+    parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {
+        if gcx.sess.opts.unstable.typeck {
+            expr_types = Some(
+                gcx.hir
+                    .par_source_ids()
+                    .map(|id| {
+                        check_source(gcx, id);
+                        // TODO: Parallelize more.
+                        checker::check(gcx, id)
+                    })
+                    .reduce(FxHashMap::default, |mut a, b| {
+                        merge_expr_types(gcx, &mut a, b);
+                        a
+                    }),
+            );
+        } else {
+            gcx.hir.par_source_ids().for_each(|id| check_source(gcx, id));
+        }
+    },);
+    if let Some(expr_types) = expr_types {
+        gcx.set_expr_types(expr_types);
+    }
+}
+
+fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
+    check_duplicate_definitions(gcx, &gcx.symbol_resolver.contract_scopes[id]);
+    check_storage_size_upper_bound(gcx, id);
+    check_payable_fallback_without_receive(gcx, id);
+    check_external_type_clashes(gcx, id);
+    check_receive_function(gcx, id);
+    for using in gcx.hir.contract(id).usings {
+        check_using_directive(gcx, using);
+    }
+    check_unimplemented_functions(gcx, id);
+    override_checker::check(gcx, id);
+}
+
+fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
+    check_duplicate_definitions(gcx, &gcx.symbol_resolver.source_scopes[id]);
+    check_break_continue(gcx, id);
+    for using in gcx.hir.source(id).usings {
+        check_using_directive(gcx, using);
+    }
+}
+
+fn merge_expr_types<'gcx>(
+    gcx: Gcx<'gcx>,
+    expr_types: &mut FxHashMap<hir::ExprId, Ty<'gcx>>,
+    new_expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+) {
+    for (id, ty) in new_expr_types {
+        if let Some(prev_ty) = expr_types.insert(id, ty) {
+            gcx.dcx()
+                .bug(format!(
+                    "expression {id:?} already has type {}; tried to register {}",
+                    prev_ty.display(gcx),
+                    ty.display(gcx),
+                ))
+                .emit();
+        }
+    }
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {
@@ -497,5 +533,103 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
     #[inline]
     fn visit_expr(&mut self, _expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         ControlFlow::Continue(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Compiler, hir::ExprKind};
+    use solar_interface::{
+        Session,
+        config::{Opts, UnstableOpts},
+    };
+    use std::path::PathBuf;
+
+    const SOURCE: &str = r#"
+contract C {
+    function f(uint256 x) public pure returns (uint256) {
+        return x + 1;
+    }
+}
+"#;
+    const SECOND_SOURCE: &str = r#"
+contract D {
+    function g(uint256 x) public pure returns (uint256) {
+        return x * 2;
+    }
+}
+"#;
+
+    struct FirstBinaryExpr<'hir> {
+        hir: &'hir hir::Hir<'hir>,
+    }
+
+    impl<'hir> Visit<'hir> for FirstBinaryExpr<'hir> {
+        type BreakValue = &'hir hir::Expr<'hir>;
+
+        fn hir(&self) -> &'hir hir::Hir<'hir> {
+            self.hir
+        }
+
+        fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
+            if matches!(expr.kind, ExprKind::Binary(..)) {
+                ControlFlow::Break(expr)
+            } else {
+                self.walk_expr(expr)
+            }
+        }
+    }
+
+    fn binary_expr_types(typeck: bool) -> Vec<Option<String>> {
+        let sess = Session::builder()
+            .opts(Opts {
+                unstable: UnstableOpts { typeck, ..Default::default() },
+                ..Default::default()
+            })
+            .with_test_emitter()
+            .build();
+        let mut compiler = Compiler::new(sess);
+
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            let file =
+                c.sess().source_map().new_source_file(PathBuf::from("test.sol"), SOURCE).unwrap();
+            pcx.add_file(file);
+            let file = c
+                .sess()
+                .source_map()
+                .new_source_file(PathBuf::from("second.sol"), SECOND_SOURCE)
+                .unwrap();
+            pcx.add_file(file);
+            pcx.parse();
+
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            gcx.hir
+                .source_ids()
+                .map(|source| {
+                    let mut visitor = FirstBinaryExpr { hir: &gcx.hir };
+                    let ControlFlow::Break(expr) = visitor.visit_nested_source(source) else {
+                        panic!("missing binary expression")
+                    };
+                    gcx.type_of_expr(expr.id).map(|ty| ty.display(gcx).to_string())
+                })
+                .collect()
+        })
+    }
+
+    #[test]
+    fn expression_types_are_available_after_typeck() {
+        assert_eq!(binary_expr_types(true), [Some("uint256".to_string()), Some("uint256".into())]);
+    }
+
+    #[test]
+    fn expression_types_are_empty_without_typeck() {
+        assert_eq!(binary_expr_types(false), [None, None]);
     }
 }

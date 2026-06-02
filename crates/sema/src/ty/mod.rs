@@ -25,7 +25,7 @@ use std::{
     hash::Hash,
     ops::ControlFlow,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -225,6 +225,7 @@ pub struct GlobalCtxt<'gcx> {
     stage: AtomicCompilerStage,
 
     pub types: CommonTypes<'gcx>,
+    expr_types: OnceLock<FxHashMap<hir::ExprId, Ty<'gcx>>>,
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
@@ -258,6 +259,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
                 &interner,
                 unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump(),
             ),
+            expr_types: Default::default(),
 
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
@@ -388,6 +390,21 @@ impl<'gcx> Gcx<'gcx> {
 
     pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
         self.mk_ty(TyKind::Fn(self.interner.intern_ty_fn(self.bump(), ptr)))
+    }
+
+    /// Returns the type inferred for the given expression, if available.
+    ///
+    /// Expression types are populated by the experimental type checker, which currently only runs
+    /// when `-Ztypeck` is enabled.
+    #[inline]
+    pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.expr_types.get()?.get(&id).copied()
+    }
+
+    pub(crate) fn set_expr_types(self, types: FxHashMap<hir::ExprId, Ty<'gcx>>) {
+        if self.expr_types.set(types).is_err() {
+            self.dcx().bug("expression types are already initialized").emit();
+        }
     }
 
     pub fn mk_ty_variadic(self) -> Ty<'gcx> {
