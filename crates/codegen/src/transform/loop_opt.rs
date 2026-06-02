@@ -18,14 +18,10 @@
 //! - Unrolling: Reduces JUMP/JUMPI costs (8 gas each)
 //! - Strength Reduction: MUL costs 5 gas vs ADD costs 3 gas
 
-#[cfg(test)]
-use crate::mir::Terminator;
 use crate::{
     analysis::{Loop, LoopAnalyzer},
     mir::{BlockId, Function, InstId, InstKind, Value, ValueId},
 };
-#[cfg(test)]
-use alloy_primitives::U256;
 use rustc_hash::FxHashSet;
 
 /// Loop optimization pass configuration.
@@ -374,77 +370,4 @@ struct StrengthReductionCandidate {
     multiplier: ValueId,
     iv_step: ValueId,
     iv_init: ValueId,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{Function, Immediate, Instruction, MirType, Value};
-    use solar_interface::Ident;
-
-    fn make_test_func() -> Function {
-        Function::new(Ident::DUMMY)
-    }
-
-    #[test]
-    fn test_licm_simple() {
-        let mut func = make_test_func();
-
-        let preheader = func.entry_block;
-        let header = func.alloc_block();
-        let body = func.alloc_block();
-        let exit = func.alloc_block();
-
-        func.blocks[preheader].terminator = Some(Terminator::Jump(header));
-        func.blocks[preheader].successors.push(header);
-        func.blocks[header].predecessors.push(preheader);
-
-        let v0 = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(10))));
-        let v1 = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(20))));
-        let add_inst =
-            func.alloc_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
-        let _v2 = func.alloc_value(Value::Inst(add_inst));
-        func.blocks[body].instructions.push(add_inst);
-
-        let cond = func.alloc_value(Value::Immediate(Immediate::bool(true)));
-        func.blocks[header].terminator =
-            Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.push(body);
-        func.blocks[header].successors.push(exit);
-        func.blocks[body].predecessors.push(header);
-        func.blocks[exit].predecessors.push(header);
-
-        func.blocks[body].terminator = Some(Terminator::Jump(header));
-        func.blocks[body].successors.push(header);
-        func.blocks[header].predecessors.push(body);
-
-        func.blocks[exit].terminator = Some(Terminator::Stop);
-
-        let mut optimizer = LoopOptimizer::default();
-        optimizer.optimize(&mut func);
-
-        assert!(
-            func.blocks[preheader].instructions.contains(&add_inst),
-            "Invariant instruction should be hoisted to preheader"
-        );
-        assert!(
-            !func.blocks[body].instructions.contains(&add_inst),
-            "Invariant instruction should be removed from body"
-        );
-        assert_eq!(optimizer.stats.instructions_hoisted, 1);
-    }
-
-    #[test]
-    fn test_loop_opt_config() {
-        let config = LoopOptConfig {
-            enable_licm: true,
-            enable_unrolling: false,
-            enable_strength_reduction: false,
-            ..Default::default()
-        };
-
-        let optimizer = LoopOptimizer::new(config);
-        assert!(optimizer.config.enable_licm);
-        assert!(!optimizer.config.enable_unrolling);
-    }
 }

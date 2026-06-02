@@ -1,6 +1,6 @@
 //! Foundry integration tests for Solar codegen.
 //!
-//! Run with: cargo test -p solar-foundry-tester --test foundry -- --test-threads=1
+//! Run with: cargo test -p solar-compiler --test foundry -- --test-threads=1
 //!
 //! These tests require `anvil`, `cast`, and `solc` to be installed.
 #![allow(unused_crate_dependencies)]

@@ -12,9 +12,9 @@ on:
       - "Cargo.toml"
       - "crates/cli/**"
       - "crates/codegen/**"
-      - "tools/foundry-tester/**"
-      - "crates/sema/**"
       - "crates/solar/**"
+      - "crates/sema/**"
+      - "tests/foundry/**"
       - "tests/ui/codegen/**"
       - "tools/tester/**"
   pull_request:
@@ -25,9 +25,9 @@ on:
       - "Cargo.toml"
       - "crates/cli/**"
       - "crates/codegen/**"
-      - "tools/foundry-tester/**"
-      - "crates/sema/**"
       - "crates/solar/**"
+      - "crates/sema/**"
+      - "tests/foundry/**"
       - "tests/ui/codegen/**"
       - "tools/tester/**"
   workflow_dispatch:

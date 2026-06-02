@@ -5,7 +5,7 @@
 //! 2. Running `forge test` with solc (baseline)
 //! 3. Comparing gas usage and test results
 //!
-//! Run with: cargo test -p solar-foundry-tester --test foundry
+//! Run with: cargo test -p solar-compiler --test foundry
 #![allow(clippy::uninlined_format_args, clippy::collapsible_if, clippy::disallowed_methods)]
 
 use std::{
@@ -24,7 +24,7 @@ use std::{
 struct TestConfig {
     /// Project name (used for display).
     name: String,
-    /// Path to project relative to the codegen crate.
+    /// Path to project relative to the workspace root.
     path: String,
     /// Optional filter for test function names (substring match).
     test_filter: Option<String>,
@@ -123,9 +123,9 @@ fn get_solar_binary() -> PathBuf {
     workspace_root.join("target/debug/solar")
 }
 
-/// Gets the path to the codegen crate.
-fn get_crate_dir() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+/// Gets the path to the workspace root.
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
 }
 
 /// Checks if forge is available.
@@ -430,7 +430,7 @@ fn print_test_diff(solar_tests: &[TestResult], solc_tests: &[TestResult], label:
 
 /// Runs a full comparison between Solar and solc for a project.
 fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
-    let project_dir = get_crate_dir().join(&config.path);
+    let project_dir = workspace_root().join(&config.path);
 
     // Step 1: Run tests with Solar
     let (solar_test_time, solar_tests, solar_sizes) =
@@ -573,7 +573,7 @@ fn run_test_with_config(config: &TestConfig) {
         return;
     }
 
-    let project_dir = get_crate_dir().join(&config.path);
+    let project_dir = workspace_root().join(&config.path);
     if !project_dir.exists() {
         panic!("Project directory not found: {:?}", project_dir);
     }
@@ -587,7 +587,7 @@ fn run_test_with_config(config: &TestConfig) {
 
 /// Runs test with Solar only (no solc comparison).
 fn run_test_solar_only(config: &TestConfig) {
-    let project_dir = get_crate_dir().join(&config.path);
+    let project_dir = workspace_root().join(&config.path);
     let (_, tests, _) = run_forge_test_solar(&project_dir, &config.name, config);
     let tests = filter_tests(tests, config);
 
@@ -699,57 +699,57 @@ mod tests {
 
     #[test]
     fn test_arithmetic() {
-        test_project_solar("arithmetic", "testdata/arithmetic");
+        test_project_solar("arithmetic", "tests/foundry/arithmetic");
     }
 
     #[test]
     fn test_control_flow() {
-        test_project_solar("control_flow", "testdata/control-flow");
+        test_project_solar("control_flow", "tests/foundry/control-flow");
     }
 
     #[test]
     fn test_storage() {
-        test_project_solar("storage", "testdata/storage");
+        test_project_solar("storage", "tests/foundry/storage");
     }
 
     #[test]
     fn test_events() {
-        test_project_solar("events", "testdata/events");
+        test_project_solar("events", "tests/foundry/events");
     }
 
     #[test]
     fn test_calls() {
-        test_project_solar("calls", "testdata/calls");
+        test_project_solar("calls", "tests/foundry/calls");
     }
 
     #[test]
     fn test_interfaces() {
-        test_project_solar("interfaces", "testdata/interfaces");
+        test_project_solar("interfaces", "tests/foundry/interfaces");
     }
 
     #[test]
     fn test_libraries() {
-        test_project_solar("libraries", "testdata/libraries");
+        test_project_solar("libraries", "tests/foundry/libraries");
     }
 
     #[test]
     fn test_constructor_args() {
-        test_project_solar("constructor_args", "testdata/constructor-args");
+        test_project_solar("constructor_args", "tests/foundry/constructor-args");
     }
 
     #[test]
     fn test_multi_return() {
-        test_project_solar("multi_return", "testdata/multi-return");
+        test_project_solar("multi_return", "tests/foundry/multi-return");
     }
 
     #[test]
     fn test_inheritance() {
-        test_project_solar("inheritance", "testdata/inheritance");
+        test_project_solar("inheritance", "tests/foundry/inheritance");
     }
 
     #[test]
     fn test_stack_deep() {
-        test_project_solar_only("stack_deep", "testdata/stack-deep");
+        test_project_solar_only("stack_deep", "tests/foundry/stack-deep");
     }
 
     #[test]
@@ -765,8 +765,8 @@ mod tests {
             return;
         }
 
-        let config = TestConfig::new("compilation-test", "testdata/arithmetic");
-        let project_dir = get_crate_dir().join(&config.path);
+        let config = TestConfig::new("compilation-test", "tests/foundry/arithmetic");
+        let project_dir = workspace_root().join(&config.path);
         let (test_time, tests, sizes) =
             run_forge_test_solar(&project_dir, "compilation-test", &config);
 
@@ -780,20 +780,20 @@ mod tests {
     #[test]
     #[ignore] // Requires forge-std which is not available in CI
     fn test_unifap_v2() {
-        test_project_solar("unifap-v2", "testdata/unifap-v2");
+        test_project_solar("unifap-v2", "tests/foundry/unifap-v2");
     }
 
     #[test]
     #[ignore] // Requires forge-std which is not available in CI
     fn test_unifap_v2_create() {
-        test_project_solar("unifap-v2-create", "testdata/foundry/unifap-v2-create");
+        test_project_solar("unifap-v2-create", "tests/foundry/unifap-v2-create");
     }
 
     // Example: run only mint-related tests
     #[test]
     #[ignore] // Example - enable when debugging specific tests
     fn test_unifap_mint_only() {
-        TestConfig::new("unifap-v2-create", "testdata/foundry/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
             .test_filter("testMint")
             .run();
     }
@@ -802,7 +802,7 @@ mod tests {
     #[test]
     #[ignore] // Example - enable when debugging specific contracts
     fn test_unifap_pair_only() {
-        TestConfig::new("unifap-v2-create", "testdata/foundry/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
             .contract_filter("UnifapV2Pair")
             .run();
     }
@@ -811,7 +811,7 @@ mod tests {
     #[test]
     #[ignore] // Example - enable when debugging
     fn test_unifap_pair_swap() {
-        TestConfig::new("unifap-v2-create", "testdata/foundry/unifap-v2-create")
+        TestConfig::new("unifap-v2-create", "tests/foundry/unifap-v2-create")
             .contract_filter("UnifapV2Pair")
             .test_filter("testSwap")
             .run();
@@ -822,6 +822,6 @@ mod tests {
     #[test]
     #[ignore] // WIP: 8 struct tests have StackUnderflow issues to fix
     fn test_structs() {
-        test_project_solar("structs", "testdata/structs");
+        test_project_solar("structs", "tests/foundry/structs");
     }
 }
