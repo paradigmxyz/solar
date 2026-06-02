@@ -7,12 +7,20 @@ fn @fact(arg0: u256) -> u256 {
     v6 = iszero v5
     br v6, bb1, bb2
   bb1:
-    ret 1
+    v9 = mload 64
+    v11 = add v9, 32
+    v13 = mstore 64, v11
+    v14 = mstore v9, 1
+    returndata v9, 32
   bb2:
-    v9 = sub arg0, 1
-    v10 = internal_call fn1, 1, v9
-    v11 = mul arg0, v10
-    ret v11
+    v17 = sub arg0, 1
+    v18 = internal_call fn1, 1, v17
+    v19 = mul arg0, v18
+    v21 = mload 64
+    v23 = add v21, 32
+    v25 = mstore 64, v23
+    v26 = mstore v21, v19
+    returndata v21, 32
 }
 
 fn @fact(arg0: u256) -> u256 {
@@ -38,14 +46,22 @@ fn @fib(arg0: u256) -> u256 {
     v6 = iszero v5
     br v6, bb1, bb2
   bb1:
-    ret arg0
+    v8 = mload 64
+    v10 = add v8, 32
+    v12 = mstore 64, v10
+    v13 = mstore v8, arg0
+    returndata v8, 32
   bb2:
-    v8 = sub arg0, 1
-    v9 = internal_call fn3, 1, v8
-    v11 = sub arg0, 2
-    v12 = internal_call fn3, 1, v11
-    v13 = add v9, v12
-    ret v13
+    v16 = sub arg0, 1
+    v17 = internal_call fn3, 1, v16
+    v19 = sub arg0, 2
+    v20 = internal_call fn3, 1, v19
+    v21 = add v17, v20
+    v23 = mload 64
+    v25 = add v23, 32
+    v27 = mstore 64, v25
+    v28 = mstore v23, v21
+    returndata v23, 32
 }
 
 fn @fib(arg0: u256) -> u256 {
@@ -72,11 +88,19 @@ fn @isEven(arg0: u256) -> bool {
     v5 = eq arg0, 0
     br v5, bb1, bb2
   bb1:
-    ret 1
+    v8 = mload 64
+    v10 = add v8, 32
+    v12 = mstore 64, v10
+    v13 = mstore v8, 1
+    returndata v8, 32
   bb2:
-    v8 = sub arg0, 1
-    v9 = internal_call fn5, 1, v8
-    ret v9
+    v16 = sub arg0, 1
+    v17 = internal_call fn5, 1, v16
+    v19 = mload 64
+    v21 = add v19, 32
+    v23 = mstore 64, v21
+    v24 = mstore v19, v17
+    returndata v19, 32
 }
 
 fn @isOdd(arg0: u256) -> bool {
@@ -113,10 +137,18 @@ fn @isOdd(arg0: u256) -> bool {
     v5 = eq arg0, 0
     br v5, bb1, bb2
   bb1:
-    ret 0
+    v8 = mload 64
+    v10 = add v8, 32
+    v12 = mstore 64, v10
+    v13 = mstore v8, 0
+    returndata v8, 32
   bb2:
-    v8 = sub arg0, 1
-    v9 = internal_call fn6, 1, v8
-    ret v9
+    v16 = sub arg0, 1
+    v17 = internal_call fn6, 1, v16
+    v19 = mload 64
+    v21 = add v19, 32
+    v23 = mstore 64, v21
+    v24 = mstore v19, v17
+    returndata v19, 32
 }
 

@@ -2,6 +2,7 @@
 //!
 //! This module transforms the high-level IR from solar-sema into MIR.
 
+mod abi_encode;
 mod expr;
 mod stmt;
 
@@ -14,7 +15,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use solar_interface::Ident;
 use solar_sema::{
     hir::{self, ContractId, FunctionId as HirFunctionId, VariableId},
-    ty::Gcx,
+    ty::{Gcx, Ty},
 };
 
 /// Context for a loop (tracks break/continue targets).
@@ -74,6 +75,9 @@ pub struct Lowerer<'gcx> {
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
     lowering_internal_function: bool,
+    /// Sema return types of the function currently being lowered (one per declared
+    /// return), used to ABI-encode external returns.
+    current_return_tys: Vec<Ty<'gcx>>,
     /// Mapping from struct state variable ID to base storage slot.
     pub struct_storage_base_slots: FxHashMap<VariableId, u64>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
@@ -105,6 +109,7 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_functions: FxHashSet::default(),
             lowering_constructor: false,
             lowering_internal_function: false,
+            current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_field_memory_offsets: FxHashMap::default(),
@@ -344,6 +349,7 @@ impl<'gcx> Lowerer<'gcx> {
             let mut builder = FunctionBuilder::new(&mut mir_func);
             let saved_lowering_constructor = self.lowering_constructor;
             let saved_lowering_internal_function = self.lowering_internal_function;
+            let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
             self.lowering_constructor = true;
             self.lowering_internal_function = false;
 
@@ -365,6 +371,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder.stop();
             self.lowering_constructor = saved_lowering_constructor;
             self.lowering_internal_function = saved_lowering_internal_function;
+            self.current_return_tys = saved_current_return_tys;
         }
 
         self.module.add_function(mir_func);
@@ -658,6 +665,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
         let saved_lowering_internal_function = self.lowering_internal_function;
+        let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
 
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
@@ -671,6 +679,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
         self.lowering_internal_function = saved_lowering_internal_function;
+        self.current_return_tys = saved_current_return_tys;
 
         mir_id
     }
@@ -691,6 +700,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
         let saved_lowering_internal_function = self.lowering_internal_function;
+        let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
 
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         let mir_id = self.lower_function(func_id, true);
@@ -702,6 +712,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
         self.lowering_internal_function = saved_lowering_internal_function;
+        self.current_return_tys = saved_current_return_tys;
 
         mir_id
     }
@@ -759,6 +770,11 @@ impl<'gcx> Lowerer<'gcx> {
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
         self.lowering_internal_function = uses_internal_frame;
+        self.current_return_tys = hir_func
+            .returns
+            .iter()
+            .map(|&id| self.gcx.type_of_hir_ty(&self.gcx.hir.variable(id).ty))
+            .collect();
 
         // Pre-analyze function body to find variables that are assigned after declaration.
         // Variables that are only initialized (never reassigned) can stay as SSA values.
@@ -842,8 +858,9 @@ impl<'gcx> Lowerer<'gcx> {
                 if builder.func().returns.is_empty() {
                     builder.stop();
                 } else {
-                    // Load return values from memory (where they were stored during execution)
-                    let mut ret_vals = Vec::new();
+                    // Load each return variable's word (the value for value types,
+                    // a memory pointer for reference types).
+                    let mut items: Vec<(ValueId, Ty<'gcx>)> = Vec::new();
                     for &ret_id in hir_func.returns {
                         let ret_var = self.gcx.hir.variable(ret_id);
                         let ret_val = if let Some(offset) = self.get_local_memory_offset(&ret_id) {
@@ -852,21 +869,9 @@ impl<'gcx> Lowerer<'gcx> {
                         } else {
                             builder.imm_u256(U256::ZERO)
                         };
-
-                        if uses_external_abi
-                            && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) =
-                                &ret_var.ty.kind
-                        {
-                            ret_vals.extend(self.load_struct_return_values(
-                                &mut builder,
-                                *struct_id,
-                                ret_val,
-                            ));
-                        } else {
-                            ret_vals.push(ret_val);
-                        }
+                        items.push((ret_val, self.gcx.type_of_hir_ty(&ret_var.ty)));
                     }
-                    builder.ret(ret_vals);
+                    self.finish_external_or_internal_return(&mut builder, items, uses_external_abi);
                 }
             }
         }

@@ -448,6 +448,15 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
+        // External entries whose returns are all statically encoded go through the
+        // ABI encoder. Dynamic external returns and internal-frame functions keep
+        // the legacy paths below (later phases route all external returns here).
+        let external = builder.func().is_public() && !self.lowering_internal_function;
+        if external && self.return_tys_all_static() {
+            let items = self.gather_return_items(builder, value);
+            self.emit_abi_return(builder, &items);
+            return;
+        }
         if let Some(expr) = value {
             // Check if this is a tuple return (multiple values)
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
@@ -512,7 +521,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the tuple arity if this is a ternary expression with tuple branches.
-    fn get_ternary_tuple_arity(&self, expr: &hir::Expr<'_>) -> Option<usize> {
+    pub(super) fn get_ternary_tuple_arity(&self, expr: &hir::Expr<'_>) -> Option<usize> {
         if let hir::ExprKind::Ternary(_, then_expr, else_expr) = &expr.kind {
             // Check if either branch is a tuple
             if let hir::ExprKind::Tuple(elements) = &then_expr.kind {

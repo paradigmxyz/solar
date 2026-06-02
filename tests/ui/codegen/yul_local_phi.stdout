@@ -14,6 +14,10 @@ fn @branchLocal(arg0: u256) -> u256 {
     v14 = mload 160
     v16 = mstore 128, v14
     v18 = mload 128
-    ret v18
+    v20 = mload 64
+    v22 = add v20, 32
+    v24 = mstore 64, v22
+    v25 = mstore v20, v18
+    returndata v20, 32
 }
 
