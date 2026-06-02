@@ -2150,11 +2150,6 @@ impl EvmCodegen {
                 if values.is_empty() {
                     self.asm.emit_push(U256::ZERO);
                     self.asm.emit_push(U256::ZERO);
-                } else if values.len() == 1 && func.returns_dynamic_array {
-                    self.emit_dynamic_array_return(func, values[0]);
-                } else if values.len() == 1 && matches!(func.returns.first(), Some(MirType::MemPtr))
-                {
-                    self.emit_short_storage_string_return(func, values[0]);
                 } else if values.len() == 1 {
                     // Single return value - simple case
                     self.emit_value(func, values[0]);
@@ -2215,77 +2210,6 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::INVALID);
             }
         }
-    }
-
-    /// Emits ABI return data for a short storage string word.
-    ///
-    /// Input value layout: high bytes contain the left-aligned data, low byte is `len * 2`.
-    /// Output ABI layout for one dynamic string/bytes return:
-    /// `[offset=0x20][length][data-word]`.
-    fn emit_short_storage_string_return(&mut self, func: &Function, value: ValueId) {
-        let low_byte_mask = U256::MAX - U256::from(0xffu64);
-
-        self.emit_value(func, value);
-
-        // length = (encoded & 0xff) >> 1, store at 0x20.
-        self.asm.emit_op(opcodes::dup(1));
-        self.asm.emit_push(U256::from(0xffu64));
-        self.asm.emit_op(opcodes::AND);
-        self.asm.emit_push(U256::from(1));
-        self.asm.emit_op(opcodes::SHR);
-        self.asm.emit_push(U256::from(0x20));
-        self.asm.emit_op(opcodes::MSTORE);
-
-        // data = encoded & !0xff, store at 0x40.
-        self.asm.emit_push(low_byte_mask);
-        self.asm.emit_op(opcodes::AND);
-        self.asm.emit_push(U256::from(0x40));
-        self.asm.emit_op(opcodes::MSTORE);
-
-        // Dynamic ABI head offset.
-        self.asm.emit_push(U256::from(0x20));
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(opcodes::MSTORE);
-
-        self.asm.emit_push(U256::from(0x60));
-        self.asm.emit_push(U256::ZERO);
-    }
-
-    /// Emits the ABI return for a single dynamic array of word-sized elements.
-    /// `value` points at the memory layout `[length][elem0][elem1]…`; the ABI
-    /// return is `[offset=0x20][length][elems]`, so we write the head and copy
-    /// `[length][elems]` directly after it, then `RETURN(0, 0x40 + length*32)`.
-    /// Leaves `[size, offset]` on the stack for the shared `RETURN`.
-    fn emit_dynamic_array_return(&mut self, func: &Function, value: ValueId) {
-        self.emit_value(func, value); // stack: [ptr]
-
-        // mem[0] = 0x20 (ABI head offset). MSTORE pops offset (top) then value.
-        self.asm.emit_push(U256::from(0x20));
-        self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(opcodes::MSTORE); // [ptr]
-
-        // length = mload(ptr).
-        self.asm.emit_op(opcodes::dup(1)); // [ptr, ptr]
-        self.asm.emit_op(opcodes::MLOAD); // [ptr, length]
-
-        // copy_size = (length + 1) * 32.
-        self.asm.emit_op(opcodes::dup(1)); // [ptr, length, length]
-        self.asm.emit_push(U256::from(1));
-        self.asm.emit_op(opcodes::ADD);
-        self.asm.emit_push(U256::from(32));
-        self.asm.emit_op(opcodes::MUL); // [ptr, length, copy_size]
-
-        // mcopy(dest=0x20, src=ptr, size=copy_size). MCOPY pops dest, src, size.
-        self.asm.emit_op(opcodes::dup(3)); // [ptr, length, copy_size, ptr(src)]
-        self.asm.emit_push(U256::from(0x20)); // [ptr, length, copy_size, src, dest]
-        self.asm.emit_op(opcodes::MCOPY); // [ptr, length]
-
-        // return size = 0x40 + length * 32; offset = 0.
-        self.asm.emit_push(U256::from(32));
-        self.asm.emit_op(opcodes::MUL); // [ptr, length*32]
-        self.asm.emit_push(U256::from(0x40));
-        self.asm.emit_op(opcodes::ADD); // [ptr, ret_size]
-        self.asm.emit_push(U256::ZERO); // [ptr, ret_size, 0]
     }
 }
 

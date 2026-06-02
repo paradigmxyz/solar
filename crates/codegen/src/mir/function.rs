@@ -21,10 +21,6 @@ pub struct Function {
     pub returns: Vec<MirType>,
     /// Bytes reserved in the internal-call frame for local memory slots.
     pub internal_frame_size: u64,
-    /// True if this is an external entry whose sole return is a dynamic array of
-    /// word-sized elements, so `Terminator::Return` ABI-encodes it (offset +
-    /// length + elements) rather than returning the raw memory pointer.
-    pub returns_dynamic_array: bool,
     /// All values in this function.
     pub values: IndexVec<ValueId, Value>,
     /// All instructions in this function.
@@ -49,7 +45,6 @@ impl Function {
             params: Vec::new(),
             returns: Vec::new(),
             internal_frame_size: 0,
-            returns_dynamic_array: false,
             values: IndexVec::new(),
             instructions: IndexVec::new(),
             blocks,

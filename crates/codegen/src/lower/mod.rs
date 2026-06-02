@@ -758,12 +758,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let uses_internal_frame = !uses_external_abi && !is_special;
 
-        // An external entry returning a single dynamic array of word-sized
-        // elements is ABI-encoded (offset + length + elements) at the return.
-        mir_func.returns_dynamic_array = uses_external_abi
-            && hir_func.returns.len() == 1
-            && Self::is_dynamic_word_array(&self.gcx.hir.variable(hir_func.returns[0]).ty);
-
         self.locals.clear();
         self.local_memory_slots.clear();
         self.next_local_memory_offset = 0x80;
@@ -1024,27 +1018,6 @@ impl<'gcx> Lowerer<'gcx> {
                 _ => MirType::uint256(),
             },
             hir::TypeKind::Err(_) => MirType::uint256(),
-        }
-    }
-
-    /// Whether `ty` is a dynamic array whose elements each occupy one 32-byte
-    /// word (integers, `address`, `bool`, `bytesN`, enums). Such an array's
-    /// memory layout `[length][elem0][elem1]…` is exactly its ABI return tail.
-    /// Excludes `string`/`bytes` and struct/array elements, which need
-    /// multi-level ABI encoding.
-    fn is_dynamic_word_array(ty: &hir::Type<'_>) -> bool {
-        let hir::TypeKind::Array(array) = &ty.kind else {
-            return false;
-        };
-        if array.size.is_some() {
-            return false;
-        }
-        match &array.element.kind {
-            hir::TypeKind::Elementary(elem) => {
-                !matches!(elem, hir::ElementaryType::String | hir::ElementaryType::Bytes)
-            }
-            hir::TypeKind::Custom(hir::ItemId::Enum(_) | hir::ItemId::Contract(_)) => true,
-            _ => false,
         }
     }
 

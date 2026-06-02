@@ -448,11 +448,11 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
-        // External entries whose returns are all statically encoded go through the
-        // ABI encoder. Dynamic external returns and internal-frame functions keep
-        // the legacy paths below (later phases route all external returns here).
+        // External entries whose returns do not need runtime element loops go
+        // through the ABI encoder. Loop-needing dynamic external returns and
+        // internal-frame functions keep the legacy paths below until Phase 3.
         let external = builder.func().is_public() && !self.lowering_internal_function;
-        if external && self.return_tys_all_static() {
+        if external && self.return_tys_no_loop() {
             let items = self.gather_return_items(builder, value);
             self.emit_abi_return(builder, &items);
             return;

@@ -103,7 +103,21 @@ fn @mkArr(arg0: u256) -> memptr {
     v18 = lt v17, arg0
     br v18, bb4, bb5
   bb2:
-    ret v5
+    v37 = mload 64
+    v39 = add v37, 32
+    v41 = mstore 64, v39
+    v43 = add v37, 32
+    v44 = sub v43, v37
+    v45 = mstore v37, v44
+    v46 = mload v5
+    v47 = mstore v43, v46
+    v49 = mul v46, 32
+    v50 = add v43, 32
+    v51 = add v5, 32
+    v52 = mcopy v50, v51, v49
+    v53 = add v50, v49
+    v54 = sub v53, v37
+    returndata v37, v54
   bb3:
     v31 = mload 160
     v33 = add v31, 1
@@ -152,6 +166,20 @@ fn @squares(arg0: u256) -> memptr {
     v10 = add v5, v9
     v12 = mstore 64, v10
     v14 = internal_call fn3, 1, v5, 0
-    ret v14
+    v16 = mload 64
+    v18 = add v16, 32
+    v20 = mstore 64, v18
+    v22 = add v16, 32
+    v23 = sub v22, v16
+    v24 = mstore v16, v23
+    v25 = mload v14
+    v26 = mstore v22, v25
+    v28 = mul v25, 32
+    v29 = add v22, 32
+    v30 = add v14, 32
+    v31 = mcopy v29, v30, v28
+    v32 = add v29, v28
+    v33 = sub v32, v16
+    returndata v16, v33
 }
 

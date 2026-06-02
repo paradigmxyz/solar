@@ -451,6 +451,36 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Lowers a string/bytes literal to Solidity's memory layout
+    /// `[length][data...]` and returns the memory pointer. General literal
+    /// lowering still returns a word; ABI return encoding needs a real pointer.
+    pub(super) fn lower_string_literal_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lit: &hir::Lit<'_>,
+    ) -> Option<ValueId> {
+        let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
+        let bytes = bytes.as_byte_str();
+        let len = bytes.len();
+        let aligned = len.div_ceil(32) * 32;
+        let ptr = self.allocate_memory(builder, (32 + aligned) as u64);
+        let len_val = builder.imm_u64(len as u64);
+        builder.mstore(ptr, len_val);
+
+        let word = builder.imm_u64(32);
+        let data_start = builder.add(ptr, word);
+        for (i, chunk) in bytes.chunks(32).enumerate() {
+            let mut padded = [0u8; 32];
+            padded[..chunk.len()].copy_from_slice(chunk);
+            let val = builder.imm_u256(U256::from_be_bytes(padded));
+            let off = builder.imm_u64((i * 32) as u64);
+            let dest = builder.add(data_start, off);
+            builder.mstore(dest, val);
+        }
+
+        Some(ptr)
+    }
+
     /// Lowers an identifier reference.
     fn lower_ident(&mut self, builder: &mut FunctionBuilder<'_>, res: &hir::Res) -> ValueId {
         match res {
@@ -491,8 +521,21 @@ impl<'gcx> Lowerer<'gcx> {
                             return struct_ptr;
                         }
 
-                        // For scalar storage variables, just load the value
+                        // For scalar storage bytes/string, normalize the packed
+                        // short-storage slot to the memory layout expected by
+                        // the ABI encoder. `.length` and indexing use dedicated
+                        // storage-slot paths and do not come through here.
                         let slot_val = builder.imm_u64(slot);
+                        if matches!(
+                            var.ty.kind,
+                            hir::TypeKind::Elementary(
+                                hir::ElementaryType::String | hir::ElementaryType::Bytes
+                            )
+                        ) {
+                            return self.materialize_storage_bytes(builder, slot_val);
+                        }
+
+                        // For scalar storage variables, just load the value
                         return builder.sload(slot_val);
                     }
                 }
