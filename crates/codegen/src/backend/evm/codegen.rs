@@ -2147,36 +2147,9 @@ impl EvmCodegen {
                     return;
                 }
 
-                if values.is_empty() {
-                    self.asm.emit_push(U256::ZERO);
-                    self.asm.emit_push(U256::ZERO);
-                } else if values.len() == 1 {
-                    // Single return value - simple case
-                    self.emit_value(func, values[0]);
-                    self.asm.emit_push(U256::ZERO);
-                    self.asm.emit_op(opcodes::MSTORE);
-                    self.asm.emit_push(U256::from(32));
-                    self.asm.emit_push(U256::ZERO);
-                } else {
-                    // For multiple return values, we need to emit each value and store it
-                    // at the correct memory offset (0, 32, 64, etc.).
-                    let n = values.len();
-
-                    // Emit each value and immediately store it.
-                    for (i, &value) in values.iter().enumerate() {
-                        self.emit_value(func, value);
-                        self.asm.emit_push(U256::from(i * 32));
-                        // Model the PUSH in the scheduler
-                        self.scheduler.stack.push_unknown();
-                        self.asm.emit_op(opcodes::MSTORE);
-                        // MSTORE consumes 2 values (offset and value)
-                        self.scheduler.instruction_executed(2, None);
-                    }
-
-                    // Return size and offset
-                    self.asm.emit_push(U256::from(n * 32));
-                    self.asm.emit_push(U256::ZERO);
-                }
+                assert!(values.is_empty(), "external ABI returns with values must use ReturnData");
+                self.asm.emit_push(U256::ZERO);
+                self.asm.emit_push(U256::ZERO);
                 self.asm.emit_op(opcodes::RETURN);
             }
 

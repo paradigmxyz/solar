@@ -31,9 +31,9 @@ fn @bytesLiteral() -> memptr {
     jump bb2
   bb2:
     v40 = add v4, 32
-    v41 = mcopy v34, v40, v27
-    v42 = add v34, v33
-    v43 = sub v42, v18
+    v41 = add v34, v33
+    v42 = mcopy v34, v40, v27
+    v43 = sub v41, v18
     returndata v18, v43
 }
 
@@ -68,9 +68,9 @@ fn @stringLiteral() -> memptr {
     jump bb2
   bb2:
     v40 = add v4, 32
-    v41 = mcopy v34, v40, v27
-    v42 = add v34, v33
-    v43 = sub v42, v18
+    v41 = add v34, v33
+    v42 = mcopy v34, v40, v27
+    v43 = sub v41, v18
     returndata v18, v43
 }
 

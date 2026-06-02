@@ -496,54 +496,6 @@ impl<'gcx> Lowerer<'gcx> {
         offset
     }
 
-    /// Loads a memory struct as flattened ABI return words.
-    pub(super) fn load_struct_return_values(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        struct_ptr: ValueId,
-    ) -> Vec<ValueId> {
-        let mut values = Vec::new();
-        self.load_struct_return_values_at(builder, struct_id, struct_ptr, 0, &mut values);
-        values
-    }
-
-    fn load_struct_return_values_at(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        struct_ptr: ValueId,
-        base_offset: u64,
-        values: &mut Vec<ValueId>,
-    ) -> u64 {
-        let strukt = self.gcx.hir.strukt(struct_id);
-        let mut offset = base_offset;
-
-        for &field_id in strukt.fields {
-            let field = self.gcx.hir.variable(field_id);
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
-                offset = self.load_struct_return_values_at(
-                    builder,
-                    *inner_struct_id,
-                    struct_ptr,
-                    offset,
-                    values,
-                );
-            } else {
-                let field_ptr = if offset == 0 {
-                    struct_ptr
-                } else {
-                    let offset_val = builder.imm_u64(offset);
-                    builder.add(struct_ptr, offset_val)
-                };
-                values.push(builder.mload(field_ptr));
-                offset += 32;
-            }
-        }
-
-        offset
-    }
-
     /// Recursively copies a struct from storage to memory.
     /// Handles nested structs by flattening them into contiguous memory.
     /// Returns the next memory offset after all fields are copied.

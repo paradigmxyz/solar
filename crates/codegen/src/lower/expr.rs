@@ -1385,7 +1385,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Handle `new Contract(args)` - contract creation
         if let ExprKind::New(ty) = &callee.kind {
-            if matches!(ty.kind, hir::TypeKind::Array(_)) {
+            if self.is_memory_array_new_type(ty) {
                 return self.lower_new_array(builder, ty, args);
             }
             return self.lower_new_contract(builder, ty, args, call_opts);
@@ -1541,10 +1541,7 @@ impl<'gcx> Lowerer<'gcx> {
         ty: &hir::Type<'_>,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let hir::TypeKind::Array(array) = &ty.kind else {
-            return builder.imm_u64(0);
-        };
-        if array.size.is_some() {
+        if !self.is_memory_array_new_type(ty) {
             return builder.imm_u64(0);
         }
 
@@ -1566,6 +1563,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(free_ptr_addr, new_free_ptr);
 
         ptr
+    }
+
+    fn is_memory_array_new_type(&self, ty: &hir::Type<'_>) -> bool {
+        match &ty.kind {
+            hir::TypeKind::Array(array) => array.size.is_none(),
+            hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
+            _ => false,
+        }
     }
 
     /// Lowers a `new Contract(args)` expression.
