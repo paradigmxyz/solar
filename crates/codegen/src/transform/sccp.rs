@@ -472,6 +472,7 @@ impl SccpPass {
             }
             Terminator::Return { .. }
             | Terminator::Revert { .. }
+            | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
             | Terminator::Invalid => {
@@ -790,7 +791,7 @@ fn replace_terminator_operands(term: &mut Terminator, replacements: &FxHashMap<V
                 replace(v);
             }
         }
-        Terminator::Revert { offset, size } => {
+        Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
             replace(offset);
             replace(size);
         }

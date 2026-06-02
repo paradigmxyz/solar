@@ -211,7 +211,9 @@ impl DeadCodeEliminator {
                 ops
             }
             Terminator::Return { values } => values.to_vec(),
-            Terminator::Revert { offset, size } => vec![*offset, *size],
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+                vec![*offset, *size]
+            }
             Terminator::SelfDestruct { recipient } => vec![*recipient],
         }
     }
@@ -258,7 +260,7 @@ impl DeadCodeEliminator {
                     used.insert(*val);
                 }
             }
-            Terminator::Revert { offset, size } => {
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
                 used.insert(*offset);
                 used.insert(*size);
             }

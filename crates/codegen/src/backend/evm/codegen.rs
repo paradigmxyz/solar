@@ -2191,6 +2191,13 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::REVERT);
             }
 
+            Terminator::ReturnData { offset, size } => {
+                debug_assert!(!self.in_internal_function);
+                self.emit_value(func, *size);
+                self.emit_value(func, *offset);
+                self.asm.emit_op(opcodes::RETURN);
+            }
+
             Terminator::Stop => {
                 if self.in_internal_function {
                     self.emit_internal_return(func, &[]);

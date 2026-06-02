@@ -106,6 +106,7 @@ pub fn function_to_dot(func: &Function) -> String {
                 }
                 Terminator::Return { .. }
                 | Terminator::Revert { .. }
+                | Terminator::ReturnData { .. }
                 | Terminator::Stop
                 | Terminator::SelfDestruct { .. }
                 | Terminator::Invalid => {
@@ -522,6 +523,9 @@ fn format_terminator(term: &Terminator, func: &Function) -> String {
         }
         Terminator::Revert { offset, size } => {
             format!("revert {}, {}", fmt_val(*offset, func), fmt_val(*size, func))
+        }
+        Terminator::ReturnData { offset, size } => {
+            format!("returndata {}, {}", fmt_val(*offset, func), fmt_val(*size, func))
         }
         Terminator::Stop => "stop".to_string(),
         Terminator::SelfDestruct { recipient } => {

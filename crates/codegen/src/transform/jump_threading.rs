@@ -216,6 +216,7 @@ impl JumpThreader {
 
             Terminator::Return { .. }
             | Terminator::Revert { .. }
+            | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
             | Terminator::Invalid => {}

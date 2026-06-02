@@ -424,7 +424,7 @@ impl CommonSubexprEliminator {
                     replace(val);
                 }
             }
-            Terminator::Revert { offset, size } => {
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
                 replace(offset);
                 replace(size);
             }

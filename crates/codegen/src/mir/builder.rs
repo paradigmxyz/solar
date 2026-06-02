@@ -571,6 +571,12 @@ impl<'a> FunctionBuilder<'a> {
         self.func.blocks[self.current_block].terminator = Some(Terminator::Revert { offset, size });
     }
 
+    /// Sets a return-data terminator: `RETURN(offset, size)`.
+    pub fn ret_data(&mut self, offset: ValueId, size: ValueId) {
+        self.func.blocks[self.current_block].terminator =
+            Some(Terminator::ReturnData { offset, size });
+    }
+
     /// Sets a stop terminator.
     pub fn stop(&mut self) {
         self.func.blocks[self.current_block].terminator = Some(Terminator::Stop);
