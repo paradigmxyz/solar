@@ -1,0 +1,143 @@
+// === ROOT/tests/ui/codegen/recursive_memory_return.sol:C ===
+; module @C
+fn @build(arg0: u256) -> memptr {
+  bb0 (entry):
+    v3 = mload 64
+    v5 = add v3, 64
+    v7 = mstore 64, v5
+    v8 = mstore 128, v3
+    v10 = eq arg0, 0
+    br v10, bb1, bb2
+  bb1:
+    v12 = mload 64
+    v14 = add v12, 64
+    v16 = mstore 64, v14
+    v18 = mstore v12, 0
+    v21 = add v12, 32
+    v22 = mstore v21, 0
+    v23 = mload v12
+    v25 = add v12, 32
+    v26 = mload v25
+    ret v23, v26
+  bb2:
+    v28 = sub arg0, 1
+    v29 = internal_call fn1, 1, v28
+    v31 = mload 64
+    v33 = add v31, 64
+    v35 = mstore 64, v33
+    v36 = mload v29
+    v37 = add v36, arg0
+    v38 = mstore v31, v37
+    v40 = add v29, 32
+    v41 = mload v40
+    v43 = add v41, 1
+    v45 = add v31, 32
+    v46 = mstore v45, v43
+    v47 = mload v31
+    v49 = add v31, 32
+    v50 = mload v49
+    ret v47, v50
+}
+
+fn @build(arg0: u256) -> memptr {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    v3 = mload 64
+    v5 = add v3, 64
+    v7 = mstore 64, v5
+    v8 = mstore v1, v3
+    v10 = eq arg0, 0
+    br v10, bb1, bb2
+  bb1:
+    v12 = mload 64
+    v14 = add v12, 64
+    v16 = mstore 64, v14
+    v18 = mstore v12, 0
+    v21 = add v12, 32
+    v22 = mstore v21, 0
+    ret v12
+  bb2:
+    v24 = sub arg0, 1
+    v25 = internal_call fn1, 1, v24
+    v27 = mload 64
+    v29 = add v27, 64
+    v31 = mstore 64, v29
+    v32 = mload v25
+    v33 = add v32, arg0
+    v34 = mstore v27, v33
+    v36 = add v25, 32
+    v37 = mload v36
+    v39 = add v37, 1
+    v41 = add v27, 32
+    v42 = mstore v41, v39
+    ret v27
+}
+
+fn @mkArr(arg0: u256) -> memptr {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v5 = mload 64
+    v6 = mstore v5, arg0
+    v8 = mul arg0, 32
+    v9 = add v8, 32
+    v10 = add v5, v9
+    v12 = mstore 64, v10
+    v15 = mstore 160, 0
+    jump bb1
+  bb1:
+    v17 = mload 160
+    v18 = lt v17, arg0
+    br v18, bb4, bb5
+  bb2:
+    ret v5
+  bb3:
+    v31 = mload 160
+    v33 = add v31, 1
+    v35 = mstore 160, v33
+    jump bb1
+  bb4:
+    v20 = mload 160
+    v22 = mul v20, 10
+    v24 = mload 160
+    v26 = mul v24, 32
+    v27 = add v5, 32
+    v28 = add v27, v26
+    v29 = mstore v28, v22
+    jump bb3
+  bb5:
+    jump bb2
+}
+
+fn @fillImpl(arg0: memptr, arg1: u256) -> memptr {
+  bb0 (entry):
+    v2 = internal_frame_addr 160
+    v4 = mstore v2, 0
+    v5 = mload arg0
+    v6 = eq arg1, v5
+    br v6, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    v7 = mul arg1, arg1
+    v9 = mul arg1, 32
+    v10 = add arg0, 32
+    v11 = add v10, v9
+    v12 = mstore v11, v7
+    v14 = add arg1, 1
+    v15 = internal_call fn3, 1, arg0, v14
+    ret v15
+}
+
+fn @squares(arg0: u256) -> memptr {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v5 = mload 64
+    v6 = mstore v5, arg0
+    v8 = mul arg0, 32
+    v9 = add v8, 32
+    v10 = add v5, v9
+    v12 = mstore 64, v10
+    v14 = internal_call fn3, 1, v5, 0
+    ret v14
+}
+

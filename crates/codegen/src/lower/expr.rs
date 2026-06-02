@@ -3692,8 +3692,7 @@ impl<'gcx> Lowerer<'gcx> {
         // (`ensure_internal_mir_function`) for `internal_call` to target.
         let needs_call =
             !Self::is_simple_return_function(func) || self.function_is_recursive(func_id);
-        if !self.lowering_constructor && !self.function_returns_memory_reference(func) && needs_call
-        {
+        if !self.lowering_constructor && needs_call {
             let result_ty = func
                 .returns
                 .first()
@@ -3876,10 +3875,7 @@ impl<'gcx> Lowerer<'gcx> {
                 arg_vals.push(self.lower_expr(builder, arg));
             }
 
-            if !self.lowering_constructor
-                && !self.function_returns_memory_reference(func)
-                && !Self::is_simple_return_function(func)
-            {
+            if !self.lowering_constructor && !Self::is_simple_return_function(func) {
                 let result_ty = func
                     .returns
                     .first()
@@ -3942,13 +3938,6 @@ impl<'gcx> Lowerer<'gcx> {
             // For now, return placeholder (external library calls are less common)
             builder.imm_u64(0)
         }
-    }
-
-    fn function_returns_memory_reference(&self, func: &hir::Function<'_>) -> bool {
-        func.returns.iter().any(|&var_id| {
-            let var = self.gcx.hir.variable(var_id);
-            matches!(self.lower_type_from_var(var), MirType::MemPtr)
-        })
     }
 
     fn is_simple_return_function(func: &hir::Function<'_>) -> bool {

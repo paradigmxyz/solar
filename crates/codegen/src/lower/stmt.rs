@@ -472,10 +472,14 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.ret(ret_vals);
             } else {
-                // Check if returning a memory struct - expand to individual fields
+                // Check if returning a memory struct - expand to individual fields.
+                // Only for the external ABI entry; an internal-frame function (incl.
+                // the internal-convention copy of a public function) returns the
+                // struct pointer through the frame instead of expanding it.
                 let struct_type = self.get_return_struct_type(expr);
                 if let Some(struct_id) = struct_type
                     && builder.func().is_public()
+                    && !self.lowering_internal_function
                 {
                     let struct_ptr = self.lower_expr(builder, expr);
                     let ret_vals = self.load_struct_return_values(builder, struct_id, struct_ptr);
