@@ -629,7 +629,9 @@ impl EvmCodegen {
 
             // Define block label
             self.asm.define_label(self.block_labels[&block_id]);
-            self.asm.emit_op(opcodes::JUMPDEST);
+            if block_id != func.entry_block || !block.predecessors.is_empty() {
+                self.asm.emit_op(opcodes::JUMPDEST);
+            }
 
             // Reset stack at block entry - all cross-block values should be in spill slots
             self.scheduler.clear_stack();
