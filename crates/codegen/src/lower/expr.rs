@@ -13,6 +13,11 @@ use solar_sema::{
     hir::{self, CallArgs, ElementaryType, ExprKind},
 };
 
+enum PackedAbiArg {
+    Bytes(Vec<u8>),
+    Value { value: ValueId, size: usize },
+}
+
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers an expression to MIR.
     pub(super) fn lower_expr(
@@ -1010,9 +1015,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let args: Vec<_> = args.exprs().collect();
-        let total_len: u64 =
-            args.iter().map(|arg| self.get_packed_size_from_expr(arg) as u64).sum();
+        let (packed_args, total_len) = self.collect_packed_abi_args(builder, args);
         let aligned_data_len = total_len.div_ceil(32) * 32;
         let total_size = 32 + aligned_data_len;
 
@@ -1033,49 +1036,112 @@ impl<'gcx> Lowerer<'gcx> {
         let length = builder.imm_u64(total_len);
         builder.mstore(ptr, length);
 
-        let mut current_offset: u64 = 0;
-
-        for arg in args {
-            if let ExprKind::Lit(lit) = &arg.kind
-                && let LitKind::Str(_, bytes, _) = &lit.kind
-            {
-                for chunk in bytes.as_byte_str().chunks(32) {
-                    let mut padded = [0u8; 32];
-                    padded[..chunk.len()].copy_from_slice(chunk);
-                    let val = builder.imm_u256(U256::from_be_bytes(padded));
-                    let offset = builder.imm_u64(current_offset);
-                    let dest = builder.add(data_start, offset);
-                    builder.mstore(dest, val);
-                    current_offset += chunk.len() as u64;
-                }
-                continue;
-            }
-
-            let packed_size = self.get_packed_size_from_expr(arg);
-            let val = self.lower_expr(builder, arg);
-
-            if packed_size == 32 {
-                // Full 32 bytes - use MSTORE
-                let offset = builder.imm_u64(current_offset);
-                let dest = builder.add(data_start, offset);
-                builder.mstore(dest, val);
-            } else {
-                // Less than 32 bytes - need to left-align and use MSTORE
-                // Value is already right-aligned in the 256-bit word
-                // Shift left to left-align: val << (256 - packed_size*8)
-                let shift_bits = (32 - packed_size) * 8;
-                let shift_amount = builder.imm_u64(shift_bits as u64);
-                let left_aligned = builder.shl(shift_amount, val);
-
-                let offset = builder.imm_u64(current_offset);
-                let dest = builder.add(data_start, offset);
-                builder.mstore(dest, left_aligned);
-            }
-            current_offset += packed_size as u64;
-        }
+        self.write_packed_abi_args(builder, data_start, &packed_args);
 
         // Return pointer to the bytes value
         ptr
+    }
+
+    /// Lowers `keccak256(abi.encodePacked(...))` without materializing a temporary bytes object.
+    fn lower_keccak_abi_encode_packed(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let (packed_args, total_len) = self.collect_packed_abi_args(builder, args);
+
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let data_start = builder.mload(free_mem_ptr_slot);
+        self.write_packed_abi_args(builder, data_start, &packed_args);
+
+        let size = builder.imm_u64(total_len);
+        builder.keccak256(data_start, size)
+    }
+
+    fn collect_packed_abi_args(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> (Vec<PackedAbiArg>, u64) {
+        let mut packed_args = Vec::with_capacity(args.len());
+        let mut total_len = 0u64;
+
+        for arg in args.exprs() {
+            if let ExprKind::Lit(lit) = &arg.kind
+                && let LitKind::Str(_, bytes, _) = &lit.kind
+            {
+                let bytes = bytes.as_byte_str().to_vec();
+                total_len += bytes.len() as u64;
+                packed_args.push(PackedAbiArg::Bytes(bytes));
+                continue;
+            }
+
+            let size = self.get_packed_size_from_expr(arg);
+            let value = self.lower_expr(builder, arg);
+            total_len += size as u64;
+            packed_args.push(PackedAbiArg::Value { value, size });
+        }
+
+        (packed_args, total_len)
+    }
+
+    fn write_packed_abi_args(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        data_start: ValueId,
+        args: &[PackedAbiArg],
+    ) {
+        let mut current_offset: u64 = 0;
+
+        for arg in args {
+            match arg {
+                PackedAbiArg::Bytes(bytes) => {
+                    for chunk in bytes.chunks(32) {
+                        let mut padded = [0u8; 32];
+                        padded[..chunk.len()].copy_from_slice(chunk);
+                        let val = builder.imm_u256(U256::from_be_bytes(padded));
+                        let offset = builder.imm_u64(current_offset);
+                        let dest = builder.add(data_start, offset);
+                        builder.mstore(dest, val);
+                        current_offset += chunk.len() as u64;
+                    }
+                }
+                &PackedAbiArg::Value { value, size } if size >= 32 => {
+                    // Full 32 bytes - use MSTORE
+                    let offset = builder.imm_u64(current_offset);
+                    let dest = builder.add(data_start, offset);
+                    builder.mstore(dest, value);
+                    current_offset += size as u64;
+                }
+                &PackedAbiArg::Value { value, size } => {
+                    // Less than 32 bytes - need to left-align and use MSTORE.
+                    // Value is already right-aligned in the 256-bit word.
+                    let shift_bits = (32 - size) * 8;
+                    let shift_amount = builder.imm_u64(shift_bits as u64);
+                    let left_aligned = builder.shl(shift_amount, value);
+
+                    let offset = builder.imm_u64(current_offset);
+                    let dest = builder.add(data_start, offset);
+                    builder.mstore(dest, left_aligned);
+                    current_offset += size as u64;
+                }
+            }
+        }
+    }
+
+    fn abi_encode_packed_call_args<'a>(&self, expr: &'a hir::Expr<'a>) -> Option<&'a CallArgs<'a>> {
+        let ExprKind::Call(callee, args, _) = &expr.kind else {
+            return None;
+        };
+        let ExprKind::Member(base, member) = &callee.kind else {
+            return None;
+        };
+        let ExprKind::Ident(res_slice) = &base.kind else {
+            return None;
+        };
+        matches!(res_slice.first(), Some(hir::Res::Builtin(Builtin::Abi)))
+            .then_some(args)
+            .filter(|_| member.name == sym::encodePacked)
     }
 
     /// Gets the packed size in bytes for an expression (used by abi.encodePacked).
@@ -1690,6 +1756,10 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::Keccak256 => {
                 let mut exprs = args.exprs();
                 if let Some(first) = exprs.next() {
+                    if let Some(packed_args) = self.abi_encode_packed_call_args(first) {
+                        return self.lower_keccak_abi_encode_packed(builder, packed_args);
+                    }
+
                     let arg_val = self.lower_expr(builder, first);
                     if self.is_dynamic_bytes_expr(first) {
                         let len = builder.mload(arg_val);
