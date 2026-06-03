@@ -621,8 +621,12 @@ impl EvmCodegen {
             self.block_labels.insert(block_id, self.asm.new_label());
         }
 
-        // Generate each block
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        // Generate each block.
+        let block_order: Vec<_> = func.blocks.indices().collect();
+        for (pos, &block_id) in block_order.iter().enumerate() {
+            let block = &func.blocks[block_id];
+            let fallthrough = block_order.get(pos + 1).copied();
+
             // Define block label
             self.asm.define_label(self.block_labels[&block_id]);
             self.asm.emit_op(opcodes::JUMPDEST);
@@ -664,7 +668,7 @@ impl EvmCodegen {
 
             // Generate terminator
             if let Some(term) = &block.terminator {
-                self.generate_terminator(func, term);
+                self.generate_terminator(func, term, fallthrough);
             }
         }
     }
@@ -2114,13 +2118,21 @@ impl EvmCodegen {
     }
 
     /// Generates bytecode for a terminator.
-    fn generate_terminator(&mut self, func: &Function, term: &Terminator) {
+    fn generate_terminator(
+        &mut self,
+        func: &Function,
+        term: &Terminator,
+        fallthrough: Option<BlockId>,
+    ) {
         match term {
             Terminator::Jump(target) => {
                 // Pop any remaining values from the stack before jumping.
                 // Each block starts with an empty stack, so we must ensure the stack is
                 // clean before jumping to another block (especially important for loops).
                 self.pop_all_stack_values();
+                if Some(*target) == fallthrough {
+                    return;
+                }
                 self.asm.emit_push_label(self.block_labels[target]);
                 self.asm.emit_op(opcodes::JUMP);
             }
@@ -2140,13 +2152,31 @@ impl EvmCodegen {
                     self.scheduler.stack.pop();
                 }
 
-                // JUMPI consumes the condition
-                self.asm.emit_push_label(self.block_labels[then_block]);
-                self.asm.emit_op(opcodes::JUMPI);
-                self.scheduler.stack.pop(); // condition consumed by JUMPI
+                match fallthrough {
+                    Some(next) if *else_block == next => {
+                        // JUMPI consumes the condition; false falls through to `else_block`.
+                        self.asm.emit_push_label(self.block_labels[then_block]);
+                        self.asm.emit_op(opcodes::JUMPI);
+                        self.scheduler.stack.pop(); // condition consumed by JUMPI
+                    }
+                    Some(next) if *then_block == next => {
+                        // Invert the condition so true falls through to `then_block`.
+                        self.asm.emit_op(opcodes::ISZERO);
+                        self.scheduler.instruction_executed_untracked(1);
+                        self.asm.emit_push_label(self.block_labels[else_block]);
+                        self.asm.emit_op(opcodes::JUMPI);
+                        self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
+                    }
+                    _ => {
+                        // JUMPI consumes the condition
+                        self.asm.emit_push_label(self.block_labels[then_block]);
+                        self.asm.emit_op(opcodes::JUMPI);
+                        self.scheduler.stack.pop(); // condition consumed by JUMPI
 
-                self.asm.emit_push_label(self.block_labels[else_block]);
-                self.asm.emit_op(opcodes::JUMP);
+                        self.asm.emit_push_label(self.block_labels[else_block]);
+                        self.asm.emit_op(opcodes::JUMP);
+                    }
+                }
             }
 
             Terminator::Switch { value, default, cases } => {
