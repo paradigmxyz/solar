@@ -54,6 +54,11 @@ pub struct Lowerer<'gcx> {
     /// Variables that are assigned after declaration (need memory storage).
     /// Variables not in this set can be kept as SSA values.
     assigned_vars: FxHashSet<VariableId>,
+    /// Local variables that are storage references (pointers). Their value in
+    /// `locals` is a storage *slot*, so `r.field` reads `sload(slot + offset)`
+    /// and `r.field = v` writes `sstore(slot + offset, v)`, rather than treating
+    /// the value as a memory pointer.
+    storage_ref_locals: FxHashSet<VariableId>,
     /// Stack of function IDs currently being inlined (for cycle detection).
     inline_stack: Vec<HirFunctionId>,
     /// HIR functions already lowered into this MIR module.
@@ -87,6 +92,7 @@ impl<'gcx> Lowerer<'gcx> {
             contract_bytecodes: FxHashMap::default(),
             loop_stack: Vec::new(),
             assigned_vars: FxHashSet::default(),
+            storage_ref_locals: FxHashSet::default(),
             inline_stack: Vec::new(),
             hir_to_mir_functions: FxHashMap::default(),
             lowering_functions: FxHashSet::default(),

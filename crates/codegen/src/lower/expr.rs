@@ -305,6 +305,13 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(slot_val);
                 }
 
+                // Storage struct field access where the base is itself a storage
+                // location: a storage reference (`Item storage r = items[k]; r.a`)
+                // or an indexed element (`items[k].a`, `arr[i].a`).
+                if let Some(slot) = self.lower_storage_struct_field_slot(builder, base, *member) {
+                    return builder.sload(slot);
+                }
+
                 // Check if this is a nested memory struct access (e.g., o.inner.a)
                 if let Some((var_id, total_offset, _inner_struct_id)) =
                     self.compute_nested_memory_struct_info(base, *member)
@@ -1216,6 +1223,14 @@ impl<'gcx> Lowerer<'gcx> {
                     return;
                 }
 
+                // Storage struct field assignment where the base is itself a
+                // storage location: a storage reference (`Item storage r =
+                // items[k]; r.a = v`) or an indexed element (`items[k].a = v`).
+                if let Some(slot) = self.lower_storage_struct_field_slot(builder, base, *member) {
+                    builder.sstore(slot, rhs);
+                    return;
+                }
+
                 // Check if this is a nested memory struct assignment (e.g., o.inner.a = value)
                 if let Some((var_id, total_offset, _inner_struct_id)) =
                     self.compute_nested_memory_struct_info(base, *member)
@@ -1263,7 +1278,18 @@ impl<'gcx> Lowerer<'gcx> {
                 let base_val = self.lower_expr(builder, base);
                 builder.mstore(base_val, rhs);
             }
-            ExprKind::YulMember(_, member) => {
+            ExprKind::YulMember(base, member) => {
+                // `r.slot := x` sets the storage pointer's slot value. The pointer
+                // is modeled as an SSA slot in `locals`, marked as a storage ref so
+                // later `r.field` access resolves to `sload`/`sstore(slot + off)`.
+                if member.name == sym::slot
+                    && let ExprKind::Ident(res_slice) = &base.kind
+                    && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+                {
+                    self.locals.insert(*var_id, rhs);
+                    self.storage_ref_locals.insert(*var_id);
+                    return;
+                }
                 self.gcx
                     .dcx()
                     .err(format!("unsupported Yul assignment target `.{}`", member.name))
@@ -2511,6 +2537,242 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
         None
+    }
+
+    /// Checks if a member access is on a storage-reference local of struct type.
+    /// Returns (var_id, struct_id, field_index) for `base.member`.
+    fn get_storage_ref_struct_field_info(
+        &self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<(hir::VariableId, hir::StructId, usize)> {
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+            && self.storage_ref_locals.contains(var_id)
+            && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) =
+                &self.gcx.hir.variable(*var_id).ty.kind
+        {
+            let strukt = self.gcx.hir.strukt(*struct_id);
+            for (i, &field_id) in strukt.fields.iter().enumerate() {
+                let field = self.gcx.hir.variable(field_id);
+                if let Some(field_name) = field.name
+                    && field_name.name == member.name
+                {
+                    return Some((*var_id, *struct_id, i));
+                }
+            }
+        }
+        None
+    }
+
+    /// Resolves the struct type of an expression, for storage struct field
+    /// access. Uses the variable's declared type directly for an identifier and
+    /// the inferred expression type otherwise (e.g. a mapping/array element).
+    fn struct_id_of_expr(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
+        // Identifier: use the variable's declared type.
+        if let ExprKind::Ident(res) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(vid))) = res.first()
+            && let hir::TypeKind::Custom(hir::ItemId::Struct(sid)) =
+                &self.gcx.hir.variable(*vid).ty.kind
+        {
+            return Some(*sid);
+        }
+        // Indexed element (`items[k]`, `arr[i]`): the mapping value / array
+        // element type, resolved from the indexed variable's declared type.
+        if let ExprKind::Index(arr, _) = &expr.kind
+            && let ExprKind::Ident(res) = &arr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(vid))) = res.first()
+        {
+            let elem_kind = match &self.gcx.hir.variable(*vid).ty.kind {
+                hir::TypeKind::Mapping(m) => &m.value.kind,
+                hir::TypeKind::Array(a) => &a.element.kind,
+                _ => return None,
+            };
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(sid)) = elem_kind {
+                return Some(*sid);
+            }
+            return None;
+        }
+        // Call returning a (storage) struct, e.g. an ERC-7201 `_layout()` getter:
+        // use the callee's declared return type.
+        if let ExprKind::Call(callee, ..) = &expr.kind
+            && let ExprKind::Ident(res) = &callee.kind
+        {
+            for r in res.iter() {
+                if let hir::Res::Item(hir::ItemId::Function(fid)) = r
+                    && let Some(&rid) = self.gcx.hir.function(*fid).returns.first()
+                    && let hir::TypeKind::Custom(hir::ItemId::Struct(sid)) =
+                        &self.gcx.hir.variable(rid).ty.kind
+                {
+                    return Some(*sid);
+                }
+            }
+        }
+        // Fall back to the inferred expression type.
+        if let Some(ty) = self.get_expr_type(expr)
+            && let solar_sema::ty::TyKind::Struct(sid) = ty.kind
+        {
+            return Some(sid);
+        }
+        None
+    }
+
+    /// Finds the index of a struct field by name.
+    fn struct_field_index(&self, struct_id: hir::StructId, member: Ident) -> Option<usize> {
+        let strukt = self.gcx.hir.strukt(struct_id);
+        strukt
+            .fields
+            .iter()
+            .position(|&fid| self.gcx.hir.variable(fid).name.is_some_and(|n| n.name == member.name))
+    }
+
+    /// If `base` is a storage location of struct type and `member` is one of its
+    /// fields, returns the field's storage slot (`base_slot + field_offset`) as a
+    /// runtime value. Handles storage references (`r.a`) and storage struct
+    /// fields reached through indexing (`items[k].a`, `arr[i].a`). Returns `None`
+    /// for memory/calldata bases (whose `lower_lvalue_slot` yields `None`).
+    fn lower_storage_struct_field_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> Option<ValueId> {
+        let struct_id = self.struct_id_of_expr(base)?;
+        let field_index = self.struct_field_index(struct_id, member)?;
+        let base_slot = self.lower_lvalue_slot(builder, base)?;
+        let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+        Some(if field_offset == 0 {
+            base_slot
+        } else {
+            let off = builder.imm_u64(field_offset);
+            builder.add(base_slot, off)
+        })
+    }
+
+    /// Computes the storage slot of an lvalue expression as a runtime value.
+    /// Used to bind storage references (`T storage r = <lvalue>`): the pointer's
+    /// value is the slot itself. Returns `None` for expressions whose slot we
+    /// cannot compute, so the caller can report an error rather than miscompile.
+    pub(super) fn lower_lvalue_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        match &expr.kind {
+            ExprKind::Ident(res_slice) => {
+                if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
+                    // Another storage reference: its value is already the slot.
+                    if self.storage_ref_locals.contains(var_id) {
+                        return self.locals.get(var_id).copied();
+                    }
+                    // A state variable: its base slot is known at compile time.
+                    if let Some(&slot) = self.storage_slots.get(var_id) {
+                        return Some(builder.imm_u64(slot));
+                    }
+                    if let Some(&slot) = self.struct_storage_base_slots.get(var_id) {
+                        return Some(builder.imm_u64(slot));
+                    }
+                }
+                None
+            }
+            ExprKind::Index(base, index) => {
+                // Mapping element: keccak256(key, base_slot).
+                if let Some((var_id, slot)) = self.get_mapping_base_slot(base) {
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let slot_val = builder.imm_u64(slot);
+                    let key_is_dynamic = {
+                        let var = self.gcx.hir.variable(var_id);
+                        matches!(&var.ty.kind, hir::TypeKind::Mapping(map)
+                            if Self::is_dynamic_mapping_key(&map.key.kind))
+                    };
+                    return Some(self.compute_mapping_slot_for_index(
+                        builder,
+                        index.as_deref(),
+                        index_val,
+                        slot_val,
+                        key_is_dynamic,
+                    ));
+                }
+                // Nested mapping element.
+                if self.is_nested_mapping_index(base) {
+                    let inner_slot = self.lower_nested_mapping_slot(builder, base);
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    return Some(self.compute_mapping_slot(builder, index_val, inner_slot));
+                }
+                // Dynamic array element: keccak256(slot) + index.
+                if let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base) {
+                    let slot_val = builder.imm_u64(slot);
+                    let mem_0 = builder.imm_u64(0);
+                    builder.mstore(mem_0, slot_val);
+                    let size_32 = builder.imm_u64(32);
+                    let data_slot = builder.keccak256(mem_0, size_32);
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    return Some(builder.add(data_slot, index_val));
+                }
+                None
+            }
+            ExprKind::Member(base, member) => {
+                // State-variable storage struct field.
+                if let Some((base_slot, struct_id, field_index)) =
+                    self.get_storage_struct_field_info(base, *member)
+                {
+                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                    return Some(builder.imm_u64(base_slot + field_offset));
+                }
+                // Storage-reference local struct field.
+                if let Some((var_id, struct_id, field_index)) =
+                    self.get_storage_ref_struct_field_info(base, *member)
+                {
+                    let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+                    let base_slot = self.locals.get(&var_id).copied()?;
+                    return Some(if field_offset == 0 {
+                        base_slot
+                    } else {
+                        let off = builder.imm_u64(field_offset);
+                        builder.add(base_slot, off)
+                    });
+                }
+                // Nested state-variable storage struct field.
+                if let Some(slot) = self.compute_nested_storage_slot(base, *member) {
+                    return Some(builder.imm_u64(slot));
+                }
+                None
+            }
+            // A call to a function returning a storage reference (e.g. the
+            // ERC-7201 `_layout()` getter) yields the slot value directly.
+            ExprKind::Call(callee, ..) if self.call_returns_storage_ref(callee) => {
+                Some(self.lower_expr(builder, expr))
+            }
+            _ => None,
+        }
+    }
+
+    /// Whether `callee` resolves to a function whose first return is a storage
+    /// reference, so a call to it yields a storage slot value.
+    fn call_returns_storage_ref(&self, callee: &hir::Expr<'_>) -> bool {
+        let ExprKind::Ident(res) = &callee.kind else {
+            return false;
+        };
+        res.iter().any(|r| {
+            if let hir::Res::Item(hir::ItemId::Function(fid)) = r {
+                let f = self.gcx.hir.function(*fid);
+                f.returns.first().is_some_and(|&rid| {
+                    self.gcx.hir.variable(rid).data_location
+                        == Some(solar_ast::DataLocation::Storage)
+                })
+            } else {
+                false
+            }
+        })
     }
 
     /// Checks if a member access is on a memory struct.
