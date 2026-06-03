@@ -9,6 +9,7 @@
 //! It is an unstable, internal tool used by the `Mir` test mode; it is not part
 //! of the stable CLI surface.
 
+use clap::{Parser, ValueEnum, ValueHint};
 use solar_codegen::{
     lower,
     mir::{Module, module_to_text, parse_module},
@@ -21,146 +22,118 @@ use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
 use std::{ffi::OsString, ops::ControlFlow, path::Path, process::ExitCode};
 
-const HELP: &str = "\
-solar mir-opt — run one or more MIR passes on a Solidity or MIR file
-
-Usage:
-    solar mir-opt --passes <names> [--print-after-each] <input>
-    solar mir-opt --pass <name> <input>          # alias for --passes <name>
-    solar mir-opt --pipeline-default <input>     # canonical codegen pipeline
-    solar mir-opt -h | --help
-
-Options:
-    --passes <names>     Comma-separated list of passes to run in order
-    --pass <name>        Alias for --passes <name>
-    --pipeline-default   Run the same passes as EvmCodegen::run_optimization_passes
-                         (jump-threading → cfg-simplify → dce). Mutually
-                         exclusive with --pass / --passes.
-    --print-after-each   Print MIR after each pass in the chain
-                         (default: print only after the last pass)
-    -h, --help           Print this help message
-
+const AFTER_HELP: &str = "\
 Passes:
-    dce              Dead Code Elimination (fixed-point)
-    cse              Common Subexpression Elimination (fixed-point)
-    sccp             Sparse Conditional Constant Propagation
-    cfg-simplify     CFG Simplification (fixed-point)
-    jump-threading   Jump Threading (fixed-point)
-    none             No transform; just lower/parse and print
+  dce              Dead Code Elimination (fixed-point)
+  cse              Common Subexpression Elimination (fixed-point)
+  sccp             Sparse Conditional Constant Propagation
+  cfg-simplify     CFG Simplification (fixed-point)
+  jump-threading   Jump Threading (fixed-point)
+  none             No transform; just lower/parse and print
 
 Input formats:
-    *.sol  Solidity contract — lowered through the normal compiler pipeline
-    *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module
+  *.sol  Solidity contract — lowered through the normal compiler pipeline
+  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module
 ";
 
 /// The canonical pass list run by `EvmCodegen::run_optimization_passes`.
 /// Keep in sync with `crates/codegen/src/backend/evm/evm.rs`.
-const DEFAULT_PIPELINE: &[&str] = &["jump-threading", "cfg-simplify", "dce"];
+const DEFAULT_PIPELINE: &[PassName] =
+    &[PassName::JumpThreading, PassName::CfgSimplify, PassName::Dce];
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+#[clap(rename_all = "kebab-case")]
+enum PassName {
+    Dce,
+    Cse,
+    Sccp,
+    CfgSimplify,
+    JumpThreading,
+    None,
+}
+
+impl PassName {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::Dce => "dce",
+            Self::Cse => "cse",
+            Self::Sccp => "sccp",
+            Self::CfgSimplify => "cfg-simplify",
+            Self::JumpThreading => "jump-threading",
+            Self::None => "none",
+        }
+    }
+}
+
+#[derive(Parser)]
+#[command(
+    name = "solar mir-opt",
+    about = "Run one or more MIR passes on a Solidity or MIR file",
+    arg_required_else_help = true,
+    after_help = AFTER_HELP,
+)]
 struct Args {
-    /// Passes to run, in order. Each must satisfy `make_pass`.
-    passes: Vec<String>,
+    /// Comma-separated list of passes to run in order.
+    #[arg(
+        long = "passes",
+        visible_alias = "pass",
+        value_name = "NAMES",
+        value_delimiter = ',',
+        required_unless_present = "pipeline_default",
+        conflicts_with = "pipeline_default"
+    )]
+    passes: Option<Vec<PassName>>,
     /// If true, print MIR after every pass; otherwise only after the last.
+    #[arg(long)]
     print_after_each: bool,
-    /// If true, the user invoked `--pipeline-default`. Used as the display
-    /// label so output reads `(after pipeline-default)` instead of the
-    /// concatenated pass list.
+    /// Run the same pass pipeline as EvmCodegen::run_optimization_passes.
+    #[arg(long, conflicts_with = "passes")]
     pipeline_default: bool,
     /// Path to input file. Extension determines whether it's .sol or .mir.
+    #[arg(value_hint = ValueHint::FilePath)]
     input: String,
 }
 
-/// Parses the arguments following `mir-opt`.
-fn parse_args(argv: &[String]) -> Result<Args, String> {
-    let mut passes: Option<Vec<String>> = None;
-    let mut pipeline_default = false;
-    let mut print_after_each = false;
-    let mut input: Option<String> = None;
-    let mut i = 0;
-    while i < argv.len() {
-        match argv[i].as_str() {
-            "-h" | "--help" => {
-                print!("{HELP}");
-                std::process::exit(0);
-            }
-            "--passes" => {
-                let raw = argv.get(i + 1).ok_or("--passes requires an argument")?;
-                passes = Some(raw.split(',').map(str::trim).map(String::from).collect());
-                i += 2;
-            }
-            "--pass" => {
-                let raw = argv.get(i + 1).ok_or("--pass requires an argument")?;
-                if passes.is_some() {
-                    return Err("cannot use --pass and --passes together".into());
-                }
-                passes = Some(vec![raw.clone()]);
-                i += 2;
-            }
-            "--pipeline-default" => {
-                pipeline_default = true;
-                i += 1;
-            }
-            "--print-after-each" => {
-                print_after_each = true;
-                i += 1;
-            }
-            arg if arg.starts_with("--") => {
-                return Err(format!("unknown flag: {arg}"));
-            }
-            _ => {
-                if input.is_some() {
-                    return Err("only one input file is supported".into());
-                }
-                input = Some(argv[i].clone());
-                i += 1;
-            }
+impl Args {
+    fn passes(&self) -> &[PassName] {
+        if self.pipeline_default {
+            DEFAULT_PIPELINE
+        } else {
+            self.passes.as_deref().expect("clap requires passes unless pipeline-default is set")
         }
     }
 
-    // --pipeline-default and --pass[es] are mutually exclusive.
-    if pipeline_default && passes.is_some() {
-        return Err("cannot use --pipeline-default with --pass / --passes".into());
-    }
-
-    let passes = if pipeline_default {
-        DEFAULT_PIPELINE.iter().map(|s| (*s).to_string()).collect()
-    } else {
-        let p =
-            passes.ok_or_else(|| "missing --pass / --passes / --pipeline-default".to_string())?;
-        if p.is_empty() {
-            return Err("at least one pass is required".into());
+    fn pipeline_label(&self) -> String {
+        if self.pipeline_default {
+            "pipeline-default".to_string()
+        } else {
+            self.passes().iter().map(|p| p.as_str()).collect::<Vec<_>>().join(",")
         }
-        p
-    };
-
-    let input = input.ok_or_else(|| "missing input file".to_string())?;
-    Ok(Args { passes, print_after_each, pipeline_default, input })
+    }
 }
 
-/// Returns a fresh boxed pass for the given name. The special `none` pass
-/// returns `Ok(None)` (skipped). Unknown names return `Err`.
-fn make_pass(name: &str) -> Result<Option<Box<dyn TransformPass>>, String> {
+/// Returns a fresh boxed pass for the given name. The special `none` pass returns `None`
+/// (skipped).
+fn make_pass(name: PassName) -> Option<Box<dyn TransformPass>> {
     match name {
-        "dce" => Ok(Some(Box::new(DcePass))),
-        "cse" => Ok(Some(Box::new(CsePass))),
-        "sccp" => Ok(Some(Box::new(SccpTransformPass))),
-        "cfg-simplify" => Ok(Some(Box::new(CfgSimplifyPass))),
-        "jump-threading" => Ok(Some(Box::new(JumpThreadingPass))),
-        "none" => Ok(None),
-        other => Err(format!("unknown pass: {other}")),
+        PassName::Dce => Some(Box::new(DcePass)),
+        PassName::Cse => Some(Box::new(CsePass)),
+        PassName::Sccp => Some(Box::new(SccpTransformPass)),
+        PassName::CfgSimplify => Some(Box::new(CfgSimplifyPass)),
+        PassName::JumpThreading => Some(Box::new(JumpThreadingPass)),
+        PassName::None => None,
     }
 }
 
 /// Runs a single pass on every function in the module.
-fn run_pass(module: &mut Module, pass_name: &str) -> Result<(), String> {
-    if let Some(boxed) = make_pass(pass_name)? {
+fn run_pass(module: &mut Module, pass_name: PassName) {
+    if let Some(boxed) = make_pass(pass_name) {
         let mut pm = PassManager::new();
         pm.add_transform(boxed);
         for func in module.functions.iter_mut() {
             pm.run(func);
         }
     }
-    Ok(())
 }
 
 /// Prints a module with a header indicating which pass(es) produced it.
@@ -173,21 +146,17 @@ fn print_module(module: &Module, name: &str, after: &str) {
 /// Used for both .sol contracts and .mir input.
 fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), String> {
     if args.print_after_each {
-        for pass in &args.passes {
-            run_pass(module, pass)?;
-            print_module(module, name, pass);
+        for &pass in args.passes() {
+            run_pass(module, pass);
+            print_module(module, name, pass.as_str());
         }
     } else {
-        for pass in &args.passes {
-            run_pass(module, pass)?;
+        for &pass in args.passes() {
+            run_pass(module, pass);
         }
-        // For --pipeline-default, use a stable label so the output header
-        // doesn't depend on the underlying pass list (which may evolve).
-        let label = if args.pipeline_default {
-            "pipeline-default".to_string()
-        } else {
-            args.passes.join(",")
-        };
+        // For --pipeline-default, use a stable label so the output header doesn't depend on the
+        // underlying pass list (which may evolve).
+        let label = args.pipeline_label();
         print_module(module, name, &label);
     }
     Ok(())
@@ -268,27 +237,10 @@ fn process_sol(args: &Args) -> Result<(), String> {
 /// Entry point for the `mir-opt` subcommand. `argv` is the arguments following
 /// `mir-opt` (i.e. excluding the program name and the subcommand itself).
 pub fn run(argv: &[OsString]) -> ExitCode {
-    let argv: Vec<String> = argv.iter().map(|a| a.to_string_lossy().into_owned()).collect();
-
-    let args = match parse_args(&argv) {
-        Ok(args) => args,
-        Err(e) => {
-            eprintln!("error: {e}");
-            eprintln!();
-            eprint!("{HELP}");
-            return ExitCode::FAILURE;
-        }
-    };
-
-    // Validate all pass names up front so users get fast feedback.
-    for name in &args.passes {
-        if let Err(e) = make_pass(name) {
-            eprintln!("error: {e}");
-            eprintln!();
-            eprint!("{HELP}");
-            return ExitCode::FAILURE;
-        }
-    }
+    let args = Args::try_parse_from(
+        std::iter::once(OsString::from("solar mir-opt")).chain(argv.iter().cloned()),
+    )
+    .unwrap_or_else(|e| e.exit());
 
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
