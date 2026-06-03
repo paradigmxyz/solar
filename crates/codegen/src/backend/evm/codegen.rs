@@ -16,7 +16,7 @@ use crate::{
     mir::{BlockId, Function, FunctionId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
         AnalysisManager, CfgSimplifyPass, CsePass, DcePass, JumpThreadingPass, LivenessAnalysis,
-        PassManager, SccpTransformPass,
+        MemoryDsePass, PassManager, SccpTransformPass,
     },
 };
 use alloy_primitives::U256;
@@ -368,7 +368,8 @@ impl EvmCodegen {
     /// 2. CSE           — removes duplicate local computations
     /// 3. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
     /// 4. CFG simplify  — physically merges sequential blocks and removes empty forwarders
-    /// 5. DCE           — removes dead instructions and any remaining unreachable blocks
+    /// 5. Memory DSE    — removes overwritten same-block memory stores
+    /// 6. DCE           — removes dead instructions and any remaining unreachable blocks
     ///
     /// Each pass internally iterates to a fixed point. Threading creates orphaned
     /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
@@ -379,6 +380,7 @@ impl EvmCodegen {
         pm.add_transform(Box::new(CsePass));
         pm.add_transform(Box::new(JumpThreadingPass));
         pm.add_transform(Box::new(CfgSimplifyPass));
+        pm.add_transform(Box::new(MemoryDsePass));
         pm.add_transform(Box::new(DcePass));
         for func in module.functions.iter_mut() {
             pm.run(func);

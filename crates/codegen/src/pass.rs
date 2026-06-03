@@ -241,3 +241,19 @@ impl TransformPass for CsePass {
         crate::transform::CommonSubexprEliminator::new().run_to_fixpoint(func);
     }
 }
+
+/// Local dead memory-store elimination transform.
+///
+/// Removes full-word memory stores that are overwritten in the same block
+/// before memory, gas, or calls can observe them.
+pub struct MemoryDsePass;
+
+impl TransformPass for MemoryDsePass {
+    fn name(&self) -> &str {
+        "memory-dse"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        crate::transform::MemoryStoreEliminator::new().run_to_fixpoint(func);
+    }
+}
