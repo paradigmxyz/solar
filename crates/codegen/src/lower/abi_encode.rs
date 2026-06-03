@@ -12,6 +12,8 @@ use alloy_primitives::U256;
 use solar_ast::ElementaryType;
 use solar_sema::ty::{Ty, TyKind};
 
+const STATIC_RETURN_BUFFER: u64 = 0x80;
+
 #[derive(Clone, Copy)]
 struct AbiScratch {
     base: Option<ValueId>,
@@ -359,6 +361,15 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
         let head_size: u64 = items.iter().map(|&(_, t)| self.abi_head_size(t)).sum();
+        let has_dynamic = items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty));
+        if !has_dynamic {
+            let buf = builder.imm_u64(STATIC_RETURN_BUFFER);
+            let size =
+                self.abi_encode_tuple(builder, items, buf, AbiScratch { base: None, depth: 0 });
+            builder.ret_data(buf, size);
+            return;
+        }
+
         let scratch_words = self.abi_scratch_words(items);
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));

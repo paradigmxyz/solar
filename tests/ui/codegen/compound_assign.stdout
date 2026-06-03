@@ -4,11 +4,8 @@ fn @value() -> u256 {
   bb0 (entry):
     v2 = mstore 128, 0
     v4 = sload 0
-    v6 = mload 64
-    v8 = add v6, 32
-    v10 = mstore 64, v8
-    v11 = mstore v6, v4
-    returndata v6, 32
+    v6 = mstore 128, v4
+    returndata 128, 32
 }
 
 fn @add_to_value(arg0: u256) {
@@ -41,11 +38,8 @@ fn @bump_post() -> u256 {
     v4 = sload 0
     v6 = add v4, 1
     v8 = sstore 0, v6
-    v10 = mload 64
-    v12 = add v10, 32
-    v14 = mstore 64, v12
-    v15 = mstore v10, v4
-    returndata v10, 32
+    v10 = mstore 128, v4
+    returndata 128, 32
 }
 
 fn @bump_pre() -> u256 {
@@ -54,10 +48,7 @@ fn @bump_pre() -> u256 {
     v4 = sload 0
     v6 = add v4, 1
     v8 = sstore 0, v6
-    v10 = mload 64
-    v12 = add v10, 32
-    v14 = mstore 64, v12
-    v15 = mstore v10, v6
-    returndata v10, 32
+    v10 = mstore 128, v6
+    returndata 128, 32
 }
 

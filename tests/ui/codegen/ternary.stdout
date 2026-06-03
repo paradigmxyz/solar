@@ -13,11 +13,8 @@ fn @max(arg0: u256, arg1: u256) -> u256 {
     jump bb3
   bb3:
     v11 = mload 0
-    v13 = mload 64
-    v15 = add v13, 32
-    v17 = mstore 64, v15
-    v18 = mstore v13, v11
-    returndata v13, 32
+    v13 = mstore 128, v11
+    returndata 128, 32
 }
 
 fn @clamp(arg0: u256, arg1: u256, arg2: u256) -> u256 {
@@ -34,11 +31,8 @@ fn @clamp(arg0: u256, arg1: u256, arg2: u256) -> u256 {
   bb3:
     v19 = mload 0
     v21 = mload 0
-    v23 = mload 64
-    v25 = add v23, 32
-    v27 = mstore 64, v25
-    v28 = mstore v23, v21
-    returndata v23, 32
+    v23 = mstore 128, v21
+    returndata 128, 32
   bb4:
     v11 = mstore 0, arg2
     jump bb6
@@ -67,10 +61,7 @@ fn @abs_diff(arg0: u256, arg1: u256) -> u256 {
     jump bb3
   bb3:
     v14 = mload 0
-    v16 = mload 64
-    v18 = add v16, 32
-    v20 = mstore 64, v18
-    v21 = mstore v16, v14
-    returndata v16, 32
+    v16 = mstore 128, v14
+    returndata 128, 32
 }
 

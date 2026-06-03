@@ -12,11 +12,8 @@ fn @sum_grid(arg0: u256, arg1: u256) -> u256 {
     br v13, bb4, bb5
   bb2:
     v43 = mload 160
-    v45 = mload 64
-    v47 = add v45, 32
-    v49 = mstore 64, v47
-    v50 = mstore v45, v43
-    returndata v45, 32
+    v45 = mstore 128, v43
+    returndata 128, 32
   bb3:
     v37 = mload 192
     v39 = add v37, 1
@@ -60,15 +57,12 @@ fn @find_first(arg0: u256, arg1: u256) -> u256 {
     v10 = lt v9, arg0
     br v10, bb4, bb5
   bb2:
-    v46 = mload 64
-    v48 = add v46, 32
-    v50 = mstore 64, v48
-    v51 = mstore v46, arg0
-    returndata v46, 32
+    v41 = mstore 128, arg0
+    returndata 128, 32
   bb3:
-    v40 = mload 160
-    v42 = add v40, 1
-    v44 = mstore 160, v42
+    v35 = mload 160
+    v37 = add v35, 1
+    v39 = mstore 160, v37
     jump bb1
   bb4:
     v13 = mstore 192, 0
@@ -82,9 +76,9 @@ fn @find_first(arg0: u256, arg1: u256) -> u256 {
   bb7:
     jump bb3
   bb8:
-    v34 = mload 192
-    v36 = add v34, 1
-    v38 = mstore 192, v36
+    v29 = mload 192
+    v31 = add v29, 1
+    v33 = mstore 192, v31
     jump bb6
   bb9:
     v18 = mload 160
@@ -96,11 +90,8 @@ fn @find_first(arg0: u256, arg1: u256) -> u256 {
     jump bb7
   bb11:
     v24 = mload 160
-    v26 = mload 64
-    v28 = add v26, 32
-    v30 = mstore 64, v28
-    v31 = mstore v26, v24
-    returndata v26, 32
+    v26 = mstore 128, v24
+    returndata 128, 32
   bb12:
     jump bb8
 }

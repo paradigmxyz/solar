@@ -29,10 +29,7 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool {
     v43 = mstore 128, v41
     v45 = mstore 64, v6
     v48 = mload 128
-    v50 = mload 64
-    v52 = add v50, 32
-    v54 = mstore 64, v52
-    v55 = mstore v50, v48
-    returndata v50, 32
+    v50 = mstore 128, v48
+    returndata 128, 32
 }
 

@@ -4,11 +4,8 @@ fn @value() -> u256 {
   bb0 (entry):
     v2 = mstore 128, 0
     v4 = sload 0
-    v6 = mload 64
-    v8 = add v6, 32
-    v10 = mstore 64, v8
-    v11 = mstore v6, v4
-    returndata v6, 32
+    v6 = mstore 128, v4
+    returndata 128, 32
 }
 
 fn @set(arg0: u256) {

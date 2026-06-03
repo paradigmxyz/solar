@@ -74,10 +74,7 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 {
     v61 = mload v25
     v63 = add v25, 32
     v64 = keccak256 v63, v61
-    v66 = mload 64
-    v68 = add v66, 32
-    v70 = mstore 64, v68
-    v71 = mstore v66, v64
-    returndata v66, 32
+    v66 = mstore 128, v64
+    returndata 128, 32
 }
 

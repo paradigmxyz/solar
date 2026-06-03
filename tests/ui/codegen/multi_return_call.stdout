@@ -35,18 +35,12 @@ fn @sat(arg0: u256, arg1: u256) -> u256 {
     v14 = iszero v13
     br v14, bb1, bb2
   bb1:
-    v17 = mload 64
-    v19 = add v17, 32
-    v21 = mstore 64, v19
-    v22 = mstore v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    returndata v17, 32
+    v17 = mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    returndata 128, 32
   bb2:
-    v25 = mload 192
-    v27 = mload 64
-    v29 = add v27, 32
-    v31 = mstore 64, v29
-    v32 = mstore v27, v25
-    returndata v27, 32
+    v20 = mload 192
+    v22 = mstore 128, v20
+    returndata 128, 32
 }
 
 fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
@@ -77,12 +71,9 @@ fn @tryA(arg0: u256, arg1: u256) -> (bool, u256) {
     v7 = mstore 160, 0
     v8 = internal_call fn1, 2, arg0, arg1
     v10 = mload 32
-    v12 = mload 64
-    v14 = add v12, 64
-    v16 = mstore 64, v14
-    v17 = mstore v12, v8
-    v19 = add v12, 32
-    v20 = mstore v19, v10
-    returndata v12, 64
+    v12 = mstore 128, v8
+    v14 = add 128, 32
+    v15 = mstore v14, v10
+    returndata 128, 64
 }
 

@@ -4,32 +4,23 @@ fn @add(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     v4 = mstore 128, 0
     v5 = add arg0, arg1
-    v7 = mload 64
-    v9 = add v7, 32
-    v11 = mstore 64, v9
-    v12 = mstore v7, v5
-    returndata v7, 32
+    v7 = mstore 128, v5
+    returndata 128, 32
 }
 
 fn @sub(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     v4 = mstore 128, 0
     v5 = sub arg0, arg1
-    v7 = mload 64
-    v9 = add v7, 32
-    v11 = mstore 64, v9
-    v12 = mstore v7, v5
-    returndata v7, 32
+    v7 = mstore 128, v5
+    returndata 128, 32
 }
 
 fn @add_one(arg0: u256) -> u256 {
   bb0 (entry):
     v3 = mstore 128, 0
     v5 = add arg0, 1
-    v7 = mload 64
-    v9 = add v7, 32
-    v11 = mstore 64, v9
-    v12 = mstore v7, v5
-    returndata v7, 32
+    v7 = mstore 128, v5
+    returndata 128, 32
 }
 

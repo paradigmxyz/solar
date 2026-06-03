@@ -19,14 +19,11 @@ fn @items(arg0: u256) -> (address, u256, address) {
     v20 = sload v19
     v22 = add v16, 2
     v23 = sload v22
-    v25 = mload 64
-    v27 = add v25, 96
-    v29 = mstore 64, v27
-    v30 = mstore v25, v17
-    v32 = add v25, 32
-    v33 = mstore v32, v20
-    v35 = add v25, 64
-    v36 = mstore v35, v23
-    returndata v25, 96
+    v25 = mstore 128, v17
+    v27 = add 128, 32
+    v28 = mstore v27, v20
+    v30 = add 128, 64
+    v31 = mstore v30, v23
+    returndata 128, 96
 }
 

@@ -8,11 +8,8 @@ fn @owner() -> address {
     v7 = add v5, 0
     v10 = codecopy 0, v7, 32
     v11 = mload 0
-    v13 = mload 64
-    v15 = add v13, 32
-    v17 = mstore 64, v15
-    v18 = mstore v13, v11
-    returndata v13, 32
+    v13 = mstore 128, v11
+    returndata 128, 32
 }
 
 fn @_anonymous(arg0: address) {

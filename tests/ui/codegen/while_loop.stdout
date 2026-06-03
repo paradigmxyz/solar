@@ -11,11 +11,8 @@ fn @count_down(arg0: u256) -> u256 {
     br v9, bb3, bb5
   bb2:
     v17 = mload 160
-    v19 = mload 64
-    v21 = add v19, 32
-    v23 = mstore 64, v21
-    v24 = mstore v19, v17
-    returndata v19, 32
+    v19 = mstore 128, v17
+    returndata 128, 32
   bb3:
     v11 = mload 160
     v13 = sub v11, 1
@@ -41,11 +38,8 @@ fn @do_at_least_once(arg0: u256) -> u256 {
     br v15, bb3, bb5
   bb2:
     v17 = mload 160
-    v19 = mload 64
-    v21 = add v19, 32
-    v23 = mstore 64, v21
-    v24 = mstore v19, v17
-    returndata v19, 32
+    v19 = mstore 128, v17
+    returndata 128, 32
   bb3:
     jump bb1
   bb4:
@@ -65,11 +59,8 @@ fn @break_when_found(arg0: u256, arg1: u256) -> u256 {
     br v10, bb3, bb5
   bb2:
     v21 = mload 160
-    v23 = mload 64
-    v25 = add v23, 32
-    v27 = mstore 64, v25
-    v28 = mstore v23, v21
-    returndata v23, 32
+    v23 = mstore 128, v21
+    returndata 128, 32
   bb3:
     v12 = mload 160
     v13 = eq v12, arg1

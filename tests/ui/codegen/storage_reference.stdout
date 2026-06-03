@@ -16,11 +16,8 @@ fn @getViaRef(arg0: u256) -> u256 {
     v8 = mstore 32, 0
     v10 = keccak256 0, 64
     v11 = sload v10
-    v13 = mload 64
-    v15 = add v13, 32
-    v17 = mstore 64, v15
-    v18 = mstore v13, v11
-    returndata v13, 32
+    v13 = mstore 128, v11
+    returndata 128, 32
 }
 
 fn @bump(arg0: u256) {

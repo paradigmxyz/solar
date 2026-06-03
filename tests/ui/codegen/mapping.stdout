@@ -7,11 +7,8 @@ fn @balances(arg0: u256) -> u256 {
     v8 = mstore 32, 0
     v10 = keccak256 0, 64
     v11 = sload v10
-    v13 = mload 64
-    v15 = add v13, 32
-    v17 = mstore 64, v15
-    v18 = mstore v13, v11
-    returndata v13, 32
+    v13 = mstore 128, v11
+    returndata 128, 32
 }
 
 fn @allowances(arg0: address, arg1: address) -> u256 {
@@ -24,11 +21,8 @@ fn @allowances(arg0: address, arg1: address) -> u256 {
     v15 = mstore 32, v11
     v17 = keccak256 0, 64
     v18 = sload v17
-    v20 = mload 64
-    v22 = add v20, 32
-    v24 = mstore 64, v22
-    v25 = mstore v20, v18
-    returndata v20, 32
+    v20 = mstore 128, v18
+    returndata 128, 32
 }
 
 fn @set_balance(arg0: u256, arg1: u256) {
@@ -76,10 +70,7 @@ fn @get_allowance(arg0: address, arg1: address) -> u256 {
     v15 = mstore 32, v11
     v17 = keccak256 0, 64
     v18 = sload v17
-    v20 = mload 64
-    v22 = add v20, 32
-    v24 = mstore 64, v22
-    v25 = mstore v20, v18
-    returndata v20, 32
+    v20 = mstore 128, v18
+    returndata 128, 32
 }
 
