@@ -10,6 +10,7 @@
 
 use std::{
     collections::HashMap,
+    fs,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant, SystemTime},
@@ -272,6 +273,9 @@ fn run_forge_test_solar(
 ) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
     let out_dir = "out-solar";
     let cache_dir = "cache-solar";
+    fs::create_dir_all(project_dir.join(out_dir)).expect("failed to create Solar output directory");
+    fs::create_dir_all(project_dir.join(cache_dir))
+        .expect("failed to create Solar cache directory");
 
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir)
@@ -326,6 +330,8 @@ fn run_forge_test_solc(
 ) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
     let out_dir = "out-solc";
     let cache_dir = "cache-solc";
+    fs::create_dir_all(project_dir.join(out_dir)).expect("failed to create solc output directory");
+    fs::create_dir_all(project_dir.join(cache_dir)).expect("failed to create solc cache directory");
 
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir)
