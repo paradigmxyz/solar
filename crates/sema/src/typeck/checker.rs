@@ -2469,8 +2469,13 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             let base_contract = self.gcx.hir.contract(base_id);
             if let Some(ctor_id) = base_contract.ctor {
                 let ctor_param_types = self.gcx.item_parameter_types(ctor_id);
-                // Check if arguments were provided and validate count
-                if let Some(modifier) = modifier {
+                // Check if arguments were provided and validate count. `is Base`
+                // without parentheses provides no arguments here (deferred to a
+                // derived contract, or the contract is abstract), so only
+                // validate when arguments are actually given.
+                if let Some(modifier) = modifier
+                    && !modifier.args.is_dummy()
+                {
                     let arg_count = modifier.args.exprs().len();
                     if arg_count != ctor_param_types.len() {
                         self.dcx().emit_err(modifier.span, format!(
@@ -2512,7 +2517,11 @@ impl<'gcx> hir::Visit<'gcx> for TypeChecker<'gcx> {
             }
             hir::TypeKind::Mapping(mapping) => {
                 let _ = self.check_mapping_key_type(&mapping.key);
-                self.visit_ty(&mapping.value)?;
+                self.visit_ty(&mapping.key)?;
+                // Return after visiting the children: falling through to `walk_ty`
+                // would visit them a second time, double-typechecking (e.g. the
+                // size expression of a fixed-array value type).
+                return self.visit_ty(&mapping.value);
             }
             // TODO: https://github.com/ethereum/solidity/blob/9d7cc42bc1c12bb43e9dccf8c6c36833fdfcbbca/libsolidity/analysis/TypeChecker.cpp#L713
             // hir::TypeKind::Function(func) => {
@@ -2865,8 +2874,17 @@ fn binop_common_type<'gcx>(
                 return None;
             }
             match op {
-                Shl | Shr | Sar => valid_shift(ty, other, op),
-                Pow => (!other.is_signed()).then_some(ty),
+                Shl | Shr | Sar => valid_shift(gcx, ty, other, op),
+                Pow if other.is_signed() => None,
+                // A literal base raised to a non-constant exponent is a runtime
+                // value, not a constant; solc types it `uint256` (`int256` for a
+                // negative literal), matching the shift rule.
+                Pow if matches!(ty.kind, TyKind::IntLiteral(..))
+                    && !matches!(other.kind, TyKind::IntLiteral(..)) =>
+                {
+                    Some(if ty.is_signed() { gcx.types.int(256) } else { gcx.types.uint(256) })
+                }
+                Pow => Some(ty),
                 And | Or => None,
                 _ => ty.common_type(other, gcx),
             }
@@ -2874,7 +2892,7 @@ fn binop_common_type<'gcx>(
 
         TyKind::Elementary(hir::ElementaryType::FixedBytes(_)) => {
             if op.is_shift() {
-                return valid_shift(ty, other, op);
+                return valid_shift(gcx, ty, other, op);
             }
             if let Some(common_type) = ty.common_type(other, gcx)
                 && common_type.is_fixed_bytes()
@@ -2941,7 +2959,12 @@ fn binop_common_type<'gcx>(
     }
 }
 
-fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Option<Ty<'gcx>> {
+fn valid_shift<'gcx>(
+    gcx: Gcx<'gcx>,
+    ty: Ty<'gcx>,
+    other: Ty<'gcx>,
+    op: hir::BinOpKind,
+) -> Option<Ty<'gcx>> {
     debug_assert!(op.is_shift());
     // `>>>` is only allowed in fixed-point numbers.
     if matches!(op, hir::BinOpKind::Sar) {
@@ -2952,6 +2975,13 @@ fn valid_shift<'gcx>(ty: Ty<'gcx>, other: Ty<'gcx>, op: hir::BinOpKind) -> Optio
         TyKind::Elementary(hir::ElementaryType::UInt(_)) | TyKind::IntLiteral(false, ..)
     ) {
         return None;
+    }
+    // A literal left operand shifted by a non-constant amount produces a runtime
+    // value, not a compile-time constant. solc gives it a full-width type
+    // (`uint256`, or `int256` for a negative literal); match that so e.g.
+    // `bytes32(1 << role)` type-checks.
+    if matches!(ty.kind, TyKind::IntLiteral(..)) && !matches!(other.kind, TyKind::IntLiteral(..)) {
+        return Some(if ty.is_signed() { gcx.types.int(256) } else { gcx.types.uint(256) });
     }
     Some(ty)
 }

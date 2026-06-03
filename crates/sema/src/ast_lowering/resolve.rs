@@ -848,6 +848,7 @@ impl<'gcx> ResolveContext<'gcx> {
                         let decl_name = Ident::new(sym::__tmp_struct, ast_var.span);
                         let mut decl_var = self.mk_var_stmt(id, span, ret_ty.clone(), decl_name);
                         decl_var.data_location = Some(hir::DataLocation::Storage);
+                        decl_var.initializer = Some(expr);
                         let decl_id = self.hir.variables.push(decl_var);
                         let builder = self.hir_builder();
                         let decl_stmt = builder.stmt(hir::StmtKind::DeclSingle(decl_id), span);
