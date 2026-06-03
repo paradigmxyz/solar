@@ -15,3 +15,4 @@ fn @callee(arg0: u256) -> u256 {
     v2 = add arg0, 1
     ret v2
 }
+

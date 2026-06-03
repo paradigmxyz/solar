@@ -18,9 +18,12 @@
 //! - `O1`: Conservative inlining (very small functions, single-call)
 //! - `O2`: Aggressive inlining (larger threshold, loop-aware)
 
-use crate::mir::{
-    BlockId, Function, FunctionId as MirFunctionId, InstId, InstKind, Instruction, MirType, Module,
-    Terminator, Value, ValueId,
+use crate::{
+    analysis::LoopAnalyzer,
+    mir::{
+        BlockId, Function, FunctionId as MirFunctionId, InstId, InstKind, Instruction, MirType,
+        Module, Terminator, Value, ValueId,
+    },
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
@@ -579,15 +582,24 @@ pub struct MirInlineConfig {
     pub max_blocks: usize,
     /// Whether a single call site may use the larger threshold.
     pub inline_single_call: bool,
+    /// Maximum estimated runtime bytecode growth for a cold call site.
+    pub max_cold_code_growth: usize,
+    /// Maximum estimated runtime bytecode growth for a call site inside a loop.
+    pub max_hot_code_growth: usize,
+    /// Minimum estimated internal-call protocol gas saved before inlining.
+    pub min_call_savings: u64,
 }
 
 impl Default for MirInlineConfig {
     fn default() -> Self {
         Self {
-            max_instructions: 8,
-            max_single_call_instructions: 32,
-            max_blocks: 12,
+            max_instructions: 4,
+            max_single_call_instructions: 18,
+            max_blocks: 4,
             inline_single_call: true,
+            max_cold_code_growth: 0,
+            max_hot_code_growth: 32,
+            min_call_savings: 80,
         }
     }
 }
@@ -608,8 +620,16 @@ struct MirInlineSummary {
     instruction_count: usize,
     block_count: usize,
     return_count: usize,
+    param_count: usize,
+    estimated_code_size: usize,
+    estimated_runtime_gas: u64,
+    internal_frame_size: u64,
     has_internal_call: bool,
     has_phi: bool,
+    has_external_call: bool,
+    has_storage_write: bool,
+    has_log: bool,
+    has_control_flow: bool,
     has_unsupported_terminator: bool,
     is_entry_point: bool,
     is_constructor: bool,
@@ -644,8 +664,11 @@ impl MirInliner {
         let call_counts = self.call_counts(module);
 
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
+            let loop_depths = block_loop_depths(module.function(caller_id));
             let mut cursor = 0;
-            while let Some(site) = self.find_next_call(module.function(caller_id), cursor) {
+            while let Some(site) =
+                self.find_next_call(module.function(caller_id), cursor, &loop_depths)
+            {
                 stats.call_sites += 1;
                 cursor = site.block.index() + 1;
 
@@ -654,7 +677,7 @@ impl MirInliner {
                     continue;
                 };
                 let call_count = call_counts.get(&site.callee).copied().unwrap_or_default();
-                if !self.is_inlineable(caller_id, site.callee, summary, call_count) {
+                if !self.is_inlineable(caller_id, site, summary, call_count) {
                     stats.skipped += 1;
                     continue;
                 }
@@ -696,11 +719,25 @@ impl MirInliner {
         counts
     }
 
-    fn find_next_call(&self, func: &Function, start_block: usize) -> Option<CallSite> {
+    fn find_next_call(
+        &self,
+        func: &Function,
+        start_block: usize,
+        loop_depths: &FxHashMap<BlockId, usize>,
+    ) -> Option<CallSite> {
         for (block, bb) in func.blocks.iter_enumerated().skip(start_block) {
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate() {
-                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
-                    return Some(CallSite { block, inst_index, callee: function });
+                if let InstKind::InternalCall { function, ref args, returns } =
+                    func.instructions[inst_id].kind
+                {
+                    return Some(CallSite {
+                        block,
+                        inst_index,
+                        callee: function,
+                        args_len: args.len(),
+                        returns,
+                        loop_depth: loop_depths.get(&block).copied().unwrap_or_default(),
+                    });
                 }
             }
         }
@@ -710,11 +747,11 @@ impl MirInliner {
     fn is_inlineable(
         &self,
         caller: MirFunctionId,
-        callee: MirFunctionId,
+        site: CallSite,
         summary: MirInlineSummary,
         call_count: usize,
     ) -> bool {
-        if caller == callee
+        if caller == site.callee
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_internal_call
@@ -726,12 +763,39 @@ impl MirInliner {
             return false;
         }
 
-        let limit = if self.config.inline_single_call && call_count == 1 {
+        let single_call = self.config.inline_single_call && call_count == 1;
+        let limit = if single_call {
             self.config.max_single_call_instructions
         } else {
             self.config.max_instructions
         };
-        summary.instruction_count <= limit
+        if summary.instruction_count > limit {
+            return false;
+        }
+
+        // Multi-use stateful callees are usually not worth cloning unless the
+        // call is hot and tiny. Single-call callees disappear from emitted
+        // runtime bytecode after inlining, so they are allowed through the
+        // normal code-growth check below.
+        if !single_call
+            && site.loop_depth == 0
+            && (summary.has_storage_write || summary.has_external_call || summary.has_log)
+        {
+            return false;
+        }
+
+        let code_growth = estimated_inline_code_growth(summary, site, single_call);
+        let max_growth = if site.loop_depth > 0 {
+            self.config.max_hot_code_growth
+        } else {
+            self.config.max_cold_code_growth
+        };
+        if code_growth > max_growth {
+            return false;
+        }
+
+        let savings = estimated_internal_call_savings(site, summary);
+        savings >= self.config.min_call_savings
     }
 }
 
@@ -740,11 +804,16 @@ struct CallSite {
     block: BlockId,
     inst_index: usize,
     callee: MirFunctionId,
+    args_len: usize,
+    returns: usize,
+    loop_depth: usize,
 }
 
 fn summarize_function(func: &Function) -> MirInlineSummary {
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
+        param_count: func.params.len(),
+        internal_frame_size: func.internal_frame_size,
         is_entry_point: func.is_public()
             || func.attributes.is_fallback
             || func.attributes.is_receive
@@ -762,18 +831,48 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
     for block in func.blocks.iter() {
         summary.instruction_count += block.instructions.len();
         for &inst_id in &block.instructions {
+            let inst_cost = estimate_inst_cost(&func.instructions[inst_id].kind);
+            summary.estimated_code_size += inst_cost.code_size;
+            summary.estimated_runtime_gas += inst_cost.runtime_gas;
             match &func.instructions[inst_id].kind {
                 InstKind::InternalCall { .. } => summary.has_internal_call = true,
                 InstKind::Phi(_) => summary.has_phi = true,
+                InstKind::Call { .. }
+                | InstKind::StaticCall { .. }
+                | InstKind::DelegateCall { .. }
+                | InstKind::Create(..)
+                | InstKind::Create2(..) => {
+                    summary.has_external_call = true;
+                }
+                InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
+                InstKind::Log0(..)
+                | InstKind::Log1(..)
+                | InstKind::Log2(..)
+                | InstKind::Log3(..)
+                | InstKind::Log4(..) => summary.has_log = true,
                 _ => {}
             }
         }
         match block.terminator.as_ref() {
-            Some(Terminator::Return { .. }) => summary.return_count += 1,
-            Some(Terminator::Revert { .. }) => {}
+            Some(term @ Terminator::Return { .. }) => {
+                summary.return_count += 1;
+                let term_cost = estimate_terminator_cost(term);
+                summary.estimated_code_size += term_cost.code_size;
+                summary.estimated_runtime_gas += term_cost.runtime_gas;
+            }
+            Some(term @ Terminator::Revert { .. }) => {
+                let term_cost = estimate_terminator_cost(term);
+                summary.estimated_code_size += term_cost.code_size;
+                summary.estimated_runtime_gas += term_cost.runtime_gas;
+            }
             Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
-            | Some(Terminator::Switch { .. }) => {}
+            | Some(Terminator::Switch { .. }) => {
+                summary.has_control_flow = true;
+                let term_cost = estimate_terminator_cost(block.terminator.as_ref().unwrap());
+                summary.estimated_code_size += term_cost.code_size;
+                summary.estimated_runtime_gas += term_cost.runtime_gas;
+            }
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
             | Some(Terminator::SelfDestruct { .. })
@@ -783,6 +882,148 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
     }
 
     summary
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct MirCost {
+    runtime_gas: u64,
+    code_size: usize,
+}
+
+fn estimate_inst_cost(kind: &InstKind) -> MirCost {
+    let (runtime_gas, code_size) = match kind {
+        InstKind::Add(..)
+        | InstKind::Sub(..)
+        | InstKind::Lt(..)
+        | InstKind::Gt(..)
+        | InstKind::SLt(..)
+        | InstKind::SGt(..)
+        | InstKind::Eq(..)
+        | InstKind::IsZero(..)
+        | InstKind::And(..)
+        | InstKind::Or(..)
+        | InstKind::Xor(..)
+        | InstKind::Not(..)
+        | InstKind::Byte(..)
+        | InstKind::Shl(..)
+        | InstKind::Shr(..)
+        | InstKind::Sar(..)
+        | InstKind::SignExtend(..)
+        | InstKind::MLoad(..)
+        | InstKind::MStore(..)
+        | InstKind::MStore8(..)
+        | InstKind::CalldataLoad(..)
+        | InstKind::CalldataSize
+        | InstKind::Caller
+        | InstKind::CallValue
+        | InstKind::Origin
+        | InstKind::GasPrice
+        | InstKind::Coinbase
+        | InstKind::Timestamp
+        | InstKind::BlockNumber
+        | InstKind::PrevRandao
+        | InstKind::GasLimit
+        | InstKind::ChainId
+        | InstKind::Address
+        | InstKind::SelfBalance
+        | InstKind::Gas
+        | InstKind::BaseFee
+        | InstKind::BlobBaseFee => (3, 1),
+        InstKind::Mul(..)
+        | InstKind::Div(..)
+        | InstKind::SDiv(..)
+        | InstKind::Mod(..)
+        | InstKind::SMod(..) => (5, 1),
+        InstKind::Exp(..) => (50, 1),
+        InstKind::AddMod(..) | InstKind::MulMod(..) => (8, 1),
+        InstKind::SLoad(..) | InstKind::TLoad(..) => (100, 1),
+        InstKind::SStore(..) | InstKind::TStore(..) => (5_000, 1),
+        InstKind::MCopy(..)
+        | InstKind::CalldataCopy(..)
+        | InstKind::CodeCopy(..)
+        | InstKind::ExtCodeCopy(..)
+        | InstKind::ReturnDataCopy(..) => (12, 1),
+        InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
+        InstKind::InternalFrameAddr(_) => (6, 3),
+        InstKind::ExtCodeSize(..)
+        | InstKind::ExtCodeHash(..)
+        | InstKind::Balance(..)
+        | InstKind::BlockHash(..)
+        | InstKind::BlobHash(..)
+        | InstKind::Keccak256(..) => (30, 1),
+        InstKind::Call { .. } | InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => {
+            (700, 1)
+        }
+        InstKind::InternalCall { args, returns, .. } => {
+            (80 + ((args.len() + *returns) as u64) * 20, 16 + (args.len() + *returns) * 4)
+        }
+        InstKind::Create(..) | InstKind::Create2(..) => (32_000, 1),
+        InstKind::Log0(..) => (375, 1),
+        InstKind::Log1(..) => (750, 1),
+        InstKind::Log2(..) => (1_125, 1),
+        InstKind::Log3(..) => (1_500, 1),
+        InstKind::Log4(..) => (1_875, 1),
+        InstKind::Phi(_) | InstKind::Select(..) => (3, 1),
+    };
+    MirCost { runtime_gas, code_size }
+}
+
+fn estimate_terminator_cost(term: &Terminator) -> MirCost {
+    let (runtime_gas, code_size) = match term {
+        Terminator::Jump(_) => (8, 3),
+        Terminator::Branch { .. } => (13, 4),
+        Terminator::Switch { cases, .. } => (13 + (cases.len() as u64) * 10, 4 + cases.len() * 4),
+        Terminator::Return { values } => (20 + (values.len() as u64) * 12, 8),
+        Terminator::Revert { .. } | Terminator::ReturnData { .. } => (20, 4),
+        Terminator::Stop => (0, 1),
+        Terminator::SelfDestruct { .. } => (5_000, 1),
+        Terminator::Invalid => (0, 1),
+    };
+    MirCost { runtime_gas, code_size }
+}
+
+fn estimated_internal_call_savings(site: CallSite, summary: MirInlineSummary) -> u64 {
+    let frame_words =
+        (summary.internal_frame_size / 32) + 2 + (site.args_len + site.returns) as u64;
+    let protocol = 90 + ((site.args_len + site.returns) as u64) * 24 + frame_words * 6;
+    let return_protocol = 24 + (summary.param_count as u64 + site.returns as u64) * 8;
+    let loop_multiplier = (site.loop_depth as u64).saturating_add(1);
+    (protocol + return_protocol) * loop_multiplier
+}
+
+fn estimated_internal_call_code_size(site: CallSite) -> usize {
+    18 + (site.args_len + site.returns) * 5
+}
+
+fn estimated_internal_return_code_size(summary: MirInlineSummary, site: CallSite) -> usize {
+    8 + (summary.param_count + site.returns) * 4
+}
+
+fn estimated_inline_code_growth(
+    summary: MirInlineSummary,
+    site: CallSite,
+    single_call: bool,
+) -> usize {
+    let removed_call = estimated_internal_call_code_size(site);
+    if single_call {
+        let removed_callee =
+            summary.estimated_code_size + estimated_internal_return_code_size(summary, site);
+        summary.estimated_code_size.saturating_sub(removed_call + removed_callee)
+    } else {
+        summary.estimated_code_size.saturating_sub(removed_call)
+    }
+}
+
+fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
+    let mut analyzer = LoopAnalyzer::new();
+    let loop_info = analyzer.analyze(func);
+    let mut depths = FxHashMap::default();
+    for loop_data in loop_info.all_loops() {
+        for &block in &loop_data.blocks {
+            *depths.entry(block).or_default() += 1;
+        }
+    }
+    depths
 }
 
 fn inline_call(
