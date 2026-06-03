@@ -506,6 +506,11 @@ impl<'gcx> Lowerer<'gcx> {
                         return self.lower_expr(builder, init);
                     }
 
+                    // Check if it's an immutable - load from appended runtime data.
+                    if let Some(&offset) = self.immutable_slots.get(var_id) {
+                        return self.load_immutable_value(builder, offset);
+                    }
+
                     // Check if it's a storage variable
                     if let Some(&slot) = self.storage_slots.get(var_id) {
                         // For storage structs, we need to copy to memory and return the pointer
@@ -1204,6 +1209,8 @@ impl<'gcx> Lowerer<'gcx> {
                     } else if self.locals.contains_key(var_id) {
                         // Function parameter - update SSA mapping (shouldn't happen normally)
                         self.locals.insert(*var_id, rhs);
+                    } else if let Some(&offset) = self.immutable_slots.get(var_id) {
+                        self.store_immutable_value(builder, offset, rhs);
                     } else if let Some(&base_slot) = self.storage_slots.get(var_id) {
                         // Check if this is a struct assignment (memory struct -> storage struct)
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind

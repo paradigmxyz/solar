@@ -6,9 +6,12 @@ mod abi_encode;
 mod expr;
 mod stmt;
 
-use crate::mir::{
-    BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, MirType, Module,
-    StorageSlot, ValueId,
+use crate::{
+    IMMUTABLE_SCRATCH_BASE,
+    mir::{
+        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableSlot, MirType,
+        Module, StorageSlot, ValueId,
+    },
 };
 use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -39,6 +42,10 @@ pub struct Lowerer<'gcx> {
     storage_slots: FxHashMap<VariableId, u64>,
     /// Next available storage slot.
     next_storage_slot: u64,
+    /// Mapping from HIR immutable variable IDs to runtime immutable byte offsets.
+    immutable_slots: FxHashMap<VariableId, u64>,
+    /// Next available immutable byte offset.
+    next_immutable_offset: u64,
     /// Mapping from HIR variable IDs to MIR values (for local variables).
     /// For SSA-style immutable variables (function params and non-mutated locals).
     locals: FxHashMap<VariableId, ValueId>,
@@ -95,6 +102,8 @@ impl<'gcx> Lowerer<'gcx> {
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
             next_storage_slot: 0,
+            immutable_slots: FxHashMap::default(),
+            next_immutable_offset: 0,
             locals: FxHashMap::default(),
             local_memory_slots: FxHashMap::default(),
             next_local_memory_offset: 0x80, // Start after Solidity's scratch space
@@ -135,7 +144,6 @@ impl<'gcx> Lowerer<'gcx> {
     const MAX_INLINE_DEPTH: usize = 32;
     /// Historical base used by local memory slots in external function bodies.
     const LOCAL_MEMORY_BASE: u64 = 0x80;
-
     /// Attempts to enter inlining for a function. Returns false if a cycle is detected
     /// or the max inline depth is exceeded.
     fn try_enter_inline(&mut self, func_id: HirFunctionId) -> bool {
@@ -181,6 +189,35 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             builder.imm_u64(offset)
         }
+    }
+
+    /// Returns the constructor scratch address for an immutable word.
+    pub fn immutable_scratch_addr(offset: u64) -> u64 {
+        IMMUTABLE_SCRATCH_BASE + offset
+    }
+
+    /// Stages an immutable word in constructor memory.
+    pub fn store_immutable_value(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        offset: u64,
+        value: ValueId,
+    ) {
+        let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
+        builder.mstore(addr, value);
+    }
+
+    /// Loads an immutable word from the runtime data area.
+    pub fn load_immutable_value(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
+        let code_size = builder.codesize();
+        let immutable_len = builder.imm_u64(self.next_immutable_offset);
+        let immutable_base = builder.sub(code_size, immutable_len);
+        let offset = builder.imm_u64(offset);
+        let src = builder.add(immutable_base, offset);
+        let dest = builder.imm_u64(0);
+        let size = builder.imm_u64(32);
+        builder.codecopy(dest, src, size);
+        builder.mload(dest)
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
@@ -320,7 +357,7 @@ impl<'gcx> Lowerer<'gcx> {
             let base_contract = self.gcx.hir.contract(base_id);
             for var_id in base_contract.variables() {
                 let var = self.gcx.hir.variable(var_id);
-                // Skip constant variables - they don't have storage slots
+                // Skip constant variables - they don't have storage/immutable slots
                 if var.is_state_variable() && !var.is_constant() && var.initializer.is_some() {
                     vars_with_init.push(var_id);
                 }
@@ -357,11 +394,10 @@ impl<'gcx> Lowerer<'gcx> {
             for var_id in vars_with_init {
                 let var = self.gcx.hir.variable(var_id);
                 if let Some(init) = var.initializer {
-                    // Get the storage slot for this variable
-                    if let Some(&slot) = self.storage_slots.get(&var_id) {
-                        // Lower the initializer expression
-                        let init_val = self.lower_expr(&mut builder, init);
-                        // Store to the slot
+                    let init_val = self.lower_expr(&mut builder, init);
+                    if let Some(&offset) = self.immutable_slots.get(&var_id) {
+                        self.store_immutable_value(&mut builder, offset, init_val);
+                    } else if let Some(&slot) = self.storage_slots.get(&var_id) {
                         let slot_val = builder.imm_u64(slot);
                         builder.sstore(slot_val, init_val);
                     }
@@ -397,8 +433,20 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let var = self.gcx.hir.variable(var_id);
-                // Skip constant variables - they are inlined and don't use storage
-                if var.is_state_variable() && !var.is_constant() {
+                // Constants are inlined. Immutables are appended to runtime
+                // bytecode and loaded with CODECOPY at runtime.
+                if var.is_state_variable() && var.is_immutable() {
+                    let offset = self.next_immutable_offset;
+                    self.next_immutable_offset += 32;
+                    self.immutable_slots.insert(var_id, offset);
+
+                    let mir_ty = self.lower_type_from_var(var);
+                    self.module.add_immutable_slot(ImmutableSlot {
+                        offset,
+                        ty: mir_ty,
+                        name: var.name,
+                    });
+                } else if var.is_state_variable() && !var.is_constant() {
                     let base_slot = self.next_storage_slot;
 
                     // Calculate how many slots this variable needs
@@ -863,11 +911,14 @@ impl<'gcx> Lowerer<'gcx> {
                 if var.is_state_variable()
                     && !var.is_constant()
                     && let Some(init) = var.initializer
-                    && let Some(&slot) = self.storage_slots.get(&var_id)
                 {
                     let init_val = self.lower_expr(builder, init);
-                    let slot_val = builder.imm_u64(slot);
-                    builder.sstore(slot_val, init_val);
+                    if let Some(&offset) = self.immutable_slots.get(&var_id) {
+                        self.store_immutable_value(builder, offset, init_val);
+                    } else if let Some(&slot) = self.storage_slots.get(&var_id) {
+                        let slot_val = builder.imm_u64(slot);
+                        builder.sstore(slot_val, init_val);
+                    }
                 }
             }
 

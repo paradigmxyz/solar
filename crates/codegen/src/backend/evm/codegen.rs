@@ -11,6 +11,7 @@ use super::{
     stack::{ScheduledOp, SpillSlot, StackOp, StackScheduler},
 };
 use crate::{
+    IMMUTABLE_SCRATCH_BASE,
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
     mir::{BlockId, Function, FunctionId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
@@ -160,7 +161,9 @@ impl EvmCodegen {
             return Vec::new();
         }
         self.run_optimization_passes(module);
-        self.generate_runtime_code(module)
+        let mut runtime = self.generate_runtime_code(module);
+        runtime.resize(runtime.len() + module.immutable_data_len(), 0);
+        runtime
     }
 
     /// Generates deployment bytecode for a module.
@@ -176,61 +179,93 @@ impl EvmCodegen {
         // First generate the runtime code
         let runtime_code = self.generate_runtime_code(module);
         let runtime_len = runtime_code.len();
+        let immutable_len = module.immutable_data_len();
 
         // Generate constructor initialization code (if any). Constructor arguments are appended
         // after the generated deployment bytecode, so the constructor arg offset depends on the
         // constructor code length. Iterate until the push widths stabilize.
-        let mut constructor_arg_offset = 0usize;
-        let mut constructor_code =
-            self.generate_constructor_code(module, Some(constructor_arg_offset));
+        let mut deploy_code_len = 0usize;
+        let mut constructor_arg_offset = runtime_len;
+        let mut constructor_code = self.generate_constructor_code(module, Some(runtime_len));
         for _ in 0..8 {
-            let deploy_code_len =
-                Self::calculate_deploy_code_len(constructor_code.len(), runtime_len);
-            let next_arg_offset = deploy_code_len + runtime_len;
-            if next_arg_offset == constructor_arg_offset {
+            let postlude = Self::build_deployment_postlude(
+                deploy_code_len,
+                runtime_len,
+                immutable_len,
+                &module.immutables,
+            );
+            let next_deploy_code_len = constructor_code.len() + postlude.len();
+            let next_arg_offset = next_deploy_code_len + runtime_len;
+            if next_deploy_code_len == deploy_code_len && next_arg_offset == constructor_arg_offset
+            {
                 break;
             }
+            deploy_code_len = next_deploy_code_len;
             constructor_arg_offset = next_arg_offset;
             constructor_code = self.generate_constructor_code(module, Some(constructor_arg_offset));
         }
 
         // Deploy code structure:
-        // [constructor_code]    ; run constructor (SSTOREs for initializers)
-        // PUSH<n> runtime_len   ; size to return
+        // [constructor_code]    ; run constructor (SSTOREs + immutable staging)
+        // PUSH<n> runtime_len   ; size to copy from creation code
         // DUP1                  ; duplicate for CODECOPY
         // PUSH<n> offset        ; where runtime starts
         // PUSH0                 ; memory destination = 0
         // CODECOPY              ; copy runtime to memory
+        // [immutable copies]    ; copy staged immutable words after runtime
+        // PUSH<n> runtime+immutables len
         // PUSH0                 ; memory offset = 0
         // RETURN                ; return the runtime code
-
-        let deploy_code_len = Self::calculate_deploy_code_len(constructor_code.len(), runtime_len);
+        let postlude = Self::build_deployment_postlude(
+            deploy_code_len,
+            runtime_len,
+            immutable_len,
+            &module.immutables,
+        );
 
         // Build the deployment bytecode
         let mut deploy_bytecode = Vec::new();
 
         // Add constructor code first
         deploy_bytecode.extend_from_slice(&constructor_code);
-
-        // PUSH runtime_len
-        Self::emit_push_raw(&mut deploy_bytecode, runtime_len as u64);
-        // DUP1
-        deploy_bytecode.push(opcodes::dup(1));
-        // PUSH deploy_code_len (offset to runtime)
-        Self::emit_push_raw(&mut deploy_bytecode, deploy_code_len as u64);
-        // PUSH0 (memory destination)
-        deploy_bytecode.push(opcodes::PUSH0);
-        // CODECOPY
-        deploy_bytecode.push(opcodes::CODECOPY);
-        // PUSH0 (return offset)
-        deploy_bytecode.push(opcodes::PUSH0);
-        // RETURN
-        deploy_bytecode.push(opcodes::RETURN);
+        deploy_bytecode.extend_from_slice(&postlude);
 
         // Append runtime code
         deploy_bytecode.extend_from_slice(&runtime_code);
 
-        (deploy_bytecode, runtime_code)
+        let mut deployed_runtime = runtime_code;
+        deployed_runtime.resize(runtime_len + immutable_len, 0);
+
+        (deploy_bytecode, deployed_runtime)
+    }
+
+    fn build_deployment_postlude(
+        deploy_code_len: usize,
+        runtime_len: usize,
+        immutable_len: usize,
+        immutables: &[crate::mir::ImmutableSlot],
+    ) -> Vec<u8> {
+        let mut bytecode = Vec::new();
+
+        // Copy runtime code from creation code to memory offset 0.
+        Self::emit_push_raw(&mut bytecode, runtime_len as u64);
+        bytecode.push(opcodes::dup(1));
+        Self::emit_push_raw(&mut bytecode, deploy_code_len as u64);
+        bytecode.push(opcodes::PUSH0);
+        bytecode.push(opcodes::CODECOPY);
+
+        // Append constructor-staged immutable words after the runtime code.
+        for slot in immutables {
+            Self::emit_push_raw(&mut bytecode, IMMUTABLE_SCRATCH_BASE + slot.offset);
+            bytecode.push(opcodes::MLOAD);
+            Self::emit_push_raw(&mut bytecode, runtime_len as u64 + slot.offset);
+            bytecode.push(opcodes::MSTORE);
+        }
+
+        Self::emit_push_raw(&mut bytecode, (runtime_len + immutable_len) as u64);
+        bytecode.push(opcodes::PUSH0);
+        bytecode.push(opcodes::RETURN);
+        bytecode
     }
 
     /// Generates constructor code that runs during deployment.
@@ -323,36 +358,6 @@ impl EvmCodegen {
             bytecode.push(0x5f + num_bytes as u8); // PUSH1 = 0x60, PUSH2 = 0x61, etc.
             bytecode.extend_from_slice(&bytes[first_non_zero..]);
         }
-    }
-
-    fn push_size(value: usize) -> usize {
-        if value == 0 {
-            1
-        } else if value <= 0xFF {
-            2
-        } else if value <= 0xFFFF {
-            3
-        } else {
-            4
-        }
-    }
-
-    fn calculate_deploy_code_len(constructor_len: usize, runtime_len: usize) -> usize {
-        let len_push_size = Self::push_size(runtime_len);
-        let mut offset_push_size = 2;
-        let mut deploy_code_len = constructor_len + len_push_size + offset_push_size + 5;
-
-        if deploy_code_len > 255 {
-            offset_push_size = 3;
-            deploy_code_len = constructor_len + len_push_size + offset_push_size + 5;
-        }
-
-        if deploy_code_len > 65535 {
-            offset_push_size = 4;
-            deploy_code_len = constructor_len + len_push_size + offset_push_size + 5;
-        }
-
-        deploy_code_len
     }
 
     /// Runs optimization passes on all functions in the module via the PassManager.
