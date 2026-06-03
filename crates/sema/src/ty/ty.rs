@@ -693,6 +693,15 @@ impl<'gcx> Ty<'gcx> {
                 }
             }
 
+            // A reference type (in any data location) is convertible to its
+            // location-less base type. This arises for mapping keys, whose key
+            // type carries no location: e.g. indexing `mapping(string => ...)`
+            // with a `string memory`/`string calldata` value, or the implicit
+            // public getter whose key parameter is `string calldata`.
+            (Ref(from_inner, _), to) if !matches!(to, Ref(..)) => {
+                from_inner.try_convert_implicit_to(other, gcx)
+            }
+
             // Array slices are implicitly convertible to arrays of their underlying element type.
             // Note: conversion to storage pointers is NOT allowed.
             // See: <https://docs.soliditylang.org/en/latest/types.html#array-slices>
@@ -907,6 +916,19 @@ impl<'gcx> Ty<'gcx> {
                     Result::Err(TyConvertError::InvalidConversion)
                 }
             }
+
+            // A calldata `bytes` slice (`data[i:j]`) converts like `bytes`: to
+            // fixed-bytes, `bytes`, or `string`.
+            (Slice(underlying), other_kind)
+                if matches!(underlying.peel_refs().kind, Elementary(Bytes)) =>
+            {
+                match other_kind {
+                    Elementary(FixedBytes(_) | Bytes | String) => Ok(()),
+                    Ref(inner, _) if matches!(inner.kind, Elementary(Bytes | String)) => Ok(()),
+                    _ => Result::Err(TyConvertError::InvalidConversion),
+                }
+            }
+
             (Ref(from_inner, _), _) if from_inner == other && other.is_reference_type() => Ok(()),
 
             // FixedBytes <-> UInt: same size only (signed integers not allowed).
@@ -1054,6 +1076,12 @@ impl<'gcx> Ty<'gcx> {
                 if matches!(from_inner.kind, Elementary(Bytes)) =>
             {
                 gcx.types.string.with_loc(gcx, loc)
+            }
+            // A calldata `bytes` slice converted to `bytes`/`string` stays in
+            // calldata (it is a view), so the result is `bytes`/`string calldata`.
+            (Slice(_), Elementary(Bytes)) => gcx.types.bytes.with_loc(gcx, DataLocation::Calldata),
+            (Slice(_), Elementary(String)) => {
+                gcx.types.string.with_loc(gcx, DataLocation::Calldata)
             }
             _ => other,
         })
