@@ -872,9 +872,11 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.lowering_constructor = false;
         self.lowering_internal_function = false;
-        if uses_internal_frame {
-            mir_func.internal_frame_size =
-                self.next_local_memory_offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
+        mir_func.internal_frame_size =
+            self.next_local_memory_offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
+        if uses_external_abi && !self.current_return_tys.iter().any(|&ty| self.abi_is_dynamic(ty)) {
+            mir_func.external_static_return_size =
+                self.current_return_tys.iter().map(|&ty| self.abi_head_size(ty)).sum();
         }
 
         *self.module.function_mut(mir_id) = mir_func;

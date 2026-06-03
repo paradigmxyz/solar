@@ -23,7 +23,8 @@ use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
 
 const INTERNAL_FRAME_PTR_SLOT: u64 = 0x2000;
-const FREE_MEMORY_START: u64 = 0x4000;
+const LOW_MEMORY_START: u64 = 0x80;
+const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
 
 /// Describes the stack effect of an EVM instruction.
 /// This is used to keep the scheduler's stack model in sync with the actual EVM stack.
@@ -290,8 +291,8 @@ impl EvmCodegen {
             self.block_labels.clear();
             self.block_copies.clear();
 
-            // Initialize free memory pointer above compiler-reserved scratch/local space.
-            self.asm.emit_push(U256::from(FREE_MEMORY_START));
+            // Constructors stage immutable words in reserved memory, so keep their heap high.
+            self.asm.emit_push(U256::from(CONSTRUCTOR_FREE_MEMORY_START));
             self.asm.emit_push(U256::from(0x40));
             self.asm.emit_op(opcodes::MSTORE);
 
@@ -392,8 +393,9 @@ impl EvmCodegen {
         self.function_frame_sizes.clear();
         self.block_copies.clear();
 
-        // Initialize free memory pointer above compiler-reserved scratch/local space.
-        self.asm.emit_push(U256::from(FREE_MEMORY_START));
+        // Dispatcher itself does not allocate. External entries set this precisely
+        // after dispatch based on their local/spill footprint.
+        self.asm.emit_push(U256::from(LOW_MEMORY_START));
         self.asm.emit_push(U256::from(0x40));
         self.asm.emit_op(opcodes::MSTORE);
 
@@ -525,6 +527,8 @@ impl EvmCodegen {
 
             // Emit payable check for non-payable functions
             self.emit_payable_check(func);
+
+            self.emit_external_free_memory_start(func);
 
             // Generate function body
             self.in_internal_function = false;
@@ -1482,6 +1486,20 @@ impl EvmCodegen {
         func.values.len() as u64 * 32
     }
 
+    fn external_spill_base(func: &Function) -> u64 {
+        LOW_MEMORY_START + func.internal_frame_size.max(func.external_static_return_size)
+    }
+
+    fn external_free_memory_start(func: &Function) -> u64 {
+        Self::external_spill_base(func) + Self::spill_frame_size(func)
+    }
+
+    fn emit_external_free_memory_start(&mut self, func: &Function) {
+        self.asm.emit_push(U256::from(Self::external_free_memory_start(func)));
+        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_op(opcodes::MSTORE);
+    }
+
     fn emit_spill_slot_addr(&mut self, func: &Function, slot: SpillSlot) {
         if self.in_internal_function {
             let spill_base =
@@ -1489,8 +1507,12 @@ impl EvmCodegen {
             self.emit_current_internal_frame_addr(
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
             );
-        } else {
+        } else if self.in_constructor {
             self.asm.emit_push(U256::from(slot.byte_offset()));
+        } else {
+            self.asm.emit_push(U256::from(
+                Self::external_spill_base(func) + u64::from(slot.offset) * 32,
+            ));
         }
     }
 
