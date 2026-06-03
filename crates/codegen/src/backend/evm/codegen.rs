@@ -14,7 +14,8 @@ use crate::{
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
     mir::{BlockId, Function, FunctionId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
-        AnalysisManager, CfgSimplifyPass, DcePass, JumpThreadingPass, LivenessAnalysis, PassManager,
+        AnalysisManager, CfgSimplifyPass, CsePass, DcePass, JumpThreadingPass, LivenessAnalysis,
+        PassManager, SccpTransformPass,
     },
 };
 use alloy_primitives::U256;
@@ -357,15 +358,19 @@ impl EvmCodegen {
     /// Runs optimization passes on all functions in the module via the PassManager.
     ///
     /// Order:
-    /// 1. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
-    /// 2. CFG simplify  — physically merges sequential blocks and removes empty forwarders
-    /// 3. DCE           — removes dead instructions and any remaining unreachable blocks
+    /// 1. SCCP          — folds constants and prunes constant branches
+    /// 2. CSE           — removes duplicate local computations
+    /// 3. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
+    /// 4. CFG simplify  — physically merges sequential blocks and removes empty forwarders
+    /// 5. DCE           — removes dead instructions and any remaining unreachable blocks
     ///
     /// Each pass internally iterates to a fixed point. Threading creates orphaned
     /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
     /// DCE handles whatever's still unreachable.
     fn run_optimization_passes(&mut self, module: &mut Module) {
         let mut pm = PassManager::new();
+        pm.add_transform(Box::new(SccpTransformPass));
+        pm.add_transform(Box::new(CsePass));
         pm.add_transform(Box::new(JumpThreadingPass));
         pm.add_transform(Box::new(CfgSimplifyPass));
         pm.add_transform(Box::new(DcePass));

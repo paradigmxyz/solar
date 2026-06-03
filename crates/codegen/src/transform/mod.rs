@@ -17,7 +17,8 @@ pub use constant_fold::{ConstantFolder, FoldResult};
 pub use cse::CommonSubexprEliminator;
 pub use dce::{DceStats, DeadCodeEliminator};
 pub use inline::{
-    FunctionInlineInfo, InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, OptLevel,
+    FunctionInlineInfo, InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, MirInlineConfig,
+    MirInlineStats, MirInliner, OptLevel,
 };
 pub use jump_threading::{JumpThreader, JumpThreadingStats};
 pub use loop_opt::{LoopOptConfig, LoopOptStats, LoopOptimizer};

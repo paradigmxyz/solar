@@ -17,6 +17,7 @@ use solar_codegen::{
         CfgSimplifyPass, CsePass, DcePass, JumpThreadingPass, PassManager, SccpTransformPass,
         TransformPass,
     },
+    transform::MirInliner,
 };
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
@@ -24,6 +25,7 @@ use std::{ffi::OsString, ops::ControlFlow, path::Path, process::ExitCode};
 
 const AFTER_HELP: &str = "\
 Passes:
+  inline           Internal MIR function inlining
   dce              Dead Code Elimination (fixed-point)
   cse              Common Subexpression Elimination (fixed-point)
   sccp             Sparse Conditional Constant Propagation
@@ -37,13 +39,20 @@ Input formats:
 ";
 
 /// The canonical pass list run by `EvmCodegen::run_optimization_passes`.
-/// Keep in sync with `crates/codegen/src/backend/evm/evm.rs`.
-const DEFAULT_PIPELINE: &[PassName] =
-    &[PassName::JumpThreading, PassName::CfgSimplify, PassName::Dce];
+/// Keep in sync with `crates/codegen/src/backend/evm/codegen.rs`.
+const DEFAULT_PIPELINE: &[PassName] = &[
+    PassName::Inline,
+    PassName::Sccp,
+    PassName::Cse,
+    PassName::JumpThreading,
+    PassName::CfgSimplify,
+    PassName::Dce,
+];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
 #[clap(rename_all = "kebab-case")]
 enum PassName {
+    Inline,
     Dce,
     Cse,
     Sccp,
@@ -55,6 +64,7 @@ enum PassName {
 impl PassName {
     fn as_str(self) -> &'static str {
         match self {
+            Self::Inline => "inline",
             Self::Dce => "dce",
             Self::Cse => "cse",
             Self::Sccp => "sccp",
@@ -112,26 +122,38 @@ impl Args {
     }
 }
 
-/// Returns a fresh boxed pass for the given name. The special `none` pass returns `None`
-/// (skipped).
-fn make_pass(name: PassName) -> Option<Box<dyn TransformPass>> {
+enum MirOptPass {
+    Module(MirInliner),
+    Function(Box<dyn TransformPass>),
+}
+
+/// Returns a fresh pass for the given name. The special `none` pass returns `None` (skipped).
+fn make_pass(name: PassName) -> Option<MirOptPass> {
     match name {
-        PassName::Dce => Some(Box::new(DcePass)),
-        PassName::Cse => Some(Box::new(CsePass)),
-        PassName::Sccp => Some(Box::new(SccpTransformPass)),
-        PassName::CfgSimplify => Some(Box::new(CfgSimplifyPass)),
-        PassName::JumpThreading => Some(Box::new(JumpThreadingPass)),
+        PassName::Inline => Some(MirOptPass::Module(MirInliner::default())),
+        PassName::Dce => Some(MirOptPass::Function(Box::new(DcePass))),
+        PassName::Cse => Some(MirOptPass::Function(Box::new(CsePass))),
+        PassName::Sccp => Some(MirOptPass::Function(Box::new(SccpTransformPass))),
+        PassName::CfgSimplify => Some(MirOptPass::Function(Box::new(CfgSimplifyPass))),
+        PassName::JumpThreading => Some(MirOptPass::Function(Box::new(JumpThreadingPass))),
         PassName::None => None,
     }
 }
 
-/// Runs a single pass on every function in the module.
+/// Runs a single pass over the module.
 fn run_pass(module: &mut Module, pass_name: PassName) {
-    if let Some(boxed) = make_pass(pass_name) {
-        let mut pm = PassManager::new();
-        pm.add_transform(boxed);
-        for func in module.functions.iter_mut() {
-            pm.run(func);
+    if let Some(pass) = make_pass(pass_name) {
+        match pass {
+            MirOptPass::Module(mut pass) => {
+                pass.run(module);
+            }
+            MirOptPass::Function(boxed) => {
+                let mut pm = PassManager::new();
+                pm.add_transform(boxed);
+                for func in module.functions.iter_mut() {
+                    pm.run(func);
+                }
+            }
         }
     }
 }

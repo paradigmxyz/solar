@@ -18,7 +18,12 @@
 //! - `O1`: Conservative inlining (very small functions, single-call)
 //! - `O2`: Aggressive inlining (larger threshold, loop-aware)
 
+use crate::mir::{
+    BlockId, Function, FunctionId as MirFunctionId, InstId, InstKind, Instruction, MirType, Module,
+    Terminator, Value, ValueId,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
+use smallvec::SmallVec;
 use solar_sema::hir::{self, FunctionId, StmtKind};
 
 /// Optimization level for the compiler.
@@ -560,5 +565,816 @@ impl InlineStats {
         }
 
         stats
+    }
+}
+
+/// Configuration for MIR-level internal-call inlining.
+#[derive(Clone, Debug)]
+pub struct MirInlineConfig {
+    /// Maximum instruction count for ordinary inline candidates.
+    pub max_instructions: usize,
+    /// Maximum instruction count for functions that have exactly one call site.
+    pub max_single_call_instructions: usize,
+    /// Maximum number of blocks to clone from one callee.
+    pub max_blocks: usize,
+    /// Whether a single call site may use the larger threshold.
+    pub inline_single_call: bool,
+}
+
+impl Default for MirInlineConfig {
+    fn default() -> Self {
+        Self {
+            max_instructions: 8,
+            max_single_call_instructions: 32,
+            max_blocks: 12,
+            inline_single_call: true,
+        }
+    }
+}
+
+/// Statistics for MIR-level inlining.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MirInlineStats {
+    /// Number of internal call sites considered.
+    pub call_sites: usize,
+    /// Number of call sites inlined.
+    pub inlined: usize,
+    /// Number of call sites skipped because the callee was not inlineable.
+    pub skipped: usize,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+struct MirInlineSummary {
+    instruction_count: usize,
+    block_count: usize,
+    return_count: usize,
+    has_internal_call: bool,
+    has_phi: bool,
+    has_unsupported_terminator: bool,
+    is_entry_point: bool,
+    is_constructor: bool,
+}
+
+/// Module-level MIR internal-call inliner.
+///
+/// This pass clones small internal/private callees into their callers. Each
+/// inline expansion gets a fresh internal-frame range so copied local slots do
+/// not overlap caller locals.
+pub struct MirInliner {
+    config: MirInlineConfig,
+}
+
+impl Default for MirInliner {
+    fn default() -> Self {
+        Self::new(MirInlineConfig::default())
+    }
+}
+
+impl MirInliner {
+    /// Creates a new MIR inliner with the given configuration.
+    #[must_use]
+    pub fn new(config: MirInlineConfig) -> Self {
+        Self { config }
+    }
+
+    /// Runs the inliner over the whole module.
+    pub fn run(&mut self, module: &mut Module) -> MirInlineStats {
+        let mut stats = MirInlineStats::default();
+        let summaries = self.summarize_module(module);
+        let call_counts = self.call_counts(module);
+
+        for caller_id in module.functions.indices().collect::<Vec<_>>() {
+            let mut cursor = 0;
+            while let Some(site) = self.find_next_call(module.function(caller_id), cursor) {
+                stats.call_sites += 1;
+                cursor = site.block.index() + 1;
+
+                let Some(summary) = summaries.get(&site.callee).copied() else {
+                    stats.skipped += 1;
+                    continue;
+                };
+                let call_count = call_counts.get(&site.callee).copied().unwrap_or_default();
+                if !self.is_inlineable(caller_id, site.callee, summary, call_count) {
+                    stats.skipped += 1;
+                    continue;
+                }
+
+                let callee = module.function(site.callee).clone();
+                let caller = module.function_mut(caller_id);
+                if inline_call(caller, site.block, site.inst_index, &callee) {
+                    stats.inlined += 1;
+                    cursor = site.block.index();
+                } else {
+                    stats.skipped += 1;
+                }
+            }
+        }
+
+        stats
+    }
+
+    fn summarize_module(&self, module: &Module) -> FxHashMap<MirFunctionId, MirInlineSummary> {
+        module
+            .functions
+            .iter_enumerated()
+            .map(|(id, func)| (id, summarize_function(func)))
+            .collect()
+    }
+
+    fn call_counts(&self, module: &Module) -> FxHashMap<MirFunctionId, usize> {
+        let mut counts = FxHashMap::default();
+        for func in module.functions.iter() {
+            for block in func.blocks.iter() {
+                for &inst_id in &block.instructions {
+                    if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind
+                    {
+                        *counts.entry(function).or_default() += 1;
+                    }
+                }
+            }
+        }
+        counts
+    }
+
+    fn find_next_call(&self, func: &Function, start_block: usize) -> Option<CallSite> {
+        for (block, bb) in func.blocks.iter_enumerated().skip(start_block) {
+            for (inst_index, &inst_id) in bb.instructions.iter().enumerate() {
+                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+                    return Some(CallSite { block, inst_index, callee: function });
+                }
+            }
+        }
+        None
+    }
+
+    fn is_inlineable(
+        &self,
+        caller: MirFunctionId,
+        callee: MirFunctionId,
+        summary: MirInlineSummary,
+        call_count: usize,
+    ) -> bool {
+        if caller == callee
+            || summary.is_entry_point
+            || summary.is_constructor
+            || summary.has_internal_call
+            || summary.has_phi
+            || summary.has_unsupported_terminator
+            || summary.return_count == 0
+            || summary.block_count > self.config.max_blocks
+        {
+            return false;
+        }
+
+        let limit = if self.config.inline_single_call && call_count == 1 {
+            self.config.max_single_call_instructions
+        } else {
+            self.config.max_instructions
+        };
+        summary.instruction_count <= limit
+    }
+}
+
+#[derive(Clone, Copy)]
+struct CallSite {
+    block: BlockId,
+    inst_index: usize,
+    callee: MirFunctionId,
+}
+
+fn summarize_function(func: &Function) -> MirInlineSummary {
+    let mut summary = MirInlineSummary {
+        block_count: func.blocks.len(),
+        is_entry_point: func.is_public()
+            || func.attributes.is_fallback
+            || func.attributes.is_receive
+            || func.selector.is_some(),
+        is_constructor: func.attributes.is_constructor,
+        ..MirInlineSummary::default()
+    };
+
+    for value in func.values.iter() {
+        if matches!(value, Value::Phi { .. }) {
+            summary.has_phi = true;
+        }
+    }
+
+    for block in func.blocks.iter() {
+        summary.instruction_count += block.instructions.len();
+        for &inst_id in &block.instructions {
+            match &func.instructions[inst_id].kind {
+                InstKind::InternalCall { .. } => summary.has_internal_call = true,
+                InstKind::Phi(_) => summary.has_phi = true,
+                _ => {}
+            }
+        }
+        match block.terminator.as_ref() {
+            Some(Terminator::Return { .. }) => summary.return_count += 1,
+            Some(Terminator::Revert { .. }) => {}
+            Some(Terminator::Jump(_))
+            | Some(Terminator::Branch { .. })
+            | Some(Terminator::Switch { .. }) => {}
+            Some(Terminator::ReturnData { .. })
+            | Some(Terminator::Stop)
+            | Some(Terminator::SelfDestruct { .. })
+            | Some(Terminator::Invalid)
+            | None => summary.has_unsupported_terminator = true,
+        }
+    }
+
+    summary
+}
+
+fn inline_call(
+    caller: &mut Function,
+    call_block: BlockId,
+    call_inst_index: usize,
+    callee: &Function,
+) -> bool {
+    let snapshot = caller.clone();
+    if inline_call_impl(caller, call_block, call_inst_index, callee).is_some() {
+        true
+    } else {
+        *caller = snapshot;
+        false
+    }
+}
+
+fn inline_call_impl(
+    caller: &mut Function,
+    call_block: BlockId,
+    call_inst_index: usize,
+    callee: &Function,
+) -> Option<()> {
+    let call_inst = caller.blocks[call_block].instructions[call_inst_index];
+    let InstKind::InternalCall { args, returns, .. } = caller.instructions[call_inst].kind.clone()
+    else {
+        return None;
+    };
+    if returns > 1 || returns != callee.returns.len() {
+        return None;
+    }
+
+    let call_result = find_inst_result(caller, call_inst);
+    if returns == 1 && call_result.is_none() {
+        return None;
+    }
+
+    let continuation = caller.alloc_block();
+    let old_terminator = caller.blocks[call_block].terminator.take();
+    let suffix = {
+        let block = &mut caller.blocks[call_block];
+        block.instructions.split_off(call_inst_index + 1)
+    };
+    caller.blocks[call_block].instructions.pop();
+    caller.blocks[continuation].instructions = suffix;
+    caller.blocks[continuation].terminator = old_terminator;
+
+    let frame_base = caller.internal_frame_size;
+    caller.internal_frame_size += callee.internal_frame_size;
+
+    let mut cloner = InlineCloner::new(caller, callee, frame_base, &args);
+    let cloned_entry = cloner.clone_blocks(continuation)?;
+    cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
+
+    let mut replacements = FxHashMap::default();
+    if returns == 1 {
+        let return_value =
+            build_return_value(cloner.caller, &callee.returns, &cloner.return_edges)?;
+        replacements.insert(call_result?, return_value);
+    }
+
+    replace_uses(cloner.caller, &replacements);
+    recompute_cfg(cloner.caller);
+    Some(())
+}
+
+struct InlineCloner<'a> {
+    caller: &'a mut Function,
+    callee: &'a Function,
+    frame_base: u64,
+    value_map: FxHashMap<ValueId, ValueId>,
+    block_map: FxHashMap<BlockId, BlockId>,
+    return_edges: Vec<(BlockId, SmallVec<[ValueId; 2]>)>,
+}
+
+impl<'a> InlineCloner<'a> {
+    fn new(
+        caller: &'a mut Function,
+        callee: &'a Function,
+        frame_base: u64,
+        args: &[ValueId],
+    ) -> Self {
+        let mut value_map = FxHashMap::default();
+        for (callee_value, value) in callee.values.iter_enumerated() {
+            if let Value::Arg { index, .. } = value
+                && let Some(&arg) = args.get(*index as usize)
+            {
+                value_map.insert(callee_value, arg);
+            }
+        }
+        Self {
+            caller,
+            callee,
+            frame_base,
+            value_map,
+            block_map: FxHashMap::default(),
+            return_edges: Vec::new(),
+        }
+    }
+
+    fn clone_blocks(&mut self, continuation: BlockId) -> Option<BlockId> {
+        for block_id in self.callee.blocks.indices() {
+            self.block_map.insert(block_id, self.caller.alloc_block());
+        }
+
+        for (callee_block, block) in self.callee.blocks.iter_enumerated() {
+            let caller_block = self.block_map[&callee_block];
+            let mut instructions = Vec::with_capacity(block.instructions.len());
+            for &inst_id in &block.instructions {
+                let inst = self.callee.instructions[inst_id].clone();
+                let kind = self.clone_inst_kind(inst.kind)?;
+                let new_inst = self.caller.alloc_inst(Instruction::new(kind, inst.result_ty));
+                instructions.push(new_inst);
+                if let Some(callee_result) = find_inst_result(self.callee, inst_id) {
+                    let new_result = self.caller.alloc_value(Value::Inst(new_inst));
+                    self.value_map.insert(callee_result, new_result);
+                }
+            }
+            self.caller.blocks[caller_block].instructions = instructions;
+        }
+
+        for (callee_block, block) in self.callee.blocks.iter_enumerated() {
+            let caller_block = self.block_map[&callee_block];
+            let term =
+                self.clone_terminator(block.terminator.as_ref()?, caller_block, continuation)?;
+            self.caller.blocks[caller_block].terminator = Some(term);
+        }
+
+        Some(self.block_map[&self.callee.entry_block])
+    }
+
+    fn clone_value(&mut self, value: ValueId) -> Option<ValueId> {
+        if let Some(&mapped) = self.value_map.get(&value) {
+            return Some(mapped);
+        }
+
+        let cloned = match self.callee.values[value].clone() {
+            Value::Immediate(imm) => self.caller.alloc_value(Value::Immediate(imm)),
+            Value::Undef(ty) => self.caller.alloc_value(Value::Undef(ty)),
+            Value::Arg { .. } | Value::Inst(_) | Value::Phi { .. } => return None,
+        };
+        self.value_map.insert(value, cloned);
+        Some(cloned)
+    }
+
+    fn clone_block(&self, block: BlockId) -> Option<BlockId> {
+        self.block_map.get(&block).copied()
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn clone_inst_kind(&mut self, kind: InstKind) -> Option<InstKind> {
+        Some(match kind {
+            InstKind::Add(a, b) => InstKind::Add(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Sub(a, b) => InstKind::Sub(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Mul(a, b) => InstKind::Mul(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Div(a, b) => InstKind::Div(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::SDiv(a, b) => InstKind::SDiv(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Mod(a, b) => InstKind::Mod(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::SMod(a, b) => InstKind::SMod(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Exp(a, b) => InstKind::Exp(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::AddMod(a, b, c) => {
+                InstKind::AddMod(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
+            }
+            InstKind::MulMod(a, b, c) => {
+                InstKind::MulMod(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
+            }
+            InstKind::And(a, b) => InstKind::And(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Or(a, b) => InstKind::Or(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Xor(a, b) => InstKind::Xor(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Not(a) => InstKind::Not(self.clone_value(a)?),
+            InstKind::Shl(a, b) => InstKind::Shl(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Shr(a, b) => InstKind::Shr(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Sar(a, b) => InstKind::Sar(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Byte(a, b) => InstKind::Byte(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Lt(a, b) => InstKind::Lt(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Gt(a, b) => InstKind::Gt(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::SLt(a, b) => InstKind::SLt(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::SGt(a, b) => InstKind::SGt(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Eq(a, b) => InstKind::Eq(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::IsZero(a) => InstKind::IsZero(self.clone_value(a)?),
+            InstKind::MLoad(a) => InstKind::MLoad(self.clone_value(a)?),
+            InstKind::MStore(a, b) => InstKind::MStore(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::MStore8(a, b) => {
+                InstKind::MStore8(self.clone_value(a)?, self.clone_value(b)?)
+            }
+            InstKind::MSize => InstKind::MSize,
+            InstKind::MCopy(a, b, c) => {
+                InstKind::MCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
+            }
+            InstKind::SLoad(a) => InstKind::SLoad(self.clone_value(a)?),
+            InstKind::SStore(a, b) => InstKind::SStore(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::TLoad(a) => InstKind::TLoad(self.clone_value(a)?),
+            InstKind::TStore(a, b) => InstKind::TStore(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::CalldataLoad(a) => InstKind::CalldataLoad(self.clone_value(a)?),
+            InstKind::CalldataCopy(a, b, c) => InstKind::CalldataCopy(
+                self.clone_value(a)?,
+                self.clone_value(b)?,
+                self.clone_value(c)?,
+            ),
+            InstKind::CalldataSize => InstKind::CalldataSize,
+            InstKind::InternalFrameAddr(offset) => {
+                InstKind::InternalFrameAddr(self.frame_base + offset)
+            }
+            InstKind::CodeSize => InstKind::CodeSize,
+            InstKind::CodeCopy(a, b, c) => {
+                InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
+            }
+            InstKind::ExtCodeSize(a) => InstKind::ExtCodeSize(self.clone_value(a)?),
+            InstKind::ExtCodeCopy(a, b, c, d) => InstKind::ExtCodeCopy(
+                self.clone_value(a)?,
+                self.clone_value(b)?,
+                self.clone_value(c)?,
+                self.clone_value(d)?,
+            ),
+            InstKind::ExtCodeHash(a) => InstKind::ExtCodeHash(self.clone_value(a)?),
+            InstKind::ReturnDataSize => InstKind::ReturnDataSize,
+            InstKind::ReturnDataCopy(a, b, c) => InstKind::ReturnDataCopy(
+                self.clone_value(a)?,
+                self.clone_value(b)?,
+                self.clone_value(c)?,
+            ),
+            InstKind::Caller => InstKind::Caller,
+            InstKind::CallValue => InstKind::CallValue,
+            InstKind::Origin => InstKind::Origin,
+            InstKind::GasPrice => InstKind::GasPrice,
+            InstKind::BlockHash(a) => InstKind::BlockHash(self.clone_value(a)?),
+            InstKind::Coinbase => InstKind::Coinbase,
+            InstKind::Timestamp => InstKind::Timestamp,
+            InstKind::BlockNumber => InstKind::BlockNumber,
+            InstKind::PrevRandao => InstKind::PrevRandao,
+            InstKind::GasLimit => InstKind::GasLimit,
+            InstKind::ChainId => InstKind::ChainId,
+            InstKind::Address => InstKind::Address,
+            InstKind::Balance(a) => InstKind::Balance(self.clone_value(a)?),
+            InstKind::SelfBalance => InstKind::SelfBalance,
+            InstKind::Gas => InstKind::Gas,
+            InstKind::BaseFee => InstKind::BaseFee,
+            InstKind::BlobBaseFee => InstKind::BlobBaseFee,
+            InstKind::BlobHash(a) => InstKind::BlobHash(self.clone_value(a)?),
+            InstKind::Keccak256(a, b) => {
+                InstKind::Keccak256(self.clone_value(a)?, self.clone_value(b)?)
+            }
+            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+                InstKind::Call {
+                    gas: self.clone_value(gas)?,
+                    addr: self.clone_value(addr)?,
+                    value: self.clone_value(value)?,
+                    args_offset: self.clone_value(args_offset)?,
+                    args_size: self.clone_value(args_size)?,
+                    ret_offset: self.clone_value(ret_offset)?,
+                    ret_size: self.clone_value(ret_size)?,
+                }
+            }
+            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                InstKind::StaticCall {
+                    gas: self.clone_value(gas)?,
+                    addr: self.clone_value(addr)?,
+                    args_offset: self.clone_value(args_offset)?,
+                    args_size: self.clone_value(args_size)?,
+                    ret_offset: self.clone_value(ret_offset)?,
+                    ret_size: self.clone_value(ret_size)?,
+                }
+            }
+            InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                InstKind::DelegateCall {
+                    gas: self.clone_value(gas)?,
+                    addr: self.clone_value(addr)?,
+                    args_offset: self.clone_value(args_offset)?,
+                    args_size: self.clone_value(args_size)?,
+                    ret_offset: self.clone_value(ret_offset)?,
+                    ret_size: self.clone_value(ret_size)?,
+                }
+            }
+            InstKind::InternalCall { .. } => return None,
+            InstKind::Create(a, b, c) => {
+                InstKind::Create(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
+            }
+            InstKind::Create2(a, b, c, d) => InstKind::Create2(
+                self.clone_value(a)?,
+                self.clone_value(b)?,
+                self.clone_value(c)?,
+                self.clone_value(d)?,
+            ),
+            InstKind::Log0(a, b) => InstKind::Log0(self.clone_value(a)?, self.clone_value(b)?),
+            InstKind::Log1(a, b, c) => {
+                InstKind::Log1(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
+            }
+            InstKind::Log2(a, b, c, d) => InstKind::Log2(
+                self.clone_value(a)?,
+                self.clone_value(b)?,
+                self.clone_value(c)?,
+                self.clone_value(d)?,
+            ),
+            InstKind::Log3(a, b, c, d, e) => InstKind::Log3(
+                self.clone_value(a)?,
+                self.clone_value(b)?,
+                self.clone_value(c)?,
+                self.clone_value(d)?,
+                self.clone_value(e)?,
+            ),
+            InstKind::Log4(a, b, c, d, e, f) => InstKind::Log4(
+                self.clone_value(a)?,
+                self.clone_value(b)?,
+                self.clone_value(c)?,
+                self.clone_value(d)?,
+                self.clone_value(e)?,
+                self.clone_value(f)?,
+            ),
+            InstKind::Phi(_) => return None,
+            InstKind::Select(a, b, c) => {
+                InstKind::Select(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
+            }
+            InstKind::SignExtend(a, b) => {
+                InstKind::SignExtend(self.clone_value(a)?, self.clone_value(b)?)
+            }
+        })
+    }
+
+    fn clone_terminator(
+        &mut self,
+        term: &Terminator,
+        cloned_block: BlockId,
+        continuation: BlockId,
+    ) -> Option<Terminator> {
+        Some(match term {
+            Terminator::Jump(target) => Terminator::Jump(self.clone_block(*target)?),
+            Terminator::Branch { condition, then_block, else_block } => Terminator::Branch {
+                condition: self.clone_value(*condition)?,
+                then_block: self.clone_block(*then_block)?,
+                else_block: self.clone_block(*else_block)?,
+            },
+            Terminator::Switch { value, default, cases } => Terminator::Switch {
+                value: self.clone_value(*value)?,
+                default: self.clone_block(*default)?,
+                cases: cases
+                    .iter()
+                    .map(|(value, block)| {
+                        Some((self.clone_value(*value)?, self.clone_block(*block)?))
+                    })
+                    .collect::<Option<Vec<_>>>()?,
+            },
+            Terminator::Return { values } => {
+                let mapped = values
+                    .iter()
+                    .map(|value| self.clone_value(*value))
+                    .collect::<Option<SmallVec<[ValueId; 2]>>>()?;
+                self.return_edges.push((cloned_block, mapped));
+                Terminator::Jump(continuation)
+            }
+            Terminator::Revert { offset, size } => Terminator::Revert {
+                offset: self.clone_value(*offset)?,
+                size: self.clone_value(*size)?,
+            },
+            Terminator::ReturnData { .. }
+            | Terminator::Stop
+            | Terminator::SelfDestruct { .. }
+            | Terminator::Invalid => return None,
+        })
+    }
+}
+
+fn build_return_value(
+    caller: &mut Function,
+    return_tys: &[MirType],
+    return_edges: &[(BlockId, SmallVec<[ValueId; 2]>)],
+) -> Option<ValueId> {
+    if return_tys.len() != 1 {
+        return None;
+    }
+    match return_edges {
+        [(_, values)] => values.first().copied(),
+        edges => {
+            let incoming = edges
+                .iter()
+                .map(|(block, values)| Some((*block, *values.first()?)))
+                .collect::<Option<Vec<_>>>()?;
+            Some(caller.alloc_value(Value::Phi { ty: return_tys[0], incoming }))
+        }
+    }
+}
+
+fn find_inst_result(func: &Function, inst: InstId) -> Option<ValueId> {
+    func.values
+        .iter_enumerated()
+        .find_map(|(value, v)| matches!(v, Value::Inst(id) if *id == inst).then_some(value))
+}
+
+fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
+    if replacements.is_empty() {
+        return;
+    }
+
+    for inst in func.instructions.iter_mut() {
+        replace_inst_operands(&mut inst.kind, replacements);
+    }
+    for value in func.values.iter_mut() {
+        if let Value::Phi { incoming, .. } = value {
+            for (_, value) in incoming {
+                *value = replacements.get(value).copied().unwrap_or(*value);
+            }
+        }
+    }
+    for block in func.blocks.iter_mut() {
+        if let Some(term) = &mut block.terminator {
+            replace_terminator_operands(term, replacements);
+        }
+    }
+}
+
+#[allow(clippy::too_many_lines)]
+fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
+    let replace = |value: &mut ValueId| {
+        if let Some(new_value) = replacements.get(value) {
+            *value = *new_value;
+        }
+    };
+
+    match kind {
+        InstKind::Add(a, b)
+        | InstKind::Sub(a, b)
+        | InstKind::Mul(a, b)
+        | InstKind::Div(a, b)
+        | InstKind::SDiv(a, b)
+        | InstKind::Mod(a, b)
+        | InstKind::SMod(a, b)
+        | InstKind::Exp(a, b)
+        | InstKind::And(a, b)
+        | InstKind::Or(a, b)
+        | InstKind::Xor(a, b)
+        | InstKind::Shl(a, b)
+        | InstKind::Shr(a, b)
+        | InstKind::Sar(a, b)
+        | InstKind::Byte(a, b)
+        | InstKind::Lt(a, b)
+        | InstKind::Gt(a, b)
+        | InstKind::SLt(a, b)
+        | InstKind::SGt(a, b)
+        | InstKind::Eq(a, b)
+        | InstKind::MStore(a, b)
+        | InstKind::MStore8(a, b)
+        | InstKind::SStore(a, b)
+        | InstKind::TStore(a, b)
+        | InstKind::Keccak256(a, b)
+        | InstKind::Log0(a, b)
+        | InstKind::SignExtend(a, b) => {
+            replace(a);
+            replace(b);
+        }
+        InstKind::Not(a)
+        | InstKind::IsZero(a)
+        | InstKind::MLoad(a)
+        | InstKind::SLoad(a)
+        | InstKind::TLoad(a)
+        | InstKind::CalldataLoad(a)
+        | InstKind::ExtCodeSize(a)
+        | InstKind::ExtCodeHash(a)
+        | InstKind::Balance(a)
+        | InstKind::BlockHash(a)
+        | InstKind::BlobHash(a) => replace(a),
+        InstKind::MCopy(a, b, c)
+        | InstKind::CalldataCopy(a, b, c)
+        | InstKind::CodeCopy(a, b, c)
+        | InstKind::ReturnDataCopy(a, b, c)
+        | InstKind::AddMod(a, b, c)
+        | InstKind::MulMod(a, b, c)
+        | InstKind::Create(a, b, c)
+        | InstKind::Log1(a, b, c)
+        | InstKind::Select(a, b, c) => {
+            replace(a);
+            replace(b);
+            replace(c);
+        }
+        InstKind::ExtCodeCopy(a, b, c, d)
+        | InstKind::Create2(a, b, c, d)
+        | InstKind::Log2(a, b, c, d) => {
+            replace(a);
+            replace(b);
+            replace(c);
+            replace(d);
+        }
+        InstKind::Log3(a, b, c, d, e) => {
+            replace(a);
+            replace(b);
+            replace(c);
+            replace(d);
+            replace(e);
+        }
+        InstKind::Log4(a, b, c, d, e, f) => {
+            replace(a);
+            replace(b);
+            replace(c);
+            replace(d);
+            replace(e);
+            replace(f);
+        }
+        InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+            replace(gas);
+            replace(addr);
+            replace(value);
+            replace(args_offset);
+            replace(args_size);
+            replace(ret_offset);
+            replace(ret_size);
+        }
+        InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
+        | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+            replace(gas);
+            replace(addr);
+            replace(args_offset);
+            replace(args_size);
+            replace(ret_offset);
+            replace(ret_size);
+        }
+        InstKind::InternalCall { args, .. } => {
+            for arg in args {
+                replace(arg);
+            }
+        }
+        InstKind::Phi(incoming) => {
+            for (_, value) in incoming {
+                replace(value);
+            }
+        }
+        InstKind::MSize
+        | InstKind::CalldataSize
+        | InstKind::InternalFrameAddr(_)
+        | InstKind::CodeSize
+        | InstKind::ReturnDataSize
+        | InstKind::Caller
+        | InstKind::CallValue
+        | InstKind::Origin
+        | InstKind::GasPrice
+        | InstKind::Coinbase
+        | InstKind::Timestamp
+        | InstKind::BlockNumber
+        | InstKind::PrevRandao
+        | InstKind::GasLimit
+        | InstKind::ChainId
+        | InstKind::Address
+        | InstKind::SelfBalance
+        | InstKind::Gas
+        | InstKind::BaseFee
+        | InstKind::BlobBaseFee => {}
+    }
+}
+
+fn replace_terminator_operands(term: &mut Terminator, replacements: &FxHashMap<ValueId, ValueId>) {
+    let replace = |value: &mut ValueId| {
+        if let Some(new_value) = replacements.get(value) {
+            *value = *new_value;
+        }
+    };
+
+    match term {
+        Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
+        Terminator::Branch { condition, .. } => replace(condition),
+        Terminator::Switch { value, cases, .. } => {
+            replace(value);
+            for (case_value, _) in cases {
+                replace(case_value);
+            }
+        }
+        Terminator::Return { values } => {
+            for value in values {
+                replace(value);
+            }
+        }
+        Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+            replace(offset);
+            replace(size);
+        }
+        Terminator::SelfDestruct { recipient } => replace(recipient),
+    }
+}
+
+fn recompute_cfg(func: &mut Function) {
+    let mut edges = Vec::new();
+    for (block, bb) in func.blocks.iter_enumerated() {
+        if let Some(term) = &bb.terminator {
+            edges.push((block, term.successors()));
+        }
+    }
+
+    for block in func.blocks.iter_mut() {
+        block.predecessors.clear();
+        block.successors.clear();
+    }
+
+    for (block, successors) in edges {
+        for succ in successors {
+            func.blocks[block].successors.push(succ);
+            func.blocks[succ].predecessors.push(block);
+        }
     }
 }
