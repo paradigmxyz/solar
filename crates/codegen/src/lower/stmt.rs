@@ -106,6 +106,32 @@ impl<'gcx> Lowerer<'gcx> {
         let var = self.gcx.hir.variable(var_id);
         let _ty = self.lower_type_from_var(var);
 
+        // Storage reference: `T storage r = <lvalue>`. Bind the storage *slot*
+        // (not the dereferenced value) so `r.field` reads/writes `sload`/`sstore`
+        // at `slot + offset` rather than treating the value as a memory pointer.
+        if var.data_location == Some(solar_ast::DataLocation::Storage) {
+            if let Some(init) = var.initializer {
+                if let Some(slot) = self.lower_lvalue_slot(builder, init) {
+                    self.locals.insert(var_id, slot);
+                    self.storage_ref_locals.insert(var_id);
+                    return;
+                }
+                // Unhandled storage-reference initializer: don't silently
+                // miscompile it as a memory pointer.
+                self.gcx
+                    .dcx()
+                    .err("unsupported storage reference initializer")
+                    .span(init.span)
+                    .emit();
+                return;
+            }
+            // No initializer (e.g. the slot is set later via `r.slot := ...`).
+            let zero = builder.imm_u256(U256::ZERO);
+            self.locals.insert(var_id, zero);
+            self.storage_ref_locals.insert(var_id);
+            return;
+        }
+
         // Check if initializer involves external calls (results stored in shared memory)
         let has_external_call = var.initializer.is_some_and(|init| self.has_external_call(init));
 

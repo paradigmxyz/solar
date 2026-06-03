@@ -287,6 +287,11 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 // Paths are not allowed in call expressions, but Solc parses them anyway.
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
+            } else if path.segments().len() == 1 && path.first().is_reserved_yul_builtin() {
+                let name = path.first();
+                self.dcx()
+                    .emit_err(path.span(), format!("builtin function `{name}` must be called"));
+                Ok(ExprKind::Path(path))
             } else {
                 self.check_valid_path(&path);
                 Ok(ExprKind::Path(path))
