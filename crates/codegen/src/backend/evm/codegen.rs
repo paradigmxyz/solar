@@ -25,6 +25,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 const INTERNAL_FRAME_PTR_SLOT: u64 = 0x2000;
 const LOW_MEMORY_START: u64 = 0x80;
 const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
+const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 4;
 
 /// Describes the stack effect of an EVM instruction.
 /// This is used to keep the scheduler's stack model in sync with the actual EVM stack.
@@ -46,6 +47,12 @@ enum StackPush {
     Tracked(ValueId),
     /// Push an unknown/untracked value (pushes == 1).
     Unknown,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct SelectorDispatchEntry {
+    selector: u32,
+    label: Label,
 }
 
 /// EVM code generator.
@@ -488,27 +495,23 @@ impl EvmCodegen {
         self.asm.emit_push(U256::from(0xe0));
         self.asm.emit_op(opcodes::SHR);
 
-        // Compare against each function's selector
-        for (i, func) in module.functions.iter().enumerate() {
-            if let Some(selector) = func.selector {
-                self.asm.emit_op(opcodes::dup(1));
-                self.asm.emit_push(U256::from_be_slice(&selector));
-                self.asm.emit_op(opcodes::EQ);
-                self.asm.emit_push_label(func_labels[i].expect("selector label missing"));
-                self.asm.emit_op(opcodes::JUMPI);
-            }
-        }
+        let mut selectors: Vec<_> = module
+            .functions
+            .iter()
+            .enumerate()
+            .filter_map(|(i, func)| {
+                let selector = func.selector?;
+                Some(SelectorDispatchEntry {
+                    selector: u32::from_be_bytes(selector),
+                    label: func_labels[i].expect("selector label missing"),
+                })
+            })
+            .collect();
+        selectors.sort_by_key(|entry| entry.selector);
 
-        // No selector match - jump to fallback or revert
-        if let Some(fb_idx) = fallback_idx {
-            // Pop selector and jump to fallback
-            self.asm.emit_op(opcodes::POP);
-            self.asm.emit_push_label(func_labels[fb_idx].expect("fallback label missing"));
-            self.asm.emit_op(opcodes::JUMP);
-        } else {
-            self.asm.emit_push_label(revert_label);
-            self.asm.emit_op(opcodes::JUMP);
-        }
+        let fallback_label =
+            fallback_idx.map(|idx| func_labels[idx].expect("fallback label missing"));
+        self.emit_selector_dispatch(&selectors, fallback_label, revert_label);
 
         // Define external function entry points.
         for (i, func) in module.functions.iter().enumerate() {
@@ -560,6 +563,79 @@ impl EvmCodegen {
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_op(opcodes::REVERT);
+    }
+
+    fn emit_selector_dispatch(
+        &mut self,
+        selectors: &[SelectorDispatchEntry],
+        fallback_label: Option<Label>,
+        revert_label: Label,
+    ) {
+        if selectors.len() <= LINEAR_SELECTOR_DISPATCH_THRESHOLD {
+            self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
+        } else {
+            self.emit_binary_selector_dispatch(selectors, fallback_label, revert_label);
+        }
+    }
+
+    fn emit_linear_selector_dispatch(
+        &mut self,
+        selectors: &[SelectorDispatchEntry],
+        fallback_label: Option<Label>,
+        revert_label: Label,
+    ) {
+        for entry in selectors {
+            self.emit_selector_eq_jump(*entry);
+        }
+        self.emit_selector_dispatch_miss(fallback_label, revert_label);
+    }
+
+    fn emit_binary_selector_dispatch(
+        &mut self,
+        selectors: &[SelectorDispatchEntry],
+        fallback_label: Option<Label>,
+        revert_label: Label,
+    ) {
+        if selectors.len() <= LINEAR_SELECTOR_DISPATCH_THRESHOLD {
+            self.emit_linear_selector_dispatch(selectors, fallback_label, revert_label);
+            return;
+        }
+
+        let mid = selectors.len() / 2;
+        let left_label = self.asm.new_label();
+
+        // Stack has the selector. With the pivot pushed on top, GT checks
+        // `pivot > selector`, so jump left when selector < pivot.
+        self.asm.emit_op(opcodes::dup(1));
+        self.asm.emit_push(U256::from(selectors[mid].selector));
+        self.asm.emit_op(opcodes::GT);
+        self.asm.emit_push_label(left_label);
+        self.asm.emit_op(opcodes::JUMPI);
+
+        self.emit_binary_selector_dispatch(&selectors[mid..], fallback_label, revert_label);
+
+        self.asm.define_label(left_label);
+        self.asm.emit_op(opcodes::JUMPDEST);
+        self.emit_binary_selector_dispatch(&selectors[..mid], fallback_label, revert_label);
+    }
+
+    fn emit_selector_eq_jump(&mut self, entry: SelectorDispatchEntry) {
+        self.asm.emit_op(opcodes::dup(1));
+        self.asm.emit_push(U256::from(entry.selector));
+        self.asm.emit_op(opcodes::EQ);
+        self.asm.emit_push_label(entry.label);
+        self.asm.emit_op(opcodes::JUMPI);
+    }
+
+    fn emit_selector_dispatch_miss(&mut self, fallback_label: Option<Label>, revert_label: Label) {
+        if let Some(fallback_label) = fallback_label {
+            self.asm.emit_op(opcodes::POP);
+            self.asm.emit_push_label(fallback_label);
+            self.asm.emit_op(opcodes::JUMP);
+        } else {
+            self.asm.emit_push_label(revert_label);
+            self.asm.emit_op(opcodes::JUMP);
+        }
     }
 
     /// Emits a payable check for non-payable functions.
