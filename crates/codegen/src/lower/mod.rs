@@ -727,8 +727,8 @@ impl<'gcx> Lowerer<'gcx> {
             Ident::new(solar_interface::Symbol::intern("_anonymous"), solar_interface::Span::DUMMY)
         });
 
-        // Reserve and register the MIR id before lowering the body so a recursive
-        // self-call resolves to this function instead of an empty placeholder.
+        // Reserve and register the MIR id before lowering the body so recursive
+        // self-calls can resolve to this function.
         let mir_id = self.module.add_function(Function::new(func_name));
         if force_internal {
             self.hir_to_internal_mir_functions.insert(func_id, mir_id);
@@ -1252,6 +1252,204 @@ impl<'gcx> Lowerer<'gcx> {
 /// Lowers a contract from HIR to MIR.
 pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     lower_contract_with_bytecodes(gcx, contract_id, &FxHashMap::default())
+}
+
+/// Returns contracts whose creation bytecode is referenced by `contract_id`.
+pub fn contract_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+) -> FxHashSet<ContractId> {
+    let mut deps = FxHashSet::default();
+    collect_contract_bytecode_dependencies(gcx, contract_id, &mut deps);
+    deps.remove(&contract_id);
+    deps
+}
+
+fn collect_contract_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+    deps: &mut FxHashSet<ContractId>,
+) {
+    let contract = gcx.hir.contract(contract_id);
+
+    for modifier in contract.linearized_bases_args.iter().flatten() {
+        collect_call_args_bytecode_dependencies(gcx, &modifier.args, deps);
+    }
+
+    for &base_id in contract.linearized_bases {
+        let base = gcx.hir.contract(base_id);
+
+        for var_id in base.variables() {
+            let var = gcx.hir.variable(var_id);
+            if let Some(init) = var.initializer {
+                collect_expr_bytecode_dependencies(gcx, init, deps);
+            }
+        }
+
+        for func_id in base.all_functions() {
+            let func = gcx.hir.function(func_id);
+
+            for modifier in func.modifiers {
+                collect_call_args_bytecode_dependencies(gcx, &modifier.args, deps);
+            }
+
+            if let Some(body) = func.body {
+                collect_block_bytecode_dependencies(gcx, &body, deps);
+            }
+        }
+    }
+}
+
+fn collect_block_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    block: &hir::Block<'_>,
+    deps: &mut FxHashSet<ContractId>,
+) {
+    for stmt in block.stmts {
+        collect_stmt_bytecode_dependencies(gcx, stmt, deps);
+    }
+}
+
+fn collect_stmt_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    stmt: &hir::Stmt<'_>,
+    deps: &mut FxHashSet<ContractId>,
+) {
+    match &stmt.kind {
+        hir::StmtKind::DeclSingle(var_id) => {
+            if let Some(init) = gcx.hir.variable(*var_id).initializer {
+                collect_expr_bytecode_dependencies(gcx, init, deps);
+            }
+        }
+        hir::StmtKind::DeclMulti(_, init)
+        | hir::StmtKind::Emit(init)
+        | hir::StmtKind::Revert(init)
+        | hir::StmtKind::Expr(init) => collect_expr_bytecode_dependencies(gcx, init, deps),
+        hir::StmtKind::Return(Some(expr)) => collect_expr_bytecode_dependencies(gcx, expr, deps),
+        hir::StmtKind::Block(block)
+        | hir::StmtKind::UncheckedBlock(block)
+        | hir::StmtKind::AssemblyBlock(block)
+        | hir::StmtKind::Loop(block, _) => collect_block_bytecode_dependencies(gcx, block, deps),
+        hir::StmtKind::If(cond, then_stmt, else_stmt) => {
+            collect_expr_bytecode_dependencies(gcx, cond, deps);
+            collect_stmt_bytecode_dependencies(gcx, then_stmt, deps);
+            if let Some(else_stmt) = else_stmt {
+                collect_stmt_bytecode_dependencies(gcx, else_stmt, deps);
+            }
+        }
+        hir::StmtKind::Switch(switch) => {
+            collect_expr_bytecode_dependencies(gcx, switch.selector, deps);
+            for case in switch.cases {
+                collect_block_bytecode_dependencies(gcx, &case.body, deps);
+            }
+        }
+        hir::StmtKind::Try(try_stmt) => {
+            collect_expr_bytecode_dependencies(gcx, &try_stmt.expr, deps);
+            for clause in try_stmt.clauses {
+                collect_block_bytecode_dependencies(gcx, &clause.block, deps);
+            }
+        }
+        hir::StmtKind::Return(None)
+        | hir::StmtKind::Break
+        | hir::StmtKind::Continue
+        | hir::StmtKind::Placeholder
+        | hir::StmtKind::Err(_) => {}
+    }
+}
+
+fn collect_call_args_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    args: &hir::CallArgs<'_>,
+    deps: &mut FxHashSet<ContractId>,
+) {
+    for arg in args.exprs() {
+        collect_expr_bytecode_dependencies(gcx, arg, deps);
+    }
+}
+
+fn collect_call_options_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    opts: Option<&hir::CallOptions<'_>>,
+    deps: &mut FxHashSet<ContractId>,
+) {
+    if let Some(opts) = opts {
+        for arg in opts.args {
+            collect_expr_bytecode_dependencies(gcx, &arg.value, deps);
+        }
+    }
+}
+
+fn collect_type_bytecode_dependency(ty: &hir::Type<'_>, deps: &mut FxHashSet<ContractId>) {
+    if let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = &ty.kind {
+        deps.insert(*contract_id);
+    }
+}
+
+fn collect_expr_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    expr: &hir::Expr<'_>,
+    deps: &mut FxHashSet<ContractId>,
+) {
+    match &expr.kind {
+        hir::ExprKind::Call(callee, args, opts) => {
+            collect_expr_bytecode_dependencies(gcx, callee, deps);
+            collect_call_args_bytecode_dependencies(gcx, args, deps);
+            collect_call_options_bytecode_dependencies(gcx, *opts, deps);
+        }
+        hir::ExprKind::Member(base, member)
+            if matches!(member.name.as_str(), "creationCode" | "runtimeCode") =>
+        {
+            if let hir::ExprKind::TypeCall(ty) = &base.kind {
+                collect_type_bytecode_dependency(ty, deps);
+            }
+            collect_expr_bytecode_dependencies(gcx, base, deps);
+        }
+        hir::ExprKind::New(ty) => collect_type_bytecode_dependency(ty, deps),
+        hir::ExprKind::Assign(lhs, _, rhs) | hir::ExprKind::Binary(lhs, _, rhs) => {
+            collect_expr_bytecode_dependencies(gcx, lhs, deps);
+            collect_expr_bytecode_dependencies(gcx, rhs, deps);
+        }
+        hir::ExprKind::Unary(_, expr)
+        | hir::ExprKind::Delete(expr)
+        | hir::ExprKind::Member(expr, _)
+        | hir::ExprKind::YulMember(expr, _)
+        | hir::ExprKind::Payable(expr) => collect_expr_bytecode_dependencies(gcx, expr, deps),
+        hir::ExprKind::Ternary(cond, then_expr, else_expr) => {
+            collect_expr_bytecode_dependencies(gcx, cond, deps);
+            collect_expr_bytecode_dependencies(gcx, then_expr, deps);
+            collect_expr_bytecode_dependencies(gcx, else_expr, deps);
+        }
+        hir::ExprKind::Index(base, index) => {
+            collect_expr_bytecode_dependencies(gcx, base, deps);
+            if let Some(index) = index {
+                collect_expr_bytecode_dependencies(gcx, index, deps);
+            }
+        }
+        hir::ExprKind::Slice(base, start, end) => {
+            collect_expr_bytecode_dependencies(gcx, base, deps);
+            if let Some(start) = start {
+                collect_expr_bytecode_dependencies(gcx, start, deps);
+            }
+            if let Some(end) = end {
+                collect_expr_bytecode_dependencies(gcx, end, deps);
+            }
+        }
+        hir::ExprKind::Array(exprs) => {
+            for expr in *exprs {
+                collect_expr_bytecode_dependencies(gcx, expr, deps);
+            }
+        }
+        hir::ExprKind::Tuple(exprs) => {
+            for expr in exprs.iter().flatten() {
+                collect_expr_bytecode_dependencies(gcx, expr, deps);
+            }
+        }
+        hir::ExprKind::TypeCall(_)
+        | hir::ExprKind::Type(_)
+        | hir::ExprKind::Lit(_)
+        | hir::ExprKind::Ident(_)
+        | hir::ExprKind::Err(_) => {}
+    }
 }
 
 /// Lowers a contract from HIR to MIR with pre-compiled bytecodes available for `new` expressions.

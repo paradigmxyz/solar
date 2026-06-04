@@ -164,6 +164,7 @@ fn emit_mir(compiler: &mut CompilerRef<'_>) -> Result {
 
 /// Emit bytecode (and optionally ABI/hashes) for all contracts using solar-codegen.
 fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
+    use rustc_hash::FxHashSet;
     use solar_codegen::{Backend, EvmCodegen, FxHashMap, lower};
     use solar_sema::hir::ContractId;
     use std::collections::BTreeMap;
@@ -176,16 +177,13 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
     let emit_bin_runtime = sess.opts.emit.contains(&CompilerOutput::BinRuntime);
     let emit_hashes = sess.opts.emit.contains(&CompilerOutput::Hashes);
 
-    // Two-pass compilation to support `type(Contract).creationCode` and `new Contract()`:
-    // Pass 1: Compile all contracts to get their bytecodes
+    // Compile creation-code dependencies before contracts that reference them.
     let mut all_bytecodes: FxHashMap<ContractId, Vec<u8>> = FxHashMap::default();
+    let mut visiting: FxHashSet<ContractId> = FxHashSet::default();
     for id in gcx.hir.contract_ids() {
         let contract = gcx.hir.contract(id);
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
-            let mut module = lower::lower_contract(gcx, id);
-            gcx.dcx().has_errors()?;
-            let artifact = EvmCodegen::new().lower_module(&mut module);
-            all_bytecodes.insert(id, artifact.deployment);
+            ensure_contract_bytecode(gcx, id, &mut all_bytecodes, &mut visiting)?;
         }
     }
 
@@ -252,6 +250,48 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
     } else {
         println!("{}", serde_json::to_string(&output_json).unwrap());
     }
+
+    Ok(())
+}
+
+fn ensure_contract_bytecode(
+    gcx: solar_sema::Gcx<'_>,
+    contract_id: solar_sema::hir::ContractId,
+    all_bytecodes: &mut solar_codegen::FxHashMap<solar_sema::hir::ContractId, Vec<u8>>,
+    visiting: &mut rustc_hash::FxHashSet<solar_sema::hir::ContractId>,
+) -> Result {
+    use solar_codegen::{Backend, EvmCodegen, lower};
+
+    if all_bytecodes.contains_key(&contract_id) {
+        return Ok(());
+    }
+
+    let contract = gcx.hir.contract(contract_id);
+    if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+        return Err(gcx
+            .dcx()
+            .err("cannot generate creation bytecode for non-deployable contract")
+            .span(contract.span)
+            .emit());
+    }
+
+    if !visiting.insert(contract_id) {
+        return Err(gcx
+            .dcx()
+            .err("recursive contract creation bytecode dependency")
+            .span(contract.span)
+            .emit());
+    }
+
+    for dep in lower::contract_bytecode_dependencies(gcx, contract_id) {
+        ensure_contract_bytecode(gcx, dep, all_bytecodes, visiting)?;
+    }
+
+    let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
+    gcx.dcx().has_errors()?;
+    let artifact = EvmCodegen::new().lower_module(&mut module);
+    all_bytecodes.insert(contract_id, artifact.deployment);
+    visiting.remove(&contract_id);
 
     Ok(())
 }

@@ -283,6 +283,9 @@ impl DeadFunctionEliminator {
         self.stats = CfgSimplifyStats::default();
 
         let reachable = self.find_reachable_functions(module);
+        if reachable.is_empty() {
+            return 0;
+        }
 
         let dead_functions: Vec<FunctionId> =
             module.functions.indices().filter(|id| !reachable.contains(id)).collect();
