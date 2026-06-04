@@ -623,18 +623,26 @@ impl EvmCodegen {
 
         // Generate each block.
         let block_order: Vec<_> = func.blocks.indices().collect();
+        let mut preserved_fallthrough: Option<BlockId> = None;
         for (pos, &block_id) in block_order.iter().enumerate() {
             let block = &func.blocks[block_id];
             let fallthrough = block_order.get(pos + 1).copied();
+            let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
+            preserved_fallthrough = None;
 
             // Define block label
             self.asm.define_label(self.block_labels[&block_id]);
-            if block_id != func.entry_block || !block.predecessors.is_empty() {
+            if !entered_by_preserved_fallthrough
+                && (block_id != func.entry_block || !block.predecessors.is_empty())
+            {
                 self.asm.emit_op(opcodes::JUMPDEST);
             }
 
-            // Reset stack at block entry - all cross-block values should be in spill slots
-            self.scheduler.clear_stack();
+            // Reset stack at block entry unless the previous physical block falls through with a
+            // known stack layout. All other cross-block values live in spill slots.
+            if !entered_by_preserved_fallthrough {
+                self.scheduler.clear_stack();
+            }
 
             // Generate instructions
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
@@ -664,15 +672,42 @@ impl EvmCodegen {
                 }
             }
 
-            // Spill all live-out values before the terminator so they can be reloaded
-            // in successor blocks
-            self.spill_live_out_values(func, liveness, block_id);
+            let preserve_stack_to_fallthrough =
+                self.can_preserve_stack_fallthrough(func, block_id, fallthrough);
+
+            // Spill all live-out values before the terminator so they can be reloaded in successor
+            // blocks. For a single-predecessor physical fallthrough, keep stack values live
+            // instead.
+            if !preserve_stack_to_fallthrough {
+                self.spill_live_out_values(func, liveness, block_id);
+            }
 
             // Generate terminator
             if let Some(term) = &block.terminator {
-                self.generate_terminator(func, term, fallthrough);
+                self.generate_terminator(func, term, fallthrough, preserve_stack_to_fallthrough);
+            }
+            if preserve_stack_to_fallthrough {
+                preserved_fallthrough = fallthrough;
             }
         }
+    }
+
+    fn can_preserve_stack_fallthrough(
+        &self,
+        func: &Function,
+        block_id: BlockId,
+        fallthrough: Option<BlockId>,
+    ) -> bool {
+        let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator.as_ref() else {
+            return false;
+        };
+        if Some(*target) != fallthrough {
+            return false;
+        }
+
+        // This block is the target's only predecessor, so no non-fallthrough edge can observe or
+        // depend on a JUMPDEST at the target label.
+        func.blocks[*target].predecessors.as_slice() == [block_id]
     }
 
     /// Preallocates stable spill slots for values that may cross block boundaries.
@@ -2125,16 +2160,20 @@ impl EvmCodegen {
         func: &Function,
         term: &Terminator,
         fallthrough: Option<BlockId>,
+        preserve_stack_to_fallthrough: bool,
     ) {
         match term {
             Terminator::Jump(target) => {
                 // Pop any remaining values from the stack before jumping.
                 // Each block starts with an empty stack, so we must ensure the stack is
                 // clean before jumping to another block (especially important for loops).
-                self.pop_all_stack_values();
                 if Some(*target) == fallthrough {
+                    if !preserve_stack_to_fallthrough {
+                        self.pop_all_stack_values();
+                    }
                     return;
                 }
+                self.pop_all_stack_values();
                 self.asm.emit_push_label(self.block_labels[target]);
                 self.asm.emit_op(opcodes::JUMP);
             }
