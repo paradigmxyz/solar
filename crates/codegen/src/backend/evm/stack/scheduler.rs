@@ -119,16 +119,12 @@ impl StackScheduler {
                 self.stack.push(value);
             }
             other => {
-                eprintln!(
-                    "ERROR: Value {value:?} is not on stack, not spilled, and not an immediate/arg. \
-                         Stack: {:?}, Spills: {:?}, Value kind: {other:?}",
-                    self.stack, self.spills
-                );
-                debug_assert!(
-                    false,
+                panic!(
                     "Value {value:?} is not on stack, not spilled, and not an immediate/arg. \
                          This usually means a cross-block value wasn't spilled before the block exit. \
-                         Value kind: {other:?}"
+                         Stack: {:?}, Spills: {:?}. \
+                         Value kind: {other:?}",
+                    self.stack, self.spills
                 );
             }
         }
