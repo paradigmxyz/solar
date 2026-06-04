@@ -11,7 +11,7 @@ use solar_data_structures::{
     map::{FxHashMap, FxHashSet},
     parallel,
 };
-use solar_interface::{Span, error_code};
+use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code};
 use std::ops::ControlFlow;
 
 mod checker;
@@ -373,9 +373,13 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 /// Reference: <https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/analysis/ContractLevelChecker.cpp#L556C1-L570C2>
 fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let span = gcx.hir.contract(contract_id).name.span;
-    let Some(total_size) = storage_size_upper_bound(gcx, contract_id) else {
-        gcx.dcx().emit_err(span, "contract requires too much storage");
-        return;
+    let total_size = match storage_size_upper_bound(gcx, contract_id) {
+        Ok(Some(total_size)) => total_size,
+        Ok(None) => {
+            gcx.dcx().emit_err(span, "contract requires too much storage");
+            return;
+        }
+        Err(_) => return,
     };
 
     if gcx.sess.opts.unstable.print_max_storage_sizes {
@@ -387,7 +391,10 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     }
 }
 
-fn storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Option<U256> {
+fn storage_size_upper_bound(
+    gcx: Gcx<'_>,
+    contract_id: hir::ContractId,
+) -> Result<Option<U256>, ErrorGuaranteed> {
     let mut total_size = U256::ZERO;
     for item_id in gcx.hir.contract_item_ids(contract_id) {
         // Skip constant and immutable variables
@@ -395,13 +402,15 @@ fn storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) -> Optio
             && !(var.is_constant() || var.is_immutable())
         {
             let ty = gcx.type_of_item(item_id);
-            total_size = total_size.checked_add(ty_storage_size_upper_bound(ty, gcx)?)?;
+            let Some(size) = ty_storage_size_upper_bound(ty, gcx)? else { return Ok(None) };
+            let Some(size) = total_size.checked_add(size) else { return Ok(None) };
+            total_size = size;
         }
     }
-    Some(total_size)
+    Ok(Some(total_size))
 }
 
-fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
+fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Result<Option<U256>, ErrorGuaranteed> {
     match ty.kind {
         TyKind::Elementary(..)
         | TyKind::StringLiteral(..)
@@ -412,22 +421,28 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Udvt(..)
         | TyKind::Enum(..)
         | TyKind::Fn(..)
-        | TyKind::DynArray(..) => Some(U256::from(1)),
+        | TyKind::DynArray(..) => Ok(Some(U256::from(1))),
         TyKind::Ref(ty, _) => ty_storage_size_upper_bound(ty, gcx),
         TyKind::Array(ty, uint) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L1800C1-L1806C2
-            let elem_size = ty_storage_size_upper_bound(ty, gcx)?;
-            uint.checked_mul(elem_size)
+            let Some(elem_size) = ty_storage_size_upper_bound(ty, gcx)? else { return Ok(None) };
+            Ok(uint.checked_mul(elem_size))
         }
         TyKind::Struct(struct_id) => {
             // https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/ast/Types.cpp#L2303C1-L2309C2
             let mut total_size = U256::from(1);
             for t in gcx.struct_field_types(struct_id) {
-                let size_contribution = ty_storage_size_upper_bound(*t, gcx)?;
-                total_size = total_size.checked_add(size_contribution)?;
+                let Some(size_contribution) = ty_storage_size_upper_bound(*t, gcx)? else {
+                    return Ok(None);
+                };
+                let Some(size) = total_size.checked_add(size_contribution) else {
+                    return Ok(None);
+                };
+                total_size = size;
             }
-            Some(total_size)
+            Ok(Some(total_size))
         }
+        TyKind::Err(guar) => Err(guar),
 
         TyKind::Slice(..)
         | TyKind::Type(..)
@@ -437,7 +452,6 @@ fn ty_storage_size_upper_bound(ty: Ty<'_>, gcx: Gcx<'_>) -> Option<U256> {
         | TyKind::Variadic
         | TyKind::Event(..)
         | TyKind::Meta(..)
-        | TyKind::Err(..)
         | TyKind::Error(..) => {
             unreachable!()
         }
