@@ -274,6 +274,22 @@ impl TransformPass for MemoryDsePass {
     }
 }
 
+/// Loop-carried storage scalar promotion transform.
+///
+/// Rewrites simple storage update loops so the loop updates a memory-backed
+/// scalar and stores the final value once on clean loop exits.
+pub struct StorageScalarPromotionPass;
+
+impl TransformPass for StorageScalarPromotionPass {
+    fn name(&self) -> &str {
+        "storage-scalar-promotion"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        crate::transform::StorageScalarPromoter::new().run(func);
+    }
+}
+
 /// Loop-invariant code motion transform.
 ///
 /// Runs only LICM from `LoopOptimizer`; loop unrolling and strength reduction

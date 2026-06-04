@@ -14,8 +14,8 @@ use solar_codegen::{
     lower,
     mir::{Module, module_to_text, parse_module},
     pass::{
-        CfgSimplifyPass, CsePass, DcePass, JumpThreadingPass, PassManager, SccpTransformPass,
-        TransformPass,
+        CfgSimplifyPass, CsePass, DcePass, InstSimplifyPass, JumpThreadingPass, LicmPass,
+        MemoryDsePass, PassManager, SccpTransformPass, StorageScalarPromotionPass, TransformPass,
     },
     transform::MirInliner,
 };
@@ -27,10 +27,15 @@ const AFTER_HELP: &str = "\
 Passes:
   inline           Internal MIR function inlining
   dce              Dead Code Elimination (fixed-point)
+  inst-simplify    Local MIR instruction simplification
   cse              Common Subexpression Elimination (fixed-point)
   sccp             Sparse Conditional Constant Propagation
+  licm             Loop-Invariant Code Motion
   cfg-simplify     CFG Simplification (fixed-point)
   jump-threading   Jump Threading (fixed-point)
+  memory-dse       Local dead memory-store elimination
+  storage-promotion
+                   Promote simple loop-carried storage updates to memory
   none             No transform; just lower/parse and print
 
 Input formats:
@@ -43,9 +48,13 @@ Input formats:
 const DEFAULT_PIPELINE: &[PassName] = &[
     PassName::Inline,
     PassName::Sccp,
+    PassName::InstSimplify,
     PassName::Cse,
+    PassName::StoragePromotion,
+    PassName::Licm,
     PassName::JumpThreading,
     PassName::CfgSimplify,
+    PassName::MemoryDse,
     PassName::Dce,
 ];
 
@@ -54,10 +63,14 @@ const DEFAULT_PIPELINE: &[PassName] = &[
 enum PassName {
     Inline,
     Dce,
+    InstSimplify,
     Cse,
     Sccp,
+    Licm,
     CfgSimplify,
     JumpThreading,
+    MemoryDse,
+    StoragePromotion,
     None,
 }
 
@@ -66,10 +79,14 @@ impl PassName {
         match self {
             Self::Inline => "inline",
             Self::Dce => "dce",
+            Self::InstSimplify => "inst-simplify",
             Self::Cse => "cse",
             Self::Sccp => "sccp",
+            Self::Licm => "licm",
             Self::CfgSimplify => "cfg-simplify",
             Self::JumpThreading => "jump-threading",
+            Self::MemoryDse => "memory-dse",
+            Self::StoragePromotion => "storage-promotion",
             Self::None => "none",
         }
     }
@@ -132,10 +149,16 @@ fn make_pass(name: PassName) -> Option<MirOptPass> {
     match name {
         PassName::Inline => Some(MirOptPass::Module(MirInliner::default())),
         PassName::Dce => Some(MirOptPass::Function(Box::new(DcePass))),
+        PassName::InstSimplify => Some(MirOptPass::Function(Box::new(InstSimplifyPass))),
         PassName::Cse => Some(MirOptPass::Function(Box::new(CsePass))),
         PassName::Sccp => Some(MirOptPass::Function(Box::new(SccpTransformPass))),
+        PassName::Licm => Some(MirOptPass::Function(Box::new(LicmPass))),
         PassName::CfgSimplify => Some(MirOptPass::Function(Box::new(CfgSimplifyPass))),
         PassName::JumpThreading => Some(MirOptPass::Function(Box::new(JumpThreadingPass))),
+        PassName::MemoryDse => Some(MirOptPass::Function(Box::new(MemoryDsePass))),
+        PassName::StoragePromotion => {
+            Some(MirOptPass::Function(Box::new(StorageScalarPromotionPass)))
+        }
         PassName::None => None,
     }
 }

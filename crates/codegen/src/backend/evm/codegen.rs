@@ -17,6 +17,7 @@ use crate::{
     pass::{
         AnalysisManager, CfgSimplifyPass, CsePass, DcePass, InstSimplifyPass, JumpThreadingPass,
         LicmPass, LivenessAnalysis, MemoryDsePass, PassManager, SccpTransformPass,
+        StorageScalarPromotionPass,
     },
 };
 use alloy_primitives::U256;
@@ -374,11 +375,12 @@ impl EvmCodegen {
     /// 1. SCCP          — folds constants and prunes constant branches
     /// 2. Inst simplify — removes algebraic no-ops and equivalent opcode patterns
     /// 3. CSE           — removes duplicate local computations
-    /// 4. LICM           — hoists loop-invariant instructions into loop preheaders
-    /// 5. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
-    /// 6. CFG simplify  — physically merges sequential blocks and removes empty forwarders
-    /// 7. Memory DSE    — removes overwritten same-block memory stores
-    /// 8. DCE           — removes dead instructions and any remaining unreachable blocks
+    /// 4. Storage promotion — converts simple storage update loops to memory accumulators
+    /// 5. LICM           — hoists loop-invariant instructions into loop preheaders
+    /// 6. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
+    /// 7. CFG simplify  — physically merges sequential blocks and removes empty forwarders
+    /// 8. Memory DSE    — removes overwritten same-block memory stores
+    /// 9. DCE           — removes dead instructions and any remaining unreachable blocks
     ///
     /// Each pass internally iterates to a fixed point. Threading creates orphaned
     /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
@@ -388,6 +390,7 @@ impl EvmCodegen {
         pm.add_transform(Box::new(SccpTransformPass));
         pm.add_transform(Box::new(InstSimplifyPass));
         pm.add_transform(Box::new(CsePass));
+        pm.add_transform(Box::new(StorageScalarPromotionPass));
         pm.add_transform(Box::new(LicmPass));
         pm.add_transform(Box::new(JumpThreadingPass));
         pm.add_transform(Box::new(CfgSimplifyPass));
