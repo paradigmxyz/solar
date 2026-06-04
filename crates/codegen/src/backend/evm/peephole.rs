@@ -157,8 +157,8 @@ impl PeepholeOptimizer {
 
         // Pattern: JUMP after JUMP/JUMPI/STOP/RETURN/REVERT/INVALID
         // (unreachable code elimination)
-        // This is tricky because we can't easily identify basic block boundaries
-        // Skip for now - let DCE handle this at the MIR level
+        // MIR DCE handles this before EVM assembly is built; doing it here would
+        // require reconstructing basic block boundaries.
 
         // Pattern: EQ ISZERO -> can sometimes be combined with jumps
         // but this requires more context

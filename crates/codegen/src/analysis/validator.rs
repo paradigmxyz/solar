@@ -181,13 +181,6 @@ pub fn validate_function(func: &Function) -> Vec<ValidationError> {
             }
             let inst = func.instruction(inst_id);
 
-            // The instruction's `block` field must match where we found it.
-            if inst.kind_block() != Some(block_id) {
-                // Note: Instruction doesn't store its block currently — only
-                // the kind matters. Skip this check unless/until we add it.
-                // Kept here as a placeholder for future invariant.
-            }
-
             // Operand range check.
             let mut operands = Vec::new();
             inst.kind.collect_operands(&mut operands);
@@ -292,24 +285,6 @@ impl AnalysisPass for ValidatorAnalysis {
 
     fn run(&self, func: &Function) -> Vec<ValidationError> {
         validate_function(func)
-    }
-}
-
-// =============================================================================
-// Helper trait for the placeholder block-of-instruction check
-// =============================================================================
-
-trait InstructionExt {
-    /// Returns the block this instruction belongs to, if known. The current
-    /// `Instruction` struct doesn't store its block — this is a placeholder
-    /// returning `None` so the validator's "block consistency" check is a
-    /// no-op until that field is added.
-    fn kind_block(&self) -> Option<BlockId>;
-}
-
-impl InstructionExt for crate::mir::Instruction {
-    fn kind_block(&self) -> Option<BlockId> {
-        None
     }
 }
 
@@ -445,12 +420,12 @@ mod tests {
         with_session(|| {
             let mut func = make_func();
             // Build a function that loops back to the entry block.
-            // The builder won't allow constructing this naturally; we hack it.
+            // The builder rejects this shape, so construct it manually for validation.
             {
                 let mut b = FunctionBuilder::new(&mut func);
                 b.stop();
             }
-            // Add a fake predecessor to the entry block.
+            // Add the invalid predecessor to the entry block.
             func.blocks[func.entry_block].predecessors.push(func.entry_block);
             let errors = validate_function(&func);
             assert!(

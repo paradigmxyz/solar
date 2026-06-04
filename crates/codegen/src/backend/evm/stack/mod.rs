@@ -9,11 +9,9 @@
 //! - `scheduler`: Stack scheduler for generating DUP/SWAP sequences
 //! - `shuffler`: Optimal stack layout transitions (backward analysis)
 //! - `spill`: Spill management for values beyond depth 16
-//! - `scheduling`: Use-frequency analysis and scheduling hints
 
 mod model;
 mod scheduler;
-pub mod scheduling;
 pub mod shuffler;
 mod spill;
 

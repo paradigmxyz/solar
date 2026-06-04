@@ -136,6 +136,9 @@ impl PassManager {
     pub fn run(&mut self, func: &mut Function) -> AnalysisManager {
         let mut am = AnalysisManager::new();
         for pass in &mut self.passes {
+            if func.blocks.is_empty() {
+                break;
+            }
             pass.run(func);
             am.invalidate_all();
         }
@@ -291,9 +294,6 @@ impl TransformPass for StorageScalarPromotionPass {
 }
 
 /// Loop-invariant code motion transform.
-///
-/// Runs only LICM from `LoopOptimizer`; loop unrolling and strength reduction
-/// are not wired here because their MIR rewrites are not implemented yet.
 pub struct LicmPass;
 
 impl TransformPass for LicmPass {
@@ -306,9 +306,6 @@ impl TransformPass for LicmPass {
             enable_licm: true,
             min_licm_profit: 5,
             max_licm_hoisted_insts: 4,
-            enable_unrolling: false,
-            enable_strength_reduction: false,
-            ..Default::default()
         };
         crate::transform::LoopOptimizer::new(config).optimize(func);
     }
