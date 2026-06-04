@@ -95,5 +95,101 @@ LL │   bytes constant s = hex"
 LL │ ┃ ";
    ╰╴┗━┛
 
-error: aborting due to 14 previous errors
+error: identifier `s` already declared
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = unicode"\
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   ╰╴                ━
+
+error: identifier `s` already declared
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ bytes constant s = hex"\
+   │                ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   ╰╴                ━
+
+error: identifier `s` already declared
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   ╰╴                ━
+
+error: identifier `s` already declared
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = unicode"\
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   ╰╴                ━
+
+error: identifier `s` already declared
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ bytes constant s = hex"\
+   │                ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   ╰╴                ━
+
+error: identifier `s` already declared
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   ╰╴                ━
+
+error: identifier `s` already declared
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = unicode"
+   │                 ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   ╰╴                ━
+
+error: identifier `s` already declared
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ bytes constant s = hex"
+   │                ━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/lexer/string_escapes_crlf.sol:LL:CC
+   │
+LL │ string constant s = "\
+   ╰╴                ━
+
+error: aborting due to 22 previous errors
 
