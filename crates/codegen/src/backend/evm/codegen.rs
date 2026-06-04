@@ -19,6 +19,7 @@ use crate::{
         LicmPass, LivenessAnalysis, MemoryDsePass, PassManager, SccpTransformPass,
         StorageScalarPromotionPass,
     },
+    transform::{DeadFunctionEliminator, MirInliner},
 };
 use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -372,20 +373,25 @@ impl EvmCodegen {
     /// Runs optimization passes on all functions in the module via the PassManager.
     ///
     /// Order:
-    /// 1. SCCP          — folds constants and prunes constant branches
-    /// 2. Inst simplify — removes algebraic no-ops and equivalent opcode patterns
-    /// 3. CSE           — removes duplicate local computations
-    /// 4. Storage promotion — converts simple storage update loops to memory accumulators
-    /// 5. LICM           — hoists loop-invariant instructions into loop preheaders
-    /// 6. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
-    /// 7. CFG simplify  — physically merges sequential blocks and removes empty forwarders
-    /// 8. Memory DSE    — removes overwritten same-block memory stores
-    /// 9. DCE           — removes dead instructions and any remaining unreachable blocks
+    /// 1. Inline        — clones profitable internal calls into callers
+    /// 2. Function DCE  — removes internal callees made unreachable by inlining
+    /// 3. SCCP          — folds constants and prunes constant branches
+    /// 4. Inst simplify — removes algebraic no-ops and equivalent opcode patterns
+    /// 5. CSE           — removes duplicate local computations
+    /// 6. Storage promotion — converts simple storage update loops to memory accumulators
+    /// 7. LICM           — hoists loop-invariant instructions into loop preheaders
+    /// 8. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
+    /// 9. CFG simplify  — physically merges sequential blocks and removes empty forwarders
+    /// 10. Memory DSE   — removes overwritten same-block memory stores
+    /// 11. DCE          — removes dead instructions and any remaining unreachable blocks
     ///
     /// Each pass internally iterates to a fixed point. Threading creates orphaned
     /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
     /// DCE handles whatever's still unreachable.
     fn run_optimization_passes(&mut self, module: &mut Module) {
+        MirInliner::default().run(module);
+        DeadFunctionEliminator::new().run(module);
+
         let mut pm = PassManager::new();
         pm.add_transform(Box::new(SccpTransformPass));
         pm.add_transform(Box::new(InstSimplifyPass));
@@ -396,7 +402,7 @@ impl EvmCodegen {
         pm.add_transform(Box::new(CfgSimplifyPass));
         pm.add_transform(Box::new(MemoryDsePass));
         pm.add_transform(Box::new(DcePass));
-        for func in module.functions.iter_mut() {
+        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
             pm.run(func);
         }
     }
@@ -444,9 +450,13 @@ impl EvmCodegen {
 
         let mut internal_targets = FxHashSet::default();
         for func in module.functions.iter() {
-            for inst in func.instructions.iter() {
-                if let InstKind::InternalCall { function, .. } = &inst.kind {
-                    internal_targets.insert(*function);
+            for block in func.blocks.iter() {
+                for &inst_id in &block.instructions {
+                    if let InstKind::InternalCall { function, .. } =
+                        &func.instructions[inst_id].kind
+                    {
+                        internal_targets.insert(*function);
+                    }
                 }
             }
         }

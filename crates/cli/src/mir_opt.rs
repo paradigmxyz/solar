@@ -17,7 +17,7 @@ use solar_codegen::{
         CfgSimplifyPass, CsePass, DcePass, InstSimplifyPass, JumpThreadingPass, LicmPass,
         MemoryDsePass, PassManager, SccpTransformPass, StorageScalarPromotionPass, TransformPass,
     },
-    transform::MirInliner,
+    transform::{DeadFunctionEliminator, MirInliner},
 };
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
@@ -26,6 +26,7 @@ use std::{ffi::OsString, ops::ControlFlow, path::Path, process::ExitCode};
 const AFTER_HELP: &str = "\
 Passes:
   inline           Internal MIR function inlining
+  function-dce     Dead internal function elimination
   dce              Dead Code Elimination (fixed-point)
   inst-simplify    Local MIR instruction simplification
   cse              Common Subexpression Elimination (fixed-point)
@@ -47,6 +48,7 @@ Input formats:
 /// Keep in sync with `crates/codegen/src/backend/evm/codegen.rs`.
 const DEFAULT_PIPELINE: &[PassName] = &[
     PassName::Inline,
+    PassName::FunctionDce,
     PassName::Sccp,
     PassName::InstSimplify,
     PassName::Cse,
@@ -62,6 +64,7 @@ const DEFAULT_PIPELINE: &[PassName] = &[
 #[clap(rename_all = "kebab-case")]
 enum PassName {
     Inline,
+    FunctionDce,
     Dce,
     InstSimplify,
     Cse,
@@ -78,6 +81,7 @@ impl PassName {
     fn as_str(self) -> &'static str {
         match self {
             Self::Inline => "inline",
+            Self::FunctionDce => "function-dce",
             Self::Dce => "dce",
             Self::InstSimplify => "inst-simplify",
             Self::Cse => "cse",
@@ -140,14 +144,16 @@ impl Args {
 }
 
 enum MirOptPass {
-    Module(MirInliner),
+    Inline(MirInliner),
+    FunctionDce(DeadFunctionEliminator),
     Function(Box<dyn TransformPass>),
 }
 
 /// Returns a fresh pass for the given name. The special `none` pass returns `None` (skipped).
 fn make_pass(name: PassName) -> Option<MirOptPass> {
     match name {
-        PassName::Inline => Some(MirOptPass::Module(MirInliner::default())),
+        PassName::Inline => Some(MirOptPass::Inline(MirInliner::default())),
+        PassName::FunctionDce => Some(MirOptPass::FunctionDce(DeadFunctionEliminator::new())),
         PassName::Dce => Some(MirOptPass::Function(Box::new(DcePass))),
         PassName::InstSimplify => Some(MirOptPass::Function(Box::new(InstSimplifyPass))),
         PassName::Cse => Some(MirOptPass::Function(Box::new(CsePass))),
@@ -167,7 +173,10 @@ fn make_pass(name: PassName) -> Option<MirOptPass> {
 fn run_pass(module: &mut Module, pass_name: PassName) {
     if let Some(pass) = make_pass(pass_name) {
         match pass {
-            MirOptPass::Module(mut pass) => {
+            MirOptPass::Inline(mut pass) => {
+                pass.run(module);
+            }
+            MirOptPass::FunctionDce(mut pass) => {
                 pass.run(module);
             }
             MirOptPass::Function(boxed) => {

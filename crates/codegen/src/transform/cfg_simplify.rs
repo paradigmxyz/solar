@@ -292,6 +292,8 @@ impl DeadFunctionEliminator {
         for func_id in &dead_functions {
             let func = &mut module.functions[*func_id];
             func.blocks.clear();
+            func.instructions.clear();
+            func.values.clear();
         }
 
         self.stats.dead_functions_eliminated
@@ -326,20 +328,22 @@ impl DeadFunctionEliminator {
 
     /// Checks if a function is an entry point.
     fn is_entry_point(&self, func: &Function) -> bool {
-        func.is_public()
+        func.selector.is_some()
             || func.attributes.is_constructor
             || func.attributes.is_fallback
             || func.attributes.is_receive
     }
 
-    /// Builds a call graph by analyzing function calls in the MIR.
-    /// Since internal function calls in EVM are implemented via JUMP (not CALL),
-    /// we need to track which functions might be called.
-    /// For now, this returns an empty call graph - we rely on the entry point
-    /// check to keep public functions, and internal functions are eliminated
-    /// if they're never referenced.
-    fn build_call_graph(&self, _module: &Module) -> FxHashMap<FunctionId, FxHashSet<FunctionId>> {
-        FxHashMap::default()
+    /// Builds a call graph by analyzing internal calls in reachable MIR blocks.
+    fn build_call_graph(&self, module: &Module) -> FxHashMap<FunctionId, FxHashSet<FunctionId>> {
+        module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(func_id, func)| {
+                let callees = find_internal_callees(func);
+                (!callees.is_empty()).then_some((func_id, callees))
+            })
+            .collect()
     }
 }
 
@@ -376,8 +380,8 @@ impl CallGraphAnalyzer {
     }
 
     /// Finds all functions called by this function.
-    fn find_callees(&self, _func: &Function, _module: &Module) -> FxHashSet<FunctionId> {
-        FxHashSet::default()
+    fn find_callees(&self, func: &Function, _module: &Module) -> FxHashSet<FunctionId> {
+        find_internal_callees(func)
     }
 
     /// Detects recursive functions using DFS.
@@ -416,6 +420,18 @@ impl CallGraphAnalyzer {
     }
 }
 
+fn find_internal_callees(func: &Function) -> FxHashSet<FunctionId> {
+    let mut callees = FxHashSet::default();
+    for block in func.blocks.iter() {
+        for &inst_id in &block.instructions {
+            if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+                callees.insert(function);
+            }
+        }
+    }
+    callees
+}
+
 /// Runs all CFG simplification passes on a function.
 pub fn simplify_cfg(func: &mut Function) -> CfgSimplifyStats {
     let mut simplifier = CfgSimplifier::new();
@@ -437,4 +453,50 @@ pub fn simplify_module_cfg(module: &mut Module) -> CfgSimplifyStats {
     total_stats.combine(&dfe.stats);
 
     total_stats
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{FunctionBuilder, MirType};
+    use solar_interface::Ident;
+    use solar_sema::hir::Visibility;
+
+    #[test]
+    fn dead_function_elimination_keeps_internal_call_targets() {
+        let mut module = Module::new(Ident::DUMMY);
+
+        let live_helper = module.add_function(Function::new(Ident::DUMMY));
+        let dead_helper = module.add_function(Function::new(Ident::DUMMY));
+
+        let mut entry = Function::new(Ident::DUMMY);
+        entry.selector = Some([0, 0, 0, 1]);
+        entry.attributes.visibility = Visibility::Public;
+        {
+            let mut builder = FunctionBuilder::new(&mut entry);
+            let value = builder.internal_call(live_helper, Vec::new(), Some(MirType::uint256()), 1);
+            builder.ret([value]);
+        }
+        let entry = module.add_function(entry);
+
+        {
+            let mut builder = FunctionBuilder::new(module.function_mut(live_helper));
+            let value = builder.imm_u64(1);
+            builder.ret([value]);
+        }
+        {
+            let mut builder = FunctionBuilder::new(module.function_mut(dead_helper));
+            let value = builder.imm_u64(2);
+            builder.ret([value]);
+        }
+
+        let mut dfe = DeadFunctionEliminator::new();
+        assert_eq!(dfe.run(&mut module), 1);
+
+        assert!(!module.function(entry).blocks.is_empty());
+        assert!(!module.function(live_helper).blocks.is_empty());
+        assert!(module.function(dead_helper).blocks.is_empty());
+        assert!(module.function(dead_helper).instructions.is_empty());
+        assert!(module.function(dead_helper).values.is_empty());
+    }
 }

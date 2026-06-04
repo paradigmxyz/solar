@@ -593,13 +593,13 @@ pub struct MirInlineConfig {
 impl Default for MirInlineConfig {
     fn default() -> Self {
         Self {
-            max_instructions: 4,
-            max_single_call_instructions: 18,
-            max_blocks: 4,
+            max_instructions: 64,
+            max_single_call_instructions: 96,
+            max_blocks: 10,
             inline_single_call: true,
-            max_cold_code_growth: 0,
-            max_hot_code_growth: 32,
-            min_call_savings: 80,
+            max_cold_code_growth: 128,
+            max_hot_code_growth: 512,
+            min_call_savings: 120,
         }
     }
 }
@@ -629,6 +629,7 @@ struct MirInlineSummary {
     has_external_call: bool,
     has_storage_write: bool,
     has_log: bool,
+    has_loop: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
     is_entry_point: bool,
@@ -756,6 +757,7 @@ impl MirInliner {
             || summary.is_constructor
             || summary.has_internal_call
             || summary.has_phi
+            || summary.has_loop
             || summary.has_unsupported_terminator
             || summary.return_count == 0
             || summary.block_count > self.config.max_blocks
@@ -810,8 +812,12 @@ struct CallSite {
 }
 
 fn summarize_function(func: &Function) -> MirInlineSummary {
+    let mut loop_analyzer = LoopAnalyzer::new();
+    let loop_info = loop_analyzer.analyze(func);
+
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
+        has_loop: !loop_info.loops.is_empty(),
         param_count: func.params.len(),
         internal_frame_size: func.internal_frame_size,
         is_entry_point: func.is_public()
