@@ -1054,7 +1054,12 @@ impl<'gcx> ResolveContext<'gcx> {
                     }
                     memory_safe = true;
                 }
-                _ => self.dcx().warn("unknown inline assembly flag").span(span).emit(),
+                _ => self
+                    .dcx()
+                    .warn("unknown inline assembly flag")
+                    .code(error_code!(4430))
+                    .span(span)
+                    .emit(),
             }
         }
 
