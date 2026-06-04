@@ -5,7 +5,7 @@ use crate::{
 };
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
-use solar_ast::{DataLocation, Visibility};
+use solar_ast::{DataLocation, StateMutability, Visibility};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
@@ -352,8 +352,17 @@ fn check_unimplemented_functions(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let contract = gcx.hir.contract(contract_id);
 
+    // Libraries cannot have receive functions
+    if contract.kind.is_library() {
+        if let Some(receive) = contract.receive {
+            gcx.dcx()
+                .emit_err(gcx.item_span(receive), "libraries cannot have receive ether functions");
+        }
+        return;
+    }
     if let Some(receive) = contract.receive {
         let f = gcx.hir.function(receive);
+        // Check visibility
         if f.visibility != Visibility::External {
             gcx.dcx().emit_err(
                 gcx.item_span(receive),
@@ -361,6 +370,22 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
             );
         }
 
+        // Check state mutability
+        if f.state_mutability != StateMutability::Payable {
+            gcx.dcx()
+                .err("receive ether function must be payable")
+                .span(gcx.item_span(receive))
+                .help("add `payable` state mutability")
+                .emit();
+        }
+
+        // Check parameters
+        if !f.parameters.is_empty() {
+            gcx.dcx()
+                .emit_err(gcx.item_span(receive), "receive ether function cannot take parameters");
+        }
+
+        // Check return values
         if !f.returns.is_empty() {
             gcx.dcx()
                 .emit_err(gcx.item_span(receive), "receive ether function cannot return values");
