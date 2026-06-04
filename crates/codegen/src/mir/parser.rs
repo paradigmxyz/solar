@@ -844,6 +844,14 @@ impl<'a> Parser<'a> {
                 self.skip_to_eol();
                 return Ok(());
             }
+            "returndata" => {
+                let offset = self.parse_value(func, arg_values, value_labels)?;
+                self.expect_punct(',')?;
+                let size = self.parse_value(func, arg_values, value_labels)?;
+                self.set_terminator(func, block, Terminator::ReturnData { offset, size });
+                self.skip_to_eol();
+                return Ok(());
+            }
             "stop" => {
                 self.set_terminator(func, block, Terminator::Stop);
                 self.skip_to_eol();

@@ -7,15 +7,36 @@ fn @fact(arg0: u256) -> u256 {
     v6 = iszero v5
     br v6, bb1, bb2
   bb1:
+    v9 = mload 64
+    v11 = add v9, 32
+    v13 = mstore 64, v11
+    v14 = mstore v9, 1
+    returndata v9, 32
+  bb2:
+    v17 = sub arg0, 1
+    v18 = internal_call fn1, 1, v17
+    v19 = mul arg0, v18
+    v21 = mload 64
+    v23 = add v21, 32
+    v25 = mstore 64, v23
+    v26 = mstore v21, v19
+    returndata v21, 32
+}
+
+fn @fact(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    v3 = mstore v1, 0
+    v5 = gt arg0, 1
+    v6 = iszero v5
+    br v6, bb1, bb2
+  bb1:
     ret 1
   bb2:
     v9 = sub arg0, 1
-    v12 = gt v9, 1
-    v13 = iszero v12
-    v16 = sub v9, 1
-    v18 = mul v9, 0
-    v19 = mul arg0, v18
-    ret v19
+    v10 = internal_call fn1, 1, v9
+    v11 = mul arg0, v10
+    ret v11
 }
 
 fn @fib(arg0: u256) -> u256 {
@@ -25,21 +46,109 @@ fn @fib(arg0: u256) -> u256 {
     v6 = iszero v5
     br v6, bb1, bb2
   bb1:
+    v8 = mload 64
+    v10 = add v8, 32
+    v12 = mstore 64, v10
+    v13 = mstore v8, arg0
+    returndata v8, 32
+  bb2:
+    v16 = sub arg0, 1
+    v17 = internal_call fn3, 1, v16
+    v19 = sub arg0, 2
+    v20 = internal_call fn3, 1, v19
+    v21 = add v17, v20
+    v23 = mload 64
+    v25 = add v23, 32
+    v27 = mstore 64, v25
+    v28 = mstore v23, v21
+    returndata v23, 32
+}
+
+fn @fib(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    v3 = mstore v1, 0
+    v5 = gt arg0, 1
+    v6 = iszero v5
+    br v6, bb1, bb2
+  bb1:
     ret arg0
   bb2:
     v8 = sub arg0, 1
-    v11 = gt v8, 1
-    v12 = iszero v11
-    v14 = sub v8, 1
-    v17 = sub v8, 2
-    v19 = add 0, 0
-    v21 = sub arg0, 2
-    v24 = gt v21, 1
-    v25 = iszero v24
-    v27 = sub v21, 1
-    v30 = sub v21, 2
-    v32 = add 0, 0
-    v33 = add v19, v32
-    ret v33
+    v9 = internal_call fn3, 1, v8
+    v11 = sub arg0, 2
+    v12 = internal_call fn3, 1, v11
+    v13 = add v9, v12
+    ret v13
+}
+
+fn @isEven(arg0: u256) -> bool {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v5 = eq arg0, 0
+    br v5, bb1, bb2
+  bb1:
+    v8 = mload 64
+    v10 = add v8, 32
+    v12 = mstore 64, v10
+    v13 = mstore v8, 1
+    returndata v8, 32
+  bb2:
+    v16 = sub arg0, 1
+    v17 = internal_call fn5, 1, v16
+    v19 = mload 64
+    v21 = add v19, 32
+    v23 = mstore 64, v21
+    v24 = mstore v19, v17
+    returndata v19, 32
+}
+
+fn @isOdd(arg0: u256) -> bool {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    v3 = mstore v1, 0
+    v5 = eq arg0, 0
+    br v5, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v8 = sub arg0, 1
+    v9 = internal_call fn6, 1, v8
+    ret v9
+}
+
+fn @isEven(arg0: u256) -> bool {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    v3 = mstore v1, 0
+    v5 = eq arg0, 0
+    br v5, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    v8 = sub arg0, 1
+    v9 = internal_call fn5, 1, v8
+    ret v9
+}
+
+fn @isOdd(arg0: u256) -> bool {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v5 = eq arg0, 0
+    br v5, bb1, bb2
+  bb1:
+    v8 = mload 64
+    v10 = add v8, 32
+    v12 = mstore 64, v10
+    v13 = mstore v8, 0
+    returndata v8, 32
+  bb2:
+    v16 = sub arg0, 1
+    v17 = internal_call fn6, 1, v16
+    v19 = mload 64
+    v21 = add v19, 32
+    v23 = mstore 64, v21
+    v24 = mstore v19, v17
+    returndata v19, 32
 }
 

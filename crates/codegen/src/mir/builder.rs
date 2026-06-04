@@ -303,8 +303,8 @@ impl<'a> FunctionBuilder<'a> {
         function: FunctionId,
         args: Vec<ValueId>,
         result_ty: Option<MirType>,
+        returns: usize,
     ) -> ValueId {
-        let returns = usize::from(result_ty.is_some());
         self.emit_inst(InstKind::InternalCall { function, args, returns }, result_ty)
     }
 
@@ -569,6 +569,12 @@ impl<'a> FunctionBuilder<'a> {
     /// Sets a revert terminator.
     pub fn revert(&mut self, offset: ValueId, size: ValueId) {
         self.func.blocks[self.current_block].terminator = Some(Terminator::Revert { offset, size });
+    }
+
+    /// Sets a return-data terminator: `RETURN(offset, size)`.
+    pub fn ret_data(&mut self, offset: ValueId, size: ValueId) {
+        self.func.blocks[self.current_block].terminator =
+            Some(Terminator::ReturnData { offset, size });
     }
 
     /// Sets a stop terminator.

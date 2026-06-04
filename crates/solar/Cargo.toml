@@ -33,6 +33,10 @@ name = "tests"
 path = "./tests.rs"
 harness = false
 
+[[test]]
+name = "foundry"
+path = "./foundry.rs"
+
 [dependencies]
 solar-ast.workspace = true
 solar-config.workspace = true
@@ -48,6 +52,7 @@ alloy-primitives.workspace = true
 
 [dev-dependencies]
 solar-tester.workspace = true
+serde_json.workspace = true
 
 [features]
 default = ["cli", "solar-cli?/default"]

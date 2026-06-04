@@ -15,6 +15,7 @@ pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
 mod standard_json;
 
+pub mod mir_opt;
 pub mod utils;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
@@ -163,7 +164,7 @@ fn emit_mir(compiler: &mut CompilerRef<'_>) -> Result {
 
 /// Emit bytecode (and optionally ABI/hashes) for all contracts using solar-codegen.
 fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
-    use solar_codegen::{EvmCodegen, FxHashMap, lower};
+    use solar_codegen::{Backend, EvmCodegen, FxHashMap, lower};
     use solar_sema::hir::ContractId;
     use std::collections::BTreeMap;
 
@@ -183,9 +184,8 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
             let mut module = lower::lower_contract(gcx, id);
             gcx.dcx().has_errors()?;
-            let mut codegen = EvmCodegen::new();
-            let (deployment_bytecode, _) = codegen.generate_deployment_bytecode(&mut module);
-            all_bytecodes.insert(id, deployment_bytecode);
+            let artifact = EvmCodegen::new().lower_module(&mut module);
+            all_bytecodes.insert(id, artifact.deployment);
         }
     }
 
@@ -222,20 +222,19 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
             gcx.dcx().has_errors()?;
 
             // Generate bytecode
-            let mut codegen = EvmCodegen::new();
-            let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
+            let artifact = EvmCodegen::new().lower_module(&mut module);
 
             if emit_bin {
                 obj.insert(
                     "bin".to_string(),
-                    serde_json::Value::String(alloy_primitives::hex::encode(&deployment)),
+                    serde_json::Value::String(alloy_primitives::hex::encode(&artifact.deployment)),
                 );
             }
 
             if emit_bin_runtime {
                 obj.insert(
                     "bin-runtime".to_string(),
-                    serde_json::Value::String(alloy_primitives::hex::encode(&runtime)),
+                    serde_json::Value::String(alloy_primitives::hex::encode(&artifact.runtime)),
                 );
             }
         }

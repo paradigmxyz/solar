@@ -394,8 +394,8 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Returns the type inferred for the given expression, if available.
     ///
-    /// Expression types are populated by the experimental type checker, which currently only runs
-    /// when `-Ztypeck` is enabled.
+    /// Expression types are populated by the experimental type checker, which runs when `-Ztypeck`
+    /// is enabled or a codegen output was requested.
     #[inline]
     pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
         self.expr_types.get()?.get(&id).copied()

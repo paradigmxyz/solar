@@ -6,7 +6,13 @@ fn @div_mod(arg0: u256, arg1: u256) -> (u256, u256) {
     v7 = mstore 160, 0
     v8 = div arg0, arg1
     v9 = mod arg0, arg1
-    ret v8, v9
+    v11 = mload 64
+    v13 = add v11, 64
+    v15 = mstore 64, v13
+    v16 = mstore v11, v8
+    v18 = add v11, 32
+    v19 = mstore v18, v9
+    returndata v11, 64
 }
 
 fn @min_max(arg0: u256, arg1: u256) -> (u256, u256) {
@@ -16,9 +22,21 @@ fn @min_max(arg0: u256, arg1: u256) -> (u256, u256) {
     v8 = lt arg0, arg1
     br v8, bb1, bb2
   bb1:
-    ret arg0, arg1
+    v10 = mload 64
+    v12 = add v10, 64
+    v14 = mstore 64, v12
+    v15 = mstore v10, arg0
+    v17 = add v10, 32
+    v18 = mstore v17, arg1
+    returndata v10, 64
   bb2:
-    ret arg1, arg0
+    v21 = mload 64
+    v23 = add v21, 64
+    v25 = mstore 64, v23
+    v26 = mstore v21, arg1
+    v28 = add v21, 32
+    v29 = mstore v28, arg0
+    returndata v21, 64
 }
 
 fn @triple(arg0: u256) -> (u256, u256, u256) {
@@ -29,6 +47,14 @@ fn @triple(arg0: u256) -> (u256, u256, u256) {
     v10 = add arg0, arg0
     v11 = add arg0, arg0
     v12 = add v11, arg0
-    ret arg0, v10, v12
+    v14 = mload 64
+    v16 = add v14, 96
+    v18 = mstore 64, v16
+    v19 = mstore v14, arg0
+    v21 = add v14, 32
+    v22 = mstore v21, v10
+    v24 = add v14, 64
+    v25 = mstore v24, v12
+    returndata v14, 96
 }
 

@@ -3034,7 +3034,6 @@ dependencies = [
  "alloy-primitives",
  "derive_more",
  "rustc-hash",
- "serde_json",
  "smallvec",
  "snapbox",
  "solar-ast",
@@ -3050,6 +3049,7 @@ name = "solar-compiler"
 version = "0.1.8"
 dependencies = [
  "alloy-primitives",
+ "serde_json",
  "solar-ast",
  "solar-cli",
  "solar-config",
@@ -3130,15 +3130,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "solar-mir-opt"
-version = "0.1.8"
-dependencies = [
- "solar-codegen",
- "solar-interface",
- "solar-sema",
 ]
 
 [[package]]

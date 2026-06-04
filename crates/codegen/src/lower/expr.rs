@@ -451,6 +451,36 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    /// Lowers a string/bytes literal to Solidity's memory layout
+    /// `[length][data...]` and returns the memory pointer. General literal
+    /// lowering still returns a word; ABI return encoding needs a real pointer.
+    pub(super) fn lower_string_literal_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lit: &hir::Lit<'_>,
+    ) -> Option<ValueId> {
+        let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
+        let bytes = bytes.as_byte_str();
+        let len = bytes.len();
+        let aligned = len.div_ceil(32) * 32;
+        let ptr = self.allocate_memory(builder, (32 + aligned) as u64);
+        let len_val = builder.imm_u64(len as u64);
+        builder.mstore(ptr, len_val);
+
+        let word = builder.imm_u64(32);
+        let data_start = builder.add(ptr, word);
+        for (i, chunk) in bytes.chunks(32).enumerate() {
+            let mut padded = [0u8; 32];
+            padded[..chunk.len()].copy_from_slice(chunk);
+            let val = builder.imm_u256(U256::from_be_bytes(padded));
+            let off = builder.imm_u64((i * 32) as u64);
+            let dest = builder.add(data_start, off);
+            builder.mstore(dest, val);
+        }
+
+        Some(ptr)
+    }
+
     /// Lowers an identifier reference.
     fn lower_ident(&mut self, builder: &mut FunctionBuilder<'_>, res: &hir::Res) -> ValueId {
         match res {
@@ -491,8 +521,21 @@ impl<'gcx> Lowerer<'gcx> {
                             return struct_ptr;
                         }
 
-                        // For scalar storage variables, just load the value
+                        // For scalar storage bytes/string, normalize the packed
+                        // short-storage slot to the memory layout expected by
+                        // the ABI encoder. `.length` and indexing use dedicated
+                        // storage-slot paths and do not come through here.
                         let slot_val = builder.imm_u64(slot);
+                        if matches!(
+                            var.ty.kind,
+                            hir::TypeKind::Elementary(
+                                hir::ElementaryType::String | hir::ElementaryType::Bytes
+                            )
+                        ) {
+                            return self.materialize_storage_bytes(builder, slot_val);
+                        }
+
+                        // For scalar storage variables, just load the value
                         return builder.sload(slot_val);
                     }
                 }
@@ -576,6 +619,15 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.imm_u64(0);
         };
 
+        // For a calldata array/bytes parameter, its lowered value is the ABI
+        // head: the offset (relative to the start of the args, i.e. after the
+        // 4-byte selector) to the length word. So the length word is at calldata
+        // position `4 + head`, and the first element at `4 + head + 32`.
+        let calldata_head = (self.gcx.hir.variable(*var_id).data_location
+            == Some(solar_ast::DataLocation::Calldata))
+        .then(|| self.locals.get(var_id).copied())
+        .flatten();
+
         match member.name {
             sym::slot => {
                 if let Some(&slot) = self.storage_slots.get(var_id) {
@@ -589,7 +641,20 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.mload(offset);
                 }
             }
-            sym::offset => return builder.imm_u64(0),
+            sym::offset => {
+                if let Some(head) = calldata_head {
+                    let base = builder.imm_u64(4 + 32);
+                    return builder.add(base, head);
+                }
+                return builder.imm_u64(0);
+            }
+            sym::length => {
+                if let Some(head) = calldata_head {
+                    let four = builder.imm_u64(4);
+                    let pos = builder.add(four, head);
+                    return builder.calldataload(pos);
+                }
+            }
             _ => {}
         }
 
@@ -1320,7 +1385,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Handle `new Contract(args)` - contract creation
         if let ExprKind::New(ty) = &callee.kind {
-            if matches!(ty.kind, hir::TypeKind::Array(_)) {
+            if self.is_memory_array_new_type(ty) {
                 return self.lower_new_array(builder, ty, args);
             }
             return self.lower_new_contract(builder, ty, args, call_opts);
@@ -1476,10 +1541,7 @@ impl<'gcx> Lowerer<'gcx> {
         ty: &hir::Type<'_>,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let hir::TypeKind::Array(array) = &ty.kind else {
-            return builder.imm_u64(0);
-        };
-        if array.size.is_some() {
+        if !self.is_memory_array_new_type(ty) {
             return builder.imm_u64(0);
         }
 
@@ -1501,6 +1563,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(free_ptr_addr, new_free_ptr);
 
         ptr
+    }
+
+    fn is_memory_array_new_type(&self, ty: &hir::Type<'_>) -> bool {
+        match &ty.kind {
+            hir::TypeKind::Array(array) => array.size.is_none(),
+            hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
+            _ => false,
+        }
     }
 
     /// Lowers a `new Contract(args)` expression.
@@ -3657,6 +3727,34 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_inline_void_call(builder, func_id, arg_vals);
         }
 
+        // The SSA inline path (`lower_library_body_simple`) only models a
+        // straight-line body that ends in a `return`. Anything else — a loop, an
+        // `if`, a multi-statement control flow — is lowered as a real
+        // `internal_call` instead, where the memory-backed internal frame handles
+        // reassigned locals, loops, and recursion correctly. Recursive functions
+        // with a simple ternary body (which `is_simple_return_function` accepts)
+        // are caught separately so inlining doesn't hit the cycle placeholder.
+        // Simple, non-recursive functions still inline. Internal/private callees
+        // use the internal-frame convention directly; a public callee is compiled
+        // for the external ABI, so it needs an internal-frame copy
+        // (`ensure_internal_mir_function`) for `internal_call` to target.
+        let needs_call =
+            !Self::is_simple_return_function(func) || self.function_is_recursive(func_id);
+        if !self.lowering_constructor && needs_call {
+            let result_ty = func
+                .returns
+                .first()
+                .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
+            let is_internal =
+                matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private);
+            let mir_id = if is_internal {
+                self.ensure_function_lowered(func_id)
+            } else {
+                self.ensure_internal_mir_function(func_id)
+            };
+            return builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len());
+        }
+
         // Check for recursive inlining cycle AFTER evaluating arguments
         if !self.try_enter_inline(func_id) {
             // Cycle detected or max depth exceeded - return placeholder
@@ -3825,16 +3923,16 @@ impl<'gcx> Lowerer<'gcx> {
                 arg_vals.push(self.lower_expr(builder, arg));
             }
 
-            if !self.lowering_constructor
-                && !self.function_returns_memory_reference(func)
-                && !Self::is_simple_return_function(func)
-            {
+            if !self.lowering_constructor && !Self::is_simple_return_function(func) {
                 let result_ty = func
                     .returns
                     .first()
                     .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
                 let mir_id = self.ensure_function_lowered(func_id);
-                return builder.internal_call(mir_id, arg_vals, result_ty);
+                // Pass the full return arity (not just the single result type) so
+                // the backend copies return values 2..N into scratch memory for
+                // multi-value destructures and `return`s.
+                return builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len());
             }
 
             if func.returns.is_empty() {
@@ -3890,13 +3988,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn function_returns_memory_reference(&self, func: &hir::Function<'_>) -> bool {
-        func.returns.iter().any(|&var_id| {
-            let var = self.gcx.hir.variable(var_id);
-            matches!(self.lower_type_from_var(var), MirType::MemPtr)
-        })
-    }
-
     fn is_simple_return_function(func: &hir::Function<'_>) -> bool {
         let Some(body) = func.body else {
             return false;
@@ -3910,6 +4001,110 @@ impl<'gcx> Lowerer<'gcx> {
                         | hir::StmtKind::Return(Some(_))
                 )
             })
+    }
+
+    /// Whether `func_id` directly calls itself (cached). A recursive function
+    /// must be lowered as a real `internal_call`: inlining it hits the cycle
+    /// detector and substitutes a `0` placeholder.
+    fn function_is_recursive(&mut self, func_id: hir::FunctionId) -> bool {
+        if let Some(&cached) = self.recursive_functions.get(&func_id) {
+            return cached;
+        }
+        let func = self.gcx.hir.function(func_id);
+        let result =
+            func.body.is_some_and(|body| body.stmts.iter().any(|s| self.stmt_calls(s, func_id)));
+        self.recursive_functions.insert(func_id, result);
+        result
+    }
+
+    /// Whether a statement (recursively) contains a call to `target`.
+    fn stmt_calls(&self, stmt: &hir::Stmt<'_>, target: hir::FunctionId) -> bool {
+        use hir::StmtKind;
+        match &stmt.kind {
+            StmtKind::Expr(e)
+            | StmtKind::Return(Some(e))
+            | StmtKind::Revert(e)
+            | StmtKind::Emit(e) => self.expr_calls(e, target),
+            StmtKind::Block(b) | StmtKind::UncheckedBlock(b) | StmtKind::AssemblyBlock(b) => {
+                b.stmts.iter().any(|s| self.stmt_calls(s, target))
+            }
+            StmtKind::If(c, t, e) => {
+                self.expr_calls(c, target)
+                    || self.stmt_calls(t, target)
+                    || e.is_some_and(|e| self.stmt_calls(e, target))
+            }
+            StmtKind::Loop(b, _) => b.stmts.iter().any(|s| self.stmt_calls(s, target)),
+            StmtKind::Switch(sw) => {
+                self.expr_calls(sw.selector, target)
+                    || sw
+                        .cases
+                        .iter()
+                        .any(|c| c.body.stmts.iter().any(|s| self.stmt_calls(s, target)))
+            }
+            StmtKind::Try(t) => {
+                self.expr_calls(&t.expr, target)
+                    || t.clauses
+                        .iter()
+                        .any(|cl| cl.block.stmts.iter().any(|s| self.stmt_calls(s, target)))
+            }
+            StmtKind::DeclSingle(var_id) => self
+                .gcx
+                .hir
+                .variable(*var_id)
+                .initializer
+                .is_some_and(|init| self.expr_calls(init, target)),
+            StmtKind::DeclMulti(_, init) => self.expr_calls(init, target),
+            StmtKind::Return(None)
+            | StmtKind::Continue
+            | StmtKind::Break
+            | StmtKind::Placeholder
+            | StmtKind::Err(_) => false,
+        }
+    }
+
+    /// Whether an expression (recursively) contains a call to `target`.
+    fn expr_calls(&self, expr: &hir::Expr<'_>, target: hir::FunctionId) -> bool {
+        match &expr.kind {
+            ExprKind::Call(callee, args, _) => {
+                if let ExprKind::Ident(res) = &callee.kind
+                    && res.iter().any(
+                        |r| matches!(r, hir::Res::Item(hir::ItemId::Function(f)) if *f == target),
+                    )
+                {
+                    return true;
+                }
+                self.expr_calls(callee, target) || args.exprs().any(|a| self.expr_calls(a, target))
+            }
+            ExprKind::Binary(l, _, r) | ExprKind::Assign(l, _, r) => {
+                self.expr_calls(l, target) || self.expr_calls(r, target)
+            }
+            ExprKind::Unary(_, e)
+            | ExprKind::Member(e, _)
+            | ExprKind::YulMember(e, _)
+            | ExprKind::Payable(e)
+            | ExprKind::Delete(e) => self.expr_calls(e, target),
+            ExprKind::Ternary(c, t, f) => {
+                self.expr_calls(c, target)
+                    || self.expr_calls(t, target)
+                    || self.expr_calls(f, target)
+            }
+            ExprKind::Index(b, i) => {
+                self.expr_calls(b, target) || i.is_some_and(|i| self.expr_calls(i, target))
+            }
+            ExprKind::Slice(b, s, e) => {
+                self.expr_calls(b, target)
+                    || s.is_some_and(|s| self.expr_calls(s, target))
+                    || e.is_some_and(|e| self.expr_calls(e, target))
+            }
+            ExprKind::Array(es) => es.iter().any(|e| self.expr_calls(e, target)),
+            ExprKind::Tuple(es) => es.iter().flatten().any(|e| self.expr_calls(e, target)),
+            ExprKind::New(_)
+            | ExprKind::TypeCall(_)
+            | ExprKind::Lit(_)
+            | ExprKind::Ident(_)
+            | ExprKind::Type(_)
+            | ExprKind::Err(_) => false,
+        }
     }
 
     /// Lowers a simple library function body.
@@ -3927,6 +4122,20 @@ impl<'gcx> Lowerer<'gcx> {
 
         if let Some(value) = self.lower_library_block_return(builder, body) {
             return value;
+        }
+
+        // Implicit named returns: the body assigned the named return variables
+        // (e.g. `success = ...; result = ...;` with no explicit `return`). Write
+        // returns 1..N to scratch memory at offset `i * 32` so the caller's
+        // `lower_multi_var_decl` (which reads `mload(i * 32)`) recovers them; the
+        // first return flows back as the MIR value below.
+        if func.returns.len() > 1 {
+            for (i, &return_id) in func.returns.iter().enumerate().skip(1) {
+                if let Some(&value) = self.locals.get(&return_id) {
+                    let offset = builder.imm_u64((i * 32) as u64);
+                    builder.mstore(offset, value);
+                }
+            }
         }
 
         if let Some(&return_id) = func.returns.first()
@@ -4193,8 +4402,19 @@ impl<'gcx> Lowerer<'gcx> {
         self.types_match_for_using(base_ty, &first_param.ty)
     }
 
-    /// Gets the type of an expression for using directive matching.
+    /// Gets the type of an expression. Prefers the type computed by sema's type
+    /// checker (recorded during analysis whenever codegen runs); falls back to
+    /// re-deriving it from the HIR for any expression the checker didn't record.
     fn get_expr_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'_>> {
+        if let Some(ty) = self.gcx.type_of_expr(expr.id) {
+            return Some(ty);
+        }
+        self.get_expr_type_fallback(expr)
+    }
+
+    /// Re-derives the type of an expression by walking the HIR. Used as a
+    /// fallback when sema's type checker did not record a type for it.
+    fn get_expr_type_fallback(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'_>> {
         // Case 1: Variable - get its declared type
         if let ExprKind::Ident(res_slice) = &expr.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
@@ -4426,6 +4646,10 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> bool {
         use hir::TypeKind;
         use solar_sema::ty::TyKind;
+
+        // A reference-type receiver (struct/array/bytes) has type `Ref(_, loc)`;
+        // strip the data location so it matches the location-less target type.
+        let expr_ty = expr_ty.peel_refs();
 
         match (&expr_ty.kind, &target_ty.kind) {
             // Elementary types (uint256, bool, etc.)

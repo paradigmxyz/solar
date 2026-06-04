@@ -1,0 +1,23 @@
+// === ROOT/tests/ui/codegen/yul_calldata_array.sol:C ===
+; module @C
+fn @probe(arg0: memptr) -> (u256, u256) {
+  bb0 (entry):
+    v3 = mstore 128, 0
+    v6 = mstore 160, 0
+    v8 = add 4, arg0
+    v9 = calldataload v8
+    v11 = mstore 128, v9
+    v13 = add 36, arg0
+    v14 = calldataload v13
+    v16 = mstore 160, v14
+    v18 = mload 128
+    v20 = mload 160
+    v22 = mload 64
+    v24 = add v22, 64
+    v26 = mstore 64, v24
+    v27 = mstore v22, v18
+    v29 = add v22, 32
+    v30 = mstore v29, v20
+    returndata v22, 64
+}
+

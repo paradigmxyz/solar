@@ -448,11 +448,14 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a return statement.
     fn lower_return(&mut self, builder: &mut FunctionBuilder<'_>, value: Option<&hir::Expr<'_>>) {
+        let external = builder.func().is_public() && !self.lowering_internal_function;
+        if external {
+            let items = self.gather_return_items(builder, value);
+            self.emit_abi_return(builder, &items);
+            return;
+        }
         if let Some(expr) = value {
-            // Check if this is a tuple return (multiple values)
             if let hir::ExprKind::Tuple(elements) = &expr.kind {
-                // For multi-value returns, collect all values and pass to ret().
-                // The EVM codegen handles storing them to memory at offsets 0, 32, 64, etc.
                 let ret_vals: Vec<_> = elements
                     .iter()
                     .filter_map(|elem_opt| {
@@ -461,27 +464,25 @@ impl<'gcx> Lowerer<'gcx> {
                     .collect();
                 builder.ret(ret_vals);
             } else if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-                // Ternary expression returning a tuple - values are in scratch memory
-                // lower_expr already evaluated the ternary and wrote to scratch memory
                 let _ = self.lower_expr(builder, expr);
                 let mut ret_vals = Vec::new();
                 for i in 0..arity {
                     let offset = builder.imm_u64(i as u64 * 32);
-                    let val = builder.mload(offset);
-                    ret_vals.push(val);
+                    ret_vals.push(builder.mload(offset));
                 }
                 builder.ret(ret_vals);
             } else {
-                // Check if returning a memory struct - expand to individual fields
-                let struct_type = self.get_return_struct_type(expr);
-                if let Some(struct_id) = struct_type
-                    && builder.func().is_public()
-                {
-                    let struct_ptr = self.lower_expr(builder, expr);
-                    let ret_vals = self.load_struct_return_values(builder, struct_id, struct_ptr);
+                let ret_val = self.lower_expr(builder, expr);
+                let n = builder.func().returns.len();
+                if n > 1 {
+                    let mut ret_vals = Vec::with_capacity(n);
+                    ret_vals.push(ret_val);
+                    for i in 1..n {
+                        let offset = builder.imm_u64((i * 32) as u64);
+                        ret_vals.push(builder.mload(offset));
+                    }
                     builder.ret(ret_vals);
                 } else {
-                    let ret_val = self.lower_expr(builder, expr);
                     builder.ret([ret_val]);
                 }
             }
@@ -491,7 +492,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Gets the tuple arity if this is a ternary expression with tuple branches.
-    fn get_ternary_tuple_arity(&self, expr: &hir::Expr<'_>) -> Option<usize> {
+    pub(super) fn get_ternary_tuple_arity(&self, expr: &hir::Expr<'_>) -> Option<usize> {
         if let hir::ExprKind::Ternary(_, then_expr, else_expr) = &expr.kind {
             // Check if either branch is a tuple
             if let hir::ExprKind::Tuple(elements) = &then_expr.kind {
@@ -502,38 +503,6 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
         None
-    }
-
-    /// Gets the struct ID if the expression returns a memory struct.
-    fn get_return_struct_type(&self, expr: &hir::Expr<'_>) -> Option<hir::StructId> {
-        match &expr.kind {
-            // Variable with struct type
-            hir::ExprKind::Ident(res_slice) => {
-                for res in res_slice.iter() {
-                    if let hir::Res::Item(hir::ItemId::Variable(var_id)) = res {
-                        let var = self.gcx.hir.variable(*var_id);
-                        // Check if this variable has a struct type
-                        if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
-                        {
-                            return Some(*struct_id);
-                        }
-                    }
-                }
-                None
-            }
-            // Struct constructor
-            hir::ExprKind::Call(callee, _, _) => {
-                if let hir::ExprKind::Ident(res_slice) = &callee.kind {
-                    for res in res_slice.iter() {
-                        if let hir::Res::Item(hir::ItemId::Struct(struct_id)) = res {
-                            return Some(*struct_id);
-                        }
-                    }
-                }
-                None
-            }
-            _ => None,
-        }
     }
 
     /// Lowers an emit statement.

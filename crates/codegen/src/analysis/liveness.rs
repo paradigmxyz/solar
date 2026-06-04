@@ -455,7 +455,7 @@ fn collect_terminator_uses(term: &Terminator, out: &mut Vec<ValueId>) {
         Terminator::Return { values } => {
             out.extend(values.iter().copied());
         }
-        Terminator::Revert { offset, size } => {
+        Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
             out.push(*offset);
             out.push(*size);
         }

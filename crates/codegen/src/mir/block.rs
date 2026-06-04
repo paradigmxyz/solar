@@ -83,6 +83,14 @@ pub enum Terminator {
         /// Size of revert data.
         size: ValueId,
     },
+    /// Return raw, already-encoded data: `RETURN(offset, size)`. Used for
+    /// ABI-encoded external returns whose size is computed at runtime.
+    ReturnData {
+        /// Memory offset of the return data.
+        offset: ValueId,
+        /// Size of the return data in bytes.
+        size: ValueId,
+    },
     /// Stop execution.
     Stop,
     /// Self-destruct the contract.
@@ -113,6 +121,7 @@ impl Terminator {
             }
             Self::Return { .. }
             | Self::Revert { .. }
+            | Self::ReturnData { .. }
             | Self::Stop
             | Self::SelfDestruct { .. }
             | Self::Invalid => SmallVec::new(),
@@ -128,6 +137,7 @@ impl Terminator {
             Self::Switch { .. } => "switch",
             Self::Return { .. } => "return",
             Self::Revert { .. } => "revert",
+            Self::ReturnData { .. } => "returndata",
             Self::Stop => "stop",
             Self::SelfDestruct { .. } => "selfdestruct",
             Self::Invalid => "invalid",
@@ -149,7 +159,7 @@ impl Terminator {
                 }
             }
             Self::Return { values } => out.extend(values.iter().copied()),
-            Self::Revert { offset, size } => {
+            Self::Revert { offset, size } | Self::ReturnData { offset, size } => {
                 out.push(*offset);
                 out.push(*size);
             }
@@ -192,6 +202,9 @@ impl fmt::Display for Terminator {
             }
             Self::Revert { offset, size } => {
                 write!(f, "revert v{}, v{}", offset.index(), size.index())
+            }
+            Self::ReturnData { offset, size } => {
+                write!(f, "returndata v{}, v{}", offset.index(), size.index())
             }
             Self::Stop => write!(f, "stop"),
             Self::SelfDestruct { recipient } => {

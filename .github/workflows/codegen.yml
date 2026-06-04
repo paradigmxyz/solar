@@ -12,10 +12,10 @@ on:
       - "Cargo.toml"
       - "crates/cli/**"
       - "crates/codegen/**"
-      - "crates/sema/**"
       - "crates/solar/**"
+      - "crates/sema/**"
+      - "tests/foundry/**"
       - "tests/ui/codegen/**"
-      - "tools/solar-mir-opt/**"
       - "tools/tester/**"
   pull_request:
     paths:
@@ -25,10 +25,10 @@ on:
       - "Cargo.toml"
       - "crates/cli/**"
       - "crates/codegen/**"
-      - "crates/sema/**"
       - "crates/solar/**"
+      - "crates/sema/**"
+      - "tests/foundry/**"
       - "tests/ui/codegen/**"
-      - "tools/solar-mir-opt/**"
       - "tools/tester/**"
   workflow_dispatch:
     inputs:

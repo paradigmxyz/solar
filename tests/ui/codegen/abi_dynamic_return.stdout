@@ -1,0 +1,76 @@
+// === ROOT/tests/ui/codegen/abi_dynamic_return.sol:AbiDynamicReturn ===
+; module @AbiDynamicReturn
+fn @bytesLiteral() -> memptr {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = mload 64
+    v6 = add v4, 64
+    v8 = mstore 64, v6
+    v10 = mstore v4, 3
+    v12 = add v4, 32
+    v15 = add v12, 0
+    v16 = mstore v15, 0x102030000000000000000000000000000000000000000000000000000000000
+    v18 = mload 64
+    v20 = add v18, 32
+    v22 = mstore 64, v20
+    v24 = add v18, 32
+    v25 = sub v24, v18
+    v26 = mstore v18, v25
+    v27 = mload v4
+    v28 = mstore v24, v27
+    v31 = not 31
+    v32 = add v27, 31
+    v33 = and v32, v31
+    v34 = add v24, 32
+    v35 = iszero v33
+    br v35, bb2, bb1
+  bb1:
+    v36 = sub v33, 32
+    v37 = add v34, v36
+    v39 = mstore v37, 0
+    jump bb2
+  bb2:
+    v40 = add v4, 32
+    v41 = add v34, v33
+    v42 = mcopy v34, v40, v27
+    v43 = sub v41, v18
+    returndata v18, v43
+}
+
+fn @stringLiteral() -> memptr {
+  bb0 (entry):
+    v2 = mstore 128, 0
+    v4 = mload 64
+    v6 = add v4, 64
+    v8 = mstore 64, v6
+    v10 = mstore v4, 5
+    v12 = add v4, 32
+    v15 = add v12, 0
+    v16 = mstore v15, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
+    v18 = mload 64
+    v20 = add v18, 32
+    v22 = mstore 64, v20
+    v24 = add v18, 32
+    v25 = sub v24, v18
+    v26 = mstore v18, v25
+    v27 = mload v4
+    v28 = mstore v24, v27
+    v31 = not 31
+    v32 = add v27, 31
+    v33 = and v32, v31
+    v34 = add v24, 32
+    v35 = iszero v33
+    br v35, bb2, bb1
+  bb1:
+    v36 = sub v33, 32
+    v37 = add v34, v36
+    v39 = mstore v37, 0
+    jump bb2
+  bb2:
+    v40 = add v4, 32
+    v41 = add v34, v33
+    v42 = mcopy v34, v40, v27
+    v43 = sub v41, v18
+    returndata v18, v43
+}
+

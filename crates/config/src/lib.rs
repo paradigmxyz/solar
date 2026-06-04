@@ -157,6 +157,14 @@ str_enum! {
     }
 }
 
+impl CompilerOutput {
+    /// Returns `true` for outputs produced by the codegen backend (which lowers
+    /// to MIR), i.e. `bin`, `bin-runtime`, and `mir`.
+    pub fn is_codegen(self) -> bool {
+        matches!(self, Self::Bin | Self::BinRuntime | Self::Mir)
+    }
+}
+
 /// `-Zdump=kind[=paths...]`.
 #[derive(Clone, Debug)]
 pub struct Dump {
