@@ -148,12 +148,12 @@ pub struct Opts {
     /// Whether to disable warnings.
     #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
     pub no_warnings: bool,
-    /// Comma separated list of diagnostic error codes to suppress.
+    /// Comma separated list of warning error codes to suppress.
     #[cfg_attr(
         feature = "clap",
         arg(help_heading = "Display options", long, value_name = "CODE", value_delimiter = ',')
     )]
-    pub suppress_errors: Vec<String>,
+    pub suppress_warnings: Vec<String>,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
@@ -356,12 +356,12 @@ mod tests {
     }
 
     #[test]
-    fn suppress_errors() {
+    fn suppress_warnings() {
         let mut opts =
-            Opts::try_parse_from(["solar", "--suppress-errors", "1234,5678", "a.sol"]).unwrap();
+            Opts::try_parse_from(["solar", "--suppress-warnings", "1234,5678", "a.sol"]).unwrap();
         opts.finish().unwrap();
 
-        assert_eq!(opts.suppress_errors, ["1234", "5678"]);
+        assert_eq!(opts.suppress_warnings, ["1234", "5678"]);
     }
 
     #[test]

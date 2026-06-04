@@ -1121,9 +1121,9 @@ note: mutable variables should use mixedCase
     }
 
     #[test]
-    fn test_silenced_diagnostic_code_suppresses_warning() {
+    fn test_silenced_warning_code_suppresses_warning() {
         let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
-            .with_silenced_diagnostic_codes(["1234".to_string()]);
+            .with_silenced_warning_codes(["1234".to_string()]);
 
         dcx.warn("suppressed warning").code(crate::error_code!(1234)).emit();
         dcx.warn("emitted warning").code(crate::error_code!(5678)).emit();
@@ -1135,14 +1135,14 @@ note: mutable variables should use mixedCase
     }
 
     #[test]
-    fn test_silenced_diagnostic_code_suppresses_error() {
+    fn test_silenced_warning_code_does_not_suppress_error() {
         let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
-            .with_silenced_diagnostic_codes(["1234".to_string()]);
+            .with_silenced_warning_codes(["1234".to_string()]);
 
-        let _ = dcx.err("suppressed error").code(crate::error_code!(1234)).emit();
+        let _ = dcx.err("emitted error").code(crate::error_code!(1234)).emit();
 
-        assert!(dcx.has_errors().is_ok());
-        assert!(dcx.emitted_diagnostics().unwrap().is_empty());
+        assert!(dcx.has_errors().is_err());
+        assert!(dcx.emitted_diagnostics().unwrap().to_string().contains("emitted error"));
     }
 
     #[test]

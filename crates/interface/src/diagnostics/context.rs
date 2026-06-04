@@ -75,7 +75,7 @@ struct DiagCtxtInner {
     emitter: Box<DynEmitter>,
 
     flags: DiagCtxtFlags,
-    silenced_diagnostic_codes: FxHashSet<String>,
+    silenced_warning_codes: FxHashSet<String>,
 
     /// The number of errors that have been emitted, including duplicates.
     ///
@@ -102,7 +102,7 @@ impl DiagCtxt {
             inner: Mutex::new(DiagCtxtInner {
                 emitter,
                 flags: DiagCtxtFlags::default(),
-                silenced_diagnostic_codes: FxHashSet::default(),
+                silenced_warning_codes: FxHashSet::default(),
                 err_count: 0,
                 deduplicated_err_count: 0,
                 warn_count: 0,
@@ -197,15 +197,12 @@ impl DiagCtxt {
         };
         Self::new(emitter)
             .with_flags(|flags| flags.update_from_opts(opts))
-            .with_silenced_diagnostic_codes(opts.suppress_errors.iter().cloned())
+            .with_silenced_warning_codes(opts.suppress_warnings.iter().cloned())
     }
 
-    /// Adds diagnostic codes that should be suppressed.
-    pub fn with_silenced_diagnostic_codes(
-        mut self,
-        codes: impl IntoIterator<Item = String>,
-    ) -> Self {
-        self.set_silenced_diagnostic_codes_mut(codes);
+    /// Adds warning codes that should be suppressed.
+    pub fn with_silenced_warning_codes(mut self, codes: impl IntoIterator<Item = String>) -> Self {
+        self.set_silenced_warning_codes_mut(codes);
         self
     }
 
@@ -259,14 +256,14 @@ impl DiagCtxt {
         f(&mut self.inner.get_mut().flags);
     }
 
-    /// Adds diagnostic codes that should be suppressed.
-    pub fn set_silenced_diagnostic_codes(&self, codes: impl IntoIterator<Item = String>) {
-        self.inner.lock().silenced_diagnostic_codes.extend(codes);
+    /// Adds warning codes that should be suppressed.
+    pub fn set_silenced_warning_codes(&self, codes: impl IntoIterator<Item = String>) {
+        self.inner.lock().silenced_warning_codes.extend(codes);
     }
 
-    /// Adds diagnostic codes that should be suppressed.
-    pub fn set_silenced_diagnostic_codes_mut(&mut self, codes: impl IntoIterator<Item = String>) {
-        self.inner.get_mut().silenced_diagnostic_codes.extend(codes);
+    /// Adds warning codes that should be suppressed.
+    pub fn set_silenced_warning_codes_mut(&mut self, codes: impl IntoIterator<Item = String>) {
+        self.inner.get_mut().silenced_warning_codes.extend(codes);
     }
 
     /// Disables emitting warnings.
@@ -472,12 +469,8 @@ impl DiagCtxtInner {
         &mut self,
         diagnostic: &mut Diag,
     ) -> Result<(), ErrorGuaranteed> {
-        if self.is_silenced(diagnostic) {
-            return if diagnostic.is_error() {
-                Err(ErrorGuaranteed::new_unchecked())
-            } else {
-                Ok(())
-            };
+        if self.is_silenced_warning(diagnostic) {
+            return Ok(());
         }
 
         if diagnostic.level == Level::Warning && !self.flags.can_emit_warnings {
@@ -585,8 +578,9 @@ impl DiagCtxtInner {
         self.flags.treat_err_as_bug.is_some_and(|c| self.err_count >= c.get())
     }
 
-    fn is_silenced(&self, diagnostic: &Diag) -> bool {
-        diagnostic.id().is_some_and(|id| self.silenced_diagnostic_codes.contains(id))
+    fn is_silenced_warning(&self, diagnostic: &Diag) -> bool {
+        diagnostic.level == Level::Warning
+            && diagnostic.id().is_some_and(|id| self.silenced_warning_codes.contains(id))
     }
 
     fn bump_err_count(&mut self) {
