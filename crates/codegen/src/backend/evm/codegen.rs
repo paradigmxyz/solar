@@ -2320,8 +2320,10 @@ impl EvmCodegen {
                 // Pop the value and jump to default
                 self.asm.emit_op(opcodes::POP);
                 self.scheduler.stack.pop();
-                self.asm.emit_push_label(self.block_labels[default]);
-                self.asm.emit_op(opcodes::JUMP);
+                if Some(*default) != fallthrough {
+                    self.asm.emit_push_label(self.block_labels[default]);
+                    self.asm.emit_op(opcodes::JUMP);
+                }
             }
 
             Terminator::Return { values } => {
