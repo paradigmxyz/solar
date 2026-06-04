@@ -212,25 +212,12 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 self.print(ty)?;
                 write!(self.buf, "[{len}]")
             }
-            TyKind::Err(_) => {
-                assert!(
-                    self.gcx.dcx().has_errors().is_err(),
-                    "trying to print error type and no error has been emitted"
-                );
-                self.buf.write_str("<error>")
-            }
-            TyKind::Mapping(..) => {
-                assert!(
-                    self.gcx.dcx().has_errors().is_err(),
-                    "trying to print mapping type as ABI and no error has been emitted"
-                );
-                self.buf.write_str("<mapping>")
-            }
 
             TyKind::Slice(..)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Tuple(_)
+            | TyKind::Mapping(..)
             | TyKind::Super(_)
             | TyKind::Error(..)
             | TyKind::Event(..)
@@ -238,7 +225,14 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::BuiltinModule(_)
             | TyKind::Variadic
             | TyKind::Type(_)
-            | TyKind::Meta(_) => panic!("printing unsupported type as ABI: {ty:?}"),
+            | TyKind::Meta(_)
+            | TyKind::Err(_) => {
+                assert!(
+                    self.gcx.dcx().has_errors().is_err(),
+                    "printing unsupported type as ABI: {ty:?}"
+                );
+                self.buf.write_str("<error>")
+            }
         }
     }
 
