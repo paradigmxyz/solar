@@ -219,12 +219,18 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 );
                 self.buf.write_str("<error>")
             }
+            TyKind::Mapping(..) => {
+                assert!(
+                    self.gcx.dcx().has_errors().is_err(),
+                    "trying to print mapping type as ABI and no error has been emitted"
+                );
+                self.buf.write_str("<mapping>")
+            }
 
             TyKind::Slice(..)
             | TyKind::StringLiteral(..)
             | TyKind::IntLiteral(..)
             | TyKind::Tuple(_)
-            | TyKind::Mapping(..)
             | TyKind::Super(_)
             | TyKind::Error(..)
             | TyKind::Event(..)
