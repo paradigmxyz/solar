@@ -441,6 +441,38 @@ pub fn simplify_cfg(func: &mut Function) -> CfgSimplifyStats {
     simplifier.run_to_fixpoint(func)
 }
 
+/// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
+/// that are no longer predecessors.
+pub fn repair_reachability_phis(func: &mut Function) {
+    let mut edges = Vec::new();
+    for (block, bb) in func.blocks.iter_enumerated() {
+        if let Some(term) = &bb.terminator {
+            edges.push((block, term.successors()));
+        }
+    }
+
+    for block in func.blocks.iter_mut() {
+        block.predecessors.clear();
+        block.successors.clear();
+    }
+
+    for (block, successors) in edges {
+        for succ in successors {
+            func.blocks[block].successors.push(succ);
+            func.blocks[succ].predecessors.push(block);
+        }
+    }
+
+    for block_id in func.blocks.indices() {
+        let predecessors = func.blocks[block_id].predecessors.clone();
+        for &inst_id in &func.blocks[block_id].instructions {
+            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+                incoming.retain(|(pred, _)| predecessors.contains(pred));
+            }
+        }
+    }
+}
+
 /// Runs all CFG simplification passes on a module.
 pub fn simplify_module_cfg(module: &mut Module) -> CfgSimplifyStats {
     let mut total_stats = CfgSimplifyStats::default();

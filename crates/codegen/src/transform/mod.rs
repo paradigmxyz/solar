@@ -13,8 +13,8 @@ pub mod sccp;
 pub mod storage_promotion;
 
 pub use cfg_simplify::{
-    CallGraphAnalyzer, CfgSimplifier, CfgSimplifyStats, DeadFunctionEliminator, simplify_cfg,
-    simplify_module_cfg,
+    CallGraphAnalyzer, CfgSimplifier, CfgSimplifyStats, DeadFunctionEliminator,
+    repair_reachability_phis, simplify_cfg, simplify_module_cfg,
 };
 pub use constant_fold::{ConstantFolder, FoldResult};
 pub use cse::CommonSubexprEliminator;

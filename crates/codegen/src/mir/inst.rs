@@ -1,7 +1,7 @@
 //! MIR instructions.
 
 use super::{BlockId, FunctionId, MirType, ValueId};
-use smallvec::{SmallVec, smallvec};
+use smallvec::SmallVec;
 use std::fmt;
 
 /// An instruction in the MIR.
@@ -395,99 +395,9 @@ impl InstKind {
     /// Returns the operands of this instruction.
     #[must_use]
     pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
-        match self {
-            Self::Add(a, b)
-            | Self::Sub(a, b)
-            | Self::Mul(a, b)
-            | Self::Div(a, b)
-            | Self::SDiv(a, b)
-            | Self::Mod(a, b)
-            | Self::SMod(a, b)
-            | Self::Exp(a, b)
-            | Self::And(a, b)
-            | Self::Or(a, b)
-            | Self::Xor(a, b)
-            | Self::Shl(a, b)
-            | Self::Shr(a, b)
-            | Self::Sar(a, b)
-            | Self::Byte(a, b)
-            | Self::Lt(a, b)
-            | Self::Gt(a, b)
-            | Self::SLt(a, b)
-            | Self::SGt(a, b)
-            | Self::Eq(a, b)
-            | Self::MStore(a, b)
-            | Self::MStore8(a, b)
-            | Self::SStore(a, b)
-            | Self::TStore(a, b)
-            | Self::Keccak256(a, b)
-            | Self::Log0(a, b)
-            | Self::SignExtend(a, b) => smallvec![*a, *b],
-
-            Self::Not(a)
-            | Self::IsZero(a)
-            | Self::MLoad(a)
-            | Self::SLoad(a)
-            | Self::TLoad(a)
-            | Self::CalldataLoad(a)
-            | Self::ExtCodeSize(a)
-            | Self::ExtCodeHash(a)
-            | Self::Balance(a)
-            | Self::BlockHash(a)
-            | Self::BlobHash(a) => smallvec![*a],
-
-            Self::MCopy(a, b, c)
-            | Self::CalldataCopy(a, b, c)
-            | Self::CodeCopy(a, b, c)
-            | Self::ReturnDataCopy(a, b, c)
-            | Self::AddMod(a, b, c)
-            | Self::MulMod(a, b, c)
-            | Self::Create(a, b, c)
-            | Self::Log1(a, b, c)
-            | Self::Select(a, b, c) => smallvec![*a, *b, *c],
-
-            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
-                smallvec![*a, *b, *c, *d]
-            }
-
-            Self::Log3(a, b, c, d, e) => smallvec![*a, *b, *c, *d, *e],
-
-            Self::Log4(a, b, c, d, e, f) => smallvec![*a, *b, *c, *d, *e, *f],
-
-            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                smallvec![*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size]
-            }
-            Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                smallvec![*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size]
-            }
-            Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                smallvec![*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size]
-            }
-            Self::InternalCall { args, .. } => args.iter().copied().collect(),
-            Self::InternalFrameAddr(_) => smallvec![],
-
-            Self::MSize
-            | Self::CalldataSize
-            | Self::CodeSize
-            | Self::ReturnDataSize
-            | Self::Caller
-            | Self::CallValue
-            | Self::Origin
-            | Self::GasPrice
-            | Self::Coinbase
-            | Self::Timestamp
-            | Self::BlockNumber
-            | Self::PrevRandao
-            | Self::GasLimit
-            | Self::ChainId
-            | Self::Address
-            | Self::SelfBalance
-            | Self::Gas
-            | Self::BaseFee
-            | Self::BlobBaseFee => smallvec![],
-
-            Self::Phi(_) => smallvec![],
-        }
+        let mut out = Vec::new();
+        self.collect_operands(&mut out);
+        out.into_iter().collect()
     }
 
     /// Returns the mnemonic for this instruction.
@@ -613,5 +523,26 @@ impl InstKind {
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{Function, Immediate, Value};
+    use alloy_primitives::U256;
+    use solar_interface::Ident;
+
+    #[test]
+    fn phi_operands_include_incoming_values() {
+        let mut func = Function::new(Ident::DUMMY);
+        let pred_a = func.entry_block;
+        let pred_b = func.alloc_block();
+        let a = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let b = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+
+        let phi = InstKind::Phi(vec![(pred_a, a), (pred_b, b)]);
+
+        assert_eq!(phi.operands().as_slice(), &[a, b]);
     }
 }

@@ -13,7 +13,7 @@ use super::{
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
-    mir::{BlockId, Function, FunctionId, InstKind, MirType, Module, Terminator, ValueId},
+    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
         AnalysisManager, CfgSimplifyPass, CsePass, DcePass, InstSimplifyPass, JumpThreadingPass,
         LicmPass, LivenessAnalysis, MemoryDsePass, PassManager, SccpTransformPass,
@@ -735,7 +735,7 @@ impl EvmCodegen {
             // known stack layout. All other cross-block values live in spill slots.
             if !entered_by_preserved_fallthrough {
                 self.scheduler.clear_stack();
-                self.mark_live_in_spills(liveness, block_id);
+                self.mark_live_in_spills(func, liveness, block_id);
             }
 
             // Generate instructions
@@ -820,6 +820,13 @@ impl EvmCodegen {
                     self.scheduler.spills.allocate(val);
                 }
             }
+            for &inst_id in &func.blocks[block_id].instructions {
+                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+                    && let Some(val) = Self::inst_result_value(func, inst_id)
+                {
+                    self.scheduler.spills.allocate(val);
+                }
+            }
         }
     }
 
@@ -833,12 +840,27 @@ impl EvmCodegen {
         }
     }
 
-    fn mark_live_in_spills(&mut self, liveness: &Liveness, block_id: BlockId) {
+    fn mark_live_in_spills(&mut self, func: &Function, liveness: &Liveness, block_id: BlockId) {
         for val in liveness.live_in(block_id).iter() {
             if self.scheduler.spills.get(val).is_some() {
                 self.scheduler.spills.mark_reloadable(val);
             }
         }
+        for &inst_id in &func.blocks[block_id].instructions {
+            if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+                && let Some(val) = Self::inst_result_value(func, inst_id)
+                && self.scheduler.spills.get(val).is_some()
+            {
+                self.scheduler.spills.mark_reloadable(val);
+            }
+        }
+    }
+
+    fn inst_result_value(func: &Function, inst_id: InstId) -> Option<ValueId> {
+        func.values
+            .iter_enumerated()
+            .find(|(_, v)| matches!(v, crate::mir::Value::Inst(id) if *id == inst_id))
+            .map(|(vid, _)| vid)
     }
 
     fn spill_values_before_stack_clear(&mut self, func: &Function, values: &[ValueId]) {

@@ -176,6 +176,7 @@ impl TransformPass for DcePass {
 
     fn run(&mut self, func: &mut Function) {
         crate::transform::DeadCodeEliminator::new().run_to_fixpoint(func);
+        crate::transform::repair_reachability_phis(func);
     }
 }
 
@@ -225,6 +226,7 @@ impl TransformPass for SccpTransformPass {
 
     fn run(&mut self, func: &mut Function) {
         crate::transform::SccpPass::new().run(func);
+        crate::transform::repair_reachability_phis(func);
     }
 }
 
