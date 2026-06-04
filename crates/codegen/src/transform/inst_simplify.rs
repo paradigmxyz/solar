@@ -66,6 +66,7 @@ impl InstSimplifier {
                 block.instructions.retain(|id| !dead.contains(id));
             }
         }
+        self.simplified_count += self.rewrite_terminators(func, &replacements);
 
         self.simplified_count
     }
@@ -277,6 +278,46 @@ impl InstSimplifier {
         match &func.values[value] {
             Value::Inst(inst_id) => matches!(func.instructions[*inst_id].kind, InstKind::Address),
             _ => false,
+        }
+    }
+
+    fn rewrite_terminators(
+        &mut self,
+        func: &mut Function,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> usize {
+        let mut rewrites = Vec::new();
+        for block_id in func.blocks.indices() {
+            let Some(Terminator::Branch { condition, .. }) = func.blocks[block_id].terminator
+            else {
+                continue;
+            };
+            let condition = Self::resolve_replacement(replacements, condition);
+            if let Some(inner) = Self::iszero_operand(func, condition) {
+                rewrites.push((block_id, Self::resolve_replacement(replacements, inner)));
+            }
+        }
+
+        for (block_id, inner) in rewrites.iter().copied() {
+            let Some(Terminator::Branch { condition, then_block, else_block }) =
+                &mut func.blocks[block_id].terminator
+            else {
+                continue;
+            };
+            *condition = inner;
+            std::mem::swap(then_block, else_block);
+        }
+
+        rewrites.len()
+    }
+
+    fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
+        match &func.values[value] {
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+                InstKind::IsZero(inner) => Some(inner),
+                _ => None,
+            },
+            _ => None,
         }
     }
 
@@ -579,6 +620,32 @@ mod tests {
         assert_eq!(block.instructions.len(), 2);
         let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
         assert!(matches!(balance_inst, InstKind::SelfBalance));
+    }
+
+    #[test]
+    fn inverts_iszero_branch_condition() {
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let arg = builder.add_param(MirType::uint256());
+        let zero = builder.imm_u64(0);
+        let cmp = builder.lt(arg, zero);
+        let inverted = builder.iszero(cmp);
+        let then_block = builder.create_block();
+        let else_block = builder.create_block();
+        builder.branch(inverted, then_block, else_block);
+
+        let mut pass = InstSimplifier::new();
+        assert_eq!(pass.run(&mut func), 1);
+
+        let block = &func.blocks[func.entry_block];
+        let Some(Terminator::Branch { condition, then_block: new_then, else_block: new_else }) =
+            block.terminator
+        else {
+            panic!("expected branch terminator");
+        };
+        assert_eq!(condition, cmp);
+        assert_eq!(new_then, else_block);
+        assert_eq!(new_else, then_block);
     }
 
     #[test]
