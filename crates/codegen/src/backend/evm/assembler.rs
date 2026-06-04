@@ -231,17 +231,23 @@ impl Assembler {
         if remaining.len() >= 2
             && let (AsmInst::Push(value), AsmInst::Op(op)) = (&remaining[0], &remaining[1])
         {
+            // The pushed value is on top of the stack, so it is the first EVM operand.
             if value.is_zero() {
                 return match *op {
-                    opcodes::ADD | opcodes::SUB | opcodes::OR | opcodes::XOR => {
-                        Some((2, Vec::new()))
-                    }
+                    opcodes::ADD
+                    | opcodes::OR
+                    | opcodes::XOR
+                    | opcodes::SHL
+                    | opcodes::SHR
+                    | opcodes::SAR => Some((2, Vec::new())),
+                    opcodes::EQ => Some((2, vec![AsmInst::Op(opcodes::ISZERO)])),
                     opcodes::MUL
                     | opcodes::DIV
                     | opcodes::SDIV
                     | opcodes::MOD
                     | opcodes::SMOD
-                    | opcodes::AND => {
+                    | opcodes::AND
+                    | opcodes::GT => {
                         Some((2, vec![AsmInst::Op(opcodes::POP), AsmInst::Push(U256::ZERO)]))
                     }
                     _ => None,
@@ -250,9 +256,9 @@ impl Assembler {
 
             if *value == U256::from(1) {
                 return match *op {
-                    opcodes::MUL | opcodes::DIV | opcodes::EXP => Some((2, Vec::new())),
-                    opcodes::MOD | opcodes::SMOD => {
-                        Some((2, vec![AsmInst::Op(opcodes::POP), AsmInst::Push(U256::ZERO)]))
+                    opcodes::MUL => Some((2, Vec::new())),
+                    opcodes::EXP => {
+                        Some((2, vec![AsmInst::Op(opcodes::POP), AsmInst::Push(U256::from(1))]))
                     }
                     _ => None,
                 };
@@ -552,5 +558,47 @@ mod tests {
         let result = asm.assemble();
 
         assert_eq!(result.bytecode, vec![opcodes::PUSH0, opcodes::STOP]);
+    }
+
+    #[test]
+    fn peephole_preserves_push_zero_sub() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::SUB);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::PUSH0, opcodes::SUB, opcodes::STOP]);
+    }
+
+    #[test]
+    fn peephole_rewrites_push_zero_eq() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::EQ);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::ISZERO, opcodes::STOP]);
+    }
+
+    #[test]
+    fn peephole_preserves_push_one_div() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::from(1));
+        asm.emit_op(opcodes::DIV);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 1, opcodes::DIV, opcodes::STOP]);
     }
 }
