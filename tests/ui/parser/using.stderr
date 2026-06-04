@@ -22,35 +22,11 @@ error: the `using for` directive is not allowed inside interfaces
 LL │     using L for int;
    ╰╴    ━━━━━━━━━━━━━━━━
 
-error: expected function name
-   ╭▸ ROOT/tests/ui/parser/using.sol:LL:CC
-   │
-LL │ using {f} for * global;
-   ╰╴       ━
-
-error: expected function name
-   ╭▸ ROOT/tests/ui/parser/using.sol:LL:CC
-   │
-LL │     using {f} for uint global;
-   ╰╴           ━
-
 error: unresolved symbol `L`
    ╭▸ ROOT/tests/ui/parser/using.sol:LL:CC
    │
 LL │     using L for int;
    ╰╴          ━
-
-error: function with same name and parameter types declared twice
-   ╭▸ ROOT/tests/ui/parser/using.sol:LL:CC
-   │
-LL │ function f(uint) pure {}
-   │          ━
-   ╰╴
-note: other declaration
-   ╭▸ ROOT/tests/ui/parser/using.sol:LL:CC
-   │
-LL │ function f(uint) pure {}
-   ╰╴         ━
 
 error: can only use `global` with user-defined types
    ╭▸ ROOT/tests/ui/parser/using.sol:LL:CC
@@ -58,5 +34,5 @@ error: can only use `global` with user-defined types
 LL │     using {f} for uint global;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 9 previous errors
+error: aborting due to 6 previous errors
 

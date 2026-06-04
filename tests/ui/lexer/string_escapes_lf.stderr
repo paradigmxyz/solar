@@ -1,14 +1,14 @@
 error: invalid hex digit
    ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    │
-LL │ bytes constant s = hex"\
-   ╰╴                       ━
+LL │ bytes constant b1 = hex"\
+   ╰╴                        ━
 
 error: invalid hex digit
    ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    │
-LL │   bytes constant s = hex"\
-   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │   bytes constant b1 = hex"\
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 LL │ ┃ ";
    ╰╴┗━┛
 
@@ -29,14 +29,14 @@ LL │ ┃ ";
 error: invalid hex digit
    ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    │
-LL │ bytes constant s = hex"\
-   ╰╴                       ━
+LL │ bytes constant b2 = hex"\
+   ╰╴                        ━
 
 error: invalid hex digit
    ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    │
-LL │   bytes constant s = hex"\
-   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │   bytes constant b2 = hex"\
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 LL │ ┃
    ╰╴┗━┛
 
@@ -50,122 +50,26 @@ LL │ ┃ ";
 error: unescaped newline
    ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    │
-LL │   string constant s = "
-   │ ┏━━━━━━━━━━━━━━━━━━━━━━┛
+LL │   string constant s5 = "
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━┛
 LL │ ┃ ";
    ╰╴┗━┛
 
 error: unescaped newline
    ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    │
-LL │   string constant s = unicode"
-   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │   string constant s6 = unicode"
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 LL │ ┃ ";
    ╰╴┗━┛
 
 error: invalid hex digit
    ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
    │
-LL │   bytes constant s = hex"
-   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━┛
+LL │   bytes constant b3 = hex"
+   │ ┏━━━━━━━━━━━━━━━━━━━━━━━━━┛
 LL │ ┃ ";
    ╰╴┗━┛
 
-error: identifier `s` already declared
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = unicode"\
-   │                 ━
-   ╰╴
-note: previous declaration declared here
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   ╰╴                ━
-
-error: identifier `s` already declared
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ bytes constant s = hex"\
-   │                ━
-   ╰╴
-note: previous declaration declared here
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   ╰╴                ━
-
-error: identifier `s` already declared
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   │                 ━
-   ╰╴
-note: previous declaration declared here
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   ╰╴                ━
-
-error: identifier `s` already declared
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = unicode"\
-   │                 ━
-   ╰╴
-note: previous declaration declared here
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   ╰╴                ━
-
-error: identifier `s` already declared
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ bytes constant s = hex"\
-   │                ━
-   ╰╴
-note: previous declaration declared here
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   ╰╴                ━
-
-error: identifier `s` already declared
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "
-   │                 ━
-   ╰╴
-note: previous declaration declared here
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   ╰╴                ━
-
-error: identifier `s` already declared
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = unicode"
-   │                 ━
-   ╰╴
-note: previous declaration declared here
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   ╰╴                ━
-
-error: identifier `s` already declared
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ bytes constant s = hex"
-   │                ━
-   ╰╴
-note: previous declaration declared here
-   ╭▸ ROOT/tests/ui/lexer/string_escapes_lf.sol:LL:CC
-   │
-LL │ string constant s = "\
-   ╰╴                ━
-
-error: aborting due to 18 previous errors
+error: aborting due to 10 previous errors
 
