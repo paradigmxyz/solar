@@ -148,7 +148,7 @@ pub struct Opts {
     /// Whether to disable warnings.
     #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
     pub no_warnings: bool,
-    /// Comma separated list of warning error codes to allow.
+    /// Comma separated list of diagnostic codes to allow.
     #[cfg_attr(
         feature = "clap",
         arg(help_heading = "Display options", long, value_name = "CODE", value_delimiter = ',')

@@ -99,4 +99,4 @@ Display options:
           Whether to disable warnings
 
       --allow <CODE>
-          Comma separated list of warning error codes to allow
+          Comma separated list of diagnostic codes to allow
