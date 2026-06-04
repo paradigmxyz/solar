@@ -273,3 +273,27 @@ impl TransformPass for MemoryDsePass {
         crate::transform::MemoryStoreEliminator::new().run_to_fixpoint(func);
     }
 }
+
+/// Loop-invariant code motion transform.
+///
+/// Runs only LICM from `LoopOptimizer`; loop unrolling and strength reduction
+/// are not wired here because their MIR rewrites are not implemented yet.
+pub struct LicmPass;
+
+impl TransformPass for LicmPass {
+    fn name(&self) -> &str {
+        "licm"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        let config = crate::transform::LoopOptConfig {
+            enable_licm: true,
+            min_licm_profit: 5,
+            max_licm_hoisted_insts: 4,
+            enable_unrolling: false,
+            enable_strength_reduction: false,
+            ..Default::default()
+        };
+        crate::transform::LoopOptimizer::new(config).optimize(func);
+    }
+}

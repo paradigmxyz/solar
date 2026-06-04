@@ -17,6 +17,7 @@ pub mod scheduling;
 pub mod shuffler;
 mod spill;
 
+pub(crate) use model::MAX_STACK_ACCESS;
 pub use model::{StackModel, StackOp};
 pub use scheduler::{ScheduledOp, StackScheduler};
 pub use shuffler::{

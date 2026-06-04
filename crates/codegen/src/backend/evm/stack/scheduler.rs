@@ -89,45 +89,47 @@ impl StackScheduler {
                 let dup_n = (depth + 1) as u8;
                 self.ops.push(ScheduledOp::Stack(StackOp::Dup(dup_n)));
                 self.stack.dup(dup_n);
-            } else {
-                // Value is too deep - need to spill something or load from spill
-                // For now, we should have spilled it earlier
-                if let Some(slot) = self.spills.get(value) {
-                    self.ops.push(ScheduledOp::LoadSpill(slot));
-                    self.stack.push(value);
-                }
+                return &self.ops;
+            }
+            // Value is too deep for DUP. It must either be reloadable from a spill slot or
+            // re-emittable below.
+            if let Some(slot) = self.spills.get(value) {
+                self.ops.push(ScheduledOp::LoadSpill(slot));
+                self.stack.push(value);
+                return &self.ops;
             }
         } else if let Some(slot) = self.spills.get(value) {
             // Value is spilled, load it
             self.ops.push(ScheduledOp::LoadSpill(slot));
             self.stack.push(value);
-        } else {
-            match func.value(value) {
-                crate::mir::Value::Immediate(imm) => {
-                    // It's an immediate, push it directly
-                    if let Some(u256) = imm.as_u256() {
-                        self.ops.push(ScheduledOp::PushImmediate(u256));
-                        self.stack.push(value);
-                    }
-                }
-                crate::mir::Value::Arg { index, .. } => {
-                    // It's a function argument, load from calldata
-                    self.ops.push(ScheduledOp::LoadArg(*index));
+            return &self.ops;
+        }
+
+        match func.value(value) {
+            crate::mir::Value::Immediate(imm) => {
+                // It's an immediate, push it directly
+                if let Some(u256) = imm.as_u256() {
+                    self.ops.push(ScheduledOp::PushImmediate(u256));
                     self.stack.push(value);
                 }
-                other => {
-                    eprintln!(
-                        "ERROR: Value {value:?} is not on stack, not spilled, and not an immediate/arg. \
+            }
+            crate::mir::Value::Arg { index, .. } => {
+                // It's a function argument, load from calldata
+                self.ops.push(ScheduledOp::LoadArg(*index));
+                self.stack.push(value);
+            }
+            other => {
+                eprintln!(
+                    "ERROR: Value {value:?} is not on stack, not spilled, and not an immediate/arg. \
                          Stack: {:?}, Spills: {:?}, Value kind: {other:?}",
-                        self.stack, self.spills
-                    );
-                    debug_assert!(
-                        false,
-                        "Value {value:?} is not on stack, not spilled, and not an immediate/arg. \
+                    self.stack, self.spills
+                );
+                debug_assert!(
+                    false,
+                    "Value {value:?} is not on stack, not spilled, and not an immediate/arg. \
                          This usually means a cross-block value wasn't spilled before the block exit. \
                          Value kind: {other:?}"
-                    );
-                }
+                );
             }
         }
 
@@ -137,9 +139,9 @@ impl StackScheduler {
     /// Checks if we can emit a value (it's an immediate, arg, on stack, or spilled).
     /// Returns false for instruction results that aren't tracked.
     pub fn can_emit_value(&self, value: ValueId, func: &Function) -> bool {
-        // Check if on stack
-        if self.stack.find(value).is_some() {
-            return true;
+        // Check if on stack and reachable by DUP.
+        if let Some(depth) = self.stack.find(value) {
+            return depth < MAX_STACK_ACCESS || self.spills.get(value).is_some();
         }
         // Check if spilled
         if self.spills.get(value).is_some() {
@@ -523,7 +525,7 @@ impl Default for StackScheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, Immediate, Value};
+    use crate::mir::{Function, Immediate, InstKind, Instruction, MirType, Value};
     use solar_interface::Ident;
 
     fn make_test_func() -> Function {
@@ -570,6 +572,28 @@ mod tests {
         } else {
             panic!("Expected DUP operation");
         }
+    }
+
+    #[test]
+    fn test_deep_unspilled_inst_result_is_not_emittable() {
+        let mut func = make_test_func();
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let inst =
+            func.alloc_inst(Instruction::new(InstKind::Add(v0, v1), Some(MirType::uint256())));
+        let deep = func.alloc_value(Value::Inst(inst));
+        let mut scheduler = StackScheduler::new();
+
+        scheduler.stack.push(deep);
+        for i in 0..MAX_STACK_ACCESS {
+            scheduler.stack.push(ValueId::from_usize(100 + i));
+        }
+
+        assert_eq!(scheduler.stack.find(deep), Some(MAX_STACK_ACCESS));
+        assert!(!scheduler.can_emit_value(deep, &func));
+
+        scheduler.spills.allocate(deep);
+        assert!(scheduler.can_emit_value(deep, &func));
     }
 
     #[test]

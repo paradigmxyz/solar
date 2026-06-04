@@ -8,7 +8,7 @@
 
 use super::{
     assembler::{Assembler, Label, opcodes},
-    stack::{ScheduledOp, SpillSlot, StackOp, StackScheduler},
+    stack::{MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackOp, StackScheduler},
 };
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
@@ -16,7 +16,7 @@ use crate::{
     mir::{BlockId, Function, FunctionId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
         AnalysisManager, CfgSimplifyPass, CsePass, DcePass, InstSimplifyPass, JumpThreadingPass,
-        LivenessAnalysis, MemoryDsePass, PassManager, SccpTransformPass,
+        LicmPass, LivenessAnalysis, MemoryDsePass, PassManager, SccpTransformPass,
     },
 };
 use alloy_primitives::U256;
@@ -374,10 +374,11 @@ impl EvmCodegen {
     /// 1. SCCP          — folds constants and prunes constant branches
     /// 2. Inst simplify — removes algebraic no-ops and equivalent opcode patterns
     /// 3. CSE           — removes duplicate local computations
-    /// 4. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
-    /// 5. CFG simplify  — physically merges sequential blocks and removes empty forwarders
-    /// 6. Memory DSE    — removes overwritten same-block memory stores
-    /// 7. DCE           — removes dead instructions and any remaining unreachable blocks
+    /// 4. LICM           — hoists loop-invariant instructions into loop preheaders
+    /// 5. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
+    /// 6. CFG simplify  — physically merges sequential blocks and removes empty forwarders
+    /// 7. Memory DSE    — removes overwritten same-block memory stores
+    /// 8. DCE           — removes dead instructions and any remaining unreachable blocks
     ///
     /// Each pass internally iterates to a fixed point. Threading creates orphaned
     /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
@@ -387,6 +388,7 @@ impl EvmCodegen {
         pm.add_transform(Box::new(SccpTransformPass));
         pm.add_transform(Box::new(InstSimplifyPass));
         pm.add_transform(Box::new(CsePass));
+        pm.add_transform(Box::new(LicmPass));
         pm.add_transform(Box::new(JumpThreadingPass));
         pm.add_transform(Box::new(CfgSimplifyPass));
         pm.add_transform(Box::new(MemoryDsePass));
@@ -828,25 +830,70 @@ impl EvmCodegen {
 
         if let Some(depth) = self.scheduler.stack.find(val) {
             let slot = self.scheduler.spills.allocate(val);
+            if depth >= MAX_STACK_ACCESS {
+                self.spill_deep_stack_value(func, val, slot, depth);
+                return;
+            }
 
-            // DUP the value to top of stack for storing.
-            // We need to DUP (not just use ensure_on_top) because:
-            // 1. If value is on top, ensure_on_top does nothing but we need a copy
-            // 2. MSTORE will consume the value, and we want to preserve the original
-            let dup_n = (depth + 1) as u8;
-            self.asm.emit_op(opcodes::dup(dup_n));
-            self.scheduler.stack.dup(dup_n);
-
-            // Store to spill slot: PUSH offset, MSTORE
-            // The PUSH creates an untracked stack entry, so we track it as unknown
-            self.emit_spill_slot_addr(func, slot);
-            self.scheduler.stack.push_unknown();
-
-            self.asm.emit_op(opcodes::MSTORE);
-            // MSTORE consumes 2 values: the untracked offset and the DUP'd value
-            self.scheduler.stack.pop(); // pop the untracked offset
-            self.scheduler.stack.pop(); // pop the DUP'd value (original remains)
+            self.spill_accessible_stack_value(func, slot, depth);
         }
+    }
+
+    fn spill_accessible_stack_value(&mut self, func: &Function, slot: SpillSlot, depth: usize) {
+        debug_assert!(depth < MAX_STACK_ACCESS);
+
+        // DUP the value to top of stack for storing.
+        // We need to DUP (not just use ensure_on_top) because:
+        // 1. If value is on top, ensure_on_top does nothing but we need a copy
+        // 2. MSTORE will consume the value, and we want to preserve the original
+        let dup_n = (depth + 1) as u8;
+        self.asm.emit_op(opcodes::dup(dup_n));
+        self.scheduler.stack.dup(dup_n);
+
+        self.store_stack_top_to_spill(func, slot);
+    }
+
+    fn spill_deep_stack_value(
+        &mut self,
+        func: &Function,
+        val: ValueId,
+        slot: SpillSlot,
+        depth: usize,
+    ) {
+        debug_assert!(depth >= MAX_STACK_ACCESS);
+
+        let mut saved_above = Vec::with_capacity(depth + 1 - MAX_STACK_ACCESS);
+        for _ in 0..(depth + 1 - MAX_STACK_ACCESS) {
+            let Some(top) = self.scheduler.stack.top() else {
+                panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
+            };
+            let top_slot = self.scheduler.spills.allocate(top);
+            self.store_stack_top_to_spill(func, top_slot);
+            saved_above.push((top, top_slot));
+        }
+
+        let Some(accessible_depth) = self.scheduler.stack.find(val) else {
+            panic!("cannot spill deep stack value {val:?}: value disappeared while exposing it");
+        };
+        self.spill_accessible_stack_value(func, slot, accessible_depth);
+
+        for (saved, saved_slot) in saved_above.into_iter().rev() {
+            self.emit_spill_slot_addr(func, saved_slot);
+            self.asm.emit_op(opcodes::MLOAD);
+            self.scheduler.stack.push(saved);
+        }
+    }
+
+    fn store_stack_top_to_spill(&mut self, func: &Function, slot: SpillSlot) {
+        // Store to spill slot: PUSH offset, MSTORE.
+        // The PUSH creates an untracked stack entry, so we track it as unknown.
+        self.emit_spill_slot_addr(func, slot);
+        self.scheduler.stack.push_unknown();
+
+        self.asm.emit_op(opcodes::MSTORE);
+        // MSTORE consumes 2 values: the untracked offset and the value being spilled.
+        self.scheduler.stack.pop();
+        self.scheduler.stack.pop();
     }
 
     /// Spills operands that are live-out before an instruction consumes them.
@@ -1578,7 +1625,6 @@ impl EvmCodegen {
         for op in dead_ops {
             self.asm.emit_op(op.opcode());
         }
-
         #[cfg(debug_assertions)]
         {
             debug_assert!(self.scheduler.depth() <= 1024);
@@ -1751,6 +1797,18 @@ impl EvmCodegen {
 
     /// Emits a value to the stack.
     fn emit_value(&mut self, func: &Function, val: ValueId) {
+        if let Some(depth) = self.scheduler.stack.find(val)
+            && depth >= MAX_STACK_ACCESS
+            && self.scheduler.spills.get(val).is_none()
+            && !matches!(
+                func.value(val),
+                crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
+            )
+        {
+            let slot = self.scheduler.spills.allocate(val);
+            self.spill_deep_stack_value(func, val, slot, depth);
+        }
+
         let ops = self.scheduler.ensure_on_top(val, func).to_vec();
         for op in ops {
             match op {
