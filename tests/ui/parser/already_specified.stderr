@@ -70,5 +70,33 @@ error: override already specified
 LL │     override
    ╰╴    ━━━━━━━━
 
-error: aborting due to 10 previous errors
+error: unresolved symbol `A`
+   ╭▸ ROOT/tests/ui/parser/already_specified.sol:LL:CC
+   │
+LL │     is A
+   ╰╴       ━
+
+error[7792]: Function has override specified but does not override anything
+   ╭▸ ROOT/tests/ui/parser/already_specified.sol:LL:CC
+   │
+LL │ ┏     function f()
+LL │ ┃     public
+LL │ ┃     private
+   ‡ ┃
+LL │ ┃     override
+LL │ ┃     {}
+   ╰╴┗━━━━━━┛
+
+error[7792]: public state variable has override specified but does not override anything
+   ╭▸ ROOT/tests/ui/parser/already_specified.sol:LL:CC
+   │
+LL │ ┏     uint
+LL │ ┃     public
+LL │ ┃     private
+   ‡ ┃
+LL │ ┃     override
+LL │ ┃     x = 0;
+   ╰╴┗━━━━━━━━━━┛
+
+error: aborting due to 13 previous errors
 

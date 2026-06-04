@@ -89,8 +89,6 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
         });
     });
 
-    gcx.sess.dcx.has_errors()?;
-
     ast_lowering::lower(compiler.gcx_mut());
 
     Ok(ControlFlow::Continue(()))
@@ -121,14 +119,10 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
         }
         natspec::validate_item_docs(gcx, id);
     });
-    gcx.sess.dcx.has_errors()?;
-
     typeck::check(gcx);
-    gcx.sess.dcx.has_errors()?;
 
     if !gcx.sess.opts.emit.is_empty() {
         emit::emit(gcx);
-        gcx.sess.dcx.has_errors()?;
     }
 
     Ok(ControlFlow::Continue(()))

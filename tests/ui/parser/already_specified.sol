@@ -1,10 +1,10 @@
 contract C
-    is A
+    is A //~ ERROR: unresolved symbol `A`
     is B //~ ERROR: base contracts already specified
     layout at 0
     layout at 1 //~ ERROR: storage layout already specified
 {
-    function f()
+    function f() //~ ERROR: Function has override specified but does not override anything
     public
     private //~ ERROR: visibility already specified
 
@@ -18,7 +18,7 @@ contract C
     override //~ ERROR: override already specified
     {}
 
-    uint
+    uint //~ ERROR: public state variable has override specified but does not override anything
     public
     private //~ ERROR: visibility already specified
 
