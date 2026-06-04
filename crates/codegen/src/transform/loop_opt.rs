@@ -212,7 +212,15 @@ impl LoopOptimizer {
         }
         match inst.kind {
             InstKind::MLoad(addr) => {
-                return !self.loop_may_mutate_memory_addr(func, loop_data, addr);
+                return !self.loop_may_mutate_memory_range(func, loop_data, addr, Some(32));
+            }
+            InstKind::Keccak256(offset, size) => {
+                return !self.loop_may_mutate_memory_range(
+                    func,
+                    loop_data,
+                    offset,
+                    self.const_addr(func, size),
+                );
             }
             InstKind::SLoad(slot) => {
                 return !self.loop_may_mutate_storage_slot(
@@ -268,22 +276,23 @@ impl LoopOptimizer {
         false
     }
 
-    fn loop_may_mutate_memory_addr(
+    fn loop_may_mutate_memory_range(
         &self,
         func: &Function,
         loop_data: &Loop,
         load_addr: ValueId,
+        load_width: Option<u64>,
     ) -> bool {
         for &block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.instructions[inst_id].kind {
                     InstKind::MStore(addr, _)
-                        if self.memory_ranges_may_alias(func, load_addr, 32, addr, 32) =>
+                        if self.memory_ranges_may_alias(func, load_addr, load_width, addr, 32) =>
                     {
                         return true;
                     }
                     InstKind::MStore8(addr, _)
-                        if self.memory_ranges_may_alias(func, load_addr, 32, addr, 1) =>
+                        if self.memory_ranges_may_alias(func, load_addr, load_width, addr, 1) =>
                     {
                         return true;
                     }
@@ -340,12 +349,14 @@ impl LoopOptimizer {
         &self,
         func: &Function,
         load_addr: ValueId,
-        load_width: u64,
+        load_width: Option<u64>,
         write_addr: ValueId,
         write_width: u64,
     ) -> bool {
-        match (self.const_addr(func, load_addr), self.const_addr(func, write_addr)) {
-            (Some(load), Some(write)) => ranges_overlap(load, load_width, write, write_width),
+        match (self.const_addr(func, load_addr), load_width, self.const_addr(func, write_addr)) {
+            (Some(load), Some(load_width), Some(write)) => {
+                ranges_overlap(load, load_width, write, write_width)
+            }
             _ => true,
         }
     }
@@ -544,6 +555,99 @@ mod tests {
         optimizer.optimize(&mut func);
 
         assert!(func.blocks[body].instructions.contains(&load_inst));
+    }
+
+    #[test]
+    fn licm_hoists_keccak_past_non_overlapping_const_store() {
+        let mut func = Function::new(Ident::DUMMY);
+        let hash_value;
+        let entry;
+        let body;
+
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let zero = builder.imm_u64(0);
+            let thirty_two = builder.imm_u64(32);
+            let sixty_four = builder.imm_u64(64);
+            let value = builder.imm_u64(1);
+            let cond = builder.imm_bool(true);
+
+            entry = builder.current_block();
+            let header = builder.create_block();
+            body = builder.create_block();
+            let exit = builder.create_block();
+
+            builder.jump(header);
+
+            builder.switch_to_block(header);
+            builder.branch(cond, body, exit);
+
+            builder.switch_to_block(body);
+            hash_value = builder.keccak256(zero, thirty_two);
+            builder.mstore(sixty_four, value);
+            builder.jump(header);
+
+            builder.switch_to_block(exit);
+            builder.ret(vec![hash_value]);
+        }
+
+        let Value::Inst(hash_inst) = func.value(hash_value) else {
+            panic!("keccak256 should be an instruction");
+        };
+        let hash_inst = *hash_inst;
+
+        let config =
+            LoopOptConfig { enable_licm: true, min_licm_profit: 5, max_licm_hoisted_insts: 4 };
+        let mut optimizer = LoopOptimizer::new(config);
+        optimizer.optimize(&mut func);
+
+        assert!(func.blocks[entry].instructions.contains(&hash_inst));
+        assert!(!func.blocks[body].instructions.contains(&hash_inst));
+    }
+
+    #[test]
+    fn licm_keeps_keccak_inside_loop_when_store_overlaps() {
+        let mut func = Function::new(Ident::DUMMY);
+        let hash_value;
+        let body;
+
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let zero = builder.imm_u64(0);
+            let thirty_two = builder.imm_u64(32);
+            let overlapping = builder.imm_u64(16);
+            let value = builder.imm_u64(1);
+            let cond = builder.imm_bool(true);
+
+            let header = builder.create_block();
+            body = builder.create_block();
+            let exit = builder.create_block();
+
+            builder.jump(header);
+
+            builder.switch_to_block(header);
+            builder.branch(cond, body, exit);
+
+            builder.switch_to_block(body);
+            hash_value = builder.keccak256(zero, thirty_two);
+            builder.mstore(overlapping, value);
+            builder.jump(header);
+
+            builder.switch_to_block(exit);
+            builder.ret(vec![hash_value]);
+        }
+
+        let Value::Inst(hash_inst) = func.value(hash_value) else {
+            panic!("keccak256 should be an instruction");
+        };
+        let hash_inst = *hash_inst;
+
+        let config =
+            LoopOptConfig { enable_licm: true, min_licm_profit: 5, max_licm_hoisted_insts: 4 };
+        let mut optimizer = LoopOptimizer::new(config);
+        optimizer.optimize(&mut func);
+
+        assert!(func.blocks[body].instructions.contains(&hash_inst));
     }
 
     #[test]
