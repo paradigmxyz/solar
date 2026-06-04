@@ -93,12 +93,16 @@ impl StackScheduler {
             }
             // Value is too deep for DUP. It must either be reloadable from a spill slot or
             // re-emittable below.
-            if let Some(slot) = self.spills.get(value) {
+            if self.spills.is_reloadable(value)
+                && let Some(slot) = self.spills.get(value)
+            {
                 self.ops.push(ScheduledOp::LoadSpill(slot));
                 self.stack.push(value);
                 return &self.ops;
             }
-        } else if let Some(slot) = self.spills.get(value) {
+        } else if self.spills.is_reloadable(value)
+            && let Some(slot) = self.spills.get(value)
+        {
             // Value is spilled, load it
             self.ops.push(ScheduledOp::LoadSpill(slot));
             self.stack.push(value);
@@ -137,10 +141,10 @@ impl StackScheduler {
     pub fn can_emit_value(&self, value: ValueId, func: &Function) -> bool {
         // Check if on stack and reachable by DUP.
         if let Some(depth) = self.stack.find(value) {
-            return depth < MAX_STACK_ACCESS || self.spills.get(value).is_some();
+            return depth < MAX_STACK_ACCESS || self.spills.is_reloadable(value);
         }
         // Check if spilled
-        if self.spills.get(value).is_some() {
+        if self.spills.is_reloadable(value) {
             return true;
         }
         // Check value type
@@ -589,6 +593,9 @@ mod tests {
         assert!(!scheduler.can_emit_value(deep, &func));
 
         scheduler.spills.allocate(deep);
+        assert!(!scheduler.can_emit_value(deep, &func));
+
+        scheduler.spills.mark_reloadable(deep);
         assert!(scheduler.can_emit_value(deep, &func));
     }
 

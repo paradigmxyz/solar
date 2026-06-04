@@ -722,6 +722,7 @@ impl EvmCodegen {
             // known stack layout. All other cross-block values live in spill slots.
             if !entered_by_preserved_fallthrough {
                 self.scheduler.clear_stack();
+                self.mark_live_in_spills(liveness, block_id);
             }
 
             // Generate instructions
@@ -819,13 +820,31 @@ impl EvmCodegen {
         }
     }
 
-    /// Spills a single value to memory if it's on the stack and not already spilled.
+    fn mark_live_in_spills(&mut self, liveness: &Liveness, block_id: BlockId) {
+        for val in liveness.live_in(block_id).iter() {
+            if self.scheduler.spills.get(val).is_some() {
+                self.scheduler.spills.mark_reloadable(val);
+            }
+        }
+    }
+
+    fn spill_values_before_stack_clear(&mut self, func: &Function, values: &[ValueId]) {
+        for &value in values {
+            self.spill_value_if_needed(func, value);
+        }
+    }
+
+    /// Spills a single value to memory if it's on the stack and not already stored.
     /// Skips immediates and args since they can be re-emitted without spilling.
     fn spill_value_if_needed(&mut self, func: &Function, val: ValueId) {
         // Skip immediates and args - they can be re-emitted without spilling
         match func.value(val) {
             crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. } => return,
             _ => {}
+        }
+
+        if self.scheduler.spills.is_stored(val) {
+            return;
         }
 
         if let Some(depth) = self.scheduler.stack.find(val) {
@@ -835,11 +854,17 @@ impl EvmCodegen {
                 return;
             }
 
-            self.spill_accessible_stack_value(func, slot, depth);
+            self.spill_accessible_stack_value(func, val, slot, depth);
         }
     }
 
-    fn spill_accessible_stack_value(&mut self, func: &Function, slot: SpillSlot, depth: usize) {
+    fn spill_accessible_stack_value(
+        &mut self,
+        func: &Function,
+        val: ValueId,
+        slot: SpillSlot,
+        depth: usize,
+    ) {
         debug_assert!(depth < MAX_STACK_ACCESS);
 
         // DUP the value to top of stack for storing.
@@ -850,7 +875,7 @@ impl EvmCodegen {
         self.asm.emit_op(opcodes::dup(dup_n));
         self.scheduler.stack.dup(dup_n);
 
-        self.store_stack_top_to_spill(func, slot);
+        self.store_stack_top_to_spill(func, val, slot);
     }
 
     fn spill_deep_stack_value(
@@ -868,14 +893,18 @@ impl EvmCodegen {
                 panic!("cannot spill deep stack value {val:?}: untracked stack entry above it");
             };
             let top_slot = self.scheduler.spills.allocate(top);
-            self.store_stack_top_to_spill(func, top_slot);
+            if self.scheduler.spills.is_reloadable(top) {
+                self.emit_stack_op(StackOp::Pop);
+            } else {
+                self.store_stack_top_to_spill(func, top, top_slot);
+            }
             saved_above.push((top, top_slot));
         }
 
         let Some(accessible_depth) = self.scheduler.stack.find(val) else {
             panic!("cannot spill deep stack value {val:?}: value disappeared while exposing it");
         };
-        self.spill_accessible_stack_value(func, slot, accessible_depth);
+        self.spill_accessible_stack_value(func, val, slot, accessible_depth);
 
         for (saved, saved_slot) in saved_above.into_iter().rev() {
             self.emit_spill_slot_addr(func, saved_slot);
@@ -884,7 +913,7 @@ impl EvmCodegen {
         }
     }
 
-    fn store_stack_top_to_spill(&mut self, func: &Function, slot: SpillSlot) {
+    fn store_stack_top_to_spill(&mut self, func: &Function, value: ValueId, slot: SpillSlot) {
         // Store to spill slot: PUSH offset, MSTORE.
         // The PUSH creates an untracked stack entry, so we track it as unknown.
         self.emit_spill_slot_addr(func, slot);
@@ -894,6 +923,7 @@ impl EvmCodegen {
         // MSTORE consumes 2 values: the untracked offset and the value being spilled.
         self.scheduler.stack.pop();
         self.scheduler.stack.pop();
+        self.scheduler.spills.mark_stored(value);
     }
 
     /// Spills operands that are live-out before an instruction consumes them.
@@ -912,6 +942,28 @@ impl EvmCodegen {
                 self.spill_value_if_needed(func, op);
             }
         }
+    }
+
+    fn is_rematerializable_value(func: &Function, value: ValueId) -> bool {
+        matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
+    }
+
+    fn spill_top_value_if_live(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+        value: ValueId,
+    ) {
+        if Self::is_rematerializable_value(func, value)
+            || liveness.is_dead_after(value, block, inst_idx)
+        {
+            return;
+        }
+
+        debug_assert_eq!(self.scheduler.stack.top(), Some(value));
+        self.spill_value_if_needed(func, value);
     }
 
     /// Generates bytecode for an instruction.
@@ -1799,7 +1851,7 @@ impl EvmCodegen {
     fn emit_value(&mut self, func: &Function, val: ValueId) {
         if let Some(depth) = self.scheduler.stack.find(val)
             && depth >= MAX_STACK_ACCESS
-            && self.scheduler.spills.get(val).is_none()
+            && !self.scheduler.spills.is_reloadable(val)
             && !matches!(
                 func.value(val),
                 crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
@@ -2056,20 +2108,11 @@ impl EvmCodegen {
     ) {
         // Check if operands are still live after this instruction
         let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
-        let b_is_live = !liveness.is_dead_after(b, block, inst_idx);
-
-        // Helper to check if a value can be re-emitted (immediates and args don't need spilling)
-        let can_reemit = |v: ValueId| {
-            matches!(func.value(v), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
-        };
 
         // Special case: same operand used twice (e.g., a + a, a - a)
         if a == b {
             self.emit_value(func, a);
-            // Spill if live-after (now that it's on stack)
-            if a_is_live && !can_reemit(a) {
-                self.spill_value_if_needed(func, a);
-            }
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
             // DUP for the second operand
             self.asm.emit_op(opcodes::DUP1);
             self.scheduler.stack.dup(1);
@@ -2087,17 +2130,14 @@ impl EvmCodegen {
         if !a_can_emit && b_can_emit && has_untracked {
             // a is an untracked value on top of stack, emit b, then SWAP
             self.emit_value(func, b);
-            // Spill b if live-after (it's now at depth 0)
-            if b_is_live && !can_reemit(b) {
-                self.spill_value_if_needed(func, b);
-            }
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             self.asm.emit_op(opcodes::SWAP1);
             self.scheduler.stack_swapped();
         } else if a_can_emit && !b_can_emit && has_untracked {
             // b is an untracked value on top of stack, emit a on top
             self.emit_value(func, a);
             // Spill a if live-after (it's now at depth 0)
-            if a_is_live && !can_reemit(a) {
+            if a_is_live && !Self::is_rematerializable_value(func, a) {
                 self.spill_value_if_needed(func, a);
             }
         } else if !a_can_emit && b_can_emit && has_untracked_at_1 {
@@ -2108,13 +2148,10 @@ impl EvmCodegen {
         } else {
             // Normal case: emit b first (bottom), then a (top)
             self.emit_value(func, b);
-            // Spill b if live-after (it's now at depth 0)
-            if b_is_live && !can_reemit(b) {
-                self.spill_value_if_needed(func, b);
-            }
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             self.emit_value(func, a);
             // Spill a if live-after (it's now at depth 0)
-            if a_is_live && !can_reemit(a) {
+            if a_is_live && !Self::is_rematerializable_value(func, a) {
                 self.spill_value_if_needed(func, a);
             }
         }
@@ -2136,21 +2173,8 @@ impl EvmCodegen {
         block: BlockId,
         inst_idx: usize,
     ) {
-        // Check if the operand is still live after this instruction
-        let a_is_live = !liveness.is_dead_after(a, block, inst_idx);
-
-        // Check if value can be re-emitted (immediates and args don't need spilling)
-        let can_reemit = matches!(
-            func.value(a),
-            crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. }
-        );
-
         self.emit_value(func, a);
-
-        // Spill the operand AFTER emitting if it's live-after (now it's on stack at depth 0)
-        if a_is_live && !can_reemit {
-            self.spill_value_if_needed(func, a);
-        }
+        self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
 
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(1, result);
@@ -2178,27 +2202,17 @@ impl EvmCodegen {
         block: BlockId,
         inst_idx: usize,
     ) {
-        // Check if val is still live after this instruction
-        let val_is_live = !liveness.is_dead_after(val, block, inst_idx);
         // Check if addr is still live after this instruction
         let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
 
-        // Helper to check if a value can be re-emitted (immediates and args don't need spilling)
-        let can_reemit = |v: ValueId| {
-            matches!(func.value(v), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
-        };
-
         // Emit val
         self.emit_value(func, val);
-        // Spill val if live-after (it's now at depth 0)
-        if val_is_live && !can_reemit(val) {
-            self.spill_value_if_needed(func, val);
-        }
+        self.spill_top_value_if_live(func, liveness, block, inst_idx, val);
 
         // Emit addr
         self.emit_value(func, addr);
         // Spill addr if live-after (it's now at depth 0)
-        if addr_is_live && !can_reemit(addr) {
+        if addr_is_live && !Self::is_rematerializable_value(func, addr) {
             self.spill_value_if_needed(func, addr);
         }
 
@@ -2255,6 +2269,7 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::MSTORE);
                 self.scheduler.stack.pop(); // pop the untracked offset
                 self.scheduler.stack.pop(); // pop the value
+                self.scheduler.spills.mark_stored(*dst_val);
             }
             CopyDest::Temp(temp_id) => {
                 // Mark this temporary as defined - it's now on the stack
@@ -2357,6 +2372,11 @@ impl EvmCodegen {
             }
 
             Terminator::Switch { value, default, cases } => {
+                let mut operands = Vec::with_capacity(cases.len() + 1);
+                operands.push(*value);
+                operands.extend(cases.iter().map(|(case_val, _)| *case_val));
+                self.spill_values_before_stack_clear(func, &operands);
+
                 // Pop all stack values first (live-out values are already spilled)
                 self.pop_all_stack_values();
 

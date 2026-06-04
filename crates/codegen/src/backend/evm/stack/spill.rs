@@ -4,7 +4,7 @@
 //! via DUP16/SWAP16), we spill values to memory.
 
 use crate::mir::ValueId;
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// A slot in memory where a spilled value is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -50,6 +50,10 @@ impl SpillSlot {
 pub struct SpillManager {
     /// Map from value to its spill slot.
     slots: FxHashMap<ValueId, SpillSlot>,
+    /// Values whose reserved spill slot can be loaded at the current program point.
+    reloadable: FxHashSet<ValueId>,
+    /// Values whose reserved spill slot was stored by already-emitted code.
+    stored: FxHashSet<ValueId>,
     /// Next available spill slot offset.
     next_offset: u32,
     /// Maximum offset used (for tracking spill area size).
@@ -60,7 +64,13 @@ impl SpillManager {
     /// Creates a new spill manager.
     #[must_use]
     pub fn new() -> Self {
-        Self { slots: FxHashMap::default(), next_offset: 0, max_offset: 0 }
+        Self {
+            slots: FxHashMap::default(),
+            reloadable: FxHashSet::default(),
+            stored: FxHashSet::default(),
+            next_offset: 0,
+            max_offset: 0,
+        }
     }
 
     /// Allocates a spill slot for a value.
@@ -89,10 +99,37 @@ impl SpillManager {
         self.slots.contains_key(&value)
     }
 
+    /// Marks a value's spill slot as reloadable at the current program point.
+    pub fn mark_reloadable(&mut self, value: ValueId) {
+        debug_assert!(self.slots.contains_key(&value));
+        self.reloadable.insert(value);
+    }
+
+    /// Marks a value's spill slot as written by emitted code.
+    pub fn mark_stored(&mut self, value: ValueId) {
+        debug_assert!(self.slots.contains_key(&value));
+        self.reloadable.insert(value);
+        self.stored.insert(value);
+    }
+
+    /// Returns true if the value has a spill slot that can be loaded.
+    #[must_use]
+    pub fn is_reloadable(&self, value: ValueId) -> bool {
+        self.reloadable.contains(&value)
+    }
+
+    /// Returns true if already-emitted code has stored this value.
+    #[must_use]
+    pub fn is_stored(&self, value: ValueId) -> bool {
+        self.stored.contains(&value)
+    }
+
     /// Frees a spill slot (when the value is reloaded and no longer needed in memory).
     /// Note: Simple implementation doesn't reuse slots.
     pub fn free(&mut self, value: ValueId) {
         self.slots.remove(&value);
+        self.reloadable.remove(&value);
+        self.stored.remove(&value);
     }
 
     /// Returns the total size of the spill area in bytes.
@@ -104,7 +141,10 @@ impl SpillManager {
     /// Clears all spill slots (used at function boundaries).
     pub fn clear(&mut self) {
         self.slots.clear();
+        self.reloadable.clear();
+        self.stored.clear();
         self.next_offset = 0;
+        self.max_offset = 0;
     }
 
     /// Returns the number of currently spilled values.
@@ -166,5 +206,25 @@ mod tests {
 
         manager.free(v0);
         assert!(!manager.is_spilled(v0));
+    }
+
+    #[test]
+    fn test_reloadable_and_stored_are_distinct() {
+        let mut manager = SpillManager::new();
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+
+        manager.allocate(v0);
+        assert!(!manager.is_reloadable(v0));
+        assert!(!manager.is_stored(v0));
+
+        manager.mark_reloadable(v0);
+        assert!(manager.is_reloadable(v0));
+        assert!(!manager.is_stored(v0));
+
+        manager.allocate(v1);
+        manager.mark_stored(v1);
+        assert!(manager.is_reloadable(v1));
+        assert!(manager.is_stored(v1));
     }
 }
