@@ -82,7 +82,7 @@ pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
     let (emitter, diagnostics) = InMemoryEmitter::new();
     let dcx = DiagCtxt::new(Box::new(emitter))
         .with_flags(|flags| flags.update_from_opts(&opts))
-        .with_silenced_warning_codes(opts.suppress_warnings.iter().cloned());
+        .with_allowed_warning_codes(opts.allow.iter().cloned());
 
     let mut output = CompilerOutput::default();
     let mut input = String::new();

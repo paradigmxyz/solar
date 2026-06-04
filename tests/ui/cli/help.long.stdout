@@ -98,5 +98,5 @@ Display options:
       --no-warnings
           Whether to disable warnings
 
-      --suppress-warnings <CODE>
-          Comma separated list of warning error codes to suppress
+      --allow <CODE>
+          Comma separated list of warning error codes to allow
