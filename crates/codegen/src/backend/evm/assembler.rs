@@ -80,7 +80,9 @@ impl Assembler {
     /// Assembles the instructions into bytecode.
     /// Uses an iterative two-pass algorithm that handles PUSH width changes.
     #[must_use]
-    pub fn assemble(self) -> AssembledCode {
+    pub fn assemble(mut self) -> AssembledCode {
+        self.optimize_instructions();
+
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
 
@@ -189,6 +191,107 @@ impl Assembler {
         }
 
         AssembledCode { bytecode, label_offsets: label_offsets.clone() }
+    }
+
+    /// Runs local peephole optimizations over assembler instructions.
+    ///
+    /// This pass runs before label resolution, so removing instructions cannot
+    /// leave stale jump destinations.
+    fn optimize_instructions(&mut self) -> usize {
+        let mut total = 0;
+        loop {
+            let mut changed = 0;
+            let mut optimized = Vec::with_capacity(self.instructions.len());
+            let mut i = 0;
+
+            while i < self.instructions.len() {
+                if let Some((skip, replacement)) = Self::try_peephole(&self.instructions, i) {
+                    optimized.extend(replacement);
+                    i += skip;
+                    changed += 1;
+                } else {
+                    optimized.push(self.instructions[i].clone());
+                    i += 1;
+                }
+            }
+
+            if changed == 0 {
+                break;
+            }
+
+            self.instructions = optimized;
+            total += changed;
+        }
+        total
+    }
+
+    fn try_peephole(instructions: &[AsmInst], pos: usize) -> Option<(usize, Vec<AsmInst>)> {
+        let remaining = &instructions[pos..];
+
+        if remaining.len() >= 2
+            && let (AsmInst::Push(value), AsmInst::Op(op)) = (&remaining[0], &remaining[1])
+        {
+            if value.is_zero() {
+                return match *op {
+                    opcodes::ADD | opcodes::SUB | opcodes::OR | opcodes::XOR => {
+                        Some((2, Vec::new()))
+                    }
+                    opcodes::MUL
+                    | opcodes::DIV
+                    | opcodes::SDIV
+                    | opcodes::MOD
+                    | opcodes::SMOD
+                    | opcodes::AND => {
+                        Some((2, vec![AsmInst::Op(opcodes::POP), AsmInst::Push(U256::ZERO)]))
+                    }
+                    _ => None,
+                };
+            }
+
+            if *value == U256::from(1) {
+                return match *op {
+                    opcodes::MUL | opcodes::DIV | opcodes::EXP => Some((2, Vec::new())),
+                    opcodes::MOD | opcodes::SMOD => {
+                        Some((2, vec![AsmInst::Op(opcodes::POP), AsmInst::Push(U256::ZERO)]))
+                    }
+                    _ => None,
+                };
+            }
+        }
+
+        if remaining.len() >= 2
+            && matches!(remaining[0], AsmInst::Push(_) | AsmInst::PushLabel(_))
+            && matches!(remaining[1], AsmInst::Op(opcodes::POP))
+        {
+            return Some((2, Vec::new()));
+        }
+
+        if remaining.len() >= 2
+            && let (AsmInst::Op(a), AsmInst::Op(b)) = (&remaining[0], &remaining[1])
+        {
+            if *a == opcodes::NOT && *b == opcodes::NOT {
+                return Some((2, Vec::new()));
+            }
+
+            for n in 1..=16 {
+                if *a == opcodes::dup(n) && *b == opcodes::POP {
+                    return Some((2, Vec::new()));
+                }
+                if *a == opcodes::swap(n) && *b == opcodes::swap(n) {
+                    return Some((2, Vec::new()));
+                }
+            }
+        }
+
+        if remaining.len() >= 3
+            && matches!(remaining[0], AsmInst::Op(opcodes::ISZERO))
+            && matches!(remaining[1], AsmInst::Op(opcodes::ISZERO))
+            && matches!(remaining[2], AsmInst::Op(opcodes::ISZERO))
+        {
+            return Some((3, vec![AsmInst::Op(opcodes::ISZERO)]));
+        }
+
+        None
     }
 }
 
@@ -402,5 +505,52 @@ mod tests {
         assert!(result.label_offsets.contains_key(&loop_label));
         assert!(result.label_offsets.contains_key(&end_label));
         assert_eq!(result.label_offsets[&loop_label], 0);
+    }
+
+    #[test]
+    fn peephole_removes_push_zero_add() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::ADD);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::STOP]);
+    }
+
+    #[test]
+    fn peephole_resolves_labels_after_rewrites() {
+        let mut asm = Assembler::new();
+        let label = asm.new_label();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::ADD);
+        asm.define_label(label);
+        asm.emit_op(opcodes::JUMPDEST);
+        asm.emit_push_label(label);
+        asm.emit_op(opcodes::JUMP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.label_offsets[&label], 2);
+        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::JUMPDEST, 0x60, 2, opcodes::JUMP]);
+    }
+
+    #[test]
+    fn peephole_replaces_mul_zero_with_pop_zero() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::MUL);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![opcodes::PUSH0, opcodes::STOP]);
     }
 }
