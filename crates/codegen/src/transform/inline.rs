@@ -593,11 +593,11 @@ pub struct MirInlineConfig {
 impl Default for MirInlineConfig {
     fn default() -> Self {
         Self {
-            max_instructions: 64,
+            max_instructions: 96,
             max_single_call_instructions: 96,
             max_blocks: 10,
             inline_single_call: true,
-            max_cold_code_growth: 128,
+            max_cold_code_growth: 256,
             max_hot_code_growth: 512,
             min_call_savings: 120,
         }
@@ -666,12 +666,12 @@ impl MirInliner {
 
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
             let loop_depths = block_loop_depths(module.function(caller_id));
-            let mut cursor = 0;
+            let mut cursor = (0, 0);
             while let Some(site) =
                 self.find_next_call(module.function(caller_id), cursor, &loop_depths)
             {
                 stats.call_sites += 1;
-                cursor = site.block.index() + 1;
+                cursor = (site.block.index(), site.inst_index + 1);
 
                 let Some(summary) = summaries.get(&site.callee).copied() else {
                     stats.skipped += 1;
@@ -687,7 +687,7 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    cursor = site.block.index();
+                    cursor = (site.block.index(), 0);
                 } else {
                     stats.skipped += 1;
                 }
@@ -723,11 +723,12 @@ impl MirInliner {
     fn find_next_call(
         &self,
         func: &Function,
-        start_block: usize,
+        start: (usize, usize),
         loop_depths: &FxHashMap<BlockId, usize>,
     ) -> Option<CallSite> {
-        for (block, bb) in func.blocks.iter_enumerated().skip(start_block) {
-            for (inst_index, &inst_id) in bb.instructions.iter().enumerate() {
+        for (block, bb) in func.blocks.iter_enumerated().skip(start.0) {
+            let start_inst = if block.index() == start.0 { start.1 } else { 0 };
+            for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
                 if let InstKind::InternalCall { function, ref args, returns } =
                     func.instructions[inst_id].kind
                 {
@@ -755,7 +756,6 @@ impl MirInliner {
         if caller == site.callee
             || summary.is_entry_point
             || summary.is_constructor
-            || summary.has_internal_call
             || summary.has_phi
             || summary.has_loop
             || summary.has_unsupported_terminator
@@ -882,8 +882,8 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
             | Some(Terminator::SelfDestruct { .. })
-            | Some(Terminator::Invalid)
             | None => summary.has_unsupported_terminator = true,
+            Some(Terminator::Invalid) => {}
         }
     }
 
@@ -1069,6 +1069,7 @@ fn inline_call_impl(
 
     let continuation = caller.alloc_block();
     let old_terminator = caller.blocks[call_block].terminator.take();
+    let old_successors = old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
     let suffix = {
         let block = &mut caller.blocks[call_block];
         block.instructions.split_off(call_inst_index + 1)
@@ -1076,6 +1077,7 @@ fn inline_call_impl(
     caller.blocks[call_block].instructions.pop();
     caller.blocks[continuation].instructions = suffix;
     caller.blocks[continuation].terminator = old_terminator;
+    redirect_phi_predecessors(caller, &old_successors, call_block, continuation);
 
     let frame_base = caller.internal_frame_size;
     caller.internal_frame_size += callee.internal_frame_size;
@@ -1087,12 +1089,13 @@ fn inline_call_impl(
     let mut replacements = FxHashMap::default();
     if returns == 1 {
         let return_value =
-            build_return_value(cloner.caller, &callee.returns, &cloner.return_edges)?;
+            build_return_value(cloner.caller, continuation, &callee.returns, &cloner.return_edges)?;
         replacements.insert(call_result?, return_value);
     }
 
     replace_uses(cloner.caller, &replacements);
     recompute_cfg(cloner.caller);
+    prune_phi_incoming_to_predecessors(cloner.caller);
     Some(())
 }
 
@@ -1303,7 +1306,14 @@ impl<'a> InlineCloner<'a> {
                     ret_size: self.clone_value(ret_size)?,
                 }
             }
-            InstKind::InternalCall { .. } => return None,
+            InstKind::InternalCall { function, args, returns } => InstKind::InternalCall {
+                function,
+                args: args
+                    .into_iter()
+                    .map(|arg| self.clone_value(arg))
+                    .collect::<Option<Vec<_>>>()?,
+                returns,
+            },
             InstKind::Create(a, b, c) => {
                 InstKind::Create(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }
@@ -1383,16 +1393,17 @@ impl<'a> InlineCloner<'a> {
                 offset: self.clone_value(*offset)?,
                 size: self.clone_value(*size)?,
             },
-            Terminator::ReturnData { .. }
-            | Terminator::Stop
-            | Terminator::SelfDestruct { .. }
-            | Terminator::Invalid => return None,
+            Terminator::ReturnData { .. } | Terminator::Stop | Terminator::SelfDestruct { .. } => {
+                return None;
+            }
+            Terminator::Invalid => Terminator::Invalid,
         })
     }
 }
 
 fn build_return_value(
     caller: &mut Function,
+    continuation: BlockId,
     return_tys: &[MirType],
     return_edges: &[(BlockId, SmallVec<[ValueId; 2]>)],
 ) -> Option<ValueId> {
@@ -1406,7 +1417,43 @@ fn build_return_value(
                 .iter()
                 .map(|(block, values)| Some((*block, *values.first()?)))
                 .collect::<Option<Vec<_>>>()?;
-            Some(caller.alloc_value(Value::Phi { ty: return_tys[0], incoming }))
+            let phi =
+                caller.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(return_tys[0])));
+            caller.blocks[continuation].instructions.insert(0, phi);
+            Some(caller.alloc_value(Value::Inst(phi)))
+        }
+    }
+}
+
+fn redirect_phi_predecessors(
+    func: &mut Function,
+    successors: &[BlockId],
+    old_pred: BlockId,
+    new_pred: BlockId,
+) {
+    if successors.is_empty() {
+        return;
+    }
+
+    for &succ in successors {
+        for &inst_id in &func.blocks[succ].instructions {
+            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+                for (pred, _) in incoming {
+                    if *pred == old_pred {
+                        *pred = new_pred;
+                    }
+                }
+            }
+        }
+    }
+
+    for value in func.values.iter_mut() {
+        if let Value::Phi { incoming, .. } = value {
+            for (pred, _) in incoming {
+                if *pred == old_pred {
+                    *pred = new_pred;
+                }
+            }
         }
     }
 }
@@ -1622,6 +1669,17 @@ fn recompute_cfg(func: &mut Function) {
         for succ in successors {
             func.blocks[block].successors.push(succ);
             func.blocks[succ].predecessors.push(block);
+        }
+    }
+}
+
+fn prune_phi_incoming_to_predecessors(func: &mut Function) {
+    for block_id in func.blocks.indices() {
+        let predecessors = func.blocks[block_id].predecessors.clone();
+        for &inst_id in &func.blocks[block_id].instructions {
+            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+                incoming.retain(|(pred, _)| predecessors.contains(pred));
+            }
         }
     }
 }
