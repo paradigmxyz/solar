@@ -304,7 +304,7 @@ impl TransformPass for LicmPass {
     fn run(&mut self, func: &mut Function) {
         let config = crate::transform::LoopOptConfig {
             enable_licm: true,
-            min_licm_profit: 5,
+            min_licm_profit: 3,
             max_licm_hoisted_insts: 4,
         };
         crate::transform::LoopOptimizer::new(config).optimize(func);

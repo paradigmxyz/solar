@@ -1,0 +1,28 @@
+//@ignore-host: windows
+//@compile-flags: --pass licm
+; module @LicmMemoryAlias
+fn @hoist_non_aliasing_mload() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = mload 0
+    mstore 64, 1
+    jump bb1
+  bb3:
+    ret v0
+}
+
+fn @keep_aliasing_mload() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = mload 0
+    mstore 16, 1
+    jump bb1
+  bb3:
+    ret v0
+}
