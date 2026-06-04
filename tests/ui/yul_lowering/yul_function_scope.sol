@@ -11,6 +11,7 @@ contract C {
 
         assembly {
             x, y := pair(1) //~ ERROR: unresolved symbol
+            //~^ ERROR: mismatched number of components
         }
     }
 

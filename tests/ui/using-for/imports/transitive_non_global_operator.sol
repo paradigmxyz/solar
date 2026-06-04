@@ -11,10 +11,10 @@ import "./auxiliary/non_global_right.sol";
 
 contract C {
     function binary(TransitiveInt a, TransitiveInt b) public pure returns (TransitiveInt) {
-        return a + b;
+        return a + b; //~ ERROR: cannot apply builtin operator `+`
     }
 
     function unary(TransitiveInt a) public pure returns (TransitiveInt) {
-        return -a;
+        return -a; //~ ERROR: cannot apply unary operator `-`
     }
 }

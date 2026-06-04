@@ -22,5 +22,67 @@ note: previous declaration declared here
 LL │     uint public y = 2;
    ╰╴                ━
 
-error: aborting due to 2 previous errors
+error[9456]: overriding public state variable is missing `override` specifier
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 1;
+   │     ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 0;
+   │     ━━━━━━━━━━━━━━━━━━
+   ╰ help: add `override` to the function signature
+
+error[4334]: cannot override non-virtual function
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 0;
+   │     ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overriding public state variable is here
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 1;
+   │     ━━━━━━━━━━━━━━━━━━
+   ╰ help: add `virtual` to the base function to allow overriding
+
+error[9456]: overriding public state variable is missing `override` specifier
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 1;
+   │     ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden public state variable is here
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 0;
+   │     ━━━━━━━━━━━━━━━━━━
+   ╰ help: add `override` to the function signature
+
+error[1452]: cannot override public state variable
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 0;
+   │     ━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overriding public state variable is here
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │     uint public x = 1;
+   │     ━━━━━━━━━━━━━━━━━━
+   ╰ help: change the inheritance layout or rename the functions
+
+error[6480]: derived contract must override function `y`
+   ╭▸ ROOT/tests/ui/resolve/inheritance_conflicts.sol:LL:CC
+   │
+LL │ contract CC is AA, BB {}
+   │          ━━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ├ note: defined in: `AA`, `BB`
+   ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
+
+error: aborting due to 7 previous errors
 

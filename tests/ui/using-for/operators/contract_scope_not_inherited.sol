@@ -29,6 +29,6 @@ contract Derived is Base {
 
 contract OnlyInherited is Base {
     function h(Int a, Int b) public pure returns (Int) {
-        return a + b;
+        return a + b; //~ ERROR: cannot apply builtin operator `+`
     }
 }

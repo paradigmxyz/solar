@@ -16,6 +16,7 @@ contract U3 {
 
 contract U4 {
     receive() payable {} //~ERROR: no visibility specified
+    //~^ ERROR: receive ether function must be defined as `external`
 }
 
 contract U5 {

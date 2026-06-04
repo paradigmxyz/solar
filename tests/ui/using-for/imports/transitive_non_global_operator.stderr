@@ -22,5 +22,19 @@ error: operators can only be defined in a global `using for` directive
 LL │ using {addRight as +, negRight as -} for TransitiveInt;
    ╰╴                      ━━━━━━━━
 
-error: aborting due to 4 previous errors
+error: cannot apply builtin operator `+` to `TransitiveInt` and `TransitiveInt`
+   ╭▸ ROOT/tests/ui/using-for/imports/transitive_non_global_operator.sol:LL:CC
+   │
+LL │         return a + b;
+   │                ┬ ━ ─ TransitiveInt
+   │                │
+   ╰╴               TransitiveInt
+
+error: cannot apply unary operator `-` to `TransitiveInt`
+   ╭▸ ROOT/tests/ui/using-for/imports/transitive_non_global_operator.sol:LL:CC
+   │
+LL │         return -a;
+   ╰╴               ━━
+
+error: aborting due to 6 previous errors
 

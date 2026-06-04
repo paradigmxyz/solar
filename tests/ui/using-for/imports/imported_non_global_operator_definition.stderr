@@ -10,5 +10,19 @@ error: operators can only be defined in a global `using for` directive
 LL │ using {add as +, neg as -} for DefinedInt;
    ╰╴                 ━━━
 
-error: aborting due to 2 previous errors
+error: cannot apply builtin operator `+` to `DefinedInt` and `DefinedInt`
+   ╭▸ ROOT/tests/ui/using-for/imports/imported_non_global_operator_definition.sol:LL:CC
+   │
+LL │         return a + b;
+   │                ┬ ━ ─ DefinedInt
+   │                │
+   ╰╴               DefinedInt
+
+error: cannot apply unary operator `-` to `DefinedInt`
+   ╭▸ ROOT/tests/ui/using-for/imports/imported_non_global_operator_definition.sol:LL:CC
+   │
+LL │         return -a;
+   ╰╴               ━━
+
+error: aborting due to 4 previous errors
 
