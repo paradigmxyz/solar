@@ -19,7 +19,7 @@ pub struct MemoryStoreEliminator {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum MemAddrKey {
     Const(u64),
-    Value(ValueId),
+    BaseOffset { base: ValueId, offset: u64 },
 }
 
 impl MemoryStoreEliminator {
@@ -77,7 +77,7 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::MLoad(addr) => {
                     if let Some(key) = self.mem_addr_key(func, *addr) {
-                        overwritten.remove(&key);
+                        Self::remove_overlapping_set(&mut overwritten, key);
                     } else {
                         overwritten.clear();
                     }
@@ -108,6 +108,7 @@ impl MemoryStoreEliminator {
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
                     if let Some(key) = self.mem_addr_key(func, *addr) {
+                        Self::remove_overlapping_map(&mut stored_values, key);
                         stored_values.insert(key, Self::resolve_replacement(&replacements, *value));
                     } else {
                         stored_values.clear();
@@ -161,16 +162,86 @@ impl MemoryStoreEliminator {
     }
 
     fn mem_addr_key(&self, func: &Function, value: ValueId) -> Option<MemAddrKey> {
+        self.mem_addr_key_with_depth(func, value, 0)
+    }
+
+    fn mem_addr_key_with_depth(
+        &self,
+        func: &Function,
+        value: ValueId,
+        depth: usize,
+    ) -> Option<MemAddrKey> {
+        if depth > 8 {
+            return Some(MemAddrKey::BaseOffset { base: value, offset: 0 });
+        }
+
         match &func.values[value] {
             Value::Immediate(imm) => {
                 let addr = imm.as_u256()?;
                 u64::try_from(addr).ok().map(MemAddrKey::Const)
             }
-            Value::Arg { .. } | Value::Inst(_) | Value::Phi { .. } => {
-                Some(MemAddrKey::Value(value))
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+                InstKind::Add(a, b) => self
+                    .add_addr_offset(func, a, b, depth)
+                    .or_else(|| self.add_addr_offset(func, b, a, depth))
+                    .or(Some(MemAddrKey::BaseOffset { base: value, offset: 0 })),
+                _ => Some(MemAddrKey::BaseOffset { base: value, offset: 0 }),
+            },
+            Value::Arg { .. } | Value::Phi { .. } => {
+                Some(MemAddrKey::BaseOffset { base: value, offset: 0 })
             }
             Value::Undef(_) => None,
         }
+    }
+
+    fn add_addr_offset(
+        &self,
+        func: &Function,
+        base: ValueId,
+        offset: ValueId,
+        depth: usize,
+    ) -> Option<MemAddrKey> {
+        let offset = Self::as_u64(func, offset)?;
+        match self.mem_addr_key_with_depth(func, base, depth + 1)? {
+            MemAddrKey::Const(addr) => addr.checked_add(offset).map(MemAddrKey::Const),
+            MemAddrKey::BaseOffset { base, offset: base_offset } => base_offset
+                .checked_add(offset)
+                .map(|offset| MemAddrKey::BaseOffset { base, offset }),
+        }
+    }
+
+    fn as_u64(func: &Function, value: ValueId) -> Option<u64> {
+        let value = func.values[value].as_immediate()?.as_u256()?;
+        u64::try_from(value).ok()
+    }
+
+    fn overlaps(a: MemAddrKey, b: MemAddrKey) -> bool {
+        match (a, b) {
+            (MemAddrKey::Const(a), MemAddrKey::Const(b)) => Self::ranges_overlap(a, b),
+            (
+                MemAddrKey::BaseOffset { base: a_base, offset: a_offset },
+                MemAddrKey::BaseOffset { base: b_base, offset: b_offset },
+            ) if a_base == b_base => Self::ranges_overlap(a_offset, b_offset),
+            _ => false,
+        }
+    }
+
+    fn ranges_overlap(a: u64, b: u64) -> bool {
+        let Some(a_end) = a.checked_add(32) else {
+            return true;
+        };
+        let Some(b_end) = b.checked_add(32) else {
+            return true;
+        };
+        a < b_end && b < a_end
+    }
+
+    fn remove_overlapping_map<T>(map: &mut FxHashMap<MemAddrKey, T>, key: MemAddrKey) {
+        map.retain(|&stored, _| !Self::overlaps(stored, key));
+    }
+
+    fn remove_overlapping_set(set: &mut FxHashSet<MemAddrKey>, key: MemAddrKey) {
+        set.retain(|&stored| !Self::overlaps(stored, key));
     }
 
     fn is_memory_or_gas_observer(kind: &InstKind) -> bool {
@@ -492,6 +563,68 @@ mod tests {
         let mut pass = MemoryStoreEliminator::new();
         assert_eq!(pass.run(&mut func), 1);
         assert_eq!(func.blocks[func.entry_block].instructions.len(), 1);
+    }
+
+    #[test]
+    fn handles_equivalent_base_offset_addresses() {
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let base = builder.add_param(crate::mir::MirType::uint256());
+        let offset = builder.imm_u64(32);
+        let value = builder.imm_u64(42);
+        let addr1 = builder.add(base, offset);
+        builder.mstore(addr1, value);
+        let addr2 = builder.add(base, offset);
+        let loaded = builder.mload(addr2);
+        builder.ret(vec![loaded]);
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run(&mut func), 1);
+
+        let block = &func.blocks[func.entry_block];
+        assert_eq!(block.instructions.len(), 3);
+        let Some(Terminator::Return { values }) = &block.terminator else {
+            panic!("expected return terminator");
+        };
+        assert_eq!(values.as_slice(), &[value]);
+    }
+
+    #[test]
+    fn removes_overwritten_store_to_equivalent_base_offset_address() {
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let base = builder.add_param(crate::mir::MirType::uint256());
+        let offset = builder.imm_u64(32);
+        let zero = builder.imm_u64(0);
+        let value = builder.imm_u64(42);
+        let addr1 = builder.add(base, offset);
+        builder.mstore(addr1, zero);
+        let addr2 = builder.add(base, offset);
+        builder.mstore(addr2, value);
+        builder.stop();
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run(&mut func), 1);
+        assert_eq!(func.blocks[func.entry_block].instructions.len(), 3);
+    }
+
+    #[test]
+    fn overlapping_load_blocks_overwritten_store_elimination() {
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let base = builder.imm_u64(128);
+        let one = builder.imm_u64(1);
+        let zero = builder.imm_u64(0);
+        let value = builder.imm_u64(42);
+        builder.mstore(base, zero);
+        let overlap = builder.add(base, one);
+        builder.mload(overlap);
+        builder.mstore(base, value);
+        builder.stop();
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run(&mut func), 0);
+        assert_eq!(func.blocks[func.entry_block].instructions.len(), 4);
     }
 
     #[test]
