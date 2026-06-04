@@ -1046,7 +1046,9 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 mod tests {
     use super::*;
     use crate::{BytePos, ColorChoice, Span, source_map};
-    use snapbox::{IntoData, assert_data_eq, str};
+    #[allow(unused_imports)]
+    use snapbox::IntoData;
+    use snapbox::{assert_data_eq, str};
 
     #[test]
     fn test_styled_messages() {
@@ -1116,6 +1118,31 @@ note: mutable variables should use mixedCase
 
         assert_eq!(diag.suggestions.len(), 1);
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+    }
+
+    #[test]
+    fn test_silenced_diagnostic_code_suppresses_warning() {
+        let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
+            .with_silenced_diagnostic_codes(["1234".to_string()]);
+
+        dcx.warn("suppressed warning").code(crate::error_code!(1234)).emit();
+        dcx.warn("emitted warning").code(crate::error_code!(5678)).emit();
+
+        let diagnostics = dcx.emitted_diagnostics().unwrap().to_string();
+        assert_eq!(dcx.warn_count(), 1);
+        assert!(diagnostics.contains("emitted warning"));
+        assert!(!diagnostics.contains("suppressed warning"));
+    }
+
+    #[test]
+    fn test_silenced_diagnostic_code_suppresses_error() {
+        let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
+            .with_silenced_diagnostic_codes(["1234".to_string()]);
+
+        let _ = dcx.err("suppressed error").code(crate::error_code!(1234)).emit();
+
+        assert!(dcx.has_errors().is_ok());
+        assert!(dcx.emitted_diagnostics().unwrap().is_empty());
     }
 
     #[test]
