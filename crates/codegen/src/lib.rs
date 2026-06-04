@@ -42,6 +42,6 @@ pub mod pass;
 pub mod transform;
 pub use transform::{
     CommonSubexprEliminator, ConstantFolder, DceStats, DeadCodeEliminator, FunctionInlineInfo,
-    InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, JumpThreader, JumpThreadingStats,
-    LoopOptConfig, LoopOptStats, LoopOptimizer, OptLevel,
+    InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, InstSimplifier, JumpThreader,
+    JumpThreadingStats, LoopOptConfig, LoopOptStats, LoopOptimizer, OptLevel,
 };

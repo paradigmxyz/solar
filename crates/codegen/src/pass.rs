@@ -225,6 +225,22 @@ impl TransformPass for SccpTransformPass {
     }
 }
 
+/// Local instruction simplification transform.
+///
+/// Removes exact algebraic no-ops and rewrites equivalent EVM instruction
+/// patterns before local CSE and stack scheduling.
+pub struct InstSimplifyPass;
+
+impl TransformPass for InstSimplifyPass {
+    fn name(&self) -> &str {
+        "inst-simplify"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        crate::transform::InstSimplifier::new().run_to_fixpoint(func);
+    }
+}
+
 /// Common subexpression elimination transform.
 ///
 /// Eliminates redundant computations within each basic block (local CSE).

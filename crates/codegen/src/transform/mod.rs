@@ -5,6 +5,7 @@ pub mod constant_fold;
 pub mod cse;
 pub mod dce;
 pub mod inline;
+pub mod inst_simplify;
 pub mod jump_threading;
 pub mod loop_opt;
 pub mod memory_dse;
@@ -21,6 +22,7 @@ pub use inline::{
     FunctionInlineInfo, InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, MirInlineConfig,
     MirInlineStats, MirInliner, OptLevel,
 };
+pub use inst_simplify::InstSimplifier;
 pub use jump_threading::{JumpThreader, JumpThreadingStats};
 pub use loop_opt::{LoopOptConfig, LoopOptStats, LoopOptimizer};
 pub use memory_dse::MemoryStoreEliminator;
