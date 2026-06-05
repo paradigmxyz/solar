@@ -1,4 +1,4 @@
-use std::{alloc::Layout, fmt};
+use std::{alloc::Layout, fmt, mem::MaybeUninit};
 use stumpalo::Arena;
 
 // Modified from [`rustc_middle::ty::List`](https://github.com/rust-lang/rust/blob/a2db9280539229a3b8a084a09886670a57bc7e9c/compiler/rustc_middle/src/ty/list.rs#L15).
@@ -76,7 +76,8 @@ impl<H, T> RawThinSlice<H, T> {
             .unwrap();
         assert!(layout.align() <= align_of::<u128>());
         let words = layout.size().div_ceil(size_of::<u128>());
-        arena.alloc_slice_fill_with(words, |_| 0u128).as_mut_ptr() as *mut Self
+        arena.alloc_slice_fill_with(words, |_| MaybeUninit::<u128>::uninit()).as_mut_ptr()
+            as *mut Self
     }
 
     /// Initializes a list by copying the contents of `slice` into it.
