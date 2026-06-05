@@ -481,6 +481,17 @@ impl EvmCodegen {
         }
         let revert_label = self.asm.new_label();
         let has_calldata_label = self.asm.new_label();
+        let all_external_entries_reject_value =
+            module.functions.iter().any(Self::is_external_entry)
+                && module
+                    .functions
+                    .iter()
+                    .filter(|func| Self::is_external_entry(func))
+                    .all(Self::rejects_callvalue);
+
+        if all_external_entries_reject_value {
+            self.emit_callvalue_check(revert_label);
+        }
 
         // Check if calldatasize == 0
         self.asm.emit_op(opcodes::CALLDATASIZE);
@@ -531,10 +542,7 @@ impl EvmCodegen {
 
         // Define external function entry points.
         for (i, func) in module.functions.iter().enumerate() {
-            let external = func.selector.is_some()
-                || func.attributes.is_receive
-                || func.attributes.is_fallback;
-            if !external {
+            if !Self::is_external_entry(func) {
                 continue;
             }
             let Some(label) = func_labels[i] else { continue };
@@ -546,8 +554,9 @@ impl EvmCodegen {
                 self.asm.emit_op(opcodes::POP);
             }
 
-            // Emit payable check for non-payable functions
-            self.emit_payable_check(func, revert_label);
+            if !all_external_entries_reject_value {
+                self.emit_payable_check(func, revert_label);
+            }
 
             self.emit_external_free_memory_start(func);
 
@@ -579,6 +588,10 @@ impl EvmCodegen {
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_op(opcodes::REVERT);
+    }
+
+    fn is_external_entry(func: &Function) -> bool {
+        func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback
     }
 
     fn emit_selector_dispatch(
@@ -657,19 +670,24 @@ impl EvmCodegen {
     /// Emits a payable check for non-payable functions.
     /// Non-payable, view, and pure functions revert if called with value.
     fn emit_payable_check(&mut self, func: &Function, revert_label: Label) {
+        if Self::rejects_callvalue(func) {
+            self.emit_callvalue_check(revert_label);
+        }
+    }
+
+    fn rejects_callvalue(func: &Function) -> bool {
         use solar_sema::hir::StateMutability;
 
-        match func.attributes.state_mutability {
-            StateMutability::Payable => {
-                // Payable functions accept ETH - no check needed
-            }
-            StateMutability::NonPayable | StateMutability::View | StateMutability::Pure => {
-                // CALLVALUE shared_revert JUMPI
-                self.asm.emit_op(opcodes::CALLVALUE);
-                self.asm.emit_push_label(revert_label);
-                self.asm.emit_op(opcodes::JUMPI);
-            }
-        }
+        matches!(
+            func.attributes.state_mutability,
+            StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
+        )
+    }
+
+    fn emit_callvalue_check(&mut self, revert_label: Label) {
+        self.asm.emit_op(opcodes::CALLVALUE);
+        self.asm.emit_push_label(revert_label);
+        self.asm.emit_op(opcodes::JUMPI);
     }
 
     /// Generates bytecode for a function.
