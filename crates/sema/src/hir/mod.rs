@@ -468,7 +468,7 @@ pub struct Source<'hir> {
     ///
     /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
     /// source.
-    pub imports: &'hir [(ast::ItemId, SourceId)],
+    pub imports: &'hir [(ast::ItemId, Result<SourceId, ErrorGuaranteed>)],
     /// The source items.
     pub items: &'hir [ItemId],
     /// The source-level `using for` directives.

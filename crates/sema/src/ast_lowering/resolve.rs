@@ -1,9 +1,8 @@
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast as ast;
-use solar_ast::visit::Visit as _;
 use solar_data_structures::{
-    BumpExt, Never,
+    BumpExt,
     index::{Idx, IndexVec},
     map::{FxHashMap, FxIndexMap, IndexEntry},
     smallvec::SmallVec,
@@ -13,7 +12,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     error_code, sym,
 };
-use std::{fmt, ops::ControlFlow};
+use std::fmt;
 
 pub(crate) use crate::hir::Res;
 
@@ -49,6 +48,37 @@ impl super::LoweringContext<'_> {
             for &(item_id, import_id) in source.imports {
                 let import_item = &self.sources[source_id].ast.as_ref().unwrap().items[item_id];
                 let ast::ItemKind::Import(import) = &import_item.kind else { unreachable!() };
+                let import_id = match import_id {
+                    Ok(import_id) => import_id,
+                    Err(guar) => {
+                        let source_scope = &mut self.resolver.source_scopes[source_id];
+                        match import.items {
+                            ast::ImportItems::Plain(Some(alias))
+                            | ast::ImportItems::Glob(alias) => {
+                                let _ = source_scope.declare_res(
+                                    self.sess,
+                                    &self.hir,
+                                    alias,
+                                    Res::Err(guar),
+                                );
+                            }
+                            ast::ImportItems::Aliases(ref aliases) => {
+                                for &(import, alias) in aliases.iter() {
+                                    let _ = source_scope.declare_res(
+                                        self.sess,
+                                        &self.hir,
+                                        alias.unwrap_or(import),
+                                        Res::Err(guar),
+                                    );
+                                }
+                            }
+                            ast::ImportItems::Plain(None) => {
+                                source_scope.declare_import_error(guar);
+                            }
+                        }
+                        continue;
+                    }
+                };
                 let (source_scope, import_scope) = if source_id != import_id {
                     let (a, b) = super::get_two_mut_idx(
                         &mut self.resolver.source_scopes,
@@ -117,22 +147,6 @@ impl super::LoweringContext<'_> {
                             }
                         }
                     }
-                }
-            }
-            if let Some(ast) = &self.sources[source_id].ast {
-                for &(item_id, guar) in &self.sources[source_id].failed_imports {
-                    let import_item = &ast.items[item_id];
-                    let ast::ItemKind::Import(import) = &import_item.kind else { unreachable!() };
-                    let source_scope = &mut self.resolver.source_scopes[source_id];
-                    declare_failed_import(
-                        self.sess,
-                        &self.hir,
-                        &self.resolver.global_builtin_scope,
-                        source_scope,
-                        ast,
-                        import,
-                        guar,
-                    );
                 }
             }
         }
@@ -244,77 +258,6 @@ impl super::LoweringContext<'_> {
             c.fallback = fallback;
             c.receive = receive;
         }
-    }
-}
-
-fn declare_failed_import<'ast>(
-    sess: &Session,
-    hir: &hir::Hir<'_>,
-    builtin_scope: &Declarations,
-    source_scope: &mut Declarations,
-    ast: &'ast ast::SourceUnit<'ast>,
-    import: &ast::ImportDirective<'ast>,
-    guar: ErrorGuaranteed,
-) {
-    match import.items {
-        ast::ImportItems::Plain(Some(alias)) | ast::ImportItems::Glob(alias) => {
-            declare_import_error_name(sess, hir, builtin_scope, source_scope, alias, guar);
-        }
-        ast::ImportItems::Aliases(ref aliases) => {
-            for &(import, alias) in aliases.iter() {
-                declare_import_error_name(
-                    sess,
-                    hir,
-                    builtin_scope,
-                    source_scope,
-                    alias.unwrap_or(import),
-                    guar,
-                );
-            }
-        }
-        ast::ImportItems::Plain(None) => {
-            let mut collector = FailedImportPathCollector { names: Vec::new() };
-            let _: ControlFlow<Never> = collector.visit_source_unit(ast);
-            for name in collector.names {
-                declare_import_error_name(sess, hir, builtin_scope, source_scope, name, guar);
-            }
-        }
-    }
-}
-
-fn declare_import_error_name(
-    sess: &Session,
-    hir: &hir::Hir<'_>,
-    builtin_scope: &Declarations,
-    source_scope: &mut Declarations,
-    name: Ident,
-    guar: ErrorGuaranteed,
-) {
-    if source_scope.resolve(name).is_none() && builtin_scope.resolve(name).is_none() {
-        let _ = source_scope.declare_res(sess, hir, name, Res::Err(guar));
-    }
-}
-
-struct FailedImportPathCollector {
-    names: Vec<Ident>,
-}
-
-impl<'ast> ast::visit::Visit<'ast> for FailedImportPathCollector {
-    type BreakValue = Never;
-
-    fn visit_import_directive(
-        &mut self,
-        _import: &'ast ast::ImportDirective<'ast>,
-    ) -> ControlFlow<Self::BreakValue> {
-        ControlFlow::Continue(())
-    }
-
-    fn visit_path(&mut self, path: &'ast ast::PathSlice) -> ControlFlow<Self::BreakValue> {
-        let name = *path.first();
-        if !self.names.iter().any(|ident| ident.name == name.name) {
-            self.names.push(name);
-        }
-        ControlFlow::Continue(())
     }
 }
 
@@ -2186,7 +2129,11 @@ impl<'gcx> SymbolResolver<'gcx> {
         name: Ident,
         scopes: &'a SymbolResolverScopes,
     ) -> Option<&'a [Declaration]> {
-        scopes.get(self).find_map(move |scope| scope.resolve(name))
+        let mut scopes = scopes.get(self);
+        scopes
+            .clone()
+            .find_map(move |scope| scope.resolve(name))
+            .or_else(|| scopes.find_map(Declarations::import_error))
     }
 
     fn resolve_name_non_local<'a>(
@@ -2194,9 +2141,11 @@ impl<'gcx> SymbolResolver<'gcx> {
         name: Ident,
         scopes: &'a SymbolResolverScopes,
     ) -> Result<&'a [Declaration], ResolverError> {
+        let mut scopes = scopes.get_non_local(self);
         scopes
-            .get_non_local(self)
+            .clone()
             .find_map(move |scope| scope.resolve(name))
+            .or_else(|| scopes.find_map(Declarations::import_error))
             .ok_or_else(|| ResolverError::new(name, ResolverErrorKind::Unresolved))
     }
 
@@ -2286,6 +2235,7 @@ impl SymbolResolverScopes {
 
 pub(crate) struct Declarations {
     declarations: FxIndexMap<Symbol, DeclarationsInner>,
+    import_error: Option<Declaration>,
 }
 
 impl fmt::Debug for Declarations {
@@ -2313,7 +2263,10 @@ impl Declarations {
     }
 
     pub(crate) fn with_capacity(capacity: usize) -> Self {
-        Self { declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()) }
+        Self {
+            declarations: FxIndexMap::with_capacity_and_hasher(capacity, Default::default()),
+            import_error: None,
+        }
     }
 
     pub(crate) fn reserve(&mut self, additional: usize) {
@@ -2322,6 +2275,7 @@ impl Declarations {
 
     pub(crate) fn clear(&mut self) {
         self.declarations.clear();
+        self.import_error = None;
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -2338,6 +2292,14 @@ impl Declarations {
 
     pub(crate) fn resolve_cloned(&self, name: Ident) -> Option<DeclarationsInner> {
         self.declarations.get(&name.name).cloned()
+    }
+
+    pub(crate) fn declare_import_error(&mut self, guar: ErrorGuaranteed) {
+        self.import_error.get_or_insert(Declaration { res: Res::Err(guar), span: Span::DUMMY });
+    }
+
+    fn import_error(&self) -> Option<&[Declaration]> {
+        self.import_error.as_ref().map(std::slice::from_ref)
     }
 
     /// Declares `name => decl` without checking for conflicts.

@@ -186,7 +186,7 @@ impl<'gcx> ParsingContext<'gcx> {
                             any_new = true;
                         }
                     }
-                    Err(guar) => sources.add_failed_import(id, import_item_id, guar, true),
+                    Err(guar) => sources.add_import_error(id, import_item_id, guar, true),
                 }
             }
             sources[id].ast = ast;
@@ -262,19 +262,17 @@ impl<'gcx> ParsingContext<'gcx> {
             let file = source.file.clone();
             let parent = parent_path(&file);
             let imports_len = sources[id].imports.len();
-            let failed_imports_len = sources[id].failed_imports.len();
             let ast = self.parse_one(&file, arena, |item_id, _, import| {
                 let _guard = debug_span!("resolve_import").entered();
                 match self.resolve_import_directive(import, parent) {
                     Ok(import_file) => {
                         sources.add_import(id, item_id, import_file, false);
                     }
-                    Err(guar) => sources.add_failed_import(id, item_id, guar, false),
+                    Err(guar) => sources.add_import_error(id, item_id, guar, false),
                 }
             });
             if ast.is_none() {
                 sources[id].imports.truncate(imports_len);
-                sources[id].failed_imports.truncate(failed_imports_len);
             }
             sources[id].ast = ast;
         }
@@ -320,18 +318,17 @@ impl<'gcx> ParsingContext<'gcx> {
         scope: &rayon::Scope<'scope>,
     ) {
         let mut imports = Vec::new();
-        let mut failed_imports = Vec::new();
         let parent = parent_path(&file);
         let ast = self.parse_one(&file, arenas.get_or_default(), |item_id, _, import| {
             let _guard = debug_span!("resolve_import").entered();
             let import_file = match self.resolve_import_directive(import, parent) {
                 Ok(import_file) => import_file,
                 Err(guar) => {
-                    failed_imports.push((item_id, guar));
+                    imports.push((item_id, Err(guar)));
                     return;
                 }
             };
-            imports.push((item_id, import_file.clone()));
+            imports.push((item_id, Ok(import_file.clone())));
 
             let (import_id, is_new) = {
                 let sources = &mut *lock.lock();
@@ -349,9 +346,13 @@ impl<'gcx> ParsingContext<'gcx> {
         sources[id].ast = ast;
         if sources[id].ast.is_some() {
             for (import_item_id, import_file) in imports {
-                sources.add_import(id, import_item_id, import_file, false);
+                match import_file {
+                    Ok(import_file) => {
+                        sources.add_import(id, import_item_id, import_file, false);
+                    }
+                    Err(guar) => sources.add_import_error(id, import_item_id, guar, false),
+                }
             }
-            sources[id].failed_imports.extend(failed_imports);
         }
     }
 
@@ -569,7 +570,7 @@ impl<'ast> Sources<'ast> {
         let (import_id, new) = ret;
 
         let current = &mut self.sources[current].imports;
-        let value = (import_item_id, import_id);
+        let value = (import_item_id, Ok(import_id));
         if check_dup && current.contains(&value) {
             assert!(!new, "duplicate import but source is new?");
             return ret;
@@ -579,18 +580,19 @@ impl<'ast> Sources<'ast> {
         ret
     }
 
-    fn add_failed_import(
+    fn add_import_error(
         &mut self,
         current: SourceId,
         import_item_id: ast::ItemId,
         guar: ErrorGuaranteed,
         check_dup: bool,
     ) {
-        let failed_imports = &mut self.sources[current].failed_imports;
-        if check_dup && failed_imports.iter().any(|&(id, _)| id == import_item_id) {
+        let imports = &mut self.sources[current].imports;
+        let value = (import_item_id, Err(guar));
+        if check_dup && imports.contains(&value) {
             return;
         }
-        failed_imports.push((import_item_id, guar));
+        imports.push(value);
     }
 
     /// Asserts that all sources are unique.
@@ -632,7 +634,9 @@ impl<'ast> Sources<'ast> {
         debug_span!("remap_state").in_scope(|| {
             for source in &mut self.sources {
                 for (_, import) in &mut source.imports {
-                    *import = map[*import];
+                    if let Ok(import) = import {
+                        *import = map[*import];
+                    }
                 }
             }
 
@@ -657,7 +661,9 @@ impl<'ast> Sources<'ast> {
             return;
         }
         for &(_, import_id) in &self.sources[id].imports {
-            self.topo_order(import_id, order, map, seen);
+            if let Ok(import_id) = import_id {
+                self.topo_order(import_id, order, map, seen);
+            }
         }
         map[id] = order.push(id);
     }
@@ -687,9 +693,7 @@ pub struct Source<'ast> {
     ///
     /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
     /// source.
-    pub imports: Vec<(ast::ItemId, SourceId)>,
-    /// The individual imports that failed to resolve.
-    pub failed_imports: Vec<(ast::ItemId, ErrorGuaranteed)>,
+    pub imports: Vec<(ast::ItemId, Result<SourceId, ErrorGuaranteed>)>,
     /// The AST.
     ///
     /// `None` if:
@@ -705,7 +709,6 @@ impl fmt::Debug for Source<'_> {
         f.debug_struct("Source")
             .field("file", &self.file.name)
             .field("imports", &self.imports)
-            .field("failed_imports", &self.failed_imports)
             .field("ast", &self.ast)
             .finish()
     }
@@ -714,7 +717,7 @@ impl fmt::Debug for Source<'_> {
 impl Source<'_> {
     /// Creates a new empty source.
     pub fn new(file: Arc<SourceFile>) -> Self {
-        Self { file, ast: None, imports: Vec::new(), failed_imports: Vec::new() }
+        Self { file, ast: None, imports: Vec::new() }
     }
 
     fn count_contracts(&self) -> usize {
@@ -778,7 +781,7 @@ mod tests {
                 (cid, PathBuf::from("c.sol")),
             ];
 
-            sources[aid].imports.push((ItemId::new(0), cid));
+            sources[aid].imports.push((ItemId::new(0), Ok(cid)));
 
             for (id, path) in &files {
                 assert_eq!(sources[*id].file.name, FileName::Real(path.clone()));
