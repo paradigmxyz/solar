@@ -1,8 +1,30 @@
 //! MIR instructions.
 
 use super::{BlockId, FunctionId, MirType, ValueId};
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use std::fmt;
+
+/// Extra information attached to a MIR instruction by lowering or analysis passes.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InstructionMetadata {
+    /// Proven storage alias key for `sload`/`sstore` instructions.
+    pub storage_alias: Option<StorageAlias>,
+}
+
+impl InstructionMetadata {
+    /// Empty instruction metadata.
+    pub const EMPTY: Self = Self { storage_alias: None };
+}
+
+/// A conservative storage alias key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum StorageAlias {
+    /// A known absolute storage slot.
+    Slot(U256),
+    /// A loop-invariant symbolic slot value.
+    Symbolic(ValueId),
+}
 
 /// An instruction in the MIR.
 #[derive(Clone, Debug)]
@@ -11,13 +33,15 @@ pub struct Instruction {
     pub kind: InstKind,
     /// The result type (if any).
     pub result_ty: Option<MirType>,
+    /// Metadata produced by lowering or analysis.
+    pub metadata: InstructionMetadata,
 }
 
 impl Instruction {
     /// Creates a new instruction.
     #[must_use]
     pub const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
-        Self { kind, result_ty }
+        Self { kind, result_ty, metadata: InstructionMetadata::EMPTY }
     }
 
     /// Returns the operands of this instruction.

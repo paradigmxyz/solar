@@ -11,7 +11,7 @@ mod value;
 pub use value::{Immediate, Value};
 
 mod inst;
-pub use inst::{InstKind, Instruction};
+pub use inst::{InstKind, Instruction, InstructionMetadata, StorageAlias};
 
 mod block;
 pub use block::{BasicBlock, Terminator};

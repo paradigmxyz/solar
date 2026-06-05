@@ -7,8 +7,8 @@
 use crate::{
     analysis::{Loop, LoopAnalyzer},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Terminator, Value,
-        ValueId,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
+        Terminator, Value, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -35,7 +35,7 @@ pub struct StorageScalarPromoter {
 #[derive(Clone, Debug)]
 struct Candidate {
     slot_value: ValueId,
-    slot: U256,
+    slot: StorageAlias,
     preheader: BlockId,
     init_store: Option<InstId>,
 }
@@ -62,6 +62,8 @@ impl StorageScalarPromoter {
             return &self.stats;
         }
 
+        self.annotate_storage_aliases(func);
+
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
         let mut loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
@@ -81,18 +83,19 @@ impl StorageScalarPromoter {
         if loop_data.exit_blocks.is_empty() || !self.has_isolated_clean_exits(func, loop_data) {
             return None;
         }
-        if !self.loop_has_only_promotable_storage_effects(func, loop_data) {
+        if !self.loop_has_no_unpromotable_side_effects(func, loop_data) {
             return None;
         }
 
-        let mut slot: Option<U256> = None;
+        let mut slot: Option<StorageAlias> = None;
         let mut slot_value: Option<ValueId> = None;
         let mut saw_loop_store = false;
 
         for &block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::SStore(store_slot, _) = &func.instructions[inst_id].kind {
-                    let store_key = self.immediate_slot(func, *store_slot)?;
+                    let store_key =
+                        self.storage_alias_for_loop_value(func, *store_slot, loop_data)?;
                     match slot {
                         Some(existing) if existing != store_key => return None,
                         Some(_) => {}
@@ -111,18 +114,20 @@ impl StorageScalarPromoter {
         }
 
         let (slot, slot_value) = (slot?, slot_value?);
+        if !self.loop_storage_accesses_are_safe(func, loop_data, &slot) {
+            return None;
+        }
         let saw_loop_load = loop_data.blocks.iter().any(|&block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
                     &func.instructions[inst_id].kind,
-                    InstKind::SLoad(load_slot)
-                        if self.immediate_slot(func, *load_slot) == Some(slot)
+                    InstKind::SLoad(load_slot) if self.storage_alias(func, inst_id, *load_slot) == slot
                 )
             })
         });
-        let init_store = self.find_preheader_init_store(func, preheader, slot);
+        let init_store = self.find_preheader_init_store(func, preheader, &slot);
         if let Some(init_store) = init_store
-            && !self.preheader_tail_is_safe(func, preheader, init_store, slot)
+            && !self.preheader_tail_is_safe(func, preheader, init_store, &slot)
         {
             return None;
         }
@@ -145,7 +150,7 @@ impl StorageScalarPromoter {
         })
     }
 
-    fn loop_has_only_promotable_storage_effects(&self, func: &Function, loop_data: &Loop) -> bool {
+    fn loop_has_no_unpromotable_side_effects(&self, func: &Function, loop_data: &Loop) -> bool {
         for &block_id in &loop_data.blocks {
             if matches!(
                 func.blocks[block_id].terminator,
@@ -164,10 +169,7 @@ impl StorageScalarPromoter {
             for &inst_id in &func.blocks[block_id].instructions {
                 let inst = &func.instructions[inst_id];
                 match &inst.kind {
-                    InstKind::SStore(slot, _) if self.immediate_slot(func, *slot).is_none() => {
-                        return false;
-                    }
-                    InstKind::SStore(_, _) => {}
+                    InstKind::SLoad(_) | InstKind::SStore(_, _) => {}
                     InstKind::TStore(_, _)
                     | InstKind::Call { .. }
                     | InstKind::StaticCall { .. }
@@ -183,16 +185,45 @@ impl StorageScalarPromoter {
         true
     }
 
+    fn loop_storage_accesses_are_safe(
+        &self,
+        func: &Function,
+        loop_data: &Loop,
+        candidate: &StorageAlias,
+    ) -> bool {
+        for &block_id in &loop_data.blocks {
+            for &inst_id in &func.blocks[block_id].instructions {
+                match &func.instructions[inst_id].kind {
+                    InstKind::SLoad(slot) => {
+                        let alias = self.storage_alias(func, inst_id, *slot);
+                        if alias != *candidate && self.storage_aliases_may_alias(candidate, &alias)
+                        {
+                            return false;
+                        }
+                    }
+                    InstKind::SStore(slot, _) => {
+                        let alias = self.storage_alias(func, inst_id, *slot);
+                        if alias != *candidate {
+                            return false;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+        true
+    }
+
     fn find_preheader_init_store(
         &self,
         func: &Function,
         preheader: BlockId,
-        slot: U256,
+        slot: &StorageAlias,
     ) -> Option<InstId> {
         func.blocks[preheader].instructions.iter().rev().copied().find(|&inst_id| {
             matches!(
                 &func.instructions[inst_id].kind,
-                InstKind::SStore(store_slot, _) if self.immediate_slot(func, *store_slot) == Some(slot)
+                InstKind::SStore(store_slot, _) if self.storage_alias(func, inst_id, *store_slot) == *slot
             )
         })
     }
@@ -202,7 +233,7 @@ impl StorageScalarPromoter {
         func: &Function,
         preheader: BlockId,
         init_store: InstId,
-        slot: U256,
+        slot: &StorageAlias,
     ) -> bool {
         let Some(init_pos) =
             func.blocks[preheader].instructions.iter().position(|&inst_id| inst_id == init_store)
@@ -212,12 +243,12 @@ impl StorageScalarPromoter {
 
         for &inst_id in &func.blocks[preheader].instructions[init_pos + 1..] {
             match &func.instructions[inst_id].kind {
-                InstKind::SLoad(load_slot)
-                    if self.immediate_slot(func, *load_slot) != Some(slot) =>
-                {
-                    continue;
+                InstKind::SLoad(load_slot) => {
+                    let alias = self.storage_alias(func, inst_id, *load_slot);
+                    if alias != *slot && self.storage_aliases_may_alias(slot, &alias) {
+                        return false;
+                    }
                 }
-                InstKind::SLoad(_) => {}
                 InstKind::MStore(_, _) | InstKind::MStore8(_, _) | InstKind::MCopy(_, _, _) => {}
                 kind if kind.has_side_effects() => return false,
                 InstKind::Gas => return false,
@@ -241,12 +272,12 @@ impl StorageScalarPromoter {
                 let inst_id = func.blocks[block_id].instructions[index];
                 let replacement = match &func.instructions[inst_id].kind {
                     InstKind::SLoad(slot)
-                        if self.immediate_slot(func, *slot) == Some(candidate.slot) =>
+                        if self.storage_alias(func, inst_id, *slot) == candidate.slot =>
                     {
                         Some(InstKind::MLoad(temp_addr))
                     }
                     InstKind::SStore(slot, value)
-                        if self.immediate_slot(func, *slot) == Some(candidate.slot) =>
+                        if self.storage_alias(func, inst_id, *slot) == candidate.slot =>
                     {
                         Some(InstKind::MStore(temp_addr, *value))
                     }
@@ -260,6 +291,7 @@ impl StorageScalarPromoter {
                         _ => {}
                     }
                     func.instructions[inst_id].kind = new_kind;
+                    func.instructions[inst_id].metadata.storage_alias = None;
                     if let (Some(dirty_addr), Some(dirty_value)) = (dirty_addr, dirty_value)
                         && matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _))
                     {
@@ -318,9 +350,10 @@ impl StorageScalarPromoter {
                         continue;
                     }
                     if let InstKind::SLoad(load_slot) = &func.instructions[inst_id].kind
-                        && self.immediate_slot(func, *load_slot) == Some(candidate.slot)
+                        && self.storage_alias(func, inst_id, *load_slot) == candidate.slot
                     {
                         func.instructions[inst_id].kind = InstKind::MLoad(temp_addr);
+                        func.instructions[inst_id].metadata.storage_alias = None;
                         self.stats.loads_promoted += 1;
                     }
                 }
@@ -459,10 +492,65 @@ impl StorageScalarPromoter {
         (inst, value)
     }
 
-    fn immediate_slot(&self, func: &Function, value: ValueId) -> Option<U256> {
+    fn annotate_storage_aliases(&self, func: &mut Function) {
+        let inst_ids: Vec<_> =
+            func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
+        for inst_id in inst_ids {
+            let slot = match &func.instructions[inst_id].kind {
+                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
+                _ => None,
+            };
+            func.instructions[inst_id].metadata.storage_alias =
+                slot.map(|slot| self.storage_alias_for_value(func, slot));
+        }
+    }
+
+    fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
+        func.instructions[inst_id]
+            .metadata
+            .storage_alias
+            .unwrap_or_else(|| self.storage_alias_for_value(func, slot))
+    }
+
+    fn storage_alias_for_loop_value(
+        &self,
+        func: &Function,
+        value: ValueId,
+        loop_data: &Loop,
+    ) -> Option<StorageAlias> {
+        let alias = self.storage_alias_for_value(func, value);
+        if let StorageAlias::Symbolic(value) = alias
+            && self.value_defined_in_loop(func, value, loop_data)
+        {
+            return None;
+        }
+        Some(alias)
+    }
+
+    fn storage_alias_for_value(&self, func: &Function, value: ValueId) -> StorageAlias {
         match func.value(value) {
-            Value::Immediate(imm) => imm.as_u256(),
-            _ => None,
+            Value::Immediate(imm) => {
+                imm.as_u256().map_or(StorageAlias::Symbolic(value), StorageAlias::Slot)
+            }
+            _ => StorageAlias::Symbolic(value),
+        }
+    }
+
+    fn value_defined_in_loop(&self, func: &Function, value: ValueId, loop_data: &Loop) -> bool {
+        match func.value(value) {
+            Value::Inst(inst_id) => loop_data
+                .blocks
+                .iter()
+                .any(|&block_id| func.blocks[block_id].instructions.contains(inst_id)),
+            Value::Phi { .. } | Value::Undef(_) => true,
+            Value::Arg { .. } | Value::Immediate(_) => false,
+        }
+    }
+
+    fn storage_aliases_may_alias(&self, a: &StorageAlias, b: &StorageAlias) -> bool {
+        match (a, b) {
+            (StorageAlias::Slot(a), StorageAlias::Slot(b)) => a == b,
+            _ => true,
         }
     }
 }
@@ -492,11 +580,20 @@ mod tests {
         func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(value))))
     }
 
-    fn inst(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirType>) -> InstId {
+    fn inst_value(
+        func: &mut Function,
+        block: BlockId,
+        kind: InstKind,
+        ty: Option<MirType>,
+    ) -> (InstId, ValueId) {
         let inst = func.alloc_inst(Instruction::new(kind, ty));
         func.blocks[block].instructions.push(inst);
-        func.alloc_value(Value::Inst(inst));
-        inst
+        let value = func.alloc_value(Value::Inst(inst));
+        (inst, value)
+    }
+
+    fn inst(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirType>) -> InstId {
+        inst_value(func, block, kind, ty).0
     }
 
     fn make_storage_loop(external: bool) -> TestLoop {
@@ -653,6 +750,114 @@ mod tests {
         NoInitLoop { func, body_load: body_store, body_store, exit }
     }
 
+    fn make_symbolic_storage_loop() -> TestLoop {
+        let mut func = Function::new(Ident::DUMMY);
+        func.selector = Some([0, 0, 0, 1]);
+        func.params.push(MirType::uint256());
+
+        let entry = func.entry_block;
+        let header = func.alloc_block();
+        let body = func.alloc_block();
+        let update = func.alloc_block();
+        let exit = func.alloc_block();
+
+        let slot = func.alloc_value(Value::Arg { index: 0, ty: MirType::uint256() });
+        let one = imm(&mut func, 1);
+        let two = imm(&mut func, 2);
+        let cond = imm(&mut func, 1);
+
+        let entry_store = inst(&mut func, entry, InstKind::SStore(slot, one), None);
+        func.blocks[entry].terminator = Some(Terminator::Jump(header));
+        func.blocks[entry].successors.push(header);
+        func.blocks[header].predecessors.push(entry);
+
+        func.blocks[header].terminator =
+            Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
+        func.blocks[header].successors.push(body);
+        func.blocks[header].successors.push(exit);
+        func.blocks[body].predecessors.push(header);
+        func.blocks[exit].predecessors.push(header);
+
+        let (body_load, loaded) =
+            inst_value(&mut func, body, InstKind::SLoad(slot), Some(MirType::uint256()));
+        let (_, product) =
+            inst_value(&mut func, body, InstKind::Mul(loaded, two), Some(MirType::uint256()));
+        let body_store = inst(&mut func, body, InstKind::SStore(slot, product), None);
+        func.blocks[body].terminator = Some(Terminator::Jump(update));
+        func.blocks[body].successors.push(update);
+        func.blocks[update].predecessors.push(body);
+
+        func.blocks[update].terminator = Some(Terminator::Jump(header));
+        func.blocks[update].successors.push(header);
+        func.blocks[header].predecessors.push(update);
+
+        func.blocks[exit].terminator = Some(Terminator::Stop);
+
+        TestLoop { func, entry_store, body_load, body_store, exit }
+    }
+
+    fn make_loop_variant_symbolic_storage_loop() -> NoInitLoop {
+        let mut func = Function::new(Ident::DUMMY);
+        func.selector = Some([0, 0, 0, 1]);
+        func.params.push(MirType::uint256());
+
+        let entry = func.entry_block;
+        let header = func.alloc_block();
+        let body = func.alloc_block();
+        let update = func.alloc_block();
+        let exit = func.alloc_block();
+
+        let seed = func.alloc_value(Value::Arg { index: 0, ty: MirType::uint256() });
+        let zero = imm(&mut func, 0);
+        let two = imm(&mut func, 2);
+        let cond = imm(&mut func, 1);
+
+        func.blocks[entry].terminator = Some(Terminator::Jump(header));
+        func.blocks[entry].successors.push(header);
+        func.blocks[header].predecessors.push(entry);
+
+        func.blocks[header].terminator =
+            Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
+        func.blocks[header].successors.push(body);
+        func.blocks[header].successors.push(exit);
+        func.blocks[body].predecessors.push(header);
+        func.blocks[exit].predecessors.push(header);
+
+        let (_, slot) =
+            inst_value(&mut func, body, InstKind::Add(seed, zero), Some(MirType::uint256()));
+        let (body_load, loaded) =
+            inst_value(&mut func, body, InstKind::SLoad(slot), Some(MirType::uint256()));
+        let (_, sum) =
+            inst_value(&mut func, body, InstKind::Add(loaded, two), Some(MirType::uint256()));
+        let body_store = inst(&mut func, body, InstKind::SStore(slot, sum), None);
+        func.blocks[body].terminator = Some(Terminator::Jump(update));
+        func.blocks[body].successors.push(update);
+        func.blocks[update].predecessors.push(body);
+
+        func.blocks[update].terminator = Some(Terminator::Jump(header));
+        func.blocks[update].successors.push(header);
+        func.blocks[header].predecessors.push(update);
+
+        func.blocks[exit].terminator = Some(Terminator::Stop);
+
+        NoInitLoop { func, body_load, body_store, exit }
+    }
+
+    fn make_symbolic_loop_with_possibly_aliasing_load() -> TestLoop {
+        let mut test = make_symbolic_storage_loop();
+        let const_slot = imm(&mut test.func, 0);
+        let body = test
+            .func
+            .blocks
+            .iter_enumerated()
+            .find_map(|(block_id, block)| {
+                block.instructions.contains(&test.body_load).then_some(block_id)
+            })
+            .expect("missing body block");
+        inst(&mut test.func, body, InstKind::SLoad(const_slot), Some(MirType::uint256()));
+        test
+    }
+
     #[test]
     fn promotes_external_storage_update_loop() {
         let mut test = make_storage_loop(true);
@@ -754,6 +959,43 @@ mod tests {
         let stats = pass.run(&mut test.func);
 
         assert_eq!(stats.loops_promoted, 0);
+        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::SStore(_, _)));
+    }
+
+    #[test]
+    fn promotes_invariant_symbolic_storage_slot() {
+        let mut test = make_symbolic_storage_loop();
+        let mut pass = StorageScalarPromoter::new();
+        let stats = pass.run(&mut test.func);
+
+        assert_eq!(stats.loops_promoted, 1);
+        assert_eq!(stats.loads_promoted, 1);
+        assert_eq!(stats.stores_promoted, 2);
+        assert!(matches!(test.func.instructions[test.entry_store].kind, InstKind::MStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::MLoad(_)));
+        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::MStore(_, _)));
+    }
+
+    #[test]
+    fn skips_loop_variant_symbolic_storage_slot() {
+        let mut test = make_loop_variant_symbolic_storage_loop();
+        let mut pass = StorageScalarPromoter::new();
+        let stats = pass.run(&mut test.func);
+
+        assert_eq!(stats.loops_promoted, 0);
+        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::SLoad(_)));
+        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::SStore(_, _)));
+    }
+
+    #[test]
+    fn skips_symbolic_slot_with_possibly_aliasing_storage_load() {
+        let mut test = make_symbolic_loop_with_possibly_aliasing_load();
+        let mut pass = StorageScalarPromoter::new();
+        let stats = pass.run(&mut test.func);
+
+        assert_eq!(stats.loops_promoted, 0);
+        assert!(matches!(test.func.instructions[test.entry_store].kind, InstKind::SStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::SLoad(_)));
         assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::SStore(_, _)));
     }
 }
