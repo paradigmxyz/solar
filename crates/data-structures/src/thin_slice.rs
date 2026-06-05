@@ -75,7 +75,7 @@ impl<H, T> RawThinSlice<H, T> {
             .extend(Layout::array::<T>(len).unwrap())
             .unwrap();
         assert!(layout.align() <= align_of::<u128>());
-        let words = layout.size().next_multiple_of(size_of::<u128>()) / size_of::<u128>();
+        let words = layout.size().div_ceil(size_of::<u128>());
         arena.alloc_slice_fill_with(words, |_| 0u128).as_mut_ptr() as *mut Self
     }
 
