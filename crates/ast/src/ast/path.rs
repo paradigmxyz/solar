@@ -1,8 +1,8 @@
 use crate::BoxSlice;
-use bumpalo::Bump;
 use solar_data_structures::{BumpExt, smallvec::SmallVec};
 use solar_interface::{Ident, Span, Symbol};
 use std::{cmp::Ordering, fmt};
+use stumpalo::Arena;
 
 /// A boxed [`PathSlice`].
 #[derive(Debug)]
@@ -57,7 +57,7 @@ impl std::hash::Hash for AstPath<'_> {
 impl<'ast> AstPath<'ast> {
     /// Creates a new path from a slice of segments by allocating them on the given arena.
     #[inline]
-    pub fn new_in(arena: &'ast Bump, segments: &[Ident]) -> Self {
+    pub fn new_in(arena: &'ast Arena, segments: &[Ident]) -> Self {
         Self(arena.alloc_thin_slice_copy((), segments))
     }
 

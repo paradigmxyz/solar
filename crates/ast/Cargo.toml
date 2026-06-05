@@ -29,7 +29,7 @@ solar-interface.workspace = true
 solar-macros.workspace = true
 
 alloy-primitives.workspace = true
-bumpalo = { workspace = true, features = ["std", "boxed"] }
+stumpalo = { workspace = true, features = ["std"] }
 either.workspace = true
 semver.workspace = true
 num-rational.workspace = true

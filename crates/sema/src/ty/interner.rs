@@ -23,7 +23,7 @@ impl<'gcx> Interner<'gcx> {
         Self::default()
     }
 
-    pub(super) fn intern_ty(&self, bump: &'gcx bumpalo::Bump, kind: TyKind<'gcx>) -> Ty<'gcx> {
+    pub(super) fn intern_ty(&self, bump: &'gcx stumpalo::Arena, kind: TyKind<'gcx>) -> Ty<'gcx> {
         Ty(Interned::new_unchecked(
             self.tys
                 .intern(kind, |kind| bump.alloc(TyData { flags: TyFlags::calculate(&kind), kind })),
@@ -32,7 +32,7 @@ impl<'gcx> Interner<'gcx> {
 
     pub(super) fn intern_tys(
         &self,
-        bump: &'gcx bumpalo::Bump,
+        bump: &'gcx stumpalo::Arena,
         tys: &[Ty<'gcx>],
     ) -> &'gcx [Ty<'gcx>] {
         if tys.is_empty() {
@@ -43,7 +43,7 @@ impl<'gcx> Interner<'gcx> {
 
     pub(super) fn intern_ty_iter(
         &self,
-        bump: &'gcx bumpalo::Bump,
+        bump: &'gcx stumpalo::Arena,
         tys: impl Iterator<Item = Ty<'gcx>>,
     ) -> &'gcx [Ty<'gcx>] {
         solar_data_structures::CollectAndApply::collect_and_apply(tys, |tys| {
@@ -53,7 +53,7 @@ impl<'gcx> Interner<'gcx> {
 
     pub(super) fn intern_ty_fn(
         &self,
-        bump: &'gcx bumpalo::Bump,
+        bump: &'gcx stumpalo::Arena,
         ptr: TyFn<'gcx>,
     ) -> &'gcx TyFn<'gcx> {
         self.fns.intern(ptr, |ptr| bump.alloc(ptr))

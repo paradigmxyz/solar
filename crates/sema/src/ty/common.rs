@@ -35,7 +35,7 @@ pub struct CommonTypes<'gcx> {
 impl<'gcx> CommonTypes<'gcx> {
     #[instrument(name = "new_common_types", level = "debug", skip_all)]
     #[inline]
-    pub(super) fn new(interner: &Interner<'gcx>, bump: &'gcx bumpalo::Bump) -> Self {
+    pub(super) fn new(interner: &Interner<'gcx>, bump: &'gcx stumpalo::Arena) -> Self {
         use ElementaryType::*;
         use TyKind::*;
         use std::array::from_fn;

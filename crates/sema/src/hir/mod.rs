@@ -24,22 +24,26 @@ pub use visit::Visit;
 
 /// HIR arena allocator.
 pub struct Arena {
-    bump: bumpalo::Bump,
+    bump: stumpalo::Arena,
 }
+
+// SAFETY: HIR arenas are owned by the semantic context and allocation happens during construction.
+// Cross-thread users only read already allocated HIR data through shared references.
+unsafe impl Send for Arena {}
 
 impl Arena {
     /// Creates a new AST arena.
     pub fn new() -> Self {
-        Self { bump: bumpalo::Bump::new() }
+        Self { bump: stumpalo::Arena::new() }
     }
 
     /// Returns a reference to the arena's bump allocator.
-    pub fn bump(&self) -> &bumpalo::Bump {
+    pub fn bump(&self) -> &stumpalo::Arena {
         &self.bump
     }
 
     /// Returns a mutable reference to the arena's bump allocator.
-    pub fn bump_mut(&mut self) -> &mut bumpalo::Bump {
+    pub fn bump_mut(&mut self) -> &mut stumpalo::Arena {
         &mut self.bump
     }
 
@@ -61,7 +65,7 @@ impl Default for Arena {
 }
 
 impl std::ops::Deref for Arena {
-    type Target = bumpalo::Bump;
+    type Target = stumpalo::Arena;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -283,7 +287,7 @@ impl<'hir> Hir<'hir> {
 
     /// Creates a builder for constructing HIR nodes.
     pub fn builder<'id>(
-        arena: &'hir bumpalo::Bump,
+        arena: &'hir stumpalo::Arena,
         next_id: &'id IdCounter,
     ) -> HirBuilder<'hir, 'id> {
         HirBuilder::new(arena, next_id)
@@ -326,13 +330,13 @@ impl IdCounter {
 
 /// A builder for constructing HIR nodes.
 pub struct HirBuilder<'hir, 'id> {
-    arena: &'hir bumpalo::Bump,
+    arena: &'hir stumpalo::Arena,
     next_id: &'id IdCounter,
 }
 
 impl<'hir, 'id> HirBuilder<'hir, 'id> {
     /// Creates a new HIR builder.
-    pub fn new(arena: &'hir bumpalo::Bump, next_id: &'id IdCounter) -> Self {
+    pub fn new(arena: &'hir stumpalo::Arena, next_id: &'id IdCounter) -> Self {
         Self { arena, next_id }
     }
 

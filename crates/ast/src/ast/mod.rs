@@ -41,22 +41,27 @@ pub type BoxSlice<'ast, T> = Box<'ast, ThinSlice<T>>;
 
 /// AST arena allocator.
 pub struct Arena {
-    bump: bumpalo::Bump,
+    bump: stumpalo::Arena,
 }
+
+// SAFETY: Solar stores AST arenas in `thread_local::ThreadLocal`, so each arena is only mutated by
+// its owning thread. References allocated from an arena may be read by other threads after parsing,
+// but the arena itself is not concurrently allocated from across threads.
+unsafe impl Send for Arena {}
 
 impl Arena {
     /// Creates a new AST arena.
     pub fn new() -> Self {
-        Self { bump: bumpalo::Bump::new() }
+        Self { bump: stumpalo::Arena::new() }
     }
 
     /// Returns a reference to the arena's bump allocator.
-    pub fn bump(&self) -> &bumpalo::Bump {
+    pub fn bump(&self) -> &stumpalo::Arena {
         &self.bump
     }
 
     /// Returns a mutable reference to the arena's bump allocator.
-    pub fn bump_mut(&mut self) -> &mut bumpalo::Bump {
+    pub fn bump_mut(&mut self) -> &mut stumpalo::Arena {
         &mut self.bump
     }
 
@@ -78,7 +83,7 @@ impl Default for Arena {
 }
 
 impl std::ops::Deref for Arena {
-    type Target = bumpalo::Bump;
+    type Target = stumpalo::Arena;
 
     #[inline]
     fn deref(&self) -> &Self::Target {

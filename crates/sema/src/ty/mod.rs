@@ -332,7 +332,7 @@ impl<'gcx> Gcx<'gcx> {
         self.hir_arenas.get_or_default()
     }
 
-    pub fn bump(self) -> &'gcx bumpalo::Bump {
+    pub fn bump(self) -> &'gcx stumpalo::Arena {
         self.arena().bump()
     }
 
