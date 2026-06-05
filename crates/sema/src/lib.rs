@@ -119,6 +119,7 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
         }
         natspec::validate_item_docs(gcx, id);
     });
+
     typeck::check(gcx);
 
     if !gcx.sess.opts.emit.is_empty() {
