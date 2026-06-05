@@ -9,109 +9,42 @@
 //! It is an unstable, internal tool used by the `Mir` test mode; it is not part
 //! of the stable CLI surface.
 
-use clap::{Parser, ValueEnum, ValueHint};
+use clap::{CommandFactory, FromArgMatches, Parser, ValueHint};
 use solar_codegen::{
     lower,
     mir::{Module, module_to_text, parse_module},
-    pass::{
-        CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, InstSimplifyPass,
-        JumpThreadingPass, LicmPass, MemoryDsePass, PassManager, SccpTransformPass,
-        StorageLoadCsePass, StorageScalarPromotionPass, TransformPass,
-    },
-    transform::{DeadFunctionEliminator, MirInliner},
+    pass::{DEFAULT_PIPELINE, PassName, run_pass as run_codegen_pass},
 };
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
-use std::{ffi::OsString, ops::ControlFlow, path::Path, process::ExitCode};
+use std::{ffi::OsString, fmt::Write as _, ops::ControlFlow, path::Path, process::ExitCode};
 
-const AFTER_HELP: &str = "\
-Passes:
-  inline           Internal MIR function inlining
-  function-dce     Dead internal function elimination
-  dce              Dead Code Elimination (fixed-point)
-  inst-simplify    Local MIR instruction simplification
-  cse              Common Subexpression Elimination (fixed-point)
-  storage-load-cse Reuse storage loads across definitely-disjoint stores
-  sccp             Sparse Conditional Constant Propagation
-  licm             Loop-Invariant Code Motion
-  cfg-simplify     CFG Simplification (fixed-point)
-  jump-threading   Jump Threading (fixed-point)
-  frame-slot-promotion
-                   Promote non-escaping internal-frame slots to SSA values
-  memory-dse       Local dead memory-store elimination
-  storage-promotion
-                   Promote simple loop-carried storage updates to memory
-  none             No transform; just lower/parse and print
-
-Input formats:
-  *.sol  Solidity contract — lowered through the normal compiler pipeline
-  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module
-";
-
-/// The canonical pass list run by `EvmCodegen::run_optimization_passes`.
-/// Keep in sync with `crates/codegen/src/backend/evm/codegen.rs`.
-const DEFAULT_PIPELINE: &[PassName] = &[
-    PassName::Inline,
-    PassName::FunctionDce,
-    PassName::Sccp,
-    PassName::InstSimplify,
-    PassName::Cse,
-    PassName::StorageLoadCse,
-    PassName::StoragePromotion,
-    PassName::Licm,
-    PassName::JumpThreading,
-    PassName::CfgSimplify,
-    PassName::FrameSlotPromotion,
-    PassName::MemoryDse,
-    PassName::Dce,
-];
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-#[clap(rename_all = "kebab-case")]
-enum PassName {
-    Inline,
-    FunctionDce,
-    Dce,
-    InstSimplify,
-    Cse,
-    StorageLoadCse,
-    Sccp,
-    Licm,
-    CfgSimplify,
-    JumpThreading,
-    FrameSlotPromotion,
-    MemoryDse,
-    StoragePromotion,
-    None,
-}
-
-impl PassName {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Inline => "inline",
-            Self::FunctionDce => "function-dce",
-            Self::Dce => "dce",
-            Self::InstSimplify => "inst-simplify",
-            Self::Cse => "cse",
-            Self::StorageLoadCse => "storage-load-cse",
-            Self::Sccp => "sccp",
-            Self::Licm => "licm",
-            Self::CfgSimplify => "cfg-simplify",
-            Self::JumpThreading => "jump-threading",
-            Self::FrameSlotPromotion => "frame-slot-promotion",
-            Self::MemoryDse => "memory-dse",
-            Self::StoragePromotion => "storage-promotion",
-            Self::None => "none",
-        }
+fn after_help() -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "Passes:");
+    for pass in PassName::KNOWN {
+        let _ = writeln!(out, "  {:<20} {}", pass.as_str(), pass.description());
     }
+    let _ = writeln!(out, "  {:<20} No transform; just lower/parse and print", "none");
+    let _ = writeln!(out);
+    let _ = writeln!(out, "Default pipeline:");
+    let _ = writeln!(out, "  {}", pass_list_label(DEFAULT_PIPELINE, " → "));
+    let _ = writeln!(out);
+    let _ = writeln!(out, "Input formats:");
+    let _ =
+        writeln!(out, "  *.sol  Solidity contract — lowered through the normal compiler pipeline");
+    let _ = writeln!(
+        out,
+        "  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module"
+    );
+    out
 }
 
 #[derive(Parser)]
 #[command(
     name = "solar mir-opt",
     about = "Run one or more MIR passes on a Solidity or MIR file",
-    arg_required_else_help = true,
-    after_help = AFTER_HELP,
+    arg_required_else_help = true
 )]
 struct Args {
     /// Comma-separated list of passes to run in order.
@@ -120,10 +53,11 @@ struct Args {
         visible_alias = "pass",
         value_name = "NAMES",
         value_delimiter = ',',
+        value_parser = parse_pass,
         required_unless_present = "pipeline_default",
         conflicts_with = "pipeline_default"
     )]
-    passes: Option<Vec<PassName>>,
+    passes: Option<Vec<Option<PassName>>>,
     /// If true, print MIR after every pass; otherwise only after the last.
     #[arg(long)]
     print_after_each: bool,
@@ -136,72 +70,57 @@ struct Args {
 }
 
 impl Args {
-    fn passes(&self) -> &[PassName] {
+    fn selected_passes(&self) -> Vec<Option<PassName>> {
         if self.pipeline_default {
-            DEFAULT_PIPELINE
+            DEFAULT_PIPELINE.iter().copied().map(Some).collect()
         } else {
-            self.passes.as_deref().expect("clap requires passes unless pipeline-default is set")
+            self.passes.clone().expect("clap requires passes unless pipeline-default is set")
         }
     }
 
-    fn pipeline_label(&self) -> String {
+    fn pipeline_label(&self, passes: &[Option<PassName>]) -> String {
         if self.pipeline_default {
             "pipeline-default".to_string()
         } else {
-            self.passes().iter().map(|p| p.as_str()).collect::<Vec<_>>().join(",")
+            selected_pass_list_label(passes, ",")
         }
     }
 }
 
-enum MirOptPass {
-    Inline(MirInliner),
-    FunctionDce(DeadFunctionEliminator),
-    Function(Box<dyn TransformPass>),
-}
-
-/// Returns a fresh pass for the given name. The special `none` pass returns `None` (skipped).
-fn make_pass(name: PassName) -> Option<MirOptPass> {
+fn parse_pass(name: &str) -> Result<Option<PassName>, String> {
     match name {
-        PassName::Inline => Some(MirOptPass::Inline(MirInliner::default())),
-        PassName::FunctionDce => Some(MirOptPass::FunctionDce(DeadFunctionEliminator::new())),
-        PassName::Dce => Some(MirOptPass::Function(Box::new(DcePass))),
-        PassName::InstSimplify => Some(MirOptPass::Function(Box::new(InstSimplifyPass))),
-        PassName::Cse => Some(MirOptPass::Function(Box::new(CsePass))),
-        PassName::StorageLoadCse => Some(MirOptPass::Function(Box::new(StorageLoadCsePass))),
-        PassName::Sccp => Some(MirOptPass::Function(Box::new(SccpTransformPass))),
-        PassName::Licm => Some(MirOptPass::Function(Box::new(LicmPass))),
-        PassName::CfgSimplify => Some(MirOptPass::Function(Box::new(CfgSimplifyPass))),
-        PassName::JumpThreading => Some(MirOptPass::Function(Box::new(JumpThreadingPass))),
-        PassName::FrameSlotPromotion => {
-            Some(MirOptPass::Function(Box::new(FrameSlotPromotionPass)))
-        }
-        PassName::MemoryDse => Some(MirOptPass::Function(Box::new(MemoryDsePass))),
-        PassName::StoragePromotion => {
-            Some(MirOptPass::Function(Box::new(StorageScalarPromotionPass)))
-        }
-        PassName::None => None,
+        "none" => Ok(None),
+        other => PassName::parse(other).map(Some).ok_or_else(|| format!("unknown pass: {other}")),
     }
 }
 
-/// Runs a single pass over the module.
-fn run_pass(module: &mut Module, pass_name: PassName) {
-    if let Some(pass) = make_pass(pass_name) {
-        match pass {
-            MirOptPass::Inline(mut pass) => {
-                pass.run(module);
-            }
-            MirOptPass::FunctionDce(mut pass) => {
-                pass.run(module);
-            }
-            MirOptPass::Function(boxed) => {
-                let mut pm = PassManager::new();
-                pm.add_transform(boxed);
-                for func in module.functions.iter_mut() {
-                    pm.run(func);
-                }
-            }
-        }
+fn pass_label(pass: Option<PassName>) -> &'static str {
+    match pass {
+        Some(pass) => pass.as_str(),
+        None => "none",
     }
+}
+
+fn pass_list_label(passes: &[PassName], separator: &str) -> String {
+    let mut label = String::new();
+    for (i, pass) in passes.iter().enumerate() {
+        if i != 0 {
+            label.push_str(separator);
+        }
+        label.push_str(pass.as_str());
+    }
+    label
+}
+
+fn selected_pass_list_label(passes: &[Option<PassName>], separator: &str) -> String {
+    let mut label = String::new();
+    for (i, &pass) in passes.iter().enumerate() {
+        if i != 0 {
+            label.push_str(separator);
+        }
+        label.push_str(pass_label(pass));
+    }
+    label
 }
 
 /// Prints a module with a header indicating which pass(es) produced it.
@@ -213,18 +132,23 @@ fn print_module(module: &Module, name: &str, after: &str) {
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
 fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), String> {
+    let passes = args.selected_passes();
     if args.print_after_each {
-        for &pass in args.passes() {
-            run_pass(module, pass);
-            print_module(module, name, pass.as_str());
+        for pass in &passes {
+            if let Some(pass) = *pass {
+                run_codegen_pass(module, pass);
+            }
+            print_module(module, name, pass_label(*pass));
         }
     } else {
-        for &pass in args.passes() {
-            run_pass(module, pass);
+        for &pass in &passes {
+            if let Some(pass) = pass {
+                run_codegen_pass(module, pass);
+            }
         }
-        // For --pipeline-default, use a stable label so the output header doesn't depend on the
-        // underlying pass list (which may evolve).
-        let label = args.pipeline_label();
+        // For --pipeline-default, use a stable label so the output header
+        // doesn't depend on the underlying pass list (which may evolve).
+        let label = args.pipeline_label(&passes);
         print_module(module, name, &label);
     }
     Ok(())
@@ -305,10 +229,13 @@ fn process_sol(args: &Args) -> Result<(), String> {
 /// Entry point for the `mir-opt` subcommand. `argv` is the arguments following
 /// `mir-opt` (i.e. excluding the program name and the subcommand itself).
 pub fn run(argv: &[OsString]) -> ExitCode {
-    let args = Args::try_parse_from(
-        std::iter::once(OsString::from("solar mir-opt")).chain(argv.iter().cloned()),
-    )
-    .unwrap_or_else(|e| e.exit());
+    let command = Args::command().after_help(after_help());
+    let matches = command
+        .try_get_matches_from(
+            std::iter::once(OsString::from("solar mir-opt")).chain(argv.iter().cloned()),
+        )
+        .unwrap_or_else(|e| e.exit());
+    let args = Args::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
 
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");

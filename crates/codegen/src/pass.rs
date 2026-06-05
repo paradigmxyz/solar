@@ -19,9 +19,186 @@
 //! pm.run(&mut func);
 //! ```
 
-use crate::mir::Function;
+use crate::{
+    mir::{Function, Module},
+    transform::{DeadFunctionEliminator, MirInliner},
+};
 use rustc_hash::FxHashMap;
 use std::any::{Any, TypeId};
+
+/// A named MIR pass that can be used by the default codegen pipeline or `solar mir-opt`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PassName {
+    /// Internal MIR function inlining.
+    Inline,
+    /// Dead internal function elimination.
+    FunctionDce,
+    /// Sparse conditional constant propagation.
+    Sccp,
+    /// Local MIR instruction simplification.
+    InstSimplify,
+    /// Local common subexpression elimination.
+    Cse,
+    /// Storage-load CSE across definitely-disjoint stores.
+    StorageLoadCse,
+    /// Loop-carried storage scalar promotion.
+    StoragePromotion,
+    /// Loop-invariant code motion.
+    Licm,
+    /// Jump threading.
+    JumpThreading,
+    /// CFG simplification.
+    CfgSimplify,
+    /// Internal-frame scalar promotion.
+    FrameSlotPromotion,
+    /// Local dead memory-store elimination.
+    MemoryDse,
+    /// Dead code elimination.
+    Dce,
+}
+
+impl PassName {
+    /// All known MIR passes exposed to `solar mir-opt`.
+    pub const KNOWN: &'static [Self] = &[
+        Self::Inline,
+        Self::FunctionDce,
+        Self::Dce,
+        Self::InstSimplify,
+        Self::Cse,
+        Self::StorageLoadCse,
+        Self::Sccp,
+        Self::Licm,
+        Self::CfgSimplify,
+        Self::JumpThreading,
+        Self::FrameSlotPromotion,
+        Self::MemoryDse,
+        Self::StoragePromotion,
+    ];
+
+    /// The command-line name for this pass.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Inline => "inline",
+            Self::FunctionDce => "function-dce",
+            Self::Sccp => "sccp",
+            Self::InstSimplify => "inst-simplify",
+            Self::Cse => "cse",
+            Self::StorageLoadCse => "storage-load-cse",
+            Self::StoragePromotion => "storage-promotion",
+            Self::Licm => "licm",
+            Self::JumpThreading => "jump-threading",
+            Self::CfgSimplify => "cfg-simplify",
+            Self::FrameSlotPromotion => "frame-slot-promotion",
+            Self::MemoryDse => "memory-dse",
+            Self::Dce => "dce",
+        }
+    }
+
+    /// Human-readable description for help output.
+    pub const fn description(self) -> &'static str {
+        match self {
+            Self::Inline => "Internal MIR function inlining",
+            Self::FunctionDce => "Dead internal function elimination",
+            Self::Sccp => "Sparse Conditional Constant Propagation",
+            Self::InstSimplify => "Local MIR instruction simplification",
+            Self::Cse => "Common Subexpression Elimination (fixed-point)",
+            Self::StorageLoadCse => "Reuse storage loads across definitely-disjoint stores",
+            Self::StoragePromotion => "Promote simple loop-carried storage updates to memory",
+            Self::Licm => "Loop-Invariant Code Motion",
+            Self::JumpThreading => "Jump Threading (fixed-point)",
+            Self::CfgSimplify => "CFG Simplification (fixed-point)",
+            Self::FrameSlotPromotion => "Promote non-escaping internal-frame slots to SSA values",
+            Self::MemoryDse => "Local dead memory-store elimination",
+            Self::Dce => "Dead Code Elimination (fixed-point)",
+        }
+    }
+
+    /// Parses a command-line pass name.
+    pub fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "inline" => Self::Inline,
+            "function-dce" => Self::FunctionDce,
+            "sccp" => Self::Sccp,
+            "inst-simplify" => Self::InstSimplify,
+            "cse" => Self::Cse,
+            "storage-load-cse" => Self::StorageLoadCse,
+            "storage-promotion" => Self::StoragePromotion,
+            "licm" => Self::Licm,
+            "jump-threading" => Self::JumpThreading,
+            "cfg-simplify" => Self::CfgSimplify,
+            "frame-slot-promotion" => Self::FrameSlotPromotion,
+            "memory-dse" => Self::MemoryDse,
+            "dce" => Self::Dce,
+            _ => return None,
+        })
+    }
+}
+
+/// The canonical MIR optimization pipeline used by EVM codegen.
+pub const DEFAULT_PIPELINE: &[PassName] = &[
+    PassName::Inline,
+    PassName::FunctionDce,
+    PassName::Sccp,
+    PassName::InstSimplify,
+    PassName::Cse,
+    PassName::StorageLoadCse,
+    PassName::StoragePromotion,
+    PassName::Licm,
+    PassName::JumpThreading,
+    PassName::CfgSimplify,
+    PassName::FrameSlotPromotion,
+    PassName::MemoryDse,
+    PassName::Dce,
+];
+
+/// Runs a named MIR pass over a module.
+pub fn run_pass(module: &mut Module, pass: PassName) {
+    match pass {
+        PassName::Inline => {
+            MirInliner::default().run(module);
+        }
+        PassName::FunctionDce => {
+            DeadFunctionEliminator::new().run(module);
+        }
+        pass => {
+            let Some(transform) = make_transform_pass(pass) else { return };
+            let mut pm = PassManager::new();
+            pm.add_transform(transform);
+            for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+                pm.run(func);
+            }
+        }
+    }
+}
+
+/// Runs a named MIR pass pipeline over a module.
+pub fn run_pipeline(module: &mut Module, passes: &[PassName]) {
+    for &pass in passes {
+        run_pass(module, pass);
+    }
+}
+
+/// Runs the canonical MIR optimization pipeline used by EVM codegen.
+pub fn run_default_pipeline(module: &mut Module) {
+    run_pipeline(module, DEFAULT_PIPELINE);
+}
+
+fn make_transform_pass(pass: PassName) -> Option<Box<dyn TransformPass>> {
+    Some(match pass {
+        PassName::Inline | PassName::FunctionDce => return None,
+        PassName::Sccp => Box::new(SccpTransformPass),
+        PassName::InstSimplify => Box::new(InstSimplifyPass),
+        PassName::Cse => Box::new(CsePass),
+        PassName::StorageLoadCse => Box::new(StorageLoadCsePass),
+        PassName::StoragePromotion => Box::new(StorageScalarPromotionPass),
+        PassName::Licm => Box::new(LicmPass),
+        PassName::JumpThreading => Box::new(JumpThreadingPass),
+        PassName::CfgSimplify => Box::new(CfgSimplifyPass),
+        PassName::FrameSlotPromotion => Box::new(FrameSlotPromotionPass),
+        PassName::MemoryDse => Box::new(MemoryDsePass),
+        PassName::Dce => Box::new(DcePass),
+    })
+}
 
 /// A key identifying a particular analysis, derived from its result type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -320,7 +497,7 @@ pub struct StorageScalarPromotionPass;
 
 impl TransformPass for StorageScalarPromotionPass {
     fn name(&self) -> &str {
-        "storage-scalar-promotion"
+        PassName::StoragePromotion.as_str()
     }
 
     fn run(&mut self, func: &mut Function) {

@@ -14,12 +14,7 @@ use crate::{
     IMMUTABLE_SCRATCH_BASE,
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
-    pass::{
-        AnalysisManager, CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass,
-        InstSimplifyPass, JumpThreadingPass, LicmPass, LivenessAnalysis, MemoryDsePass,
-        PassManager, SccpTransformPass, StorageLoadCsePass, StorageScalarPromotionPass,
-    },
-    transform::{DeadFunctionEliminator, MirInliner},
+    pass::{AnalysisManager, LivenessAnalysis, run_default_pipeline},
 };
 use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -373,45 +368,9 @@ impl EvmCodegen {
         }
     }
 
-    /// Runs optimization passes on all functions in the module via the PassManager.
-    ///
-    /// Order:
-    /// 1. Inline        — clones profitable internal calls into callers
-    /// 2. Function DCE  — removes internal callees made unreachable by inlining
-    /// 3. SCCP          — folds constants and prunes constant branches
-    /// 4. Inst simplify — removes algebraic no-ops and equivalent opcode patterns
-    /// 5. CSE           — removes duplicate local computations
-    /// 6. Storage load CSE — reuses storage loads across definitely-disjoint stores
-    /// 7. Storage promotion — converts simple storage update loops to memory accumulators
-    /// 8. LICM           — hoists loop-invariant instructions into loop preheaders
-    /// 9. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
-    /// 10. CFG simplify  — physically merges sequential blocks and removes empty forwarders
-    /// 11. Frame promotion — promotes non-escaping internal frame slots to SSA values
-    /// 12. Memory DSE   — removes overwritten same-block memory stores
-    /// 13. DCE          — removes dead instructions and any remaining unreachable blocks
-    ///
-    /// Each pass internally iterates to a fixed point. Threading creates orphaned
-    /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
-    /// DCE handles whatever's still unreachable.
+    /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        MirInliner::default().run(module);
-        DeadFunctionEliminator::new().run(module);
-
-        let mut pm = PassManager::new();
-        pm.add_transform(Box::new(SccpTransformPass));
-        pm.add_transform(Box::new(InstSimplifyPass));
-        pm.add_transform(Box::new(CsePass));
-        pm.add_transform(Box::new(StorageLoadCsePass));
-        pm.add_transform(Box::new(StorageScalarPromotionPass));
-        pm.add_transform(Box::new(LicmPass));
-        pm.add_transform(Box::new(JumpThreadingPass));
-        pm.add_transform(Box::new(CfgSimplifyPass));
-        pm.add_transform(Box::new(FrameSlotPromotionPass));
-        pm.add_transform(Box::new(MemoryDsePass));
-        pm.add_transform(Box::new(DcePass));
-        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
-            pm.run(func);
-        }
+        run_default_pipeline(module);
     }
 
     /// Generates runtime bytecode for a module.
