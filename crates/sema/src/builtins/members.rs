@@ -4,7 +4,7 @@ use crate::{
     ty::{Gcx, Ty, TyFn, TyFnKind, TyKind},
 };
 use solar_ast::{DataLocation, ElementaryType, StateMutability as SM, Visibility};
-use solar_data_structures::BumpExt;
+use solar_data_structures::ArenaExt;
 use solar_interface::Symbol;
 
 pub type MemberList<'gcx> = &'gcx [Member<'gcx>];

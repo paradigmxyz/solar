@@ -6,7 +6,7 @@ use either::Either;
 use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{
-    BumpExt,
+    ArenaExt,
     index::{Idx, IndexVec},
     newtype_index,
 };

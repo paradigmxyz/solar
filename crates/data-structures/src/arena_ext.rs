@@ -4,7 +4,7 @@ use stumpalo::Arena;
 
 /// Extension trait for [`Arena`].
 #[expect(clippy::mut_from_ref)] // Arena.
-pub trait BumpExt {
+pub trait ArenaExt {
     /// Returns the number of bytes currently in use.
     fn used_bytes(&self) -> usize;
 
@@ -91,7 +91,7 @@ pub trait BumpExt {
     ) -> &'a mut RawThinSlice<H, T>;
 }
 
-impl BumpExt for Arena {
+impl ArenaExt for Arena {
     fn used_bytes(&self) -> usize {
         self.allocated_bytes().saturating_sub(self.chunk_capacity())
     }

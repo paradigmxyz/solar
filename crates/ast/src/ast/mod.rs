@@ -1,6 +1,6 @@
 //! Solidity AST.
 
-use solar_data_structures::{BumpExt, ThinSlice, index::IndexSlice, newtype_index};
+use solar_data_structures::{ArenaExt, ThinSlice, index::IndexSlice, newtype_index};
 use std::fmt;
 
 pub use crate::token::CommentKind;
