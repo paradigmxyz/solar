@@ -24,7 +24,10 @@ use crate::{
 use alloy_primitives::U256;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-const INTERNAL_FRAME_PTR_SLOT: u64 = 0x2000;
+// 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
+// 0x80 is used as the static ABI return buffer. Keep the internal-call frame
+// pointer in a dedicated low word so frame loads use PUSH1 instead of PUSH2.
+const INTERNAL_FRAME_PTR_SLOT: u64 = 0xa0;
 const LOW_MEMORY_START: u64 = 0x80;
 const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
 const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 8;
@@ -1727,11 +1730,20 @@ impl EvmCodegen {
     }
 
     fn external_spill_base(func: &Function) -> u64 {
-        LOW_MEMORY_START + func.internal_frame_size.max(func.external_static_return_size)
+        let low_memory_start = if Self::uses_internal_frame_slot(func) {
+            INTERNAL_FRAME_PTR_SLOT + 32
+        } else {
+            LOW_MEMORY_START
+        };
+        low_memory_start + func.internal_frame_size.max(func.external_static_return_size)
     }
 
     fn external_free_memory_start(func: &Function) -> u64 {
         Self::external_spill_base(func) + Self::spill_frame_size(func)
+    }
+
+    fn uses_internal_frame_slot(func: &Function) -> bool {
+        func.instructions.iter().any(|inst| matches!(inst.kind, InstKind::InternalCall { .. }))
     }
 
     fn emit_external_free_memory_start(&mut self, func: &Function) {
