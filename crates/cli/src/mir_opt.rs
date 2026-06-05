@@ -16,7 +16,7 @@ use solar_codegen::{
     pass::{
         CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, MemoryDsePass, PassManager, SccpTransformPass,
-        StorageScalarPromotionPass, TransformPass,
+        StorageLoadCsePass, StorageScalarPromotionPass, TransformPass,
     },
     transform::{DeadFunctionEliminator, MirInliner},
 };
@@ -31,6 +31,7 @@ Passes:
   dce              Dead Code Elimination (fixed-point)
   inst-simplify    Local MIR instruction simplification
   cse              Common Subexpression Elimination (fixed-point)
+  storage-load-cse Reuse storage loads across definitely-disjoint stores
   sccp             Sparse Conditional Constant Propagation
   licm             Loop-Invariant Code Motion
   cfg-simplify     CFG Simplification (fixed-point)
@@ -55,6 +56,7 @@ const DEFAULT_PIPELINE: &[PassName] = &[
     PassName::Sccp,
     PassName::InstSimplify,
     PassName::Cse,
+    PassName::StorageLoadCse,
     PassName::StoragePromotion,
     PassName::Licm,
     PassName::JumpThreading,
@@ -72,6 +74,7 @@ enum PassName {
     Dce,
     InstSimplify,
     Cse,
+    StorageLoadCse,
     Sccp,
     Licm,
     CfgSimplify,
@@ -90,6 +93,7 @@ impl PassName {
             Self::Dce => "dce",
             Self::InstSimplify => "inst-simplify",
             Self::Cse => "cse",
+            Self::StorageLoadCse => "storage-load-cse",
             Self::Sccp => "sccp",
             Self::Licm => "licm",
             Self::CfgSimplify => "cfg-simplify",
@@ -163,6 +167,7 @@ fn make_pass(name: PassName) -> Option<MirOptPass> {
         PassName::Dce => Some(MirOptPass::Function(Box::new(DcePass))),
         PassName::InstSimplify => Some(MirOptPass::Function(Box::new(InstSimplifyPass))),
         PassName::Cse => Some(MirOptPass::Function(Box::new(CsePass))),
+        PassName::StorageLoadCse => Some(MirOptPass::Function(Box::new(StorageLoadCsePass))),
         PassName::Sccp => Some(MirOptPass::Function(Box::new(SccpTransformPass))),
         PassName::Licm => Some(MirOptPass::Function(Box::new(LicmPass))),
         PassName::CfgSimplify => Some(MirOptPass::Function(Box::new(CfgSimplifyPass))),
