@@ -135,8 +135,7 @@ impl Assembler {
                     offset += 1;
                 }
                 AsmInst::Push(value) => {
-                    let width = push_width(*value);
-                    offset += 1 + width as usize;
+                    offset += encoded_push_len(*value);
                 }
                 AsmInst::PushLabel(_) => {
                     // Use current estimated width
@@ -318,8 +317,61 @@ fn push_width(value: U256) -> u8 {
     (32 - first_nonzero) as u8
 }
 
+fn encoded_push_len(value: U256) -> usize {
+    compact_all_ones_mask(value).map_or_else(
+        || 1 + push_width(value) as usize,
+        |compact| match compact {
+            CompactAllOnesMask::FullWord => 2,
+            CompactAllOnesMask::LowerMask { .. } => 5,
+        },
+    )
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CompactAllOnesMask {
+    FullWord,
+    LowerMask { shift: u8 },
+}
+
+fn compact_all_ones_mask(value: U256) -> Option<CompactAllOnesMask> {
+    if value == U256::MAX {
+        return Some(CompactAllOnesMask::FullWord);
+    }
+
+    let width = push_width(value);
+    if width < 16 {
+        return None;
+    }
+
+    let bytes = value.to_be_bytes::<32>();
+    let start = 32 - width as usize;
+    if bytes[start..].iter().all(|&byte| byte == 0xff) {
+        let shift = 256 - u16::from(width) * 8;
+        return Some(CompactAllOnesMask::LowerMask { shift: shift as u8 });
+    }
+
+    None
+}
+
 /// Emits a PUSH instruction with automatically sized width.
 fn emit_push_value(bytecode: &mut Vec<u8>, value: U256) {
+    match compact_all_ones_mask(value) {
+        Some(CompactAllOnesMask::FullWord) => {
+            bytecode.push(opcodes::PUSH0);
+            bytecode.push(opcodes::NOT);
+            return;
+        }
+        Some(CompactAllOnesMask::LowerMask { shift }) => {
+            bytecode.push(opcodes::PUSH0);
+            bytecode.push(opcodes::NOT);
+            bytecode.push(0x60);
+            bytecode.push(shift);
+            bytecode.push(opcodes::SHR);
+            return;
+        }
+        None => {}
+    }
+
     if value.is_zero() {
         bytecode.push(0x5f); // PUSH0
         return;
@@ -600,5 +652,33 @@ mod tests {
         let result = asm.assemble();
 
         assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 1, opcodes::DIV, opcodes::STOP]);
+    }
+
+    #[test]
+    fn compact_full_word_all_ones_push() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::MAX);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![opcodes::PUSH0, opcodes::NOT, opcodes::STOP]);
+    }
+
+    #[test]
+    fn compact_lower_all_ones_mask_push() {
+        let mut asm = Assembler::new();
+        let mask = (U256::from(1) << 160) - U256::from(1);
+
+        asm.emit_push(mask);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(
+            result.bytecode,
+            vec![opcodes::PUSH0, opcodes::NOT, 0x60, 96, opcodes::SHR, opcodes::STOP]
+        );
     }
 }
