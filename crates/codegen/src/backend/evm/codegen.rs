@@ -1725,15 +1725,6 @@ impl EvmCodegen {
         }
     }
 
-    fn emit_new_internal_frame_addr(&mut self, offset: u64) {
-        self.asm.emit_push(U256::from(0x40));
-        self.asm.emit_op(opcodes::MLOAD);
-        if offset != 0 {
-            self.asm.emit_push(U256::from(offset));
-            self.asm.emit_op(opcodes::ADD);
-        }
-    }
-
     fn emit_new_internal_frame_base_tracked(&mut self) {
         self.asm.emit_push(U256::from(0x40));
         self.asm.emit_op(opcodes::MLOAD);
@@ -1855,17 +1846,6 @@ impl EvmCodegen {
         let local_frame_size = self.function_frame_sizes.get(&callee).copied().unwrap_or_default();
         let frame_size = 64 + ((args.len() + returns) as u64) * 32 + local_frame_size;
 
-        // frame[0] = return label
-        self.asm.emit_push_label(return_label);
-        self.emit_new_internal_frame_addr(0);
-        self.asm.emit_op(opcodes::MSTORE);
-
-        // frame[32] = previous frame pointer
-        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
-        self.asm.emit_op(opcodes::MLOAD);
-        self.emit_new_internal_frame_addr(32);
-        self.asm.emit_op(opcodes::MSTORE);
-
         // Spill values that are live after this call BEFORE consuming the
         // arguments. An argument that is also used later (e.g. a flag passed to
         // a helper and then stored, as in `tryAdd`) would otherwise be popped by
@@ -1874,6 +1854,18 @@ impl EvmCodegen {
         self.spill_live_stack_values(func, liveness, block, inst_idx);
 
         self.emit_new_internal_frame_base_tracked();
+
+        // frame[0] = return label
+        self.asm.emit_push_label(return_label);
+        self.scheduler.stack.push_unknown();
+        self.emit_internal_frame_store_from_top_preserving_base(0);
+
+        // frame[32] = previous frame pointer
+        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.asm.emit_op(opcodes::MLOAD);
+        self.scheduler.stack.push_unknown();
+        self.emit_internal_frame_store_from_top_preserving_base(32);
+
         for (i, &arg) in args.iter().enumerate() {
             self.emit_value(func, arg);
             self.emit_internal_frame_store_from_top_preserving_base(64 + (i as u64) * 32);
