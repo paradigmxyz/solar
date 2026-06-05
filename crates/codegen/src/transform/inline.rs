@@ -629,7 +629,6 @@ struct MirInlineSummary {
     has_external_call: bool,
     has_storage_write: bool,
     has_log: bool,
-    has_loop: bool,
     has_control_flow: bool,
     has_unsupported_terminator: bool,
     is_entry_point: bool,
@@ -757,7 +756,6 @@ impl MirInliner {
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi
-            || summary.has_loop
             || summary.has_unsupported_terminator
             || summary.return_count == 0
             || summary.block_count > self.config.max_blocks
@@ -812,12 +810,8 @@ struct CallSite {
 }
 
 fn summarize_function(func: &Function) -> MirInlineSummary {
-    let mut loop_analyzer = LoopAnalyzer::new();
-    let loop_info = loop_analyzer.analyze(func);
-
     let mut summary = MirInlineSummary {
         block_count: func.blocks.len(),
-        has_loop: !loop_info.loops.is_empty(),
         param_count: func.params.len(),
         internal_frame_size: func.internal_frame_size,
         is_entry_point: func.is_public()
@@ -1410,19 +1404,13 @@ fn build_return_value(
     if return_tys.len() != 1 {
         return None;
     }
-    match return_edges {
-        [(_, values)] => values.first().copied(),
-        edges => {
-            let incoming = edges
-                .iter()
-                .map(|(block, values)| Some((*block, *values.first()?)))
-                .collect::<Option<Vec<_>>>()?;
-            let phi =
-                caller.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(return_tys[0])));
-            caller.blocks[continuation].instructions.insert(0, phi);
-            Some(caller.alloc_value(Value::Inst(phi)))
-        }
-    }
+    let incoming = return_edges
+        .iter()
+        .map(|(block, values)| Some((*block, *values.first()?)))
+        .collect::<Option<Vec<_>>>()?;
+    let phi = caller.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(return_tys[0])));
+    caller.blocks[continuation].instructions.insert(0, phi);
+    Some(caller.alloc_value(Value::Inst(phi)))
 }
 
 fn redirect_phi_predecessors(
@@ -1681,5 +1669,85 @@ fn prune_phi_incoming_to_predecessors(func: &mut Function) {
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::FunctionBuilder;
+    use solar_interface::Ident;
+    use solar_sema::hir::Visibility;
+
+    #[test]
+    fn inlines_loop_return_through_continuation_phi() {
+        let mut module = Module::new(Ident::DUMMY);
+
+        let mut callee = Function::new(Ident::DUMMY);
+        {
+            let mut builder = FunctionBuilder::new(&mut callee);
+            let limit = builder.add_param(MirType::uint256());
+            builder.add_return(MirType::uint256());
+
+            let header = builder.create_block();
+            let body = builder.create_block();
+            let exit = builder.create_block();
+
+            let frame = builder.internal_frame_addr(0);
+            let zero = builder.imm_u64(0);
+            builder.mstore(frame, zero);
+            builder.jump(header);
+
+            builder.switch_to_block(header);
+            let frame = builder.internal_frame_addr(0);
+            let current = builder.mload(frame);
+            let cond = builder.lt(current, limit);
+            builder.branch(cond, body, exit);
+
+            builder.switch_to_block(body);
+            let frame = builder.internal_frame_addr(0);
+            let current = builder.mload(frame);
+            let one = builder.imm_u64(1);
+            let next = builder.add(current, one);
+            let frame = builder.internal_frame_addr(0);
+            builder.mstore(frame, next);
+            builder.jump(header);
+
+            builder.switch_to_block(exit);
+            let frame = builder.internal_frame_addr(0);
+            let result = builder.mload(frame);
+            builder.ret([result]);
+        }
+        callee.internal_frame_size = 32;
+        let callee_id = module.add_function(callee);
+
+        let mut caller = Function::new(Ident::DUMMY);
+        caller.attributes.visibility = Visibility::Public;
+        {
+            let mut builder = FunctionBuilder::new(&mut caller);
+            let limit = builder.imm_u64(4);
+            let value = builder.internal_call(callee_id, vec![limit], Some(MirType::uint256()), 1);
+            let one = builder.imm_u64(1);
+            let result = builder.add(value, one);
+            builder.ret([result]);
+        }
+        let caller_id = module.add_function(caller);
+
+        let mut inliner = MirInliner::default();
+        let stats = inliner.run(&mut module);
+        assert_eq!(stats.inlined, 1);
+
+        let caller = module.function(caller_id);
+        assert!(caller.blocks.iter().all(|block| {
+            block.instructions.iter().all(|&inst| {
+                !matches!(caller.instructions[inst].kind, InstKind::InternalCall { .. })
+            })
+        }));
+        assert!(caller.blocks.iter().any(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|&inst| matches!(caller.instructions[inst].kind, InstKind::Phi(_)))
+        }));
     }
 }

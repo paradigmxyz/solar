@@ -3,7 +3,10 @@
 use super::{LoopContext, Lowerer};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
-use solar_sema::hir::{self, ExprKind, StmtKind};
+use solar_sema::{
+    builtins::Builtin,
+    hir::{self, ExprKind, StmtKind},
+};
 
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers a block of statements.
@@ -12,12 +15,78 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         block: &hir::Block<'_>,
     ) {
-        for stmt in block.stmts {
+        let mut index = 0;
+        while let Some(stmt) = block.stmts.get(index) {
+            if let Some(args) =
+                self.immediate_packed_hash_return_args(stmt, block.stmts.get(index + 1))
+                && self.lower_immediate_packed_hash_return(builder, &args)
+            {
+                break;
+            }
+
             self.lower_stmt(builder, stmt);
             if builder.func().block(builder.current_block()).terminator.is_some() {
                 break;
             }
+            index += 1;
         }
+    }
+
+    fn immediate_packed_hash_return_args(
+        &self,
+        stmt: &hir::Stmt<'_>,
+        next: Option<&hir::Stmt<'_>>,
+    ) -> Option<hir::CallArgs<'gcx>> {
+        let StmtKind::DeclSingle(var_id) = stmt.kind else {
+            return None;
+        };
+        let var = self.gcx.hir.variable(var_id);
+        let packed_args = self.abi_encode_packed_call_args(var.initializer?)?;
+
+        let StmtKind::Return(Some(ret)) = &next?.kind else {
+            return None;
+        };
+        self.is_keccak_call_of_local(ret, var_id).then_some(*packed_args)
+    }
+
+    fn is_keccak_call_of_local(&self, expr: &hir::Expr<'_>, var_id: hir::VariableId) -> bool {
+        let ExprKind::Call(callee, args, _) = &expr.kind else {
+            return false;
+        };
+        let ExprKind::Ident(res_slice) = &callee.kind else {
+            return false;
+        };
+        if !matches!(res_slice.first(), Some(hir::Res::Builtin(Builtin::Keccak256))) {
+            return false;
+        }
+
+        let mut exprs = args.exprs();
+        let Some(arg) = exprs.next() else {
+            return false;
+        };
+        exprs.next().is_none() && self.is_local_ident(arg, var_id)
+    }
+
+    fn is_local_ident(&self, expr: &hir::Expr<'_>, var_id: hir::VariableId) -> bool {
+        let ExprKind::Ident(res_slice) = &expr.kind else {
+            return false;
+        };
+        matches!(res_slice.first(), Some(hir::Res::Item(hir::ItemId::Variable(id))) if *id == var_id)
+    }
+
+    fn lower_immediate_packed_hash_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &hir::CallArgs<'_>,
+    ) -> bool {
+        if self.current_return_tys.len() != 1 {
+            return false;
+        }
+        let ty = self.current_return_tys[0];
+        let hash = self.lower_keccak_abi_encode_packed(builder, args);
+        let external = builder.func().is_public() && !self.lowering_internal_function;
+        self.finish_external_or_internal_return(builder, vec![(hash, ty)], external);
+        true
     }
 
     /// Lowers a statement to MIR.

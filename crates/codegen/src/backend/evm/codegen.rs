@@ -15,9 +15,9 @@ use crate::{
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{
-        AnalysisManager, CfgSimplifyPass, CsePass, DcePass, InstSimplifyPass, JumpThreadingPass,
-        LicmPass, LivenessAnalysis, MemoryDsePass, PassManager, SccpTransformPass,
-        StorageScalarPromotionPass,
+        AnalysisManager, CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass,
+        InstSimplifyPass, JumpThreadingPass, LicmPass, LivenessAnalysis, MemoryDsePass,
+        PassManager, SccpTransformPass, StorageScalarPromotionPass,
     },
     transform::{DeadFunctionEliminator, MirInliner},
 };
@@ -382,8 +382,9 @@ impl EvmCodegen {
     /// 7. LICM           — hoists loop-invariant instructions into loop preheaders
     /// 8. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
     /// 9. CFG simplify  — physically merges sequential blocks and removes empty forwarders
-    /// 10. Memory DSE   — removes overwritten same-block memory stores
-    /// 11. DCE          — removes dead instructions and any remaining unreachable blocks
+    /// 10. Frame promotion — promotes non-escaping internal frame slots to SSA values
+    /// 11. Memory DSE   — removes overwritten same-block memory stores
+    /// 12. DCE          — removes dead instructions and any remaining unreachable blocks
     ///
     /// Each pass internally iterates to a fixed point. Threading creates orphaned
     /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
@@ -400,6 +401,7 @@ impl EvmCodegen {
         pm.add_transform(Box::new(LicmPass));
         pm.add_transform(Box::new(JumpThreadingPass));
         pm.add_transform(Box::new(CfgSimplifyPass));
+        pm.add_transform(Box::new(FrameSlotPromotionPass));
         pm.add_transform(Box::new(MemoryDsePass));
         pm.add_transform(Box::new(DcePass));
         for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {

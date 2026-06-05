@@ -1036,7 +1036,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers `keccak256(abi.encodePacked(...))` without materializing a temporary bytes object.
-    fn lower_keccak_abi_encode_packed(
+    pub(super) fn lower_keccak_abi_encode_packed(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
@@ -1122,7 +1122,10 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn abi_encode_packed_call_args<'a>(&self, expr: &'a hir::Expr<'a>) -> Option<&'a CallArgs<'a>> {
+    pub(super) fn abi_encode_packed_call_args<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<&'a CallArgs<'a>> {
         let ExprKind::Call(callee, args, _) = &expr.kind else {
             return None;
         };

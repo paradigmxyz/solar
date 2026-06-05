@@ -279,6 +279,23 @@ impl TransformPass for MemoryDsePass {
     }
 }
 
+/// Internal-frame scalar promotion transform.
+///
+/// Promotes non-escaping full-word internal-frame slots to SSA values and
+/// inserts phi nodes at loop headers/joins as needed.
+pub struct FrameSlotPromotionPass;
+
+impl TransformPass for FrameSlotPromotionPass {
+    fn name(&self) -> &str {
+        "frame-slot-promotion"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        crate::transform::FrameSlotPromoter::new().run(func);
+        crate::transform::repair_reachability_phis(func);
+    }
+}
+
 /// Loop-carried storage scalar promotion transform.
 ///
 /// Rewrites simple storage update loops so the loop updates a memory-backed

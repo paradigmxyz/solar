@@ -14,8 +14,9 @@ use solar_codegen::{
     lower,
     mir::{Module, module_to_text, parse_module},
     pass::{
-        CfgSimplifyPass, CsePass, DcePass, InstSimplifyPass, JumpThreadingPass, LicmPass,
-        MemoryDsePass, PassManager, SccpTransformPass, StorageScalarPromotionPass, TransformPass,
+        CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, InstSimplifyPass,
+        JumpThreadingPass, LicmPass, MemoryDsePass, PassManager, SccpTransformPass,
+        StorageScalarPromotionPass, TransformPass,
     },
     transform::{DeadFunctionEliminator, MirInliner},
 };
@@ -34,6 +35,8 @@ Passes:
   licm             Loop-Invariant Code Motion
   cfg-simplify     CFG Simplification (fixed-point)
   jump-threading   Jump Threading (fixed-point)
+  frame-slot-promotion
+                   Promote non-escaping internal-frame slots to SSA values
   memory-dse       Local dead memory-store elimination
   storage-promotion
                    Promote simple loop-carried storage updates to memory
@@ -56,6 +59,7 @@ const DEFAULT_PIPELINE: &[PassName] = &[
     PassName::Licm,
     PassName::JumpThreading,
     PassName::CfgSimplify,
+    PassName::FrameSlotPromotion,
     PassName::MemoryDse,
     PassName::Dce,
 ];
@@ -72,6 +76,7 @@ enum PassName {
     Licm,
     CfgSimplify,
     JumpThreading,
+    FrameSlotPromotion,
     MemoryDse,
     StoragePromotion,
     None,
@@ -89,6 +94,7 @@ impl PassName {
             Self::Licm => "licm",
             Self::CfgSimplify => "cfg-simplify",
             Self::JumpThreading => "jump-threading",
+            Self::FrameSlotPromotion => "frame-slot-promotion",
             Self::MemoryDse => "memory-dse",
             Self::StoragePromotion => "storage-promotion",
             Self::None => "none",
@@ -161,6 +167,9 @@ fn make_pass(name: PassName) -> Option<MirOptPass> {
         PassName::Licm => Some(MirOptPass::Function(Box::new(LicmPass))),
         PassName::CfgSimplify => Some(MirOptPass::Function(Box::new(CfgSimplifyPass))),
         PassName::JumpThreading => Some(MirOptPass::Function(Box::new(JumpThreadingPass))),
+        PassName::FrameSlotPromotion => {
+            Some(MirOptPass::Function(Box::new(FrameSlotPromotionPass)))
+        }
         PassName::MemoryDse => Some(MirOptPass::Function(Box::new(MemoryDsePass))),
         PassName::StoragePromotion => {
             Some(MirOptPass::Function(Box::new(StorageScalarPromotionPass)))

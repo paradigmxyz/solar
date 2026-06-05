@@ -4,6 +4,7 @@ pub mod cfg_simplify;
 pub mod constant_fold;
 pub mod cse;
 pub mod dce;
+pub mod frame_promotion;
 pub mod inline;
 pub mod inst_simplify;
 pub mod jump_threading;
@@ -19,6 +20,7 @@ pub use cfg_simplify::{
 pub use constant_fold::{ConstantFolder, FoldResult};
 pub use cse::CommonSubexprEliminator;
 pub use dce::{DceStats, DeadCodeEliminator};
+pub use frame_promotion::{FramePromotionStats, FrameSlotPromoter};
 pub use inline::{
     FunctionInlineInfo, InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, MirInlineConfig,
     MirInlineStats, MirInliner, OptLevel,
