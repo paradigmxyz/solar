@@ -318,24 +318,26 @@ fn push_width(value: U256) -> u8 {
 }
 
 fn encoded_push_len(value: U256) -> usize {
-    compact_all_ones_mask(value).map_or_else(
+    compact_push(value).map_or_else(
         || 1 + push_width(value) as usize,
         |compact| match compact {
-            CompactAllOnesMask::FullWord => 2,
-            CompactAllOnesMask::LowerMask { .. } => 5,
+            CompactPush::FullWord => 2,
+            CompactPush::LowerAllOnesMask { .. } => 5,
+            CompactPush::Not { value } => 2 + push_width(value) as usize,
         },
     )
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CompactAllOnesMask {
+enum CompactPush {
     FullWord,
-    LowerMask { shift: u8 },
+    LowerAllOnesMask { shift: u8 },
+    Not { value: U256 },
 }
 
-fn compact_all_ones_mask(value: U256) -> Option<CompactAllOnesMask> {
+fn compact_push(value: U256) -> Option<CompactPush> {
     if value == U256::MAX {
-        return Some(CompactAllOnesMask::FullWord);
+        return Some(CompactPush::FullWord);
     }
 
     let width = push_width(value);
@@ -347,7 +349,15 @@ fn compact_all_ones_mask(value: U256) -> Option<CompactAllOnesMask> {
     let start = 32 - width as usize;
     if bytes[start..].iter().all(|&byte| byte == 0xff) {
         let shift = 256 - u16::from(width) * 8;
-        return Some(CompactAllOnesMask::LowerMask { shift: shift as u8 });
+        return Some(CompactPush::LowerAllOnesMask { shift: shift as u8 });
+    }
+
+    let inverted = !value;
+    let inverted_width = push_width(inverted);
+    let inverted_len = 2 + inverted_width as usize;
+    let normal_len = 1 + width as usize;
+    if inverted_len < normal_len {
+        return Some(CompactPush::Not { value: inverted });
     }
 
     None
@@ -355,18 +365,23 @@ fn compact_all_ones_mask(value: U256) -> Option<CompactAllOnesMask> {
 
 /// Emits a PUSH instruction with automatically sized width.
 fn emit_push_value(bytecode: &mut Vec<u8>, value: U256) {
-    match compact_all_ones_mask(value) {
-        Some(CompactAllOnesMask::FullWord) => {
+    match compact_push(value) {
+        Some(CompactPush::FullWord) => {
             bytecode.push(opcodes::PUSH0);
             bytecode.push(opcodes::NOT);
             return;
         }
-        Some(CompactAllOnesMask::LowerMask { shift }) => {
+        Some(CompactPush::LowerAllOnesMask { shift }) => {
             bytecode.push(opcodes::PUSH0);
             bytecode.push(opcodes::NOT);
             bytecode.push(0x60);
             bytecode.push(shift);
             bytecode.push(opcodes::SHR);
+            return;
+        }
+        Some(CompactPush::Not { value }) => {
+            emit_push_fixed_width(bytecode, value, push_width(value));
+            bytecode.push(opcodes::NOT);
             return;
         }
         None => {}
@@ -680,5 +695,29 @@ mod tests {
             result.bytecode,
             vec![opcodes::PUSH0, opcodes::NOT, 0x60, 96, opcodes::SHR, opcodes::STOP]
         );
+    }
+
+    #[test]
+    fn compact_not_small_push() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(!U256::from(31));
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 31, opcodes::NOT, opcodes::STOP]);
+    }
+
+    #[test]
+    fn compact_not_byte_push() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(!U256::from(255));
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 255, opcodes::NOT, opcodes::STOP]);
     }
 }
