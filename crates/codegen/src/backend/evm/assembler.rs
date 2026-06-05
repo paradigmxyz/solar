@@ -324,6 +324,7 @@ fn encoded_push_len(value: U256) -> usize {
             CompactPush::FullWord => 2,
             CompactPush::LowerAllOnesMask { .. } => 5,
             CompactPush::Not { value } => 2 + push_width(value) as usize,
+            CompactPush::Shl { value, .. } => 4 + push_width(value) as usize,
         },
     )
 }
@@ -333,34 +334,50 @@ enum CompactPush {
     FullWord,
     LowerAllOnesMask { shift: u8 },
     Not { value: U256 },
+    Shl { value: U256, shift: u8 },
 }
 
 fn compact_push(value: U256) -> Option<CompactPush> {
-    if value == U256::MAX {
-        return Some(CompactPush::FullWord);
-    }
-
     let width = push_width(value);
-    if width < 16 {
-        return None;
+    let normal_len = 1 + width as usize;
+    let mut best: Option<(usize, CompactPush)> = None;
+
+    let mut consider = |len: usize, compact: CompactPush| {
+        if len < normal_len && best.is_none_or(|(best_len, _)| len < best_len) {
+            best = Some((len, compact));
+        }
+    };
+
+    if value == U256::MAX {
+        consider(2, CompactPush::FullWord);
     }
 
     let bytes = value.to_be_bytes::<32>();
-    let start = 32 - width as usize;
-    if bytes[start..].iter().all(|&byte| byte == 0xff) {
-        let shift = 256 - u16::from(width) * 8;
-        return Some(CompactPush::LowerAllOnesMask { shift: shift as u8 });
+    if width >= 16 {
+        let start = 32 - width as usize;
+        if bytes[start..].iter().all(|&byte| byte == 0xff) {
+            let shift = 256 - u16::from(width) * 8;
+            consider(5, CompactPush::LowerAllOnesMask { shift: shift as u8 });
+        }
     }
 
-    let inverted = !value;
-    let inverted_width = push_width(inverted);
-    let inverted_len = 2 + inverted_width as usize;
-    let normal_len = 1 + width as usize;
-    if inverted_len < normal_len {
-        return Some(CompactPush::Not { value: inverted });
+    if width >= 16 {
+        let inverted = !value;
+        let inverted_width = push_width(inverted);
+        let inverted_len = 2 + inverted_width as usize;
+        consider(inverted_len, CompactPush::Not { value: inverted });
     }
 
-    None
+    let trailing_zero_bytes = bytes.iter().rev().take_while(|&&byte| byte == 0).count();
+    if trailing_zero_bytes > 0 && trailing_zero_bytes < 32 {
+        let shift = trailing_zero_bytes * 8;
+        let shifted = value >> shift;
+        let shifted_width = push_width(shifted);
+        let shifted_len = 4 + shifted_width as usize;
+        consider(shifted_len, CompactPush::Shl { value: shifted, shift: shift as u8 });
+    }
+
+    best.map(|(_, compact)| compact)
 }
 
 /// Emits a PUSH instruction with automatically sized width.
@@ -382,6 +399,13 @@ fn emit_push_value(bytecode: &mut Vec<u8>, value: U256) {
         Some(CompactPush::Not { value }) => {
             emit_push_fixed_width(bytecode, value, push_width(value));
             bytecode.push(opcodes::NOT);
+            return;
+        }
+        Some(CompactPush::Shl { value, shift }) => {
+            emit_push_fixed_width(bytecode, value, push_width(value));
+            bytecode.push(0x60);
+            bytecode.push(shift);
+            bytecode.push(opcodes::SHL);
             return;
         }
         None => {}
@@ -719,5 +743,38 @@ mod tests {
         let result = asm.assemble();
 
         assert_eq!(result.bytecode, vec![0x60, 255, opcodes::NOT, opcodes::STOP]);
+    }
+
+    #[test]
+    fn compact_left_aligned_selector_push() {
+        let mut asm = Assembler::new();
+        let selector = U256::from(0x35ea6a75u64) << 224;
+
+        asm.emit_push(selector);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(
+            result.bytecode,
+            vec![0x63, 0x35, 0xea, 0x6a, 0x75, 0x60, 224, opcodes::SHL, opcodes::STOP]
+        );
+    }
+
+    #[test]
+    fn compact_right_padded_text_push() {
+        let mut asm = Assembler::new();
+        let text = U256::from_be_slice(b"Machine finished:");
+        let value = text << ((32 - "Machine finished:".len()) * 8);
+
+        asm.emit_push(value);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        let mut expected = vec![0x70];
+        expected.extend_from_slice(b"Machine finished:");
+        expected.extend_from_slice(&[0x60, 120, opcodes::SHL, opcodes::STOP]);
+        assert_eq!(result.bytecode, expected);
     }
 }
