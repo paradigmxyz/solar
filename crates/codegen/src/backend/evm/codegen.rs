@@ -27,7 +27,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 const INTERNAL_FRAME_PTR_SLOT: u64 = 0x2000;
 const LOW_MEMORY_START: u64 = 0x80;
 const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
-const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 3;
+const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 8;
 
 /// Describes the stack effect of an EVM instruction.
 /// This is used to keep the scheduler's stack model in sync with the actual EVM stack.
