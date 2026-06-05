@@ -175,13 +175,18 @@ impl<'gcx> ParsingContext<'gcx> {
         for id in sources.indices() {
             let source = &mut sources[id];
             let ast = source.ast.take();
-            for (import_item_id, import_file) in
+            for (import_item_id, import_result) in
                 self.resolve_imports(&source.file.clone(), ast.as_ref())
             {
-                let (_import_id, is_new) =
-                    sources.add_import(id, import_item_id, import_file, true);
-                if is_new {
-                    any_new = true;
+                match import_result {
+                    Ok(import_file) => {
+                        let (_import_id, is_new) =
+                            sources.add_import(id, import_item_id, import_file, true);
+                        if is_new {
+                            any_new = true;
+                        }
+                    }
+                    Err(guar) => sources.add_failed_import(id, import_item_id, guar, true),
                 }
             }
             sources[id].ast = ast;
@@ -257,15 +262,19 @@ impl<'gcx> ParsingContext<'gcx> {
             let file = source.file.clone();
             let parent = parent_path(&file);
             let imports_len = sources[id].imports.len();
+            let failed_imports_len = sources[id].failed_imports.len();
             let ast = self.parse_one(&file, arena, |item_id, _, import| {
                 let _guard = debug_span!("resolve_import").entered();
-                let Some(import_file) = self.resolve_import_directive(import, parent) else {
-                    return;
-                };
-                sources.add_import(id, item_id, import_file, false);
+                match self.resolve_import_directive(import, parent) {
+                    Ok(import_file) => {
+                        sources.add_import(id, item_id, import_file, false);
+                    }
+                    Err(guar) => sources.add_failed_import(id, item_id, guar, false),
+                }
             });
             if ast.is_none() {
                 sources[id].imports.truncate(imports_len);
+                sources[id].failed_imports.truncate(failed_imports_len);
             }
             sources[id].ast = ast;
         }
@@ -311,11 +320,16 @@ impl<'gcx> ParsingContext<'gcx> {
         scope: &rayon::Scope<'scope>,
     ) {
         let mut imports = Vec::new();
+        let mut failed_imports = Vec::new();
         let parent = parent_path(&file);
         let ast = self.parse_one(&file, arenas.get_or_default(), |item_id, _, import| {
             let _guard = debug_span!("resolve_import").entered();
-            let Some(import_file) = self.resolve_import_directive(import, parent) else {
-                return;
+            let import_file = match self.resolve_import_directive(import, parent) {
+                Ok(import_file) => import_file,
+                Err(guar) => {
+                    failed_imports.push((item_id, guar));
+                    return;
+                }
             };
             imports.push((item_id, import_file.clone()));
 
@@ -337,6 +351,7 @@ impl<'gcx> ParsingContext<'gcx> {
             for (import_item_id, import_file) in imports {
                 sources.add_import(id, import_item_id, import_file, false);
             }
+            sources[id].failed_imports.extend(failed_imports);
         }
     }
 
@@ -361,35 +376,34 @@ impl<'gcx> ParsingContext<'gcx> {
         }
     }
 
-    /// Resolves the imports of the given file, returning an iterator over all the imported files
-    /// that were successfully resolved.
+    /// Resolves the imports of the given file.
     fn resolve_imports(
         &self,
         file: &SourceFile,
         ast: Option<&ast::SourceUnit<'_>>,
-    ) -> impl Iterator<Item = (ast::ItemId, Arc<SourceFile>)> {
+    ) -> impl Iterator<Item = (ast::ItemId, Result<Arc<SourceFile>, ErrorGuaranteed>)> {
         let parent = parent_path(file);
         let items =
             ast.filter(|_| self.resolve_imports).map(|ast| &ast.items[..]).unwrap_or_default();
-        items
-            .iter_enumerated()
-            .filter_map(move |(id, item)| self.resolve_import(item, parent).map(|file| (id, file)))
+        items.iter_enumerated().filter_map(move |(id, item)| {
+            self.resolve_import(item, parent).map(|result| (id, result))
+        })
     }
 
     fn resolve_import(
         &self,
         item: &ast::Item<'_>,
         parent: Option<&Path>,
-    ) -> Option<Arc<SourceFile>> {
+    ) -> Option<Result<Arc<SourceFile>, ErrorGuaranteed>> {
         let ast::ItemKind::Import(import) = &item.kind else { return None };
-        self.resolve_import_directive(import, parent)
+        Some(self.resolve_import_directive(import, parent))
     }
 
     fn resolve_import_directive(
         &self,
         import: &ast::ImportDirective<'_>,
         parent: Option<&Path>,
-    ) -> Option<Arc<SourceFile>> {
+    ) -> Result<Arc<SourceFile>, ErrorGuaranteed> {
         self.resolve_import_path(&import.path, parent)
     }
 
@@ -397,22 +411,20 @@ impl<'gcx> ParsingContext<'gcx> {
         &self,
         import_path: &ast::StrLit,
         parent: Option<&Path>,
-    ) -> Option<Arc<SourceFile>> {
+    ) -> Result<Arc<SourceFile>, ErrorGuaranteed> {
         let span = import_path.span;
         let path_str = import_path.value.as_str();
         let (path_bytes, any_error) =
             unescape::parse_string_literal(path_str, unescape::StrKind::Str, span, self.sess);
         if any_error {
-            return None;
+            return Err(self.dcx().has_errors().expect_err("string literal parsing emitted error"));
         }
         let Some(path) = path_from_bytes(&path_bytes[..]) else {
-            self.dcx().emit_err(span, "import path is not a valid UTF-8 string");
-            return None;
+            return Err(self.dcx().emit_err(span, "import path is not a valid UTF-8 string"));
         };
         self.file_resolver
             .resolve_file(path, parent)
             .map_err(self.map_resolve_error_with(Some(span)))
-            .ok()
     }
 
     fn map_resolve_error(&self) -> impl FnOnce(ResolveError) -> ErrorGuaranteed {
@@ -567,6 +579,20 @@ impl<'ast> Sources<'ast> {
         ret
     }
 
+    fn add_failed_import(
+        &mut self,
+        current: SourceId,
+        import_item_id: ast::ItemId,
+        guar: ErrorGuaranteed,
+        check_dup: bool,
+    ) {
+        let failed_imports = &mut self.sources[current].failed_imports;
+        if check_dup && failed_imports.iter().any(|&(id, _)| id == import_item_id) {
+            return;
+        }
+        failed_imports.push((import_item_id, guar));
+    }
+
     /// Asserts that all sources are unique.
     fn assert_unique(&self) {
         if self.sources.len() <= 1 {
@@ -662,6 +688,8 @@ pub struct Source<'ast> {
     /// Note that the source IDs may not be unique, as multiple imports may resolve to the same
     /// source.
     pub imports: Vec<(ast::ItemId, SourceId)>,
+    /// The individual imports that failed to resolve.
+    pub failed_imports: Vec<(ast::ItemId, ErrorGuaranteed)>,
     /// The AST.
     ///
     /// `None` if:
@@ -677,6 +705,7 @@ impl fmt::Debug for Source<'_> {
         f.debug_struct("Source")
             .field("file", &self.file.name)
             .field("imports", &self.imports)
+            .field("failed_imports", &self.failed_imports)
             .field("ast", &self.ast)
             .finish()
     }
@@ -685,7 +714,7 @@ impl fmt::Debug for Source<'_> {
 impl Source<'_> {
     /// Creates a new empty source.
     pub fn new(file: Arc<SourceFile>) -> Self {
-        Self { file, ast: None, imports: Vec::new() }
+        Self { file, ast: None, imports: Vec::new(), failed_imports: Vec::new() }
     }
 
     fn count_contracts(&self) -> usize {

@@ -1,8 +1,9 @@
 use crate::{builtins::Builtin, hir};
 use alloy_primitives::U256;
 use solar_ast as ast;
+use solar_ast::visit::Visit as _;
 use solar_data_structures::{
-    BumpExt,
+    BumpExt, Never,
     index::{Idx, IndexVec},
     map::{FxHashMap, FxIndexMap, IndexEntry},
     smallvec::SmallVec,
@@ -12,7 +13,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     error_code, sym,
 };
-use std::fmt;
+use std::{fmt, ops::ControlFlow};
 
 pub(crate) use crate::hir::Res;
 
@@ -116,6 +117,22 @@ impl super::LoweringContext<'_> {
                             }
                         }
                     }
+                }
+            }
+            if let Some(ast) = &self.sources[source_id].ast {
+                for &(item_id, guar) in &self.sources[source_id].failed_imports {
+                    let import_item = &ast.items[item_id];
+                    let ast::ItemKind::Import(import) = &import_item.kind else { unreachable!() };
+                    let source_scope = &mut self.resolver.source_scopes[source_id];
+                    declare_failed_import(
+                        self.sess,
+                        &self.hir,
+                        &self.resolver.global_builtin_scope,
+                        source_scope,
+                        ast,
+                        import,
+                        guar,
+                    );
                 }
             }
         }
@@ -227,6 +244,77 @@ impl super::LoweringContext<'_> {
             c.fallback = fallback;
             c.receive = receive;
         }
+    }
+}
+
+fn declare_failed_import<'ast>(
+    sess: &Session,
+    hir: &hir::Hir<'_>,
+    builtin_scope: &Declarations,
+    source_scope: &mut Declarations,
+    ast: &'ast ast::SourceUnit<'ast>,
+    import: &ast::ImportDirective<'ast>,
+    guar: ErrorGuaranteed,
+) {
+    match import.items {
+        ast::ImportItems::Plain(Some(alias)) | ast::ImportItems::Glob(alias) => {
+            declare_import_error_name(sess, hir, builtin_scope, source_scope, alias, guar);
+        }
+        ast::ImportItems::Aliases(ref aliases) => {
+            for &(import, alias) in aliases.iter() {
+                declare_import_error_name(
+                    sess,
+                    hir,
+                    builtin_scope,
+                    source_scope,
+                    alias.unwrap_or(import),
+                    guar,
+                );
+            }
+        }
+        ast::ImportItems::Plain(None) => {
+            let mut collector = FailedImportPathCollector { names: Vec::new() };
+            let _: ControlFlow<Never> = collector.visit_source_unit(ast);
+            for name in collector.names {
+                declare_import_error_name(sess, hir, builtin_scope, source_scope, name, guar);
+            }
+        }
+    }
+}
+
+fn declare_import_error_name(
+    sess: &Session,
+    hir: &hir::Hir<'_>,
+    builtin_scope: &Declarations,
+    source_scope: &mut Declarations,
+    name: Ident,
+    guar: ErrorGuaranteed,
+) {
+    if source_scope.resolve(name).is_none() && builtin_scope.resolve(name).is_none() {
+        let _ = source_scope.declare_res(sess, hir, name, Res::Err(guar));
+    }
+}
+
+struct FailedImportPathCollector {
+    names: Vec<Ident>,
+}
+
+impl<'ast> ast::visit::Visit<'ast> for FailedImportPathCollector {
+    type BreakValue = Never;
+
+    fn visit_import_directive(
+        &mut self,
+        _import: &'ast ast::ImportDirective<'ast>,
+    ) -> ControlFlow<Self::BreakValue> {
+        ControlFlow::Continue(())
+    }
+
+    fn visit_path(&mut self, path: &'ast ast::PathSlice) -> ControlFlow<Self::BreakValue> {
+        let name = *path.first();
+        if !self.names.iter().any(|ident| ident.name == name.name) {
+            self.names.push(name);
+        }
+        ControlFlow::Continue(())
     }
 }
 
