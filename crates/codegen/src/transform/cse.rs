@@ -25,7 +25,7 @@
 //! ## Limitations
 //!
 //! - Only operates within basic blocks (local CSE)
-//! - Does not track across memory operations (conservative for side effects)
+//! - Does not track across memory/storage operations (conservative for side effects)
 //! - Does not handle expressions with different but equivalent orderings
 
 use crate::mir::{BlockId, Function, InstId, InstKind, Value, ValueId};
@@ -113,10 +113,8 @@ impl CommonSubexprEliminator {
 
             // Skip side-effecting instructions
             if inst.kind.has_side_effects() {
-                // Memory/storage writes invalidate cached SLOADs
-                if matches!(inst.kind, InstKind::SStore(_, _)) {
-                    // Conservative: invalidate all SLOADs on any SSTORE
-                    expr_cache.retain(|k, _| !matches!(k, ExprKey::SLoad(_)));
+                if Self::may_mutate_storage(&inst.kind) {
+                    expr_cache.retain(|key, _| !matches!(key, ExprKey::SLoad(_)));
                 }
                 continue;
             }
@@ -200,11 +198,13 @@ impl CommonSubexprEliminator {
             InstKind::IsZero(a) => Some(ExprKey::IsZero(canonical(*a))),
             InstKind::Not(a) => Some(ExprKey::Not(canonical(*a))),
 
-            // Storage reads can be cached within a block (until a write)
+            // Storage reads can be cached locally until a storage-mutating side effect.
+            // The storage-aware CSE pass handles the more precise disjoint-store cases.
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(canonical(*slot))),
 
             // Don't cache these:
             // - Memory operations (MLOAD) - memory can be modified
+            // - Storage writes - side effects
             // - Environment reads - values might change
             // - Phi nodes - not expressions
             // - Calls - side effects
@@ -222,6 +222,18 @@ impl CommonSubexprEliminator {
             }
         }
         None
+    }
+
+    fn may_mutate_storage(kind: &InstKind) -> bool {
+        matches!(
+            kind,
+            InstKind::SStore(_, _)
+                | InstKind::Call { .. }
+                | InstKind::DelegateCall { .. }
+                | InstKind::InternalCall { .. }
+                | InstKind::Create(_, _, _)
+                | InstKind::Create2(_, _, _, _)
+        )
     }
 
     /// Applies value replacements to all instructions in a block.

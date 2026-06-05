@@ -17,7 +17,7 @@ use crate::{
     pass::{
         AnalysisManager, CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass,
         InstSimplifyPass, JumpThreadingPass, LicmPass, LivenessAnalysis, MemoryDsePass,
-        PassManager, SccpTransformPass, StorageScalarPromotionPass,
+        PassManager, SccpTransformPass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
     transform::{DeadFunctionEliminator, MirInliner},
 };
@@ -381,13 +381,14 @@ impl EvmCodegen {
     /// 3. SCCP          — folds constants and prunes constant branches
     /// 4. Inst simplify — removes algebraic no-ops and equivalent opcode patterns
     /// 5. CSE           — removes duplicate local computations
-    /// 6. Storage promotion — converts simple storage update loops to memory accumulators
-    /// 7. LICM           — hoists loop-invariant instructions into loop preheaders
-    /// 8. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
-    /// 9. CFG simplify  — physically merges sequential blocks and removes empty forwarders
-    /// 10. Frame promotion — promotes non-escaping internal frame slots to SSA values
-    /// 11. Memory DSE   — removes overwritten same-block memory stores
-    /// 12. DCE          — removes dead instructions and any remaining unreachable blocks
+    /// 6. Storage load CSE — reuses storage loads across definitely-disjoint stores
+    /// 7. Storage promotion — converts simple storage update loops to memory accumulators
+    /// 8. LICM           — hoists loop-invariant instructions into loop preheaders
+    /// 9. Jump threading — rewrites jump targets through forwarder blocks (8 gas/jump)
+    /// 10. CFG simplify  — physically merges sequential blocks and removes empty forwarders
+    /// 11. Frame promotion — promotes non-escaping internal frame slots to SSA values
+    /// 12. Memory DSE   — removes overwritten same-block memory stores
+    /// 13. DCE          — removes dead instructions and any remaining unreachable blocks
     ///
     /// Each pass internally iterates to a fixed point. Threading creates orphaned
     /// forwarder blocks; cfg-simplify cleans them up by merging or eliminating them;
@@ -400,6 +401,7 @@ impl EvmCodegen {
         pm.add_transform(Box::new(SccpTransformPass));
         pm.add_transform(Box::new(InstSimplifyPass));
         pm.add_transform(Box::new(CsePass));
+        pm.add_transform(Box::new(StorageLoadCsePass));
         pm.add_transform(Box::new(StorageScalarPromotionPass));
         pm.add_transform(Box::new(LicmPass));
         pm.add_transform(Box::new(JumpThreadingPass));

@@ -263,6 +263,22 @@ impl TransformPass for CsePass {
     }
 }
 
+/// Storage-load CSE transform.
+///
+/// Reuses `sload` results across definitely-disjoint storage stores on
+/// straight-line paths.
+pub struct StorageLoadCsePass;
+
+impl TransformPass for StorageLoadCsePass {
+    fn name(&self) -> &str {
+        "storage-load-cse"
+    }
+
+    fn run(&mut self, func: &mut Function) {
+        crate::transform::StorageLoadCse::new().run_to_fixpoint(func);
+    }
+}
+
 /// Local dead memory-store elimination transform.
 ///
 /// Removes full-word memory stores that are overwritten in the same block
