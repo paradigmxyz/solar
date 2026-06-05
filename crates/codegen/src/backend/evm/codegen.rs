@@ -417,12 +417,6 @@ impl EvmCodegen {
         self.function_frame_sizes.clear();
         self.block_copies.clear();
 
-        // Dispatcher itself does not allocate. External entries set this precisely
-        // after dispatch based on their local/spill footprint.
-        self.asm.emit_push(U256::from(LOW_MEMORY_START));
-        self.asm.emit_push(U256::from(0x40));
-        self.asm.emit_op(opcodes::MSTORE);
-
         if !module.functions.is_empty() {
             // The dispatcher generates function bodies inline
             self.generate_dispatcher(module);
@@ -550,7 +544,7 @@ impl EvmCodegen {
             }
 
             // Emit payable check for non-payable functions
-            self.emit_payable_check(func);
+            self.emit_payable_check(func, revert_label);
 
             self.emit_external_free_memory_start(func);
 
@@ -659,7 +653,7 @@ impl EvmCodegen {
 
     /// Emits a payable check for non-payable functions.
     /// Non-payable, view, and pure functions revert if called with value.
-    fn emit_payable_check(&mut self, func: &Function) {
+    fn emit_payable_check(&mut self, func: &Function, revert_label: Label) {
         use solar_sema::hir::StateMutability;
 
         match func.attributes.state_mutability {
@@ -667,20 +661,10 @@ impl EvmCodegen {
                 // Payable functions accept ETH - no check needed
             }
             StateMutability::NonPayable | StateMutability::View | StateMutability::Pure => {
-                // CALLVALUE ISZERO ok JUMPI PUSH0 PUSH0 REVERT ok: JUMPDEST
-                let ok_label = self.asm.new_label();
-
+                // CALLVALUE shared_revert JUMPI
                 self.asm.emit_op(opcodes::CALLVALUE);
-                self.asm.emit_op(opcodes::ISZERO);
-                self.asm.emit_push_label(ok_label);
+                self.asm.emit_push_label(revert_label);
                 self.asm.emit_op(opcodes::JUMPI);
-                // Revert with empty data
-                self.asm.emit_push(U256::ZERO);
-                self.asm.emit_push(U256::ZERO);
-                self.asm.emit_op(opcodes::REVERT);
-
-                self.asm.define_label(ok_label);
-                self.asm.emit_op(opcodes::JUMPDEST);
             }
         }
     }
