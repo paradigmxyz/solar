@@ -8,6 +8,13 @@ contract InternalVoidCall {
         writeIfNonZero(newValue);
     }
 
+    function setUnlessZero(uint256 newValue) public {
+        if (newValue == 0) {
+            return;
+        }
+        value = newValue;
+    }
+
     function writeIfNonZero(uint256 newValue) internal {
         if (newValue != 0) {
             value = newValue;

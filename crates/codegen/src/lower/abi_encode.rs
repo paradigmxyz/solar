@@ -356,8 +356,7 @@ impl<'gcx> Lowerer<'gcx> {
         items: &[(ValueId, Ty<'gcx>)],
     ) {
         if items.is_empty() {
-            let zero = builder.imm_u64(0);
-            builder.ret_data(zero, zero);
+            builder.stop();
             return;
         }
         let head_size: u64 = items.iter().map(|&(_, t)| self.abi_head_size(t)).sum();
