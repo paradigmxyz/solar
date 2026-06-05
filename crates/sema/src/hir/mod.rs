@@ -27,8 +27,7 @@ pub struct Arena {
     bump: stumpalo::Arena,
 }
 
-// SAFETY: HIR arenas are owned by the semantic context and allocation happens during construction.
-// Cross-thread users only read already allocated HIR data through shared references.
+// SAFETY: `stumpalo::Arena` is Send, but the crate does not mark it as such yet.
 unsafe impl Send for Arena {}
 
 impl Arena {

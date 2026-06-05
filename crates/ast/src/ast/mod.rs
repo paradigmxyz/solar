@@ -44,9 +44,7 @@ pub struct Arena {
     bump: stumpalo::Arena,
 }
 
-// SAFETY: Solar stores AST arenas in `thread_local::ThreadLocal`, so each arena is only mutated by
-// its owning thread. References allocated from an arena may be read by other threads after parsing,
-// but the arena itself is not concurrently allocated from across threads.
+// SAFETY: `stumpalo::Arena` is Send, but the crate does not mark it as such yet.
 unsafe impl Send for Arena {}
 
 impl Arena {
