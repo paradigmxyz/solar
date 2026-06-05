@@ -1734,6 +1734,51 @@ impl EvmCodegen {
         }
     }
 
+    fn emit_new_internal_frame_base_tracked(&mut self) {
+        self.asm.emit_push(U256::from(0x40));
+        self.asm.emit_op(opcodes::MLOAD);
+        self.scheduler.stack.push_unknown();
+    }
+
+    fn emit_internal_frame_store_from_top_preserving_base(&mut self, offset: u64) {
+        self.emit_stack_op(StackOp::Dup(2));
+        if offset != 0 {
+            self.asm.emit_push(U256::from(offset));
+            self.scheduler.stack.push_unknown();
+            self.emit_op_with_effect(
+                opcodes::ADD,
+                StackEffect { pops: 2, pushes: 1 },
+                StackPush::Unknown,
+            );
+        }
+        self.asm.emit_op(opcodes::MSTORE);
+        self.scheduler.instruction_executed(2, None);
+    }
+
+    fn emit_store_frame_base_to_current_frame_slot(&mut self) {
+        self.emit_stack_op(StackOp::Dup(1));
+        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(opcodes::MSTORE);
+        self.scheduler.instruction_executed(2, None);
+    }
+
+    fn emit_store_new_free_pointer_from_frame_base(&mut self, frame_size: u64) {
+        if frame_size != 0 {
+            self.asm.emit_push(U256::from(frame_size));
+            self.scheduler.stack.push_unknown();
+            self.emit_op_with_effect(
+                opcodes::ADD,
+                StackEffect { pops: 2, pushes: 1 },
+                StackPush::Unknown,
+            );
+        }
+        self.asm.emit_push(U256::from(0x40));
+        self.scheduler.stack.push_unknown();
+        self.asm.emit_op(opcodes::MSTORE);
+        self.scheduler.instruction_executed(2, None);
+    }
+
     fn emit_current_internal_frame_addr(&mut self, offset: u64) {
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(opcodes::MLOAD);
@@ -1828,25 +1873,20 @@ impl EvmCodegen {
         // the call, leaving it unavailable at its later use.
         self.spill_live_stack_values(func, liveness, block, inst_idx);
 
+        self.emit_new_internal_frame_base_tracked();
         for (i, &arg) in args.iter().enumerate() {
             self.emit_value(func, arg);
-            self.emit_new_internal_frame_addr(64 + (i as u64) * 32);
-            self.asm.emit_op(opcodes::MSTORE);
-            self.scheduler.stack.pop();
+            self.emit_internal_frame_store_from_top_preserving_base(64 + (i as u64) * 32);
         }
+
+        // current_frame = frame
+        self.emit_store_frame_base_to_current_frame_slot();
+
+        // free_ptr += frame_size
+        self.emit_store_new_free_pointer_from_frame_base(frame_size);
 
         self.pop_all_stack_values();
         self.scheduler.clear_stack();
-
-        // current_frame = frame
-        self.emit_new_internal_frame_addr(0);
-        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
-        self.asm.emit_op(opcodes::MSTORE);
-
-        // free_ptr += frame_size
-        self.emit_new_internal_frame_addr(frame_size);
-        self.asm.emit_push(U256::from(0x40));
-        self.asm.emit_op(opcodes::MSTORE);
 
         self.asm.emit_push_label(callee_label);
         self.asm.emit_op(opcodes::JUMP);
