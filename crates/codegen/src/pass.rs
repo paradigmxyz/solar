@@ -23,8 +23,8 @@ use crate::{
     mir::{Function, Module},
     transform::{
         CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, FunctionDcePass, InlinePass,
-        InstSimplifyPass, JumpThreadingPass, LicmPass, MemoryDsePass, SccpTransformPass,
-        StorageLoadCsePass, StorageScalarPromotionPass,
+        InstSimplifyPass, JumpThreadingPass, LicmPass, MemoryDsePass, PureEvalPass,
+        SccpTransformPass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -39,6 +39,8 @@ pub enum PassName {
     FunctionDce,
     /// Sparse conditional constant propagation.
     Sccp,
+    /// Bounded evaluator for closed pure MIR loops/functions.
+    PureEval,
     /// Local MIR instruction simplification.
     InstSimplify,
     /// Local common subexpression elimination.
@@ -71,6 +73,7 @@ impl PassName {
         Self::Cse,
         Self::StorageLoadCse,
         Self::Sccp,
+        Self::PureEval,
         Self::Licm,
         Self::CfgSimplify,
         Self::JumpThreading,
@@ -85,6 +88,7 @@ impl PassName {
             Self::Inline => "inline",
             Self::FunctionDce => "function-dce",
             Self::Sccp => "sccp",
+            Self::PureEval => "pure-eval",
             Self::InstSimplify => "inst-simplify",
             Self::Cse => "cse",
             Self::StorageLoadCse => "storage-load-cse",
@@ -104,6 +108,7 @@ impl PassName {
             Self::Inline => "Internal MIR function inlining",
             Self::FunctionDce => "Dead internal function elimination",
             Self::Sccp => "Sparse Conditional Constant Propagation",
+            Self::PureEval => "Bounded evaluator for closed pure MIR loops/functions",
             Self::InstSimplify => "Local MIR instruction simplification",
             Self::Cse => "Common Subexpression Elimination (fixed-point)",
             Self::StorageLoadCse => "Reuse storage loads across definitely-disjoint stores",
@@ -123,6 +128,7 @@ impl PassName {
             "inline" => Self::Inline,
             "function-dce" => Self::FunctionDce,
             "sccp" => Self::Sccp,
+            "pure-eval" => Self::PureEval,
             "inst-simplify" => Self::InstSimplify,
             "cse" => Self::Cse,
             "storage-load-cse" => Self::StorageLoadCse,
@@ -143,6 +149,7 @@ pub const DEFAULT_PIPELINE: &[PassName] = &[
     PassName::Inline,
     PassName::FunctionDce,
     PassName::Sccp,
+    PassName::PureEval,
     PassName::InstSimplify,
     PassName::Cse,
     PassName::StorageLoadCse,
@@ -179,6 +186,7 @@ fn make_pass(pass: PassName) -> Box<dyn ModulePass> {
         PassName::Inline => Box::new(InlinePass),
         PassName::FunctionDce => Box::new(FunctionDcePass),
         PassName::Sccp => Box::new(SccpTransformPass),
+        PassName::PureEval => Box::new(PureEvalPass),
         PassName::InstSimplify => Box::new(InstSimplifyPass),
         PassName::Cse => Box::new(CsePass),
         PassName::StorageLoadCse => Box::new(StorageLoadCsePass),

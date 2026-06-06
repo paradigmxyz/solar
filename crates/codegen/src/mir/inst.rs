@@ -3,6 +3,7 @@
 use super::{BlockId, FunctionId, MirType, ValueId};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
+use solar_interface::Span;
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
@@ -10,11 +11,31 @@ use std::fmt;
 pub struct InstructionMetadata {
     /// Proven storage alias key for `sload`/`sstore` instructions.
     pub storage_alias: Option<StorageAlias>,
+    /// Proven memory region for memory instructions.
+    pub memory_region: Option<MemoryRegion>,
+    /// HIR expression that produced this instruction, when the lowerer can preserve it.
+    pub hir_expr: Option<u32>,
+    /// Source span that produced this instruction, when the lowerer can preserve it.
+    pub source_span: Option<Span>,
+    /// Whether this instruction was lowered from an unchecked arithmetic context.
+    pub unchecked: bool,
+    /// Loop nesting depth attached by loop-aware analyses.
+    pub loop_depth: u16,
+    /// Conservative effect classification attached by lowering or analysis.
+    pub effect: Option<EffectKind>,
 }
 
 impl InstructionMetadata {
     /// Empty instruction metadata.
-    pub const EMPTY: Self = Self { storage_alias: None };
+    pub const EMPTY: Self = Self {
+        storage_alias: None,
+        memory_region: None,
+        hir_expr: None,
+        source_span: None,
+        unchecked: false,
+        loop_depth: 0,
+        effect: None,
+    };
 }
 
 /// A conservative storage alias key.
@@ -24,6 +45,50 @@ pub enum StorageAlias {
     Slot(U256),
     /// A loop-invariant symbolic slot value.
     Symbolic(ValueId),
+}
+
+/// A coarse memory region understood by MIR analyses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MemoryRegion {
+    /// Compiler-owned low-memory scratch space.
+    Scratch,
+    /// External ABI return buffer.
+    AbiReturn,
+    /// Solidity free-memory heap.
+    Heap,
+    /// Internal-call frame memory.
+    InternalFrame,
+    /// Region is known to be memory, but not classified more precisely.
+    Unknown,
+}
+
+/// Conservative side-effect class for an instruction.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EffectKind {
+    /// Pure computation.
+    Pure,
+    /// Memory read.
+    MemoryRead,
+    /// Memory write.
+    MemoryWrite,
+    /// Persistent storage read.
+    StorageRead,
+    /// Persistent storage write.
+    StorageWrite,
+    /// Transient storage read.
+    TransientRead,
+    /// Transient storage write.
+    TransientWrite,
+    /// Read from calldata, code, return data, or block/account environment.
+    EnvironmentRead,
+    /// External call.
+    ExternalCall,
+    /// Internal MIR call.
+    InternalCall,
+    /// Contract creation.
+    Create,
+    /// Event emission.
+    Log,
 }
 
 /// An instruction in the MIR.
@@ -48,6 +113,12 @@ impl Instruction {
     #[must_use]
     pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
         self.kind.operands()
+    }
+
+    /// Returns the metadata effect, or derives a conservative one from the instruction kind.
+    #[must_use]
+    pub fn effect_kind(&self) -> EffectKind {
+        self.metadata.effect.unwrap_or_else(|| self.kind.effect_kind())
     }
 }
 
@@ -729,6 +800,60 @@ impl InstKind {
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _)
         )
+    }
+
+    /// Returns a conservative effect classification for this instruction.
+    #[must_use]
+    pub const fn effect_kind(&self) -> EffectKind {
+        match self {
+            Self::MStore(_, _)
+            | Self::MStore8(_, _)
+            | Self::MCopy(_, _, _)
+            | Self::CalldataCopy(_, _, _)
+            | Self::CodeCopy(_, _, _)
+            | Self::ExtCodeCopy(_, _, _, _)
+            | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
+            Self::MLoad(_) | Self::MSize => EffectKind::MemoryRead,
+            Self::SLoad(_) => EffectKind::StorageRead,
+            Self::SStore(_, _) => EffectKind::StorageWrite,
+            Self::TLoad(_) => EffectKind::TransientRead,
+            Self::TStore(_, _) => EffectKind::TransientWrite,
+            Self::Call { .. } | Self::StaticCall { .. } | Self::DelegateCall { .. } => {
+                EffectKind::ExternalCall
+            }
+            Self::InternalCall { .. } => EffectKind::InternalCall,
+            Self::Create(_, _, _) | Self::Create2(_, _, _, _) => EffectKind::Create,
+            Self::Log0(_, _)
+            | Self::Log1(_, _, _)
+            | Self::Log2(_, _, _, _)
+            | Self::Log3(_, _, _, _, _)
+            | Self::Log4(_, _, _, _, _, _) => EffectKind::Log,
+            Self::CalldataLoad(_)
+            | Self::CalldataSize
+            | Self::CodeSize
+            | Self::ExtCodeSize(_)
+            | Self::ExtCodeHash(_)
+            | Self::ReturnDataSize
+            | Self::Caller
+            | Self::CallValue
+            | Self::Origin
+            | Self::GasPrice
+            | Self::BlockHash(_)
+            | Self::Coinbase
+            | Self::Timestamp
+            | Self::BlockNumber
+            | Self::PrevRandao
+            | Self::GasLimit
+            | Self::ChainId
+            | Self::Address
+            | Self::Balance(_)
+            | Self::SelfBalance
+            | Self::Gas
+            | Self::BaseFee
+            | Self::BlobBaseFee
+            | Self::BlobHash(_) => EffectKind::EnvironmentRead,
+            _ => EffectKind::Pure,
+        }
     }
 }
 

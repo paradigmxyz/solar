@@ -10,6 +10,7 @@ pub mod inst_simplify;
 pub mod jump_threading;
 pub mod loop_opt;
 pub mod memory_dse;
+pub mod pure_eval;
 pub mod sccp;
 pub mod storage_load_cse;
 pub mod storage_promotion;
@@ -30,6 +31,7 @@ pub use inst_simplify::{InstSimplifier, InstSimplifyPass};
 pub use jump_threading::{JumpThreader, JumpThreadingPass, JumpThreadingStats};
 pub use loop_opt::{LicmPass, LoopOptConfig, LoopOptStats, LoopOptimizer};
 pub use memory_dse::{MemoryDsePass, MemoryStoreEliminator};
+pub use pure_eval::{PureEvalPass, PureEvalStats, PureEvaluator};
 pub use sccp::{SccpPass, SccpStats, SccpTransformPass};
 pub use storage_load_cse::{StorageLoadCse, StorageLoadCsePass};
 pub use storage_promotion::{
