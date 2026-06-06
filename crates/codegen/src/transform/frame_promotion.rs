@@ -1,11 +1,10 @@
-//! Internal-frame scalar promotion.
+//! Compiler-local scalar promotion.
 //!
 //! This is Solar's EVM-shaped version of LLVM's mem2reg: promote compiler-owned
-//! stack-frame slots from memory traffic into SSA values. The pass is deliberately
-//! conservative. A slot is promotable only when its `internal_frame_addr` value is
-//! used as the exact address of full-word `mload`/`mstore` instructions, and the
-//! function has no calls or gas/memory-size observations that could make removing
-//! frame memory traffic observable.
+//! local slots from memory traffic into SSA values. The pass is deliberately
+//! conservative. A slot is promotable only when its address is used as the exact
+//! address of full-word `mload`/`mstore` instructions, and the function has no
+//! observations that could make removing that memory traffic visible.
 
 use crate::{
     mir::{BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId},
@@ -15,14 +14,16 @@ use crate::{
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
+const LOW_MEMORY_START: u64 = 0x80;
+
 /// Statistics for one frame promotion run.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FramePromotionStats {
-    /// Number of distinct internal-frame slots promoted.
+    /// Number of distinct compiler-local slots promoted.
     pub slots_promoted: usize,
-    /// Number of frame loads replaced by SSA values.
+    /// Number of local-slot loads replaced by SSA values.
     pub loads_promoted: usize,
-    /// Number of frame stores removed.
+    /// Number of local-slot stores removed.
     pub stores_promoted: usize,
     /// Number of phi nodes inserted.
     pub phis_inserted: usize,
@@ -35,7 +36,7 @@ impl FramePromotionStats {
     }
 }
 
-/// Promotes non-escaping internal-frame slots to SSA values.
+/// Promotes non-escaping compiler-local slots to SSA values.
 #[derive(Debug, Default)]
 pub struct FrameSlotPromoter {
     stats: FramePromotionStats,
@@ -55,6 +56,12 @@ impl FunctionPass for FrameSlotPromotionPass {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+enum PromotableSlot {
+    InternalFrame(u64),
+    ExternalLocal(u64),
+}
+
 #[derive(Clone, Debug)]
 struct PendingPhi {
     block: BlockId,
@@ -64,7 +71,7 @@ struct PendingPhi {
 }
 
 struct SlotSsaBuilder<'a> {
-    slot: u64,
+    slot: PromotableSlot,
     reachable: &'a FxHashSet<BlockId>,
     inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: FxHashMap<ValueId, ValueId>,
@@ -79,7 +86,7 @@ struct SlotSsaBuilder<'a> {
 }
 
 impl FrameSlotPromoter {
-    /// Creates a new frame-slot promoter.
+    /// Creates a new compiler-local-slot promoter.
     pub fn new() -> Self {
         Self::default()
     }
@@ -89,7 +96,7 @@ impl FrameSlotPromoter {
         self.stats
     }
 
-    /// Runs frame-slot promotion on a function.
+    /// Runs compiler-local-slot promotion on a function.
     pub fn run(&mut self, func: &mut Function) -> FramePromotionStats {
         self.stats = FramePromotionStats::default();
 
@@ -160,9 +167,10 @@ impl FrameSlotPromoter {
         func: &Function,
         reachable: &FxHashSet<BlockId>,
         inst_results: &FxHashMap<InstId, ValueId>,
-    ) -> Option<Vec<u64>> {
-        let mut loads: FxHashMap<u64, usize> = FxHashMap::default();
-        let mut stores: FxHashMap<u64, usize> = FxHashMap::default();
+    ) -> Option<Vec<PromotableSlot>> {
+        let mut loads: FxHashMap<PromotableSlot, usize> = FxHashMap::default();
+        let mut stores: FxHashMap<PromotableSlot, usize> = FxHashMap::default();
+        let mut internal_frame_escaped = false;
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !reachable.contains(&block_id) {
@@ -173,18 +181,18 @@ impl FrameSlotPromoter {
                 let kind = &func.instructions[inst_id].kind;
                 match *kind {
                     InstKind::MLoad(addr) => {
-                        if let Some(offset) = Self::internal_frame_offset(func, addr) {
-                            *loads.entry(offset).or_default() += 1;
+                        if let Some(slot) = Self::promotable_slot(func, addr) {
+                            *loads.entry(slot).or_default() += 1;
                         }
                     }
                     InstKind::MStore(addr, value) => {
-                        if let Some(offset) = Self::internal_frame_offset(func, addr) {
+                        if let Some(slot) = Self::promotable_slot(func, addr) {
                             if Self::internal_frame_offset(func, value).is_some() {
-                                return None;
+                                internal_frame_escaped = true;
                             }
-                            *stores.entry(offset).or_default() += 1;
+                            *stores.entry(slot).or_default() += 1;
                         } else if Self::internal_frame_offset(func, value).is_some() {
-                            return None;
+                            internal_frame_escaped = true;
                         }
                     }
                     _ => {
@@ -201,7 +209,7 @@ impl FrameSlotPromoter {
                             .iter()
                             .any(|&value| Self::internal_frame_offset(func, value).is_some())
                         {
-                            return None;
+                            internal_frame_escaped = true;
                         }
                     }
                 }
@@ -213,14 +221,19 @@ impl FrameSlotPromoter {
                     .iter()
                     .any(|&value| Self::internal_frame_offset(func, value).is_some())
             {
-                return None;
+                internal_frame_escaped = true;
             }
         }
 
-        let mut slots: Vec<u64> = loads
+        let mut slots: Vec<PromotableSlot> = loads
             .into_iter()
             .filter_map(|(slot, load_count)| {
-                (load_count > 0 && stores.get(&slot).copied().unwrap_or(0) > 0).then_some(slot)
+                let has_store = stores.get(&slot).copied().unwrap_or(0) > 0;
+                (load_count > 0 && has_store).then_some(slot)
+            })
+            .filter(|slot| match *slot {
+                PromotableSlot::InternalFrame(_) => !internal_frame_escaped,
+                PromotableSlot::ExternalLocal(addr) => Self::external_local_slot_safe(func, addr),
             })
             .collect();
         slots.sort_unstable();
@@ -234,6 +247,21 @@ impl FrameSlotPromoter {
                 if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
             })
             .collect()
+    }
+
+    fn promotable_slot(func: &Function, value: ValueId) -> Option<PromotableSlot> {
+        Self::internal_frame_offset(func, value)
+            .map(PromotableSlot::InternalFrame)
+            .or_else(|| Self::external_local_addr(func, value).map(PromotableSlot::ExternalLocal))
+    }
+
+    fn external_local_addr(func: &Function, value: ValueId) -> Option<u64> {
+        let addr = Self::as_u64(func, value)?;
+        let local_end = LOW_MEMORY_START.checked_add(func.internal_frame_size)?;
+        (addr >= LOW_MEMORY_START
+            && addr < local_end
+            && (addr - LOW_MEMORY_START).is_multiple_of(32))
+        .then_some(addr)
     }
 
     fn internal_frame_offset(func: &Function, value: ValueId) -> Option<u64> {
@@ -273,6 +301,115 @@ impl FrameSlotPromoter {
     fn as_u64(func: &Function, value: ValueId) -> Option<u64> {
         let value = func.values[value].as_immediate()?.as_u256()?;
         u64::try_from(value).ok()
+    }
+
+    fn external_local_slot_safe(func: &Function, slot_addr: u64) -> bool {
+        if Self::ranges_overlap(slot_addr, 32, LOW_MEMORY_START, func.external_static_return_size) {
+            return false;
+        }
+
+        for block in func.blocks.iter() {
+            for &inst_id in &block.instructions {
+                if Self::inst_may_observe_external_slot(
+                    func,
+                    &func.instructions[inst_id].kind,
+                    slot_addr,
+                ) {
+                    return false;
+                }
+            }
+            if let Some(term) = &block.terminator
+                && Self::terminator_may_observe_external_slot(func, term, slot_addr)
+            {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn inst_may_observe_external_slot(func: &Function, kind: &InstKind, slot_addr: u64) -> bool {
+        match *kind {
+            InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
+                !Self::is_exact_external_slot_access(func, addr, slot_addr)
+                    && Self::memory_range_may_overlap(func, addr, Some(32), slot_addr)
+            }
+            InstKind::MStore8(addr, _) => {
+                Self::memory_range_may_overlap(func, addr, Some(1), slot_addr)
+            }
+            InstKind::Keccak256(addr, size)
+            | InstKind::Log0(addr, size)
+            | InstKind::ReturnDataCopy(addr, _, size)
+            | InstKind::CodeCopy(addr, _, size)
+            | InstKind::CalldataCopy(addr, _, size) => {
+                Self::memory_range_may_overlap(func, addr, Self::as_u64(func, size), slot_addr)
+            }
+            InstKind::MCopy(dest, src, size) => {
+                let size = Self::as_u64(func, size);
+                Self::memory_range_may_overlap(func, dest, size, slot_addr)
+                    || Self::memory_range_may_overlap(func, src, size, slot_addr)
+            }
+            InstKind::ExtCodeCopy(_, dest, _, size) => {
+                Self::memory_range_may_overlap(func, dest, Self::as_u64(func, size), slot_addr)
+            }
+            InstKind::Log1(addr, size, _)
+            | InstKind::Log2(addr, size, _, _)
+            | InstKind::Log3(addr, size, _, _, _)
+            | InstKind::Log4(addr, size, _, _, _, _) => {
+                Self::memory_range_may_overlap(func, addr, Self::as_u64(func, size), slot_addr)
+            }
+            InstKind::Call { .. }
+            | InstKind::StaticCall { .. }
+            | InstKind::DelegateCall { .. }
+            | InstKind::InternalCall { .. }
+            | InstKind::Create(_, _, _)
+            | InstKind::Create2(_, _, _, _)
+            | InstKind::MSize => true,
+            _ => false,
+        }
+    }
+
+    fn terminator_may_observe_external_slot(
+        func: &Function,
+        term: &Terminator,
+        slot_addr: u64,
+    ) -> bool {
+        match term {
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+                Self::memory_range_may_overlap(func, *offset, Self::as_u64(func, *size), slot_addr)
+            }
+            Terminator::Jump(_)
+            | Terminator::Branch { .. }
+            | Terminator::Switch { .. }
+            | Terminator::Return { .. }
+            | Terminator::Stop
+            | Terminator::Invalid
+            | Terminator::SelfDestruct { .. } => false,
+        }
+    }
+
+    fn is_exact_external_slot_access(func: &Function, addr: ValueId, slot_addr: u64) -> bool {
+        Self::external_local_addr(func, addr) == Some(slot_addr)
+    }
+
+    fn memory_range_may_overlap(
+        func: &Function,
+        addr: ValueId,
+        size: Option<u64>,
+        slot_addr: u64,
+    ) -> bool {
+        let Some(size) = size else { return true };
+        if size == 0 {
+            return false;
+        }
+        let Some(addr) = Self::as_u64(func, addr) else { return true };
+        Self::ranges_overlap(addr, size, slot_addr, 32)
+    }
+
+    fn ranges_overlap(a_start: u64, a_size: u64, b_start: u64, b_size: u64) -> bool {
+        let Some(a_end) = a_start.checked_add(a_size) else { return true };
+        let Some(b_end) = b_start.checked_add(b_size) else { return true };
+        a_start < b_end && b_start < a_end
     }
 
     fn resolve_replacement(
@@ -483,7 +620,7 @@ impl FrameSlotPromoter {
 
 impl<'a> SlotSsaBuilder<'a> {
     fn new(
-        slot: u64,
+        slot: PromotableSlot,
         reachable: &'a FxHashSet<BlockId>,
         inst_results: &'a FxHashMap<InstId, ValueId>,
     ) -> Self {
@@ -544,7 +681,7 @@ impl<'a> SlotSsaBuilder<'a> {
         for inst_id in insts {
             match func.instructions[inst_id].kind {
                 InstKind::MLoad(addr)
-                    if FrameSlotPromoter::internal_frame_offset(func, addr) == Some(self.slot) =>
+                    if FrameSlotPromoter::promotable_slot(func, addr) == Some(self.slot) =>
                 {
                     let Some(value) = current else {
                         self.failed = true;
@@ -560,7 +697,7 @@ impl<'a> SlotSsaBuilder<'a> {
                     }
                 }
                 InstKind::MStore(addr, value)
-                    if FrameSlotPromoter::internal_frame_offset(func, addr) == Some(self.slot) =>
+                    if FrameSlotPromoter::promotable_slot(func, addr) == Some(self.slot) =>
                 {
                     current =
                         Some(FrameSlotPromoter::resolve_replacement(&self.replacements, value));
@@ -608,7 +745,7 @@ impl<'a> SlotSsaBuilder<'a> {
         let insts = func.blocks[block].instructions.clone();
         for inst_id in insts {
             if let InstKind::MStore(addr, value) = func.instructions[inst_id].kind
-                && FrameSlotPromoter::internal_frame_offset(func, addr) == Some(self.slot)
+                && FrameSlotPromoter::promotable_slot(func, addr) == Some(self.slot)
             {
                 current = Some(FrameSlotPromoter::resolve_replacement(&self.replacements, value));
             }
@@ -676,6 +813,32 @@ mod tests {
                     }
                     InstKind::MStore(addr, _)
                         if FrameSlotPromoter::internal_frame_offset(func, addr) == Some(offset) =>
+                    {
+                        stores += 1;
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        (loads, stores)
+    }
+
+    fn count_active_external_local_ops(func: &Function, addr: u64) -> (usize, usize) {
+        let mut loads = 0;
+        let mut stores = 0;
+        let slot = PromotableSlot::ExternalLocal(addr);
+
+        for block in func.blocks.iter() {
+            for &inst_id in &block.instructions {
+                match func.instructions[inst_id].kind {
+                    InstKind::MLoad(addr)
+                        if FrameSlotPromoter::promotable_slot(func, addr) == Some(slot) =>
+                    {
+                        loads += 1;
+                    }
+                    InstKind::MStore(addr, _)
+                        if FrameSlotPromoter::promotable_slot(func, addr) == Some(slot) =>
                     {
                         stores += 1;
                     }
@@ -811,5 +974,121 @@ mod tests {
 
         assert_eq!(stats.slots_promoted, 1);
         assert_eq!(count_active_frame_ops(&func, 160), (0, 0));
+    }
+
+    #[test]
+    fn promotes_loop_carried_external_local_slot() {
+        let mut func = test_func();
+        func.internal_frame_size = 32;
+        let mut builder = FunctionBuilder::new(&mut func);
+        let header = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let zero = builder.imm_u64(0);
+        let limit = builder.imm_u64(4);
+        builder.mstore(local, zero);
+        builder.jump(header);
+
+        builder.switch_to_block(header);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let i = builder.mload(local);
+        let cond = builder.lt(i, limit);
+        builder.branch(cond, body, exit);
+
+        builder.switch_to_block(body);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let current = builder.mload(local);
+        let one = builder.imm_u64(1);
+        let next = builder.add(current, one);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        builder.mstore(local, next);
+        builder.jump(header);
+
+        builder.switch_to_block(exit);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let result = builder.mload(local);
+        builder.ret([result]);
+
+        let mut pass = FrameSlotPromoter::new();
+        let stats = pass.run(&mut func);
+
+        assert_eq!(stats.slots_promoted, 1);
+        assert_eq!(stats.loads_promoted, 3);
+        assert_eq!(stats.stores_promoted, 2);
+        assert_eq!(stats.phis_inserted, 1);
+        assert_eq!(count_active_external_local_ops(&func, LOW_MEMORY_START), (0, 0));
+    }
+
+    #[test]
+    fn keeps_external_local_overlapping_static_return_buffer() {
+        let mut func = test_func();
+        func.internal_frame_size = 32;
+        func.external_static_return_size = 32;
+        let mut builder = FunctionBuilder::new(&mut func);
+
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let value = builder.imm_u64(42);
+        builder.mstore(local, value);
+        let loaded = builder.mload(local);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        builder.mstore(local, loaded);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let size = builder.imm_u64(32);
+        builder.ret_data(local, size);
+
+        let mut pass = FrameSlotPromoter::new();
+        let stats = pass.run(&mut func);
+
+        assert_eq!(stats.total(), 0);
+        assert_eq!(count_active_external_local_ops(&func, LOW_MEMORY_START), (1, 2));
+    }
+
+    #[test]
+    fn keeps_external_local_when_dynamic_memory_may_alias() {
+        let mut func = test_func();
+        func.internal_frame_size = 32;
+        let mut builder = FunctionBuilder::new(&mut func);
+
+        let dynamic_dest = builder.add_param(MirType::MemPtr);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let value = builder.imm_u64(42);
+        builder.mstore(local, value);
+        let src = builder.imm_u64(0);
+        let len = builder.imm_u64(32);
+        builder.mcopy(dynamic_dest, src, len);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let loaded = builder.mload(local);
+        builder.ret([loaded]);
+
+        let mut pass = FrameSlotPromoter::new();
+        let stats = pass.run(&mut func);
+
+        assert_eq!(stats.total(), 0);
+        assert_eq!(count_active_external_local_ops(&func, LOW_MEMORY_START), (1, 1));
+    }
+
+    #[test]
+    fn keeps_external_local_when_return_data_observes_it() {
+        let mut func = test_func();
+        func.internal_frame_size = 32;
+        let mut builder = FunctionBuilder::new(&mut func);
+
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let value = builder.imm_u64(42);
+        builder.mstore(local, value);
+        let loaded = builder.mload(local);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        builder.mstore(local, loaded);
+        let local = builder.imm_u64(LOW_MEMORY_START);
+        let size = builder.imm_u64(32);
+        builder.ret_data(local, size);
+
+        let mut pass = FrameSlotPromoter::new();
+        let stats = pass.run(&mut func);
+
+        assert_eq!(stats.total(), 0);
+        assert_eq!(count_active_external_local_ops(&func, LOW_MEMORY_START), (1, 2));
     }
 }

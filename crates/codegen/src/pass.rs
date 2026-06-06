@@ -55,7 +55,7 @@ pub enum PassName {
     JumpThreading,
     /// CFG simplification.
     CfgSimplify,
-    /// Internal-frame scalar promotion.
+    /// Compiler-local scalar promotion.
     FrameSlotPromotion,
     /// Local dead memory-store elimination.
     MemoryDse,
@@ -116,7 +116,7 @@ impl PassName {
             Self::Licm => "Loop-Invariant Code Motion",
             Self::JumpThreading => "Jump Threading (fixed-point)",
             Self::CfgSimplify => "CFG Simplification (fixed-point)",
-            Self::FrameSlotPromotion => "Promote non-escaping internal-frame slots to SSA values",
+            Self::FrameSlotPromotion => "Promote non-escaping compiler-local slots to SSA values",
             Self::MemoryDse => "Local dead memory-store elimination",
             Self::Dce => "Dead Code Elimination (fixed-point)",
         }
