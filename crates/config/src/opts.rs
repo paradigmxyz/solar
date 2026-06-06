@@ -92,6 +92,9 @@ pub struct Opts {
     /// Stop execution after the given compiler stage.
     #[cfg_attr(feature = "clap", arg(long, value_enum))]
     pub stop_after: Option<CompilerStage>,
+    /// Disable MIR optimization passes during codegen.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub no_opt: bool,
 
     /// Directory to write output files.
     #[cfg_attr(feature = "clap", arg(long, value_hint = ValueHint::DirPath))]

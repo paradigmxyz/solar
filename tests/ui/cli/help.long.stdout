@@ -28,6 +28,9 @@ Options:
           
           [possible values: parsing, lowering, analysis]
 
+      --no-opt
+          Disable MIR optimization passes during codegen
+
       --out-dir <OUT_DIR>
           Directory to write output files
 

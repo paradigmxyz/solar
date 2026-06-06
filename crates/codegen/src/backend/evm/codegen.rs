@@ -76,6 +76,8 @@ pub struct EvmCodegen {
     constructor_param_count: u32,
     /// Whether we're emitting an internal function body.
     in_internal_function: bool,
+    /// Whether to run the MIR optimization pipeline before bytecode generation.
+    optimize: bool,
     /// Print MIR after each pass before bytecode generation.
     mir_print_after_each: bool,
 }
@@ -94,8 +96,14 @@ impl EvmCodegen {
             in_constructor: false,
             constructor_param_count: 0,
             in_internal_function: false,
+            optimize: true,
             mir_print_after_each: false,
         }
+    }
+
+    /// Enables or disables MIR optimization passes before bytecode generation.
+    pub const fn set_optimize(&mut self, enabled: bool) {
+        self.optimize = enabled;
     }
 
     /// Enables or disables MIR printing after every optimization pass.
@@ -171,7 +179,7 @@ impl EvmCodegen {
     /// Generates bytecode for a module (runtime code only).
     /// Returns empty bytecode for interfaces (they have no implementation).
     ///
-    /// This runs optimization passes (including DCE) on the module before codegen.
+    /// This runs optimization passes (including DCE) on the module before codegen unless disabled.
     pub fn generate_module(&mut self, module: &mut Module) -> Vec<u8> {
         if module.is_interface {
             return Vec::new();
@@ -186,7 +194,7 @@ impl EvmCodegen {
     /// Returns (deployment_bytecode, runtime_bytecode).
     /// Returns empty bytecodes for interfaces (they have no implementation).
     ///
-    /// This runs optimization passes (including DCE) on the module before codegen.
+    /// This runs optimization passes (including DCE) on the module before codegen unless disabled.
     pub fn generate_deployment_bytecode(&mut self, module: &mut Module) -> (Vec<u8>, Vec<u8>) {
         if module.is_interface {
             return (Vec::new(), Vec::new());
@@ -378,6 +386,9 @@ impl EvmCodegen {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
+        if !self.optimize {
+            return;
+        }
         run_default_pipeline_with_options(
             module,
             PipelineOptions { print_after_each: self.mir_print_after_each },
