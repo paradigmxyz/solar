@@ -173,6 +173,7 @@ impl PureEvaluator {
                 let b = get(b)?;
                 if b.is_zero() { U256::ZERO } else { get(a)? % b }
             }
+            InstKind::Exp(a, b) => get(a)?.wrapping_pow(get(b)?),
             InstKind::And(a, b) => get(a)? & get(b)?,
             InstKind::Or(a, b) => get(a)? | get(b)?,
             InstKind::Xor(a, b) => get(a)? ^ get(b)?,
@@ -193,6 +194,9 @@ impl PureEvaluator {
                     get(value)? >> shift.to::<usize>()
                 }
             }
+            InstKind::Sar(shift, value) => arithmetic_shift_right(get(value)?, get(shift)?),
+            InstKind::Byte(index, value) => byte(get(index)?, get(value)?),
+            InstKind::SignExtend(size, value) => signextend(get(size)?, get(value)?),
             InstKind::Lt(a, b) => U256::from(get(a)? < get(b)?),
             InstKind::Gt(a, b) => U256::from(get(a)? > get(b)?),
             InstKind::Eq(a, b) => U256::from(get(a)? == get(b)?),
@@ -236,4 +240,38 @@ fn inst_result_value(func: &Function, inst_id: crate::mir::InstId) -> Option<Val
     func.values.iter_enumerated().find_map(|(value_id, value)| {
         matches!(value, Value::Inst(id) if *id == inst_id).then_some(value_id)
     })
+}
+
+fn byte(index: U256, value: U256) -> U256 {
+    if index >= U256::from(32) {
+        U256::ZERO
+    } else {
+        let shift = 8 * (31 - index.to::<usize>());
+        (value >> shift) & U256::from(0xff)
+    }
+}
+
+fn signextend(size: U256, value: U256) -> U256 {
+    if size >= U256::from(31) {
+        return value;
+    }
+    let bit = size.to::<usize>() * 8 + 7;
+    let sign_bit = U256::from(1) << bit;
+    let mask = sign_bit - U256::from(1);
+    if (value & sign_bit).is_zero() { value & mask } else { value | !mask }
+}
+
+fn arithmetic_shift_right(value: U256, shift: U256) -> U256 {
+    let negative = !((value >> 255usize) & U256::from(1)).is_zero();
+    if shift >= U256::from(256) {
+        return if negative { U256::MAX } else { U256::ZERO };
+    }
+
+    let shift = shift.to::<usize>();
+    if shift == 0 || !negative {
+        return value >> shift;
+    }
+
+    let low_mask = (U256::from(1) << (256 - shift)) - U256::from(1);
+    (value >> shift) | !low_mask
 }
