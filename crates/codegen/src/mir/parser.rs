@@ -619,6 +619,8 @@ impl<'a> Parser<'a> {
             )?;
         }
 
+        self.reject_unresolved_value_labels(&func, &value_labels)?;
+
         Ok(func)
     }
 
@@ -687,12 +689,52 @@ impl<'a> Parser<'a> {
             let idx: u32 = rest
                 .parse()
                 .map_err(|_| self.error(format!("invalid value reference `{ident}`")))?;
-            return value_labels
-                .get(&idx)
-                .copied()
-                .ok_or_else(|| self.error(format!("undefined value `{ident}`")));
+            if let Some(value) = value_labels.get(&idx).copied() {
+                return Ok(value);
+            }
+            let value = func.alloc_value(Value::Undef(MirType::uint256()));
+            value_labels.insert(idx, value);
+            return Ok(value);
         }
         Err(self.error(format!("expected value reference, got `{ident}`")))
+    }
+
+    fn resolve_result_label(
+        &self,
+        func: &mut Function,
+        value_labels: &mut FxHashMap<u32, ValueId>,
+        label: u32,
+        inst_id: super::InstId,
+    ) -> Result<(), ParseError> {
+        if let Some(value) = value_labels.get(&label).copied() {
+            if matches!(func.values[value], Value::Undef(_)) {
+                func.values[value] = Value::Inst(inst_id);
+                return Ok(());
+            }
+            return Err(self.error(format!("duplicate value `v{label}`")));
+        }
+
+        let value = func.alloc_value(Value::Inst(inst_id));
+        value_labels.insert(label, value);
+        Ok(())
+    }
+
+    fn reject_unresolved_value_labels(
+        &self,
+        func: &Function,
+        value_labels: &FxHashMap<u32, ValueId>,
+    ) -> Result<(), ParseError> {
+        let mut unresolved: Vec<_> = value_labels
+            .iter()
+            .filter_map(|(&label, &value)| {
+                matches!(func.values[value], Value::Undef(_)).then_some(label)
+            })
+            .collect();
+        unresolved.sort_unstable();
+        if let Some(label) = unresolved.first() {
+            return Err(self.error(format!("undefined value `v{label}`")));
+        }
+        Ok(())
     }
 
     fn parse_block_id(
@@ -890,8 +932,7 @@ impl<'a> Parser<'a> {
         let inst_id = func.alloc_inst(inst);
         func.blocks[block].instructions.push(inst_id);
         if let Some(label) = result_label {
-            let val = func.alloc_value(Value::Inst(inst_id));
-            value_labels.insert(label, val);
+            self.resolve_result_label(func, value_labels, label, inst_id)?;
         }
         self.skip_to_eol();
         Ok(())

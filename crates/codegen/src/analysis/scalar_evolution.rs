@@ -167,6 +167,15 @@ impl ScalarEvolution {
                                 _ => return None,
                             }
                         }
+                        InstKind::Shl(shift, value) => {
+                            let shift = self.affine_expr(func, loop_data, shift)?;
+                            if shift.base.is_some() || !shift.terms.is_empty() {
+                                return None;
+                            }
+                            let shift = u32::try_from(shift.constant).ok()?;
+                            let scale = 1i128.checked_shl(shift)?;
+                            self.affine_expr(func, loop_data, value)?.mul_const(scale)?
+                        }
                         _ => return None,
                     }
                 }
@@ -241,6 +250,76 @@ mod tests {
 
         let offset_inst =
             func.alloc_inst(Instruction::new(InstKind::Mul(i, stride), Some(MirType::uint256())));
+        func.blocks[body].instructions.push(offset_inst);
+        let offset = func.alloc_value(Value::Inst(offset_inst));
+        let addr_inst = func
+            .alloc_inst(Instruction::new(InstKind::Add(base, offset), Some(MirType::uint256())));
+        func.blocks[body].instructions.push(addr_inst);
+        let addr = func.alloc_value(Value::Inst(addr_inst));
+        let next_inst =
+            func.alloc_inst(Instruction::new(InstKind::Add(i, one), Some(MirType::uint256())));
+        func.blocks[body].instructions.push(next_inst);
+        let next = func.alloc_value(Value::Inst(next_inst));
+        if let InstKind::Phi(incoming) = &mut func.instructions[phi_inst].kind {
+            incoming.push((body, next));
+        }
+        func.blocks[body].terminator = Some(Terminator::Jump(header));
+        func.blocks[body].successors.push(header);
+        func.blocks[header].predecessors.push(body);
+
+        func.blocks[exit].terminator = Some(Terminator::Return { values: vec![addr].into() });
+
+        let mut analyzer = LoopAnalyzer::new();
+        let loop_info = analyzer.analyze(&func);
+        let loop_data = loop_info.all_loops().next().expect("expected loop");
+        let scev = ScalarEvolution::analyze(&func, loop_data);
+        let expr = scev.get(addr).expect("address should be affine");
+
+        assert_eq!(expr.base, Some(base));
+        assert_eq!(expr.constant, 0);
+        assert_eq!(expr.terms.len(), 1);
+        assert_eq!(expr.terms[0].scale, 32);
+    }
+
+    #[test]
+    fn recognizes_shifted_induction_variable_as_scaled() {
+        let mut func = Function::new(Ident::DUMMY);
+
+        let entry = func.entry_block;
+        let header = func.alloc_block();
+        let body = func.alloc_block();
+        let exit = func.alloc_block();
+
+        let base = func.alloc_value(Value::Arg { index: 0, ty: MirType::uint256() });
+        func.params.push(MirType::uint256());
+        let zero = func.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
+        let one = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let four = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(4))));
+        let five = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(5))));
+
+        func.blocks[entry].terminator = Some(Terminator::Jump(header));
+        func.blocks[entry].successors.push(header);
+        func.blocks[header].predecessors.push(entry);
+
+        let phi_inst = func.alloc_inst(Instruction::new(
+            InstKind::Phi(vec![(entry, zero)]),
+            Some(MirType::uint256()),
+        ));
+        func.blocks[header].instructions.push(phi_inst);
+        let i = func.alloc_value(Value::Inst(phi_inst));
+        let cond_inst =
+            func.alloc_inst(Instruction::new(InstKind::Lt(i, four), Some(MirType::Bool)));
+        func.blocks[header].instructions.push(cond_inst);
+        let cond = func.alloc_value(Value::Inst(cond_inst));
+        func.blocks[header].terminator =
+            Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
+        func.blocks[header].successors.push(body);
+        func.blocks[header].successors.push(exit);
+        func.blocks[body].predecessors.push(header);
+        func.blocks[exit].predecessors.push(header);
+
+        let offset_inst =
+            func.alloc_inst(Instruction::new(InstKind::Shl(five, i), Some(MirType::uint256())));
         func.blocks[body].instructions.push(offset_inst);
         let offset = func.alloc_value(Value::Inst(offset_inst));
         let addr_inst = func

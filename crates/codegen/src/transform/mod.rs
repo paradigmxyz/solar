@@ -5,9 +5,11 @@ pub mod constant_fold;
 pub mod cse;
 pub mod dce;
 pub mod frame_promotion;
+pub mod indvar_simplify;
 pub mod inline;
 pub mod inst_simplify;
 pub mod jump_threading;
+pub mod loop_canonicalize;
 pub mod loop_opt;
 pub mod memory_dse;
 pub mod pure_eval;
@@ -23,12 +25,14 @@ pub use constant_fold::{ConstantFolder, FoldResult};
 pub use cse::{CommonSubexprEliminator, CsePass};
 pub use dce::{DcePass, DceStats, DeadCodeEliminator};
 pub use frame_promotion::{FramePromotionStats, FrameSlotPromoter, FrameSlotPromotionPass};
+pub use indvar_simplify::{IndVarSimplifier, IndVarSimplifyPass, IndVarSimplifyStats};
 pub use inline::{
     FunctionInlineInfo, InlineAnalyzer, InlineConfig, InlineDecision, InlinePass, InlineStats,
     MirInlineConfig, MirInlineStats, MirInliner, OptLevel,
 };
 pub use inst_simplify::{InstSimplifier, InstSimplifyPass};
 pub use jump_threading::{JumpThreader, JumpThreadingPass, JumpThreadingStats};
+pub use loop_canonicalize::{LoopCanonicalizePass, LoopCanonicalizeStats, LoopCanonicalizer};
 pub use loop_opt::{LicmPass, LoopOptConfig, LoopOptStats, LoopOptimizer};
 pub use memory_dse::{MemoryDsePass, MemoryStoreEliminator};
 pub use pure_eval::{PureEvalPass, PureEvalStats, PureEvaluator};

@@ -22,9 +22,10 @@
 use crate::{
     mir::{Function, Module, module_to_text},
     transform::{
-        CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, FunctionDcePass, InlinePass,
-        InstSimplifyPass, JumpThreadingPass, LicmPass, MemoryDsePass, PureEvalPass,
-        SccpTransformPass, StorageLoadCsePass, StorageScalarPromotionPass,
+        CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, FunctionDcePass,
+        IndVarSimplifyPass, InlinePass, InstSimplifyPass, JumpThreadingPass, LicmPass,
+        LoopCanonicalizePass, MemoryDsePass, PureEvalPass, SccpTransformPass, StorageLoadCsePass,
+        StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -47,6 +48,10 @@ pub enum PassName {
     Cse,
     /// Storage-load CSE across definitely-disjoint stores.
     StorageLoadCse,
+    /// Loop canonicalization into LoopSimplify-style preheader form.
+    LoopCanonicalize,
+    /// Induction-variable simplification and strength reduction.
+    IndVarSimplify,
     /// Loop-carried storage scalar promotion.
     StoragePromotion,
     /// Loop-invariant code motion.
@@ -72,6 +77,8 @@ impl PassName {
         Self::InstSimplify,
         Self::Cse,
         Self::StorageLoadCse,
+        Self::LoopCanonicalize,
+        Self::IndVarSimplify,
         Self::Sccp,
         Self::PureEval,
         Self::Licm,
@@ -92,6 +99,8 @@ impl PassName {
             Self::InstSimplify => "inst-simplify",
             Self::Cse => "cse",
             Self::StorageLoadCse => "storage-load-cse",
+            Self::LoopCanonicalize => "loop-canonicalize",
+            Self::IndVarSimplify => "indvar-simplify",
             Self::StoragePromotion => "storage-promotion",
             Self::Licm => "licm",
             Self::JumpThreading => "jump-threading",
@@ -112,6 +121,8 @@ impl PassName {
             Self::InstSimplify => "Local MIR instruction simplification",
             Self::Cse => "Common Subexpression Elimination (fixed-point)",
             Self::StorageLoadCse => "Reuse storage loads across definitely-disjoint stores",
+            Self::LoopCanonicalize => "Canonicalize natural loops with explicit preheaders",
+            Self::IndVarSimplify => "Strength-reduce affine induction-variable address expressions",
             Self::StoragePromotion => "Promote simple loop-carried storage updates to memory",
             Self::Licm => "Loop-Invariant Code Motion",
             Self::JumpThreading => "Jump Threading (fixed-point)",
@@ -132,6 +143,8 @@ impl PassName {
             "inst-simplify" => Self::InstSimplify,
             "cse" => Self::Cse,
             "storage-load-cse" => Self::StorageLoadCse,
+            "loop-canonicalize" => Self::LoopCanonicalize,
+            "indvar-simplify" => Self::IndVarSimplify,
             "storage-promotion" => Self::StoragePromotion,
             "licm" => Self::Licm,
             "jump-threading" => Self::JumpThreading,
@@ -153,6 +166,8 @@ pub const DEFAULT_PIPELINE: &[PassName] = &[
     PassName::InstSimplify,
     PassName::Cse,
     PassName::StorageLoadCse,
+    PassName::LoopCanonicalize,
+    PassName::IndVarSimplify,
     PassName::StoragePromotion,
     PassName::Licm,
     PassName::JumpThreading,
@@ -270,6 +285,8 @@ fn make_pass(pass: PassName) -> Box<dyn ModulePass> {
         PassName::InstSimplify => Box::new(InstSimplifyPass),
         PassName::Cse => Box::new(CsePass),
         PassName::StorageLoadCse => Box::new(StorageLoadCsePass),
+        PassName::LoopCanonicalize => Box::new(LoopCanonicalizePass),
+        PassName::IndVarSimplify => Box::new(IndVarSimplifyPass),
         PassName::StoragePromotion => Box::new(StorageScalarPromotionPass),
         PassName::Licm => Box::new(LicmPass),
         PassName::JumpThreading => Box::new(JumpThreadingPass),

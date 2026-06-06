@@ -220,9 +220,15 @@ impl LoopAnalyzer {
             .copied()
             .collect();
 
-        if header_preds.len() == 1 {
-            loop_info.preheader = Some(header_preds[0]);
+        if let [preheader] = header_preds.as_slice()
+            && self.is_dedicated_preheader(func, *preheader, loop_info.header)
+        {
+            loop_info.preheader = Some(*preheader);
         }
+    }
+
+    fn is_dedicated_preheader(&self, func: &Function, block: BlockId, header: BlockId) -> bool {
+        matches!(func.blocks[block].terminator.as_ref(), Some(Terminator::Jump(target)) if *target == header)
     }
 
     fn analyze_induction_vars(&self, func: &Function, loop_info: &mut Loop) {
@@ -369,7 +375,11 @@ impl LoopAnalyzer {
             && bound >= init
         {
             let diff = bound - init;
-            let trip = diff / step;
+            let trip = if diff.is_zero() {
+                alloy_primitives::U256::ZERO
+            } else {
+                ((diff - alloy_primitives::U256::from(1)) / step) + alloy_primitives::U256::from(1)
+            };
             loop_info.trip_count = trip.try_into().ok();
         }
     }
@@ -418,7 +428,7 @@ impl LoopAnalyzer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{Function, Immediate, Value};
+    use crate::mir::{Function, Immediate, Instruction, MirType, Value};
     use solar_interface::Ident;
 
     fn make_test_func() -> Function {
@@ -460,5 +470,62 @@ mod tests {
         assert!(loop_info.blocks.contains(&header));
         assert!(loop_info.blocks.contains(&body));
         assert!(!loop_info.blocks.contains(&exit));
+    }
+
+    #[test]
+    fn trip_count_uses_ceiling_for_non_unit_stride() {
+        let mut func = make_test_func();
+
+        let entry = func.entry_block;
+        let header = func.alloc_block();
+        let body = func.alloc_block();
+        let exit = func.alloc_block();
+
+        let zero =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::ZERO)));
+        let two =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(2))));
+        let five =
+            func.alloc_value(Value::Immediate(Immediate::uint256(alloy_primitives::U256::from(5))));
+
+        func.blocks[entry].terminator = Some(Terminator::Jump(header));
+        func.blocks[entry].successors.push(header);
+        func.blocks[header].predecessors.push(entry);
+
+        let phi_inst = func.alloc_inst(Instruction::new(
+            InstKind::Phi(vec![(entry, zero)]),
+            Some(MirType::uint256()),
+        ));
+        func.blocks[header].instructions.push(phi_inst);
+        let i = func.alloc_value(Value::Inst(phi_inst));
+
+        let cond_inst =
+            func.alloc_inst(Instruction::new(InstKind::Lt(i, five), Some(MirType::Bool)));
+        func.blocks[header].instructions.push(cond_inst);
+        let cond = func.alloc_value(Value::Inst(cond_inst));
+        func.blocks[header].terminator =
+            Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
+        func.blocks[header].successors.push(body);
+        func.blocks[header].successors.push(exit);
+        func.blocks[body].predecessors.push(header);
+        func.blocks[exit].predecessors.push(header);
+
+        let next_inst =
+            func.alloc_inst(Instruction::new(InstKind::Add(i, two), Some(MirType::uint256())));
+        func.blocks[body].instructions.push(next_inst);
+        let next = func.alloc_value(Value::Inst(next_inst));
+        if let InstKind::Phi(incoming) = &mut func.instructions[phi_inst].kind {
+            incoming.push((body, next));
+        }
+        func.blocks[body].terminator = Some(Terminator::Jump(header));
+        func.blocks[body].successors.push(header);
+        func.blocks[header].predecessors.push(body);
+        func.blocks[exit].terminator = Some(Terminator::Stop);
+
+        let mut analyzer = LoopAnalyzer::new();
+        let info = analyzer.analyze(&func);
+        let loop_info = info.loops.get(&header).expect("expected loop");
+
+        assert_eq!(loop_info.trip_count, Some(3));
     }
 }
