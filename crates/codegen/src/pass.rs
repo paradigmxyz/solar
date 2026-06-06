@@ -16,7 +16,7 @@
 //! // Transform pipeline:
 //! let mut pm = PassManager::new();
 //! pm.add_pass(Box::new(DcePass));
-//! pm.run(&mut module);
+//! let changed = pm.run(&mut module).1;
 //! ```
 
 use crate::{
@@ -162,6 +162,27 @@ pub const DEFAULT_PIPELINE: &[PassName] = &[
     PassName::Dce,
 ];
 
+/// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
+///
+/// Keep this group focused on simplification and canonicalization. Structural
+/// profitability passes such as inlining and storage promotion run once in
+/// [`DEFAULT_PIPELINE`], while this loop cleans up opportunities exposed by
+/// those transforms.
+pub const DEFAULT_CLEANUP_PIPELINE: &[PassName] = &[
+    PassName::Sccp,
+    PassName::PureEval,
+    PassName::InstSimplify,
+    PassName::Cse,
+    PassName::StorageLoadCse,
+    PassName::JumpThreading,
+    PassName::CfgSimplify,
+    PassName::FrameSlotPromotion,
+    PassName::MemoryDse,
+    PassName::Dce,
+];
+
+const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
+
 /// Options for running a MIR pass pipeline.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PipelineOptions {
@@ -170,17 +191,19 @@ pub struct PipelineOptions {
 }
 
 /// Runs a named MIR pass over a module.
-pub fn run_pass(module: &mut Module, pass: PassName) {
+pub fn run_pass(module: &mut Module, pass: PassName) -> bool {
     let mut pm = PassManager::new();
     pm.add_pass(make_pass(pass));
-    pm.run(module);
+    pm.run(module).1
 }
 
 /// Runs a named MIR pass pipeline over a module.
-pub fn run_pipeline(module: &mut Module, passes: &[PassName]) {
+pub fn run_pipeline(module: &mut Module, passes: &[PassName]) -> bool {
+    let mut changed = false;
     for &pass in passes {
-        run_pass(module, pass);
+        changed |= run_pass(module, pass);
     }
+    changed
 }
 
 /// Runs a named MIR pass pipeline over a module with observer options.
@@ -188,24 +211,54 @@ pub fn run_pipeline_with_options(
     module: &mut Module,
     passes: &[PassName],
     options: PipelineOptions,
-) {
+) -> bool {
+    let mut changed = false;
     for &pass in passes {
-        run_pass(module, pass);
+        changed |= run_pass(module, pass);
         if options.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.as_str());
             println!("{}", module_to_text(module));
         }
     }
+    changed
 }
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen.
-pub fn run_default_pipeline(module: &mut Module) {
-    run_pipeline(module, DEFAULT_PIPELINE);
+pub fn run_default_pipeline(module: &mut Module) -> bool {
+    run_default_pipeline_with_options(module, PipelineOptions::default())
 }
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen with options.
-pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineOptions) {
-    run_pipeline_with_options(module, DEFAULT_PIPELINE, options);
+pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineOptions) -> bool {
+    let mut changed = run_pipeline_with_options(module, DEFAULT_PIPELINE, options);
+    changed |=
+        run_cleanup_pipeline_to_fixpoint(module, DEFAULT_CLEANUP_PIPELINE, options, "cleanup");
+    changed
+}
+
+fn run_cleanup_pipeline_to_fixpoint(
+    module: &mut Module,
+    passes: &[PassName],
+    options: PipelineOptions,
+    label: &str,
+) -> bool {
+    let mut changed = false;
+    for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
+        let mut round_changed = false;
+        for &pass in passes {
+            let pass_changed = run_pass(module, pass);
+            round_changed |= pass_changed;
+            if options.print_after_each {
+                println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.as_str());
+                println!("{}", module_to_text(module));
+            }
+        }
+        if !round_changed {
+            break;
+        }
+        changed = true;
+    }
+    changed
 }
 
 fn make_pass(pass: PassName) -> Box<dyn ModulePass> {
@@ -262,7 +315,9 @@ pub trait ModulePass {
     fn name(&self) -> &str;
 
     /// Runs the transformation on the given module.
-    fn run(&mut self, module: &mut Module);
+    ///
+    /// Returns true if the transform changed MIR.
+    fn run(&mut self, module: &mut Module) -> bool;
 }
 
 /// A transformation pass that mutates one function at a time.
@@ -271,7 +326,7 @@ pub trait FunctionPass {
     fn name(&self) -> &str;
 
     /// Runs the transformation on the given function.
-    fn run_on_function(&mut self, func: &mut Function);
+    fn run_on_function(&mut self, func: &mut Function) -> bool;
 }
 
 impl<T: FunctionPass> ModulePass for T {
@@ -279,10 +334,12 @@ impl<T: FunctionPass> ModulePass for T {
         FunctionPass::name(self)
     }
 
-    fn run(&mut self, module: &mut Module) {
+    fn run(&mut self, module: &mut Module) -> bool {
+        let mut changed = false;
         for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
-            self.run_on_function(func);
+            changed |= self.run_on_function(func);
         }
+        changed
     }
 }
 
@@ -339,7 +396,7 @@ impl AnalysisManager {
 
 /// Orchestrates execution of [`ModulePass`]es on a module.
 ///
-/// Each transform automatically invalidates all cached analyses after running.
+/// Each transform automatically invalidates all cached analyses after changing MIR.
 #[derive(Default)]
 pub struct PassManager {
     passes: Vec<Box<dyn ModulePass>>,
@@ -357,14 +414,17 @@ impl PassManager {
     }
 
     /// Runs all transforms in order on the given module.
-    /// Returns an [`AnalysisManager`] (empty after transforms invalidate everything).
-    pub fn run(&mut self, module: &mut Module) -> AnalysisManager {
+    /// Returns an [`AnalysisManager`] and whether any transform changed MIR.
+    pub fn run(&mut self, module: &mut Module) -> (AnalysisManager, bool) {
         let mut am = AnalysisManager::new();
+        let mut changed = false;
         for pass in &mut self.passes {
-            pass.run(module);
-            am.invalidate_all();
+            if pass.run(module) {
+                changed = true;
+                am.invalidate_all();
+            }
         }
-        am
+        (am, changed)
     }
 }
 

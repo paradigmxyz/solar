@@ -50,9 +50,10 @@ impl FunctionPass for FrameSlotPromotionPass {
         "frame-slot-promotion"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        FrameSlotPromoter::new().run(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        let changed = FrameSlotPromoter::new().run(func).total() != 0;
         repair_reachability_phis(func);
+        changed
     }
 }
 

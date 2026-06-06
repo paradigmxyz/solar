@@ -27,8 +27,8 @@ impl FunctionPass for InstSimplifyPass {
         "inst-simplify"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        InstSimplifier::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        InstSimplifier::new().run_to_fixpoint(func) != 0
     }
 }
 
@@ -265,7 +265,15 @@ impl InstSimplifier {
             }
             InstKind::Select(_, then_value, else_value) => {
                 let (then_value, else_value) = (resolve(*then_value), resolve(*else_value));
-                (then_value == else_value).then_some(then_value)
+                Self::same_value(func, then_value, else_value).then_some(then_value)
+            }
+            InstKind::Phi(incoming) => {
+                let &(_, first) = incoming.first()?;
+                let first = resolve(first);
+                incoming
+                    .iter()
+                    .all(|&(_, value)| Self::same_value(func, resolve(value), first))
+                    .then_some(first)
             }
             _ => None,
         }
@@ -312,6 +320,14 @@ impl InstSimplifier {
 
     fn is_one(func: &Function, value: ValueId) -> bool {
         Self::is_const(func, value, U256::from(1))
+    }
+
+    fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
+        a == b
+            || match (&func.values[a], &func.values[b]) {
+                (Value::Immediate(a), Value::Immediate(b)) => a == b,
+                _ => false,
+            }
     }
 
     fn is_all_ones(func: &Function, value: ValueId) -> bool {

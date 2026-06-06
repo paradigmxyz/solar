@@ -36,9 +36,10 @@ impl FunctionPass for PureEvalPass {
         "pure-eval"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        PureEvaluator::new().run(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        let changed = PureEvaluator::new().run(func).functions_folded != 0;
         crate::transform::repair_reachability_phis(func);
+        changed
     }
 }
 

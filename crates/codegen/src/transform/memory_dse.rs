@@ -27,8 +27,8 @@ impl FunctionPass for MemoryDsePass {
         "memory-dse"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        MemoryStoreEliminator::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        MemoryStoreEliminator::new().run_to_fixpoint(func) != 0
     }
 }
 

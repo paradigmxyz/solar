@@ -14,7 +14,10 @@ use itertools::Itertools;
 use solar_codegen::{
     lower,
     mir::{Module, module_to_text, parse_module},
-    pass::{DEFAULT_PIPELINE, PassName, run_pass as run_codegen_pass},
+    pass::{
+        DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, PassName, PipelineOptions,
+        run_default_pipeline_with_options, run_pass as run_codegen_pass,
+    },
 };
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
@@ -29,8 +32,9 @@ fn after_help() -> String {
     .join("\n");
 
     format!(
-        "Passes:\n{pass_lines}\n\nDefault pipeline:\n  {}\n\nInput formats:\n  *.sol  Solidity contract — lowered through the normal compiler pipeline\n  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module",
-        pass_list_label(DEFAULT_PIPELINE, " → ")
+        "Passes:\n{pass_lines}\n\nDefault pipeline:\n  {}\n\nDefault cleanup fixpoint:\n  {}\n\nInput formats:\n  *.sol  Solidity contract — lowered through the normal compiler pipeline\n  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module",
+        pass_list_label(DEFAULT_PIPELINE, " → "),
+        pass_list_label(DEFAULT_CLEANUP_PIPELINE, " → ")
     )
 }
 
@@ -66,11 +70,7 @@ struct Args {
 
 impl Args {
     fn selected_passes(&self) -> Vec<Option<PassName>> {
-        if self.pipeline_default {
-            DEFAULT_PIPELINE.iter().copied().map(Some).collect()
-        } else {
-            self.passes.clone().expect("clap requires passes unless pipeline-default is set")
-        }
+        self.passes.clone().expect("clap requires passes unless pipeline-default is set")
     }
 
     fn pipeline_label(&self, passes: &[Option<PassName>]) -> String {
@@ -127,6 +127,17 @@ fn print_module(module: &Module, name: &str, after: &str) {
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
 fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), String> {
+    if args.pipeline_default {
+        run_default_pipeline_with_options(
+            module,
+            PipelineOptions { print_after_each: args.print_after_each },
+        );
+        if !args.print_after_each {
+            print_module(module, name, "pipeline-default");
+        }
+        return Ok(());
+    }
+
     let passes = args.selected_passes();
     if args.print_after_each {
         for pass in &passes {

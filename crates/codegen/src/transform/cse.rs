@@ -49,8 +49,8 @@ impl FunctionPass for CsePass {
         "cse"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        CommonSubexprEliminator::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        CommonSubexprEliminator::new().run_to_fixpoint(func) != 0
     }
 }
 

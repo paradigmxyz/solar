@@ -82,10 +82,10 @@ impl FunctionPass for LicmPass {
         "licm"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
         let config =
             LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 4 };
-        LoopOptimizer::new(config).optimize(func);
+        LoopOptimizer::new(config).optimize(func).instructions_hoisted != 0
     }
 }
 

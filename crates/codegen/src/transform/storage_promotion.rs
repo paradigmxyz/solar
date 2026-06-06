@@ -42,8 +42,10 @@ impl FunctionPass for StorageScalarPromotionPass {
         "storage-promotion"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        StorageScalarPromoter::new().run(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        let mut promoter = StorageScalarPromoter::new();
+        let stats = promoter.run(func);
+        stats.loops_promoted + stats.loads_promoted + stats.stores_promoted != 0
     }
 }
 

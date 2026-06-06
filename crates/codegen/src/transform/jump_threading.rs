@@ -15,7 +15,7 @@
 //!    updating all references to point to the final target.
 
 use crate::{
-    mir::{BlockId, Function, Terminator},
+    mir::{BlockId, Function, InstKind, Terminator},
     pass::FunctionPass,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -56,8 +56,8 @@ impl FunctionPass for JumpThreadingPass {
         "jump-threading"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        JumpThreader::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        JumpThreader::new().run_to_fixpoint(func).total_threaded() != 0
     }
 }
 
@@ -175,21 +175,24 @@ impl JumpThreader {
     fn thread_jumps(&mut self, func: &mut Function, final_targets: &FxHashMap<BlockId, BlockId>) {
         let block_ids: Vec<_> = func.blocks.indices().collect();
         for block_id in block_ids {
-            if let Some(term) = &mut func.blocks[block_id].terminator {
-                self.thread_terminator(term, final_targets);
-            }
+            let Some(mut term) = func.blocks[block_id].terminator.clone() else {
+                continue;
+            };
+            self.thread_terminator(func, &mut term, final_targets);
+            func.blocks[block_id].terminator = Some(term);
         }
     }
 
     /// Threads a single terminator's targets.
     fn thread_terminator(
         &mut self,
+        func: &Function,
         term: &mut Terminator,
         final_targets: &FxHashMap<BlockId, BlockId>,
     ) {
         match term {
             Terminator::Jump(target) => {
-                if let Some(&final_target) = final_targets.get(target) {
+                if let Some(final_target) = Self::threaded_target(func, *target, final_targets) {
                     *target = final_target;
                     self.stats.jumps_threaded += 1;
                     self.stats.gas_saved += 8;
@@ -198,11 +201,13 @@ impl JumpThreader {
 
             Terminator::Branch { then_block, else_block, .. } => {
                 let mut changed = false;
-                if let Some(&final_target) = final_targets.get(then_block) {
+                if let Some(final_target) = Self::threaded_target(func, *then_block, final_targets)
+                {
                     *then_block = final_target;
                     changed = true;
                 }
-                if let Some(&final_target) = final_targets.get(else_block) {
+                if let Some(final_target) = Self::threaded_target(func, *else_block, final_targets)
+                {
                     *else_block = final_target;
                     changed = true;
                 }
@@ -214,12 +219,13 @@ impl JumpThreader {
 
             Terminator::Switch { default, cases, .. } => {
                 let mut changed = false;
-                if let Some(&final_target) = final_targets.get(default) {
+                if let Some(final_target) = Self::threaded_target(func, *default, final_targets) {
                     *default = final_target;
                     changed = true;
                 }
                 for (_, target) in cases.iter_mut() {
-                    if let Some(&final_target) = final_targets.get(target) {
+                    if let Some(final_target) = Self::threaded_target(func, *target, final_targets)
+                    {
                         *target = final_target;
                         changed = true;
                     }
@@ -237,6 +243,22 @@ impl JumpThreader {
             | Terminator::SelfDestruct { .. }
             | Terminator::Invalid => {}
         }
+    }
+
+    fn threaded_target(
+        func: &Function,
+        target: BlockId,
+        final_targets: &FxHashMap<BlockId, BlockId>,
+    ) -> Option<BlockId> {
+        let final_target = final_targets.get(&target).copied()?;
+        (!Self::block_has_phi(func, final_target)).then_some(final_target)
+    }
+
+    fn block_has_phi(func: &Function, block_id: BlockId) -> bool {
+        func.blocks[block_id]
+            .instructions
+            .iter()
+            .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
     }
 
     /// Updates CFG edges after threading.

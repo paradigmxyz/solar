@@ -48,9 +48,10 @@ impl FunctionPass for DcePass {
         "dce"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        DeadCodeEliminator::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        let changed = DeadCodeEliminator::new().run_to_fixpoint(func) != 0;
         repair_reachability_phis(func);
+        changed
     }
 }
 

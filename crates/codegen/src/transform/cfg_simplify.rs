@@ -28,6 +28,8 @@ pub struct CfgSimplifyStats {
     pub blocks_merged: usize,
     /// Number of empty blocks eliminated.
     pub empty_blocks_eliminated: usize,
+    /// Number of degenerate terminators simplified.
+    pub terminators_simplified: usize,
     /// Number of dead functions eliminated.
     pub dead_functions_eliminated: usize,
     /// Estimated gas saved (8 gas per eliminated jump).
@@ -38,13 +40,17 @@ impl CfgSimplifyStats {
     /// Returns total optimizations performed.
     #[must_use]
     pub fn total(&self) -> usize {
-        self.blocks_merged + self.empty_blocks_eliminated + self.dead_functions_eliminated
+        self.blocks_merged
+            + self.empty_blocks_eliminated
+            + self.terminators_simplified
+            + self.dead_functions_eliminated
     }
 
     /// Combines stats from another run.
     pub fn combine(&mut self, other: &Self) {
         self.blocks_merged += other.blocks_merged;
         self.empty_blocks_eliminated += other.empty_blocks_eliminated;
+        self.terminators_simplified += other.terminators_simplified;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
         self.gas_saved += other.gas_saved;
     }
@@ -65,8 +71,8 @@ impl FunctionPass for CfgSimplifyPass {
         "cfg-simplify"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        CfgSimplifier::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        CfgSimplifier::new().run_to_fixpoint(func).total() != 0
     }
 }
 
@@ -82,10 +88,36 @@ impl CfgSimplifier {
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CfgSimplifyStats::default();
 
+        self.simplify_degenerate_terminators(func);
         self.merge_blocks(func);
         self.eliminate_empty_blocks(func);
 
         self.stats.total()
+    }
+
+    fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
+        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let mut changed = false;
+        for block_id in block_ids {
+            let Some(Terminator::Branch { then_block, else_block, .. }) =
+                func.blocks[block_id].terminator.as_ref()
+            else {
+                continue;
+            };
+            if then_block != else_block {
+                continue;
+            }
+
+            let target = *then_block;
+            func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+            self.stats.terminators_simplified += 1;
+            self.stats.gas_saved += 10;
+            changed = true;
+        }
+
+        if changed {
+            repair_reachability_phis(func);
+        }
     }
 
     /// Runs CFG simplification iteratively until no more changes.
@@ -554,8 +586,8 @@ impl ModulePass for FunctionDcePass {
         "function-dce"
     }
 
-    fn run(&mut self, module: &mut Module) {
-        DeadFunctionEliminator::new().run(module);
+    fn run(&mut self, module: &mut Module) -> bool {
+        DeadFunctionEliminator::new().run(module) != 0
     }
 }
 

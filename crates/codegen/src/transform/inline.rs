@@ -653,8 +653,8 @@ impl ModulePass for InlinePass {
         "inline"
     }
 
-    fn run(&mut self, module: &mut Module) {
-        MirInliner::default().run(module);
+    fn run(&mut self, module: &mut Module) -> bool {
+        MirInliner::default().run(module).inlined != 0
     }
 }
 

@@ -76,9 +76,10 @@ impl FunctionPass for SccpTransformPass {
         "sccp"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        SccpPass::new().run(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        let changed = SccpPass::new().run(func) != 0;
         repair_reachability_phis(func);
+        changed
     }
 }
 

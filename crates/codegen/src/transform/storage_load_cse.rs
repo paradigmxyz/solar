@@ -25,8 +25,8 @@ impl FunctionPass for StorageLoadCsePass {
         "storage-load-cse"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        StorageLoadCse::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        StorageLoadCse::new().run_to_fixpoint(func) != 0
     }
 }
 
