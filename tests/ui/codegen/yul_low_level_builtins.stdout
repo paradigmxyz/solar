@@ -3,13 +3,13 @@
 fn @safeCall(arg0: address, arg1: bytes4) {
   bb0 (entry):
     mstore 128, 0
-    v6 = mload 64
-    mstore 0, arg1
+    v6 = mload 64 !metadata(memory=scratch)
+    mstore 0, arg1 !metadata(memory=scratch)
     v10 = gas
     v16 = call v10, arg0, 0, 0, 4, 0, 32
     mstore 128, v16
     v20 = mload 128
-    v22 = mload 0
+    v22 = mload 0 !metadata(memory=scratch)
     v24 = eq v22, 1
     v25 = and v20, v24
     v26 = iszero v25
@@ -27,7 +27,7 @@ fn @safeCall(arg0: address, arg1: bytes4) {
     v40 = gt v38, 0
     v41 = and v37, v40
     mstore 128, v41
-    mstore 64, v6
+    mstore 64, v6 !metadata(memory=scratch)
     v48 = mload 128
     mstore 128, v48
     returndata 128, 32

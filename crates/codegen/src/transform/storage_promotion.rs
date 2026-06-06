@@ -13,7 +13,7 @@ use crate::{
     pass::FunctionPass,
 };
 use alloy_primitives::U256;
-use rustc_hash::FxHashMap;
+use solar_data_structures::map::FxHashMap;
 
 const LOW_MEMORY_START: u64 = 0x80;
 

@@ -20,7 +20,7 @@
 //! ```
 
 use crate::{
-    mir::{Function, Module},
+    mir::{Function, Module, module_to_text},
     transform::{
         CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, FunctionDcePass, InlinePass,
         InstSimplifyPass, JumpThreadingPass, LicmPass, MemoryDsePass, PureEvalPass,
@@ -162,6 +162,13 @@ pub const DEFAULT_PIPELINE: &[PassName] = &[
     PassName::Dce,
 ];
 
+/// Options for running a MIR pass pipeline.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct PipelineOptions {
+    /// Print the full module after every pass in the pipeline.
+    pub print_after_each: bool,
+}
+
 /// Runs a named MIR pass over a module.
 pub fn run_pass(module: &mut Module, pass: PassName) {
     let mut pm = PassManager::new();
@@ -176,9 +183,29 @@ pub fn run_pipeline(module: &mut Module, passes: &[PassName]) {
     }
 }
 
+/// Runs a named MIR pass pipeline over a module with observer options.
+pub fn run_pipeline_with_options(
+    module: &mut Module,
+    passes: &[PassName],
+    options: PipelineOptions,
+) {
+    for &pass in passes {
+        run_pass(module, pass);
+        if options.print_after_each {
+            println!("// === {} (after {}) ===", module.name, pass.as_str());
+            println!("{}", module_to_text(module));
+        }
+    }
+}
+
 /// Runs the canonical MIR optimization pipeline used by EVM codegen.
 pub fn run_default_pipeline(module: &mut Module) {
     run_pipeline(module, DEFAULT_PIPELINE);
+}
+
+/// Runs the canonical MIR optimization pipeline used by EVM codegen with options.
+pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineOptions) {
+    run_pipeline_with_options(module, DEFAULT_PIPELINE, options);
 }
 
 fn make_pass(pass: PassName) -> Box<dyn ModulePass> {

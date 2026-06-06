@@ -14,7 +14,7 @@ use crate::{
     IMMUTABLE_SCRATCH_BASE,
     analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
-    pass::{AnalysisManager, LivenessAnalysis, run_default_pipeline},
+    pass::{AnalysisManager, LivenessAnalysis, PipelineOptions, run_default_pipeline_with_options},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -76,6 +76,8 @@ pub struct EvmCodegen {
     constructor_param_count: u32,
     /// Whether we're emitting an internal function body.
     in_internal_function: bool,
+    /// Print MIR after each pass before bytecode generation.
+    mir_print_after_each: bool,
 }
 
 impl EvmCodegen {
@@ -92,7 +94,13 @@ impl EvmCodegen {
             in_constructor: false,
             constructor_param_count: 0,
             in_internal_function: false,
+            mir_print_after_each: false,
         }
+    }
+
+    /// Enables or disables MIR printing after every optimization pass.
+    pub const fn set_mir_print_after_each(&mut self, enabled: bool) {
+        self.mir_print_after_each = enabled;
     }
 
     // ==================== Stack-Aware Emitter API ====================
@@ -370,7 +378,10 @@ impl EvmCodegen {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        run_default_pipeline(module);
+        run_default_pipeline_with_options(
+            module,
+            PipelineOptions { print_after_each: self.mir_print_after_each },
+        );
     }
 
     /// Generates runtime bytecode for a module.

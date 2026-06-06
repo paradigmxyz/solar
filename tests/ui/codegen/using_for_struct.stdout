@@ -3,7 +3,7 @@
 fn @hashLib(arg0: memptr) -> bytes32 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    mstore v1, 0
+    mstore v1, 0 !metadata(memory=internal_frame)
     v4 = mload arg0
     v6 = add arg0, 32
     v7 = mload v6
@@ -11,7 +11,7 @@ fn @hashLib(arg0: memptr) -> bytes32 {
     v10 = mload v9
     v12 = add arg0, 96
     v13 = mload v12
-    v15 = mload 64
+    v15 = mload 64 !metadata(memory=scratch)
     v18 = add v15, 0
     mstore v18, 0x7800000000000000000000000000000000000000000000000000000000000000
     v21 = add v15, 1
@@ -32,9 +32,9 @@ fn @hashLib(arg0: memptr) -> bytes32 {
 fn @viaMethod(arg0: bytes32, arg1: bytes32) {
   bb0 (entry):
     mstore 128, 0
-    v6 = mload 64
+    v6 = mload 64 !metadata(memory=scratch)
     v8 = add v6, 128
-    mstore 64, v8
+    mstore 64, v8 !metadata(memory=scratch)
     mstore v6, arg0
     v14 = add v6, 32
     mstore v14, 0
@@ -49,7 +49,7 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) {
     v30 = mload v29
     v32 = add v6, 96
     v33 = mload v32
-    v35 = mload 64
+    v35 = mload 64 !metadata(memory=scratch)
     v38 = add v35, 0
     mstore v38, 0x7800000000000000000000000000000000000000000000000000000000000000
     v41 = add v35, 1

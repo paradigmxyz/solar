@@ -9,8 +9,8 @@ use crate::{
     mir::{Function, InstKind, Value, ValueId},
 };
 use alloy_primitives::U256;
-use rustc_hash::FxHashMap;
 use smallvec::SmallVec;
+use solar_data_structures::map::FxHashMap;
 
 /// One affine induction-variable term.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

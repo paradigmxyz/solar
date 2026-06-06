@@ -3,41 +3,41 @@
 fn @value() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0
+    v4 = sload 0 !metadata(storage=slot(0))
     mstore 128, v4
     returndata 128, 32
 }
 
 fn @add_to_value(arg0: u256) {
   bb0 (entry):
-    v2 = sload 0
+    v2 = sload 0 !metadata(storage=slot(0))
     v3 = add v2, arg0
-    sstore 0, v3
+    sstore 0, v3 !metadata(storage=slot(0))
     stop
 }
 
 fn @sub_from_value(arg0: u256) {
   bb0 (entry):
-    v2 = sload 0
+    v2 = sload 0 !metadata(storage=slot(0))
     v3 = sub v2, arg0
-    sstore 0, v3
+    sstore 0, v3 !metadata(storage=slot(0))
     stop
 }
 
 fn @mul_value(arg0: u256) {
   bb0 (entry):
-    v2 = sload 0
+    v2 = sload 0 !metadata(storage=slot(0))
     v3 = mul v2, arg0
-    sstore 0, v3
+    sstore 0, v3 !metadata(storage=slot(0))
     stop
 }
 
 fn @bump_post() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0
+    v4 = sload 0 !metadata(storage=slot(0))
     v6 = add v4, 1
-    sstore 0, v6
+    sstore 0, v6 !metadata(storage=slot(0))
     mstore 128, v4
     returndata 128, 32
 }
@@ -45,9 +45,9 @@ fn @bump_post() {
 fn @bump_pre() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0
+    v4 = sload 0 !metadata(storage=slot(0))
     v6 = add v4, 1
-    sstore 0, v6
+    sstore 0, v6 !metadata(storage=slot(0))
     mstore 128, v6
     returndata 128, 32
 }

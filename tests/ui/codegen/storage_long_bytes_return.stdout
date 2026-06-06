@@ -3,7 +3,7 @@
 fn @s() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0
+    v4 = sload 0 !metadata(storage=slot(0))
     v6 = and v4, 1
     v7 = eq v6, 1
     v9 = and v4, 255
@@ -16,12 +16,12 @@ fn @s() {
     v19 = iszero v18
     v20 = select v19, 32, v18
     v21 = add 32, v20
-    v23 = mload 64
+    v23 = mload 64 !metadata(memory=scratch)
     v25 = add v23, 96
-    mstore 64, v25
-    v29 = mload 64
+    mstore 64, v25 !metadata(memory=scratch)
+    v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, v21
-    mstore 64, v30
+    mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v13
     v34 = add v29, 32
     br v7, bb2, bb1
@@ -40,9 +40,9 @@ fn @s() {
     mstore v44, v39
     jump bb4
   bb3:
-    v64 = mload 64
+    v64 = mload 64 !metadata(memory=scratch)
     v66 = add v64, 32
-    mstore 64, v66
+    mstore 64, v66 !metadata(memory=scratch)
     v70 = add v64, 32
     v71 = sub v70, v64
     mstore v64, v71
@@ -60,7 +60,7 @@ fn @s() {
     br v50, bb5, bb3
   bb5:
     v51 = mload v44
-    v52 = sload v51
+    v52 = sload v51 !metadata(storage=symbolic(v51))
     v53 = mload v23
     mstore v53, v52
     v55 = add v51, 1
@@ -87,7 +87,7 @@ fn @s() {
 fn @b() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 1
+    v4 = sload 1 !metadata(storage=slot(1))
     v6 = and v4, 1
     v7 = eq v6, 1
     v9 = and v4, 255
@@ -100,12 +100,12 @@ fn @b() {
     v19 = iszero v18
     v20 = select v19, 32, v18
     v21 = add 32, v20
-    v23 = mload 64
+    v23 = mload 64 !metadata(memory=scratch)
     v25 = add v23, 96
-    mstore 64, v25
-    v29 = mload 64
+    mstore 64, v25 !metadata(memory=scratch)
+    v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, v21
-    mstore 64, v30
+    mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v13
     v34 = add v29, 32
     br v7, bb2, bb1
@@ -124,9 +124,9 @@ fn @b() {
     mstore v44, v39
     jump bb4
   bb3:
-    v64 = mload 64
+    v64 = mload 64 !metadata(memory=scratch)
     v66 = add v64, 32
-    mstore 64, v66
+    mstore 64, v66 !metadata(memory=scratch)
     v70 = add v64, 32
     v71 = sub v70, v64
     mstore v64, v71
@@ -144,7 +144,7 @@ fn @b() {
     br v50, bb5, bb3
   bb5:
     v51 = mload v44
-    v52 = sload v51
+    v52 = sload v51 !metadata(storage=symbolic(v51))
     v53 = mload v23
     mstore v53, v52
     v55 = add v51, 1
@@ -170,23 +170,23 @@ fn @b() {
 
 fn @_anonymous() {
   bb0 (entry):
-    sstore 0, 65
-    mstore 0, 0
-    v10 = keccak256 0, 32
-    sstore v10, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
-    sstore 1, 67
-    mstore 0, 1
-    v24 = keccak256 0, 32
-    sstore v24, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    sstore 0, 65 !metadata(storage=slot(0))
+    mstore 0, 0 !metadata(memory=scratch)
+    v10 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v10, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546 !metadata(storage=symbolic(v10))
+    sstore 1, 67 !metadata(storage=slot(1))
+    mstore 0, 1 !metadata(memory=scratch)
+    v24 = keccak256 0, 32 !metadata(memory=scratch)
+    sstore v24, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20 !metadata(storage=symbolic(v24))
     v29 = add v24, 1
-    sstore v29, 0x2100000000000000000000000000000000000000000000000000000000000000
+    sstore v29, 0x2100000000000000000000000000000000000000000000000000000000000000 !metadata(storage=symbolic(v29))
     stop
 }
 
 fn @getS() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0
+    v4 = sload 0 !metadata(storage=slot(0))
     v6 = and v4, 1
     v7 = eq v6, 1
     v9 = and v4, 255
@@ -199,12 +199,12 @@ fn @getS() {
     v19 = iszero v18
     v20 = select v19, 32, v18
     v21 = add 32, v20
-    v23 = mload 64
+    v23 = mload 64 !metadata(memory=scratch)
     v25 = add v23, 96
-    mstore 64, v25
-    v29 = mload 64
+    mstore 64, v25 !metadata(memory=scratch)
+    v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, v21
-    mstore 64, v30
+    mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v13
     v34 = add v29, 32
     br v7, bb2, bb1
@@ -223,9 +223,9 @@ fn @getS() {
     mstore v44, v39
     jump bb4
   bb3:
-    v64 = mload 64
+    v64 = mload 64 !metadata(memory=scratch)
     v66 = add v64, 32
-    mstore 64, v66
+    mstore 64, v66 !metadata(memory=scratch)
     v70 = add v64, 32
     v71 = sub v70, v64
     mstore v64, v71
@@ -243,7 +243,7 @@ fn @getS() {
     br v50, bb5, bb3
   bb5:
     v51 = mload v44
-    v52 = sload v51
+    v52 = sload v51 !metadata(storage=symbolic(v51))
     v53 = mload v23
     mstore v53, v52
     v55 = add v51, 1
@@ -270,7 +270,7 @@ fn @getS() {
 fn @getB() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 1
+    v4 = sload 1 !metadata(storage=slot(1))
     v6 = and v4, 1
     v7 = eq v6, 1
     v9 = and v4, 255
@@ -283,12 +283,12 @@ fn @getB() {
     v19 = iszero v18
     v20 = select v19, 32, v18
     v21 = add 32, v20
-    v23 = mload 64
+    v23 = mload 64 !metadata(memory=scratch)
     v25 = add v23, 96
-    mstore 64, v25
-    v29 = mload 64
+    mstore 64, v25 !metadata(memory=scratch)
+    v29 = mload 64 !metadata(memory=scratch)
     v30 = add v29, v21
-    mstore 64, v30
+    mstore 64, v30 !metadata(memory=scratch)
     mstore v29, v13
     v34 = add v29, 32
     br v7, bb2, bb1
@@ -307,9 +307,9 @@ fn @getB() {
     mstore v44, v39
     jump bb4
   bb3:
-    v64 = mload 64
+    v64 = mload 64 !metadata(memory=scratch)
     v66 = add v64, 32
-    mstore 64, v66
+    mstore 64, v66 !metadata(memory=scratch)
     v70 = add v64, 32
     v71 = sub v70, v64
     mstore v64, v71
@@ -327,7 +327,7 @@ fn @getB() {
     br v50, bb5, bb3
   bb5:
     v51 = mload v44
-    v52 = sload v51
+    v52 = sload v51 !metadata(storage=symbolic(v51))
     v53 = mload v23
     mstore v53, v52
     v55 = add v51, 1

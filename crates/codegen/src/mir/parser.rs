@@ -34,13 +34,13 @@
 //! [`module_to_text`]: super::module_to_text
 
 use super::{
-    BasicBlock, BlockId, Function, FunctionId, InstKind, Instruction, Module, Terminator, Value,
-    ValueId,
+    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstKind, Instruction,
+    InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::mir::{Immediate, MirType};
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Ident, Symbol};
+use solar_interface::{BytePos, Ident, Span, Symbol};
 use std::fmt;
 
 // =============================================================================
@@ -884,7 +884,10 @@ impl<'a> Parser<'a> {
                 }
             })?;
 
-        let inst_id = func.alloc_inst(Instruction::new(kind, result_ty));
+        let metadata = self.parse_metadata(func, arg_values, value_labels)?;
+        let mut inst = Instruction::new(kind, result_ty);
+        inst.metadata = metadata;
+        let inst_id = func.alloc_inst(inst);
         func.blocks[block].instructions.push(inst_id);
         if let Some(label) = result_label {
             let val = func.alloc_value(Value::Inst(inst_id));
@@ -892,6 +895,133 @@ impl<'a> Parser<'a> {
         }
         self.skip_to_eol();
         Ok(())
+    }
+
+    fn parse_metadata(
+        &mut self,
+        func: &mut Function,
+        arg_values: &[ValueId],
+        value_labels: &mut FxHashMap<u32, ValueId>,
+    ) -> Result<InstructionMetadata, ParseError> {
+        let mut metadata = InstructionMetadata::EMPTY;
+        self.skip_inline();
+        if !self.try_punct('!') {
+            return Ok(metadata);
+        }
+        self.expect_keyword("metadata")?;
+        self.expect_punct('(')?;
+        if self.try_punct(')') {
+            return Ok(metadata);
+        }
+
+        loop {
+            let key = self.parse_ident()?.to_string();
+            match key.as_str() {
+                "unchecked" => {
+                    metadata.unchecked = true;
+                }
+                "storage" => {
+                    self.expect_punct('=')?;
+                    metadata.storage_alias =
+                        Some(self.parse_storage_alias(func, arg_values, value_labels)?);
+                }
+                "memory" => {
+                    self.expect_punct('=')?;
+                    let value = self.parse_ident()?;
+                    metadata.memory_region = Some(self.parse_memory_region(value)?);
+                }
+                "effect" => {
+                    self.expect_punct('=')?;
+                    let value = self.parse_ident()?;
+                    metadata.effect = Some(self.parse_effect_kind(value)?);
+                }
+                "loop_depth" => {
+                    self.expect_punct('=')?;
+                    let value = self.parse_uint_literal()?;
+                    metadata.loop_depth = self.u256_to_u16(value)?;
+                }
+                "hir" => {
+                    self.expect_punct('=')?;
+                    let value = self.parse_uint_literal()?;
+                    metadata.hir_expr = Some(self.u256_to_u32(value)?);
+                }
+                "span" => {
+                    self.expect_punct('=')?;
+                    let lo = self.parse_uint_literal()?;
+                    let lo = self.u256_to_u32(lo)?;
+                    self.expect_punct('.')?;
+                    self.expect_punct('.')?;
+                    let hi = self.parse_uint_literal()?;
+                    let hi = self.u256_to_u32(hi)?;
+                    metadata.source_span = Some(Span::new(BytePos(lo), BytePos(hi)));
+                }
+                _ => return Err(self.error(format!("unknown metadata key `{key}`"))),
+            }
+
+            if self.try_punct(',') {
+                continue;
+            }
+            self.expect_punct(')')?;
+            break;
+        }
+
+        Ok(metadata)
+    }
+
+    fn parse_storage_alias(
+        &mut self,
+        func: &mut Function,
+        arg_values: &[ValueId],
+        value_labels: &mut FxHashMap<u32, ValueId>,
+    ) -> Result<StorageAlias, ParseError> {
+        let kind = self.parse_ident()?.to_string();
+        self.expect_punct('(')?;
+        let alias = match kind.as_str() {
+            "slot" => StorageAlias::Slot(self.parse_uint_literal()?),
+            "symbolic" => {
+                StorageAlias::Symbolic(self.parse_value(func, arg_values, value_labels)?)
+            }
+            _ => return Err(self.error(format!("unknown storage metadata value `{kind}`"))),
+        };
+        self.expect_punct(')')?;
+        Ok(alias)
+    }
+
+    fn parse_memory_region(&self, value: &str) -> Result<MemoryRegion, ParseError> {
+        Ok(match value {
+            "scratch" => MemoryRegion::Scratch,
+            "abi_return" => MemoryRegion::AbiReturn,
+            "heap" => MemoryRegion::Heap,
+            "internal_frame" => MemoryRegion::InternalFrame,
+            "unknown" => MemoryRegion::Unknown,
+            _ => return Err(self.error(format!("unknown memory metadata value `{value}`"))),
+        })
+    }
+
+    fn parse_effect_kind(&self, value: &str) -> Result<EffectKind, ParseError> {
+        Ok(match value {
+            "pure" => EffectKind::Pure,
+            "memory_read" => EffectKind::MemoryRead,
+            "memory_write" => EffectKind::MemoryWrite,
+            "storage_read" => EffectKind::StorageRead,
+            "storage_write" => EffectKind::StorageWrite,
+            "transient_read" => EffectKind::TransientRead,
+            "transient_write" => EffectKind::TransientWrite,
+            "environment_read" => EffectKind::EnvironmentRead,
+            "external_call" => EffectKind::ExternalCall,
+            "internal_call" => EffectKind::InternalCall,
+            "create" => EffectKind::Create,
+            "log" => EffectKind::Log,
+            _ => return Err(self.error(format!("unknown effect metadata value `{value}`"))),
+        })
+    }
+
+    fn u256_to_u32(&self, value: U256) -> Result<u32, ParseError> {
+        value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u32")))
+    }
+
+    fn u256_to_u16(&self, value: U256) -> Result<u16, ParseError> {
+        value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
     }
 
     fn set_terminator(&self, func: &mut Function, block: BlockId, term: Terminator) {

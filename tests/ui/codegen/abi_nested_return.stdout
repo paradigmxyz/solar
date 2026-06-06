@@ -3,15 +3,15 @@
 fn @structArray(arg0: u256) {
   bb0 (entry):
     mstore 128, 0
-    v6 = mload 64
+    v6 = mload 64 !metadata(memory=scratch)
     mstore v6, 1
     v9 = mul 1, 32
     v10 = add v9, 32
     v11 = add v6, v10
-    mstore 64, v11
-    v15 = mload 64
+    mstore 64, v11 !metadata(memory=scratch)
+    v15 = mload 64 !metadata(memory=scratch)
     v17 = add v15, 64
-    mstore 64, v17
+    mstore 64, v17 !metadata(memory=scratch)
     mstore v15, arg0
     v22 = add arg0, 1
     v24 = add v15, 32
@@ -20,12 +20,12 @@ fn @structArray(arg0: u256) {
     v29 = add v6, 32
     v30 = add v29, v28
     mstore v30, v15
-    v33 = mload 64
+    v33 = mload 64 !metadata(memory=scratch)
     v35 = add v33, 160
-    mstore 64, v35
-    v39 = mload 64
+    mstore 64, v35 !metadata(memory=scratch)
+    v39 = mload 64 !metadata(memory=scratch)
     v41 = add v39, 32
-    mstore 64, v41
+    mstore 64, v41 !metadata(memory=scratch)
     v45 = add v39, 32
     v46 = sub v45, v39
     mstore v39, v46
@@ -82,28 +82,28 @@ fn @structArray(arg0: u256) {
 fn @nestedArray(arg0: u256) {
   bb0 (entry):
     mstore 128, 0
-    v6 = mload 64
+    v6 = mload 64 !metadata(memory=scratch)
     mstore v6, 1
     v9 = mul 1, 32
     v10 = add v9, 32
     v11 = add v6, v10
-    mstore 64, v11
-    v15 = mload 64
+    mstore 64, v11 !metadata(memory=scratch)
+    v15 = mload 64 !metadata(memory=scratch)
     mstore v15, arg0
     v18 = mul arg0, 32
     v19 = add v18, 32
     v20 = add v15, v19
-    mstore 64, v20
+    mstore 64, v20 !metadata(memory=scratch)
     v25 = mul 0, 32
     v26 = add v6, 32
     v27 = add v26, v25
     mstore v27, v15
-    v30 = mload 64
+    v30 = mload 64 !metadata(memory=scratch)
     v32 = add v30, 160
-    mstore 64, v32
-    v36 = mload 64
+    mstore 64, v32 !metadata(memory=scratch)
+    v36 = mload 64 !metadata(memory=scratch)
     v38 = add v36, 32
-    mstore 64, v38
+    mstore 64, v38 !metadata(memory=scratch)
     v42 = add v36, 32
     v43 = sub v42, v36
     mstore v36, v43

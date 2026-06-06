@@ -723,6 +723,7 @@ fn generate_contract_bytecodes(
             let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
             gcx.dcx().has_errors()?;
             let mut codegen = EvmCodegen::new();
+            codegen.set_mir_print_after_each(gcx.sess.opts.unstable.mir_print_after_each);
             let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
             bytecodes.insert(
                 contract_id,
@@ -772,6 +773,7 @@ fn ensure_contract_bytecode(
     let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
     gcx.dcx().has_errors()?;
     let mut codegen = EvmCodegen::new();
+    codegen.set_mir_print_after_each(gcx.sess.opts.unstable.mir_print_after_each);
     let (deployment, _) = codegen.generate_deployment_bytecode(&mut module);
     all_bytecodes.insert(contract_id, deployment);
     visiting.remove(&contract_id);

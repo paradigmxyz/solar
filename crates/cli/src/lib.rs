@@ -220,7 +220,9 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
             gcx.dcx().has_errors()?;
 
             // Generate bytecode
-            let artifact = EvmCodegen::new().lower_module(&mut module);
+            let mut codegen = EvmCodegen::new();
+            codegen.set_mir_print_after_each(sess.opts.unstable.mir_print_after_each);
+            let artifact = codegen.lower_module(&mut module);
 
             if emit_bin {
                 obj.insert(
@@ -289,7 +291,9 @@ fn ensure_contract_bytecode(
 
     let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
     gcx.dcx().has_errors()?;
-    let artifact = EvmCodegen::new().lower_module(&mut module);
+    let mut codegen = EvmCodegen::new();
+    codegen.set_mir_print_after_each(gcx.sess.opts.unstable.mir_print_after_each);
+    let artifact = codegen.lower_module(&mut module);
     all_bytecodes.insert(contract_id, artifact.deployment);
     visiting.remove(&contract_id);
 
