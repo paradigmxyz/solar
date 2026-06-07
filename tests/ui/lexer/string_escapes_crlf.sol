@@ -1,11 +1,11 @@
 //@ignore-host: windows
 
 // Escaped - OK
-string constant s = "\
+string constant s1 = "\
 ";
-string constant s = unicode"\
+string constant s2 = unicode"\
 ";
-bytes constant s = hex"\
+bytes constant b1 = hex"\
 ";
 //~^^ ERROR: invalid hex digit
 //~| ERROR: invalid hex digit
@@ -13,13 +13,13 @@ bytes constant s = hex"\
 // 3x for \\, \r, \n
 
 // Escaped, but can only escape one newline
-string constant s = "\
+string constant s3 = "\
 
 "; //~^ ERROR: cannot skip multiple lines
-string constant s = unicode"\
+string constant s4 = unicode"\
 
 "; //~^ ERROR: cannot skip multiple lines
-bytes constant s = hex"\
+bytes constant b2 = hex"\
 
 ";
 //~^^^ ERROR: invalid hex digit
@@ -30,11 +30,11 @@ bytes constant s = hex"\
 // 5x for \\, \r, \n, \r, \n
 
 // Unescaped
-string constant s = "
+string constant s5 = "
 "; //~^ ERROR: unescaped newline
-string constant s = unicode"
+string constant s6 = unicode"
 "; //~^ ERROR: unescaped newline
-bytes constant s = hex"
+bytes constant b3 = hex"
 ";
 //~^^ ERROR: invalid hex digit
 //~| ERROR: invalid hex digit

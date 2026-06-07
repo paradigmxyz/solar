@@ -4,5 +4,11 @@ error: operators can only be defined in a global `using for` directive
 LL │ using {add2 as +} for Int;
    ╰╴       ━━━━
 
-error: aborting due to 1 previous error
+error: user-defined binary operator `+` has more than one definition matching the operand type visible in the current scope
+   ╭▸ ROOT/tests/ui/using-for/imports/imported_duplicate_operator.sol:LL:CC
+   │
+LL │ using {add2 as +} for Int;
+   ╰╴       ━━━━
+
+error: aborting due to 2 previous errors
 
