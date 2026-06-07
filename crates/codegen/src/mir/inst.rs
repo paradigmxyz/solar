@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{BlockId, FunctionId, MirType, ValueId};
+use super::{BlockId, Function, FunctionId, MirType, Value, ValueId};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
@@ -45,6 +45,91 @@ pub enum StorageAlias {
     Slot(U256),
     /// A loop-invariant symbolic slot value.
     Symbolic(ValueId),
+    /// A loop-invariant symbolic base plus a known constant offset.
+    Offset {
+        /// Symbolic base slot.
+        base: ValueId,
+        /// Constant offset added to the base.
+        offset: U256,
+    },
+}
+
+impl StorageAlias {
+    /// Computes a conservative exact storage alias key for `value`.
+    #[must_use]
+    pub fn for_value(func: &Function, value: ValueId) -> Self {
+        match func.value(value) {
+            Value::Immediate(imm) => imm.as_u256().map_or(Self::Symbolic(value), Self::Slot),
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+                InstKind::Add(lhs, rhs) => {
+                    if let Some(offset) = Self::immediate_u256(func, rhs) {
+                        Self::add_offset(func, lhs, offset)
+                    } else if let Some(offset) = Self::immediate_u256(func, lhs) {
+                        Self::add_offset(func, rhs, offset)
+                    } else {
+                        Self::Symbolic(value)
+                    }
+                }
+                InstKind::Sub(lhs, rhs) => {
+                    if let Some(offset) = Self::immediate_u256(func, rhs) {
+                        Self::add_offset(func, lhs, U256::ZERO.wrapping_sub(offset))
+                    } else {
+                        Self::Symbolic(value)
+                    }
+                }
+                _ => Self::Symbolic(value),
+            },
+            Value::Arg { .. } | Value::Phi { .. } | Value::Undef(_) => Self::Symbolic(value),
+        }
+    }
+
+    /// Returns true if two alias keys may refer to the same storage slot.
+    #[must_use]
+    pub fn may_alias(self, other: Self) -> bool {
+        match (self, other) {
+            (Self::Slot(a), Self::Slot(b)) => a == b,
+            (
+                Self::Offset { base: a, offset: a_offset },
+                Self::Offset { base: b, offset: b_offset },
+            ) if a == b => a_offset == b_offset,
+            (Self::Symbolic(_), Self::Symbolic(_)) => true,
+            (Self::Symbolic(a), Self::Offset { base, offset })
+            | (Self::Offset { base, offset }, Self::Symbolic(a))
+                if a == base =>
+            {
+                offset.is_zero()
+            }
+            _ => true,
+        }
+    }
+
+    /// Returns the symbolic base value, if this alias has one.
+    #[must_use]
+    pub const fn symbolic_base(self) -> Option<ValueId> {
+        match self {
+            Self::Symbolic(value) | Self::Offset { base: value, .. } => Some(value),
+            Self::Slot(_) => None,
+        }
+    }
+
+    fn add_offset(func: &Function, value: ValueId, offset: U256) -> Self {
+        match Self::for_value(func, value) {
+            Self::Slot(slot) => Self::Slot(slot.wrapping_add(offset)),
+            Self::Symbolic(base) if offset.is_zero() => Self::Symbolic(base),
+            Self::Symbolic(base) => Self::Offset { base, offset },
+            Self::Offset { base, offset: existing } => {
+                let offset = existing.wrapping_add(offset);
+                if offset.is_zero() { Self::Symbolic(base) } else { Self::Offset { base, offset } }
+            }
+        }
+    }
+
+    fn immediate_u256(func: &Function, value: ValueId) -> Option<U256> {
+        match func.value(value) {
+            Value::Immediate(imm) => imm.as_u256(),
+            _ => None,
+        }
+    }
 }
 
 /// A coarse memory region understood by MIR analyses.

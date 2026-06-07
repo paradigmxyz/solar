@@ -448,6 +448,7 @@ impl<'a> Parser<'a> {
             }
         }
 
+        self.parse_function_attributes(&mut func)?;
         self.expect_punct('{')?;
         self.skip_blank_and_comments();
 
@@ -622,6 +623,34 @@ impl<'a> Parser<'a> {
         self.reject_unresolved_value_labels(&func, &value_labels)?;
 
         Ok(func)
+    }
+
+    fn parse_function_attributes(&mut self, func: &mut Function) -> Result<(), ParseError> {
+        self.skip_inline();
+        if !self.try_punct('[') {
+            return Ok(());
+        }
+
+        loop {
+            let key = self.parse_ident()?.to_string();
+            match key.as_str() {
+                "selector" => {
+                    self.expect_punct('=')?;
+                    let selector = self.parse_uint_literal()?;
+                    let selector = self.u256_to_u32(selector)?;
+                    func.selector = Some(selector.to_be_bytes());
+                }
+                _ => return Err(self.error(format!("unknown function attribute `{key}`"))),
+            }
+
+            if self.try_punct(',') {
+                continue;
+            }
+            self.expect_punct(']')?;
+            break;
+        }
+
+        Ok(())
     }
 
     fn parse_type(&mut self) -> Result<MirType, ParseError> {
@@ -1021,6 +1050,12 @@ impl<'a> Parser<'a> {
             "slot" => StorageAlias::Slot(self.parse_uint_literal()?),
             "symbolic" => {
                 StorageAlias::Symbolic(self.parse_value(func, arg_values, value_labels)?)
+            }
+            "offset" => {
+                let base = self.parse_value(func, arg_values, value_labels)?;
+                self.expect_punct(',')?;
+                let offset = self.parse_uint_literal()?;
+                StorageAlias::Offset { base, offset }
             }
             _ => return Err(self.error(format!("unknown storage metadata value `{kind}`"))),
         };

@@ -548,6 +548,9 @@ fn format_storage_alias(alias: StorageAlias, func: &Function) -> String {
     match alias {
         StorageAlias::Slot(slot) => format!("slot({})", fmt_u256(slot)),
         StorageAlias::Symbolic(value) => format!("symbolic({})", fmt_val(value, func)),
+        StorageAlias::Offset { base, offset } => {
+            format!("offset({}, {})", fmt_val(base, func), fmt_u256(offset))
+        }
     }
 }
 

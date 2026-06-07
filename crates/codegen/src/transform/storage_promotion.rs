@@ -158,6 +158,13 @@ impl StorageScalarPromoter {
         {
             return None;
         }
+        let slot_value = if let Some(init_store) = init_store {
+            self.store_slot(func, init_store)?
+        } else if self.value_defined_in_loop(func, slot_value, loop_data) {
+            return None;
+        } else {
+            slot_value
+        };
         if init_store.is_none() && !saw_loop_load {
             return None;
         }
@@ -194,8 +201,9 @@ impl StorageScalarPromoter {
         }
 
         let mut candidates = Vec::with_capacity(stores.len());
-        for (slot, slot_value) in stores {
+        for (slot, _) in stores {
             let init_store = self.find_preheader_init_store(func, preheader, &slot)?;
+            let slot_value = self.store_slot(func, init_store)?;
             candidates.push(Candidate {
                 slot_value,
                 slot,
@@ -335,6 +343,13 @@ impl StorageScalarPromoter {
                 InstKind::SStore(store_slot, _) if self.storage_alias(func, inst_id, *store_slot) == *slot
             )
         })
+    }
+
+    fn store_slot(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
+        match func.instructions[inst_id].kind {
+            InstKind::SStore(slot, _) => Some(slot),
+            _ => None,
+        }
     }
 
     fn preheader_tail_is_safe(
@@ -594,6 +609,7 @@ impl StorageScalarPromoter {
                 if let InstKind::SStore(_, init) = &func.instructions[init_store].kind {
                     func.instructions[init_store].kind =
                         InstKind::MStore(promoted.temp_addr, *init);
+                    func.instructions[init_store].metadata.storage_alias = None;
                     self.stats.stores_promoted += 1;
                 }
 
@@ -655,7 +671,6 @@ impl StorageScalarPromoter {
         let load_value = func.alloc_value(Value::Inst(load_inst));
         let store_inst =
             func.alloc_inst(Instruction::new(InstKind::SStore(slot_value, load_value), None));
-        let _store_value = func.alloc_value(Value::Inst(store_inst));
 
         let insert_pos = func.blocks[exit]
             .instructions
@@ -708,7 +723,6 @@ impl StorageScalarPromoter {
         let load_value = func.alloc_value(Value::Inst(load_inst));
         let store_inst =
             func.alloc_inst(Instruction::new(InstKind::SStore(slot_value, load_value), None));
-        let _store_value = func.alloc_value(Value::Inst(store_inst));
 
         func.blocks[store_block].predecessors.push(exit);
         func.blocks[store_block].instructions.push(load_inst);
@@ -762,7 +776,7 @@ impl StorageScalarPromoter {
                 _ => None,
             };
             func.instructions[inst_id].metadata.storage_alias =
-                slot.map(|slot| self.storage_alias_for_value(func, slot));
+                slot.map(|slot| StorageAlias::for_value(func, slot));
         }
     }
 
@@ -770,7 +784,7 @@ impl StorageScalarPromoter {
         func.instructions[inst_id]
             .metadata
             .storage_alias
-            .unwrap_or_else(|| self.storage_alias_for_value(func, slot))
+            .unwrap_or_else(|| StorageAlias::for_value(func, slot))
     }
 
     fn storage_alias_for_loop_value(
@@ -779,22 +793,13 @@ impl StorageScalarPromoter {
         value: ValueId,
         loop_data: &Loop,
     ) -> Option<StorageAlias> {
-        let alias = self.storage_alias_for_value(func, value);
-        if let StorageAlias::Symbolic(value) = alias
-            && self.value_defined_in_loop(func, value, loop_data)
+        let alias = StorageAlias::for_value(func, value);
+        if let Some(base) = alias.symbolic_base()
+            && self.value_defined_in_loop(func, base, loop_data)
         {
             return None;
         }
         Some(alias)
-    }
-
-    fn storage_alias_for_value(&self, func: &Function, value: ValueId) -> StorageAlias {
-        match func.value(value) {
-            Value::Immediate(imm) => {
-                imm.as_u256().map_or(StorageAlias::Symbolic(value), StorageAlias::Slot)
-            }
-            _ => StorageAlias::Symbolic(value),
-        }
     }
 
     fn value_defined_in_loop(&self, func: &Function, value: ValueId, loop_data: &Loop) -> bool {
@@ -809,10 +814,7 @@ impl StorageScalarPromoter {
     }
 
     fn storage_aliases_may_alias(&self, a: &StorageAlias, b: &StorageAlias) -> bool {
-        match (a, b) {
-            (StorageAlias::Slot(a), StorageAlias::Slot(b)) => a == b,
-            _ => true,
-        }
+        a.may_alias(*b)
     }
 
     fn candidate_index(&self, candidates: &[Candidate], alias: &StorageAlias) -> Option<usize> {

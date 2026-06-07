@@ -147,12 +147,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn storage_alias(&self, slot: ValueId) -> StorageAlias {
-        match self.func.value(slot) {
-            Value::Immediate(imm) => {
-                imm.as_u256().map_or(StorageAlias::Symbolic(slot), StorageAlias::Slot)
-            }
-            _ => StorageAlias::Symbolic(slot),
-        }
+        StorageAlias::for_value(self.func, slot)
     }
 
     /// Emits an add instruction.

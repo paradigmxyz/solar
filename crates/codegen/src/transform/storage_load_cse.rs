@@ -139,7 +139,7 @@ impl StorageLoadCse {
                 _ => None,
             };
             func.instructions[inst_id].metadata.storage_alias =
-                slot.map(|slot| Self::storage_alias_for_value(func, slot));
+                slot.map(|slot| StorageAlias::for_value(func, slot));
         }
     }
 
@@ -156,26 +156,14 @@ impl StorageLoadCse {
             func.instructions[inst_id]
                 .metadata
                 .storage_alias
-                .unwrap_or_else(|| Self::storage_alias_for_value(func, slot))
+                .unwrap_or_else(|| StorageAlias::for_value(func, slot))
         } else {
-            Self::storage_alias_for_value(func, slot)
-        }
-    }
-
-    fn storage_alias_for_value(func: &Function, value: ValueId) -> StorageAlias {
-        match func.value(value) {
-            Value::Immediate(imm) => {
-                imm.as_u256().map_or(StorageAlias::Symbolic(value), StorageAlias::Slot)
-            }
-            _ => StorageAlias::Symbolic(value),
+            StorageAlias::for_value(func, slot)
         }
     }
 
     fn storage_aliases_may_alias(a: &StorageAlias, b: &StorageAlias) -> bool {
-        match (a, b) {
-            (StorageAlias::Slot(a), StorageAlias::Slot(b)) => a == b,
-            _ => true,
-        }
+        a.may_alias(*b)
     }
 
     fn canonical_value(value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {

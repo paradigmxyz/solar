@@ -1,0 +1,41 @@
+// === ROOT/tests/ui/codegen/mir/storage_promotion.mir (after storage-promotion) ===
+; module @StoragePromotion
+fn @promote_recomputed_offset_slot(arg0: u256) {
+  bb0 (entry):
+    v2 = add arg0, 1
+    mstore 128, 1
+    jump bb1
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    v6 = add arg0, 1
+    v7 = mload 128
+    v9 = mul v7, 2
+    v11 = add arg0, 1
+    mstore 128, v9
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    v13 = mload 128
+    sstore v2, v13
+    stop
+}
+
+fn @reject_loop_variant_offset_slot(arg0: u256) {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v2]
+    br 1, bb2, bb3
+  bb2:
+    v5 = add arg0, v3
+    v6 = sload v5 !metadata(storage=symbolic(v5))
+    v8 = add v6, 2
+    sstore v5, v8 !metadata(storage=symbolic(v5))
+    v2 = add v3, 1
+    jump bb1
+  bb3:
+    stop
+}
+
