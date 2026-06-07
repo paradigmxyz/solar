@@ -1662,14 +1662,14 @@ dependencies = [
 
 [[package]]
 name = "inturn"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2efbe120e37f17bb33fcdc82bc1c65087242608be37ace3cf7ebf49f3164e37"
+checksum = "d58cf1c5e088a860e4b7def7d8fdf8cf222ca33c7a0365619af22e0453b3b79c"
 dependencies = [
  "boxcar",
- "bumpalo",
  "dashmap",
  "hashbrown 0.14.5",
+ "stumpalo",
  "thread_local",
 ]
 
