@@ -6,7 +6,6 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 // Convenience re-exports.
-pub use bumpalo;
 pub use solar_interface as interface;
 
 mod ast;

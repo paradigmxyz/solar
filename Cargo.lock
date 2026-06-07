@@ -1662,14 +1662,14 @@ dependencies = [
 
 [[package]]
 name = "inturn"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2efbe120e37f17bb33fcdc82bc1c65087242608be37ace3cf7ebf49f3164e37"
+checksum = "d58cf1c5e088a860e4b7def7d8fdf8cf222ca33c7a0365619af22e0453b3b79c"
 dependencies = [
  "boxcar",
- "bumpalo",
  "dashmap",
  "hashbrown 0.14.5",
+ "stumpalo",
  "thread_local",
 ]
 
@@ -2529,6 +2529,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "readme-rustdocifier"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ad765b21a08b1a8e5cdce052719188a23772bcbefb3c439f0baaf62c56ceac"
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2977,7 +2983,6 @@ name = "solar-ast"
 version = "0.1.8"
 dependencies = [
  "alloy-primitives",
- "bumpalo",
  "either",
  "num-rational",
  "semver 1.0.28",
@@ -3058,13 +3063,13 @@ dependencies = [
 name = "solar-data-structures"
 version = "0.1.8"
 dependencies = [
- "bumpalo",
  "indexmap",
  "oxc_index",
  "parking_lot",
  "rayon",
  "rustc-hash",
  "smallvec",
+ "stumpalo",
 ]
 
 [[package]]
@@ -3119,7 +3124,6 @@ version = "0.1.8"
 dependencies = [
  "alloy-primitives",
  "bitflags",
- "bumpalo",
  "itertools 0.14.0",
  "memchr",
  "num-bigint",
@@ -3141,7 +3145,6 @@ dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
  "bitflags",
- "bumpalo",
  "derive_more",
  "either",
  "num-bigint",
@@ -3276,6 +3279,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "stumpalo"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ee6a64f7e12e0824208a467d8f5fb6907cdf7468dfde0df20b0f15eb49e032d"
+dependencies = [
+ "readme-rustdocifier",
 ]
 
 [[package]]

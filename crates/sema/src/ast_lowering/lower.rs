@@ -1,7 +1,7 @@
 use crate::hir::{self, ContractId, SourceId};
 use solar_ast as ast;
 use solar_ast::visit::Visit;
-use solar_data_structures::{BumpExt, Never, smallvec::SmallVec};
+use solar_data_structures::{ArenaExt, Never, smallvec::SmallVec};
 use std::ops::ControlFlow;
 
 impl<'gcx> super::LoweringContext<'gcx> {

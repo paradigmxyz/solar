@@ -4,7 +4,7 @@ use solar_ast::{
     self as ast, AstPath, Box, BoxSlice, DocComment, DocComments,
     token::{Delimiter, Token, TokenKind},
 };
-use solar_data_structures::{BumpExt, fmt::or_list};
+use solar_data_structures::{ArenaExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,

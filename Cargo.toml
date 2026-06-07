@@ -161,7 +161,7 @@ tempfile = "3.9"
 
 # misc
 bitflags = "2.4"
-bumpalo = "3.14"
+stumpalo = "0.2.0"
 cfg-if = "1.0"
 either = "1"
 oxc_index = { version = "4.1", features = ["nonmax"] }

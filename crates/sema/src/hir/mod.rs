@@ -6,7 +6,7 @@ use either::Either;
 use rayon::prelude::*;
 use solar_ast as ast;
 use solar_data_structures::{
-    BumpExt,
+    Arena as BumpArena, ArenaExt,
     index::{Idx, IndexVec},
     newtype_index,
 };
@@ -24,22 +24,22 @@ pub use visit::Visit;
 
 /// HIR arena allocator.
 pub struct Arena {
-    bump: bumpalo::Bump,
+    bump: BumpArena,
 }
 
 impl Arena {
     /// Creates a new AST arena.
     pub fn new() -> Self {
-        Self { bump: bumpalo::Bump::new() }
+        Self { bump: BumpArena::new() }
     }
 
     /// Returns a reference to the arena's bump allocator.
-    pub fn bump(&self) -> &bumpalo::Bump {
+    pub fn bump(&self) -> &BumpArena {
         &self.bump
     }
 
     /// Returns a mutable reference to the arena's bump allocator.
-    pub fn bump_mut(&mut self) -> &mut bumpalo::Bump {
+    pub fn bump_mut(&mut self) -> &mut BumpArena {
         &mut self.bump
     }
 
@@ -61,7 +61,7 @@ impl Default for Arena {
 }
 
 impl std::ops::Deref for Arena {
-    type Target = bumpalo::Bump;
+    type Target = BumpArena;
 
     #[inline]
     fn deref(&self) -> &Self::Target {
@@ -282,10 +282,7 @@ impl<'hir> Hir<'hir> {
     }
 
     /// Creates a builder for constructing HIR nodes.
-    pub fn builder<'id>(
-        arena: &'hir bumpalo::Bump,
-        next_id: &'id IdCounter,
-    ) -> HirBuilder<'hir, 'id> {
+    pub fn builder<'id>(arena: &'hir BumpArena, next_id: &'id IdCounter) -> HirBuilder<'hir, 'id> {
         HirBuilder::new(arena, next_id)
     }
 }
@@ -326,13 +323,13 @@ impl IdCounter {
 
 /// A builder for constructing HIR nodes.
 pub struct HirBuilder<'hir, 'id> {
-    arena: &'hir bumpalo::Bump,
+    arena: &'hir BumpArena,
     next_id: &'id IdCounter,
 }
 
 impl<'hir, 'id> HirBuilder<'hir, 'id> {
     /// Creates a new HIR builder.
-    pub fn new(arena: &'hir bumpalo::Bump, next_id: &'id IdCounter) -> Self {
+    pub fn new(arena: &'hir BumpArena, next_id: &'id IdCounter) -> Self {
         Self { arena, next_id }
     }
 

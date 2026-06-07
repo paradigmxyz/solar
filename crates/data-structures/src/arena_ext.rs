@@ -1,10 +1,9 @@
-use crate::RawThinSlice;
-use bumpalo::Bump;
+use crate::{Arena, RawThinSlice};
 use smallvec::SmallVec;
 
-/// Extension trait for [`Bump`].
+/// Extension trait for [`Arena`].
 #[expect(clippy::mut_from_ref)] // Arena.
-pub trait BumpExt {
+pub trait ArenaExt {
     /// Returns the number of bytes currently in use.
     fn used_bytes(&self) -> usize;
 
@@ -18,27 +17,27 @@ pub trait BumpExt {
 
     /// Allocates a vector of items on the arena.
     ///
-    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: Drop`.
+    /// NOTE: This method does not drop the values, so you likely want to wrap the result in an
+    /// owning arena wrapper if `T: Drop`.
     fn alloc_vec<T>(&self, values: Vec<T>) -> &mut [T];
 
     /// Allocates a `SmallVector` of items on the arena.
     ///
-    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: Drop`.
+    /// NOTE: This method does not drop the values, so you likely want to wrap the result in an
+    /// owning arena wrapper if `T: Drop`.
     fn alloc_smallvec<A: smallvec::Array>(&self, values: SmallVec<A>) -> &mut [A::Item];
 
     /// Allocates an array of items on the arena.
     ///
-    /// NOTE: This method does not drop the values, so you likely want to wrap the result in a
-    /// [`bumpalo::boxed::Box`] if `T: Drop`.
+    /// NOTE: This method does not drop the values, so you likely want to wrap the result in an
+    /// owning arena wrapper if `T: Drop`.
     fn alloc_array<T, const N: usize>(&self, values: [T; N]) -> &mut [T];
 
     /// Allocates a slice of items on the arena and copies them in.
     ///
     /// # Safety
     ///
-    /// If `T: Drop`, the resulting slice must not be wrapped in [`bumpalo::boxed::Box`], unless
+    /// If `T: Drop`, the resulting slice must not be wrapped in an owning arena wrapper, unless
     /// ownership is moved as well, such as through [`alloc_vec`](Self::alloc_vec) and the other
     /// methods in this trait.
     unsafe fn alloc_slice_unchecked<'a, T>(&'a self, slice: &[T]) -> &'a mut [T];
@@ -72,7 +71,7 @@ pub trait BumpExt {
         values: [T; N],
     ) -> &mut RawThinSlice<H, T>;
 
-    /// See [`alloc_slice_copy`](Bump::alloc_slice_copy).
+    /// See [`alloc_slice_copy`](Arena::alloc_slice_copy).
     fn alloc_thin_slice_copy<'a, H, T: Copy>(
         &'a self,
         header: H,
@@ -91,10 +90,9 @@ pub trait BumpExt {
     ) -> &'a mut RawThinSlice<H, T>;
 }
 
-impl BumpExt for Bump {
+impl ArenaExt for Arena {
     fn used_bytes(&self) -> usize {
-        // SAFETY: The data is not read, and the arena is not used during the iteration.
-        unsafe { self.iter_allocated_chunks_raw().map(|(_ptr, len)| len).sum::<usize>() }
+        self.allocated_bytes().saturating_sub(self.chunk_capacity())
     }
 
     #[inline]
@@ -153,13 +151,7 @@ impl BumpExt for Bump {
 
     #[inline]
     unsafe fn alloc_slice_unchecked<'a, T>(&'a self, src: &[T]) -> &'a mut [T] {
-        // Copied from `alloc_slice_copy`.
-        let layout = std::alloc::Layout::for_value(src);
-        let dst = self.alloc_layout(layout).cast::<T>();
-        unsafe {
-            std::ptr::copy_nonoverlapping(src.as_ptr(), dst.as_ptr(), src.len());
-            std::slice::from_raw_parts_mut(dst.as_ptr(), src.len())
-        }
+        self.alloc_slice_fill_with(src.len(), |i| unsafe { std::ptr::read(src.as_ptr().add(i)) })
     }
 
     #[inline]
@@ -253,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_alloc_vec() {
-        let bump = Bump::new();
+        let bump = Arena::new();
         let vec = vec![DropBomb::new(1), DropBomb::new(2), DropBomb::new(3)];
         let other_vec = vec![DropBomb::new(1), DropBomb::new(2), DropBomb::new(3)];
         let slice = bump.alloc_vec(vec);
@@ -268,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_alloc_vec_thin() {
-        let bump = Bump::new();
+        let bump = Arena::new();
         let vec = vec![DropBomb::new(1), DropBomb::new(2), DropBomb::new(3)];
         let other_vec = vec![DropBomb::new(1), DropBomb::new(2), DropBomb::new(3)];
         let raw_slice = bump.alloc_vec_thin(69usize, vec);
@@ -285,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_alloc_thin_empty() {
-        let bump = Bump::new();
+        let bump = Arena::new();
         let data = Vec::<&'static str>::new();
         let raw_slice = bump.alloc_vec_thin(69usize, data);
         assert_eq!(*raw_slice.header(), 69usize);

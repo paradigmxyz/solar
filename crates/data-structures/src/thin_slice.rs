@@ -1,5 +1,5 @@
-use bumpalo::Bump;
-use std::{alloc::Layout, fmt};
+use crate::Arena;
+use std::{alloc::Layout, fmt, mem::MaybeUninit};
 
 // Modified from [`rustc_middle::ty::List`](https://github.com/rust-lang/rust/blob/a2db9280539229a3b8a084a09886670a57bc7e9c/compiler/rustc_middle/src/ty/list.rs#L15).
 
@@ -48,7 +48,7 @@ impl<H, T> RawThinSlice<H, T> {
     /// Allocates a list from `arena` and copies the contents of `slice` into it.
     #[inline]
     #[expect(clippy::mut_from_ref)] // Arena.
-    pub(super) fn from_arena<'a>(arena: &'a Bump, header: H, slice: &[T]) -> &'a mut Self {
+    pub(super) fn from_arena<'a>(arena: &'a Arena, header: H, slice: &[T]) -> &'a mut Self {
         let mem = Self::alloc_from_arena(arena, slice.len());
         // SAFETY: `mem` comes from `alloc_from_arena`.
         unsafe { Self::init(mem, header, slice) }
@@ -58,7 +58,7 @@ impl<H, T> RawThinSlice<H, T> {
     #[inline]
     #[expect(clippy::mut_from_ref)] // Arena.
     pub(super) fn from_arena_with(
-        arena: &Bump,
+        arena: &Arena,
         header: H,
         len: usize,
         f: impl FnMut(usize) -> T,
@@ -70,11 +70,14 @@ impl<H, T> RawThinSlice<H, T> {
 
     /// Allocates a list from `arena`.
     #[inline]
-    fn alloc_from_arena(arena: &Bump, len: usize) -> *mut Self {
+    fn alloc_from_arena(arena: &Arena, len: usize) -> *mut Self {
         let (layout, _offset) = Layout::new::<ThinSliceSkeleton<H, T>>()
             .extend(Layout::array::<T>(len).unwrap())
             .unwrap();
-        arena.alloc_layout(layout).as_ptr() as *mut Self
+        assert!(layout.align() <= align_of::<u128>());
+        let words = layout.size().div_ceil(size_of::<u128>());
+        arena.alloc_slice_fill_with(words, |_| MaybeUninit::<u128>::uninit()).as_mut_ptr()
+            as *mut Self
     }
 
     /// Initializes a list by copying the contents of `slice` into it.
@@ -259,6 +262,24 @@ impl<'a, H, T> IntoIterator for &'a mut RawThinSlice<H, T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sizes() {
+        fn do_assert<T>(sl: &ThinSlice<T>) {
+            assert_eq!(Layout::new::<&ThinSlice<T>>(), Layout::new::<&()>());
+            assert_eq!(Layout::new::<&mut ThinSlice<T>>(), Layout::new::<&()>());
+
+            let align = align_of::<T>();
+            assert_eq!(sl.as_ptr() as usize % align, 0);
+        }
+
+        do_assert(<&ThinSlice<u64>>::default());
+        do_assert(<&ThinSlice<u128>>::default());
+
+        let arena = Arena::new();
+        do_assert(ThinSlice::<u64>::from_arena(&arena, (), &[1, 2, 3]));
+        do_assert(ThinSlice::<u128>::from_arena(&arena, (), &[1, 2, 3]));
+    }
 
     #[test]
     fn empty() {
