@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 library LibraryTypes {
     uint256 constant BASE = 1;

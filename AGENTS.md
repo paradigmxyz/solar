@@ -57,7 +57,7 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 ### UI Test Annotations
 
 ```solidity
-//@compile-flags: --emit=abi
+//@ compile-flags: --emit=abi
 contract Test {
     uint x; //~ ERROR: message here
     //~^ NOTE: note about previous line
@@ -69,12 +69,12 @@ Use `^` or `v` to point to lines above/below.
 
 Common file-level UI directives:
 
-- `//@compile-flags: ...`: Pass extra compiler flags for this test.
+- `//@ compile-flags: ...`: Pass extra compiler flags for this test.
 - `//@ error-in-other-file: ...`: Expect a diagnostic with this text in an
   imported/auxiliary source.
-- `// check-fail`: Mark the test as expected to fail even if no inline
+- `//@ check-fail`: Mark the test as expected to fail even if no inline
   diagnostic annotation appears in the primary file.
-- `//@ignore-host: windows`: Skip a test on a specific host.
+- `//@ ignore-host: windows`: Skip a test on a specific host.
 - `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
   multiple revisions.
 
@@ -89,8 +89,8 @@ update imports accordingly.
 Add attribution using:
 `// ported-from: test/libsolidity/.../name.sol`. Use one line per upstream file.
 Do not add a full stop or other trailing punctuation after the path.
-Place these after initial UI metadata directives such as `//@compile-flags`,
-`//@ error-in-other-file`, and `// check-fail`; if the file has no UI metadata,
+Place these after initial UI metadata directives such as `//@ compile-flags`,
+`//@ error-in-other-file`, and `//@ check-fail`; if the file has no UI metadata,
 put the attribution at the top.
 Only add attribution if you're actually porting the semantics of the test 1-1 from Solc, not just "covering the error message". Renames are OK.
 

@@ -217,7 +217,7 @@ Here's a simple example to show how to write a "UI" integration test (`tests/ui`
 
 ```rust
 // Directives
-//@compile-flags: --flag
+//@ compile-flags: --flag
 
 // Annotations specify the errors that the compiler is expected to emit.
 // These are `//~`, one of HELP, NOTE, WARN, ERROR, and a colon (`:`),

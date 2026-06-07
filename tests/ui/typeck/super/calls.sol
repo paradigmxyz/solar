@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 // ported-from: test/libsolidity/semanticTests/various/super.sol
 // ported-from: test/libsolidity/semanticTests/various/super_parentheses.sol

@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract C {
     function helper(uint256 a) internal pure returns (uint256) {

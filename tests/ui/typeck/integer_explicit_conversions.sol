@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract IntegerConversions {
     // Int <-> Int (any size - only width changes)

@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_different_functions_global_and_non_global_different_files.sol
 
 import {Int} from "./auxiliary/transitive_base.sol";

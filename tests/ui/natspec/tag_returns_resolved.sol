@@ -1,4 +1,4 @@
-//@compile-flags: -Zprint-natspec
+//@ compile-flags: -Zprint-natspec
 
 contract ReturnDocs {
     /// @return the value

@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 // Tests for implicit function pointer conversions.
 // Function pointers require exact parameter/return types.

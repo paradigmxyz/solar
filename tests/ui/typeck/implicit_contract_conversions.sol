@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 pragma solidity ^0.8.0;
 
 contract Base {}

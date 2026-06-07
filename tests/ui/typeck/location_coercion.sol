@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 // Tests for data location coercion rules.
 // See: https://docs.soliditylang.org/en/latest/types.html#data-location-and-assignment-behaviour

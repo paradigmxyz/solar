@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator.sol
 
 type U is uint256;

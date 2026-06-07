@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/semanticTests/using/using_global_all_the_types.sol
 
 import {E, S, T} from "./auxiliary/global_library.sol";

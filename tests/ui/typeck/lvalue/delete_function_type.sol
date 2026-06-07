@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/functionTypes/delete_function_type_invalid.sol
 // ported-from: test/libsolidity/syntaxTests/functionTypes/delete_external_function_type_invalid.sol
 

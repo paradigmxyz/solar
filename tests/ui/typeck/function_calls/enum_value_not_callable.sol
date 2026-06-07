@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract C {
     enum ActionChoices { GoLeft, GoRight }

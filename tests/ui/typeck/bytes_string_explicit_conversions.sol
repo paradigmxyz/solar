@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract BytesStringTests {
     // Valid: string literal -> bytes memory.

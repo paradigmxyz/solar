@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract C {
     // Valid: implicit FixedBytes widening and same-size conversion.

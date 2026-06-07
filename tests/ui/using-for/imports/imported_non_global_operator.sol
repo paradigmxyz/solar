@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/calling_operator_imported_non_global.sol
 
 import {ImportedInt} from "./auxiliary/non_global_operator.sol";

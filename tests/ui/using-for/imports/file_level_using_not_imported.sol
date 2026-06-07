@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/file_level_inactive_after_import.sol
 
 import "./auxiliary/file_level_using.sol";
