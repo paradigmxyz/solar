@@ -264,6 +264,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn sizes() {
+        fn do_assert<T>(sl: &ThinSlice<T>) {
+            assert_eq!(Layout::new::<&ThinSlice<T>>(), Layout::new::<&()>());
+            assert_eq!(Layout::new::<&mut ThinSlice<T>>(), Layout::new::<&()>());
+
+            let align = align_of::<T>();
+            assert_eq!(sl.as_ptr() as usize % align, 0);
+        }
+
+        do_assert(<&ThinSlice<u64>>::default());
+        do_assert(<&ThinSlice<u128>>::default());
+
+        let arena = Arena::new();
+        do_assert(ThinSlice::<u64>::from_arena(&arena, (), &[1, 2, 3]));
+        do_assert(ThinSlice::<u128>::from_arena(&arena, (), &[1, 2, 3]));
+    }
+
+    #[test]
     fn empty() {
         let thin_slice = <&ThinSlice<u64>>::default();
         assert_eq!(thin_slice.len(), 0);

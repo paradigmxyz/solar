@@ -1,6 +1,5 @@
-use smallvec::SmallVec;
-
 use crate::{Arena, RawThinSlice};
+use smallvec::SmallVec;
 
 /// Extension trait for [`Arena`].
 #[expect(clippy::mut_from_ref)] // Arena.
