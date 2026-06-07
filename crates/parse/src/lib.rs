@@ -24,7 +24,6 @@ pub use parser::{Parser, Recovered};
 // Convenience re-exports.
 pub use solar_ast::{self as ast, token};
 pub use solar_interface as interface;
-pub use stumpalo;
 
 /// Parser error type.
 pub type PErr<'a> = DiagBuilder<'a, ErrorGuaranteed>;

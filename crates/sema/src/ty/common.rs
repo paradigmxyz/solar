@@ -1,5 +1,6 @@
 use super::{Interner, Ty, TyKind};
 use solar_ast::{DataLocation, ElementaryType, TypeSize};
+use solar_data_structures::Arena;
 use solar_interface::diagnostics::ErrorGuaranteed;
 
 /// Pre-interned types.
@@ -35,7 +36,7 @@ pub struct CommonTypes<'gcx> {
 impl<'gcx> CommonTypes<'gcx> {
     #[instrument(name = "new_common_types", level = "debug", skip_all)]
     #[inline]
-    pub(super) fn new(interner: &Interner<'gcx>, bump: &'gcx stumpalo::Arena) -> Self {
+    pub(super) fn new(interner: &Interner<'gcx>, bump: &'gcx Arena) -> Self {
         use ElementaryType::*;
         use TyKind::*;
         use std::array::from_fn;

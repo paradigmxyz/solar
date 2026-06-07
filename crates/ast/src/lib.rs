@@ -7,7 +7,6 @@
 
 // Convenience re-exports.
 pub use solar_interface as interface;
-pub use stumpalo;
 
 mod ast;
 pub use ast::*;

@@ -1,8 +1,7 @@
 use crate::BoxSlice;
-use solar_data_structures::{ArenaExt, smallvec::SmallVec};
+use solar_data_structures::{Arena, ArenaExt, smallvec::SmallVec};
 use solar_interface::{Ident, Span, Symbol};
 use std::{cmp::Ordering, fmt};
-use stumpalo::Arena;
 
 /// A boxed [`PathSlice`].
 #[derive(Debug)]

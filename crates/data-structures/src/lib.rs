@@ -20,6 +20,7 @@ pub mod trustme;
 
 mod arena_ext;
 pub use arena_ext::ArenaExt;
+pub use stumpalo::Arena;
 
 mod collect;
 pub use collect::CollectAndApply;

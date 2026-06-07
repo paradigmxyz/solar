@@ -1,5 +1,5 @@
+use crate::Arena;
 use std::{alloc::Layout, fmt, mem::MaybeUninit};
-use stumpalo::Arena;
 
 // Modified from [`rustc_middle::ty::List`](https://github.com/rust-lang/rust/blob/a2db9280539229a3b8a084a09886670a57bc7e9c/compiler/rustc_middle/src/ty/list.rs#L15).
 

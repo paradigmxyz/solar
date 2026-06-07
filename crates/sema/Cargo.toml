@@ -28,7 +28,6 @@ paste.workspace = true
 strum.workspace = true
 
 alloy-primitives.workspace = true
-stumpalo.workspace = true
 either.workspace = true
 num-bigint.workspace = true
 num-traits.workspace = true

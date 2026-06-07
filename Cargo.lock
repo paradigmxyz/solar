@@ -2991,7 +2991,6 @@ dependencies = [
  "solar-interface",
  "solar-macros",
  "strum 0.28.0",
- "stumpalo",
 ]
 
 [[package]]
@@ -3136,7 +3135,6 @@ dependencies = [
  "solar-ast",
  "solar-data-structures",
  "solar-interface",
- "stumpalo",
  "tracing",
 ]
 
@@ -3163,7 +3161,6 @@ dependencies = [
  "solar-macros",
  "solar-parse",
  "strum 0.28.0",
- "stumpalo",
  "thread_local",
  "tracing",
 ]

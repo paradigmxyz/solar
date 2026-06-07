@@ -17,7 +17,6 @@ use std::ops::ControlFlow;
 pub use ::thread_local;
 pub use solar_ast as ast;
 pub use solar_interface as interface;
-pub use stumpalo;
 
 mod ast_lowering;
 mod ast_passes;
