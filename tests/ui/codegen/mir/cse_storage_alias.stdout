@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/codegen/mir/cse_storage_alias.mir (after cse) ===
+; module @CseStorageAlias
+fn @reuse_sload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = sload arg0
+    v4 = add arg0, 1
+    sstore v4, arg1
+    v6 = add v2, v2
+    ret v6
+}
+
+fn @keep_sload_after_aliasing_store(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = sload arg0
+    v4 = add arg0, 0
+    sstore v4, arg1
+    v5 = sload arg0
+    v6 = add v2, v5
+    ret v6
+}
+
+fn @reuse_tload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = tload arg0
+    v4 = add arg0, 1
+    tstore v4, arg1
+    v6 = add v2, v2
+    ret v6
+}
+

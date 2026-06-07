@@ -1,0 +1,19 @@
+// === ROOT/tests/ui/codegen/mir/cse_extended_ops.mir (after cse) ===
+; module @CseExtendedOps
+fn @extended_pure_ops(arg0: u256, arg1: u256, arg2: bool) -> (u256, u256, u256, u256, u256, bool) {
+  bb0 (entry):
+    v3 = sdiv arg0, arg1
+    v5 = smod arg0, arg1
+    v7 = sar arg1, arg0
+    v9 = signextend arg1, arg0
+    v12 = addmod arg0, arg1, 97
+    v15 = select arg2, arg0, arg1
+    ret v3, v5, v7, v9, v12, v15
+}
+
+fn @calldata_reads(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = calldataload arg0
+    ret v1
+}
+
