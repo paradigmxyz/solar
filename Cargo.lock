@@ -2529,6 +2529,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "readme-rustdocifier"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08ad765b21a08b1a8e5cdce052719188a23772bcbefb3c439f0baaf62c56ceac"
+
+[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2977,7 +2983,6 @@ name = "solar-ast"
 version = "0.1.8"
 dependencies = [
  "alloy-primitives",
- "bumpalo",
  "either",
  "num-rational",
  "semver 1.0.28",
@@ -2986,6 +2991,7 @@ dependencies = [
  "solar-interface",
  "solar-macros",
  "strum 0.28.0",
+ "stumpalo",
 ]
 
 [[package]]
@@ -3058,13 +3064,13 @@ dependencies = [
 name = "solar-data-structures"
 version = "0.1.8"
 dependencies = [
- "bumpalo",
  "indexmap",
  "oxc_index",
  "parking_lot",
  "rayon",
  "rustc-hash",
  "smallvec",
+ "stumpalo",
 ]
 
 [[package]]
@@ -3119,7 +3125,6 @@ version = "0.1.8"
 dependencies = [
  "alloy-primitives",
  "bitflags",
- "bumpalo",
  "itertools 0.14.0",
  "memchr",
  "num-bigint",
@@ -3131,6 +3136,7 @@ dependencies = [
  "solar-ast",
  "solar-data-structures",
  "solar-interface",
+ "stumpalo",
  "tracing",
 ]
 
@@ -3141,7 +3147,6 @@ dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
  "bitflags",
- "bumpalo",
  "derive_more",
  "either",
  "num-bigint",
@@ -3158,6 +3163,7 @@ dependencies = [
  "solar-macros",
  "solar-parse",
  "strum 0.28.0",
+ "stumpalo",
  "thread_local",
  "tracing",
 ]
@@ -3276,6 +3282,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "stumpalo"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ee6a64f7e12e0824208a467d8f5fb6907cdf7468dfde0df20b0f15eb49e032d"
+dependencies = [
+ "readme-rustdocifier",
 ]
 
 [[package]]

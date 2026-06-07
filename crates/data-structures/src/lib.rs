@@ -18,8 +18,8 @@ pub mod map;
 pub mod sync;
 pub mod trustme;
 
-mod bump_ext;
-pub use bump_ext::BumpExt;
+mod arena_ext;
+pub use arena_ext::ArenaExt;
 
 mod collect;
 pub use collect::CollectAndApply;
