@@ -1,0 +1,36 @@
+// === ROOT/tests/ui/codegen/mir/inst_simplify.mir (after inst-simplify) ===
+; module @InstSimplify
+fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = shl 5, arg0
+    v4 = shr 3, v2
+    v6 = and arg0, 15
+    v8 = mul arg0, arg0
+    v10 = add arg0, 4
+    v12 = add arg0, 32
+    v14 = and arg0, 255
+    v16 = and arg0, 15
+    v17 = add v4, v6
+    v18 = add v8, v12
+    v19 = add v17, v18
+    v20 = add v19, v16
+    ret v20
+}
+
+fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
+  bb0 (entry):
+    v6 = iszero arg0
+    v14 = iszero arg0
+    ret arg0, v6, arg1, arg0, v14
+}
+
+fn @remove_zero_length_copies(arg0: u256) -> u256 {
+  bb0 (entry):
+    ret arg0
+}
+
+fn @fold_modular_helpers(arg0: u256) -> u256 {
+  bb0 (entry):
+    ret 0
+}
+

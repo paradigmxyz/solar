@@ -1,0 +1,46 @@
+//@ignore-host: windows
+//@compile-flags: --pass inst-simplify
+; module @InstSimplify
+fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = mul arg0, 32
+    v2 = div v1, 8
+    v3 = mod arg0, 16
+    v4 = exp arg0, 2
+    v5 = add arg0, 4
+    v6 = add v5, 28
+    v7 = and arg0, 255
+    v8 = and v7, 15
+    v9 = add v2, v3
+    v10 = add v4, v6
+    v11 = add v9, v10
+    v12 = add v11, v8
+    ret v12
+}
+
+fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
+  bb0 (entry):
+    v3 = eq arg0, true
+    v4 = eq arg0, false
+    v5 = select true, arg1, arg2
+    v6 = select arg0, true, false
+    v7 = select arg0, false, true
+    ret v3, v4, v5, v6, v7
+}
+
+fn @remove_zero_length_copies(arg0: u256) -> u256 {
+  bb0 (entry):
+    mcopy 64, 96, 0
+    calldatacopy 128, 0, 0
+    codecopy 160, 0, 0
+    returndatacopy 192, 0, 0
+    ret arg0
+}
+
+fn @fold_modular_helpers(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = addmod arg0, 0, 0
+    v2 = mulmod arg0, 0, 97
+    v3 = add v1, v2
+    ret v3
+}
