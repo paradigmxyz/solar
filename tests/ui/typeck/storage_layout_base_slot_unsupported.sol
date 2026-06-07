@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/layout_specified_by_attached_library_function.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/string.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/hex_string.sol

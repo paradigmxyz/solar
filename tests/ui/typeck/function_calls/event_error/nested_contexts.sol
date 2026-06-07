@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract EventErrorNestedContexts {
     event MyEvent(uint a, bytes32 b);

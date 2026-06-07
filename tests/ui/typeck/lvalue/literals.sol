@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // TODO: `mismatched types` errors on integer literals are a current limitation of solar
 
 contract Test {

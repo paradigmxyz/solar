@@ -1,5 +1,5 @@
-//@ignore-host: windows
-//@compile-flags: --emit=abi,hashes --pretty-json
+//@ ignore-host: windows
+//@ compile-flags: --emit=abi,hashes --pretty-json
 
 // Abstract contracts don't emit constructors.
 abstract contract A {

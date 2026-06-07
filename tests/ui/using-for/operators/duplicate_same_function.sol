@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_same_function_same_directive.sol
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_same_function_separate_directives.sol
 

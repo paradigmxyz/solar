@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/semanticTests/using/free_functions_individual.sol
 // ported-from: test/libsolidity/semanticTests/using/free_function_multi.sol
 // ported-from: test/libsolidity/semanticTests/using/library_functions_inside_contract.sol

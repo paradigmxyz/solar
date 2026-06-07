@@ -44,21 +44,25 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 
     let tmp_dir = tempfile::tempdir()?;
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
-    for &mode in modes {
-        let cfg = MyConfig::<'static> { mode, tmp_dir };
-        let config = config(cmd, &args, mode);
+    let configs = modes.iter().copied().map(|mode| config(cmd, &args, mode)).collect();
 
-        let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
-        let gha_emitter = ui_test::status_emitter::Gha { name: mode.to_string(), group: true };
-        let status_emitter = (text_emitter, gha_emitter);
+    let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
+    let gha_name = if modes.len() == 1 { modes[0].to_string() } else { "ui-tests".to_string() };
+    let gha_emitter = ui_test::status_emitter::Gha { name: gha_name, group: true };
+    let status_emitter = (text_emitter, gha_emitter);
 
-        ui_test::run_tests_generic(
-            vec![config],
-            move |path, config| file_filter(path, config, cfg),
-            move |config, contents| per_file_config(config, contents, cfg),
-            status_emitter,
-        )?;
-    }
+    ui_test::run_tests_generic(
+        configs,
+        move |path, config| {
+            let cfg = MyConfig::<'static> { mode: mode_from_config(config), tmp_dir };
+            file_filter(path, config, cfg)
+        },
+        move |config, contents| {
+            let cfg = MyConfig::<'static> { mode: mode_from_config(config), tmp_dir };
+            per_file_config(config, contents, cfg)
+        },
+        status_emitter,
+    )?;
 
     Ok(())
 }
@@ -90,7 +94,7 @@ FileCheck "$2" < "$out"
 "#;
 
     let mut config = ui_test::Config {
-        // `host` and `target` are used for `//@ignore-...` comments.
+        // `host` and `target` are used for `//@ ignore-...` comments.
         host: Some(get_host().to_string()),
         target: None,
         root_dir: tests_root,
@@ -198,6 +202,18 @@ fn get_host() -> &'static str {
     })
 }
 
+fn mode_from_config(config: &ui_test::Config) -> Mode {
+    if config.program.program == Path::new("sh") {
+        Mode::StandardJson
+    } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
+        Mode::SolcYul
+    } else if config.root_dir.ends_with("testdata/solidity/test") {
+        Mode::SolcSolidity
+    } else {
+        Mode::Ui
+    }
+}
+
 fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
     match cfg.mode {
         Mode::StandardJson => {
@@ -236,16 +252,15 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
 
     assert_eq!(config.comment_start, "//");
     let has_annotations = src.contains("//~");
-    // TODO: https://github.com/oli-obk/ui_test/issues/341
-    let is_check_fail = src.contains("check-fail");
-    config.comment_defaults.base().require_annotations =
-        Spanned::dummy(is_check_fail || has_annotations).into();
-    let code = if is_check_fail || (has_annotations && src.contains("ERROR:")) { 1 } else { 0 };
+    config.comment_defaults.base().require_annotations = Spanned::dummy(has_annotations).into();
+    let code = if has_annotations && src.contains("ERROR:") { 1 } else { 0 };
     config.comment_defaults.base().exit_status = Spanned::dummy(code).into();
 
     if src.lines().any(|line| {
         let line = line.trim_start();
-        line.starts_with("//@compile-flags:") && (line.contains("-j") || line.contains("--threads"))
+        line.starts_with("//@")
+            && line.contains("compile-flags")
+            && (line.contains("-j") || line.contains("--threads"))
     }) {
         config.program.args.retain(|arg| arg != "-j1");
     }

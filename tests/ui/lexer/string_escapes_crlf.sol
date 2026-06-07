@@ -1,4 +1,4 @@
-//@ignore-host: windows
+//@ ignore-host: windows
 
 // Escaped - OK
 string constant s1 = "\
