@@ -1,48 +1,48 @@
 // === ROOT/tests/ui/codegen/multi_return.sol:MultiReturn ===
 ; module @MultiReturn
-fn @div_mod(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @div_mod(arg0: u256, arg1: u256) {
   bb0 (entry):
-    v4 = mstore 128, 0
-    v7 = mstore 160, 0
+    mstore 128, 0
+    mstore 160, 0
     v8 = div arg0, arg1
     v9 = mod arg0, arg1
-    v11 = mstore 128, v8
+    mstore 128, v8
     v13 = add 128, 32
-    v14 = mstore v13, v9
+    mstore v13, v9
     returndata 128, 64
 }
 
-fn @min_max(arg0: u256, arg1: u256) -> (u256, u256) {
+fn @min_max(arg0: u256, arg1: u256) {
   bb0 (entry):
-    v4 = mstore 128, 0
-    v7 = mstore 160, 0
+    mstore 128, 0
+    mstore 160, 0
     v8 = lt arg0, arg1
     br v8, bb1, bb2
   bb1:
-    v10 = mstore 128, arg0
+    mstore 128, arg0
     v12 = add 128, 32
-    v13 = mstore v12, arg1
+    mstore v12, arg1
     returndata 128, 64
   bb2:
-    v16 = mstore 128, arg1
+    mstore 128, arg1
     v18 = add 128, 32
-    v19 = mstore v18, arg0
+    mstore v18, arg0
     returndata 128, 64
 }
 
-fn @triple(arg0: u256) -> (u256, u256, u256) {
+fn @triple(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
-    v6 = mstore 160, 0
-    v9 = mstore 192, 0
+    mstore 128, 0
+    mstore 160, 0
+    mstore 192, 0
     v10 = add arg0, arg0
     v11 = add arg0, arg0
     v12 = add v11, arg0
-    v14 = mstore 128, arg0
+    mstore 128, arg0
     v16 = add 128, 32
-    v17 = mstore v16, v10
+    mstore v16, v10
     v19 = add 128, 64
-    v20 = mstore v19, v12
+    mstore v19, v12
     returndata 128, 96
 }
 

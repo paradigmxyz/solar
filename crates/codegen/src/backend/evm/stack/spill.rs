@@ -4,7 +4,7 @@
 //! via DUP16/SWAP16), we spill values to memory.
 
 use crate::mir::ValueId;
-use rustc_hash::{FxHashMap, FxHashSet};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// A slot in memory where a spilled value is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

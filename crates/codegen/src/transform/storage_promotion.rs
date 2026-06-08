@@ -10,6 +10,7 @@ use crate::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
         Terminator, Value, ValueId,
     },
+    pass::FunctionPass,
 };
 use alloy_primitives::U256;
 
@@ -30,6 +31,19 @@ pub struct StoragePromotionStats {
 #[derive(Debug, Default)]
 pub struct StorageScalarPromoter {
     stats: StoragePromotionStats,
+}
+
+/// Function pass for loop-carried storage scalar promotion.
+pub struct StorageScalarPromotionPass;
+
+impl FunctionPass for StorageScalarPromotionPass {
+    fn name(&self) -> &str {
+        "storage-promotion"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        StorageScalarPromoter::new().run(func);
+    }
 }
 
 #[derive(Clone, Debug)]

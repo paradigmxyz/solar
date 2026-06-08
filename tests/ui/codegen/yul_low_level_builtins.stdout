@@ -1,13 +1,13 @@
 // === ROOT/tests/ui/codegen/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
 ; module @YulLowLevelBuiltins
-fn @safeCall(arg0: address, arg1: bytes4) -> bool {
+fn @safeCall(arg0: address, arg1: bytes4) {
   bb0 (entry):
-    v4 = mstore 128, 0
+    mstore 128, 0
     v6 = mload 64
-    v8 = mstore 0, arg1
+    mstore 0, arg1
     v10 = gas
     v16 = call v10, arg0, 0, 0, 4, 0, 32
-    v18 = mstore 128, v16
+    mstore 128, v16
     v20 = mload 128
     v22 = mload 0
     v24 = eq v22, 1
@@ -18,7 +18,7 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool {
     br v29, bb1, bb2
   bb1:
     v31 = returndatasize
-    v32 = returndatacopy v6, 0, v31
+    returndatacopy v6, 0, v31
     v34 = returndatasize
     revert v6, v34
   bb2:
@@ -26,10 +26,10 @@ fn @safeCall(arg0: address, arg1: bytes4) -> bool {
     v38 = extcodesize arg0
     v40 = gt v38, 0
     v41 = and v37, v40
-    v43 = mstore 128, v41
-    v45 = mstore 64, v6
+    mstore 128, v41
+    mstore 64, v6
     v48 = mload 128
-    v50 = mstore 128, v48
+    mstore 128, v48
     returndata 128, 32
 }
 

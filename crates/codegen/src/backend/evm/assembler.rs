@@ -6,7 +6,7 @@
 //! - Variable-width PUSH sizing based on offset magnitudes
 
 use alloy_primitives::U256;
-use rustc_hash::FxHashMap;
+use solar_data_structures::map::FxHashMap;
 
 /// A label identifier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

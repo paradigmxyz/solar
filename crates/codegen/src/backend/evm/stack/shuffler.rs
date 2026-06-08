@@ -17,8 +17,8 @@
 
 use super::model::{MAX_STACK_ACCESS, StackModel, StackOp};
 use crate::mir::ValueId;
-use rustc_hash::FxHashMap;
 use smallvec::{SmallVec, ToSmallVec};
+use solar_data_structures::map::FxHashMap;
 
 /// Result of a shuffle operation.
 #[derive(Clone, Debug, Default)]

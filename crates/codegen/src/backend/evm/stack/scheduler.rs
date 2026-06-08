@@ -19,7 +19,7 @@ use crate::{
     analysis::Liveness,
     mir::{BlockId, Function, ValueId},
 };
-use rustc_hash::FxHashMap;
+use solar_data_structures::map::FxHashMap;
 
 /// Stack scheduler that generates stack manipulation operations.
 pub struct StackScheduler {

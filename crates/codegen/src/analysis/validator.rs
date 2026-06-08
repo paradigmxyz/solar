@@ -43,7 +43,7 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, Module, Value},
     pass::AnalysisPass,
 };
-use rustc_hash::FxHashMap;
+use solar_data_structures::map::FxHashMap;
 use std::fmt;
 
 /// One validation finding.
@@ -182,9 +182,7 @@ pub fn validate_function(func: &Function) -> Vec<ValidationError> {
             let inst = func.instruction(inst_id);
 
             // Operand range check.
-            let mut operands = Vec::new();
-            inst.kind.collect_operands(&mut operands);
-            for op in operands {
+            for op in inst.kind.operands() {
                 if op.index() >= num_values {
                     errors.push(ValidationError::at_inst(
                         format!(

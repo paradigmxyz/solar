@@ -14,12 +14,16 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
-use rustc_hash::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    Never,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::Ident;
 use solar_sema::{
-    hir::{self, ContractId, FunctionId as HirFunctionId, VariableId},
+    hir::{self, ContractId, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty},
 };
+use std::ops::ControlFlow;
 
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
@@ -1271,184 +1275,69 @@ fn collect_contract_bytecode_dependencies(
     deps: &mut FxHashSet<ContractId>,
 ) {
     let contract = gcx.hir.contract(contract_id);
+    let mut collector = BytecodeDependencyCollector { gcx, deps };
 
     for modifier in contract.linearized_bases_args.iter().flatten() {
-        collect_call_args_bytecode_dependencies(gcx, &modifier.args, deps);
+        let ControlFlow::Continue(()) = collector.visit_modifier(modifier);
     }
 
     for &base_id in contract.linearized_bases {
         let base = gcx.hir.contract(base_id);
 
         for var_id in base.variables() {
-            let var = gcx.hir.variable(var_id);
-            if let Some(init) = var.initializer {
-                collect_expr_bytecode_dependencies(gcx, init, deps);
-            }
+            let ControlFlow::Continue(()) = collector.visit_nested_var(var_id);
         }
 
         for func_id in base.all_functions() {
             let func = gcx.hir.function(func_id);
 
             for modifier in func.modifiers {
-                collect_call_args_bytecode_dependencies(gcx, &modifier.args, deps);
+                let ControlFlow::Continue(()) = collector.visit_modifier(modifier);
             }
 
             if let Some(body) = func.body {
-                collect_block_bytecode_dependencies(gcx, &body, deps);
+                for stmt in body.stmts {
+                    let ControlFlow::Continue(()) = collector.visit_stmt(stmt);
+                }
             }
         }
     }
 }
 
-fn collect_block_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    block: &hir::Block<'_>,
-    deps: &mut FxHashSet<ContractId>,
-) {
-    for stmt in block.stmts {
-        collect_stmt_bytecode_dependencies(gcx, stmt, deps);
-    }
+struct BytecodeDependencyCollector<'a, 'gcx> {
+    gcx: Gcx<'gcx>,
+    deps: &'a mut FxHashSet<ContractId>,
 }
 
-fn collect_stmt_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    stmt: &hir::Stmt<'_>,
-    deps: &mut FxHashSet<ContractId>,
-) {
-    match &stmt.kind {
-        hir::StmtKind::DeclSingle(var_id) => {
-            if let Some(init) = gcx.hir.variable(*var_id).initializer {
-                collect_expr_bytecode_dependencies(gcx, init, deps);
-            }
-        }
-        hir::StmtKind::DeclMulti(_, init)
-        | hir::StmtKind::Emit(init)
-        | hir::StmtKind::Revert(init)
-        | hir::StmtKind::Expr(init) => collect_expr_bytecode_dependencies(gcx, init, deps),
-        hir::StmtKind::Return(Some(expr)) => collect_expr_bytecode_dependencies(gcx, expr, deps),
-        hir::StmtKind::Block(block)
-        | hir::StmtKind::UncheckedBlock(block)
-        | hir::StmtKind::AssemblyBlock(block)
-        | hir::StmtKind::Loop(block, _) => collect_block_bytecode_dependencies(gcx, block, deps),
-        hir::StmtKind::If(cond, then_stmt, else_stmt) => {
-            collect_expr_bytecode_dependencies(gcx, cond, deps);
-            collect_stmt_bytecode_dependencies(gcx, then_stmt, deps);
-            if let Some(else_stmt) = else_stmt {
-                collect_stmt_bytecode_dependencies(gcx, else_stmt, deps);
-            }
-        }
-        hir::StmtKind::Switch(switch) => {
-            collect_expr_bytecode_dependencies(gcx, switch.selector, deps);
-            for case in switch.cases {
-                collect_block_bytecode_dependencies(gcx, &case.body, deps);
-            }
-        }
-        hir::StmtKind::Try(try_stmt) => {
-            collect_expr_bytecode_dependencies(gcx, &try_stmt.expr, deps);
-            for clause in try_stmt.clauses {
-                collect_block_bytecode_dependencies(gcx, &clause.block, deps);
-            }
-        }
-        hir::StmtKind::Return(None)
-        | hir::StmtKind::Break
-        | hir::StmtKind::Continue
-        | hir::StmtKind::Placeholder
-        | hir::StmtKind::Err(_) => {}
-    }
-}
-
-fn collect_call_args_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    args: &hir::CallArgs<'_>,
-    deps: &mut FxHashSet<ContractId>,
-) {
-    for arg in args.exprs() {
-        collect_expr_bytecode_dependencies(gcx, arg, deps);
-    }
-}
-
-fn collect_call_options_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    opts: Option<&hir::CallOptions<'_>>,
-    deps: &mut FxHashSet<ContractId>,
-) {
-    if let Some(opts) = opts {
-        for arg in opts.args {
-            collect_expr_bytecode_dependencies(gcx, &arg.value, deps);
+impl<'a, 'gcx> BytecodeDependencyCollector<'a, 'gcx> {
+    fn collect_type(&mut self, ty: &hir::Type<'gcx>) {
+        if let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = &ty.kind {
+            self.deps.insert(*contract_id);
         }
     }
 }
 
-fn collect_type_bytecode_dependency(ty: &hir::Type<'_>, deps: &mut FxHashSet<ContractId>) {
-    if let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = &ty.kind {
-        deps.insert(*contract_id);
-    }
-}
+impl<'gcx> Visit<'gcx> for BytecodeDependencyCollector<'_, 'gcx> {
+    type BreakValue = Never;
 
-fn collect_expr_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    expr: &hir::Expr<'_>,
-    deps: &mut FxHashSet<ContractId>,
-) {
-    match &expr.kind {
-        hir::ExprKind::Call(callee, args, opts) => {
-            collect_expr_bytecode_dependencies(gcx, callee, deps);
-            collect_call_args_bytecode_dependencies(gcx, args, deps);
-            collect_call_options_bytecode_dependencies(gcx, *opts, deps);
-        }
-        hir::ExprKind::Member(base, member)
-            if matches!(member.name.as_str(), "creationCode" | "runtimeCode") =>
-        {
-            if let hir::ExprKind::TypeCall(ty) = &base.kind {
-                collect_type_bytecode_dependency(ty, deps);
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        match &expr.kind {
+            hir::ExprKind::New(ty) => self.collect_type(ty),
+            hir::ExprKind::Member(base, member)
+                if matches!(member.name.as_str(), "creationCode" | "runtimeCode") =>
+            {
+                if let hir::ExprKind::TypeCall(ty) = &base.kind {
+                    self.collect_type(ty);
+                }
             }
-            collect_expr_bytecode_dependencies(gcx, base, deps);
+            _ => {}
         }
-        hir::ExprKind::New(ty) => collect_type_bytecode_dependency(ty, deps),
-        hir::ExprKind::Assign(lhs, _, rhs) | hir::ExprKind::Binary(lhs, _, rhs) => {
-            collect_expr_bytecode_dependencies(gcx, lhs, deps);
-            collect_expr_bytecode_dependencies(gcx, rhs, deps);
-        }
-        hir::ExprKind::Unary(_, expr)
-        | hir::ExprKind::Delete(expr)
-        | hir::ExprKind::Member(expr, _)
-        | hir::ExprKind::YulMember(expr, _)
-        | hir::ExprKind::Payable(expr) => collect_expr_bytecode_dependencies(gcx, expr, deps),
-        hir::ExprKind::Ternary(cond, then_expr, else_expr) => {
-            collect_expr_bytecode_dependencies(gcx, cond, deps);
-            collect_expr_bytecode_dependencies(gcx, then_expr, deps);
-            collect_expr_bytecode_dependencies(gcx, else_expr, deps);
-        }
-        hir::ExprKind::Index(base, index) => {
-            collect_expr_bytecode_dependencies(gcx, base, deps);
-            if let Some(index) = index {
-                collect_expr_bytecode_dependencies(gcx, index, deps);
-            }
-        }
-        hir::ExprKind::Slice(base, start, end) => {
-            collect_expr_bytecode_dependencies(gcx, base, deps);
-            if let Some(start) = start {
-                collect_expr_bytecode_dependencies(gcx, start, deps);
-            }
-            if let Some(end) = end {
-                collect_expr_bytecode_dependencies(gcx, end, deps);
-            }
-        }
-        hir::ExprKind::Array(exprs) => {
-            for expr in *exprs {
-                collect_expr_bytecode_dependencies(gcx, expr, deps);
-            }
-        }
-        hir::ExprKind::Tuple(exprs) => {
-            for expr in exprs.iter().flatten() {
-                collect_expr_bytecode_dependencies(gcx, expr, deps);
-            }
-        }
-        hir::ExprKind::TypeCall(_)
-        | hir::ExprKind::Type(_)
-        | hir::ExprKind::Lit(_)
-        | hir::ExprKind::Ident(_)
-        | hir::ExprKind::Err(_) => {}
+
+        self.walk_expr(expr)
     }
 }
 

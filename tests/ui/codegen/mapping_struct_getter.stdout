@@ -2,28 +2,28 @@
 ; module @C
 fn @constructor() {
   bb0 (entry):
-    v2 = sstore 0, 1
+    sstore 0, 1
     stop
 }
 
-fn @items(arg0: u256) -> (address, u256, address) {
+fn @items(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
-    v6 = mstore 160, 0
-    v9 = mstore 192, 0
-    v12 = mstore 0, arg0
-    v14 = mstore 32, 1
+    mstore 128, 0
+    mstore 160, 0
+    mstore 192, 0
+    mstore 0, arg0
+    mstore 32, 1
     v16 = keccak256 0, 64
     v17 = sload v16
     v19 = add v16, 1
     v20 = sload v19
     v22 = add v16, 2
     v23 = sload v22
-    v25 = mstore 128, v17
+    mstore 128, v17
     v27 = add 128, 32
-    v28 = mstore v27, v20
+    mstore v27, v20
     v30 = add 128, 64
-    v31 = mstore v30, v23
+    mstore v30, v23
     returndata 128, 96
 }
 

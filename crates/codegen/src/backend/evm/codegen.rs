@@ -17,7 +17,7 @@ use crate::{
     pass::{AnalysisManager, LivenessAnalysis, run_default_pipeline},
 };
 use alloy_primitives::U256;
-use rustc_hash::{FxHashMap, FxHashSet};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
 // 0x80 is used as the static ABI return buffer. Keep the internal-call frame

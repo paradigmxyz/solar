@@ -5,15 +5,31 @@
 //! conservative: it only applies identities that are exact for EVM word
 //! semantics.
 
-use crate::mir::{Function, Immediate, InstId, InstKind, Terminator, Value, ValueId};
+use crate::{
+    mir::{Function, Immediate, InstId, InstKind, Terminator, Value, ValueId},
+    pass::FunctionPass,
+};
 use alloy_primitives::U256;
-use rustc_hash::{FxHashMap, FxHashSet};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Local MIR instruction simplification pass.
 #[derive(Debug, Default)]
 pub struct InstSimplifier {
     /// Number of instructions simplified in the last run.
     pub simplified_count: usize,
+}
+
+/// Function pass for local instruction simplification.
+pub struct InstSimplifyPass;
+
+impl FunctionPass for InstSimplifyPass {
+    fn name(&self) -> &str {
+        "inst-simplify"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        InstSimplifier::new().run_to_fixpoint(func);
+    }
 }
 
 impl InstSimplifier {

@@ -14,8 +14,11 @@
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
 
-use crate::mir::{BlockId, Function, FunctionId, InstKind, Module, Terminator, Value, ValueId};
-use rustc_hash::{FxHashMap, FxHashSet};
+use crate::{
+    mir::{BlockId, Function, FunctionId, InstKind, Module, Terminator, Value, ValueId},
+    pass::{FunctionPass, Pass},
+};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
 /// Statistics from CFG simplification.
@@ -52,6 +55,19 @@ impl CfgSimplifyStats {
 pub struct CfgSimplifier {
     /// Statistics from the last run.
     pub stats: CfgSimplifyStats,
+}
+
+/// Function pass for CFG simplification.
+pub struct CfgSimplifyPass;
+
+impl FunctionPass for CfgSimplifyPass {
+    fn name(&self) -> &str {
+        "cfg-simplify"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        CfgSimplifier::new().run_to_fixpoint(func);
+    }
 }
 
 impl CfgSimplifier {
@@ -528,6 +544,19 @@ impl CfgSimplifier {
 pub struct DeadFunctionEliminator {
     /// Statistics from the last run.
     pub stats: CfgSimplifyStats,
+}
+
+/// Module pass for dead internal function elimination.
+pub struct FunctionDcePass;
+
+impl Pass for FunctionDcePass {
+    fn name(&self) -> &str {
+        "function-dce"
+    }
+
+    fn run(&mut self, module: &mut Module) {
+        DeadFunctionEliminator::new().run(module);
+    }
 }
 
 impl DeadFunctionEliminator {

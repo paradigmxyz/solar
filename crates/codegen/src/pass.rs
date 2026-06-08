@@ -3,8 +3,8 @@
 //! Inspired by LLVM/MLIR pass infrastructure:
 //! - **Analysis passes** ([`AnalysisPass`]) are read-only and produce a cached result. They take
 //!   `&Function` and store their result in [`AnalysisManager`].
-//! - **Transformation passes** ([`TransformPass`]) modify the IR. They take `&mut Function` and
-//!   should invalidate cached analyses.
+//! - **Passes** ([`Pass`]) modify the IR at module scope. Function-local passes can implement
+//!   [`FunctionPass`] and are automatically applied to each function.
 //!
 //! # Usage
 //!
@@ -15,15 +15,19 @@
 //!
 //! // Transform pipeline:
 //! let mut pm = PassManager::new();
-//! pm.add_transform(Box::new(DcePass));
-//! pm.run(&mut func);
+//! pm.add_pass(Box::new(DcePass));
+//! pm.run(&mut module);
 //! ```
 
 use crate::{
     mir::{Function, Module},
-    transform::{DeadFunctionEliminator, MirInliner},
+    transform::{
+        CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, FunctionDcePass, InlinePass,
+        InstSimplifyPass, JumpThreadingPass, LicmPass, MemoryDsePass, SccpTransformPass,
+        StorageLoadCsePass, StorageScalarPromotionPass,
+    },
 };
-use rustc_hash::FxHashMap;
+use solar_data_structures::map::FxHashMap;
 use std::any::{Any, TypeId};
 
 /// A named MIR pass that can be used by the default codegen pipeline or `solar mir-opt`.
@@ -153,22 +157,9 @@ pub const DEFAULT_PIPELINE: &[PassName] = &[
 
 /// Runs a named MIR pass over a module.
 pub fn run_pass(module: &mut Module, pass: PassName) {
-    match pass {
-        PassName::Inline => {
-            MirInliner::default().run(module);
-        }
-        PassName::FunctionDce => {
-            DeadFunctionEliminator::new().run(module);
-        }
-        pass => {
-            let Some(transform) = make_transform_pass(pass) else { return };
-            let mut pm = PassManager::new();
-            pm.add_transform(transform);
-            for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
-                pm.run(func);
-            }
-        }
-    }
+    let mut pm = PassManager::new();
+    pm.add_pass(make_pass(pass));
+    pm.run(module);
 }
 
 /// Runs a named MIR pass pipeline over a module.
@@ -183,9 +174,10 @@ pub fn run_default_pipeline(module: &mut Module) {
     run_pipeline(module, DEFAULT_PIPELINE);
 }
 
-fn make_transform_pass(pass: PassName) -> Option<Box<dyn TransformPass>> {
-    Some(match pass {
-        PassName::Inline | PassName::FunctionDce => return None,
+fn make_pass(pass: PassName) -> Box<dyn Pass> {
+    match pass {
+        PassName::Inline => Box::new(InlinePass),
+        PassName::FunctionDce => Box::new(FunctionDcePass),
         PassName::Sccp => Box::new(SccpTransformPass),
         PassName::InstSimplify => Box::new(InstSimplifyPass),
         PassName::Cse => Box::new(CsePass),
@@ -197,7 +189,7 @@ fn make_transform_pass(pass: PassName) -> Option<Box<dyn TransformPass>> {
         PassName::FrameSlotPromotion => Box::new(FrameSlotPromotionPass),
         PassName::MemoryDse => Box::new(MemoryDsePass),
         PassName::Dce => Box::new(DcePass),
-    })
+    }
 }
 
 /// A key identifying a particular analysis, derived from its result type.
@@ -226,16 +218,37 @@ pub trait AnalysisPass {
     fn run(&self, func: &Function) -> Self::Result;
 }
 
-/// A transformation pass that mutates a function.
+/// A transformation pass that mutates a MIR module.
 ///
-/// Transformation passes should call [`AnalysisManager::invalidate_all`]
-/// after modifying the IR (or the [`PassManager`] does this automatically).
-pub trait TransformPass {
-    /// The name of this transform, for debugging and logging.
+/// Module-level passes can inspect or transform more than one function. Function-local passes
+/// should implement [`FunctionPass`] instead and use the blanket [`Pass`] implementation.
+pub trait Pass {
+    /// The name of this pass, for debugging and logging.
+    fn name(&self) -> &str;
+
+    /// Runs the transformation on the given module.
+    fn run(&mut self, module: &mut Module);
+}
+
+/// A transformation pass that mutates one function at a time.
+pub trait FunctionPass {
+    /// The name of this pass, for debugging and logging.
     fn name(&self) -> &str;
 
     /// Runs the transformation on the given function.
-    fn run(&mut self, func: &mut Function);
+    fn run_on_function(&mut self, func: &mut Function);
+}
+
+impl<T: FunctionPass> Pass for T {
+    fn name(&self) -> &str {
+        FunctionPass::name(self)
+    }
+
+    fn run(&mut self, module: &mut Module) {
+        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+            self.run_on_function(func);
+        }
+    }
 }
 
 /// Manages cached analysis results for a function.
@@ -289,12 +302,12 @@ impl AnalysisManager {
     }
 }
 
-/// Orchestrates execution of [`TransformPass`]es on a function.
+/// Orchestrates execution of [`Pass`]es on a module.
 ///
 /// Each transform automatically invalidates all cached analyses after running.
 #[derive(Default)]
 pub struct PassManager {
-    passes: Vec<Box<dyn TransformPass>>,
+    passes: Vec<Box<dyn Pass>>,
 }
 
 impl PassManager {
@@ -304,26 +317,21 @@ impl PassManager {
     }
 
     /// Adds a transformation pass to the pipeline.
-    pub fn add_transform(&mut self, pass: Box<dyn TransformPass>) {
+    pub fn add_pass(&mut self, pass: Box<dyn Pass>) {
         self.passes.push(pass);
     }
 
-    /// Runs all transforms in order on the given function.
+    /// Runs all transforms in order on the given module.
     /// Returns an [`AnalysisManager`] (empty after transforms invalidate everything).
-    pub fn run(&mut self, func: &mut Function) -> AnalysisManager {
+    pub fn run(&mut self, module: &mut Module) -> AnalysisManager {
         let mut am = AnalysisManager::new();
         for pass in &mut self.passes {
-            if func.blocks.is_empty() {
-                break;
-            }
-            pass.run(func);
+            pass.run(module);
             am.invalidate_all();
         }
         am
     }
 }
-
-// === Concrete pass adapters ===
 
 /// Liveness analysis pass.
 pub struct LivenessAnalysis;
@@ -337,188 +345,5 @@ impl AnalysisPass for LivenessAnalysis {
 
     fn run(&self, func: &Function) -> Self::Result {
         crate::analysis::Liveness::compute(func)
-    }
-}
-
-/// Dead code elimination transform.
-///
-/// Iterates `DeadCodeEliminator` to a fixed point internally so a single
-/// `run` invocation removes all dead code reachable from the entry block.
-pub struct DcePass;
-
-impl TransformPass for DcePass {
-    fn name(&self) -> &str {
-        "dce"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::DeadCodeEliminator::new().run_to_fixpoint(func);
-        crate::transform::repair_reachability_phis(func);
-    }
-}
-
-/// CFG simplification transform.
-///
-/// Iterates `CfgSimplifier` to a fixed point so chained simplifications
-/// (e.g., merging blocks made empty by previous merges) all happen.
-pub struct CfgSimplifyPass;
-
-impl TransformPass for CfgSimplifyPass {
-    fn name(&self) -> &str {
-        "cfg-simplify"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::CfgSimplifier::new().run_to_fixpoint(func);
-    }
-}
-
-/// Jump threading transform.
-///
-/// Eliminates redundant unconditional jumps by threading control flow
-/// through forwarder blocks. Iterates to a fixed point.
-pub struct JumpThreadingPass;
-
-impl TransformPass for JumpThreadingPass {
-    fn name(&self) -> &str {
-        "jump-threading"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::JumpThreader::new().run_to_fixpoint(func);
-    }
-}
-
-/// Sparse Conditional Constant Propagation transform.
-///
-/// Propagates constants through the CFG using SSA def-use chains,
-/// evaluates branch conditions to discover unreachable paths, and
-/// folds phi nodes when all executable incoming values agree.
-pub struct SccpTransformPass;
-
-impl TransformPass for SccpTransformPass {
-    fn name(&self) -> &str {
-        "sccp"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::SccpPass::new().run(func);
-        crate::transform::repair_reachability_phis(func);
-    }
-}
-
-/// Local instruction simplification transform.
-///
-/// Removes exact algebraic no-ops and rewrites equivalent EVM instruction
-/// patterns before local CSE and stack scheduling.
-pub struct InstSimplifyPass;
-
-impl TransformPass for InstSimplifyPass {
-    fn name(&self) -> &str {
-        "inst-simplify"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::InstSimplifier::new().run_to_fixpoint(func);
-    }
-}
-
-/// Common subexpression elimination transform.
-///
-/// Eliminates redundant computations within each basic block (local CSE).
-/// Handles commutative normalization and SLOAD caching (invalidated by SSTORE).
-/// Iterates to a fixed point.
-pub struct CsePass;
-
-impl TransformPass for CsePass {
-    fn name(&self) -> &str {
-        "cse"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::CommonSubexprEliminator::new().run_to_fixpoint(func);
-    }
-}
-
-/// Storage-load CSE transform.
-///
-/// Reuses `sload` results across definitely-disjoint storage stores on
-/// straight-line paths.
-pub struct StorageLoadCsePass;
-
-impl TransformPass for StorageLoadCsePass {
-    fn name(&self) -> &str {
-        "storage-load-cse"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::StorageLoadCse::new().run_to_fixpoint(func);
-    }
-}
-
-/// Local dead memory-store elimination transform.
-///
-/// Removes full-word memory stores that are overwritten in the same block
-/// before memory, gas, or calls can observe them.
-pub struct MemoryDsePass;
-
-impl TransformPass for MemoryDsePass {
-    fn name(&self) -> &str {
-        "memory-dse"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::MemoryStoreEliminator::new().run_to_fixpoint(func);
-    }
-}
-
-/// Internal-frame scalar promotion transform.
-///
-/// Promotes non-escaping full-word internal-frame slots to SSA values and
-/// inserts phi nodes at loop headers/joins as needed.
-pub struct FrameSlotPromotionPass;
-
-impl TransformPass for FrameSlotPromotionPass {
-    fn name(&self) -> &str {
-        "frame-slot-promotion"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::FrameSlotPromoter::new().run(func);
-        crate::transform::repair_reachability_phis(func);
-    }
-}
-
-/// Loop-carried storage scalar promotion transform.
-///
-/// Rewrites simple storage update loops so the loop updates a memory-backed
-/// scalar and stores the final value once on clean loop exits.
-pub struct StorageScalarPromotionPass;
-
-impl TransformPass for StorageScalarPromotionPass {
-    fn name(&self) -> &str {
-        PassName::StoragePromotion.as_str()
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::StorageScalarPromoter::new().run(func);
-    }
-}
-
-/// Loop-invariant code motion transform.
-pub struct LicmPass;
-
-impl TransformPass for LicmPass {
-    fn name(&self) -> &str {
-        "licm"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        let config = crate::transform::LoopOptConfig {
-            enable_licm: true,
-            min_licm_profit: 3,
-            max_licm_hoisted_insts: 4,
-        };
-        crate::transform::LoopOptimizer::new(config).optimize(func);
     }
 }

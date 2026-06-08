@@ -1,9 +1,9 @@
 // === ROOT/tests/ui/codegen/while_loop.sol:WhileLoop ===
 ; module @WhileLoop
-fn @count_down(arg0: u256) -> u256 {
+fn @count_down(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
-    v5 = mstore 160, arg0
+    mstore 128, 0
+    mstore 160, arg0
     jump bb1
   bb1:
     v7 = mload 160
@@ -11,12 +11,12 @@ fn @count_down(arg0: u256) -> u256 {
     br v9, bb3, bb5
   bb2:
     v17 = mload 160
-    v19 = mstore 128, v17
+    mstore 128, v17
     returndata 128, 32
   bb3:
     v11 = mload 160
     v13 = sub v11, 1
-    v15 = mstore 160, v13
+    mstore 160, v13
     jump bb4
   bb4:
     jump bb1
@@ -24,21 +24,21 @@ fn @count_down(arg0: u256) -> u256 {
     jump bb2
 }
 
-fn @do_at_least_once(arg0: u256) -> u256 {
+fn @do_at_least_once(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
-    v6 = mstore 160, 0
+    mstore 128, 0
+    mstore 160, 0
     jump bb1
   bb1:
     v8 = mload 160
     v10 = add v8, 1
-    v12 = mstore 160, v10
+    mstore 160, v10
     v14 = mload 160
     v15 = lt v14, arg0
     br v15, bb3, bb5
   bb2:
     v17 = mload 160
-    v19 = mstore 128, v17
+    mstore 128, v17
     returndata 128, 32
   bb3:
     jump bb1
@@ -48,10 +48,10 @@ fn @do_at_least_once(arg0: u256) -> u256 {
     jump bb2
 }
 
-fn @break_when_found(arg0: u256, arg1: u256) -> u256 {
+fn @break_when_found(arg0: u256, arg1: u256) {
   bb0 (entry):
-    v4 = mstore 128, 0
-    v7 = mstore 160, 0
+    mstore 128, 0
+    mstore 160, 0
     jump bb1
   bb1:
     v9 = mload 160
@@ -59,7 +59,7 @@ fn @break_when_found(arg0: u256, arg1: u256) -> u256 {
     br v10, bb3, bb5
   bb2:
     v21 = mload 160
-    v23 = mstore 128, v21
+    mstore 128, v21
     returndata 128, 32
   bb3:
     v12 = mload 160
@@ -74,7 +74,7 @@ fn @break_when_found(arg0: u256, arg1: u256) -> u256 {
   bb7:
     v15 = mload 160
     v17 = add v15, 1
-    v19 = mstore 160, v17
+    mstore 160, v17
     jump bb4
 }
 

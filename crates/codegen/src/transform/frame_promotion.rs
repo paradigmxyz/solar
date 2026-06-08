@@ -7,10 +7,12 @@
 //! function has no calls or gas/memory-size observations that could make removing
 //! frame memory traffic observable.
 
-use crate::mir::{
-    BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId,
+use crate::{
+    mir::{BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId},
+    pass::FunctionPass,
+    transform::repair_reachability_phis,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
 /// Statistics for one frame promotion run.
@@ -37,6 +39,20 @@ impl FramePromotionStats {
 #[derive(Debug, Default)]
 pub struct FrameSlotPromoter {
     stats: FramePromotionStats,
+}
+
+/// Function pass for internal-frame scalar promotion.
+pub struct FrameSlotPromotionPass;
+
+impl FunctionPass for FrameSlotPromotionPass {
+    fn name(&self) -> &str {
+        "frame-slot-promotion"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        FrameSlotPromoter::new().run(func);
+        repair_reachability_phis(func);
+    }
 }
 
 #[derive(Clone, Debug)]

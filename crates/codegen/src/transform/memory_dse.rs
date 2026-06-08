@@ -6,14 +6,30 @@
 //! same-block `mload` instructions from the latest exact-address `mstore` when
 //! no intervening operation can mutate memory.
 
-use crate::mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId};
-use rustc_hash::{FxHashMap, FxHashSet};
+use crate::{
+    mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
+    pass::FunctionPass,
+};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Local dead memory optimization pass.
 #[derive(Debug, Default)]
 pub struct MemoryStoreEliminator {
     /// Number of memory instructions eliminated.
     pub eliminated_count: usize,
+}
+
+/// Function pass for local dead memory-store elimination.
+pub struct MemoryDsePass;
+
+impl FunctionPass for MemoryDsePass {
+    fn name(&self) -> &str {
+        "memory-dse"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        MemoryStoreEliminator::new().run_to_fixpoint(func);
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

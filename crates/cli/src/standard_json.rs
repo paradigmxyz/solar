@@ -1,12 +1,12 @@
 use indexmap::IndexMap;
-use rustc_hash::{FxBuildHasher, FxHashSet};
 use serde::{
     Deserialize, Serialize,
     de::{self, Visitor},
 };
 use serde_json::{Map, Value, json};
-use solar_codegen::{EvmCodegen, FxHashMap, lower};
+use solar_codegen::{EvmCodegen, lower};
 use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
+use solar_data_structures::map::{FxBuildHasher, FxHashMap, FxHashSet};
 use solar_interface::{
     Result, SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},

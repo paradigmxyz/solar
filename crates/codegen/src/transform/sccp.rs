@@ -14,9 +14,13 @@
 //! After reaching a fixed point, the rewrite phase replaces constant values
 //! with immediates and rewrites branches with known-constant conditions.
 
-use crate::mir::{BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId};
+use crate::{
+    mir::{BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId},
+    pass::FunctionPass,
+    transform::repair_reachability_phis,
+};
 use alloy_primitives::U256;
-use rustc_hash::{FxHashMap, FxHashSet};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
 /// Lattice element for a single SSA value.
@@ -62,6 +66,20 @@ pub struct SccpStats {
 pub struct SccpPass {
     /// Statistics from the last run.
     pub stats: SccpStats,
+}
+
+/// Function pass adapter for sparse conditional constant propagation.
+pub struct SccpTransformPass;
+
+impl FunctionPass for SccpTransformPass {
+    fn name(&self) -> &str {
+        "sccp"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        SccpPass::new().run(func);
+        repair_reachability_phis(func);
+    }
 }
 
 impl SccpPass {
@@ -519,8 +537,7 @@ impl SccpPass {
             }
             for &inst_id in &block.instructions {
                 let inst = &func.instructions[inst_id];
-                let mut operands = Vec::new();
-                inst.kind.collect_operands(&mut operands);
+                let operands = inst.kind.operands();
                 if operands.contains(&vid)
                     && let Some(&result_vid) = inst_to_value.get(&inst_id)
                 {

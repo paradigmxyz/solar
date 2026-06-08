@@ -10,7 +10,7 @@
 extern crate derive_more as _;
 extern crate tracing as _;
 
-pub use rustc_hash::FxHashMap;
+pub use solar_data_structures::map::FxHashMap;
 pub use solar_sema as sema;
 
 /// Constructor scratch memory used to stage immutable words before appending

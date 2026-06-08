@@ -24,9 +24,10 @@ use crate::{
         BlockId, Function, FunctionId as MirFunctionId, InstId, InstKind, Instruction, MirType,
         Module, Terminator, Value, ValueId,
     },
+    pass::Pass,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::hir::{self, FunctionId, StmtKind};
 
 /// Optimization level for the compiler.
@@ -642,6 +643,19 @@ struct MirInlineSummary {
 /// not overlap caller locals.
 pub struct MirInliner {
     config: MirInlineConfig,
+}
+
+/// Module pass for metadata-backed MIR inlining.
+pub struct InlinePass;
+
+impl Pass for InlinePass {
+    fn name(&self) -> &str {
+        "inline"
+    }
+
+    fn run(&mut self, module: &mut Module) {
+        MirInliner::default().run(module);
+    }
 }
 
 impl Default for MirInliner {

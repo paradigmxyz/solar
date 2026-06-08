@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/internal_void_call.sol:InternalVoidCall ===
 ; module @InternalVoidCall
-fn @value() -> u256 {
+fn @value() {
   bb0 (entry):
-    v2 = mstore 128, 0
+    mstore 128, 0
     v4 = sload 0
-    v6 = mstore 128, v4
+    mstore 128, v4
     returndata 128, 32
 }
 
@@ -14,7 +14,7 @@ fn @set(arg0: u256) {
     v3 = iszero v2
     br v3, bb1, bb2
   bb1:
-    v5 = sstore 0, arg0
+    sstore 0, arg0
     jump bb2
   bb2:
     stop
@@ -27,7 +27,7 @@ fn @setUnlessZero(arg0: u256) {
   bb1:
     stop
   bb2:
-    v4 = sstore 0, arg0
+    sstore 0, arg0
     stop
 }
 
@@ -37,7 +37,7 @@ fn @writeIfNonZero(arg0: u256) {
     v3 = iszero v2
     br v3, bb1, bb2
   bb1:
-    v5 = sstore 0, arg0
+    sstore 0, arg0
     jump bb2
   bb2:
     stop

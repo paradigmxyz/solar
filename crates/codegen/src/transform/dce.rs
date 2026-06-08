@@ -2,8 +2,12 @@
 //!
 //! This pass removes MIR instructions whose results are never used and have no side effects.
 
-use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
-use rustc_hash::{FxHashMap, FxHashSet};
+use crate::{
+    mir::{BlockId, Function, InstId, Terminator, Value, ValueId},
+    pass::FunctionPass,
+    transform::repair_reachability_phis,
+};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
 /// Dead Code Elimination pass.
@@ -34,6 +38,20 @@ pub struct DceStats {
     pub unreachable_blocks: usize,
     /// Unused function parameters detected.
     pub unused_parameters: usize,
+}
+
+/// Function pass for dead code elimination.
+pub struct DcePass;
+
+impl FunctionPass for DcePass {
+    fn name(&self) -> &str {
+        "dce"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        DeadCodeEliminator::new().run_to_fixpoint(func);
+        repair_reachability_phis(func);
+    }
 }
 
 impl DceStats {

@@ -14,7 +14,8 @@
 //! defined at the **entry** of the merge block.
 
 use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
-use rustc_hash::FxHashMap;
+use smallvec::SmallVec;
+use solar_data_structures::map::FxHashMap;
 use std::collections::VecDeque;
 
 /// A dense bitset for tracking live values.
@@ -188,7 +189,7 @@ impl Liveness {
         let mut block_uses: Vec<LiveSet> =
             (0..num_blocks).map(|_| LiveSet::with_capacity(num_values)).collect();
 
-        let mut operand_buf = Vec::new();
+        let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             let bidx = block_id.index();
@@ -369,7 +370,7 @@ impl Liveness {
 
         // Process terminator (add its uses — they must be live before the terminator)
         if let Some(term) = &block.terminator {
-            let mut term_uses = Vec::new();
+            let mut term_uses = SmallVec::<[ValueId; 8]>::new();
             collect_terminator_uses(term, &mut term_uses);
             for operand in term_uses {
                 live.insert(operand);
@@ -377,7 +378,7 @@ impl Liveness {
         }
 
         // Process instructions in reverse order from end to inst_idx
-        let mut operand_buf = Vec::new();
+        let mut operand_buf = SmallVec::<[ValueId; 8]>::new();
         let mut live_after = None;
 
         for (idx, &inst_id) in block.instructions.iter().enumerate().rev() {
@@ -440,7 +441,7 @@ impl Liveness {
 }
 
 /// Collects all value uses from a terminator.
-fn collect_terminator_uses(term: &Terminator, out: &mut Vec<ValueId>) {
+fn collect_terminator_uses(term: &Terminator, out: &mut SmallVec<[ValueId; 8]>) {
     match term {
         Terminator::Jump(_) => {}
         Terminator::Branch { condition, .. } => {
@@ -996,7 +997,7 @@ mod tests {
         let liveness = Liveness::compute(&func);
 
         // Rebuild the map the slow way and compare.
-        use rustc_hash::FxHashMap;
+        use solar_data_structures::map::FxHashMap;
         let mut expected: FxHashMap<crate::mir::InstId, ValueId> = FxHashMap::default();
         for (val_id, val) in func.values.iter_enumerated() {
             if let crate::mir::Value::Inst(inst_id) = val {

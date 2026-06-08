@@ -9,7 +9,8 @@
 //! It is an unstable, internal tool used by the `Mir` test mode; it is not part
 //! of the stable CLI surface.
 
-use clap::{CommandFactory, FromArgMatches, Parser, ValueHint};
+use clap::{Parser, ValueHint};
+use itertools::Itertools;
 use solar_codegen::{
     lower,
     mir::{Module, module_to_text, parse_module},
@@ -17,33 +18,27 @@ use solar_codegen::{
 };
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
-use std::{ffi::OsString, fmt::Write as _, ops::ControlFlow, path::Path, process::ExitCode};
+use std::{ffi::OsString, iter::from_fn, ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
-    let mut out = String::new();
-    let _ = writeln!(out, "Passes:");
-    for pass in PassName::KNOWN {
-        let _ = writeln!(out, "  {:<20} {}", pass.as_str(), pass.description());
-    }
-    let _ = writeln!(out, "  {:<20} No transform; just lower/parse and print", "none");
-    let _ = writeln!(out);
-    let _ = writeln!(out, "Default pipeline:");
-    let _ = writeln!(out, "  {}", pass_list_label(DEFAULT_PIPELINE, " → "));
-    let _ = writeln!(out);
-    let _ = writeln!(out, "Input formats:");
-    let _ =
-        writeln!(out, "  *.sol  Solidity contract — lowered through the normal compiler pipeline");
-    let _ = writeln!(
-        out,
-        "  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module"
-    );
-    out
+    let mut passes = PassName::KNOWN.iter().copied();
+    let pass_lines = from_fn(|| {
+        passes.next().map(|pass| format!("  {:<20} {}", pass.as_str(), pass.description()))
+    })
+    .chain(std::iter::once(format!("  {:<20} No transform; just lower/parse and print", "none")))
+    .join("\n");
+
+    format!(
+        "Passes:\n{pass_lines}\n\nDefault pipeline:\n  {}\n\nInput formats:\n  *.sol  Solidity contract — lowered through the normal compiler pipeline\n  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module",
+        pass_list_label(DEFAULT_PIPELINE, " → ")
+    )
 }
 
 #[derive(Parser)]
 #[command(
     name = "solar mir-opt",
     about = "Run one or more MIR passes on a Solidity or MIR file",
+    after_help = after_help(),
     arg_required_else_help = true
 )]
 struct Args {
@@ -146,8 +141,6 @@ fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), Stri
                 run_codegen_pass(module, pass);
             }
         }
-        // For --pipeline-default, use a stable label so the output header
-        // doesn't depend on the underlying pass list (which may evolve).
         let label = args.pipeline_label(&passes);
         print_module(module, name, &label);
     }
@@ -229,13 +222,9 @@ fn process_sol(args: &Args) -> Result<(), String> {
 /// Entry point for the `mir-opt` subcommand. `argv` is the arguments following
 /// `mir-opt` (i.e. excluding the program name and the subcommand itself).
 pub fn run(argv: &[OsString]) -> ExitCode {
-    let command = Args::command().after_help(after_help());
-    let matches = command
-        .try_get_matches_from(
-            std::iter::once(OsString::from("solar mir-opt")).chain(argv.iter().cloned()),
-        )
-        .unwrap_or_else(|e| e.exit());
-    let args = Args::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
+    let args = Args::parse_from(
+        std::iter::once(OsString::from("solar mir-opt")).chain(argv.iter().cloned()),
+    );
 
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");

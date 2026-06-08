@@ -1,10 +1,10 @@
 // === ROOT/tests/ui/codegen/compound_assign.sol:CompoundAssign ===
 ; module @CompoundAssign
-fn @value() -> u256 {
+fn @value() {
   bb0 (entry):
-    v2 = mstore 128, 0
+    mstore 128, 0
     v4 = sload 0
-    v6 = mstore 128, v4
+    mstore 128, v4
     returndata 128, 32
 }
 
@@ -12,7 +12,7 @@ fn @add_to_value(arg0: u256) {
   bb0 (entry):
     v2 = sload 0
     v3 = add v2, arg0
-    v5 = sstore 0, v3
+    sstore 0, v3
     stop
 }
 
@@ -20,7 +20,7 @@ fn @sub_from_value(arg0: u256) {
   bb0 (entry):
     v2 = sload 0
     v3 = sub v2, arg0
-    v5 = sstore 0, v3
+    sstore 0, v3
     stop
 }
 
@@ -28,27 +28,27 @@ fn @mul_value(arg0: u256) {
   bb0 (entry):
     v2 = sload 0
     v3 = mul v2, arg0
-    v5 = sstore 0, v3
+    sstore 0, v3
     stop
 }
 
-fn @bump_post() -> u256 {
+fn @bump_post() {
   bb0 (entry):
-    v2 = mstore 128, 0
+    mstore 128, 0
     v4 = sload 0
     v6 = add v4, 1
-    v8 = sstore 0, v6
-    v10 = mstore 128, v4
+    sstore 0, v6
+    mstore 128, v4
     returndata 128, 32
 }
 
-fn @bump_pre() -> u256 {
+fn @bump_pre() {
   bb0 (entry):
-    v2 = mstore 128, 0
+    mstore 128, 0
     v4 = sload 0
     v6 = add v4, 1
-    v8 = sstore 0, v6
-    v10 = mstore 128, v6
+    sstore 0, v6
+    mstore 128, v6
     returndata 128, 32
 }
 

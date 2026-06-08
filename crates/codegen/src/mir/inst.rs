@@ -264,7 +264,7 @@ pub enum InstKind {
 impl InstKind {
     /// Collects all operands of this instruction into the provided vector.
     /// This is the canonical way to get all operands for liveness analysis.
-    pub fn collect_operands(&self, out: &mut Vec<ValueId>) {
+    pub fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
         match self {
             // Binary operations
             Self::Add(a, b)
@@ -419,9 +419,193 @@ impl InstKind {
     /// Returns the operands of this instruction.
     #[must_use]
     pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
-        let mut out = Vec::new();
+        let mut out = SmallVec::new();
         self.collect_operands(&mut out);
-        out.into_iter().collect()
+        out
+    }
+
+    /// Visits every operand mutably.
+    pub fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        match self {
+            Self::Add(a, b)
+            | Self::Sub(a, b)
+            | Self::Mul(a, b)
+            | Self::Div(a, b)
+            | Self::SDiv(a, b)
+            | Self::Mod(a, b)
+            | Self::SMod(a, b)
+            | Self::Exp(a, b)
+            | Self::And(a, b)
+            | Self::Or(a, b)
+            | Self::Xor(a, b)
+            | Self::Shl(a, b)
+            | Self::Shr(a, b)
+            | Self::Sar(a, b)
+            | Self::Byte(a, b)
+            | Self::Lt(a, b)
+            | Self::Gt(a, b)
+            | Self::SLt(a, b)
+            | Self::SGt(a, b)
+            | Self::Eq(a, b)
+            | Self::MStore(a, b)
+            | Self::MStore8(a, b)
+            | Self::SStore(a, b)
+            | Self::TStore(a, b)
+            | Self::Keccak256(a, b)
+            | Self::Log0(a, b)
+            | Self::SignExtend(a, b) => {
+                f(a);
+                f(b);
+            }
+
+            Self::Not(a)
+            | Self::IsZero(a)
+            | Self::MLoad(a)
+            | Self::SLoad(a)
+            | Self::TLoad(a)
+            | Self::CalldataLoad(a)
+            | Self::ExtCodeSize(a)
+            | Self::ExtCodeHash(a)
+            | Self::Balance(a)
+            | Self::BlockHash(a)
+            | Self::BlobHash(a) => f(a),
+
+            Self::MCopy(a, b, c)
+            | Self::CalldataCopy(a, b, c)
+            | Self::CodeCopy(a, b, c)
+            | Self::ReturnDataCopy(a, b, c)
+            | Self::AddMod(a, b, c)
+            | Self::MulMod(a, b, c)
+            | Self::Create(a, b, c)
+            | Self::Log1(a, b, c)
+            | Self::Select(a, b, c) => {
+                f(a);
+                f(b);
+                f(c);
+            }
+
+            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
+                f(a);
+                f(b);
+                f(c);
+                f(d);
+            }
+
+            Self::Log3(a, b, c, d, e) => {
+                f(a);
+                f(b);
+                f(c);
+                f(d);
+                f(e);
+            }
+
+            Self::Log4(a, b, c, d, e, g) => {
+                f(a);
+                f(b);
+                f(c);
+                f(d);
+                f(e);
+                f(g);
+            }
+
+            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+                f(gas);
+                f(addr);
+                f(value);
+                f(args_offset);
+                f(args_size);
+                f(ret_offset);
+                f(ret_size);
+            }
+            Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
+            | Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                f(gas);
+                f(addr);
+                f(args_offset);
+                f(args_size);
+                f(ret_offset);
+                f(ret_size);
+            }
+            Self::InternalCall { args, .. } => {
+                for arg in args {
+                    f(arg);
+                }
+            }
+
+            Self::Phi(incoming) => {
+                for (_, value) in incoming {
+                    f(value);
+                }
+            }
+
+            Self::MSize
+            | Self::CalldataSize
+            | Self::InternalFrameAddr(_)
+            | Self::CodeSize
+            | Self::ReturnDataSize
+            | Self::Caller
+            | Self::CallValue
+            | Self::Origin
+            | Self::GasPrice
+            | Self::Coinbase
+            | Self::Timestamp
+            | Self::BlockNumber
+            | Self::PrevRandao
+            | Self::GasLimit
+            | Self::ChainId
+            | Self::Address
+            | Self::SelfBalance
+            | Self::Gas
+            | Self::BaseFee
+            | Self::BlobBaseFee => {}
+        }
+    }
+
+    /// Returns true if this instruction may mutate persistent storage.
+    #[must_use]
+    pub const fn may_mutate_storage(&self) -> bool {
+        matches!(
+            self,
+            Self::SStore(_, _)
+                | Self::Call { .. }
+                | Self::DelegateCall { .. }
+                | Self::InternalCall { .. }
+                | Self::Create(_, _, _)
+                | Self::Create2(_, _, _, _)
+        )
+    }
+
+    /// Returns true if this instruction may mutate transient storage.
+    #[must_use]
+    pub const fn may_mutate_transient_storage(&self) -> bool {
+        matches!(
+            self,
+            Self::TStore(_, _)
+                | Self::Call { .. }
+                | Self::DelegateCall { .. }
+                | Self::InternalCall { .. }
+        )
+    }
+
+    /// Returns true if this instruction writes or may write memory.
+    #[must_use]
+    pub const fn may_mutate_memory(&self) -> bool {
+        matches!(
+            self,
+            Self::MStore(_, _)
+                | Self::MStore8(_, _)
+                | Self::MCopy(_, _, _)
+                | Self::CalldataCopy(_, _, _)
+                | Self::CodeCopy(_, _, _)
+                | Self::ReturnDataCopy(_, _, _)
+                | Self::ExtCodeCopy(_, _, _, _)
+                | Self::Call { .. }
+                | Self::StaticCall { .. }
+                | Self::DelegateCall { .. }
+                | Self::InternalCall { .. }
+                | Self::Create(_, _, _)
+                | Self::Create2(_, _, _, _)
+        )
     }
 
     /// Returns the mnemonic for this instruction.

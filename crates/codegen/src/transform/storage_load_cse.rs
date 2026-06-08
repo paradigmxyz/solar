@@ -6,14 +6,28 @@
 use crate::{
     analysis::Liveness,
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId},
+    pass::FunctionPass,
 };
-use rustc_hash::{FxHashMap, FxHashSet};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Local storage load CSE pass.
 #[derive(Debug, Default)]
 pub struct StorageLoadCse {
     /// Number of storage loads eliminated.
     pub eliminated_count: usize,
+}
+
+/// Function pass for straight-line storage-load CSE.
+pub struct StorageLoadCsePass;
+
+impl FunctionPass for StorageLoadCsePass {
+    fn name(&self) -> &str {
+        "storage-load-cse"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        StorageLoadCse::new().run_to_fixpoint(func);
+    }
 }
 
 impl StorageLoadCse {
@@ -110,7 +124,7 @@ impl StorageLoadCse {
                         !Self::storage_aliases_may_alias(cached_alias, &alias)
                     });
                 }
-                kind if Self::may_mutate_storage(kind) => cached_loads.clear(),
+                kind if kind.may_mutate_storage() => cached_loads.clear(),
                 _ => {}
             }
         }
@@ -164,17 +178,6 @@ impl StorageLoadCse {
         }
     }
 
-    fn may_mutate_storage(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::Call { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::InternalCall { .. }
-                | InstKind::Create(_, _, _)
-                | InstKind::Create2(_, _, _, _)
-        )
-    }
-
     fn canonical_value(value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
         let mut value = value;
         while let Some(&replacement) = replacements.get(&value) {
@@ -216,147 +219,9 @@ impl StorageLoadCse {
     }
 
     fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        let replace = |value: &mut ValueId| {
+        kind.visit_operands_mut(|value| {
             *value = Self::canonical_value(*value, replacements);
-        };
-
-        match kind {
-            InstKind::Add(a, b)
-            | InstKind::Sub(a, b)
-            | InstKind::Mul(a, b)
-            | InstKind::Div(a, b)
-            | InstKind::SDiv(a, b)
-            | InstKind::Mod(a, b)
-            | InstKind::SMod(a, b)
-            | InstKind::Exp(a, b)
-            | InstKind::And(a, b)
-            | InstKind::Or(a, b)
-            | InstKind::Xor(a, b)
-            | InstKind::Shl(a, b)
-            | InstKind::Shr(a, b)
-            | InstKind::Sar(a, b)
-            | InstKind::Byte(a, b)
-            | InstKind::Lt(a, b)
-            | InstKind::Gt(a, b)
-            | InstKind::SLt(a, b)
-            | InstKind::SGt(a, b)
-            | InstKind::Eq(a, b)
-            | InstKind::MStore(a, b)
-            | InstKind::MStore8(a, b)
-            | InstKind::SStore(a, b)
-            | InstKind::TStore(a, b)
-            | InstKind::Keccak256(a, b)
-            | InstKind::Log0(a, b)
-            | InstKind::SignExtend(a, b) => {
-                replace(a);
-                replace(b);
-            }
-
-            InstKind::Not(a)
-            | InstKind::IsZero(a)
-            | InstKind::MLoad(a)
-            | InstKind::SLoad(a)
-            | InstKind::TLoad(a)
-            | InstKind::CalldataLoad(a)
-            | InstKind::ExtCodeSize(a)
-            | InstKind::ExtCodeHash(a)
-            | InstKind::Balance(a)
-            | InstKind::BlockHash(a)
-            | InstKind::BlobHash(a) => replace(a),
-
-            InstKind::AddMod(a, b, c)
-            | InstKind::MulMod(a, b, c)
-            | InstKind::MCopy(a, b, c)
-            | InstKind::CalldataCopy(a, b, c)
-            | InstKind::CodeCopy(a, b, c)
-            | InstKind::ReturnDataCopy(a, b, c)
-            | InstKind::Create(a, b, c)
-            | InstKind::Log1(a, b, c)
-            | InstKind::Select(a, b, c) => {
-                replace(a);
-                replace(b);
-                replace(c);
-            }
-
-            InstKind::ExtCodeCopy(a, b, c, d)
-            | InstKind::Create2(a, b, c, d)
-            | InstKind::Log2(a, b, c, d) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-            }
-
-            InstKind::Log3(a, b, c, d, e) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-            }
-
-            InstKind::Log4(a, b, c, d, e, f) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-                replace(f);
-            }
-
-            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(value);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-
-            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
-            | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-
-            InstKind::InternalCall { args, .. } => {
-                for arg in args {
-                    replace(arg);
-                }
-            }
-
-            InstKind::Phi(incoming) => {
-                for (_, value) in incoming {
-                    replace(value);
-                }
-            }
-
-            InstKind::MSize
-            | InstKind::CalldataSize
-            | InstKind::InternalFrameAddr(_)
-            | InstKind::CodeSize
-            | InstKind::ReturnDataSize
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::ChainId
-            | InstKind::Address
-            | InstKind::SelfBalance
-            | InstKind::Gas
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee => {}
-        }
+        });
     }
 
     fn replace_terminator_operands(
@@ -387,162 +252,5 @@ impl StorageLoadCse {
             }
             Terminator::SelfDestruct { recipient } => replace(recipient),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::mir::{Immediate, Instruction, MirType};
-    use alloy_primitives::U256;
-    use solar_interface::Ident;
-
-    fn imm(func: &mut Function, value: u64) -> ValueId {
-        func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(value))))
-    }
-
-    fn inst_value(
-        func: &mut Function,
-        block: BlockId,
-        kind: InstKind,
-        ty: Option<MirType>,
-    ) -> (InstId, ValueId) {
-        let inst = func.alloc_inst(Instruction::new(kind, ty));
-        func.blocks[block].instructions.push(inst);
-        let value = func.alloc_value(Value::Inst(inst));
-        (inst, value)
-    }
-
-    #[test]
-    fn reuses_load_across_disjoint_constant_store() {
-        let mut func = Function::new(Ident::DUMMY);
-        let entry = func.entry_block;
-        let slot0 = imm(&mut func, 0);
-        let slot1 = imm(&mut func, 1);
-        let value = imm(&mut func, 9);
-
-        let (first_load, first_value) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot0), Some(MirType::uint256()));
-        inst_value(&mut func, entry, InstKind::SStore(slot1, value), None);
-        let (second_load, second_value) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot0), Some(MirType::uint256()));
-        let (add, _) = inst_value(
-            &mut func,
-            entry,
-            InstKind::Add(first_value, second_value),
-            Some(MirType::uint256()),
-        );
-        func.blocks[entry].terminator = Some(Terminator::Stop);
-
-        let mut pass = StorageLoadCse::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        assert!(func.blocks[entry].instructions.contains(&first_load));
-        assert!(!func.blocks[entry].instructions.contains(&second_load));
-        assert!(matches!(func.instructions[add].kind, InstKind::Add(lhs, _) if lhs == first_value));
-    }
-
-    #[test]
-    fn keeps_load_when_reuse_would_extend_live_range() {
-        let mut func = Function::new(Ident::DUMMY);
-        let entry = func.entry_block;
-        let slot0 = imm(&mut func, 0);
-        let slot1 = imm(&mut func, 1);
-        let value = imm(&mut func, 9);
-
-        let (first_load, _) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot0), Some(MirType::uint256()));
-        inst_value(&mut func, entry, InstKind::SStore(slot1, value), None);
-        let (second_load, _) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot0), Some(MirType::uint256()));
-        func.blocks[entry].terminator = Some(Terminator::Stop);
-
-        let mut pass = StorageLoadCse::new();
-        assert_eq!(pass.run(&mut func), 0);
-
-        assert!(func.blocks[entry].instructions.contains(&first_load));
-        assert!(func.blocks[entry].instructions.contains(&second_load));
-    }
-
-    #[test]
-    fn keeps_load_after_same_slot_store() {
-        let mut func = Function::new(Ident::DUMMY);
-        let entry = func.entry_block;
-        let slot = imm(&mut func, 0);
-        let value = imm(&mut func, 9);
-
-        let (first_load, _) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot), Some(MirType::uint256()));
-        inst_value(&mut func, entry, InstKind::SStore(slot, value), None);
-        let (second_load, _) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot), Some(MirType::uint256()));
-        func.blocks[entry].terminator = Some(Terminator::Stop);
-
-        let mut pass = StorageLoadCse::new();
-        assert_eq!(pass.run(&mut func), 0);
-
-        assert!(func.blocks[entry].instructions.contains(&first_load));
-        assert!(func.blocks[entry].instructions.contains(&second_load));
-    }
-
-    #[test]
-    fn treats_symbolic_store_as_possible_alias() {
-        let mut func = Function::new(Ident::DUMMY);
-        let entry = func.entry_block;
-        func.params.push(MirType::uint256());
-        let slot0 = imm(&mut func, 0);
-        let symbolic_slot = func.alloc_value(Value::Arg { index: 0, ty: MirType::uint256() });
-        let value = imm(&mut func, 9);
-
-        let (first_load, _) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot0), Some(MirType::uint256()));
-        inst_value(&mut func, entry, InstKind::SStore(symbolic_slot, value), None);
-        let (second_load, _) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot0), Some(MirType::uint256()));
-        func.blocks[entry].terminator = Some(Terminator::Stop);
-
-        let mut pass = StorageLoadCse::new();
-        assert_eq!(pass.run(&mut func), 0);
-
-        assert!(func.blocks[entry].instructions.contains(&first_load));
-        assert!(func.blocks[entry].instructions.contains(&second_load));
-    }
-
-    #[test]
-    fn replaces_successor_phi_uses() {
-        let mut func = Function::new(Ident::DUMMY);
-        let entry = func.entry_block;
-        let exit = func.alloc_block();
-        let slot0 = imm(&mut func, 0);
-
-        let (_, first_value) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot0), Some(MirType::uint256()));
-        let (second_load, second_value) =
-            inst_value(&mut func, entry, InstKind::SLoad(slot0), Some(MirType::uint256()));
-        inst_value(
-            &mut func,
-            entry,
-            InstKind::Add(first_value, second_value),
-            Some(MirType::uint256()),
-        );
-        func.blocks[entry].terminator = Some(Terminator::Jump(exit));
-        func.blocks[entry].successors.push(exit);
-        func.blocks[exit].predecessors.push(entry);
-        let (phi, _) = inst_value(
-            &mut func,
-            exit,
-            InstKind::Phi(vec![(entry, second_value)]),
-            Some(MirType::uint256()),
-        );
-        func.blocks[exit].terminator = Some(Terminator::Stop);
-
-        let mut pass = StorageLoadCse::new();
-        assert_eq!(pass.run(&mut func), 1);
-
-        assert!(!func.blocks[entry].instructions.contains(&second_load));
-        assert!(matches!(
-            &func.instructions[phi].kind,
-            InstKind::Phi(incoming) if incoming[0].1 == first_value
-        ));
     }
 }

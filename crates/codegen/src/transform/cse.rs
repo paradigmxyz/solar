@@ -28,14 +28,30 @@
 //! - Does not track across memory/storage operations (conservative for side effects)
 //! - Does not handle expressions with different but equivalent orderings
 
-use crate::mir::{BlockId, Function, InstId, InstKind, Value, ValueId};
-use rustc_hash::FxHashMap;
+use crate::{
+    mir::{BlockId, Function, InstId, InstKind, Value, ValueId},
+    pass::FunctionPass,
+};
+use solar_data_structures::map::FxHashMap;
 
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
 pub struct CommonSubexprEliminator {
     /// Number of instructions eliminated.
     pub eliminated_count: usize,
+}
+
+/// Function pass for local common subexpression elimination.
+pub struct CsePass;
+
+impl FunctionPass for CsePass {
+    fn name(&self) -> &str {
+        "cse"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        CommonSubexprEliminator::new().run_to_fixpoint(func);
+    }
 }
 
 /// A normalized expression key for CSE lookup.
@@ -113,7 +129,7 @@ impl CommonSubexprEliminator {
 
             // Skip side-effecting instructions
             if inst.kind.has_side_effects() {
-                if Self::may_mutate_storage(&inst.kind) {
+                if inst.kind.may_mutate_storage() {
                     expr_cache.retain(|key, _| !matches!(key, ExprKey::SLoad(_)));
                 }
                 continue;
@@ -222,18 +238,6 @@ impl CommonSubexprEliminator {
             }
         }
         None
-    }
-
-    fn may_mutate_storage(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::SStore(_, _)
-                | InstKind::Call { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::InternalCall { .. }
-                | InstKind::Create(_, _, _)
-                | InstKind::Create2(_, _, _, _)
-        )
     }
 
     /// Applies value replacements to all instructions in a block.

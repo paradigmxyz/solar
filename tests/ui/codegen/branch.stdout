@@ -1,35 +1,35 @@
 // === ROOT/tests/ui/codegen/branch.sol:Branch ===
 ; module @Branch
-fn @max(arg0: u256, arg1: u256) -> u256 {
+fn @max(arg0: u256, arg1: u256) {
   bb0 (entry):
-    v4 = mstore 128, 0
+    mstore 128, 0
     v5 = gt arg0, arg1
     br v5, bb1, bb2
   bb1:
-    v7 = mstore 128, arg0
+    mstore 128, arg0
     returndata 128, 32
   bb2:
-    v10 = mstore 128, arg1
+    mstore 128, arg1
     returndata 128, 32
 }
 
-fn @abs_diff(arg0: u256, arg1: u256) -> u256 {
+fn @abs_diff(arg0: u256, arg1: u256) {
   bb0 (entry):
-    v4 = mstore 128, 0
+    mstore 128, 0
     v5 = lt arg0, arg1
     v6 = iszero v5
     br v6, bb1, bb3
   bb1:
     v7 = sub arg0, arg1
-    v9 = mstore 128, v7
+    mstore 128, v7
     returndata 128, 32
   bb2:
     v16 = mload 128
-    v18 = mstore 128, v16
+    mstore 128, v16
     returndata 128, 32
   bb3:
     v11 = sub arg1, arg0
-    v13 = mstore 128, v11
+    mstore 128, v11
     returndata 128, 32
 }
 

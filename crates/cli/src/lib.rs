@@ -164,8 +164,8 @@ fn emit_mir(compiler: &mut CompilerRef<'_>) -> Result {
 
 /// Emit bytecode (and optionally ABI/hashes) for all contracts using solar-codegen.
 fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
-    use rustc_hash::FxHashSet;
-    use solar_codegen::{Backend, EvmCodegen, FxHashMap, lower};
+    use solar_codegen::{Backend, EvmCodegen, lower};
+    use solar_data_structures::map::{FxHashMap, FxHashSet};
     use solar_sema::hir::ContractId;
     use std::collections::BTreeMap;
 
@@ -257,8 +257,8 @@ fn emit_bytecode(compiler: &mut CompilerRef<'_>) -> Result {
 fn ensure_contract_bytecode(
     gcx: solar_sema::Gcx<'_>,
     contract_id: solar_sema::hir::ContractId,
-    all_bytecodes: &mut solar_codegen::FxHashMap<solar_sema::hir::ContractId, Vec<u8>>,
-    visiting: &mut rustc_hash::FxHashSet<solar_sema::hir::ContractId>,
+    all_bytecodes: &mut solar_data_structures::map::FxHashMap<solar_sema::hir::ContractId, Vec<u8>>,
+    visiting: &mut solar_data_structures::map::FxHashSet<solar_sema::hir::ContractId>,
 ) -> Result {
     use solar_codegen::{Backend, EvmCodegen, lower};
 

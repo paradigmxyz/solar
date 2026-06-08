@@ -1,26 +1,26 @@
 // === ROOT/tests/ui/codegen/recursive.sol:Recursive ===
 ; module @Recursive
-fn @fact(arg0: u256) -> u256 {
+fn @fact(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
+    mstore 128, 0
     v5 = gt arg0, 1
     v6 = iszero v5
     br v6, bb1, bb2
   bb1:
-    v9 = mstore 128, 1
+    mstore 128, 1
     returndata 128, 32
   bb2:
     v12 = sub arg0, 1
     v13 = internal_call fn1, 1, v12
     v14 = mul arg0, v13
-    v16 = mstore 128, v14
+    mstore 128, v14
     returndata 128, 32
 }
 
 fn @fact(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    v3 = mstore v1, 0
+    mstore v1, 0
     v5 = gt arg0, 1
     v6 = iszero v5
     br v6, bb1, bb2
@@ -33,14 +33,14 @@ fn @fact(arg0: u256) -> u256 {
     ret v11
 }
 
-fn @fib(arg0: u256) -> u256 {
+fn @fib(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
+    mstore 128, 0
     v5 = gt arg0, 1
     v6 = iszero v5
     br v6, bb1, bb2
   bb1:
-    v8 = mstore 128, arg0
+    mstore 128, arg0
     returndata 128, 32
   bb2:
     v11 = sub arg0, 1
@@ -48,14 +48,14 @@ fn @fib(arg0: u256) -> u256 {
     v14 = sub arg0, 2
     v15 = internal_call fn3, 1, v14
     v16 = add v12, v15
-    v18 = mstore 128, v16
+    mstore 128, v16
     returndata 128, 32
 }
 
 fn @fib(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    v3 = mstore v1, 0
+    mstore v1, 0
     v5 = gt arg0, 1
     v6 = iszero v5
     br v6, bb1, bb2
@@ -70,25 +70,25 @@ fn @fib(arg0: u256) -> u256 {
     ret v13
 }
 
-fn @isEven(arg0: u256) -> bool {
+fn @isEven(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
+    mstore 128, 0
     v5 = eq arg0, 0
     br v5, bb1, bb2
   bb1:
-    v8 = mstore 128, 1
+    mstore 128, 1
     returndata 128, 32
   bb2:
     v11 = sub arg0, 1
     v12 = internal_call fn5, 1, v11
-    v14 = mstore 128, v12
+    mstore 128, v12
     returndata 128, 32
 }
 
 fn @isOdd(arg0: u256) -> bool {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    v3 = mstore v1, 0
+    mstore v1, 0
     v5 = eq arg0, 0
     br v5, bb1, bb2
   bb1:
@@ -102,7 +102,7 @@ fn @isOdd(arg0: u256) -> bool {
 fn @isEven(arg0: u256) -> bool {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    v3 = mstore v1, 0
+    mstore v1, 0
     v5 = eq arg0, 0
     br v5, bb1, bb2
   bb1:
@@ -113,18 +113,18 @@ fn @isEven(arg0: u256) -> bool {
     ret v9
 }
 
-fn @isOdd(arg0: u256) -> bool {
+fn @isOdd(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
+    mstore 128, 0
     v5 = eq arg0, 0
     br v5, bb1, bb2
   bb1:
-    v8 = mstore 128, 0
+    mstore 128, 0
     returndata 128, 32
   bb2:
     v11 = sub arg0, 1
     v12 = internal_call fn6, 1, v11
-    v14 = mstore 128, v12
+    mstore 128, v12
     returndata 128, 32
 }
 

@@ -13,8 +13,9 @@
 use crate::{
     analysis::{Loop, LoopAnalyzer},
     mir::{BlockId, Function, InstId, InstKind, Value, ValueId},
+    pass::FunctionPass,
 };
-use rustc_hash::FxHashSet;
+use solar_data_structures::map::FxHashSet;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum StorageSpace {
@@ -57,6 +58,21 @@ pub struct LoopOptStats {
 pub struct LoopOptimizer {
     config: LoopOptConfig,
     stats: LoopOptStats,
+}
+
+/// Function pass for loop-invariant code motion.
+pub struct LicmPass;
+
+impl FunctionPass for LicmPass {
+    fn name(&self) -> &str {
+        "licm"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        let config =
+            LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 4 };
+        LoopOptimizer::new(config).optimize(func);
+    }
 }
 
 impl Default for LoopOptimizer {
