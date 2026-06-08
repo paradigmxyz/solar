@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // Valid operations on calldata (reading is allowed)
 
 struct S {

@@ -22,5 +22,17 @@ error: the `using for` directive is not allowed inside interfaces
 LL │     using L for int;
    ╰╴    ━━━━━━━━━━━━━━━━
 
-error: aborting due to 4 previous errors
+error: unresolved symbol `L`
+   ╭▸ ROOT/tests/ui/parser/using.sol:LL:CC
+   │
+LL │     using L for int;
+   ╰╴          ━
+
+error: can only use `global` with user-defined types
+   ╭▸ ROOT/tests/ui/parser/using.sol:LL:CC
+   │
+LL │     using {f} for uint global;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 6 previous errors
 

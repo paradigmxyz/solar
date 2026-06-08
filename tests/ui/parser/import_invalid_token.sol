@@ -1,4 +1,4 @@
 //@ error-in-other-file: unknown start of token: #
-// check-fail
+//@ check-fail
 
 import "./auxiliary/invalid_token.sol";

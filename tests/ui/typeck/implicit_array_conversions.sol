@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 // Tests for implicit array conversions.
 // Arrays require exactly the same element type - no widening allowed.

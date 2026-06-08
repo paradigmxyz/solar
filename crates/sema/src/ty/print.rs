@@ -226,7 +226,13 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::Variadic
             | TyKind::Type(_)
             | TyKind::Meta(_)
-            | TyKind::Err(_) => panic!("printing unsupported type as ABI: {ty:?}"),
+            | TyKind::Err(_) => {
+                assert!(
+                    self.gcx.dcx().has_errors().is_err(),
+                    "printing unsupported type as ABI: {ty:?}"
+                );
+                self.buf.write_str("<error>")
+            }
         }
     }
 

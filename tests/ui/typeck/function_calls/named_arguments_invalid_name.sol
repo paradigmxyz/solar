@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract test {
     function f(uint a, bool b, bytes32 c, uint d, bool e) public returns (uint r) {

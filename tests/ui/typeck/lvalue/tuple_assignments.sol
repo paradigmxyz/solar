@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/tupleAssignments/assignments_to_tuple_and_non_tuple_expressions_of_tuple_types.sol
 
 contract Test {

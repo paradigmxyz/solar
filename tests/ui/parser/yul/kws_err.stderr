@@ -22,5 +22,29 @@ error: expected identifier, found Yul EVM builtin keyword `number`
 LL │             let number := 0
    ╰╴                ━━━━━━
 
-error: aborting due to 4 previous errors
+error: unresolved symbol `number`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
+   │
+LL │             number := 0
+   ╰╴            ━━━━━━
+
+error: unresolved symbol `number`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
+   │
+LL │             number, number := some_call()
+   ╰╴            ━━━━━━
+
+error: unresolved symbol `number`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
+   │
+LL │             number, number := some_call()
+   ╰╴                    ━━━━━━
+
+error: unresolved symbol `some_call`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_err.sol:LL:CC
+   │
+LL │             number, number := some_call()
+   ╰╴                              ━━━━━━━━━
+
+error: aborting due to 8 previous errors
 

@@ -8,6 +8,7 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
+    error_code,
     source_map::{FileName, SourceFile},
 };
 use std::{fmt, path::Path};
@@ -1170,6 +1171,7 @@ fn parse_natspec(
                         if !in_yul {
                             dcx
                                 .warn(format!("invalid natspec tag '@{tag}', custom tags must use format '@custom:name'"))
+                                .code(error_code!(6546))
                                 .span(comment_span)
                                 .emit();
                         }

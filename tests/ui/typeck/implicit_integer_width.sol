@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 // Tests for implicit integer width conversions.
 // See: https://docs.soliditylang.org/en/latest/types.html#implicit-conversions

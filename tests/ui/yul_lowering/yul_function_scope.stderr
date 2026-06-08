@@ -40,5 +40,11 @@ error: unresolved symbol `a`
 LL │                     r := a
    ╰╴                         ━
 
-error: aborting due to 7 previous errors
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/yul_lowering/yul_function_scope.sol:LL:CC
+   │
+LL │             x, y := pair(1)
+   ╰╴            ━━━━    ─────── expected a tuple with 2 elements, found one with 1 element
+
+error: aborting due to 8 previous errors
 

@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/multiple_operator_definitions_different_functions_global_and_non_global_different_files.sol
 
 import {Int} from "./auxiliary/transitive_base.sol";
@@ -8,3 +8,4 @@ function add2(Int a, Int b) pure returns (Int) {
 }
 
 using {add2 as +} for Int; //~ ERROR: operators can only be defined in a global
+//~^ ERROR: user-defined binary operator `+` has more than one definition

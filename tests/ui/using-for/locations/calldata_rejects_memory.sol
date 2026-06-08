@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/bound_calldata_parameter_not_accepting_memory.sol
 
 library L {
