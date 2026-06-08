@@ -10,8 +10,12 @@
 extern crate derive_more as _;
 extern crate tracing as _;
 
-pub use rustc_hash::FxHashMap;
+pub use solar_data_structures::map::FxHashMap;
 pub use solar_sema as sema;
+
+/// Constructor scratch memory used to stage immutable words before appending
+/// them to runtime bytecode.
+pub const IMMUTABLE_SCRATCH_BASE: u64 = 0x2000;
 
 pub mod mir;
 pub use mir::{
@@ -38,6 +42,6 @@ pub mod pass;
 pub mod transform;
 pub use transform::{
     CommonSubexprEliminator, ConstantFolder, DceStats, DeadCodeEliminator, FunctionInlineInfo,
-    InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, JumpThreader, JumpThreadingStats,
-    LoopOptConfig, LoopOptStats, LoopOptimizer, OptLevel,
+    InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, InstSimplifier, JumpThreader,
+    JumpThreadingStats, LoopOptConfig, LoopOptStats, LoopOptimizer, OptLevel,
 };

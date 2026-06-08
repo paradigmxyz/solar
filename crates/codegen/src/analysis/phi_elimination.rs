@@ -10,7 +10,7 @@
 //! 3. Remove the phi instructions after copies are inserted.
 
 use crate::mir::{BlockId, Function, InstId, InstKind, MirType, Value, ValueId};
-use rustc_hash::FxHashMap;
+use solar_data_structures::map::FxHashMap;
 
 /// Source for a parallel copy - either a regular value or a temporary.
 #[derive(Clone, Debug, PartialEq, Eq)]

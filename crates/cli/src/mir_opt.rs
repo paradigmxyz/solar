@@ -9,68 +9,37 @@
 //! It is an unstable, internal tool used by the `Mir` test mode; it is not part
 //! of the stable CLI surface.
 
-use clap::{Parser, ValueEnum, ValueHint};
+use clap::{Parser, ValueHint};
+use itertools::Itertools;
 use solar_codegen::{
     lower,
     mir::{Module, module_to_text, parse_module},
-    pass::{
-        CfgSimplifyPass, CsePass, DcePass, JumpThreadingPass, PassManager, SccpTransformPass,
-        TransformPass,
-    },
+    pass::{DEFAULT_PIPELINE, PassName, run_pass as run_codegen_pass},
 };
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
-use std::{ffi::OsString, ops::ControlFlow, path::Path, process::ExitCode};
+use std::{ffi::OsString, iter::from_fn, ops::ControlFlow, path::Path, process::ExitCode};
 
-const AFTER_HELP: &str = "\
-Passes:
-  dce              Dead Code Elimination (fixed-point)
-  cse              Common Subexpression Elimination (fixed-point)
-  sccp             Sparse Conditional Constant Propagation
-  cfg-simplify     CFG Simplification (fixed-point)
-  jump-threading   Jump Threading (fixed-point)
-  none             No transform; just lower/parse and print
+fn after_help() -> String {
+    let mut passes = PassName::KNOWN.iter().copied();
+    let pass_lines = from_fn(|| {
+        passes.next().map(|pass| format!("  {:<20} {}", pass.as_str(), pass.description()))
+    })
+    .chain(std::iter::once(format!("  {:<20} No transform; just lower/parse and print", "none")))
+    .join("\n");
 
-Input formats:
-  *.sol  Solidity contract — lowered through the normal compiler pipeline
-  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module
-";
-
-/// The canonical pass list run by `EvmCodegen::run_optimization_passes`.
-/// Keep in sync with `crates/codegen/src/backend/evm/evm.rs`.
-const DEFAULT_PIPELINE: &[PassName] =
-    &[PassName::JumpThreading, PassName::CfgSimplify, PassName::Dce];
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-#[clap(rename_all = "kebab-case")]
-enum PassName {
-    Dce,
-    Cse,
-    Sccp,
-    CfgSimplify,
-    JumpThreading,
-    None,
-}
-
-impl PassName {
-    fn as_str(self) -> &'static str {
-        match self {
-            Self::Dce => "dce",
-            Self::Cse => "cse",
-            Self::Sccp => "sccp",
-            Self::CfgSimplify => "cfg-simplify",
-            Self::JumpThreading => "jump-threading",
-            Self::None => "none",
-        }
-    }
+    format!(
+        "Passes:\n{pass_lines}\n\nDefault pipeline:\n  {}\n\nInput formats:\n  *.sol  Solidity contract — lowered through the normal compiler pipeline\n  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module",
+        pass_list_label(DEFAULT_PIPELINE, " → ")
+    )
 }
 
 #[derive(Parser)]
 #[command(
     name = "solar mir-opt",
     about = "Run one or more MIR passes on a Solidity or MIR file",
-    arg_required_else_help = true,
-    after_help = AFTER_HELP,
+    after_help = after_help(),
+    arg_required_else_help = true
 )]
 struct Args {
     /// Comma-separated list of passes to run in order.
@@ -79,10 +48,11 @@ struct Args {
         visible_alias = "pass",
         value_name = "NAMES",
         value_delimiter = ',',
+        value_parser = parse_pass,
         required_unless_present = "pipeline_default",
         conflicts_with = "pipeline_default"
     )]
-    passes: Option<Vec<PassName>>,
+    passes: Option<Vec<Option<PassName>>>,
     /// If true, print MIR after every pass; otherwise only after the last.
     #[arg(long)]
     print_after_each: bool,
@@ -95,45 +65,57 @@ struct Args {
 }
 
 impl Args {
-    fn passes(&self) -> &[PassName] {
+    fn selected_passes(&self) -> Vec<Option<PassName>> {
         if self.pipeline_default {
-            DEFAULT_PIPELINE
+            DEFAULT_PIPELINE.iter().copied().map(Some).collect()
         } else {
-            self.passes.as_deref().expect("clap requires passes unless pipeline-default is set")
+            self.passes.clone().expect("clap requires passes unless pipeline-default is set")
         }
     }
 
-    fn pipeline_label(&self) -> String {
+    fn pipeline_label(&self, passes: &[Option<PassName>]) -> String {
         if self.pipeline_default {
             "pipeline-default".to_string()
         } else {
-            self.passes().iter().map(|p| p.as_str()).collect::<Vec<_>>().join(",")
+            selected_pass_list_label(passes, ",")
         }
     }
 }
 
-/// Returns a fresh boxed pass for the given name. The special `none` pass returns `None`
-/// (skipped).
-fn make_pass(name: PassName) -> Option<Box<dyn TransformPass>> {
+fn parse_pass(name: &str) -> Result<Option<PassName>, String> {
     match name {
-        PassName::Dce => Some(Box::new(DcePass)),
-        PassName::Cse => Some(Box::new(CsePass)),
-        PassName::Sccp => Some(Box::new(SccpTransformPass)),
-        PassName::CfgSimplify => Some(Box::new(CfgSimplifyPass)),
-        PassName::JumpThreading => Some(Box::new(JumpThreadingPass)),
-        PassName::None => None,
+        "none" => Ok(None),
+        other => PassName::parse(other).map(Some).ok_or_else(|| format!("unknown pass: {other}")),
     }
 }
 
-/// Runs a single pass on every function in the module.
-fn run_pass(module: &mut Module, pass_name: PassName) {
-    if let Some(boxed) = make_pass(pass_name) {
-        let mut pm = PassManager::new();
-        pm.add_transform(boxed);
-        for func in module.functions.iter_mut() {
-            pm.run(func);
-        }
+fn pass_label(pass: Option<PassName>) -> &'static str {
+    match pass {
+        Some(pass) => pass.as_str(),
+        None => "none",
     }
+}
+
+fn pass_list_label(passes: &[PassName], separator: &str) -> String {
+    let mut label = String::new();
+    for (i, pass) in passes.iter().enumerate() {
+        if i != 0 {
+            label.push_str(separator);
+        }
+        label.push_str(pass.as_str());
+    }
+    label
+}
+
+fn selected_pass_list_label(passes: &[Option<PassName>], separator: &str) -> String {
+    let mut label = String::new();
+    for (i, &pass) in passes.iter().enumerate() {
+        if i != 0 {
+            label.push_str(separator);
+        }
+        label.push_str(pass_label(pass));
+    }
+    label
 }
 
 /// Prints a module with a header indicating which pass(es) produced it.
@@ -145,18 +127,21 @@ fn print_module(module: &Module, name: &str, after: &str) {
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
 fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), String> {
+    let passes = args.selected_passes();
     if args.print_after_each {
-        for &pass in args.passes() {
-            run_pass(module, pass);
-            print_module(module, name, pass.as_str());
+        for pass in &passes {
+            if let Some(pass) = *pass {
+                run_codegen_pass(module, pass);
+            }
+            print_module(module, name, pass_label(*pass));
         }
     } else {
-        for &pass in args.passes() {
-            run_pass(module, pass);
+        for &pass in &passes {
+            if let Some(pass) = pass {
+                run_codegen_pass(module, pass);
+            }
         }
-        // For --pipeline-default, use a stable label so the output header doesn't depend on the
-        // underlying pass list (which may evolve).
-        let label = args.pipeline_label();
+        let label = args.pipeline_label(&passes);
         print_module(module, name, &label);
     }
     Ok(())
@@ -237,10 +222,9 @@ fn process_sol(args: &Args) -> Result<(), String> {
 /// Entry point for the `mir-opt` subcommand. `argv` is the arguments following
 /// `mir-opt` (i.e. excluding the program name and the subcommand itself).
 pub fn run(argv: &[OsString]) -> ExitCode {
-    let args = Args::try_parse_from(
+    let args = Args::parse_from(
         std::iter::once(OsString::from("solar mir-opt")).chain(argv.iter().cloned()),
-    )
-    .unwrap_or_else(|e| e.exit());
+    );
 
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");

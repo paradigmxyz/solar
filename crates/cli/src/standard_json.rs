@@ -1,12 +1,12 @@
 use indexmap::IndexMap;
-use rustc_hash::FxBuildHasher;
 use serde::{
     Deserialize, Serialize,
     de::{self, Visitor},
 };
 use serde_json::{Map, Value, json};
-use solar_codegen::{EvmCodegen, FxHashMap, lower};
+use solar_codegen::{EvmCodegen, lower};
 use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
+use solar_data_structures::map::{FxBuildHasher, FxHashMap, FxHashSet};
 use solar_interface::{
     Result, SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
@@ -708,30 +708,75 @@ fn generate_contract_bytecodes(
     gcx: solar_sema::Gcx<'_>,
 ) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
     let mut all_bytecodes = FxHashMap::default();
+    let mut visiting = FxHashSet::default();
     for contract_id in gcx.hir.contract_ids() {
-        let mut module = lower::lower_contract(gcx, contract_id);
-        gcx.dcx().has_errors()?;
-        let mut codegen = EvmCodegen::new();
-        let (deployment, _) = codegen.generate_deployment_bytecode(&mut module);
-        all_bytecodes.insert(contract_id, deployment);
+        let contract = gcx.hir.contract(contract_id);
+        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
+            ensure_contract_bytecode(gcx, contract_id, &mut all_bytecodes, &mut visiting)?;
+        }
     }
 
     let mut bytecodes = FxHashMap::default();
     for contract_id in gcx.hir.contract_ids() {
-        let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
-        gcx.dcx().has_errors()?;
-        let mut codegen = EvmCodegen::new();
-        let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
-        bytecodes.insert(
-            contract_id,
-            GeneratedBytecodes {
-                deployment: alloy_primitives::hex::encode(deployment),
-                runtime: alloy_primitives::hex::encode(runtime),
-            },
-        );
+        let contract = gcx.hir.contract(contract_id);
+        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
+            let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
+            gcx.dcx().has_errors()?;
+            let mut codegen = EvmCodegen::new();
+            let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
+            bytecodes.insert(
+                contract_id,
+                GeneratedBytecodes {
+                    deployment: alloy_primitives::hex::encode(deployment),
+                    runtime: alloy_primitives::hex::encode(runtime),
+                },
+            );
+        }
     }
 
     Ok(bytecodes)
+}
+
+fn ensure_contract_bytecode(
+    gcx: solar_sema::Gcx<'_>,
+    contract_id: ContractId,
+    all_bytecodes: &mut FxHashMap<ContractId, Vec<u8>>,
+    visiting: &mut FxHashSet<ContractId>,
+) -> Result {
+    let contract = gcx.hir.contract(contract_id);
+
+    if all_bytecodes.contains_key(&contract_id) {
+        return Ok(());
+    }
+
+    if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+        return Err(gcx
+            .dcx()
+            .err("cannot generate creation bytecode for non-deployable contract")
+            .span(contract.span)
+            .emit());
+    }
+
+    if !visiting.insert(contract_id) {
+        return Err(gcx
+            .dcx()
+            .err("recursive contract creation bytecode dependency")
+            .span(contract.span)
+            .emit());
+    }
+
+    for dep in lower::contract_bytecode_dependencies(gcx, contract_id) {
+        ensure_contract_bytecode(gcx, dep, all_bytecodes, visiting)?;
+    }
+
+    let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
+    gcx.dcx().has_errors()?;
+    let mut codegen = EvmCodegen::new();
+    let (deployment, _) = codegen.generate_deployment_bytecode(&mut module);
+    all_bytecodes.insert(contract_id, deployment);
+    visiting.remove(&contract_id);
+
+    Ok(())
 }
 
 impl ContractOutput {

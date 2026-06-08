@@ -3,9 +3,9 @@
 fn @sumTo(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    v3 = mstore v1, 0
+    mstore v1, 0
     v5 = internal_frame_addr 160
-    v6 = mstore v5, 0
+    mstore v5, 0
     jump bb1
   bb1:
     v7 = internal_frame_addr 160
@@ -21,7 +21,7 @@ fn @sumTo(arg0: u256) -> u256 {
     v18 = mload v17
     v20 = add v18, 1
     v21 = internal_frame_addr 160
-    v22 = mstore v21, v20
+    mstore v21, v20
     jump bb1
   bb4:
     v10 = internal_frame_addr 160
@@ -30,20 +30,17 @@ fn @sumTo(arg0: u256) -> u256 {
     v13 = mload v12
     v14 = add v13, v11
     v15 = internal_frame_addr 128
-    v16 = mstore v15, v14
+    mstore v15, v14
     jump bb3
   bb5:
     jump bb2
 }
 
-fn @run(arg0: u256) -> u256 {
+fn @run(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
+    mstore 128, 0
     v4 = internal_call fn0, 1, arg0
-    v6 = mload 64
-    v8 = add v6, 32
-    v10 = mstore 64, v8
-    v11 = mstore v6, v4
-    returndata v6, 32
+    mstore 128, v4
+    returndata 128, 32
 }
 

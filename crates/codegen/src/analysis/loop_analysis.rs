@@ -7,8 +7,8 @@
 //! - Loop bound analysis
 
 use crate::mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId};
-use rustc_hash::{FxHashMap, FxHashSet};
 use smallvec::SmallVec;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// A natural loop in the control flow graph.
 #[derive(Clone, Debug)]

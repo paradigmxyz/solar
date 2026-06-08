@@ -25,17 +25,33 @@
 //! ## Limitations
 //!
 //! - Only operates within basic blocks (local CSE)
-//! - Does not track across memory operations (conservative for side effects)
+//! - Does not track across memory/storage operations (conservative for side effects)
 //! - Does not handle expressions with different but equivalent orderings
 
-use crate::mir::{BlockId, Function, InstId, InstKind, Value, ValueId};
-use rustc_hash::FxHashMap;
+use crate::{
+    mir::{BlockId, Function, InstId, InstKind, Value, ValueId},
+    pass::FunctionPass,
+};
+use solar_data_structures::map::FxHashMap;
 
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
 pub struct CommonSubexprEliminator {
     /// Number of instructions eliminated.
     pub eliminated_count: usize,
+}
+
+/// Function pass for local common subexpression elimination.
+pub struct CsePass;
+
+impl FunctionPass for CsePass {
+    fn name(&self) -> &str {
+        "cse"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        CommonSubexprEliminator::new().run_to_fixpoint(func);
+    }
 }
 
 /// A normalized expression key for CSE lookup.
@@ -113,10 +129,8 @@ impl CommonSubexprEliminator {
 
             // Skip side-effecting instructions
             if inst.kind.has_side_effects() {
-                // Memory/storage writes invalidate cached SLOADs
-                if matches!(inst.kind, InstKind::SStore(_, _)) {
-                    // Conservative: invalidate all SLOADs on any SSTORE
-                    expr_cache.retain(|k, _| !matches!(k, ExprKey::SLoad(_)));
+                if inst.kind.may_mutate_storage() {
+                    expr_cache.retain(|key, _| !matches!(key, ExprKey::SLoad(_)));
                 }
                 continue;
             }
@@ -200,11 +214,13 @@ impl CommonSubexprEliminator {
             InstKind::IsZero(a) => Some(ExprKey::IsZero(canonical(*a))),
             InstKind::Not(a) => Some(ExprKey::Not(canonical(*a))),
 
-            // Storage reads can be cached within a block (until a write)
+            // Storage reads can be cached locally until a storage-mutating side effect.
+            // The storage-aware CSE pass handles the more precise disjoint-store cases.
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(canonical(*slot))),
 
             // Don't cache these:
             // - Memory operations (MLOAD) - memory can be modified
+            // - Storage writes - side effects
             // - Environment reads - values might change
             // - Phi nodes - not expressions
             // - Calls - side effects

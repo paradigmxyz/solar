@@ -3,8 +3,7 @@
 //!
 //! This module contains:
 //! - `EvmCodegen`: The main EVM code generator
-//! - `Assembler`: Two-pass assembler with label resolution
-//! - `PeepholeOptimizer`: Bytecode-level pattern optimizations (not yet integrated)
+//! - `Assembler`: Two-pass assembler with label resolution and instruction peepholes
 //! - `stack`: Stack scheduling for DUP/SWAP generation
 
 mod codegen;

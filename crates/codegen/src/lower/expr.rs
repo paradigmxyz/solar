@@ -13,6 +13,11 @@ use solar_sema::{
     hir::{self, CallArgs, ElementaryType, ExprKind},
 };
 
+enum PackedAbiArg {
+    Bytes(Vec<u8>),
+    Value { value: ValueId, size: usize },
+}
+
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers an expression to MIR.
     pub(super) fn lower_expr(
@@ -506,6 +511,11 @@ impl<'gcx> Lowerer<'gcx> {
                         return self.lower_expr(builder, init);
                     }
 
+                    // Check if it's an immutable - load from appended runtime data.
+                    if let Some(&offset) = self.immutable_slots.get(var_id) {
+                        return self.load_immutable_value(builder, offset);
+                    }
+
                     // Check if it's a storage variable
                     if let Some(&slot) = self.storage_slots.get(var_id) {
                         // For storage structs, we need to copy to memory and return the pointer
@@ -844,26 +854,19 @@ impl<'gcx> Lowerer<'gcx> {
         // Extract ContractId from the type
         let contract_id = match &ty.kind {
             hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
-            _ => {
-                // Not a contract type, return null pointer
-                return builder.imm_u64(0);
-            }
+            _ => panic!("codegen expected contract type for `type(C).creationCode`"),
         };
 
         // Look up pre-compiled bytecode
         // For creationCode we use the deployment bytecode (initcode)
-        // For runtimeCode we would need the runtime bytecode (not yet supported)
+        if !is_creation_code {
+            panic!("codegen does not support `type(C).runtimeCode` yet");
+        }
+
         let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
             Some(bc) => bc.clone(),
-            None => {
-                // Bytecode not available - return null pointer
-                return builder.imm_u64(0);
-            }
+            None => panic!("codegen missing creation bytecode for `type(C).creationCode`"),
         };
-
-        // For runtimeCode, we don't have a separate mechanism yet, so use creation code
-        // TODO: Support runtimeCode by storing runtime bytecode separately
-        let _ = is_creation_code;
 
         let bytecode_len = bytecode.len();
 
@@ -1005,9 +1008,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let args: Vec<_> = args.exprs().collect();
-        let total_len: u64 =
-            args.iter().map(|arg| self.get_packed_size_from_expr(arg) as u64).sum();
+        let (packed_args, total_len) = self.collect_packed_abi_args(builder, args);
         let aligned_data_len = total_len.div_ceil(32) * 32;
         let total_size = 32 + aligned_data_len;
 
@@ -1028,49 +1029,115 @@ impl<'gcx> Lowerer<'gcx> {
         let length = builder.imm_u64(total_len);
         builder.mstore(ptr, length);
 
-        let mut current_offset: u64 = 0;
-
-        for arg in args {
-            if let ExprKind::Lit(lit) = &arg.kind
-                && let LitKind::Str(_, bytes, _) = &lit.kind
-            {
-                for chunk in bytes.as_byte_str().chunks(32) {
-                    let mut padded = [0u8; 32];
-                    padded[..chunk.len()].copy_from_slice(chunk);
-                    let val = builder.imm_u256(U256::from_be_bytes(padded));
-                    let offset = builder.imm_u64(current_offset);
-                    let dest = builder.add(data_start, offset);
-                    builder.mstore(dest, val);
-                    current_offset += chunk.len() as u64;
-                }
-                continue;
-            }
-
-            let packed_size = self.get_packed_size_from_expr(arg);
-            let val = self.lower_expr(builder, arg);
-
-            if packed_size == 32 {
-                // Full 32 bytes - use MSTORE
-                let offset = builder.imm_u64(current_offset);
-                let dest = builder.add(data_start, offset);
-                builder.mstore(dest, val);
-            } else {
-                // Less than 32 bytes - need to left-align and use MSTORE
-                // Value is already right-aligned in the 256-bit word
-                // Shift left to left-align: val << (256 - packed_size*8)
-                let shift_bits = (32 - packed_size) * 8;
-                let shift_amount = builder.imm_u64(shift_bits as u64);
-                let left_aligned = builder.shl(shift_amount, val);
-
-                let offset = builder.imm_u64(current_offset);
-                let dest = builder.add(data_start, offset);
-                builder.mstore(dest, left_aligned);
-            }
-            current_offset += packed_size as u64;
-        }
+        self.write_packed_abi_args(builder, data_start, &packed_args);
 
         // Return pointer to the bytes value
         ptr
+    }
+
+    /// Lowers `keccak256(abi.encodePacked(...))` without materializing a temporary bytes object.
+    pub(super) fn lower_keccak_abi_encode_packed(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let (packed_args, total_len) = self.collect_packed_abi_args(builder, args);
+
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let data_start = builder.mload(free_mem_ptr_slot);
+        self.write_packed_abi_args(builder, data_start, &packed_args);
+
+        let size = builder.imm_u64(total_len);
+        builder.keccak256(data_start, size)
+    }
+
+    fn collect_packed_abi_args(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> (Vec<PackedAbiArg>, u64) {
+        let mut packed_args = Vec::with_capacity(args.len());
+        let mut total_len = 0u64;
+
+        for arg in args.exprs() {
+            if let ExprKind::Lit(lit) = &arg.kind
+                && let LitKind::Str(_, bytes, _) = &lit.kind
+            {
+                let bytes = bytes.as_byte_str().to_vec();
+                total_len += bytes.len() as u64;
+                packed_args.push(PackedAbiArg::Bytes(bytes));
+                continue;
+            }
+
+            let size = self.get_packed_size_from_expr(arg);
+            let value = self.lower_expr(builder, arg);
+            total_len += size as u64;
+            packed_args.push(PackedAbiArg::Value { value, size });
+        }
+
+        (packed_args, total_len)
+    }
+
+    fn write_packed_abi_args(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        data_start: ValueId,
+        args: &[PackedAbiArg],
+    ) {
+        let mut current_offset: u64 = 0;
+
+        for arg in args {
+            match arg {
+                PackedAbiArg::Bytes(bytes) => {
+                    for chunk in bytes.chunks(32) {
+                        let mut padded = [0u8; 32];
+                        padded[..chunk.len()].copy_from_slice(chunk);
+                        let val = builder.imm_u256(U256::from_be_bytes(padded));
+                        let offset = builder.imm_u64(current_offset);
+                        let dest = builder.add(data_start, offset);
+                        builder.mstore(dest, val);
+                        current_offset += chunk.len() as u64;
+                    }
+                }
+                &PackedAbiArg::Value { value, size } if size >= 32 => {
+                    // Full 32 bytes - use MSTORE
+                    let offset = builder.imm_u64(current_offset);
+                    let dest = builder.add(data_start, offset);
+                    builder.mstore(dest, value);
+                    current_offset += size as u64;
+                }
+                &PackedAbiArg::Value { value, size } => {
+                    // Less than 32 bytes - need to left-align and use MSTORE.
+                    // Value is already right-aligned in the 256-bit word.
+                    let shift_bits = (32 - size) * 8;
+                    let shift_amount = builder.imm_u64(shift_bits as u64);
+                    let left_aligned = builder.shl(shift_amount, value);
+
+                    let offset = builder.imm_u64(current_offset);
+                    let dest = builder.add(data_start, offset);
+                    builder.mstore(dest, left_aligned);
+                    current_offset += size as u64;
+                }
+            }
+        }
+    }
+
+    pub(super) fn abi_encode_packed_call_args<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<&'a CallArgs<'a>> {
+        let ExprKind::Call(callee, args, _) = &expr.kind else {
+            return None;
+        };
+        let ExprKind::Member(base, member) = &callee.kind else {
+            return None;
+        };
+        let ExprKind::Ident(res_slice) = &base.kind else {
+            return None;
+        };
+        matches!(res_slice.first(), Some(hir::Res::Builtin(Builtin::Abi)))
+            .then_some(args)
+            .filter(|_| member.name == sym::encodePacked)
     }
 
     /// Gets the packed size in bytes for an expression (used by abi.encodePacked).
@@ -1204,6 +1271,8 @@ impl<'gcx> Lowerer<'gcx> {
                     } else if self.locals.contains_key(var_id) {
                         // Function parameter - update SSA mapping (shouldn't happen normally)
                         self.locals.insert(*var_id, rhs);
+                    } else if let Some(&offset) = self.immutable_slots.get(var_id) {
+                        self.store_immutable_value(builder, offset, rhs);
                     } else if let Some(&base_slot) = self.storage_slots.get(var_id) {
                         // Check if this is a struct assignment (memory struct -> storage struct)
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
@@ -1585,20 +1654,13 @@ impl<'gcx> Lowerer<'gcx> {
         // Extract ContractId from the type
         let contract_id = match &ty.kind {
             hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
-            _ => {
-                // Not a contract type, return placeholder
-                return builder.imm_u64(0);
-            }
+            _ => panic!("codegen expected contract type for `new` expression"),
         };
 
         // Look up pre-compiled bytecode
         let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
             Some(bc) => bc.clone(),
-            None => {
-                // Bytecode not available - return placeholder
-                // This happens if contracts aren't compiled in the right order
-                return builder.imm_u64(0);
-            }
+            None => panic!("codegen missing creation bytecode for contract deployment"),
         };
 
         let bytecode_len = bytecode.len();
@@ -1683,6 +1745,10 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::Keccak256 => {
                 let mut exprs = args.exprs();
                 if let Some(first) = exprs.next() {
+                    if let Some(packed_args) = self.abi_encode_packed_call_args(first) {
+                        return self.lower_keccak_abi_encode_packed(builder, packed_args);
+                    }
+
                     let arg_val = self.lower_expr(builder, first);
                     if self.is_dynamic_bytes_expr(first) {
                         let len = builder.mload(arg_val);
@@ -2246,11 +2312,11 @@ impl<'gcx> Lowerer<'gcx> {
         if member_name == "call" || member_name == "staticcall" || member_name == "delegatecall" {
             let addr = self.lower_expr(builder, base);
 
-            // Get the calldata bytes argument
+            // Get the calldata bytes argument.
             let mut exprs = args.exprs();
             let (calldata_offset, calldata_size) = if let Some(data_arg) = exprs.next() {
-                // The data argument is bytes - could be a literal, memory reference, etc.
-                // For now, handle string/bytes literals and empty bytes
+                // Supported inputs are literals and ABI encode calls. Other
+                // bytes expressions panic in `lower_bytes_arg_to_memory`.
                 self.lower_bytes_arg_to_memory(builder, data_arg)
             } else {
                 // No argument means empty calldata
@@ -2268,11 +2334,10 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.imm_u64(0)
             };
 
-            // Return data location - we store at a fixed offset after calldata
-            // Use offset 0 for return data since we don't need calldata after call
+            // This lowering models only the success flag. Solidity's second
+            // `bytes` result is rejected by `lower_multi_var_decl` until the
+            // compiler materializes returndata bytes.
             let ret_offset = builder.imm_u64(0);
-            // We'll store the return data size at runtime via RETURNDATASIZE
-            // For now, assume no return data copying (size 0)
             let ret_size = builder.imm_u64(0);
 
             // Emit the appropriate CALL/STATICCALL/DELEGATECALL instruction
@@ -2305,10 +2370,8 @@ impl<'gcx> Lowerer<'gcx> {
                 _ => unreachable!(),
             };
 
-            // Low-level calls return (bool success, bytes memory returndata)
-            // For now, we just return the success bool. The returndata can be accessed
-            // via returndatasize()/returndatacopy() if needed.
-            // TODO: Support returning the bytes memory returndata as second value
+            // Low-level calls return `(bool, bytes)`, but this expression path
+            // exposes only the first value.
             return success;
         }
 
@@ -3525,7 +3588,8 @@ impl<'gcx> Lowerer<'gcx> {
         {
             // Look up the function in the current contract
             // We need to find it through the module's functions
-            // For now, iterate all contracts and find the function
+            // Search all known contracts because `this` carries the current
+            // contract value rather than a specific function declaration.
             for contract_id in self.gcx.hir.contract_ids() {
                 if let Some(count) = lookup_in_contract(contract_id) {
                     return count;
@@ -3533,7 +3597,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        // Default: assume single return value
+        // Unknown member calls are treated as single-value calls.
         1
     }
 
@@ -3733,7 +3797,7 @@ impl<'gcx> Lowerer<'gcx> {
         // `internal_call` instead, where the memory-backed internal frame handles
         // reassigned locals, loops, and recursion correctly. Recursive functions
         // with a simple ternary body (which `is_simple_return_function` accepts)
-        // are caught separately so inlining doesn't hit the cycle placeholder.
+        // are caught separately so inlining does not hit a recursive cycle.
         // Simple, non-recursive functions still inline. Internal/private callees
         // use the internal-frame convention directly; a public callee is compiled
         // for the external ABI, so it needs an internal-frame copy
@@ -3755,10 +3819,9 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len());
         }
 
-        // Check for recursive inlining cycle AFTER evaluating arguments
+        // Check for recursive inlining cycle AFTER evaluating arguments.
         if !self.try_enter_inline(func_id) {
-            // Cycle detected or max depth exceeded - return placeholder
-            return builder.imm_u64(0);
+            panic!("codegen hit unsupported internal-call inline recursion");
         }
 
         // Save current locals
@@ -3825,7 +3888,7 @@ impl<'gcx> Lowerer<'gcx> {
         let body = func.body;
 
         if !self.try_enter_inline(func_id) {
-            return builder.imm_u64(0);
+            panic!("codegen hit unsupported void-call inline recursion");
         }
 
         let saved_locals = std::mem::take(&mut self.locals);
@@ -3939,10 +4002,9 @@ impl<'gcx> Lowerer<'gcx> {
                 return self.lower_inline_void_call(builder, func_id, arg_vals);
             }
 
-            // Check for recursive inlining cycle AFTER evaluating arguments
+            // Check for recursive inlining cycle AFTER evaluating arguments.
             if !self.try_enter_inline(func_id) {
-                // Cycle detected or max depth exceeded - return placeholder
-                return builder.imm_u64(0);
+                panic!("codegen hit unsupported library-call inline recursion");
             }
 
             // Simple inlining: bind parameters directly as SSA values
@@ -3982,9 +4044,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             result
         } else {
-            // External library functions use DELEGATECALL
-            // For now, return placeholder (external library calls are less common)
-            builder.imm_u64(0)
+            panic!("codegen does not support external library calls yet")
         }
     }
 
@@ -4004,8 +4064,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Whether `func_id` directly calls itself (cached). A recursive function
-    /// must be lowered as a real `internal_call`: inlining it hits the cycle
-    /// detector and substitutes a `0` placeholder.
+    /// must be lowered as a real `internal_call` instead of being inlined.
     fn function_is_recursive(&mut self, func_id: hir::FunctionId) -> bool {
         if let Some(&cached) = self.recursive_functions.get(&func_id) {
             return cached;
@@ -4284,18 +4343,12 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        // For other expressions (e.g., variables containing bytes), we need to:
-        // 1. Get the memory location of the bytes
-        // 2. Return (offset, size)
-        // For now, fall back to evaluating the expression and treating it as empty
-        // TODO: Support bytes memory variables
-        let _val = self.lower_expr(builder, expr);
-        (builder.imm_u64(0), builder.imm_u64(0))
+        panic!("codegen does not support non-literal bytes calldata for low-level calls yet")
     }
 
     /// Checks if an expression has a contract type (as opposed to address type).
     /// Used to distinguish between address.transfer(amount) and token.transfer(to, amount).
-    fn is_contract_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    pub(super) fn is_contract_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
         // Case 1: Variable with contract type (e.g., `token` where `MinimalERC20 token`)
         if let ExprKind::Ident(res_slice) = &expr.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()

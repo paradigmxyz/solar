@@ -3,32 +3,26 @@
 fn @double(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    v3 = mstore v1, 0
+    mstore v1, 0
     v4 = add arg0, arg0
     ret v4
 }
 
-fn @quadruple(arg0: u256) -> u256 {
+fn @quadruple(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
+    mstore 128, 0
     v5 = add arg0, arg0
     v7 = add v5, v5
-    v9 = mload 64
-    v11 = add v9, 32
-    v13 = mstore 64, v11
-    v14 = mstore v9, v7
-    returndata v9, 32
+    mstore 128, v7
+    returndata 128, 32
 }
 
-fn @sum_then_double(arg0: u256, arg1: u256) -> u256 {
+fn @sum_then_double(arg0: u256, arg1: u256) {
   bb0 (entry):
-    v4 = mstore 128, 0
+    mstore 128, 0
     v5 = add arg0, arg1
     v7 = add v5, v5
-    v9 = mload 64
-    v11 = add v9, 32
-    v13 = mstore 64, v11
-    v14 = mstore v9, v7
-    returndata v9, 32
+    mstore 128, v7
+    returndata 128, 32
 }
 

@@ -16,6 +16,8 @@ pub struct Module {
     pub data_segments: Vec<DataSegment>,
     /// Storage layout.
     pub storage_layout: Vec<StorageSlot>,
+    /// Runtime immutable data layout.
+    pub immutables: Vec<ImmutableSlot>,
     /// Whether this is an interface (no bytecode generation).
     pub is_interface: bool,
 }
@@ -29,6 +31,7 @@ impl Module {
             functions: IndexVec::new(),
             data_segments: Vec::new(),
             storage_layout: Vec::new(),
+            immutables: Vec::new(),
             is_interface: false,
         }
     }
@@ -63,6 +66,19 @@ impl Module {
         index
     }
 
+    /// Adds an immutable data slot.
+    pub fn add_immutable_slot(&mut self, slot: ImmutableSlot) -> usize {
+        let index = self.immutables.len();
+        self.immutables.push(slot);
+        index
+    }
+
+    /// Returns the number of bytes appended to runtime code for immutable data.
+    #[must_use]
+    pub fn immutable_data_len(&self) -> usize {
+        self.immutables.len() * 32
+    }
+
     /// Returns an iterator over all functions.
     pub fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
         self.functions.iter_enumerated()
@@ -83,6 +99,17 @@ pub struct StorageSlot {
     pub slot: u64,
     /// The offset within the slot (for packed storage).
     pub offset: u8,
+    /// The type of the value stored.
+    pub ty: MirType,
+    /// The variable name (for debugging).
+    pub name: Option<Ident>,
+}
+
+/// A 32-byte immutable word appended to runtime code.
+#[derive(Clone, Debug)]
+pub struct ImmutableSlot {
+    /// Byte offset from the start of the immutable data area.
+    pub offset: u64,
     /// The type of the value stored.
     pub ty: MirType,
     /// The variable name (for debugging).

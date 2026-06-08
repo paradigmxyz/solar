@@ -3,81 +3,66 @@
 fn @hashLib(arg0: memptr) -> bytes32 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    v3 = mstore v1, 0
-    v5 = mload 64
-    v7 = add v5, 32
-    v9 = add v5, 160
-    v10 = mstore 64, v9
-    v12 = mstore v5, 101
-    v15 = add v7, 0
-    v16 = mstore v15, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v17 = mload arg0
-    v19 = add v7, 1
-    v20 = mstore v19, v17
-    v22 = add arg0, 32
-    v23 = mload v22
-    v25 = shl 224, v23
-    v27 = add v7, 33
-    v28 = mstore v27, v25
-    v30 = add arg0, 64
-    v31 = mload v30
-    v33 = add v7, 37
-    v34 = mstore v33, v31
-    v36 = add arg0, 96
-    v37 = mload v36
-    v39 = add v7, 69
-    v40 = mstore v39, v37
-    v41 = mload v5
-    v43 = add v5, 32
-    v44 = keccak256 v43, v41
-    ret v44
+    mstore v1, 0
+    v4 = mload arg0
+    v6 = add arg0, 32
+    v7 = mload v6
+    v9 = add arg0, 64
+    v10 = mload v9
+    v12 = add arg0, 96
+    v13 = mload v12
+    v15 = mload 64
+    v18 = add v15, 0
+    mstore v18, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v21 = add v15, 1
+    mstore v21, v4
+    v24 = shl 224, v7
+    v26 = add v15, 33
+    mstore v26, v24
+    v29 = add v15, 37
+    mstore v29, v10
+    v32 = add v15, 69
+    mstore v32, v13
+    v35 = keccak256 v15, 101
+    ret v35
 }
 
 // === ROOT/tests/ui/codegen/using_for_struct.sol:C ===
 ; module @C
-fn @viaMethod(arg0: bytes32, arg1: bytes32) -> bytes32 {
+fn @viaMethod(arg0: bytes32, arg1: bytes32) {
   bb0 (entry):
-    v4 = mstore 128, 0
+    mstore 128, 0
     v6 = mload 64
     v8 = add v6, 128
-    v10 = mstore 64, v8
-    v11 = mstore v6, arg0
+    mstore 64, v8
+    mstore v6, arg0
     v14 = add v6, 32
-    v15 = mstore v14, 0
+    mstore v14, 0
     v18 = add v6, 64
-    v19 = mstore v18, 0
+    mstore v18, 0
     v21 = add v6, 96
-    v22 = mstore v21, arg1
-    v25 = mload 64
-    v27 = add v25, 32
-    v29 = add v25, 160
-    v30 = mstore 64, v29
-    v32 = mstore v25, 101
-    v35 = add v27, 0
-    v36 = mstore v35, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v37 = mload v6
-    v39 = add v27, 1
-    v40 = mstore v39, v37
-    v42 = add v6, 32
-    v43 = mload v42
-    v45 = shl 224, v43
-    v47 = add v27, 33
-    v48 = mstore v47, v45
-    v50 = add v6, 64
-    v51 = mload v50
-    v53 = add v27, 37
-    v54 = mstore v53, v51
-    v56 = add v6, 96
-    v57 = mload v56
-    v59 = add v27, 69
-    v60 = mstore v59, v57
-    v61 = mload v25
-    v63 = add v25, 32
-    v64 = keccak256 v63, v61
-    v66 = mload 64
-    v68 = add v66, 32
-    v70 = mstore 64, v68
-    v71 = mstore v66, v64
-    returndata v66, 32
+    mstore v21, arg1
+    v24 = mload v6
+    v26 = add v6, 32
+    v27 = mload v26
+    v29 = add v6, 64
+    v30 = mload v29
+    v32 = add v6, 96
+    v33 = mload v32
+    v35 = mload 64
+    v38 = add v35, 0
+    mstore v38, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v41 = add v35, 1
+    mstore v41, v24
+    v44 = shl 224, v27
+    v46 = add v35, 33
+    mstore v46, v44
+    v49 = add v35, 37
+    mstore v49, v30
+    v52 = add v35, 69
+    mstore v52, v33
+    v55 = keccak256 v35, 101
+    mstore 128, v55
+    returndata 128, 32
 }
 

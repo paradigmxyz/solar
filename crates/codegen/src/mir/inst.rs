@@ -1,8 +1,30 @@
 //! MIR instructions.
 
 use super::{BlockId, FunctionId, MirType, ValueId};
-use smallvec::{SmallVec, smallvec};
+use alloy_primitives::U256;
+use smallvec::SmallVec;
 use std::fmt;
+
+/// Extra information attached to a MIR instruction by lowering or analysis passes.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct InstructionMetadata {
+    /// Proven storage alias key for `sload`/`sstore` instructions.
+    pub storage_alias: Option<StorageAlias>,
+}
+
+impl InstructionMetadata {
+    /// Empty instruction metadata.
+    pub const EMPTY: Self = Self { storage_alias: None };
+}
+
+/// A conservative storage alias key.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum StorageAlias {
+    /// A known absolute storage slot.
+    Slot(U256),
+    /// A loop-invariant symbolic slot value.
+    Symbolic(ValueId),
+}
 
 /// An instruction in the MIR.
 #[derive(Clone, Debug)]
@@ -11,13 +33,15 @@ pub struct Instruction {
     pub kind: InstKind,
     /// The result type (if any).
     pub result_ty: Option<MirType>,
+    /// Metadata produced by lowering or analysis.
+    pub metadata: InstructionMetadata,
 }
 
 impl Instruction {
     /// Creates a new instruction.
     #[must_use]
     pub const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
-        Self { kind, result_ty }
+        Self { kind, result_ty, metadata: InstructionMetadata::EMPTY }
     }
 
     /// Returns the operands of this instruction.
@@ -28,6 +52,10 @@ impl Instruction {
 }
 
 /// The kind of an instruction.
+///
+/// TODO(codegen): Consider separating opcode and operands once the MIR shape stabilizes, e.g.
+/// `Instruction { opcode: Opcode, operands: SmallVec<[ValueId; 4]>, ... }`. That would make generic
+/// operand visitors and rewrites less variant-heavy.
 #[derive(Clone, Debug)]
 pub enum InstKind {
     // Arithmetic operations
@@ -240,7 +268,7 @@ pub enum InstKind {
 impl InstKind {
     /// Collects all operands of this instruction into the provided vector.
     /// This is the canonical way to get all operands for liveness analysis.
-    pub fn collect_operands(&self, out: &mut Vec<ValueId>) {
+    pub fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
         match self {
             // Binary operations
             Self::Add(a, b)
@@ -395,6 +423,13 @@ impl InstKind {
     /// Returns the operands of this instruction.
     #[must_use]
     pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
+        let mut out = SmallVec::new();
+        self.collect_operands(&mut out);
+        out
+    }
+
+    /// Visits every operand mutably.
+    pub fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
         match self {
             Self::Add(a, b)
             | Self::Sub(a, b)
@@ -422,7 +457,10 @@ impl InstKind {
             | Self::TStore(a, b)
             | Self::Keccak256(a, b)
             | Self::Log0(a, b)
-            | Self::SignExtend(a, b) => smallvec![*a, *b],
+            | Self::SignExtend(a, b) => {
+                f(a);
+                f(b);
+            }
 
             Self::Not(a)
             | Self::IsZero(a)
@@ -434,7 +472,7 @@ impl InstKind {
             | Self::ExtCodeHash(a)
             | Self::Balance(a)
             | Self::BlockHash(a)
-            | Self::BlobHash(a) => smallvec![*a],
+            | Self::BlobHash(a) => f(a),
 
             Self::MCopy(a, b, c)
             | Self::CalldataCopy(a, b, c)
@@ -444,30 +482,69 @@ impl InstKind {
             | Self::MulMod(a, b, c)
             | Self::Create(a, b, c)
             | Self::Log1(a, b, c)
-            | Self::Select(a, b, c) => smallvec![*a, *b, *c],
+            | Self::Select(a, b, c) => {
+                f(a);
+                f(b);
+                f(c);
+            }
 
             Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
-                smallvec![*a, *b, *c, *d]
+                f(a);
+                f(b);
+                f(c);
+                f(d);
             }
 
-            Self::Log3(a, b, c, d, e) => smallvec![*a, *b, *c, *d, *e],
+            Self::Log3(a, b, c, d, e) => {
+                f(a);
+                f(b);
+                f(c);
+                f(d);
+                f(e);
+            }
 
-            Self::Log4(a, b, c, d, e, f) => smallvec![*a, *b, *c, *d, *e, *f],
+            Self::Log4(a, b, c, d, e, g) => {
+                f(a);
+                f(b);
+                f(c);
+                f(d);
+                f(e);
+                f(g);
+            }
 
             Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                smallvec![*gas, *addr, *value, *args_offset, *args_size, *ret_offset, *ret_size]
+                f(gas);
+                f(addr);
+                f(value);
+                f(args_offset);
+                f(args_size);
+                f(ret_offset);
+                f(ret_size);
             }
-            Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                smallvec![*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size]
+            Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
+            | Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                f(gas);
+                f(addr);
+                f(args_offset);
+                f(args_size);
+                f(ret_offset);
+                f(ret_size);
             }
-            Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                smallvec![*gas, *addr, *args_offset, *args_size, *ret_offset, *ret_size]
+            Self::InternalCall { args, .. } => {
+                for arg in args {
+                    f(arg);
+                }
             }
-            Self::InternalCall { args, .. } => args.iter().copied().collect(),
-            Self::InternalFrameAddr(_) => smallvec![],
+
+            Self::Phi(incoming) => {
+                for (_, value) in incoming {
+                    f(value);
+                }
+            }
 
             Self::MSize
             | Self::CalldataSize
+            | Self::InternalFrameAddr(_)
             | Self::CodeSize
             | Self::ReturnDataSize
             | Self::Caller
@@ -484,10 +561,55 @@ impl InstKind {
             | Self::SelfBalance
             | Self::Gas
             | Self::BaseFee
-            | Self::BlobBaseFee => smallvec![],
-
-            Self::Phi(_) => smallvec![],
+            | Self::BlobBaseFee => {}
         }
+    }
+
+    /// Returns true if this instruction may mutate persistent storage.
+    #[must_use]
+    pub const fn may_mutate_storage(&self) -> bool {
+        matches!(
+            self,
+            Self::SStore(_, _)
+                | Self::Call { .. }
+                | Self::DelegateCall { .. }
+                | Self::InternalCall { .. }
+                | Self::Create(_, _, _)
+                | Self::Create2(_, _, _, _)
+        )
+    }
+
+    /// Returns true if this instruction may mutate transient storage.
+    #[must_use]
+    pub const fn may_mutate_transient_storage(&self) -> bool {
+        matches!(
+            self,
+            Self::TStore(_, _)
+                | Self::Call { .. }
+                | Self::DelegateCall { .. }
+                | Self::InternalCall { .. }
+        )
+    }
+
+    /// Returns true if this instruction writes or may write memory.
+    #[must_use]
+    pub const fn may_mutate_memory(&self) -> bool {
+        matches!(
+            self,
+            Self::MStore(_, _)
+                | Self::MStore8(_, _)
+                | Self::MCopy(_, _, _)
+                | Self::CalldataCopy(_, _, _)
+                | Self::CodeCopy(_, _, _)
+                | Self::ReturnDataCopy(_, _, _)
+                | Self::ExtCodeCopy(_, _, _, _)
+                | Self::Call { .. }
+                | Self::StaticCall { .. }
+                | Self::DelegateCall { .. }
+                | Self::InternalCall { .. }
+                | Self::Create(_, _, _)
+                | Self::Create2(_, _, _, _)
+        )
     }
 
     /// Returns the mnemonic for this instruction.
@@ -613,5 +735,26 @@ impl InstKind {
 impl fmt::Display for InstKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{Function, Immediate, Value};
+    use alloy_primitives::U256;
+    use solar_interface::Ident;
+
+    #[test]
+    fn phi_operands_include_incoming_values() {
+        let mut func = Function::new(Ident::DUMMY);
+        let pred_a = func.entry_block;
+        let pred_b = func.alloc_block();
+        let a = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
+        let b = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
+
+        let phi = InstKind::Phi(vec![(pred_a, a), (pred_b, b)]);
+
+        assert_eq!(phi.operands().as_slice(), &[a, b]);
     }
 }

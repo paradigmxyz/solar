@@ -1,36 +1,36 @@
 // === ROOT/tests/ui/codegen/abi_nested_return.sol:AbiNestedReturn ===
 ; module @AbiNestedReturn
-fn @structArray(arg0: u256) -> memptr {
+fn @structArray(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
+    mstore 128, 0
     v6 = mload 64
-    v7 = mstore v6, 1
+    mstore v6, 1
     v9 = mul 1, 32
     v10 = add v9, 32
     v11 = add v6, v10
-    v13 = mstore 64, v11
+    mstore 64, v11
     v15 = mload 64
     v17 = add v15, 64
-    v19 = mstore 64, v17
-    v20 = mstore v15, arg0
+    mstore 64, v17
+    mstore v15, arg0
     v22 = add arg0, 1
     v24 = add v15, 32
-    v25 = mstore v24, v22
+    mstore v24, v22
     v28 = mul 0, 32
     v29 = add v6, 32
     v30 = add v29, v28
-    v31 = mstore v30, v15
+    mstore v30, v15
     v33 = mload 64
     v35 = add v33, 160
-    v37 = mstore 64, v35
+    mstore 64, v35
     v39 = mload 64
     v41 = add v39, 32
-    v43 = mstore 64, v41
+    mstore 64, v41
     v45 = add v39, 32
     v46 = sub v45, v39
-    v47 = mstore v39, v46
+    mstore v39, v46
     v48 = mload v6
-    v49 = mstore v45, v48
+    mstore v45, v48
     v51 = add v45, 32
     v53 = mul v48, 64
     v54 = add v51, v53
@@ -39,11 +39,11 @@ fn @structArray(arg0: u256) -> memptr {
     v59 = add v33, 64
     v61 = add v33, 96
     v63 = add v33, 128
-    v64 = mstore v33, v48
-    v65 = mstore v57, v54
-    v66 = mstore v59, v51
-    v67 = mstore v61, v55
-    v68 = mstore v63, v51
+    mstore v33, v48
+    mstore v57, v54
+    mstore v59, v51
+    mstore v61, v55
+    mstore v63, v51
     jump bb1
   bb1:
     v69 = mload v33
@@ -56,22 +56,22 @@ fn @structArray(arg0: u256) -> memptr {
     v75 = mload v57
     v76 = mload v63
     v77 = mload v73
-    v78 = mstore v74, v77
+    mstore v74, v77
     v80 = add v74, 32
     v82 = add v73, 32
     v83 = mload v82
-    v84 = mstore v80, v83
+    mstore v80, v83
     v86 = add v80, 32
-    v87 = mstore v57, v75
+    mstore v57, v75
     v88 = mload v33
     v90 = sub v88, 1
-    v91 = mstore v33, v90
+    mstore v33, v90
     v92 = mload v61
     v93 = add v92, 32
-    v94 = mstore v61, v93
+    mstore v61, v93
     v95 = mload v59
     v96 = add v95, 64
-    v97 = mstore v59, v96
+    mstore v59, v96
     jump bb1
   bb3:
     v98 = mload v57
@@ -79,36 +79,36 @@ fn @structArray(arg0: u256) -> memptr {
     returndata v39, v99
 }
 
-fn @nestedArray(arg0: u256) -> memptr {
+fn @nestedArray(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
+    mstore 128, 0
     v6 = mload 64
-    v7 = mstore v6, 1
+    mstore v6, 1
     v9 = mul 1, 32
     v10 = add v9, 32
     v11 = add v6, v10
-    v13 = mstore 64, v11
+    mstore 64, v11
     v15 = mload 64
-    v16 = mstore v15, arg0
+    mstore v15, arg0
     v18 = mul arg0, 32
     v19 = add v18, 32
     v20 = add v15, v19
-    v22 = mstore 64, v20
+    mstore 64, v20
     v25 = mul 0, 32
     v26 = add v6, 32
     v27 = add v26, v25
-    v28 = mstore v27, v15
+    mstore v27, v15
     v30 = mload 64
     v32 = add v30, 160
-    v34 = mstore 64, v32
+    mstore 64, v32
     v36 = mload 64
     v38 = add v36, 32
-    v40 = mstore 64, v38
+    mstore 64, v38
     v42 = add v36, 32
     v43 = sub v42, v36
-    v44 = mstore v36, v43
+    mstore v36, v43
     v45 = mload v6
-    v46 = mstore v42, v45
+    mstore v42, v45
     v48 = add v42, 32
     v50 = mul v45, 32
     v51 = add v48, v50
@@ -117,11 +117,11 @@ fn @nestedArray(arg0: u256) -> memptr {
     v56 = add v30, 64
     v58 = add v30, 96
     v60 = add v30, 128
-    v61 = mstore v30, v45
-    v62 = mstore v54, v51
-    v63 = mstore v56, v48
-    v64 = mstore v58, v52
-    v65 = mstore v60, v48
+    mstore v30, v45
+    mstore v54, v51
+    mstore v56, v48
+    mstore v58, v52
+    mstore v60, v48
     jump bb1
   bb1:
     v66 = mload v30
@@ -134,24 +134,24 @@ fn @nestedArray(arg0: u256) -> memptr {
     v72 = mload v54
     v73 = mload v60
     v74 = sub v72, v73
-    v75 = mstore v71, v74
+    mstore v71, v74
     v76 = mload v70
-    v77 = mstore v72, v76
+    mstore v72, v76
     v79 = mul v76, 32
     v80 = add v72, 32
     v81 = add v70, 32
     v82 = add v80, v79
-    v83 = mcopy v80, v81, v79
-    v84 = mstore v54, v82
+    mcopy v80, v81, v79
+    mstore v54, v82
     v85 = mload v30
     v87 = sub v85, 1
-    v88 = mstore v30, v87
+    mstore v30, v87
     v89 = mload v58
     v90 = add v89, 32
-    v91 = mstore v58, v90
+    mstore v58, v90
     v92 = mload v56
     v93 = add v92, 32
-    v94 = mstore v56, v93
+    mstore v56, v93
     jump bb1
   bb3:
     v95 = mload v54

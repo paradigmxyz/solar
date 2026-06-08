@@ -1,8 +1,8 @@
 // === ROOT/tests/ui/codegen/storage_long_bytes_return.sol:StorageLongBytesReturn ===
 ; module @StorageLongBytesReturn
-fn @s() -> memptr {
+fn @s() {
   bb0 (entry):
-    v2 = mstore 128, 0
+    mstore 128, 0
     v4 = sload 0
     v6 = and v4, 1
     v7 = eq v6, 1
@@ -18,36 +18,36 @@ fn @s() -> memptr {
     v21 = add 32, v20
     v23 = mload 64
     v25 = add v23, 96
-    v27 = mstore 64, v25
+    mstore 64, v25
     v29 = mload 64
     v30 = add v29, v21
-    v32 = mstore 64, v30
-    v33 = mstore v29, v13
+    mstore 64, v30
+    mstore v29, v13
     v34 = add v29, 32
     br v7, bb2, bb1
   bb1:
     v36 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v37 = mstore v34, v36
+    mstore v34, v36
     jump bb3
   bb2:
-    v38 = mstore v23, 0
+    mstore v23, 0
     v39 = keccak256 v23, 32
     v40 = div v18, 32
     v42 = add v23, 32
     v44 = add v23, 64
-    v45 = mstore v23, v34
-    v46 = mstore v42, v40
-    v47 = mstore v44, v39
+    mstore v23, v34
+    mstore v42, v40
+    mstore v44, v39
     jump bb4
   bb3:
     v64 = mload 64
     v66 = add v64, 32
-    v68 = mstore 64, v66
+    mstore 64, v66
     v70 = add v64, 32
     v71 = sub v70, v64
-    v72 = mstore v64, v71
+    mstore v64, v71
     v73 = mload v29
-    v74 = mstore v70, v73
+    mstore v70, v73
     v77 = not 31
     v78 = add v73, 31
     v79 = and v78, v77
@@ -62,31 +62,31 @@ fn @s() -> memptr {
     v51 = mload v44
     v52 = sload v51
     v53 = mload v23
-    v54 = mstore v53, v52
+    mstore v53, v52
     v55 = add v51, 1
-    v56 = mstore v44, v55
+    mstore v44, v55
     v58 = add v53, 32
-    v59 = mstore v23, v58
+    mstore v23, v58
     v60 = mload v42
     v61 = sub v60, 1
-    v62 = mstore v42, v61
+    mstore v42, v61
     jump bb4
   bb6:
     v82 = sub v79, 32
     v83 = add v80, v82
-    v85 = mstore v83, 0
+    mstore v83, 0
     jump bb7
   bb7:
     v86 = add v29, 32
     v87 = add v80, v79
-    v88 = mcopy v80, v86, v73
+    mcopy v80, v86, v73
     v89 = sub v87, v64
     returndata v64, v89
 }
 
-fn @b() -> memptr {
+fn @b() {
   bb0 (entry):
-    v2 = mstore 128, 0
+    mstore 128, 0
     v4 = sload 1
     v6 = and v4, 1
     v7 = eq v6, 1
@@ -102,36 +102,36 @@ fn @b() -> memptr {
     v21 = add 32, v20
     v23 = mload 64
     v25 = add v23, 96
-    v27 = mstore 64, v25
+    mstore 64, v25
     v29 = mload 64
     v30 = add v29, v21
-    v32 = mstore 64, v30
-    v33 = mstore v29, v13
+    mstore 64, v30
+    mstore v29, v13
     v34 = add v29, 32
     br v7, bb2, bb1
   bb1:
     v36 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v37 = mstore v34, v36
+    mstore v34, v36
     jump bb3
   bb2:
-    v38 = mstore v23, 1
+    mstore v23, 1
     v39 = keccak256 v23, 32
     v40 = div v18, 32
     v42 = add v23, 32
     v44 = add v23, 64
-    v45 = mstore v23, v34
-    v46 = mstore v42, v40
-    v47 = mstore v44, v39
+    mstore v23, v34
+    mstore v42, v40
+    mstore v44, v39
     jump bb4
   bb3:
     v64 = mload 64
     v66 = add v64, 32
-    v68 = mstore 64, v66
+    mstore 64, v66
     v70 = add v64, 32
     v71 = sub v70, v64
-    v72 = mstore v64, v71
+    mstore v64, v71
     v73 = mload v29
-    v74 = mstore v70, v73
+    mstore v70, v73
     v77 = not 31
     v78 = add v73, 31
     v79 = and v78, v77
@@ -146,46 +146,46 @@ fn @b() -> memptr {
     v51 = mload v44
     v52 = sload v51
     v53 = mload v23
-    v54 = mstore v53, v52
+    mstore v53, v52
     v55 = add v51, 1
-    v56 = mstore v44, v55
+    mstore v44, v55
     v58 = add v53, 32
-    v59 = mstore v23, v58
+    mstore v23, v58
     v60 = mload v42
     v61 = sub v60, 1
-    v62 = mstore v42, v61
+    mstore v42, v61
     jump bb4
   bb6:
     v82 = sub v79, 32
     v83 = add v80, v82
-    v85 = mstore v83, 0
+    mstore v83, 0
     jump bb7
   bb7:
     v86 = add v29, 32
     v87 = add v80, v79
-    v88 = mcopy v80, v86, v73
+    mcopy v80, v86, v73
     v89 = sub v87, v64
     returndata v64, v89
 }
 
 fn @_anonymous() {
   bb0 (entry):
-    v2 = sstore 0, 65
-    v6 = mstore 0, 0
+    sstore 0, 65
+    mstore 0, 0
     v10 = keccak256 0, 32
-    v12 = sstore v10, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
-    v16 = sstore 1, 67
-    v20 = mstore 0, 1
+    sstore v10, 0x6162636465666768696a6b6c6d6e6f707172737475767778797a414243444546
+    sstore 1, 67
+    mstore 0, 1
     v24 = keccak256 0, 32
-    v26 = sstore v24, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
+    sstore v24, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20
     v29 = add v24, 1
-    v31 = sstore v29, 0x2100000000000000000000000000000000000000000000000000000000000000
+    sstore v29, 0x2100000000000000000000000000000000000000000000000000000000000000
     stop
 }
 
-fn @getS() -> memptr {
+fn @getS() {
   bb0 (entry):
-    v2 = mstore 128, 0
+    mstore 128, 0
     v4 = sload 0
     v6 = and v4, 1
     v7 = eq v6, 1
@@ -201,36 +201,36 @@ fn @getS() -> memptr {
     v21 = add 32, v20
     v23 = mload 64
     v25 = add v23, 96
-    v27 = mstore 64, v25
+    mstore 64, v25
     v29 = mload 64
     v30 = add v29, v21
-    v32 = mstore 64, v30
-    v33 = mstore v29, v13
+    mstore 64, v30
+    mstore v29, v13
     v34 = add v29, 32
     br v7, bb2, bb1
   bb1:
     v36 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v37 = mstore v34, v36
+    mstore v34, v36
     jump bb3
   bb2:
-    v38 = mstore v23, 0
+    mstore v23, 0
     v39 = keccak256 v23, 32
     v40 = div v18, 32
     v42 = add v23, 32
     v44 = add v23, 64
-    v45 = mstore v23, v34
-    v46 = mstore v42, v40
-    v47 = mstore v44, v39
+    mstore v23, v34
+    mstore v42, v40
+    mstore v44, v39
     jump bb4
   bb3:
     v64 = mload 64
     v66 = add v64, 32
-    v68 = mstore 64, v66
+    mstore 64, v66
     v70 = add v64, 32
     v71 = sub v70, v64
-    v72 = mstore v64, v71
+    mstore v64, v71
     v73 = mload v29
-    v74 = mstore v70, v73
+    mstore v70, v73
     v77 = not 31
     v78 = add v73, 31
     v79 = and v78, v77
@@ -245,31 +245,31 @@ fn @getS() -> memptr {
     v51 = mload v44
     v52 = sload v51
     v53 = mload v23
-    v54 = mstore v53, v52
+    mstore v53, v52
     v55 = add v51, 1
-    v56 = mstore v44, v55
+    mstore v44, v55
     v58 = add v53, 32
-    v59 = mstore v23, v58
+    mstore v23, v58
     v60 = mload v42
     v61 = sub v60, 1
-    v62 = mstore v42, v61
+    mstore v42, v61
     jump bb4
   bb6:
     v82 = sub v79, 32
     v83 = add v80, v82
-    v85 = mstore v83, 0
+    mstore v83, 0
     jump bb7
   bb7:
     v86 = add v29, 32
     v87 = add v80, v79
-    v88 = mcopy v80, v86, v73
+    mcopy v80, v86, v73
     v89 = sub v87, v64
     returndata v64, v89
 }
 
-fn @getB() -> memptr {
+fn @getB() {
   bb0 (entry):
-    v2 = mstore 128, 0
+    mstore 128, 0
     v4 = sload 1
     v6 = and v4, 1
     v7 = eq v6, 1
@@ -285,36 +285,36 @@ fn @getB() -> memptr {
     v21 = add 32, v20
     v23 = mload 64
     v25 = add v23, 96
-    v27 = mstore 64, v25
+    mstore 64, v25
     v29 = mload 64
     v30 = add v29, v21
-    v32 = mstore 64, v30
-    v33 = mstore v29, v13
+    mstore 64, v30
+    mstore v29, v13
     v34 = add v29, 32
     br v7, bb2, bb1
   bb1:
     v36 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v37 = mstore v34, v36
+    mstore v34, v36
     jump bb3
   bb2:
-    v38 = mstore v23, 1
+    mstore v23, 1
     v39 = keccak256 v23, 32
     v40 = div v18, 32
     v42 = add v23, 32
     v44 = add v23, 64
-    v45 = mstore v23, v34
-    v46 = mstore v42, v40
-    v47 = mstore v44, v39
+    mstore v23, v34
+    mstore v42, v40
+    mstore v44, v39
     jump bb4
   bb3:
     v64 = mload 64
     v66 = add v64, 32
-    v68 = mstore 64, v66
+    mstore 64, v66
     v70 = add v64, 32
     v71 = sub v70, v64
-    v72 = mstore v64, v71
+    mstore v64, v71
     v73 = mload v29
-    v74 = mstore v70, v73
+    mstore v70, v73
     v77 = not 31
     v78 = add v73, 31
     v79 = and v78, v77
@@ -329,24 +329,24 @@ fn @getB() -> memptr {
     v51 = mload v44
     v52 = sload v51
     v53 = mload v23
-    v54 = mstore v53, v52
+    mstore v53, v52
     v55 = add v51, 1
-    v56 = mstore v44, v55
+    mstore v44, v55
     v58 = add v53, 32
-    v59 = mstore v23, v58
+    mstore v23, v58
     v60 = mload v42
     v61 = sub v60, 1
-    v62 = mstore v42, v61
+    mstore v42, v61
     jump bb4
   bb6:
     v82 = sub v79, 32
     v83 = add v80, v82
-    v85 = mstore v83, 0
+    mstore v83, 0
     jump bb7
   bb7:
     v86 = add v29, 32
     v87 = add v80, v79
-    v88 = mcopy v80, v86, v73
+    mcopy v80, v86, v73
     v89 = sub v87, v64
     returndata v64, v89
 }

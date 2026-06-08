@@ -3,7 +3,10 @@
 use super::{LoopContext, Lowerer};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
-use solar_sema::hir::{self, StmtKind};
+use solar_sema::{
+    builtins::Builtin,
+    hir::{self, ExprKind, StmtKind},
+};
 
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers a block of statements.
@@ -12,12 +15,78 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         block: &hir::Block<'_>,
     ) {
-        for stmt in block.stmts {
+        let mut index = 0;
+        while let Some(stmt) = block.stmts.get(index) {
+            if let Some(args) =
+                self.immediate_packed_hash_return_args(stmt, block.stmts.get(index + 1))
+                && self.lower_immediate_packed_hash_return(builder, &args)
+            {
+                break;
+            }
+
             self.lower_stmt(builder, stmt);
             if builder.func().block(builder.current_block()).terminator.is_some() {
                 break;
             }
+            index += 1;
         }
+    }
+
+    fn immediate_packed_hash_return_args(
+        &self,
+        stmt: &hir::Stmt<'_>,
+        next: Option<&hir::Stmt<'_>>,
+    ) -> Option<hir::CallArgs<'gcx>> {
+        let StmtKind::DeclSingle(var_id) = stmt.kind else {
+            return None;
+        };
+        let var = self.gcx.hir.variable(var_id);
+        let packed_args = self.abi_encode_packed_call_args(var.initializer?)?;
+
+        let StmtKind::Return(Some(ret)) = &next?.kind else {
+            return None;
+        };
+        self.is_keccak_call_of_local(ret, var_id).then_some(*packed_args)
+    }
+
+    fn is_keccak_call_of_local(&self, expr: &hir::Expr<'_>, var_id: hir::VariableId) -> bool {
+        let ExprKind::Call(callee, args, _) = &expr.kind else {
+            return false;
+        };
+        let ExprKind::Ident(res_slice) = &callee.kind else {
+            return false;
+        };
+        if !matches!(res_slice.first(), Some(hir::Res::Builtin(Builtin::Keccak256))) {
+            return false;
+        }
+
+        let mut exprs = args.exprs();
+        let Some(arg) = exprs.next() else {
+            return false;
+        };
+        exprs.next().is_none() && self.is_local_ident(arg, var_id)
+    }
+
+    fn is_local_ident(&self, expr: &hir::Expr<'_>, var_id: hir::VariableId) -> bool {
+        let ExprKind::Ident(res_slice) = &expr.kind else {
+            return false;
+        };
+        matches!(res_slice.first(), Some(hir::Res::Item(hir::ItemId::Variable(id))) if *id == var_id)
+    }
+
+    fn lower_immediate_packed_hash_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &hir::CallArgs<'_>,
+    ) -> bool {
+        if self.current_return_tys.len() != 1 {
+            return false;
+        }
+        let ty = self.current_return_tys[0];
+        let hash = self.lower_keccak_abi_encode_packed(builder, args);
+        let external = builder.func().is_public() && !self.lowering_internal_function;
+        self.finish_external_or_internal_return(builder, vec![(hash, ty)], external);
+        true
     }
 
     /// Lowers a statement to MIR.
@@ -233,6 +302,10 @@ impl<'gcx> Lowerer<'gcx> {
         var_ids: &[Option<hir::VariableId>],
         init: &hir::Expr<'_>,
     ) {
+        if self.is_low_level_call_expr(init) && var_ids.iter().skip(1).any(Option::is_some) {
+            panic!("codegen does not support low-level call returndata bytes yet");
+        }
+
         // lower_expr for an external call returns the first value (from memory offset 0)
         // and leaves additional return values at memory offsets 32, 64, etc.
         let first_val = self.lower_expr(builder, init);
@@ -252,6 +325,13 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(offset_val, val);
             }
         }
+    }
+
+    fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        let ExprKind::Call(callee, ..) = &expr.kind else { return false };
+        let ExprKind::Member(base, member) = &callee.kind else { return false };
+        matches!(member.name.as_str(), "call" | "staticcall" | "delegatecall")
+            && !self.is_contract_type_expr(base)
     }
 
     /// Lowers an if statement.
@@ -625,17 +705,25 @@ impl<'gcx> Lowerer<'gcx> {
         // Generate success block (returns clause - always first in clauses)
         builder.switch_to_block(success_block);
         if let Some(returns_clause) = try_stmt.clauses.first() {
-            // TODO: Handle return values binding to args
+            if !returns_clause.args.is_empty() {
+                panic!("codegen does not support try/catch return bindings yet");
+            }
             self.lower_block(builder, &returns_clause.block);
         }
         builder.jump(merge_block);
 
         // Generate catch block(s)
         builder.switch_to_block(catch_block);
-        // The catch clauses are after the first (returns) clause
+        let catch_clauses = &try_stmt.clauses[1..];
+        if catch_clauses.len() > 1 {
+            panic!("codegen does not support multiple try/catch handlers yet");
+        }
+
+        // The catch clauses are after the first (returns) clause.
         for clause in try_stmt.clauses.iter().skip(1) {
-            // For simplicity, we execute all catch blocks in sequence
-            // A proper impl would check the error selector (Error, Panic, or custom)
+            if clause.name.is_some() || !clause.args.is_empty() {
+                panic!("codegen does not support typed try/catch handlers yet");
+            }
             self.lower_block(builder, &clause.block);
         }
         // If no catch clauses (only returns clause), this is just an empty block

@@ -3,8 +3,8 @@
 //! Inspired by LLVM/MLIR pass infrastructure:
 //! - **Analysis passes** ([`AnalysisPass`]) are read-only and produce a cached result. They take
 //!   `&Function` and store their result in [`AnalysisManager`].
-//! - **Transformation passes** ([`TransformPass`]) modify the IR. They take `&mut Function` and
-//!   should invalidate cached analyses.
+//! - **Module passes** ([`ModulePass`]) modify the IR at module scope. Function-local passes can
+//!   implement [`FunctionPass`] and are automatically applied to each function.
 //!
 //! # Usage
 //!
@@ -15,13 +15,182 @@
 //!
 //! // Transform pipeline:
 //! let mut pm = PassManager::new();
-//! pm.add_transform(Box::new(DcePass));
-//! pm.run(&mut func);
+//! pm.add_pass(Box::new(DcePass));
+//! pm.run(&mut module);
 //! ```
 
-use crate::mir::Function;
-use rustc_hash::FxHashMap;
+use crate::{
+    mir::{Function, Module},
+    transform::{
+        CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, FunctionDcePass, InlinePass,
+        InstSimplifyPass, JumpThreadingPass, LicmPass, MemoryDsePass, SccpTransformPass,
+        StorageLoadCsePass, StorageScalarPromotionPass,
+    },
+};
+use solar_data_structures::map::FxHashMap;
 use std::any::{Any, TypeId};
+
+/// A named MIR pass that can be used by the default codegen pipeline or `solar mir-opt`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PassName {
+    /// Internal MIR function inlining.
+    Inline,
+    /// Dead internal function elimination.
+    FunctionDce,
+    /// Sparse conditional constant propagation.
+    Sccp,
+    /// Local MIR instruction simplification.
+    InstSimplify,
+    /// Local common subexpression elimination.
+    Cse,
+    /// Storage-load CSE across definitely-disjoint stores.
+    StorageLoadCse,
+    /// Loop-carried storage scalar promotion.
+    StoragePromotion,
+    /// Loop-invariant code motion.
+    Licm,
+    /// Jump threading.
+    JumpThreading,
+    /// CFG simplification.
+    CfgSimplify,
+    /// Internal-frame scalar promotion.
+    FrameSlotPromotion,
+    /// Local dead memory-store elimination.
+    MemoryDse,
+    /// Dead code elimination.
+    Dce,
+}
+
+impl PassName {
+    /// All known MIR passes exposed to `solar mir-opt`.
+    pub const KNOWN: &'static [Self] = &[
+        Self::Inline,
+        Self::FunctionDce,
+        Self::Dce,
+        Self::InstSimplify,
+        Self::Cse,
+        Self::StorageLoadCse,
+        Self::Sccp,
+        Self::Licm,
+        Self::CfgSimplify,
+        Self::JumpThreading,
+        Self::FrameSlotPromotion,
+        Self::MemoryDse,
+        Self::StoragePromotion,
+    ];
+
+    /// The command-line name for this pass.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Inline => "inline",
+            Self::FunctionDce => "function-dce",
+            Self::Sccp => "sccp",
+            Self::InstSimplify => "inst-simplify",
+            Self::Cse => "cse",
+            Self::StorageLoadCse => "storage-load-cse",
+            Self::StoragePromotion => "storage-promotion",
+            Self::Licm => "licm",
+            Self::JumpThreading => "jump-threading",
+            Self::CfgSimplify => "cfg-simplify",
+            Self::FrameSlotPromotion => "frame-slot-promotion",
+            Self::MemoryDse => "memory-dse",
+            Self::Dce => "dce",
+        }
+    }
+
+    /// Human-readable description for help output.
+    pub const fn description(self) -> &'static str {
+        match self {
+            Self::Inline => "Internal MIR function inlining",
+            Self::FunctionDce => "Dead internal function elimination",
+            Self::Sccp => "Sparse Conditional Constant Propagation",
+            Self::InstSimplify => "Local MIR instruction simplification",
+            Self::Cse => "Common Subexpression Elimination (fixed-point)",
+            Self::StorageLoadCse => "Reuse storage loads across definitely-disjoint stores",
+            Self::StoragePromotion => "Promote simple loop-carried storage updates to memory",
+            Self::Licm => "Loop-Invariant Code Motion",
+            Self::JumpThreading => "Jump Threading (fixed-point)",
+            Self::CfgSimplify => "CFG Simplification (fixed-point)",
+            Self::FrameSlotPromotion => "Promote non-escaping internal-frame slots to SSA values",
+            Self::MemoryDse => "Local dead memory-store elimination",
+            Self::Dce => "Dead Code Elimination (fixed-point)",
+        }
+    }
+
+    /// Parses a command-line pass name.
+    pub fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "inline" => Self::Inline,
+            "function-dce" => Self::FunctionDce,
+            "sccp" => Self::Sccp,
+            "inst-simplify" => Self::InstSimplify,
+            "cse" => Self::Cse,
+            "storage-load-cse" => Self::StorageLoadCse,
+            "storage-promotion" => Self::StoragePromotion,
+            "licm" => Self::Licm,
+            "jump-threading" => Self::JumpThreading,
+            "cfg-simplify" => Self::CfgSimplify,
+            "frame-slot-promotion" => Self::FrameSlotPromotion,
+            "memory-dse" => Self::MemoryDse,
+            "dce" => Self::Dce,
+            _ => return None,
+        })
+    }
+}
+
+/// The canonical MIR optimization pipeline used by EVM codegen.
+pub const DEFAULT_PIPELINE: &[PassName] = &[
+    PassName::Inline,
+    PassName::FunctionDce,
+    PassName::Sccp,
+    PassName::InstSimplify,
+    PassName::Cse,
+    PassName::StorageLoadCse,
+    PassName::StoragePromotion,
+    PassName::Licm,
+    PassName::JumpThreading,
+    PassName::CfgSimplify,
+    PassName::FrameSlotPromotion,
+    PassName::MemoryDse,
+    PassName::Dce,
+];
+
+/// Runs a named MIR pass over a module.
+pub fn run_pass(module: &mut Module, pass: PassName) {
+    let mut pm = PassManager::new();
+    pm.add_pass(make_pass(pass));
+    pm.run(module);
+}
+
+/// Runs a named MIR pass pipeline over a module.
+pub fn run_pipeline(module: &mut Module, passes: &[PassName]) {
+    for &pass in passes {
+        run_pass(module, pass);
+    }
+}
+
+/// Runs the canonical MIR optimization pipeline used by EVM codegen.
+pub fn run_default_pipeline(module: &mut Module) {
+    run_pipeline(module, DEFAULT_PIPELINE);
+}
+
+fn make_pass(pass: PassName) -> Box<dyn ModulePass> {
+    match pass {
+        PassName::Inline => Box::new(InlinePass),
+        PassName::FunctionDce => Box::new(FunctionDcePass),
+        PassName::Sccp => Box::new(SccpTransformPass),
+        PassName::InstSimplify => Box::new(InstSimplifyPass),
+        PassName::Cse => Box::new(CsePass),
+        PassName::StorageLoadCse => Box::new(StorageLoadCsePass),
+        PassName::StoragePromotion => Box::new(StorageScalarPromotionPass),
+        PassName::Licm => Box::new(LicmPass),
+        PassName::JumpThreading => Box::new(JumpThreadingPass),
+        PassName::CfgSimplify => Box::new(CfgSimplifyPass),
+        PassName::FrameSlotPromotion => Box::new(FrameSlotPromotionPass),
+        PassName::MemoryDse => Box::new(MemoryDsePass),
+        PassName::Dce => Box::new(DcePass),
+    }
+}
 
 /// A key identifying a particular analysis, derived from its result type.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -49,16 +218,37 @@ pub trait AnalysisPass {
     fn run(&self, func: &Function) -> Self::Result;
 }
 
-/// A transformation pass that mutates a function.
+/// A transformation pass that mutates a MIR module.
 ///
-/// Transformation passes should call [`AnalysisManager::invalidate_all`]
-/// after modifying the IR (or the [`PassManager`] does this automatically).
-pub trait TransformPass {
-    /// The name of this transform, for debugging and logging.
+/// Module-level passes can inspect or transform more than one function. Function-local passes
+/// should implement [`FunctionPass`] instead and use the blanket [`ModulePass`] implementation.
+pub trait ModulePass {
+    /// The name of this pass, for debugging and logging.
+    fn name(&self) -> &str;
+
+    /// Runs the transformation on the given module.
+    fn run(&mut self, module: &mut Module);
+}
+
+/// A transformation pass that mutates one function at a time.
+pub trait FunctionPass {
+    /// The name of this pass, for debugging and logging.
     fn name(&self) -> &str;
 
     /// Runs the transformation on the given function.
-    fn run(&mut self, func: &mut Function);
+    fn run_on_function(&mut self, func: &mut Function);
+}
+
+impl<T: FunctionPass> ModulePass for T {
+    fn name(&self) -> &str {
+        FunctionPass::name(self)
+    }
+
+    fn run(&mut self, module: &mut Module) {
+        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+            self.run_on_function(func);
+        }
+    }
 }
 
 /// Manages cached analysis results for a function.
@@ -112,12 +302,12 @@ impl AnalysisManager {
     }
 }
 
-/// Orchestrates execution of [`TransformPass`]es on a function.
+/// Orchestrates execution of [`ModulePass`]es on a module.
 ///
 /// Each transform automatically invalidates all cached analyses after running.
 #[derive(Default)]
 pub struct PassManager {
-    passes: Vec<Box<dyn TransformPass>>,
+    passes: Vec<Box<dyn ModulePass>>,
 }
 
 impl PassManager {
@@ -127,23 +317,21 @@ impl PassManager {
     }
 
     /// Adds a transformation pass to the pipeline.
-    pub fn add_transform(&mut self, pass: Box<dyn TransformPass>) {
+    pub fn add_pass(&mut self, pass: Box<dyn ModulePass>) {
         self.passes.push(pass);
     }
 
-    /// Runs all transforms in order on the given function.
+    /// Runs all transforms in order on the given module.
     /// Returns an [`AnalysisManager`] (empty after transforms invalidate everything).
-    pub fn run(&mut self, func: &mut Function) -> AnalysisManager {
+    pub fn run(&mut self, module: &mut Module) -> AnalysisManager {
         let mut am = AnalysisManager::new();
         for pass in &mut self.passes {
-            pass.run(func);
+            pass.run(module);
             am.invalidate_all();
         }
         am
     }
 }
-
-// === Concrete pass adapters ===
 
 /// Liveness analysis pass.
 pub struct LivenessAnalysis;
@@ -157,87 +345,5 @@ impl AnalysisPass for LivenessAnalysis {
 
     fn run(&self, func: &Function) -> Self::Result {
         crate::analysis::Liveness::compute(func)
-    }
-}
-
-/// Dead code elimination transform.
-///
-/// Iterates `DeadCodeEliminator` to a fixed point internally so a single
-/// `run` invocation removes all dead code reachable from the entry block.
-pub struct DcePass;
-
-impl TransformPass for DcePass {
-    fn name(&self) -> &str {
-        "dce"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::DeadCodeEliminator::new().run_to_fixpoint(func);
-    }
-}
-
-/// CFG simplification transform.
-///
-/// Iterates `CfgSimplifier` to a fixed point so chained simplifications
-/// (e.g., merging blocks made empty by previous merges) all happen.
-pub struct CfgSimplifyPass;
-
-impl TransformPass for CfgSimplifyPass {
-    fn name(&self) -> &str {
-        "cfg-simplify"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::CfgSimplifier::new().run_to_fixpoint(func);
-    }
-}
-
-/// Jump threading transform.
-///
-/// Eliminates redundant unconditional jumps by threading control flow
-/// through forwarder blocks. Iterates to a fixed point.
-pub struct JumpThreadingPass;
-
-impl TransformPass for JumpThreadingPass {
-    fn name(&self) -> &str {
-        "jump-threading"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::JumpThreader::new().run_to_fixpoint(func);
-    }
-}
-
-/// Sparse Conditional Constant Propagation transform.
-///
-/// Propagates constants through the CFG using SSA def-use chains,
-/// evaluates branch conditions to discover unreachable paths, and
-/// folds phi nodes when all executable incoming values agree.
-pub struct SccpTransformPass;
-
-impl TransformPass for SccpTransformPass {
-    fn name(&self) -> &str {
-        "sccp"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::SccpPass::new().run(func);
-    }
-}
-
-/// Common subexpression elimination transform.
-///
-/// Eliminates redundant computations within each basic block (local CSE).
-/// Handles commutative normalization and SLOAD caching (invalidated by SSTORE).
-/// Iterates to a fixed point.
-pub struct CsePass;
-
-impl TransformPass for CsePass {
-    fn name(&self) -> &str {
-        "cse"
-    }
-
-    fn run(&mut self, func: &mut Function) {
-        crate::transform::CommonSubexprEliminator::new().run_to_fixpoint(func);
     }
 }

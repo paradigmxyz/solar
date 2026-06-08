@@ -39,7 +39,7 @@ use super::{
 };
 use crate::mir::{Immediate, MirType};
 use alloy_primitives::U256;
-use rustc_hash::FxHashMap;
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Symbol};
 use std::fmt;
 

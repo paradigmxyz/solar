@@ -6,7 +6,7 @@
 //! - Variable-width PUSH sizing based on offset magnitudes
 
 use alloy_primitives::U256;
-use rustc_hash::FxHashMap;
+use solar_data_structures::map::FxHashMap;
 
 /// A label identifier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -80,7 +80,9 @@ impl Assembler {
     /// Assembles the instructions into bytecode.
     /// Uses an iterative two-pass algorithm that handles PUSH width changes.
     #[must_use]
-    pub fn assemble(self) -> AssembledCode {
+    pub fn assemble(mut self) -> AssembledCode {
+        self.optimize_instructions();
+
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
 
@@ -133,8 +135,7 @@ impl Assembler {
                     offset += 1;
                 }
                 AsmInst::Push(value) => {
-                    let width = push_width(*value);
-                    offset += 1 + width as usize;
+                    offset += encoded_push_len(*value);
                 }
                 AsmInst::PushLabel(_) => {
                     // Use current estimated width
@@ -190,6 +191,113 @@ impl Assembler {
 
         AssembledCode { bytecode, label_offsets: label_offsets.clone() }
     }
+
+    /// Runs local peephole optimizations over assembler instructions.
+    ///
+    /// This pass runs before label resolution, so removing instructions cannot
+    /// leave stale jump destinations.
+    fn optimize_instructions(&mut self) -> usize {
+        let mut total = 0;
+        loop {
+            let mut changed = 0;
+            let mut optimized = Vec::with_capacity(self.instructions.len());
+            let mut i = 0;
+
+            while i < self.instructions.len() {
+                if let Some((skip, replacement)) = Self::try_peephole(&self.instructions, i) {
+                    optimized.extend(replacement);
+                    i += skip;
+                    changed += 1;
+                } else {
+                    optimized.push(self.instructions[i].clone());
+                    i += 1;
+                }
+            }
+
+            if changed == 0 {
+                break;
+            }
+
+            self.instructions = optimized;
+            total += changed;
+        }
+        total
+    }
+
+    fn try_peephole(instructions: &[AsmInst], pos: usize) -> Option<(usize, Vec<AsmInst>)> {
+        let remaining = &instructions[pos..];
+
+        if remaining.len() >= 2
+            && let (AsmInst::Push(value), AsmInst::Op(op)) = (&remaining[0], &remaining[1])
+        {
+            // The pushed value is on top of the stack, so it is the first EVM operand.
+            if value.is_zero() {
+                return match *op {
+                    opcodes::ADD
+                    | opcodes::OR
+                    | opcodes::XOR
+                    | opcodes::SHL
+                    | opcodes::SHR
+                    | opcodes::SAR => Some((2, Vec::new())),
+                    opcodes::EQ => Some((2, vec![AsmInst::Op(opcodes::ISZERO)])),
+                    opcodes::MUL
+                    | opcodes::DIV
+                    | opcodes::SDIV
+                    | opcodes::MOD
+                    | opcodes::SMOD
+                    | opcodes::AND
+                    | opcodes::GT => {
+                        Some((2, vec![AsmInst::Op(opcodes::POP), AsmInst::Push(U256::ZERO)]))
+                    }
+                    _ => None,
+                };
+            }
+
+            if *value == U256::from(1) {
+                return match *op {
+                    opcodes::MUL => Some((2, Vec::new())),
+                    opcodes::EXP => {
+                        Some((2, vec![AsmInst::Op(opcodes::POP), AsmInst::Push(U256::from(1))]))
+                    }
+                    _ => None,
+                };
+            }
+        }
+
+        if remaining.len() >= 2
+            && matches!(remaining[0], AsmInst::Push(_) | AsmInst::PushLabel(_))
+            && matches!(remaining[1], AsmInst::Op(opcodes::POP))
+        {
+            return Some((2, Vec::new()));
+        }
+
+        if remaining.len() >= 2
+            && let (AsmInst::Op(a), AsmInst::Op(b)) = (&remaining[0], &remaining[1])
+        {
+            if *a == opcodes::NOT && *b == opcodes::NOT {
+                return Some((2, Vec::new()));
+            }
+
+            for n in 1..=16 {
+                if *a == opcodes::dup(n) && *b == opcodes::POP {
+                    return Some((2, Vec::new()));
+                }
+                if *a == opcodes::swap(n) && *b == opcodes::swap(n) {
+                    return Some((2, Vec::new()));
+                }
+            }
+        }
+
+        if remaining.len() >= 3
+            && matches!(remaining[0], AsmInst::Op(opcodes::ISZERO))
+            && matches!(remaining[1], AsmInst::Op(opcodes::ISZERO))
+            && matches!(remaining[2], AsmInst::Op(opcodes::ISZERO))
+        {
+            return Some((3, vec![AsmInst::Op(opcodes::ISZERO)]));
+        }
+
+        None
+    }
 }
 
 impl Default for Assembler {
@@ -209,8 +317,100 @@ fn push_width(value: U256) -> u8 {
     (32 - first_nonzero) as u8
 }
 
+fn encoded_push_len(value: U256) -> usize {
+    compact_push(value).map_or_else(
+        || 1 + push_width(value) as usize,
+        |compact| match compact {
+            CompactPush::FullWord => 2,
+            CompactPush::LowerAllOnesMask { .. } => 5,
+            CompactPush::Not { value } => 2 + push_width(value) as usize,
+            CompactPush::Shl { value, .. } => 4 + push_width(value) as usize,
+        },
+    )
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CompactPush {
+    FullWord,
+    LowerAllOnesMask { shift: u8 },
+    Not { value: U256 },
+    Shl { value: U256, shift: u8 },
+}
+
+fn compact_push(value: U256) -> Option<CompactPush> {
+    let width = push_width(value);
+    let normal_len = 1 + width as usize;
+    let mut best: Option<(usize, CompactPush)> = None;
+
+    let mut consider = |len: usize, compact: CompactPush| {
+        if len < normal_len && best.is_none_or(|(best_len, _)| len < best_len) {
+            best = Some((len, compact));
+        }
+    };
+
+    if value == U256::MAX {
+        consider(2, CompactPush::FullWord);
+    }
+
+    let bytes = value.to_be_bytes::<32>();
+    if width >= 16 {
+        let start = 32 - width as usize;
+        if bytes[start..].iter().all(|&byte| byte == 0xff) {
+            let shift = 256 - u16::from(width) * 8;
+            consider(5, CompactPush::LowerAllOnesMask { shift: shift as u8 });
+        }
+    }
+
+    if width >= 16 {
+        let inverted = !value;
+        let inverted_width = push_width(inverted);
+        let inverted_len = 2 + inverted_width as usize;
+        consider(inverted_len, CompactPush::Not { value: inverted });
+    }
+
+    let trailing_zero_bytes = bytes.iter().rev().take_while(|&&byte| byte == 0).count();
+    if trailing_zero_bytes > 0 && trailing_zero_bytes < 32 {
+        let shift = trailing_zero_bytes * 8;
+        let shifted = value >> shift;
+        let shifted_width = push_width(shifted);
+        let shifted_len = 4 + shifted_width as usize;
+        consider(shifted_len, CompactPush::Shl { value: shifted, shift: shift as u8 });
+    }
+
+    best.map(|(_, compact)| compact)
+}
+
 /// Emits a PUSH instruction with automatically sized width.
 fn emit_push_value(bytecode: &mut Vec<u8>, value: U256) {
+    match compact_push(value) {
+        Some(CompactPush::FullWord) => {
+            bytecode.push(opcodes::PUSH0);
+            bytecode.push(opcodes::NOT);
+            return;
+        }
+        Some(CompactPush::LowerAllOnesMask { shift }) => {
+            bytecode.push(opcodes::PUSH0);
+            bytecode.push(opcodes::NOT);
+            bytecode.push(0x60);
+            bytecode.push(shift);
+            bytecode.push(opcodes::SHR);
+            return;
+        }
+        Some(CompactPush::Not { value }) => {
+            emit_push_fixed_width(bytecode, value, push_width(value));
+            bytecode.push(opcodes::NOT);
+            return;
+        }
+        Some(CompactPush::Shl { value, shift }) => {
+            emit_push_fixed_width(bytecode, value, push_width(value));
+            bytecode.push(0x60);
+            bytecode.push(shift);
+            bytecode.push(opcodes::SHL);
+            return;
+        }
+        None => {}
+    }
+
     if value.is_zero() {
         bytecode.push(0x5f); // PUSH0
         return;
@@ -402,5 +602,179 @@ mod tests {
         assert!(result.label_offsets.contains_key(&loop_label));
         assert!(result.label_offsets.contains_key(&end_label));
         assert_eq!(result.label_offsets[&loop_label], 0);
+    }
+
+    #[test]
+    fn peephole_removes_push_zero_add() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::ADD);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::STOP]);
+    }
+
+    #[test]
+    fn peephole_resolves_labels_after_rewrites() {
+        let mut asm = Assembler::new();
+        let label = asm.new_label();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::ADD);
+        asm.define_label(label);
+        asm.emit_op(opcodes::JUMPDEST);
+        asm.emit_push_label(label);
+        asm.emit_op(opcodes::JUMP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.label_offsets[&label], 2);
+        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::JUMPDEST, 0x60, 2, opcodes::JUMP]);
+    }
+
+    #[test]
+    fn peephole_replaces_mul_zero_with_pop_zero() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::MUL);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![opcodes::PUSH0, opcodes::STOP]);
+    }
+
+    #[test]
+    fn peephole_preserves_push_zero_sub() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::SUB);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::PUSH0, opcodes::SUB, opcodes::STOP]);
+    }
+
+    #[test]
+    fn peephole_rewrites_push_zero_eq() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(opcodes::EQ);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::ISZERO, opcodes::STOP]);
+    }
+
+    #[test]
+    fn peephole_preserves_push_one_div() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::from(1));
+        asm.emit_op(opcodes::DIV);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 1, opcodes::DIV, opcodes::STOP]);
+    }
+
+    #[test]
+    fn compact_full_word_all_ones_push() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::MAX);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![opcodes::PUSH0, opcodes::NOT, opcodes::STOP]);
+    }
+
+    #[test]
+    fn compact_lower_all_ones_mask_push() {
+        let mut asm = Assembler::new();
+        let mask = (U256::from(1) << 160) - U256::from(1);
+
+        asm.emit_push(mask);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(
+            result.bytecode,
+            vec![opcodes::PUSH0, opcodes::NOT, 0x60, 96, opcodes::SHR, opcodes::STOP]
+        );
+    }
+
+    #[test]
+    fn compact_not_small_push() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(!U256::from(31));
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 31, opcodes::NOT, opcodes::STOP]);
+    }
+
+    #[test]
+    fn compact_not_byte_push() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(!U256::from(255));
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 255, opcodes::NOT, opcodes::STOP]);
+    }
+
+    #[test]
+    fn compact_left_aligned_selector_push() {
+        let mut asm = Assembler::new();
+        let selector = U256::from(0x35ea6a75u64) << 224;
+
+        asm.emit_push(selector);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(
+            result.bytecode,
+            vec![0x63, 0x35, 0xea, 0x6a, 0x75, 0x60, 224, opcodes::SHL, opcodes::STOP]
+        );
+    }
+
+    #[test]
+    fn compact_right_padded_text_push() {
+        let mut asm = Assembler::new();
+        let text = U256::from_be_slice(b"Machine finished:");
+        let value = text << ((32 - "Machine finished:".len()) * 8);
+
+        asm.emit_push(value);
+        asm.emit_op(opcodes::STOP);
+
+        let result = asm.assemble();
+
+        let mut expected = vec![0x70];
+        expected.extend_from_slice(b"Machine finished:");
+        expected.extend_from_slice(&[0x60, 120, opcodes::SHL, opcodes::STOP]);
+        assert_eq!(result.bytecode, expected);
     }
 }

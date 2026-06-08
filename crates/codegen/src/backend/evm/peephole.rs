@@ -50,11 +50,6 @@ impl PeepholeOptimizer {
             return Some((2, vec![]));
         }
 
-        // Pattern: PUSH0 SUB -> (nop) - subtracting zero is identity (x - 0 = x)
-        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::SUB {
-            return Some((2, vec![]));
-        }
-
         // Pattern: PUSH0 MUL -> PUSH0 POP PUSH0 -> POP PUSH0
         // Actually: x * 0 = 0, but we need to consume x from stack
         // This is: [x] PUSH0 MUL -> [0], so we replace with POP PUSH0
@@ -67,15 +62,6 @@ impl PeepholeOptimizer {
             && remaining[0] == 0x60 // PUSH1
             && remaining[1] == 1
             && remaining[2] == opcodes::MUL
-        {
-            return Some((3, vec![]));
-        }
-
-        // Pattern: PUSH1 1 DIV -> (nop) - dividing by 1 is identity
-        if remaining.len() >= 3
-            && remaining[0] == 0x60 // PUSH1
-            && remaining[1] == 1
-            && remaining[2] == opcodes::DIV
         {
             return Some((3, vec![]));
         }
@@ -138,6 +124,19 @@ impl PeepholeOptimizer {
             return Some((2, vec![]));
         }
 
+        // Pattern: PUSH0 EQ -> ISZERO
+        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::EQ {
+            return Some((2, vec![opcodes::ISZERO]));
+        }
+
+        // Pattern: PUSH0 SHL/SHR/SAR -> (nop) - shifting by 0 is identity
+        if remaining.len() >= 2
+            && remaining[0] == opcodes::PUSH0
+            && matches!(remaining[1], opcodes::SHL | opcodes::SHR | opcodes::SAR)
+        {
+            return Some((2, vec![]));
+        }
+
         // Pattern: POP POP -> double pop can be combined into consecutive POPs
         // (no optimization, but we can detect push-pop sequences)
 
@@ -158,8 +157,8 @@ impl PeepholeOptimizer {
 
         // Pattern: JUMP after JUMP/JUMPI/STOP/RETURN/REVERT/INVALID
         // (unreachable code elimination)
-        // This is tricky because we can't easily identify basic block boundaries
-        // Skip for now - let DCE handle this at the MIR level
+        // MIR DCE handles this before EVM assembly is built; doing it here would
+        // require reconstructing basic block boundaries.
 
         // Pattern: EQ ISZERO -> can sometimes be combined with jumps
         // but this requires more context
@@ -242,11 +241,11 @@ mod tests {
     }
 
     #[test]
-    fn test_push1_1_div() {
-        // PUSH1 1 DIV should be removed (divide by 1)
+    fn test_push1_1_div_preserved() {
+        // PUSH1 1 DIV is not an identity in EVM stack order
         let input = vec![0x60, 0x42, 0x60, 0x01, opcodes::DIV];
         let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]);
+        assert_eq!(output, input);
     }
 
     #[test]
@@ -266,11 +265,11 @@ mod tests {
     }
 
     #[test]
-    fn test_push0_sub() {
-        // PUSH0 SUB should be removed (x - 0 = x)
+    fn test_push0_sub_preserved() {
+        // PUSH0 SUB is not an identity in EVM stack order
         let input = vec![0x60, 0x42, opcodes::PUSH0, opcodes::SUB];
         let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]);
+        assert_eq!(output, input);
     }
 
     #[test]

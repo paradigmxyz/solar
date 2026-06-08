@@ -11,7 +11,7 @@ mod value;
 pub use value::{Immediate, Value};
 
 mod inst;
-pub use inst::{InstKind, Instruction};
+pub use inst::{InstKind, Instruction, InstructionMetadata, StorageAlias};
 
 mod block;
 pub use block::{BasicBlock, Terminator};
@@ -20,7 +20,7 @@ mod function;
 pub use function::{Function, FunctionAttributes};
 
 mod module;
-pub use module::{DataSegment, Module, StorageSlot};
+pub use module::{DataSegment, ImmutableSlot, Module, StorageSlot};
 
 mod builder;
 pub use builder::FunctionBuilder;

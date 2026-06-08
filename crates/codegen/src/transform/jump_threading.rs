@@ -14,8 +14,11 @@
 //! 3. **Empty block elimination**: Blocks containing only a JUMPDEST and JUMP are eliminated by
 //!    updating all references to point to the final target.
 
-use crate::mir::{BlockId, Function, Terminator};
-use rustc_hash::{FxHashMap, FxHashSet};
+use crate::{
+    mir::{BlockId, Function, Terminator},
+    pass::FunctionPass,
+};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Statistics from jump threading optimization.
 #[derive(Debug, Default, Clone)]
@@ -43,6 +46,19 @@ impl JumpThreadingStats {
 pub struct JumpThreader {
     /// Statistics from the last run.
     pub stats: JumpThreadingStats,
+}
+
+/// Function pass for jump threading.
+pub struct JumpThreadingPass;
+
+impl FunctionPass for JumpThreadingPass {
+    fn name(&self) -> &str {
+        "jump-threading"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        JumpThreader::new().run_to_fixpoint(func);
+    }
 }
 
 impl JumpThreader {

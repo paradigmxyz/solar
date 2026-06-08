@@ -6,17 +6,24 @@ mod abi_encode;
 mod expr;
 mod stmt;
 
-use crate::mir::{
-    BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, MirType, Module,
-    StorageSlot, ValueId,
+use crate::{
+    IMMUTABLE_SCRATCH_BASE,
+    mir::{
+        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableSlot, MirType,
+        Module, StorageSlot, ValueId,
+    },
 };
 use alloy_primitives::U256;
-use rustc_hash::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    Never,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::Ident;
 use solar_sema::{
-    hir::{self, ContractId, FunctionId as HirFunctionId, VariableId},
+    hir::{self, ContractId, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty},
 };
+use std::ops::ControlFlow;
 
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
@@ -39,6 +46,10 @@ pub struct Lowerer<'gcx> {
     storage_slots: FxHashMap<VariableId, u64>,
     /// Next available storage slot.
     next_storage_slot: u64,
+    /// Mapping from HIR immutable variable IDs to runtime immutable byte offsets.
+    immutable_slots: FxHashMap<VariableId, u64>,
+    /// Next available immutable byte offset.
+    next_immutable_offset: u64,
     /// Mapping from HIR variable IDs to MIR values (for local variables).
     /// For SSA-style immutable variables (function params and non-mutated locals).
     locals: FxHashMap<VariableId, ValueId>,
@@ -95,6 +106,8 @@ impl<'gcx> Lowerer<'gcx> {
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
             next_storage_slot: 0,
+            immutable_slots: FxHashMap::default(),
+            next_immutable_offset: 0,
             locals: FxHashMap::default(),
             local_memory_slots: FxHashMap::default(),
             next_local_memory_offset: 0x80, // Start after Solidity's scratch space
@@ -135,7 +148,6 @@ impl<'gcx> Lowerer<'gcx> {
     const MAX_INLINE_DEPTH: usize = 32;
     /// Historical base used by local memory slots in external function bodies.
     const LOCAL_MEMORY_BASE: u64 = 0x80;
-
     /// Attempts to enter inlining for a function. Returns false if a cycle is detected
     /// or the max inline depth is exceeded.
     fn try_enter_inline(&mut self, func_id: HirFunctionId) -> bool {
@@ -181,6 +193,35 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             builder.imm_u64(offset)
         }
+    }
+
+    /// Returns the constructor scratch address for an immutable word.
+    pub fn immutable_scratch_addr(offset: u64) -> u64 {
+        IMMUTABLE_SCRATCH_BASE + offset
+    }
+
+    /// Stages an immutable word in constructor memory.
+    pub fn store_immutable_value(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        offset: u64,
+        value: ValueId,
+    ) {
+        let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
+        builder.mstore(addr, value);
+    }
+
+    /// Loads an immutable word from the runtime data area.
+    pub fn load_immutable_value(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
+        let code_size = builder.codesize();
+        let immutable_len = builder.imm_u64(self.next_immutable_offset);
+        let immutable_base = builder.sub(code_size, immutable_len);
+        let offset = builder.imm_u64(offset);
+        let src = builder.add(immutable_base, offset);
+        let dest = builder.imm_u64(0);
+        let size = builder.imm_u64(32);
+        builder.codecopy(dest, src, size);
+        builder.mload(dest)
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
@@ -320,7 +361,7 @@ impl<'gcx> Lowerer<'gcx> {
             let base_contract = self.gcx.hir.contract(base_id);
             for var_id in base_contract.variables() {
                 let var = self.gcx.hir.variable(var_id);
-                // Skip constant variables - they don't have storage slots
+                // Skip constant variables - they don't have storage/immutable slots
                 if var.is_state_variable() && !var.is_constant() && var.initializer.is_some() {
                     vars_with_init.push(var_id);
                 }
@@ -357,11 +398,10 @@ impl<'gcx> Lowerer<'gcx> {
             for var_id in vars_with_init {
                 let var = self.gcx.hir.variable(var_id);
                 if let Some(init) = var.initializer {
-                    // Get the storage slot for this variable
-                    if let Some(&slot) = self.storage_slots.get(&var_id) {
-                        // Lower the initializer expression
-                        let init_val = self.lower_expr(&mut builder, init);
-                        // Store to the slot
+                    let init_val = self.lower_expr(&mut builder, init);
+                    if let Some(&offset) = self.immutable_slots.get(&var_id) {
+                        self.store_immutable_value(&mut builder, offset, init_val);
+                    } else if let Some(&slot) = self.storage_slots.get(&var_id) {
                         let slot_val = builder.imm_u64(slot);
                         builder.sstore(slot_val, init_val);
                     }
@@ -397,8 +437,20 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let var = self.gcx.hir.variable(var_id);
-                // Skip constant variables - they are inlined and don't use storage
-                if var.is_state_variable() && !var.is_constant() {
+                // Constants are inlined. Immutables are appended to runtime
+                // bytecode and loaded with CODECOPY at runtime.
+                if var.is_state_variable() && var.is_immutable() {
+                    let offset = self.next_immutable_offset;
+                    self.next_immutable_offset += 32;
+                    self.immutable_slots.insert(var_id, offset);
+
+                    let mir_ty = self.lower_type_from_var(var);
+                    self.module.add_immutable_slot(ImmutableSlot {
+                        offset,
+                        ty: mir_ty,
+                        name: var.name,
+                    });
+                } else if var.is_state_variable() && !var.is_constant() {
                     let base_slot = self.next_storage_slot;
 
                     // Calculate how many slots this variable needs
@@ -679,8 +731,8 @@ impl<'gcx> Lowerer<'gcx> {
             Ident::new(solar_interface::Symbol::intern("_anonymous"), solar_interface::Span::DUMMY)
         });
 
-        // Reserve and register the MIR id before lowering the body so a recursive
-        // self-call resolves to this function instead of an empty placeholder.
+        // Reserve and register the MIR id before lowering the body so recursive
+        // self-calls can resolve to this function.
         let mir_id = self.module.add_function(Function::new(func_name));
         if force_internal {
             self.hir_to_internal_mir_functions.insert(func_id, mir_id);
@@ -824,9 +876,11 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.lowering_constructor = false;
         self.lowering_internal_function = false;
-        if uses_internal_frame {
-            mir_func.internal_frame_size =
-                self.next_local_memory_offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
+        mir_func.internal_frame_size =
+            self.next_local_memory_offset.saturating_sub(Self::LOCAL_MEMORY_BASE);
+        if uses_external_abi && !self.current_return_tys.iter().any(|&ty| self.abi_is_dynamic(ty)) {
+            mir_func.external_static_return_size =
+                self.current_return_tys.iter().map(|&ty| self.abi_head_size(ty)).sum();
         }
 
         *self.module.function_mut(mir_id) = mir_func;
@@ -863,11 +917,14 @@ impl<'gcx> Lowerer<'gcx> {
                 if var.is_state_variable()
                     && !var.is_constant()
                     && let Some(init) = var.initializer
-                    && let Some(&slot) = self.storage_slots.get(&var_id)
                 {
                     let init_val = self.lower_expr(builder, init);
-                    let slot_val = builder.imm_u64(slot);
-                    builder.sstore(slot_val, init_val);
+                    if let Some(&offset) = self.immutable_slots.get(&var_id) {
+                        self.store_immutable_value(builder, offset, init_val);
+                    } else if let Some(&slot) = self.storage_slots.get(&var_id) {
+                        let slot_val = builder.imm_u64(slot);
+                        builder.sstore(slot_val, init_val);
+                    }
                 }
             }
 
@@ -1199,6 +1256,89 @@ impl<'gcx> Lowerer<'gcx> {
 /// Lowers a contract from HIR to MIR.
 pub fn lower_contract(gcx: Gcx<'_>, contract_id: ContractId) -> Module {
     lower_contract_with_bytecodes(gcx, contract_id, &FxHashMap::default())
+}
+
+/// Returns contracts whose creation bytecode is referenced by `contract_id`.
+pub fn contract_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+) -> FxHashSet<ContractId> {
+    let mut deps = FxHashSet::default();
+    collect_contract_bytecode_dependencies(gcx, contract_id, &mut deps);
+    deps.remove(&contract_id);
+    deps
+}
+
+fn collect_contract_bytecode_dependencies(
+    gcx: Gcx<'_>,
+    contract_id: ContractId,
+    deps: &mut FxHashSet<ContractId>,
+) {
+    let contract = gcx.hir.contract(contract_id);
+    let mut collector = BytecodeDependencyCollector { gcx, deps };
+
+    for modifier in contract.linearized_bases_args.iter().flatten() {
+        let ControlFlow::Continue(()) = collector.visit_modifier(modifier);
+    }
+
+    for &base_id in contract.linearized_bases {
+        let base = gcx.hir.contract(base_id);
+
+        for var_id in base.variables() {
+            let ControlFlow::Continue(()) = collector.visit_nested_var(var_id);
+        }
+
+        for func_id in base.all_functions() {
+            let func = gcx.hir.function(func_id);
+
+            for modifier in func.modifiers {
+                let ControlFlow::Continue(()) = collector.visit_modifier(modifier);
+            }
+
+            if let Some(body) = func.body {
+                for stmt in body.stmts {
+                    let ControlFlow::Continue(()) = collector.visit_stmt(stmt);
+                }
+            }
+        }
+    }
+}
+
+struct BytecodeDependencyCollector<'a, 'gcx> {
+    gcx: Gcx<'gcx>,
+    deps: &'a mut FxHashSet<ContractId>,
+}
+
+impl<'a, 'gcx> BytecodeDependencyCollector<'a, 'gcx> {
+    fn collect_type(&mut self, ty: &hir::Type<'gcx>) {
+        if let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = &ty.kind {
+            self.deps.insert(*contract_id);
+        }
+    }
+}
+
+impl<'gcx> Visit<'gcx> for BytecodeDependencyCollector<'_, 'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        match &expr.kind {
+            hir::ExprKind::New(ty) => self.collect_type(ty),
+            hir::ExprKind::Member(base, member)
+                if matches!(member.name.as_str(), "creationCode" | "runtimeCode") =>
+            {
+                if let hir::ExprKind::TypeCall(ty) = &base.kind {
+                    self.collect_type(ty);
+                }
+            }
+            _ => {}
+        }
+
+        self.walk_expr(expr)
+    }
 }
 
 /// Lowers a contract from HIR to MIR with pre-compiled bytecodes available for `new` expressions.

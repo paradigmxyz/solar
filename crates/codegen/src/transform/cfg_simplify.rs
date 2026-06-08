@@ -14,8 +14,11 @@
 //! Remove functions that are never called, starting from entry points
 //! (public/external functions, constructor, fallback, receive).
 
-use crate::mir::{BlockId, Function, FunctionId, InstKind, Module, Terminator};
-use rustc_hash::{FxHashMap, FxHashSet};
+use crate::{
+    mir::{BlockId, Function, FunctionId, InstKind, Module, Terminator, Value, ValueId},
+    pass::{FunctionPass, ModulePass},
+};
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
 /// Statistics from CFG simplification.
@@ -52,6 +55,19 @@ impl CfgSimplifyStats {
 pub struct CfgSimplifier {
     /// Statistics from the last run.
     pub stats: CfgSimplifyStats,
+}
+
+/// Function pass for CFG simplification.
+pub struct CfgSimplifyPass;
+
+impl FunctionPass for CfgSimplifyPass {
+    fn name(&self) -> &str {
+        "cfg-simplify"
+    }
+
+    fn run_on_function(&mut self, func: &mut Function) {
+        CfgSimplifier::new().run_to_fixpoint(func);
+    }
 }
 
 impl CfgSimplifier {
@@ -130,12 +146,27 @@ impl CfgSimplifier {
             return None;
         }
 
+        for &inst_id in &target_block.instructions {
+            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+                continue;
+            };
+            if !incoming.iter().any(|(pred, _)| *pred == block_id) {
+                return None;
+            }
+        }
+
         Some(*target)
     }
 
     /// Merges block_id with target, appending target's instructions and terminator to block_id.
     fn do_merge(&self, func: &mut Function, block_id: BlockId, target: BlockId) {
-        let target_instructions: Vec<_> = func.blocks[target].instructions.clone();
+        let phi_replacements = self.fold_target_phis_for_merge(func, block_id, target);
+        let target_instructions: Vec<_> = func.blocks[target]
+            .instructions
+            .iter()
+            .copied()
+            .filter(|&inst_id| !matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .collect();
         let target_terminator = func.blocks[target].terminator.take();
         let target_successors: Vec<_> = func.blocks[target].successors.to_vec();
 
@@ -145,6 +176,8 @@ impl CfgSimplifier {
         func.blocks[block_id].successors.extend(target_successors.iter().copied());
 
         for &succ in &target_successors {
+            self.redirect_target_phi_incoming(func, target, succ, &[block_id]);
+
             let succ_block = &mut func.blocks[succ];
             for pred in &mut succ_block.predecessors {
                 if *pred == target {
@@ -157,6 +190,230 @@ impl CfgSimplifier {
         func.blocks[target].terminator = Some(Terminator::Invalid);
         func.blocks[target].predecessors.clear();
         func.blocks[target].successors.clear();
+
+        Self::replace_uses(func, &phi_replacements);
+    }
+
+    fn fold_target_phis_for_merge(
+        &self,
+        func: &Function,
+        pred: BlockId,
+        target: BlockId,
+    ) -> FxHashMap<ValueId, ValueId> {
+        let mut replacements = FxHashMap::default();
+        for &inst_id in &func.blocks[target].instructions {
+            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+                continue;
+            };
+            let Some(phi_value) = Self::find_inst_result(func, inst_id) else {
+                continue;
+            };
+            let Some((_, incoming_value)) =
+                incoming.iter().find(|(incoming_pred, _)| *incoming_pred == pred)
+            else {
+                continue;
+            };
+            replacements.insert(phi_value, *incoming_value);
+        }
+        replacements
+    }
+
+    fn find_inst_result(func: &Function, inst_id: crate::mir::InstId) -> Option<ValueId> {
+        func.values.iter_enumerated().find_map(|(value, kind)| {
+            matches!(kind, Value::Inst(inst) if *inst == inst_id).then_some(value)
+        })
+    }
+
+    fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
+        if replacements.is_empty() {
+            return;
+        }
+        for inst in func.instructions.iter_mut() {
+            Self::replace_inst_operands(&mut inst.kind, replacements);
+        }
+        for value in func.values.iter_mut() {
+            if let Value::Phi { incoming, .. } = value {
+                for (_, value) in incoming {
+                    if let Some(&replacement) = replacements.get(value) {
+                        *value = replacement;
+                    }
+                }
+            }
+        }
+        for block in func.blocks.iter_mut() {
+            if let Some(term) = &mut block.terminator {
+                Self::replace_terminator_operands(term, replacements);
+            }
+        }
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
+        let replace = |value: &mut ValueId| {
+            if let Some(&replacement) = replacements.get(value) {
+                *value = replacement;
+            }
+        };
+
+        match kind {
+            InstKind::Add(a, b)
+            | InstKind::Sub(a, b)
+            | InstKind::Mul(a, b)
+            | InstKind::Div(a, b)
+            | InstKind::SDiv(a, b)
+            | InstKind::Mod(a, b)
+            | InstKind::SMod(a, b)
+            | InstKind::Exp(a, b)
+            | InstKind::And(a, b)
+            | InstKind::Or(a, b)
+            | InstKind::Xor(a, b)
+            | InstKind::Shl(a, b)
+            | InstKind::Shr(a, b)
+            | InstKind::Sar(a, b)
+            | InstKind::Byte(a, b)
+            | InstKind::Lt(a, b)
+            | InstKind::Gt(a, b)
+            | InstKind::SLt(a, b)
+            | InstKind::SGt(a, b)
+            | InstKind::Eq(a, b)
+            | InstKind::MStore(a, b)
+            | InstKind::MStore8(a, b)
+            | InstKind::SStore(a, b)
+            | InstKind::TStore(a, b)
+            | InstKind::Keccak256(a, b)
+            | InstKind::Log0(a, b)
+            | InstKind::SignExtend(a, b) => {
+                replace(a);
+                replace(b);
+            }
+            InstKind::Not(a)
+            | InstKind::IsZero(a)
+            | InstKind::MLoad(a)
+            | InstKind::SLoad(a)
+            | InstKind::TLoad(a)
+            | InstKind::CalldataLoad(a)
+            | InstKind::ExtCodeSize(a)
+            | InstKind::ExtCodeHash(a)
+            | InstKind::Balance(a)
+            | InstKind::BlockHash(a)
+            | InstKind::BlobHash(a) => replace(a),
+            InstKind::MCopy(a, b, c)
+            | InstKind::CalldataCopy(a, b, c)
+            | InstKind::CodeCopy(a, b, c)
+            | InstKind::ReturnDataCopy(a, b, c)
+            | InstKind::AddMod(a, b, c)
+            | InstKind::MulMod(a, b, c)
+            | InstKind::Create(a, b, c)
+            | InstKind::Log1(a, b, c)
+            | InstKind::Select(a, b, c) => {
+                replace(a);
+                replace(b);
+                replace(c);
+            }
+            InstKind::ExtCodeCopy(a, b, c, d)
+            | InstKind::Create2(a, b, c, d)
+            | InstKind::Log2(a, b, c, d) => {
+                replace(a);
+                replace(b);
+                replace(c);
+                replace(d);
+            }
+            InstKind::Log3(a, b, c, d, e) => {
+                replace(a);
+                replace(b);
+                replace(c);
+                replace(d);
+                replace(e);
+            }
+            InstKind::Log4(a, b, c, d, e, f) => {
+                replace(a);
+                replace(b);
+                replace(c);
+                replace(d);
+                replace(e);
+                replace(f);
+            }
+            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+                replace(gas);
+                replace(addr);
+                replace(value);
+                replace(args_offset);
+                replace(args_size);
+                replace(ret_offset);
+                replace(ret_size);
+            }
+            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
+            | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                replace(gas);
+                replace(addr);
+                replace(args_offset);
+                replace(args_size);
+                replace(ret_offset);
+                replace(ret_size);
+            }
+            InstKind::InternalCall { args, .. } => {
+                for arg in args {
+                    replace(arg);
+                }
+            }
+            InstKind::Phi(incoming) => {
+                for (_, value) in incoming {
+                    replace(value);
+                }
+            }
+            InstKind::MSize
+            | InstKind::CalldataSize
+            | InstKind::InternalFrameAddr(_)
+            | InstKind::CodeSize
+            | InstKind::ReturnDataSize
+            | InstKind::Caller
+            | InstKind::CallValue
+            | InstKind::Origin
+            | InstKind::GasPrice
+            | InstKind::Coinbase
+            | InstKind::Timestamp
+            | InstKind::BlockNumber
+            | InstKind::PrevRandao
+            | InstKind::GasLimit
+            | InstKind::ChainId
+            | InstKind::Address
+            | InstKind::SelfBalance
+            | InstKind::Gas
+            | InstKind::BaseFee
+            | InstKind::BlobBaseFee => {}
+        }
+    }
+
+    fn replace_terminator_operands(
+        term: &mut Terminator,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) {
+        let replace = |value: &mut ValueId| {
+            if let Some(&replacement) = replacements.get(value) {
+                *value = replacement;
+            }
+        };
+
+        match term {
+            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
+            Terminator::Branch { condition, .. } => replace(condition),
+            Terminator::Switch { value, cases, .. } => {
+                replace(value);
+                for (case_value, _) in cases {
+                    replace(case_value);
+                }
+            }
+            Terminator::Return { values } => {
+                for value in values {
+                    replace(value);
+                }
+            }
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+                replace(offset);
+                replace(size);
+            }
+            Terminator::SelfDestruct { recipient } => replace(recipient),
+        }
     }
 
     /// Eliminates empty blocks that only contain an unconditional jump.
@@ -187,13 +444,7 @@ impl CfgSimplifier {
         let block = &func.blocks[block_id];
 
         if !block.instructions.is_empty() {
-            let has_real_instructions = block
-                .instructions
-                .iter()
-                .any(|&inst_id| !matches!(func.instructions[inst_id].kind, InstKind::Phi(_)));
-            if has_real_instructions {
-                return false;
-            }
+            return false;
         }
 
         matches!(&block.terminator, Some(Terminator::Jump(target)) if *target != block_id)
@@ -207,6 +458,7 @@ impl CfgSimplifier {
         };
 
         let predecessors: Vec<_> = func.blocks[block_id].predecessors.to_vec();
+        self.redirect_target_phi_incoming(func, block_id, target, &predecessors);
 
         for pred_id in predecessors {
             self.redirect_terminator(func, pred_id, block_id, target);
@@ -225,6 +477,30 @@ impl CfgSimplifier {
         func.blocks[block_id].terminator = Some(Terminator::Invalid);
         func.blocks[block_id].predecessors.clear();
         func.blocks[block_id].successors.clear();
+    }
+
+    fn redirect_target_phi_incoming(
+        &self,
+        func: &mut Function,
+        old_pred: BlockId,
+        target: BlockId,
+        new_preds: &[BlockId],
+    ) {
+        for &inst_id in &func.blocks[target].instructions {
+            let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind else {
+                continue;
+            };
+
+            let mut rewritten = Vec::with_capacity(incoming.len() + new_preds.len());
+            for &(pred, value) in incoming.iter() {
+                if pred == old_pred {
+                    rewritten.extend(new_preds.iter().map(|&new_pred| (new_pred, value)));
+                } else {
+                    rewritten.push((pred, value));
+                }
+            }
+            *incoming = rewritten;
+        }
     }
 
     /// Redirects a terminator from old_target to new_target.
@@ -270,6 +546,19 @@ pub struct DeadFunctionEliminator {
     pub stats: CfgSimplifyStats,
 }
 
+/// Module pass for dead internal function elimination.
+pub struct FunctionDcePass;
+
+impl ModulePass for FunctionDcePass {
+    fn name(&self) -> &str {
+        "function-dce"
+    }
+
+    fn run(&mut self, module: &mut Module) {
+        DeadFunctionEliminator::new().run(module);
+    }
+}
+
 impl DeadFunctionEliminator {
     /// Creates a new dead function eliminator.
     #[must_use]
@@ -283,6 +572,9 @@ impl DeadFunctionEliminator {
         self.stats = CfgSimplifyStats::default();
 
         let reachable = self.find_reachable_functions(module);
+        if reachable.is_empty() {
+            return 0;
+        }
 
         let dead_functions: Vec<FunctionId> =
             module.functions.indices().filter(|id| !reachable.contains(id)).collect();
@@ -292,6 +584,8 @@ impl DeadFunctionEliminator {
         for func_id in &dead_functions {
             let func = &mut module.functions[*func_id];
             func.blocks.clear();
+            func.instructions.clear();
+            func.values.clear();
         }
 
         self.stats.dead_functions_eliminated
@@ -326,20 +620,22 @@ impl DeadFunctionEliminator {
 
     /// Checks if a function is an entry point.
     fn is_entry_point(&self, func: &Function) -> bool {
-        func.is_public()
+        func.selector.is_some()
             || func.attributes.is_constructor
             || func.attributes.is_fallback
             || func.attributes.is_receive
     }
 
-    /// Builds a call graph by analyzing function calls in the MIR.
-    /// Since internal function calls in EVM are implemented via JUMP (not CALL),
-    /// we need to track which functions might be called.
-    /// For now, this returns an empty call graph - we rely on the entry point
-    /// check to keep public functions, and internal functions are eliminated
-    /// if they're never referenced.
-    fn build_call_graph(&self, _module: &Module) -> FxHashMap<FunctionId, FxHashSet<FunctionId>> {
-        FxHashMap::default()
+    /// Builds a call graph by analyzing internal calls in reachable MIR blocks.
+    fn build_call_graph(&self, module: &Module) -> FxHashMap<FunctionId, FxHashSet<FunctionId>> {
+        module
+            .functions
+            .iter_enumerated()
+            .filter_map(|(func_id, func)| {
+                let callees = find_internal_callees(func);
+                (!callees.is_empty()).then_some((func_id, callees))
+            })
+            .collect()
     }
 }
 
@@ -376,8 +672,8 @@ impl CallGraphAnalyzer {
     }
 
     /// Finds all functions called by this function.
-    fn find_callees(&self, _func: &Function, _module: &Module) -> FxHashSet<FunctionId> {
-        FxHashSet::default()
+    fn find_callees(&self, func: &Function, _module: &Module) -> FxHashSet<FunctionId> {
+        find_internal_callees(func)
     }
 
     /// Detects recursive functions using DFS.
@@ -416,10 +712,54 @@ impl CallGraphAnalyzer {
     }
 }
 
+fn find_internal_callees(func: &Function) -> FxHashSet<FunctionId> {
+    let mut callees = FxHashSet::default();
+    for block in func.blocks.iter() {
+        for &inst_id in &block.instructions {
+            if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+                callees.insert(function);
+            }
+        }
+    }
+    callees
+}
+
 /// Runs all CFG simplification passes on a function.
 pub fn simplify_cfg(func: &mut Function) -> CfgSimplifyStats {
     let mut simplifier = CfgSimplifier::new();
     simplifier.run_to_fixpoint(func)
+}
+
+/// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
+/// that are no longer predecessors.
+pub fn repair_reachability_phis(func: &mut Function) {
+    let mut edges = Vec::new();
+    for (block, bb) in func.blocks.iter_enumerated() {
+        if let Some(term) = &bb.terminator {
+            edges.push((block, term.successors()));
+        }
+    }
+
+    for block in func.blocks.iter_mut() {
+        block.predecessors.clear();
+        block.successors.clear();
+    }
+
+    for (block, successors) in edges {
+        for succ in successors {
+            func.blocks[block].successors.push(succ);
+            func.blocks[succ].predecessors.push(block);
+        }
+    }
+
+    for block_id in func.blocks.indices() {
+        let predecessors = func.blocks[block_id].predecessors.clone();
+        for &inst_id in &func.blocks[block_id].instructions {
+            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+                incoming.retain(|(pred, _)| predecessors.contains(pred));
+            }
+        }
+    }
 }
 
 /// Runs all CFG simplification passes on a module.
@@ -437,4 +777,151 @@ pub fn simplify_module_cfg(module: &mut Module) -> CfgSimplifyStats {
     total_stats.combine(&dfe.stats);
 
     total_stats
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::mir::{FunctionBuilder, Instruction, MirType, Value};
+    use solar_interface::Ident;
+    use solar_sema::hir::Visibility;
+
+    #[test]
+    fn dead_function_elimination_keeps_internal_call_targets() {
+        let mut module = Module::new(Ident::DUMMY);
+
+        let live_helper = module.add_function(Function::new(Ident::DUMMY));
+        let dead_helper = module.add_function(Function::new(Ident::DUMMY));
+
+        let mut entry = Function::new(Ident::DUMMY);
+        entry.selector = Some([0, 0, 0, 1]);
+        entry.attributes.visibility = Visibility::Public;
+        {
+            let mut builder = FunctionBuilder::new(&mut entry);
+            let value = builder.internal_call(live_helper, Vec::new(), Some(MirType::uint256()), 1);
+            builder.ret([value]);
+        }
+        let entry = module.add_function(entry);
+
+        {
+            let mut builder = FunctionBuilder::new(module.function_mut(live_helper));
+            let value = builder.imm_u64(1);
+            builder.ret([value]);
+        }
+        {
+            let mut builder = FunctionBuilder::new(module.function_mut(dead_helper));
+            let value = builder.imm_u64(2);
+            builder.ret([value]);
+        }
+
+        let mut dfe = DeadFunctionEliminator::new();
+        assert_eq!(dfe.run(&mut module), 1);
+
+        assert!(!module.function(entry).blocks.is_empty());
+        assert!(!module.function(live_helper).blocks.is_empty());
+        assert!(module.function(dead_helper).blocks.is_empty());
+        assert!(module.function(dead_helper).instructions.is_empty());
+        assert!(module.function(dead_helper).values.is_empty());
+    }
+
+    #[test]
+    fn empty_forwarder_rewrites_target_phi_incoming() {
+        let mut func = Function::new(Ident::DUMMY);
+        let forwarder;
+        let direct;
+        let target;
+        let value;
+        let other;
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            forwarder = builder.create_block();
+            direct = builder.create_block();
+            target = builder.create_block();
+
+            value = builder.imm_u64(42);
+            let cond = builder.imm_bool(true);
+            builder.branch(cond, forwarder, direct);
+
+            builder.switch_to_block(direct);
+            let seven = builder.imm_u64(7);
+            other = builder.add(seven, value);
+            builder.jump(target);
+
+            builder.switch_to_block(forwarder);
+            builder.jump(target);
+        }
+
+        let phi_inst = func.alloc_inst(Instruction::new(
+            InstKind::Phi(vec![(forwarder, value), (direct, other)]),
+            Some(MirType::uint256()),
+        ));
+        let phi_value = func.alloc_value(Value::Inst(phi_inst));
+        func.blocks[target].instructions.push(phi_inst);
+        func.blocks[target].terminator =
+            Some(Terminator::Return { values: vec![phi_value].into() });
+
+        let mut simplifier = CfgSimplifier::new();
+        simplifier.run_to_fixpoint(&mut func);
+
+        assert!(matches!(func.blocks[forwarder].terminator, Some(Terminator::Invalid)));
+        let phi_inst = func.blocks[target].instructions[0];
+        let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
+            panic!("expected phi");
+        };
+        assert_eq!(incoming.as_slice(), &[(func.entry_block, value), (direct, other)]);
+    }
+
+    #[test]
+    fn block_merge_rewrites_successor_phi_incoming() {
+        let mut func = Function::new(Ident::DUMMY);
+        let source;
+        let middle;
+        let other;
+        let exit;
+        let result;
+        let other_value;
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            source = builder.create_block();
+            middle = builder.create_block();
+            other = builder.create_block();
+            exit = builder.create_block();
+
+            let cond = builder.imm_bool(true);
+            builder.branch(cond, source, other);
+
+            builder.switch_to_block(source);
+            builder.jump(middle);
+
+            builder.switch_to_block(middle);
+            let one = builder.imm_u64(1);
+            let two = builder.imm_u64(2);
+            result = builder.add(one, two);
+            builder.jump(exit);
+
+            builder.switch_to_block(other);
+            let three = builder.imm_u64(3);
+            let four = builder.imm_u64(4);
+            other_value = builder.add(three, four);
+            builder.jump(exit);
+        }
+
+        let phi_inst = func.alloc_inst(Instruction::new(
+            InstKind::Phi(vec![(middle, result), (other, other_value)]),
+            Some(MirType::uint256()),
+        ));
+        let phi_value = func.alloc_value(Value::Inst(phi_inst));
+        func.blocks[exit].instructions.push(phi_inst);
+        func.blocks[exit].terminator = Some(Terminator::Return { values: vec![phi_value].into() });
+
+        let mut simplifier = CfgSimplifier::new();
+        simplifier.run_to_fixpoint(&mut func);
+
+        assert!(matches!(func.blocks[middle].terminator, Some(Terminator::Invalid)));
+        let phi_inst = func.blocks[exit].instructions[0];
+        let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
+            panic!("expected phi");
+        };
+        assert_eq!(incoming.as_slice(), &[(source, result), (other, other_value)]);
+    }
 }

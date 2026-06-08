@@ -1,0 +1,20 @@
+// === ROOT/tests/ui/codegen/immutable_getter.sol:C ===
+; module @C
+fn @owner() {
+  bb0 (entry):
+    mstore 128, 0
+    v3 = codesize
+    v5 = sub v3, 32
+    v7 = add v5, 0
+    codecopy 0, v7, 32
+    v11 = mload 0
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @_anonymous(arg0: address) {
+  bb0 (entry):
+    mstore 0x2000, arg0
+    stop
+}
+

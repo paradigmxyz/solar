@@ -1,85 +1,76 @@
 // === ROOT/tests/ui/codegen/mapping.sol:Mapping ===
 ; module @Mapping
-fn @balances(arg0: u256) -> u256 {
+fn @balances(arg0: u256) {
   bb0 (entry):
-    v3 = mstore 128, 0
-    v6 = mstore 0, arg0
-    v8 = mstore 32, 0
+    mstore 128, 0
+    mstore 0, arg0
+    mstore 32, 0
     v10 = keccak256 0, 64
     v11 = sload v10
-    v13 = mload 64
-    v15 = add v13, 32
-    v17 = mstore 64, v15
-    v18 = mstore v13, v11
-    returndata v13, 32
+    mstore 128, v11
+    returndata 128, 32
 }
 
-fn @allowances(arg0: address, arg1: address) -> u256 {
+fn @allowances(arg0: address, arg1: address) {
   bb0 (entry):
-    v4 = mstore 128, 0
-    v7 = mstore 0, arg0
-    v9 = mstore 32, 1
+    mstore 128, 0
+    mstore 0, arg0
+    mstore 32, 1
     v11 = keccak256 0, 64
-    v13 = mstore 0, arg1
-    v15 = mstore 32, v11
+    mstore 0, arg1
+    mstore 32, v11
     v17 = keccak256 0, 64
     v18 = sload v17
-    v20 = mload 64
-    v22 = add v20, 32
-    v24 = mstore 64, v22
-    v25 = mstore v20, v18
-    returndata v20, 32
+    mstore 128, v18
+    returndata 128, 32
 }
 
 fn @set_balance(arg0: u256, arg1: u256) {
   bb0 (entry):
-    v4 = mstore 0, arg0
-    v6 = mstore 32, 0
+    mstore 0, arg0
+    mstore 32, 0
     v8 = keccak256 0, 64
-    v9 = sstore v8, arg1
+    sstore v8, arg1
     stop
 }
 
 fn @add_balance(arg0: u256, arg1: u256) {
   bb0 (entry):
-    v4 = mstore 0, arg0
-    v6 = mstore 32, 0
+    mstore 0, arg0
+    mstore 32, 0
     v8 = keccak256 0, 64
     v9 = sload v8
     v10 = add v9, arg1
-    v13 = mstore 0, arg0
-    v15 = mstore 32, 0
+    mstore 0, arg0
+    mstore 32, 0
     v17 = keccak256 0, 64
-    v18 = sstore v17, v10
+    sstore v17, v10
     stop
 }
 
 fn @approve(arg0: address, arg1: address, arg2: u256) {
   bb0 (entry):
-    v5 = mstore 0, arg0
-    v7 = mstore 32, 1
+    mstore 0, arg0
+    mstore 32, 1
     v9 = keccak256 0, 64
-    v11 = mstore 0, arg1
-    v13 = mstore 32, v9
+    mstore 0, arg1
+    mstore 32, v9
     v15 = keccak256 0, 64
-    v16 = sstore v15, arg2
+    sstore v15, arg2
     stop
 }
 
-fn @get_allowance(arg0: address, arg1: address) -> u256 {
+fn @get_allowance(arg0: address, arg1: address) {
   bb0 (entry):
-    v4 = mstore 128, 0
-    v7 = mstore 0, arg0
-    v9 = mstore 32, 1
+    mstore 128, 0
+    mstore 0, arg0
+    mstore 32, 1
     v11 = keccak256 0, 64
-    v13 = mstore 0, arg1
-    v15 = mstore 32, v11
+    mstore 0, arg1
+    mstore 32, v11
     v17 = keccak256 0, 64
     v18 = sload v17
-    v20 = mload 64
-    v22 = add v20, 32
-    v24 = mstore 64, v22
-    v25 = mstore v20, v18
-    returndata v20, 32
+    mstore 128, v18
+    returndata 128, 32
 }
 

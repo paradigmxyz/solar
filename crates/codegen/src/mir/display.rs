@@ -36,7 +36,9 @@ pub fn function_to_dot(func: &Function) -> String {
                 .find(|(_, v)| matches!(v, Value::Inst(id) if *id == inst_id))
                 .map(|(vid, _)| vid);
 
-            if let Some(vid) = def_value {
+            if inst.result_ty.is_some()
+                && let Some(vid) = def_value
+            {
                 write!(label, "  v{} = ", vid.index()).unwrap();
             } else {
                 label.push_str("  ");
@@ -160,7 +162,7 @@ pub fn function_to_text(func: &Function) -> String {
         write!(out, "arg{i}: {ty}").unwrap();
     }
     write!(out, ")").unwrap();
-    if !func.returns.is_empty() {
+    if function_prints_return_values(func) && !func.returns.is_empty() {
         write!(out, " -> ").unwrap();
         if func.returns.len() == 1 {
             write!(out, "{}", func.returns[0]).unwrap();
@@ -192,7 +194,9 @@ pub fn function_to_text(func: &Function) -> String {
                 .map(|(vid, _)| vid);
 
             write!(out, "    ").unwrap();
-            if let Some(vid) = def_value {
+            if inst.result_ty.is_some()
+                && let Some(vid) = def_value
+            {
                 write!(out, "v{} = ", vid.index()).unwrap();
             }
             writeln!(out, "{}", format_inst_kind(&inst.kind, func)).unwrap();
@@ -206,6 +210,10 @@ pub fn function_to_text(func: &Function) -> String {
 
     writeln!(out, "}}").unwrap();
     out
+}
+
+fn function_prints_return_values(func: &Function) -> bool {
+    func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
 /// Generates textual MIR for an entire module.
