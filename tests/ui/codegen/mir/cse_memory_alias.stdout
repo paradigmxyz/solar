@@ -32,4 +32,3 @@ fn @reuse_keccak_after_disjoint_memory_store(arg0: u256) -> u256 {
     v8 = add v3, v3
     ret v8
 }
-

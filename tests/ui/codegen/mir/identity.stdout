@@ -11,4 +11,3 @@ fn @double(arg0: u256) -> u256 {
     v1 = add arg0, arg0
     ret v1
 }
-

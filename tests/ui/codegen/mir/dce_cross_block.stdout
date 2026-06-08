@@ -9,4 +9,3 @@ fn @cross(arg0: u256, arg1: bool) -> u256 {
   bb2:
     ret v3
 }
-

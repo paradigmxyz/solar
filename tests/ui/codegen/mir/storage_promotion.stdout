@@ -38,4 +38,3 @@ fn @reject_loop_variant_offset_slot(arg0: u256) {
   bb3:
     stop
 }
-

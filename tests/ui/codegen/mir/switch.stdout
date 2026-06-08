@@ -12,4 +12,3 @@ fn @dispatch(arg0: u256) -> u256 {
   bb4:
     ret 2
 }
-

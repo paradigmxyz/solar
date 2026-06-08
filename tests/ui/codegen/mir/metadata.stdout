@@ -7,4 +7,3 @@ fn @metadata(arg0: u256) -> u256 {
     v5 = add v2, v4
     ret v5
 }
-

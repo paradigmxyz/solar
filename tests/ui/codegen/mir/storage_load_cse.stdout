@@ -55,4 +55,3 @@ fn @replace_uses_after_second_load() -> u256 {
     v6 = add v4, v5
     ret v6
 }
-

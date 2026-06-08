@@ -32,4 +32,3 @@ fn @split_conditional_predecessor(arg0: bool) -> u256 {
   bb4:
     jump bb1
 }
-

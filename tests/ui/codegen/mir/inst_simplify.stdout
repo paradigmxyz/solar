@@ -33,4 +33,3 @@ fn @fold_modular_helpers(arg0: u256) -> u256 {
   bb0 (entry):
     ret 0
 }
-

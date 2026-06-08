@@ -179,7 +179,7 @@ fn @_anonymous() {
     v24 = keccak256 0, 32 !metadata(memory=scratch)
     sstore v24, 0x102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20 !metadata(storage=symbolic(v24))
     v29 = add v24, 1
-    sstore v29, 0x2100000000000000000000000000000000000000000000000000000000000000 !metadata(storage=symbolic(v29))
+    sstore v29, 0x2100000000000000000000000000000000000000000000000000000000000000 !metadata(storage=offset(v24, 1))
     stop
 }
 

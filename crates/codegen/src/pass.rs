@@ -31,150 +31,185 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use std::any::{Any, TypeId};
 
-/// A named MIR pass that can be used by the default codegen pipeline or `solar mir-opt`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum PassName {
-    /// Internal MIR function inlining.
-    Inline,
-    /// Dead internal function elimination.
-    FunctionDce,
-    /// Sparse conditional constant propagation.
-    Sccp,
-    /// Bounded evaluator for closed pure MIR loops/functions.
-    PureEval,
-    /// Local MIR instruction simplification.
-    InstSimplify,
-    /// Local common subexpression elimination.
-    Cse,
-    /// Storage-load CSE across definitely-disjoint stores.
-    StorageLoadCse,
-    /// Loop canonicalization into LoopSimplify-style preheader form.
-    LoopCanonicalize,
-    /// Induction-variable simplification and strength reduction.
-    IndVarSimplify,
-    /// Loop-carried storage scalar promotion.
-    StoragePromotion,
-    /// Loop-invariant code motion.
-    Licm,
-    /// Jump threading.
-    JumpThreading,
-    /// CFG simplification.
-    CfgSimplify,
-    /// Compiler-local scalar promotion.
-    FrameSlotPromotion,
-    /// Local dead memory-store elimination.
-    MemoryDse,
-    /// Dead code elimination.
-    Dce,
+type PassFactory = fn() -> Box<dyn ModulePass>;
+
+/// Registry entry for a MIR transform pass.
+#[derive(Clone, Copy)]
+pub struct PassInfo {
+    /// Command-line and pipeline name.
+    pub name: &'static str,
+    /// Human-readable help text.
+    pub description: &'static str,
+    make_pass: PassFactory,
 }
 
-impl PassName {
-    /// All known MIR passes exposed to `solar mir-opt`.
-    pub const KNOWN: &'static [Self] = &[
-        Self::Inline,
-        Self::FunctionDce,
-        Self::Dce,
-        Self::InstSimplify,
-        Self::Cse,
-        Self::StorageLoadCse,
-        Self::LoopCanonicalize,
-        Self::IndVarSimplify,
-        Self::Sccp,
-        Self::PureEval,
-        Self::Licm,
-        Self::CfgSimplify,
-        Self::JumpThreading,
-        Self::FrameSlotPromotion,
-        Self::MemoryDse,
-        Self::StoragePromotion,
-    ];
-
-    /// The command-line name for this pass.
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::Inline => "inline",
-            Self::FunctionDce => "function-dce",
-            Self::Sccp => "sccp",
-            Self::PureEval => "pure-eval",
-            Self::InstSimplify => "inst-simplify",
-            Self::Cse => "cse",
-            Self::StorageLoadCse => "storage-load-cse",
-            Self::LoopCanonicalize => "loop-canonicalize",
-            Self::IndVarSimplify => "indvar-simplify",
-            Self::StoragePromotion => "storage-promotion",
-            Self::Licm => "licm",
-            Self::JumpThreading => "jump-threading",
-            Self::CfgSimplify => "cfg-simplify",
-            Self::FrameSlotPromotion => "frame-slot-promotion",
-            Self::MemoryDse => "memory-dse",
-            Self::Dce => "dce",
-        }
+impl PassInfo {
+    const fn new(name: &'static str, description: &'static str, make_pass: PassFactory) -> Self {
+        Self { name, description, make_pass }
     }
 
-    /// Human-readable description for help output.
-    pub const fn description(self) -> &'static str {
-        match self {
-            Self::Inline => "Internal MIR function inlining",
-            Self::FunctionDce => "Dead internal function elimination",
-            Self::Sccp => "Sparse Conditional Constant Propagation",
-            Self::PureEval => "Bounded evaluator for closed pure MIR loops/functions",
-            Self::InstSimplify => "Local MIR instruction simplification",
-            Self::Cse => "Common Subexpression Elimination (fixed-point)",
-            Self::StorageLoadCse => "Reuse storage loads across definitely-disjoint stores",
-            Self::LoopCanonicalize => "Canonicalize natural loops with explicit preheaders",
-            Self::IndVarSimplify => "Strength-reduce affine induction-variable address expressions",
-            Self::StoragePromotion => "Promote simple loop-carried storage updates to memory",
-            Self::Licm => "Loop-Invariant Code Motion",
-            Self::JumpThreading => "Jump Threading (fixed-point)",
-            Self::CfgSimplify => "CFG Simplification (fixed-point)",
-            Self::FrameSlotPromotion => "Promote non-escaping compiler-local slots to SSA values",
-            Self::MemoryDse => "Local dead memory-store elimination",
-            Self::Dce => "Dead Code Elimination (fixed-point)",
-        }
+    fn make_pass(&self) -> Box<dyn ModulePass> {
+        (self.make_pass)()
     }
+}
 
-    /// Parses a command-line pass name.
-    pub fn parse(name: &str) -> Option<Self> {
-        Some(match name {
-            "inline" => Self::Inline,
-            "function-dce" => Self::FunctionDce,
-            "sccp" => Self::Sccp,
-            "pure-eval" => Self::PureEval,
-            "inst-simplify" => Self::InstSimplify,
-            "cse" => Self::Cse,
-            "storage-load-cse" => Self::StorageLoadCse,
-            "loop-canonicalize" => Self::LoopCanonicalize,
-            "indvar-simplify" => Self::IndVarSimplify,
-            "storage-promotion" => Self::StoragePromotion,
-            "licm" => Self::Licm,
-            "jump-threading" => Self::JumpThreading,
-            "cfg-simplify" => Self::CfgSimplify,
-            "frame-slot-promotion" => Self::FrameSlotPromotion,
-            "memory-dse" => Self::MemoryDse,
-            "dce" => Self::Dce,
-            _ => return None,
-        })
-    }
+fn make_inline_pass() -> Box<dyn ModulePass> {
+    Box::new(InlinePass)
+}
+
+fn make_function_dce_pass() -> Box<dyn ModulePass> {
+    Box::new(FunctionDcePass)
+}
+
+fn make_sccp_pass() -> Box<dyn ModulePass> {
+    Box::new(SccpTransformPass)
+}
+
+fn make_pure_eval_pass() -> Box<dyn ModulePass> {
+    Box::new(PureEvalPass)
+}
+
+fn make_inst_simplify_pass() -> Box<dyn ModulePass> {
+    Box::new(InstSimplifyPass)
+}
+
+fn make_cse_pass() -> Box<dyn ModulePass> {
+    Box::new(CsePass)
+}
+
+fn make_storage_load_cse_pass() -> Box<dyn ModulePass> {
+    Box::new(StorageLoadCsePass)
+}
+
+fn make_loop_canonicalize_pass() -> Box<dyn ModulePass> {
+    Box::new(LoopCanonicalizePass)
+}
+
+fn make_indvar_simplify_pass() -> Box<dyn ModulePass> {
+    Box::new(IndVarSimplifyPass)
+}
+
+fn make_storage_promotion_pass() -> Box<dyn ModulePass> {
+    Box::new(StorageScalarPromotionPass)
+}
+
+fn make_licm_pass() -> Box<dyn ModulePass> {
+    Box::new(LicmPass)
+}
+
+fn make_jump_threading_pass() -> Box<dyn ModulePass> {
+    Box::new(JumpThreadingPass)
+}
+
+fn make_cfg_simplify_pass() -> Box<dyn ModulePass> {
+    Box::new(CfgSimplifyPass)
+}
+
+fn make_frame_slot_promotion_pass() -> Box<dyn ModulePass> {
+    Box::new(FrameSlotPromotionPass)
+}
+
+fn make_memory_dse_pass() -> Box<dyn ModulePass> {
+    Box::new(MemoryDsePass)
+}
+
+fn make_dce_pass() -> Box<dyn ModulePass> {
+    Box::new(DcePass)
+}
+
+pub const INLINE_PASS: PassInfo =
+    PassInfo::new("inline", "Internal MIR function inlining", make_inline_pass);
+pub const FUNCTION_DCE_PASS: PassInfo =
+    PassInfo::new("function-dce", "Dead internal function elimination", make_function_dce_pass);
+pub const SCCP_PASS: PassInfo =
+    PassInfo::new("sccp", "Sparse Conditional Constant Propagation", make_sccp_pass);
+pub const PURE_EVAL_PASS: PassInfo = PassInfo::new(
+    "pure-eval",
+    "Bounded evaluator for closed pure MIR loops/functions",
+    make_pure_eval_pass,
+);
+pub const INST_SIMPLIFY_PASS: PassInfo =
+    PassInfo::new("inst-simplify", "Local MIR instruction simplification", make_inst_simplify_pass);
+pub const CSE_PASS: PassInfo =
+    PassInfo::new("cse", "Common Subexpression Elimination (fixed-point)", make_cse_pass);
+pub const STORAGE_LOAD_CSE_PASS: PassInfo = PassInfo::new(
+    "storage-load-cse",
+    "Reuse storage loads across definitely-disjoint stores",
+    make_storage_load_cse_pass,
+);
+pub const LOOP_CANONICALIZE_PASS: PassInfo = PassInfo::new(
+    "loop-canonicalize",
+    "Canonicalize natural loops with explicit preheaders",
+    make_loop_canonicalize_pass,
+);
+pub const INDVAR_SIMPLIFY_PASS: PassInfo = PassInfo::new(
+    "indvar-simplify",
+    "Strength-reduce affine induction-variable address expressions",
+    make_indvar_simplify_pass,
+);
+pub const STORAGE_PROMOTION_PASS: PassInfo = PassInfo::new(
+    "storage-promotion",
+    "Promote simple loop-carried storage updates to memory",
+    make_storage_promotion_pass,
+);
+pub const LICM_PASS: PassInfo = PassInfo::new("licm", "Loop-Invariant Code Motion", make_licm_pass);
+pub const JUMP_THREADING_PASS: PassInfo =
+    PassInfo::new("jump-threading", "Jump Threading (fixed-point)", make_jump_threading_pass);
+pub const CFG_SIMPLIFY_PASS: PassInfo =
+    PassInfo::new("cfg-simplify", "CFG Simplification (fixed-point)", make_cfg_simplify_pass);
+pub const FRAME_SLOT_PROMOTION_PASS: PassInfo = PassInfo::new(
+    "frame-slot-promotion",
+    "Promote non-escaping compiler-local slots to SSA values",
+    make_frame_slot_promotion_pass,
+);
+pub const MEMORY_DSE_PASS: PassInfo =
+    PassInfo::new("memory-dse", "Local dead memory-store elimination", make_memory_dse_pass);
+pub const DCE_PASS: PassInfo =
+    PassInfo::new("dce", "Dead Code Elimination (fixed-point)", make_dce_pass);
+
+/// All known MIR passes exposed to `solar mir-opt`.
+pub const PASS_REGISTRY: &[&PassInfo] = &[
+    &INLINE_PASS,
+    &FUNCTION_DCE_PASS,
+    &DCE_PASS,
+    &INST_SIMPLIFY_PASS,
+    &CSE_PASS,
+    &STORAGE_LOAD_CSE_PASS,
+    &LOOP_CANONICALIZE_PASS,
+    &INDVAR_SIMPLIFY_PASS,
+    &SCCP_PASS,
+    &PURE_EVAL_PASS,
+    &LICM_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &JUMP_THREADING_PASS,
+    &FRAME_SLOT_PROMOTION_PASS,
+    &MEMORY_DSE_PASS,
+    &STORAGE_PROMOTION_PASS,
+];
+
+/// Finds a pass in the global MIR pass registry by command-line name.
+pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
+    PASS_REGISTRY.iter().copied().find(|pass| pass.name == name)
 }
 
 /// The canonical MIR optimization pipeline used by EVM codegen.
-pub const DEFAULT_PIPELINE: &[PassName] = &[
-    PassName::Inline,
-    PassName::FunctionDce,
-    PassName::Sccp,
-    PassName::PureEval,
-    PassName::InstSimplify,
-    PassName::Cse,
-    PassName::StorageLoadCse,
-    PassName::LoopCanonicalize,
-    PassName::IndVarSimplify,
-    PassName::StoragePromotion,
-    PassName::Licm,
-    PassName::JumpThreading,
-    PassName::CfgSimplify,
-    PassName::FrameSlotPromotion,
-    PassName::MemoryDse,
-    PassName::Dce,
+pub const DEFAULT_PIPELINE: &[&PassInfo] = &[
+    &INLINE_PASS,
+    &FUNCTION_DCE_PASS,
+    &SCCP_PASS,
+    &PURE_EVAL_PASS,
+    &INST_SIMPLIFY_PASS,
+    &CSE_PASS,
+    &STORAGE_LOAD_CSE_PASS,
+    &LOOP_CANONICALIZE_PASS,
+    &INDVAR_SIMPLIFY_PASS,
+    &STORAGE_PROMOTION_PASS,
+    &LICM_PASS,
+    &JUMP_THREADING_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &FRAME_SLOT_PROMOTION_PASS,
+    &MEMORY_DSE_PASS,
+    &DCE_PASS,
 ];
 
 /// Cleanup passes rerun after the primary pipeline until no pass changes MIR.
@@ -183,17 +218,17 @@ pub const DEFAULT_PIPELINE: &[PassName] = &[
 /// profitability passes such as inlining and storage promotion run once in
 /// [`DEFAULT_PIPELINE`], while this loop cleans up opportunities exposed by
 /// those transforms.
-pub const DEFAULT_CLEANUP_PIPELINE: &[PassName] = &[
-    PassName::Sccp,
-    PassName::PureEval,
-    PassName::InstSimplify,
-    PassName::Cse,
-    PassName::StorageLoadCse,
-    PassName::JumpThreading,
-    PassName::CfgSimplify,
-    PassName::FrameSlotPromotion,
-    PassName::MemoryDse,
-    PassName::Dce,
+pub const DEFAULT_CLEANUP_PIPELINE: &[&PassInfo] = &[
+    &SCCP_PASS,
+    &PURE_EVAL_PASS,
+    &INST_SIMPLIFY_PASS,
+    &CSE_PASS,
+    &STORAGE_LOAD_CSE_PASS,
+    &JUMP_THREADING_PASS,
+    &CFG_SIMPLIFY_PASS,
+    &FRAME_SLOT_PROMOTION_PASS,
+    &MEMORY_DSE_PASS,
+    &DCE_PASS,
 ];
 
 const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
@@ -206,14 +241,14 @@ pub struct PipelineOptions {
 }
 
 /// Runs a named MIR pass over a module.
-pub fn run_pass(module: &mut Module, pass: PassName) -> bool {
+pub fn run_pass(module: &mut Module, pass: &PassInfo) -> bool {
     let mut pm = PassManager::new();
-    pm.add_pass(make_pass(pass));
+    pm.add_pass(pass.make_pass());
     pm.run(module).1
 }
 
 /// Runs a named MIR pass pipeline over a module.
-pub fn run_pipeline(module: &mut Module, passes: &[PassName]) -> bool {
+pub fn run_pipeline(module: &mut Module, passes: &[&PassInfo]) -> bool {
     let mut changed = false;
     for &pass in passes {
         changed |= run_pass(module, pass);
@@ -224,15 +259,15 @@ pub fn run_pipeline(module: &mut Module, passes: &[PassName]) -> bool {
 /// Runs a named MIR pass pipeline over a module with observer options.
 pub fn run_pipeline_with_options(
     module: &mut Module,
-    passes: &[PassName],
+    passes: &[&PassInfo],
     options: PipelineOptions,
 ) -> bool {
     let mut changed = false;
     for &pass in passes {
         changed |= run_pass(module, pass);
         if options.print_after_each {
-            println!("// === {} (after {}) ===", module.name, pass.as_str());
-            println!("{}", module_to_text(module));
+            println!("// === {} (after {}) ===", module.name, pass.name);
+            print!("{}", module_to_text(module));
         }
     }
     changed
@@ -253,7 +288,7 @@ pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineO
 
 fn run_cleanup_pipeline_to_fixpoint(
     module: &mut Module,
-    passes: &[PassName],
+    passes: &[&PassInfo],
     options: PipelineOptions,
     label: &str,
 ) -> bool {
@@ -264,8 +299,8 @@ fn run_cleanup_pipeline_to_fixpoint(
             let pass_changed = run_pass(module, pass);
             round_changed |= pass_changed;
             if options.print_after_each {
-                println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.as_str());
-                println!("{}", module_to_text(module));
+                println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
+                print!("{}", module_to_text(module));
             }
         }
         if !round_changed {
@@ -274,27 +309,6 @@ fn run_cleanup_pipeline_to_fixpoint(
         changed = true;
     }
     changed
-}
-
-fn make_pass(pass: PassName) -> Box<dyn ModulePass> {
-    match pass {
-        PassName::Inline => Box::new(InlinePass),
-        PassName::FunctionDce => Box::new(FunctionDcePass),
-        PassName::Sccp => Box::new(SccpTransformPass),
-        PassName::PureEval => Box::new(PureEvalPass),
-        PassName::InstSimplify => Box::new(InstSimplifyPass),
-        PassName::Cse => Box::new(CsePass),
-        PassName::StorageLoadCse => Box::new(StorageLoadCsePass),
-        PassName::LoopCanonicalize => Box::new(LoopCanonicalizePass),
-        PassName::IndVarSimplify => Box::new(IndVarSimplifyPass),
-        PassName::StoragePromotion => Box::new(StorageScalarPromotionPass),
-        PassName::Licm => Box::new(LicmPass),
-        PassName::JumpThreading => Box::new(JumpThreadingPass),
-        PassName::CfgSimplify => Box::new(CfgSimplifyPass),
-        PassName::FrameSlotPromotion => Box::new(FrameSlotPromotionPass),
-        PassName::MemoryDse => Box::new(MemoryDsePass),
-        PassName::Dce => Box::new(DcePass),
-    }
 }
 
 /// A key identifying a particular analysis, derived from its result type.

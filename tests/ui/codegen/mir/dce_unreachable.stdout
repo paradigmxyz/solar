@@ -8,4 +8,3 @@ fn @skip(arg0: u256) -> u256 {
   bb2:
     ret arg0
 }
-

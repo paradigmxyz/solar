@@ -16,9 +16,9 @@ fn @items(arg0: u256) {
     v16 = keccak256 0, 64 !metadata(memory=scratch)
     v17 = sload v16 !metadata(storage=symbolic(v16))
     v19 = add v16, 1
-    v20 = sload v19 !metadata(storage=symbolic(v19))
+    v20 = sload v19 !metadata(storage=offset(v16, 1))
     v22 = add v16, 2
-    v23 = sload v22 !metadata(storage=symbolic(v22))
+    v23 = sload v22 !metadata(storage=offset(v16, 2))
     mstore 128, v17
     v27 = add 128, 32
     mstore v27, v20

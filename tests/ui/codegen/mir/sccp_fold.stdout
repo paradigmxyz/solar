@@ -4,4 +4,3 @@ fn @const_chain() -> u256 {
   bb0 (entry):
     ret 60
 }
-

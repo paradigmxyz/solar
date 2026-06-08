@@ -16,4 +16,3 @@ fn @calldata_reads(arg0: u256) -> u256 {
     v1 = calldataload arg0
     ret v1
 }
-

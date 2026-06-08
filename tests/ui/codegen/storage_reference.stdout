@@ -26,10 +26,10 @@ fn @bump(arg0: u256) {
     mstore 32, 0 !metadata(memory=scratch)
     v7 = keccak256 0, 64 !metadata(memory=scratch)
     v9 = add v7, 1
-    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v10 = sload v9 !metadata(storage=offset(v7, 1))
     v12 = add v10, 1
     v14 = add v7, 1
-    sstore v14, v12 !metadata(storage=symbolic(v14))
+    sstore v14, v12 !metadata(storage=offset(v7, 1))
     stop
 }
 

@@ -39,4 +39,3 @@ fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
   bb3:
     ret 0
 }
-
