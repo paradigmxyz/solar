@@ -52,6 +52,10 @@ impl Instruction {
 }
 
 /// The kind of an instruction.
+///
+/// TODO(codegen): Consider separating opcode and operands once the MIR shape stabilizes, e.g.
+/// `Instruction { opcode: Opcode, operands: SmallVec<[ValueId; 4]>, ... }`. That would make generic
+/// operand visitors and rewrites less variant-heavy.
 #[derive(Clone, Debug)]
 pub enum InstKind {
     // Arithmetic operations
