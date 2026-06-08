@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/semanticTests/functionTypes/comparison_operators_for_external_functions.sol
 // ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_of_function_types_internal_eq_1.sol
 // ported-from: test/libsolidity/syntaxTests/functionTypes/comparison_of_function_types_internal_eq_2.sol

@@ -1,4 +1,4 @@
-//@compile-flags: -Zprint-natspec
+//@ compile-flags: -Zprint-natspec
 
 contract VariableDocs {
     /// @return The number of decimals

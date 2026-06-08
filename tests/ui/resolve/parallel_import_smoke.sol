@@ -1,4 +1,4 @@
-//@compile-flags: -j8
+//@ compile-flags: -j8
 
 import "./auxiliary/parallel_import_a.sol" as A;
 import "./auxiliary/parallel_import_b.sol" as B;

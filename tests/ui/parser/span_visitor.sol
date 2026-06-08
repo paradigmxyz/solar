@@ -1,4 +1,4 @@
-//@compile-flags: -Zspan-visitor
+//@ compile-flags: -Zspan-visitor
 
 /// @title SpanVisitorTest
 /// @author solar contributors

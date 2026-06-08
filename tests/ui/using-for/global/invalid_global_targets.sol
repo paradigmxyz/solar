@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/global_for_non_user_defined.sol
 // ported-from: test/libsolidity/syntaxTests/using/global_library_for_builtin.sol
 // ported-from: test/libsolidity/syntaxTests/using/global_library_for_interface.sol

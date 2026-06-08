@@ -97,3 +97,6 @@ Display options:
 
       --no-warnings
           Whether to disable warnings
+
+      --allow <CODE>
+          Comma separated list of diagnostic codes to allow

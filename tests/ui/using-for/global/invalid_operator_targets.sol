@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/defining_operator_for_enum.sol
 // ported-from: test/libsolidity/syntaxTests/operators/userDefined/defining_operator_for_struct.sol
 

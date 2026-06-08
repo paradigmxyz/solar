@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 //@ error-in-other-file: can only use `global` with types defined in the same source unit at file level
 //@ error-in-other-file: can only use `global` with types defined in the same source unit at file level
 //@ error-in-other-file: can only use `global` with types defined in the same source unit at file level

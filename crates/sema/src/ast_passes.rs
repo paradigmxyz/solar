@@ -301,26 +301,6 @@ impl<'ast> Visit<'ast> for AstValidator<'_, 'ast> {
             }
         }
 
-        if func.kind.is_receive() {
-            if self.contract.is_some_and(|c| c.kind.is_library()) {
-                self.dcx()
-                    .emit_err(self.item_span, "libraries cannot have receive ether functions");
-            }
-
-            if !func.header.state_mutability().is_payable() {
-                self.dcx()
-                    .err("receive ether function must be payable")
-                    .span(self.item_span)
-                    .help("add `payable` state mutability")
-                    .emit();
-            }
-
-            if !func.header.parameters.is_empty() {
-                self.dcx()
-                    .emit_err(self.item_span, "receive ether function cannot take parameters");
-            }
-        }
-
         if func.header.visibility.is_none()
             && let Some(contract) = self.contract
             && let Some(suggested_visibility) = if func.kind.is_function() {

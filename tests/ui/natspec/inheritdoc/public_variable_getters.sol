@@ -1,4 +1,4 @@
-//@compile-flags: -Zprint-natspec
+//@ compile-flags: -Zprint-natspec
 
 interface Base {
     /// @notice Base factory notice

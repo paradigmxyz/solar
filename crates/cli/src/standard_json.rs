@@ -82,7 +82,9 @@ pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(StandardJsonFileLoader);
     let (emitter, diagnostics) = InMemoryEmitter::new();
-    let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| flags.update_from_opts(&opts));
+    let dcx = DiagCtxt::new(Box::new(emitter))
+        .with_flags(|flags| flags.update_from_opts(&opts))
+        .with_allowed_diagnostic_codes(opts.allow.iter().cloned());
 
     let mut output = CompilerOutput::default();
     let mut input = String::new();

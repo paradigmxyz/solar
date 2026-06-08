@@ -75,6 +75,7 @@ struct DiagCtxtInner {
     emitter: Box<DynEmitter>,
 
     flags: DiagCtxtFlags,
+    allowed_diagnostic_codes: FxHashSet<String>,
 
     /// The number of errors that have been emitted, including duplicates.
     ///
@@ -101,6 +102,7 @@ impl DiagCtxt {
             inner: Mutex::new(DiagCtxtInner {
                 emitter,
                 flags: DiagCtxtFlags::default(),
+                allowed_diagnostic_codes: FxHashSet::default(),
                 err_count: 0,
                 deduplicated_err_count: 0,
                 warn_count: 0,
@@ -193,7 +195,18 @@ impl DiagCtxt {
             }
             format => unimplemented!("{format:?}"),
         };
-        Self::new(emitter).with_flags(|flags| flags.update_from_opts(opts))
+        Self::new(emitter)
+            .with_flags(|flags| flags.update_from_opts(opts))
+            .with_allowed_diagnostic_codes(opts.allow.iter().cloned())
+    }
+
+    /// Adds diagnostic codes that should be allowed.
+    pub fn with_allowed_diagnostic_codes(
+        mut self,
+        codes: impl IntoIterator<Item = String>,
+    ) -> Self {
+        self.set_allowed_diagnostic_codes_mut(codes);
+        self
     }
 
     /// Sets the emitter to [`SilentEmitter`].
@@ -244,6 +257,16 @@ impl DiagCtxt {
     /// Sets flags.
     pub fn set_flags_mut(&mut self, f: impl FnOnce(&mut DiagCtxtFlags)) {
         f(&mut self.inner.get_mut().flags);
+    }
+
+    /// Adds diagnostic codes that should be allowed.
+    pub fn set_allowed_diagnostic_codes(&self, codes: impl IntoIterator<Item = String>) {
+        self.inner.lock().allowed_diagnostic_codes.extend(codes);
+    }
+
+    /// Adds diagnostic codes that should be allowed.
+    pub fn set_allowed_diagnostic_codes_mut(&mut self, codes: impl IntoIterator<Item = String>) {
+        self.inner.get_mut().allowed_diagnostic_codes.extend(codes);
     }
 
     /// Disables emitting warnings.
@@ -449,6 +472,10 @@ impl DiagCtxtInner {
         &mut self,
         diagnostic: &mut Diag,
     ) -> Result<(), ErrorGuaranteed> {
+        if self.is_allowed_diagnostic(diagnostic) {
+            return Ok(());
+        }
+
         if diagnostic.level == Level::Warning && !self.flags.can_emit_warnings {
             return Ok(());
         }
@@ -552,6 +579,11 @@ impl DiagCtxtInner {
 
     fn treat_err_as_bug(&self) -> bool {
         self.flags.treat_err_as_bug.is_some_and(|c| self.err_count >= c.get())
+    }
+
+    fn is_allowed_diagnostic(&self, diagnostic: &Diag) -> bool {
+        diagnostic.level == Level::Warning
+            && diagnostic.id().is_some_and(|id| self.allowed_diagnostic_codes.contains(id))
     }
 
     fn bump_err_count(&mut self) {

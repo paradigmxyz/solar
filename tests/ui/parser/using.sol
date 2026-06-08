@@ -4,10 +4,12 @@ function f(uint) pure {}
 
 contract C {
     using {f} for uint global; //~ ERROR: `global` can only be used at file level
+    //~^ ERROR: can only use `global` with user-defined types
 }
-function f(uint) pure {}
+function f2(uint) pure {}
 
 interface I2 {
     using L for int; //~ ERROR: the `using for` directive is not allowed inside interfaces
+    //~^ ERROR: unresolved symbol `L`
     function g() external;
 }

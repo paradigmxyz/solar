@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 interface Target {
     function takesMemoryFunction(function(string memory) external callback) external;

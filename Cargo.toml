@@ -183,3 +183,4 @@ unicode-width = "0.2"
 vergen = { package = "vergen-gitcl", version = "10.0.0-beta.5" }
 
 [patch.crates-io]
+ui_test = { git = "https://github.com/DaniPopes/ui_test", branch = "fork" }

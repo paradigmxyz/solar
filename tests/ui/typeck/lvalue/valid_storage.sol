@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // Valid lvalue assignments for storage variables
 
 contract Test {

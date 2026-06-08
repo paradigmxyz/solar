@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract C {
     function f() public returns (uint256 x, uint256 y) {
@@ -11,6 +11,7 @@ contract C {
 
         assembly {
             x, y := pair(1) //~ ERROR: unresolved symbol
+            //~^ ERROR: mismatched number of components
         }
     }
 

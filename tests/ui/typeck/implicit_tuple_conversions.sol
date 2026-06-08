@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 // Tests for implicit tuple conversions.
 // Tuple assignments check element-wise type matching.

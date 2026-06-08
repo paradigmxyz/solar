@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/immutable/variable_declaration_value.sol
 // ported-from: test/libsolidity/semanticTests/immutable/multiple_initializations.sol
 // ported-from: test/libsolidity/syntaxTests/immutable/ctor_initialization_tuple.sol

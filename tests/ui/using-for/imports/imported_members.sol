@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/module_2.sol
 // ported-from: test/libsolidity/syntaxTests/using/library_import_as.sol
 

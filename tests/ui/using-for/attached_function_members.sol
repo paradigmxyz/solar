@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/library_function_attached_but_not_called.sol
 // ported-from: test/libsolidity/syntaxTests/functionTypes/assign_attached_library_function.sol
 // ported-from: test/libsolidity/semanticTests/libraries/internal_library_function_attached_to_internal_function_type.sol

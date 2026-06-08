@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/metaTypes/codeIsNoLValue.sol
 
 contract MetaTypeMemberLvalues {

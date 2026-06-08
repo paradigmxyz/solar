@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 // ported-from: test/libyul/yulSyntaxTests/for_statement_2.yul
 
 contract C {
