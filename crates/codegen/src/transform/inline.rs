@@ -24,7 +24,7 @@ use crate::{
         BlockId, Function, FunctionId as MirFunctionId, InstId, InstKind, Instruction, MirType,
         Module, Terminator, Value, ValueId,
     },
-    pass::Pass,
+    pass::ModulePass,
 };
 use smallvec::SmallVec;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -648,7 +648,7 @@ pub struct MirInliner {
 /// Module pass for metadata-backed MIR inlining.
 pub struct InlinePass;
 
-impl Pass for InlinePass {
+impl ModulePass for InlinePass {
     fn name(&self) -> &str {
         "inline"
     }

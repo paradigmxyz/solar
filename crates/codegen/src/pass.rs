@@ -3,8 +3,8 @@
 //! Inspired by LLVM/MLIR pass infrastructure:
 //! - **Analysis passes** ([`AnalysisPass`]) are read-only and produce a cached result. They take
 //!   `&Function` and store their result in [`AnalysisManager`].
-//! - **Passes** ([`Pass`]) modify the IR at module scope. Function-local passes can implement
-//!   [`FunctionPass`] and are automatically applied to each function.
+//! - **Module passes** ([`ModulePass`]) modify the IR at module scope. Function-local passes can
+//!   implement [`FunctionPass`] and are automatically applied to each function.
 //!
 //! # Usage
 //!
@@ -174,7 +174,7 @@ pub fn run_default_pipeline(module: &mut Module) {
     run_pipeline(module, DEFAULT_PIPELINE);
 }
 
-fn make_pass(pass: PassName) -> Box<dyn Pass> {
+fn make_pass(pass: PassName) -> Box<dyn ModulePass> {
     match pass {
         PassName::Inline => Box::new(InlinePass),
         PassName::FunctionDce => Box::new(FunctionDcePass),
@@ -221,8 +221,8 @@ pub trait AnalysisPass {
 /// A transformation pass that mutates a MIR module.
 ///
 /// Module-level passes can inspect or transform more than one function. Function-local passes
-/// should implement [`FunctionPass`] instead and use the blanket [`Pass`] implementation.
-pub trait Pass {
+/// should implement [`FunctionPass`] instead and use the blanket [`ModulePass`] implementation.
+pub trait ModulePass {
     /// The name of this pass, for debugging and logging.
     fn name(&self) -> &str;
 
@@ -239,7 +239,7 @@ pub trait FunctionPass {
     fn run_on_function(&mut self, func: &mut Function);
 }
 
-impl<T: FunctionPass> Pass for T {
+impl<T: FunctionPass> ModulePass for T {
     fn name(&self) -> &str {
         FunctionPass::name(self)
     }
@@ -302,12 +302,12 @@ impl AnalysisManager {
     }
 }
 
-/// Orchestrates execution of [`Pass`]es on a module.
+/// Orchestrates execution of [`ModulePass`]es on a module.
 ///
 /// Each transform automatically invalidates all cached analyses after running.
 #[derive(Default)]
 pub struct PassManager {
-    passes: Vec<Box<dyn Pass>>,
+    passes: Vec<Box<dyn ModulePass>>,
 }
 
 impl PassManager {
@@ -317,7 +317,7 @@ impl PassManager {
     }
 
     /// Adds a transformation pass to the pipeline.
-    pub fn add_pass(&mut self, pass: Box<dyn Pass>) {
+    pub fn add_pass(&mut self, pass: Box<dyn ModulePass>) {
         self.passes.push(pass);
     }
 

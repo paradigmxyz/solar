@@ -65,7 +65,7 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
   execution.
 - Keep pass adapters small and colocated with the transform implementation. The
   central pass manager should only coordinate pass names, pipelines, and
-  `dyn Pass` execution.
+  `dyn ModulePass` execution.
 
 ### UI Test Annotations
 

@@ -16,7 +16,7 @@
 
 use crate::{
     mir::{BlockId, Function, FunctionId, InstKind, Module, Terminator, Value, ValueId},
-    pass::{FunctionPass, Pass},
+    pass::{FunctionPass, ModulePass},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
@@ -549,7 +549,7 @@ pub struct DeadFunctionEliminator {
 /// Module pass for dead internal function elimination.
 pub struct FunctionDcePass;
 
-impl Pass for FunctionDcePass {
+impl ModulePass for FunctionDcePass {
     fn name(&self) -> &str {
         "function-dce"
     }
