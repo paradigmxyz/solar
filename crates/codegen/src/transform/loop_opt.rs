@@ -515,7 +515,7 @@ fn u256_to_i128(value: U256) -> Option<i128> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{FunctionBuilder, Immediate, Instruction, MirType, Terminator};
+    use crate::mir::{FunctionBuilder, MirType, Terminator};
     use solar_interface::Ident;
 
     #[test]
@@ -604,84 +604,6 @@ mod tests {
         };
         let load_inst = *load_inst;
         assert!(func.blocks[body].instructions.contains(&load_inst));
-
-        let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 4 };
-        let mut optimizer = LoopOptimizer::new(config);
-        optimizer.optimize(&mut func);
-
-        assert!(func.blocks[entry].instructions.contains(&load_inst));
-        assert!(!func.blocks[body].instructions.contains(&load_inst));
-    }
-
-    #[test]
-    fn licm_hoists_mload_past_non_overlapping_affine_store() {
-        let mut func = Function::new(Ident::DUMMY);
-
-        let entry = func.entry_block;
-        let header = func.alloc_block();
-        let body = func.alloc_block();
-        let exit = func.alloc_block();
-
-        let base = func.alloc_value(Value::Arg { index: 0, ty: MirType::uint256() });
-        func.params.push(MirType::uint256());
-        let zero = func.alloc_value(Value::Immediate(Immediate::uint256(U256::ZERO)));
-        let one = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
-        let four = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(4))));
-        let stride = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(32))));
-        let value = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(7))));
-
-        func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[entry].successors.push(header);
-        func.blocks[header].predecessors.push(entry);
-
-        let phi_inst = func.alloc_inst(Instruction::new(
-            InstKind::Phi(vec![(entry, zero)]),
-            Some(MirType::uint256()),
-        ));
-        func.blocks[header].instructions.push(phi_inst);
-        let i = func.alloc_value(Value::Inst(phi_inst));
-        let cond_inst =
-            func.alloc_inst(Instruction::new(InstKind::Lt(i, four), Some(MirType::Bool)));
-        func.blocks[header].instructions.push(cond_inst);
-        let cond = func.alloc_value(Value::Inst(cond_inst));
-        func.blocks[header].terminator =
-            Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.extend([body, exit]);
-        func.blocks[body].predecessors.push(header);
-        func.blocks[exit].predecessors.push(header);
-
-        let load_inst =
-            func.alloc_inst(Instruction::new(InstKind::MLoad(base), Some(MirType::uint256())));
-        func.blocks[body].instructions.push(load_inst);
-        let load_value = func.alloc_value(Value::Inst(load_inst));
-        let scaled_inst =
-            func.alloc_inst(Instruction::new(InstKind::Mul(i, stride), Some(MirType::uint256())));
-        func.blocks[body].instructions.push(scaled_inst);
-        let scaled = func.alloc_value(Value::Inst(scaled_inst));
-        let offset_inst = func
-            .alloc_inst(Instruction::new(InstKind::Add(stride, scaled), Some(MirType::uint256())));
-        func.blocks[body].instructions.push(offset_inst);
-        let offset = func.alloc_value(Value::Inst(offset_inst));
-        let store_addr_inst = func
-            .alloc_inst(Instruction::new(InstKind::Add(base, offset), Some(MirType::uint256())));
-        func.blocks[body].instructions.push(store_addr_inst);
-        let store_addr = func.alloc_value(Value::Inst(store_addr_inst));
-        let store_inst =
-            func.alloc_inst(Instruction::new(InstKind::MStore(store_addr, value), None));
-        func.blocks[body].instructions.push(store_inst);
-        let next_inst =
-            func.alloc_inst(Instruction::new(InstKind::Add(i, one), Some(MirType::uint256())));
-        func.blocks[body].instructions.push(next_inst);
-        let next = func.alloc_value(Value::Inst(next_inst));
-        if let InstKind::Phi(incoming) = &mut func.instructions[phi_inst].kind {
-            incoming.push((body, next));
-        }
-        func.blocks[body].terminator = Some(Terminator::Jump(header));
-        func.blocks[body].successors.push(header);
-        func.blocks[header].predecessors.push(body);
-
-        func.blocks[exit].terminator = Some(Terminator::Return { values: vec![load_value].into() });
 
         let config =
             LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 4 };

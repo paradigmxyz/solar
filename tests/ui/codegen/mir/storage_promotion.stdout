@@ -38,3 +38,28 @@ fn @reject_loop_variant_offset_slot(arg0: u256) {
   bb3:
     stop
 }
+
+fn @promote_two_initialized_slots() {
+  bb0 (entry):
+    mstore 128, 1
+    mstore 160, 2
+    jump bb1
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    v6 = mload 128
+    v8 = mul v6, 2
+    mstore 128, v8
+    v11 = mload 160
+    v13 = add v11, 3
+    mstore 160, v13
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    v18 = mload 160
+    sstore 1, v18
+    v17 = mload 128
+    sstore 0, v17
+    stop
+}

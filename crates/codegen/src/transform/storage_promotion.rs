@@ -1063,58 +1063,6 @@ mod tests {
         TestLoop { func, entry_store, body_load, body_store, exit }
     }
 
-    fn make_two_slot_storage_loop() -> (Function, BlockId) {
-        let mut func = Function::new(Ident::DUMMY);
-        func.selector = Some([0, 0, 0, 1]);
-
-        let entry = func.entry_block;
-        let header = func.alloc_block();
-        let body = func.alloc_block();
-        let update = func.alloc_block();
-        let exit = func.alloc_block();
-
-        let slot_a = imm(&mut func, 0);
-        let slot_b = imm(&mut func, 1);
-        let one = imm(&mut func, 1);
-        let two = imm(&mut func, 2);
-        let cond = imm(&mut func, 1);
-
-        inst(&mut func, entry, InstKind::SStore(slot_a, one), None);
-        inst(&mut func, entry, InstKind::SStore(slot_b, two), None);
-        func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[entry].successors.push(header);
-        func.blocks[header].predecessors.push(entry);
-
-        func.blocks[header].terminator =
-            Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.push(body);
-        func.blocks[header].successors.push(exit);
-        func.blocks[body].predecessors.push(header);
-        func.blocks[exit].predecessors.push(header);
-
-        let (_, loaded_a) =
-            inst_value(&mut func, body, InstKind::SLoad(slot_a), Some(MirType::uint256()));
-        let (_, loaded_b) =
-            inst_value(&mut func, body, InstKind::SLoad(slot_b), Some(MirType::uint256()));
-        let (_, next_a) =
-            inst_value(&mut func, body, InstKind::Add(loaded_a, one), Some(MirType::uint256()));
-        let (_, next_b) =
-            inst_value(&mut func, body, InstKind::Add(loaded_b, two), Some(MirType::uint256()));
-        inst(&mut func, body, InstKind::SStore(slot_a, next_a), None);
-        inst(&mut func, body, InstKind::SStore(slot_b, next_b), None);
-        func.blocks[body].terminator = Some(Terminator::Jump(update));
-        func.blocks[body].successors.push(update);
-        func.blocks[update].predecessors.push(body);
-
-        func.blocks[update].terminator = Some(Terminator::Jump(header));
-        func.blocks[update].successors.push(header);
-        func.blocks[header].predecessors.push(update);
-
-        func.blocks[exit].terminator = Some(Terminator::Stop);
-
-        (func, body)
-    }
-
     fn make_loop_variant_symbolic_storage_loop() -> NoInitLoop {
         let mut func = Function::new(Ident::DUMMY);
         func.selector = Some([0, 0, 0, 1]);
@@ -1293,39 +1241,6 @@ mod tests {
         assert!(matches!(test.func.instructions[test.entry_store].kind, InstKind::MStore(_, _)));
         assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::MLoad(_)));
         assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::MStore(_, _)));
-    }
-
-    #[test]
-    fn promotes_multiple_initialized_storage_slots() {
-        let (mut func, body) = make_two_slot_storage_loop();
-        let mut pass = StorageScalarPromoter::new();
-        let stats = pass.run(&mut func);
-
-        assert_eq!(stats.loops_promoted, 1);
-        assert_eq!(stats.loads_promoted, 2);
-        assert_eq!(stats.stores_promoted, 4);
-
-        let body_insts = func.blocks[body].instructions.clone();
-        assert_eq!(
-            body_insts
-                .iter()
-                .filter(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MLoad(_)))
-                .count(),
-            2
-        );
-        assert_eq!(
-            body_insts
-                .iter()
-                .filter(|&&inst_id| matches!(
-                    func.instructions[inst_id].kind,
-                    InstKind::MStore(_, _)
-                ))
-                .count(),
-            2
-        );
-        assert!(!body_insts.iter().any(|&inst_id| {
-            matches!(func.instructions[inst_id].kind, InstKind::SLoad(_) | InstKind::SStore(_, _))
-        }));
     }
 
     #[test]
