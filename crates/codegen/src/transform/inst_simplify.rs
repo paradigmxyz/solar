@@ -278,6 +278,8 @@ impl InstSimplifier {
                     || (Self::is_uint160_mask(func, a) && Self::is_clean_address(func, b))
                 {
                     Some(b)
+                } else if Self::is_bitwise_complement_pair(func, a, b) {
+                    Some(Self::imm_u256(func, U256::ZERO))
                 } else {
                     None
                 }
@@ -294,6 +296,8 @@ impl InstSimplifier {
                     Some(b)
                 } else if Self::is_zero(func, b) {
                     Some(a)
+                } else if Self::is_bitwise_complement_pair(func, a, b) {
+                    Some(Self::imm_u256(func, U256::MAX))
                 } else {
                     None
                 }
@@ -306,6 +310,8 @@ impl InstSimplifier {
                     Some(b)
                 } else if Self::is_zero(func, b) {
                     Some(a)
+                } else if Self::is_bitwise_complement_pair(func, a, b) {
+                    Some(Self::imm_u256(func, U256::MAX))
                 } else {
                     None
                 }
@@ -334,11 +340,11 @@ impl InstSimplifier {
                     None
                 }
             }
-            InstKind::Byte(a, _) => {
-                let a = resolve(*a);
-                Self::as_u256(func, a)
-                    .is_some_and(|index| index >= U256::from(32))
-                    .then(|| Self::imm_u256(func, U256::ZERO))
+            InstKind::Byte(a, b) => {
+                let (a, value) = (resolve(*a), resolve(*b));
+                (Self::is_zero(func, value)
+                    || Self::as_u256(func, a).is_some_and(|index| index >= U256::from(32)))
+                .then(|| Self::imm_u256(func, U256::ZERO))
             }
             InstKind::Eq(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
@@ -374,6 +380,34 @@ impl InstSimplifier {
                         {
                             Some(a)
                         }
+                        InstKind::Lt(_, _)
+                            if Self::is_bool_value(func, a)
+                                && Self::as_u256(func, b)
+                                    .is_some_and(|constant| constant > U256::from(1)) =>
+                        {
+                            Some(Self::imm_bool(func, true))
+                        }
+                        InstKind::Lt(_, _)
+                            if Self::is_bool_value(func, b)
+                                && Self::as_u256(func, a)
+                                    .is_some_and(|constant| constant >= U256::from(1)) =>
+                        {
+                            Some(Self::imm_bool(func, false))
+                        }
+                        InstKind::Gt(_, _)
+                            if Self::is_bool_value(func, b)
+                                && Self::as_u256(func, a)
+                                    .is_some_and(|constant| constant > U256::from(1)) =>
+                        {
+                            Some(Self::imm_bool(func, true))
+                        }
+                        InstKind::Gt(_, _)
+                            if Self::is_bool_value(func, a)
+                                && Self::as_u256(func, b)
+                                    .is_some_and(|constant| constant >= U256::from(1)) =>
+                        {
+                            Some(Self::imm_bool(func, false))
+                        }
                         _ => None,
                     }
                 }
@@ -403,9 +437,13 @@ impl InstSimplifier {
             }
             InstKind::SignExtend(a, b) => {
                 let (byte, value) = (resolve(*a), resolve(*b));
-                Self::as_u256(func, byte)
-                    .is_some_and(|byte| byte >= U256::from(31))
-                    .then_some(value)
+                if Self::is_zero(func, value)
+                    || Self::as_u256(func, byte).is_some_and(|byte| byte >= U256::from(31))
+                {
+                    Some(value)
+                } else {
+                    None
+                }
             }
             InstKind::Select(condition, then_value, else_value) => {
                 let (condition, then_value, else_value) =
@@ -893,13 +931,18 @@ impl InstSimplifier {
         }
 
         for (block_id, inner) in rewrites.iter().copied() {
-            let Some(Terminator::Branch { condition, then_block, else_block }) =
-                &mut func.blocks[block_id].terminator
-            else {
-                continue;
-            };
-            *condition = inner;
-            std::mem::swap(then_block, else_block);
+            {
+                let Some(Terminator::Branch { condition, then_block, else_block }) =
+                    &mut func.blocks[block_id].terminator
+                else {
+                    continue;
+                };
+                *condition = inner;
+                std::mem::swap(then_block, else_block);
+            }
+            if let Some(term) = &func.blocks[block_id].terminator {
+                func.blocks[block_id].successors = term.successors();
+            }
         }
 
         rewrites.len()
@@ -923,6 +966,10 @@ impl InstSimplifier {
             },
             _ => None,
         }
+    }
+
+    fn is_bitwise_complement_pair(func: &Function, a: ValueId, b: ValueId) -> bool {
+        Self::not_operand(func, a) == Some(b) || Self::not_operand(func, b) == Some(a)
     }
 
     fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {

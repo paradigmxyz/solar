@@ -20,6 +20,7 @@
 //! ```
 
 use crate::{
+    analysis::validate_module,
     mir::{Function, Module, module_to_text},
     transform::{
         CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, FunctionDcePass,
@@ -450,14 +451,34 @@ impl PassManager {
         let mut am = AnalysisManager::new();
         let mut changed = false;
         for pass in &mut self.passes {
+            let pass_name = pass.name().to_string();
             if pass.run(module) {
                 changed = true;
                 am.invalidate_all();
             }
+            validate_module_after_pass(module, &pass_name);
         }
         (am, changed)
     }
 }
+
+#[cfg(debug_assertions)]
+fn validate_module_after_pass(module: &Module, pass_name: &str) {
+    let errors = validate_module(module);
+    if errors.is_empty() {
+        return;
+    }
+
+    let mut message = format!("MIR validation failed after `{pass_name}`");
+    for error in errors {
+        message.push_str("\n  ");
+        message.push_str(&error.to_string());
+    }
+    panic!("{message}");
+}
+
+#[cfg(not(debug_assertions))]
+fn validate_module_after_pass(_module: &Module, _pass_name: &str) {}
 
 /// Liveness analysis pass.
 pub struct LivenessAnalysis;

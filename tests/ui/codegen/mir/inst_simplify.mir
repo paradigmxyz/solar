@@ -60,6 +60,21 @@ fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool,
     ret v2, v3, v5, v6, v7, v8, v9, v10, v11
 }
 
+fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256, bool, bool, bool, bool, u256, u256) {
+  bb0 (entry):
+    v2 = not arg0
+    v3 = and arg0, v2
+    v4 = or arg0, v2
+    v5 = xor arg0, v2
+    v6 = lt arg1, 2
+    v7 = lt 1, arg1
+    v8 = gt 2, arg1
+    v9 = gt arg1, 1
+    v10 = byte 0, 0
+    v11 = signextend 3, 0
+    ret v2, v3, v4, v5, v6, v7, v8, v9, v10, v11
+}
+
 fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
     v2 = addmod arg0, arg1, 1

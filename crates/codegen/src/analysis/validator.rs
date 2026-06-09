@@ -21,6 +21,7 @@
 //!    containing block, and every predecessor has an incoming entry.
 //! 9. **Instruction-block consistency**: each instruction's `block` field matches the block whose
 //!    `instructions` vector contains it.
+//! 10. **Predecessor consistency**: every stored predecessor actually branches to the block.
 //!
 //! # Usage
 //!
@@ -91,6 +92,10 @@ pub fn validate_function(func: &Function) -> Vec<ValidationError> {
     let num_blocks = func.blocks.len();
     let num_insts = func.instructions.len();
 
+    if num_blocks == 0 {
+        return errors;
+    }
+
     // ----- Single-definition check -----
     // Count how many Value entries claim to be the result of each InstId.
     let mut inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
@@ -148,6 +153,34 @@ pub fn validate_function(func: &Function) -> Vec<ValidationError> {
                     format!(
                         "successor bb{} does not list bb{} as a predecessor",
                         succ.index(),
+                        block_id.index()
+                    ),
+                    block_id,
+                ));
+            }
+        }
+
+        // Check stored predecessor blocks exist and branch to this block.
+        for &pred in &block.predecessors {
+            if pred.index() >= num_blocks {
+                errors.push(ValidationError::at_block(
+                    format!("stored predecessor references nonexistent block bb{}", pred.index()),
+                    block_id,
+                ));
+                continue;
+            }
+            let Some(pred_term) = &func.blocks[pred].terminator else {
+                errors.push(ValidationError::at_block(
+                    format!("stored predecessor bb{} has no terminator", pred.index()),
+                    block_id,
+                ));
+                continue;
+            };
+            if !pred_term.successors().contains(&block_id) {
+                errors.push(ValidationError::at_block(
+                    format!(
+                        "stored predecessor bb{} does not branch to bb{}",
+                        pred.index(),
                         block_id.index()
                     ),
                     block_id,
@@ -409,6 +442,33 @@ mod tests {
             assert!(
                 errors.iter().any(|e| e.message.contains("does not list bb0 as a predecessor")),
                 "expected predecessor back-link error, got: {errors:#?}"
+            );
+        });
+    }
+
+    #[test]
+    fn stale_predecessor_is_caught() {
+        with_session(|| {
+            let mut func = make_func();
+            let target;
+            let stale;
+            {
+                let mut b = FunctionBuilder::new(&mut func);
+                target = b.create_block();
+                stale = b.create_block();
+                b.jump(target);
+                b.switch_to_block(target);
+                b.stop();
+                b.switch_to_block(stale);
+                b.stop();
+            }
+            assert!(validate_function(&func).is_empty());
+
+            func.blocks[target].predecessors.push(stale);
+            let errors = validate_function(&func);
+            assert!(
+                errors.iter().any(|e| e.message.contains("does not branch to bb")),
+                "expected stale predecessor error, got: {errors:#?}"
             );
         });
     }
