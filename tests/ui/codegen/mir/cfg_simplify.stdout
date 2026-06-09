@@ -22,3 +22,10 @@ fn @branch_forwarder_preserves_successor_order(arg0: bool) -> u256 {
   bb3:
     invalid
 }
+
+fn @degenerate_branch_refreshes_successors(arg0: bool) -> u256 {
+  bb0 (entry):
+    ret 1
+  bb1:
+    invalid
+}

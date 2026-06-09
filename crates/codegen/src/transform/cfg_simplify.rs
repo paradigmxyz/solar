@@ -110,6 +110,7 @@ impl CfgSimplifier {
 
             let target = *then_block;
             func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+            Self::refresh_successors(func, block_id);
             self.stats.terminators_simplified += 1;
             self.stats.gas_saved += 10;
             changed = true;
