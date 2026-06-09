@@ -244,7 +244,12 @@ impl Liveness {
             if let Value::Phi { incoming, .. } = val {
                 // Find the merge block for this phi.
                 if let Some(&(first_pred, _)) = incoming.first() {
-                    for &succ in &func.blocks[first_pred].successors {
+                    let successors = func.blocks[first_pred]
+                        .terminator
+                        .as_ref()
+                        .map(Terminator::successors)
+                        .unwrap_or_default();
+                    for succ in successors {
                         let succ_preds = &func.blocks[succ].predecessors;
                         if incoming.iter().all(|(pred, _)| succ_preds.contains(pred)) {
                             // succ is the merge block — phi is defined here.
@@ -279,7 +284,9 @@ impl Liveness {
 
             // Phi-aware live_out.
             let mut new_live_out = LiveSet::with_capacity(num_values);
-            for &succ in &block.successors {
+            let successors =
+                block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
+            for succ in successors {
                 // (live_in(S) - phi_defs(S))
                 let mut contribution = block_liveness[succ.index()].live_in.clone();
                 contribution.subtract(&phi_defs[succ.index()]);

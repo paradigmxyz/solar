@@ -1,8 +1,8 @@
 //! MIR function builder.
 
 use super::{
-    BlockId, Function, FunctionId, Immediate, InstKind, Instruction, MirType, Terminator, Value,
-    ValueId,
+    BlockId, Function, FunctionId, Immediate, InstKind, Instruction, MemoryRegion, MirType,
+    StorageAlias, Terminator, Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -71,9 +71,83 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
-        let inst_id = self.func.alloc_inst(Instruction::new(kind, result_ty));
+        let mut inst = Instruction::new(kind, result_ty);
+        inst.metadata.effect = Some(inst.kind.effect_kind());
+        inst.metadata.memory_region = self.memory_region_for_inst(&inst.kind);
+        inst.metadata.storage_alias = self.storage_alias_for_inst(&inst.kind);
+
+        let inst_id = self.func.alloc_inst(inst);
         self.func.blocks[self.current_block].instructions.push(inst_id);
         self.func.alloc_value(Value::Inst(inst_id))
+    }
+
+    fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
+        let addr = match *kind {
+            InstKind::MLoad(addr)
+            | InstKind::MStore(addr, _)
+            | InstKind::MStore8(addr, _)
+            | InstKind::Keccak256(addr, _) => addr,
+            InstKind::MCopy(dest, _, _)
+            | InstKind::CalldataCopy(dest, _, _)
+            | InstKind::CodeCopy(dest, _, _)
+            | InstKind::ReturnDataCopy(dest, _, _)
+            | InstKind::ExtCodeCopy(_, dest, _, _) => dest,
+            _ => return None,
+        };
+        Some(self.memory_region_for_addr(addr))
+    }
+
+    fn memory_region_for_addr(&self, addr: ValueId) -> MemoryRegion {
+        match self.func.value(addr) {
+            Value::Immediate(imm)
+                if imm.as_u256().is_some_and(|value| value < U256::from(0x80)) =>
+            {
+                MemoryRegion::Scratch
+            }
+            Value::Inst(inst_id) => match self.func.instructions[*inst_id].kind {
+                InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
+                InstKind::Add(lhs, rhs) if self.is_internal_frame_add(lhs, rhs) => {
+                    MemoryRegion::InternalFrame
+                }
+                InstKind::Sub(lhs, rhs)
+                    if self.is_internal_frame_addr(lhs) && self.is_immediate(rhs) =>
+                {
+                    MemoryRegion::InternalFrame
+                }
+                _ => MemoryRegion::Unknown,
+            },
+            Value::Arg { .. } | Value::Immediate(_) | Value::Phi { .. } | Value::Undef(_) => {
+                MemoryRegion::Unknown
+            }
+        }
+    }
+
+    fn is_internal_frame_add(&self, lhs: ValueId, rhs: ValueId) -> bool {
+        (self.is_internal_frame_addr(lhs) && self.is_immediate(rhs))
+            || (self.is_internal_frame_addr(rhs) && self.is_immediate(lhs))
+    }
+
+    fn is_internal_frame_addr(&self, value: ValueId) -> bool {
+        matches!(
+            self.func.value(value),
+            Value::Inst(inst_id)
+                if matches!(self.func.instructions[*inst_id].kind, InstKind::InternalFrameAddr(_))
+        )
+    }
+
+    fn is_immediate(&self, value: ValueId) -> bool {
+        matches!(self.func.value(value), Value::Immediate(_))
+    }
+
+    fn storage_alias_for_inst(&self, kind: &InstKind) -> Option<StorageAlias> {
+        match *kind {
+            InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(self.storage_alias(slot)),
+            _ => None,
+        }
+    }
+
+    fn storage_alias(&self, slot: ValueId) -> StorageAlias {
+        StorageAlias::for_value(self.func, slot)
     }
 
     /// Emits an add instruction.
@@ -533,7 +607,6 @@ impl<'a> FunctionBuilder<'a> {
     pub fn jump(&mut self, target: BlockId) {
         let block = &mut self.func.blocks[self.current_block];
         block.terminator = Some(Terminator::Jump(target));
-        block.successors.push(target);
         self.func.blocks[target].predecessors.push(self.current_block);
     }
 
@@ -541,8 +614,6 @@ impl<'a> FunctionBuilder<'a> {
     pub fn branch(&mut self, condition: ValueId, then_block: BlockId, else_block: BlockId) {
         let block = &mut self.func.blocks[self.current_block];
         block.terminator = Some(Terminator::Branch { condition, then_block, else_block });
-        block.successors.push(then_block);
-        block.successors.push(else_block);
         self.func.blocks[then_block].predecessors.push(self.current_block);
         self.func.blocks[else_block].predecessors.push(self.current_block);
     }
@@ -552,10 +623,8 @@ impl<'a> FunctionBuilder<'a> {
         let current = self.current_block;
         self.func.blocks[current].terminator =
             Some(Terminator::Switch { value, default, cases: cases.clone() });
-        self.func.blocks[current].successors.push(default);
         self.func.blocks[default].predecessors.push(current);
         for (_, case_block) in cases {
-            self.func.blocks[current].successors.push(case_block);
             self.func.blocks[case_block].predecessors.push(current);
         }
     }

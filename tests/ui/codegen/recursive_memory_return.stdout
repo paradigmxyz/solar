@@ -2,16 +2,16 @@
 ; module @C
 fn @build(arg0: u256) {
   bb0 (entry):
-    v3 = mload 64
+    v3 = mload 64 !metadata(memory=scratch)
     v5 = add v3, 64
-    mstore 64, v5
+    mstore 64, v5 !metadata(memory=scratch)
     mstore 128, v3
     v10 = eq arg0, 0
     br v10, bb1, bb2
   bb1:
-    v12 = mload 64
+    v12 = mload 64 !metadata(memory=scratch)
     v14 = add v12, 64
-    mstore 64, v14
+    mstore 64, v14 !metadata(memory=scratch)
     mstore v12, 0
     v21 = add v12, 32
     mstore v21, 0
@@ -26,9 +26,9 @@ fn @build(arg0: u256) {
   bb2:
     v36 = sub arg0, 1
     v37 = internal_call fn1, 1, v36
-    v39 = mload 64
+    v39 = mload 64 !metadata(memory=scratch)
     v41 = add v39, 64
-    mstore 64, v41
+    mstore 64, v41 !metadata(memory=scratch)
     v44 = mload v37
     v45 = add v44, arg0
     mstore v39, v45
@@ -50,16 +50,16 @@ fn @build(arg0: u256) {
 fn @build(arg0: u256) -> memptr {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    v3 = mload 64
+    v3 = mload 64 !metadata(memory=scratch)
     v5 = add v3, 64
-    mstore 64, v5
-    mstore v1, v3
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v1, v3 !metadata(memory=internal_frame)
     v10 = eq arg0, 0
     br v10, bb1, bb2
   bb1:
-    v12 = mload 64
+    v12 = mload 64 !metadata(memory=scratch)
     v14 = add v12, 64
-    mstore 64, v14
+    mstore 64, v14 !metadata(memory=scratch)
     mstore v12, 0
     v21 = add v12, 32
     mstore v21, 0
@@ -67,9 +67,9 @@ fn @build(arg0: u256) -> memptr {
   bb2:
     v24 = sub arg0, 1
     v25 = internal_call fn1, 1, v24
-    v27 = mload 64
+    v27 = mload 64 !metadata(memory=scratch)
     v29 = add v27, 64
-    mstore 64, v29
+    mstore 64, v29 !metadata(memory=scratch)
     v32 = mload v25
     v33 = add v32, arg0
     mstore v27, v33
@@ -84,12 +84,12 @@ fn @build(arg0: u256) -> memptr {
 fn @mkArr(arg0: u256) {
   bb0 (entry):
     mstore 128, 0
-    v5 = mload 64
+    v5 = mload 64 !metadata(memory=scratch)
     mstore v5, arg0
     v8 = mul arg0, 32
     v9 = add v8, 32
     v10 = add v5, v9
-    mstore 64, v10
+    mstore 64, v10 !metadata(memory=scratch)
     mstore 160, 0
     jump bb1
   bb1:
@@ -97,9 +97,9 @@ fn @mkArr(arg0: u256) {
     v18 = lt v17, arg0
     br v18, bb4, bb5
   bb2:
-    v37 = mload 64
+    v37 = mload 64 !metadata(memory=scratch)
     v39 = add v37, 32
-    mstore 64, v39
+    mstore 64, v39 !metadata(memory=scratch)
     v43 = add v37, 32
     v44 = sub v43, v37
     mstore v37, v44
@@ -133,7 +133,7 @@ fn @mkArr(arg0: u256) {
 fn @fillImpl(arg0: memptr, arg1: u256) -> memptr {
   bb0 (entry):
     v2 = internal_frame_addr 160
-    mstore v2, 0
+    mstore v2, 0 !metadata(memory=internal_frame)
     v5 = mload arg0
     v6 = eq arg1, v5
     br v6, bb1, bb2
@@ -153,16 +153,16 @@ fn @fillImpl(arg0: memptr, arg1: u256) -> memptr {
 fn @squares(arg0: u256) {
   bb0 (entry):
     mstore 128, 0
-    v5 = mload 64
+    v5 = mload 64 !metadata(memory=scratch)
     mstore v5, arg0
     v8 = mul arg0, 32
     v9 = add v8, 32
     v10 = add v5, v9
-    mstore 64, v10
+    mstore 64, v10 !metadata(memory=scratch)
     v14 = internal_call fn3, 1, v5, 0
-    v16 = mload 64
+    v16 = mload 64 !metadata(memory=scratch)
     v18 = add v16, 32
-    mstore 64, v18
+    mstore 64, v18 !metadata(memory=scratch)
     v22 = add v16, 32
     v23 = sub v22, v16
     mstore v16, v23

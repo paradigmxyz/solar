@@ -16,5 +16,8 @@ pub use phi_elimination::{
 mod loop_analysis;
 pub use loop_analysis::{InductionVariable, Loop, LoopAnalyzer, LoopInfo};
 
+mod scalar_evolution;
+pub use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
+
 mod validator;
 pub use validator::{ValidationError, ValidatorAnalysis, validate_function, validate_module};

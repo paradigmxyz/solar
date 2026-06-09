@@ -34,13 +34,13 @@
 //! [`module_to_text`]: super::module_to_text
 
 use super::{
-    BasicBlock, BlockId, Function, FunctionId, InstKind, Instruction, Module, Terminator, Value,
-    ValueId,
+    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstKind, Instruction,
+    InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::mir::{Immediate, MirType};
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
-use solar_interface::{Ident, Symbol};
+use solar_interface::{BytePos, Ident, Span, Symbol};
 use std::fmt;
 
 // =============================================================================
@@ -448,6 +448,7 @@ impl<'a> Parser<'a> {
             }
         }
 
+        self.parse_function_attributes(&mut func)?;
         self.expect_punct('{')?;
         self.skip_blank_and_comments();
 
@@ -619,7 +620,37 @@ impl<'a> Parser<'a> {
             )?;
         }
 
+        self.reject_unresolved_value_labels(&func, &value_labels)?;
+
         Ok(func)
+    }
+
+    fn parse_function_attributes(&mut self, func: &mut Function) -> Result<(), ParseError> {
+        self.skip_inline();
+        if !self.try_punct('[') {
+            return Ok(());
+        }
+
+        loop {
+            let key = self.parse_ident()?.to_string();
+            match key.as_str() {
+                "selector" => {
+                    self.expect_punct('=')?;
+                    let selector = self.parse_uint_literal()?;
+                    let selector = self.u256_to_u32(selector)?;
+                    func.selector = Some(selector.to_be_bytes());
+                }
+                _ => return Err(self.error(format!("unknown function attribute `{key}`"))),
+            }
+
+            if self.try_punct(',') {
+                continue;
+            }
+            self.expect_punct(']')?;
+            break;
+        }
+
+        Ok(())
     }
 
     fn parse_type(&mut self) -> Result<MirType, ParseError> {
@@ -687,12 +718,52 @@ impl<'a> Parser<'a> {
             let idx: u32 = rest
                 .parse()
                 .map_err(|_| self.error(format!("invalid value reference `{ident}`")))?;
-            return value_labels
-                .get(&idx)
-                .copied()
-                .ok_or_else(|| self.error(format!("undefined value `{ident}`")));
+            if let Some(value) = value_labels.get(&idx).copied() {
+                return Ok(value);
+            }
+            let value = func.alloc_value(Value::Undef(MirType::uint256()));
+            value_labels.insert(idx, value);
+            return Ok(value);
         }
         Err(self.error(format!("expected value reference, got `{ident}`")))
+    }
+
+    fn resolve_result_label(
+        &self,
+        func: &mut Function,
+        value_labels: &mut FxHashMap<u32, ValueId>,
+        label: u32,
+        inst_id: super::InstId,
+    ) -> Result<(), ParseError> {
+        if let Some(value) = value_labels.get(&label).copied() {
+            if matches!(func.values[value], Value::Undef(_)) {
+                func.values[value] = Value::Inst(inst_id);
+                return Ok(());
+            }
+            return Err(self.error(format!("duplicate value `v{label}`")));
+        }
+
+        let value = func.alloc_value(Value::Inst(inst_id));
+        value_labels.insert(label, value);
+        Ok(())
+    }
+
+    fn reject_unresolved_value_labels(
+        &self,
+        func: &Function,
+        value_labels: &FxHashMap<u32, ValueId>,
+    ) -> Result<(), ParseError> {
+        let mut unresolved: Vec<_> = value_labels
+            .iter()
+            .filter_map(|(&label, &value)| {
+                matches!(func.values[value], Value::Undef(_)).then_some(label)
+            })
+            .collect();
+        unresolved.sort_unstable();
+        if let Some(label) = unresolved.first() {
+            return Err(self.error(format!("undefined value `v{label}`")));
+        }
+        Ok(())
     }
 
     fn parse_block_id(
@@ -884,21 +955,155 @@ impl<'a> Parser<'a> {
                 }
             })?;
 
-        let inst_id = func.alloc_inst(Instruction::new(kind, result_ty));
+        let metadata = self.parse_metadata(func, arg_values, value_labels)?;
+        let mut inst = Instruction::new(kind, result_ty);
+        inst.metadata = metadata;
+        let inst_id = func.alloc_inst(inst);
         func.blocks[block].instructions.push(inst_id);
         if let Some(label) = result_label {
-            let val = func.alloc_value(Value::Inst(inst_id));
-            value_labels.insert(label, val);
+            self.resolve_result_label(func, value_labels, label, inst_id)?;
         }
         self.skip_to_eol();
         Ok(())
     }
 
+    fn parse_metadata(
+        &mut self,
+        func: &mut Function,
+        arg_values: &[ValueId],
+        value_labels: &mut FxHashMap<u32, ValueId>,
+    ) -> Result<InstructionMetadata, ParseError> {
+        let mut metadata = InstructionMetadata::EMPTY;
+        self.skip_inline();
+        if !self.try_punct('!') {
+            return Ok(metadata);
+        }
+        self.expect_keyword("metadata")?;
+        self.expect_punct('(')?;
+        if self.try_punct(')') {
+            return Ok(metadata);
+        }
+
+        loop {
+            let key = self.parse_ident()?.to_string();
+            match key.as_str() {
+                "unchecked" => {
+                    metadata.unchecked = true;
+                }
+                "storage" => {
+                    self.expect_punct('=')?;
+                    metadata.storage_alias =
+                        Some(self.parse_storage_alias(func, arg_values, value_labels)?);
+                }
+                "memory" => {
+                    self.expect_punct('=')?;
+                    let value = self.parse_ident()?;
+                    metadata.memory_region = Some(self.parse_memory_region(value)?);
+                }
+                "effect" => {
+                    self.expect_punct('=')?;
+                    let value = self.parse_ident()?;
+                    metadata.effect = Some(self.parse_effect_kind(value)?);
+                }
+                "loop_depth" => {
+                    self.expect_punct('=')?;
+                    let value = self.parse_uint_literal()?;
+                    metadata.loop_depth = self.u256_to_u16(value)?;
+                }
+                "hir" => {
+                    self.expect_punct('=')?;
+                    let value = self.parse_uint_literal()?;
+                    metadata.hir_expr = Some(self.u256_to_u32(value)?);
+                }
+                "span" => {
+                    self.expect_punct('=')?;
+                    let lo = self.parse_uint_literal()?;
+                    let lo = self.u256_to_u32(lo)?;
+                    self.expect_punct('.')?;
+                    self.expect_punct('.')?;
+                    let hi = self.parse_uint_literal()?;
+                    let hi = self.u256_to_u32(hi)?;
+                    metadata.source_span = Some(Span::new(BytePos(lo), BytePos(hi)));
+                }
+                _ => return Err(self.error(format!("unknown metadata key `{key}`"))),
+            }
+
+            if self.try_punct(',') {
+                continue;
+            }
+            self.expect_punct(')')?;
+            break;
+        }
+
+        Ok(metadata)
+    }
+
+    fn parse_storage_alias(
+        &mut self,
+        func: &mut Function,
+        arg_values: &[ValueId],
+        value_labels: &mut FxHashMap<u32, ValueId>,
+    ) -> Result<StorageAlias, ParseError> {
+        let kind = self.parse_ident()?.to_string();
+        self.expect_punct('(')?;
+        let alias = match kind.as_str() {
+            "slot" => StorageAlias::Slot(self.parse_uint_literal()?),
+            "symbolic" => {
+                StorageAlias::Symbolic(self.parse_value(func, arg_values, value_labels)?)
+            }
+            "offset" => {
+                let base = self.parse_value(func, arg_values, value_labels)?;
+                self.expect_punct(',')?;
+                let offset = self.parse_uint_literal()?;
+                StorageAlias::Offset { base, offset }
+            }
+            _ => return Err(self.error(format!("unknown storage metadata value `{kind}`"))),
+        };
+        self.expect_punct(')')?;
+        Ok(alias)
+    }
+
+    fn parse_memory_region(&self, value: &str) -> Result<MemoryRegion, ParseError> {
+        Ok(match value {
+            "scratch" => MemoryRegion::Scratch,
+            "abi_return" => MemoryRegion::AbiReturn,
+            "heap" => MemoryRegion::Heap,
+            "internal_frame" => MemoryRegion::InternalFrame,
+            "unknown" => MemoryRegion::Unknown,
+            _ => return Err(self.error(format!("unknown memory metadata value `{value}`"))),
+        })
+    }
+
+    fn parse_effect_kind(&self, value: &str) -> Result<EffectKind, ParseError> {
+        Ok(match value {
+            "pure" => EffectKind::Pure,
+            "memory_read" => EffectKind::MemoryRead,
+            "memory_write" => EffectKind::MemoryWrite,
+            "storage_read" => EffectKind::StorageRead,
+            "storage_write" => EffectKind::StorageWrite,
+            "transient_read" => EffectKind::TransientRead,
+            "transient_write" => EffectKind::TransientWrite,
+            "environment_read" => EffectKind::EnvironmentRead,
+            "external_call" => EffectKind::ExternalCall,
+            "internal_call" => EffectKind::InternalCall,
+            "create" => EffectKind::Create,
+            "log" => EffectKind::Log,
+            _ => return Err(self.error(format!("unknown effect metadata value `{value}`"))),
+        })
+    }
+
+    fn u256_to_u32(&self, value: U256) -> Result<u32, ParseError> {
+        value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u32")))
+    }
+
+    fn u256_to_u16(&self, value: U256) -> Result<u16, ParseError> {
+        value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
+    }
+
     fn set_terminator(&self, func: &mut Function, block: BlockId, term: Terminator) {
-        // Update successors / predecessors so downstream passes see a valid CFG.
+        // Update predecessors so downstream passes see a valid CFG.
         let succs = term.successors();
-        for &s in &succs {
-            func.blocks[block].successors.push(s);
+        for s in succs {
             func.blocks[s].predecessors.push(block);
         }
         func.blocks[block].terminator = Some(term);
@@ -1507,7 +1712,7 @@ fn @max(arg0: u256, arg1: u256) -> u256 {
             let func = parse_function(src).unwrap();
             assert_eq!(func.blocks.len(), 3);
             // bb0 should have 2 successors.
-            assert_eq!(func.blocks[func.entry_block].successors.len(), 2);
+            assert_eq!(func.blocks[func.entry_block].terminator().unwrap().successors().len(), 2);
         });
     }
 

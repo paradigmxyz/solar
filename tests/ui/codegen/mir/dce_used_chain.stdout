@@ -6,4 +6,3 @@ fn @used_chain(arg0: u256) -> u256 {
     v4 = mul v2, 2
     ret v4
 }
-

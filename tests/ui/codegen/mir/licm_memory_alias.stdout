@@ -51,4 +51,3 @@ fn @keep_aliasing_keccak() -> bytes32 {
   bb3:
     ret v3
 }
-

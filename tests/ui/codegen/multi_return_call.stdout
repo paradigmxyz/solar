@@ -3,22 +3,22 @@
 fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
   bb0 (entry):
     v2 = internal_frame_addr 160
-    mstore v2, 0
+    mstore v2, 0 !metadata(memory=internal_frame)
     v5 = internal_frame_addr 224
-    mstore v5, 0
+    mstore v5, 0 !metadata(memory=internal_frame)
     v8 = add arg0, arg1
     v9 = internal_frame_addr 224
-    mstore v9, v8
+    mstore v9, v8 !metadata(memory=internal_frame)
     v11 = internal_frame_addr 224
-    v12 = mload v11
+    v12 = mload v11 !metadata(memory=internal_frame)
     v13 = lt v12, arg0
     v14 = iszero v13
     v15 = internal_frame_addr 192
-    mstore v15, v14
+    mstore v15, v14 !metadata(memory=internal_frame)
     v17 = internal_frame_addr 192
-    v18 = mload v17
+    v18 = mload v17 !metadata(memory=internal_frame)
     v19 = internal_frame_addr 224
-    v20 = mload v19
+    v20 = mload v19 !metadata(memory=internal_frame)
     ret v18, v20
 }
 
@@ -29,7 +29,7 @@ fn @sat(arg0: u256, arg1: u256) {
     mstore 128, 0
     v5 = internal_call fn1, 2, arg0, arg1
     mstore 160, v5
-    v9 = mload 32
+    v9 = mload 32 !metadata(memory=scratch)
     mstore 192, v9
     v13 = mload 160
     v14 = iszero v13
@@ -46,22 +46,22 @@ fn @sat(arg0: u256, arg1: u256) {
 fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
   bb0 (entry):
     v2 = internal_frame_addr 160
-    mstore v2, 0
+    mstore v2, 0 !metadata(memory=internal_frame)
     v5 = internal_frame_addr 224
-    mstore v5, 0
+    mstore v5, 0 !metadata(memory=internal_frame)
     v8 = add arg0, arg1
     v9 = internal_frame_addr 224
-    mstore v9, v8
+    mstore v9, v8 !metadata(memory=internal_frame)
     v11 = internal_frame_addr 224
-    v12 = mload v11
+    v12 = mload v11 !metadata(memory=internal_frame)
     v13 = lt v12, arg0
     v14 = iszero v13
     v15 = internal_frame_addr 192
-    mstore v15, v14
+    mstore v15, v14 !metadata(memory=internal_frame)
     v17 = internal_frame_addr 192
-    v18 = mload v17
+    v18 = mload v17 !metadata(memory=internal_frame)
     v19 = internal_frame_addr 224
-    v20 = mload v19
+    v20 = mload v19 !metadata(memory=internal_frame)
     ret v18, v20
 }
 
@@ -70,7 +70,7 @@ fn @tryA(arg0: u256, arg1: u256) {
     mstore 128, 0
     mstore 160, 0
     v8 = internal_call fn1, 2, arg0, arg1
-    v10 = mload 32
+    v10 = mload 32 !metadata(memory=scratch)
     mstore 128, v8
     v14 = add 128, 32
     mstore v14, v10

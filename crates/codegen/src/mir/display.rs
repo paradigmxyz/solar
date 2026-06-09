@@ -2,7 +2,10 @@
 //!
 //! Includes DOT format CFG generation for visualization.
 
-use super::{Function, InstKind, Module, Terminator, Value, ValueId};
+use super::{
+    EffectKind, Function, InstKind, Instruction, MemoryRegion, Module, StorageAlias, Terminator,
+    Value, ValueId,
+};
 use std::fmt::Write;
 
 /// Generates a DOT format CFG for a function.
@@ -199,7 +202,8 @@ pub fn function_to_text(func: &Function) -> String {
             {
                 write!(out, "v{} = ", vid.index()).unwrap();
             }
-            writeln!(out, "{}", format_inst_kind(&inst.kind, func)).unwrap();
+            writeln!(out, "{}{}", format_inst_kind(&inst.kind, func), format_metadata(inst, func))
+                .unwrap();
         }
 
         // Terminator
@@ -494,6 +498,86 @@ fn fmt_val(vid: ValueId, func: &Function) -> String {
         }
         Value::Arg { index, .. } => format!("arg{index}"),
         _ => format!("v{}", vid.index()),
+    }
+}
+
+fn fmt_u256(value: alloy_primitives::U256) -> String {
+    if value < alloy_primitives::U256::from(1000u64) {
+        value.to_string()
+    } else {
+        format!("0x{value:x}")
+    }
+}
+
+fn format_metadata(inst: &Instruction, func: &Function) -> String {
+    let metadata = &inst.metadata;
+    let mut parts = Vec::new();
+
+    if let Some(storage) = metadata.storage_alias {
+        parts.push(format!("storage={}", format_storage_alias(storage, func)));
+    }
+    if let Some(memory) = metadata.memory_region
+        && memory != MemoryRegion::Unknown
+    {
+        parts.push(format!("memory={}", format_memory_region(memory)));
+    }
+    if let Some(hir_expr) = metadata.hir_expr {
+        parts.push(format!("hir={hir_expr}"));
+    }
+    if let Some(span) = metadata.source_span
+        && !span.is_dummy()
+    {
+        parts.push(format!("span={}..{}", span.lo().0, span.hi().0));
+    }
+    if metadata.unchecked {
+        parts.push("unchecked".to_string());
+    }
+    if metadata.loop_depth != 0 {
+        parts.push(format!("loop_depth={}", metadata.loop_depth));
+    }
+    if let Some(effect) = metadata.effect
+        && effect != inst.kind.effect_kind()
+    {
+        parts.push(format!("effect={}", format_effect_kind(effect)));
+    }
+
+    if parts.is_empty() { String::new() } else { format!(" !metadata({})", parts.join(", ")) }
+}
+
+fn format_storage_alias(alias: StorageAlias, func: &Function) -> String {
+    match alias {
+        StorageAlias::Slot(slot) => format!("slot({})", fmt_u256(slot)),
+        StorageAlias::Symbolic(value) => format!("symbolic({})", fmt_val(value, func)),
+        StorageAlias::Offset { base, offset } => {
+            format!("offset({}, {})", fmt_val(base, func), fmt_u256(offset))
+        }
+    }
+}
+
+const fn format_memory_region(region: MemoryRegion) -> &'static str {
+    match region {
+        MemoryRegion::Scratch => "scratch",
+        MemoryRegion::AbiReturn => "abi_return",
+        MemoryRegion::Heap => "heap",
+        MemoryRegion::InternalFrame => "internal_frame",
+        MemoryRegion::Unknown => "unknown",
+    }
+}
+
+const fn format_effect_kind(effect: EffectKind) -> &'static str {
+    match effect {
+        EffectKind::Pure => "pure",
+        EffectKind::MemoryRead => "memory_read",
+        EffectKind::MemoryWrite => "memory_write",
+        EffectKind::StorageRead => "storage_read",
+        EffectKind::StorageWrite => "storage_write",
+        EffectKind::TransientRead => "transient_read",
+        EffectKind::TransientWrite => "transient_write",
+        EffectKind::EnvironmentRead => "environment_read",
+        EffectKind::ExternalCall => "external_call",
+        EffectKind::InternalCall => "internal_call",
+        EffectKind::Create => "create",
+        EffectKind::Log => "log",
     }
 }
 

@@ -76,9 +76,10 @@ impl FunctionPass for SccpTransformPass {
         "sccp"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        SccpPass::new().run(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        let changed = SccpPass::new().run(func) != 0;
         repair_reachability_phis(func);
+        changed
     }
 }
 
@@ -254,9 +255,12 @@ impl SccpPass {
         for (vid, val) in func.values.iter_enumerated() {
             if let Value::Phi { incoming, .. } = val {
                 // Is this phi for this block? Check if any incoming pred targets this block.
-                let is_for_block = incoming
-                    .iter()
-                    .any(|(pred, _)| func.blocks[*pred].successors.contains(&block_id));
+                let is_for_block = incoming.iter().any(|(pred, _)| {
+                    func.blocks[*pred]
+                        .terminator
+                        .as_ref()
+                        .is_some_and(|term| term.successors().contains(&block_id))
+                });
                 if !is_for_block {
                     continue;
                 }
@@ -627,8 +631,6 @@ impl SccpPass {
         // Phase 5: Apply branch rewrites.
         for (block_id, target) in branch_rewrites {
             func.blocks[block_id].terminator = Some(Terminator::Jump(target));
-            func.blocks[block_id].successors.clear();
-            func.blocks[block_id].successors.push(target);
             self.stats.branches_folded += 1;
         }
 
@@ -638,7 +640,6 @@ impl SccpPass {
                 func.blocks[block_id].instructions.clear();
                 func.blocks[block_id].terminator = Some(Terminator::Invalid);
                 func.blocks[block_id].predecessors.clear();
-                func.blocks[block_id].successors.clear();
             }
         }
 
@@ -648,143 +649,11 @@ impl SccpPass {
 
 /// Replace operands in an instruction kind with constant replacements.
 fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-    let replace = |v: &mut ValueId| {
+    kind.visit_operands_mut(|v| {
         if let Some(&new_v) = replacements.get(v) {
             *v = new_v;
         }
-    };
-
-    // We reuse the same exhaustive match pattern from CSE.
-    match kind {
-        InstKind::Add(a, b)
-        | InstKind::Sub(a, b)
-        | InstKind::Mul(a, b)
-        | InstKind::Div(a, b)
-        | InstKind::SDiv(a, b)
-        | InstKind::Mod(a, b)
-        | InstKind::SMod(a, b)
-        | InstKind::Exp(a, b)
-        | InstKind::And(a, b)
-        | InstKind::Or(a, b)
-        | InstKind::Xor(a, b)
-        | InstKind::Shl(a, b)
-        | InstKind::Shr(a, b)
-        | InstKind::Sar(a, b)
-        | InstKind::Byte(a, b)
-        | InstKind::Lt(a, b)
-        | InstKind::Gt(a, b)
-        | InstKind::SLt(a, b)
-        | InstKind::SGt(a, b)
-        | InstKind::Eq(a, b)
-        | InstKind::MStore(a, b)
-        | InstKind::MStore8(a, b)
-        | InstKind::SStore(a, b)
-        | InstKind::TStore(a, b)
-        | InstKind::Keccak256(a, b)
-        | InstKind::Log0(a, b)
-        | InstKind::SignExtend(a, b) => {
-            replace(a);
-            replace(b);
-        }
-        InstKind::Not(a)
-        | InstKind::IsZero(a)
-        | InstKind::MLoad(a)
-        | InstKind::SLoad(a)
-        | InstKind::TLoad(a)
-        | InstKind::CalldataLoad(a)
-        | InstKind::ExtCodeSize(a)
-        | InstKind::ExtCodeHash(a)
-        | InstKind::Balance(a)
-        | InstKind::BlockHash(a)
-        | InstKind::BlobHash(a) => {
-            replace(a);
-        }
-        InstKind::AddMod(a, b, c)
-        | InstKind::MulMod(a, b, c)
-        | InstKind::MCopy(a, b, c)
-        | InstKind::CalldataCopy(a, b, c)
-        | InstKind::CodeCopy(a, b, c)
-        | InstKind::ReturnDataCopy(a, b, c)
-        | InstKind::Create(a, b, c)
-        | InstKind::Log1(a, b, c)
-        | InstKind::Select(a, b, c) => {
-            replace(a);
-            replace(b);
-            replace(c);
-        }
-        InstKind::ExtCodeCopy(a, b, c, d)
-        | InstKind::Create2(a, b, c, d)
-        | InstKind::Log2(a, b, c, d) => {
-            replace(a);
-            replace(b);
-            replace(c);
-            replace(d);
-        }
-        InstKind::Log3(a, b, c, d, e) => {
-            replace(a);
-            replace(b);
-            replace(c);
-            replace(d);
-            replace(e);
-        }
-        InstKind::Log4(a, b, c, d, e, f) => {
-            replace(a);
-            replace(b);
-            replace(c);
-            replace(d);
-            replace(e);
-            replace(f);
-        }
-        InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-            replace(gas);
-            replace(addr);
-            replace(value);
-            replace(args_offset);
-            replace(args_size);
-            replace(ret_offset);
-            replace(ret_size);
-        }
-        InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
-        | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-            replace(gas);
-            replace(addr);
-            replace(args_offset);
-            replace(args_size);
-            replace(ret_offset);
-            replace(ret_size);
-        }
-        InstKind::InternalCall { args, .. } => {
-            for arg in args {
-                replace(arg);
-            }
-        }
-        InstKind::Phi(incoming) => {
-            for (_, v) in incoming {
-                replace(v);
-            }
-        }
-        // Nullary instructions have no operands.
-        InstKind::MSize
-        | InstKind::CalldataSize
-        | InstKind::InternalFrameAddr(_)
-        | InstKind::CodeSize
-        | InstKind::ReturnDataSize
-        | InstKind::Caller
-        | InstKind::CallValue
-        | InstKind::Origin
-        | InstKind::GasPrice
-        | InstKind::Coinbase
-        | InstKind::Timestamp
-        | InstKind::BlockNumber
-        | InstKind::PrevRandao
-        | InstKind::GasLimit
-        | InstKind::ChainId
-        | InstKind::Address
-        | InstKind::SelfBalance
-        | InstKind::Gas
-        | InstKind::BaseFee
-        | InstKind::BlobBaseFee => {}
-    }
+    });
 }
 
 /// Replace operands in a terminator.

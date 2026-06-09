@@ -39,6 +39,9 @@ Options:
       -Ztypeck
           Type check the program. WIP
 
+      -Zmir-print-after-each
+          Print MIR after every MIR optimization pass during codegen
+
       -Zhelp
           Print help
 

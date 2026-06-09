@@ -3,7 +3,7 @@
 fn @double(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    mstore v1, 0
+    mstore v1, 0 !metadata(memory=internal_frame)
     v4 = add arg0, arg0
     ret v4
 }

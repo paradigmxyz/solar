@@ -28,6 +28,12 @@ Options:
           
           [possible values: parsing, lowering, analysis]
 
+  -O, --optimize <OPTIMIZATION>
+          MIR optimization objective
+          
+          [default: gas]
+          [possible values: none, gas, size]
+
       --out-dir <OUT_DIR>
           Directory to write output files
 

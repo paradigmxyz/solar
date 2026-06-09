@@ -220,9 +220,15 @@ impl LoopAnalyzer {
             .copied()
             .collect();
 
-        if header_preds.len() == 1 {
-            loop_info.preheader = Some(header_preds[0]);
+        if let [preheader] = header_preds.as_slice()
+            && self.is_dedicated_preheader(func, *preheader, loop_info.header)
+        {
+            loop_info.preheader = Some(*preheader);
         }
+    }
+
+    fn is_dedicated_preheader(&self, func: &Function, block: BlockId, header: BlockId) -> bool {
+        matches!(func.blocks[block].terminator.as_ref(), Some(Terminator::Jump(target)) if *target == header)
     }
 
     fn analyze_induction_vars(&self, func: &Function, loop_info: &mut Loop) {
@@ -369,7 +375,11 @@ impl LoopAnalyzer {
             && bound >= init
         {
             let diff = bound - init;
-            let trip = diff / step;
+            let trip = if diff.is_zero() {
+                alloy_primitives::U256::ZERO
+            } else {
+                ((diff - alloy_primitives::U256::from(1)) / step) + alloy_primitives::U256::from(1)
+            };
             loop_info.trip_count = trip.try_into().ok();
         }
     }
@@ -435,19 +445,15 @@ mod tests {
         let exit = func.alloc_block();
 
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[entry].successors.push(header);
         func.blocks[header].predecessors.push(entry);
 
         let cond = func.alloc_value(Value::Immediate(Immediate::bool(true)));
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.push(body);
-        func.blocks[header].successors.push(exit);
         func.blocks[body].predecessors.push(header);
         func.blocks[exit].predecessors.push(header);
 
         func.blocks[body].terminator = Some(Terminator::Jump(header));
-        func.blocks[body].successors.push(header);
         func.blocks[header].predecessors.push(body);
 
         func.blocks[exit].terminator = Some(Terminator::Stop);

@@ -4,9 +4,14 @@
 //! instruction patterns before stack scheduling. It is intentionally local and
 //! conservative: it only applies identities that are exact for EVM word
 //! semantics.
+//!
+//! Safety contract:
+//! - do not remove or reorder side effects
+//! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
+//! - preserve boolean-only rewrites behind explicit MIR boolean type checks
 
 use crate::{
-    mir::{Function, Immediate, InstId, InstKind, Terminator, Value, ValueId},
+    mir::{Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
 };
 use alloy_primitives::U256;
@@ -27,8 +32,8 @@ impl FunctionPass for InstSimplifyPass {
         "inst-simplify"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        InstSimplifier::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        InstSimplifier::new().run_to_fixpoint(func) != 0
     }
 }
 
@@ -51,6 +56,12 @@ impl InstSimplifier {
             let inst_ids = func.blocks[block_id].instructions.clone();
             for inst_id in inst_ids {
                 let kind = func.instructions[inst_id].kind.clone();
+
+                if self.is_dead_noop_inst(func, &kind, &replacements) {
+                    dead.insert(inst_id);
+                    self.simplified_count += 1;
+                    continue;
+                }
 
                 if let Some(new_kind) = self.rewrite_inst(func, &kind, &replacements) {
                     func.instructions[inst_id].kind = new_kind;
@@ -102,16 +113,57 @@ impl InstSimplifier {
 
     fn rewrite_inst(
         &mut self,
-        func: &Function,
+        func: &mut Function,
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<InstKind> {
+        let resolve = |value| Self::resolve_replacement(replacements, value);
+
         match kind {
+            InstKind::Add(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                self.rewrite_add(func, a, b)
+            }
+            InstKind::Sub(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                self.rewrite_sub(func, a, b)
+            }
+            InstKind::Mul(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                self.rewrite_mul(func, a, b)
+            }
+            InstKind::Div(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                self.rewrite_div(func, a, b)
+            }
+            InstKind::Mod(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                self.rewrite_mod(func, a, b)
+            }
+            InstKind::Exp(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                if Self::is_const(func, b, U256::from(2)) {
+                    Some(InstKind::Mul(a, a))
+                } else {
+                    None
+                }
+            }
+            InstKind::And(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                self.rewrite_and(func, a, b)
+            }
+            InstKind::Xor(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                if Self::is_all_ones(func, a) {
+                    Some(InstKind::Not(b))
+                } else if Self::is_all_ones(func, b) {
+                    Some(InstKind::Not(a))
+                } else {
+                    None
+                }
+            }
             InstKind::Eq(a, b) => {
-                let (a, b) = (
-                    Self::resolve_replacement(replacements, *a),
-                    Self::resolve_replacement(replacements, *b),
-                );
+                let (a, b) = (resolve(*a), resolve(*b));
                 if a != b && Self::is_zero(func, a) {
                     Some(InstKind::IsZero(b))
                 } else if a != b && Self::is_zero(func, b) {
@@ -120,8 +172,20 @@ impl InstSimplifier {
                     None
                 }
             }
+            InstKind::Select(condition, then_value, else_value) => {
+                let (condition, then_value, else_value) =
+                    (resolve(*condition), resolve(*then_value), resolve(*else_value));
+                if Self::is_bool_value(func, condition)
+                    && Self::is_false(func, then_value)
+                    && Self::is_true(func, else_value)
+                {
+                    Some(InstKind::IsZero(condition))
+                } else {
+                    None
+                }
+            }
             InstKind::Balance(addr) => {
-                let addr = Self::resolve_replacement(replacements, *addr);
+                let addr = resolve(*addr);
                 Self::is_current_address(func, addr).then_some(InstKind::SelfBalance)
             }
             _ => None,
@@ -135,6 +199,10 @@ impl InstSimplifier {
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ValueId> {
         let resolve = |value| Self::resolve_replacement(replacements, value);
+
+        if let Some(value) = Self::const_fold_inst(func, kind, replacements) {
+            return Some(value);
+        }
 
         match kind {
             InstKind::Add(a, b) => {
@@ -191,7 +259,7 @@ impl InstSimplifier {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, b) {
                     Some(Self::imm_u256(func, U256::from(1)))
-                } else if Self::is_one(func, b) {
+                } else if Self::is_zero(func, a) || Self::is_one(func, a) || Self::is_one(func, b) {
                     Some(a)
                 } else {
                     None
@@ -210,18 +278,20 @@ impl InstSimplifier {
                     || (Self::is_uint160_mask(func, a) && Self::is_clean_address(func, b))
                 {
                     Some(b)
+                } else if Self::is_bitwise_complement_pair(func, a, b) {
+                    Some(Self::imm_u256(func, U256::ZERO))
                 } else {
                     None
                 }
             }
             InstKind::Or(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if a == b {
+                if a == b || Self::is_all_ones(func, a) || Self::is_zero(func, b) {
                     Some(a)
-                } else if Self::is_zero(func, a) {
+                } else if Self::is_all_ones(func, b) || Self::is_zero(func, a) {
                     Some(b)
-                } else if Self::is_zero(func, b) {
-                    Some(a)
+                } else if Self::is_bitwise_complement_pair(func, a, b) {
+                    Some(Self::imm_u256(func, U256::MAX))
                 } else {
                     None
                 }
@@ -234,6 +304,8 @@ impl InstSimplifier {
                     Some(b)
                 } else if Self::is_zero(func, b) {
                     Some(a)
+                } else if Self::is_bitwise_complement_pair(func, a, b) {
+                    Some(Self::imm_u256(func, U256::MAX))
                 } else {
                     None
                 }
@@ -245,30 +317,494 @@ impl InstSimplifier {
             }
             InstKind::IsZero(a) => {
                 let a = resolve(*a);
-                Self::as_u256(func, a).map(|v| Self::imm_bool(func, v.is_zero()))
+                Self::as_u256(func, a).map(|v| Self::imm_bool(func, v.is_zero())).or_else(|| {
+                    let inner = Self::iszero_operand(func, a)?;
+                    Self::is_bool_value(func, inner).then_some(inner)
+                })
             }
             InstKind::Shl(a, b) | InstKind::Shr(a, b) | InstKind::Sar(a, b) => {
                 let (shift, value) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, shift) || Self::is_zero(func, value) {
                     Some(value)
+                } else if !matches!(kind, InstKind::Sar(_, _))
+                    && Self::as_u256(func, shift).is_some_and(|shift| shift >= U256::from(256))
+                {
+                    Some(Self::imm_u256(func, U256::ZERO))
                 } else {
                     None
                 }
             }
+            InstKind::Byte(a, b) => {
+                let (a, value) = (resolve(*a), resolve(*b));
+                (Self::is_zero(func, value)
+                    || Self::as_u256(func, a).is_some_and(|index| index >= U256::from(32)))
+                .then(|| Self::imm_u256(func, U256::ZERO))
+            }
             InstKind::Eq(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                (a == b).then(|| Self::imm_bool(func, true))
+                if a == b {
+                    Some(Self::imm_bool(func, true))
+                } else if Self::is_bool_value(func, a) && Self::is_true(func, b) {
+                    Some(a)
+                } else if Self::is_bool_value(func, b) && Self::is_true(func, a) {
+                    Some(b)
+                } else {
+                    None
+                }
             }
             InstKind::Lt(a, b) | InstKind::Gt(a, b) | InstKind::SLt(a, b) | InstKind::SGt(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                (a == b).then(|| Self::imm_bool(func, false))
+                if a == b {
+                    Some(Self::imm_bool(func, false))
+                } else {
+                    match kind {
+                        InstKind::Lt(_, _) if Self::is_zero(func, b) => {
+                            Some(Self::imm_bool(func, false))
+                        }
+                        InstKind::Lt(_, _)
+                            if Self::is_zero(func, a) && Self::is_bool_value(func, b) =>
+                        {
+                            Some(b)
+                        }
+                        InstKind::Gt(_, _) if Self::is_zero(func, a) => {
+                            Some(Self::imm_bool(func, false))
+                        }
+                        InstKind::Gt(_, _)
+                            if Self::is_zero(func, b) && Self::is_bool_value(func, a) =>
+                        {
+                            Some(a)
+                        }
+                        InstKind::Lt(_, _)
+                            if Self::is_bool_value(func, a)
+                                && Self::as_u256(func, b)
+                                    .is_some_and(|constant| constant > U256::from(1)) =>
+                        {
+                            Some(Self::imm_bool(func, true))
+                        }
+                        InstKind::Lt(_, _)
+                            if Self::is_bool_value(func, b)
+                                && Self::as_u256(func, a)
+                                    .is_some_and(|constant| constant >= U256::from(1)) =>
+                        {
+                            Some(Self::imm_bool(func, false))
+                        }
+                        InstKind::Gt(_, _)
+                            if Self::is_bool_value(func, b)
+                                && Self::as_u256(func, a)
+                                    .is_some_and(|constant| constant > U256::from(1)) =>
+                        {
+                            Some(Self::imm_bool(func, true))
+                        }
+                        InstKind::Gt(_, _)
+                            if Self::is_bool_value(func, a)
+                                && Self::as_u256(func, b)
+                                    .is_some_and(|constant| constant >= U256::from(1)) =>
+                        {
+                            Some(Self::imm_bool(func, false))
+                        }
+                        _ => None,
+                    }
+                }
             }
-            InstKind::Select(_, then_value, else_value) => {
-                let (then_value, else_value) = (resolve(*then_value), resolve(*else_value));
-                (then_value == else_value).then_some(then_value)
+            InstKind::AddMod(a, b, n) => {
+                let (a, b, n) = (resolve(*a), resolve(*b), resolve(*n));
+                if Self::is_zero(func, n)
+                    || Self::is_one(func, n)
+                    || (Self::is_zero(func, a) && Self::is_zero(func, b))
+                {
+                    Some(Self::imm_u256(func, U256::ZERO))
+                } else {
+                    None
+                }
+            }
+            InstKind::MulMod(a, b, n) => {
+                let (a, b, n) = (resolve(*a), resolve(*b), resolve(*n));
+                if Self::is_zero(func, n)
+                    || Self::is_one(func, n)
+                    || Self::is_zero(func, a)
+                    || Self::is_zero(func, b)
+                {
+                    Some(Self::imm_u256(func, U256::ZERO))
+                } else {
+                    None
+                }
+            }
+            InstKind::SignExtend(a, b) => {
+                let (byte, value) = (resolve(*a), resolve(*b));
+                if Self::is_zero(func, value)
+                    || Self::as_u256(func, byte).is_some_and(|byte| byte >= U256::from(31))
+                {
+                    Some(value)
+                } else {
+                    None
+                }
+            }
+            InstKind::Select(condition, then_value, else_value) => {
+                let (condition, then_value, else_value) =
+                    (resolve(*condition), resolve(*then_value), resolve(*else_value));
+                if Self::is_true(func, condition) {
+                    Some(then_value)
+                } else if Self::is_false(func, condition) {
+                    Some(else_value)
+                } else if Self::same_value(func, then_value, else_value) {
+                    Some(then_value)
+                } else if Self::is_bool_value(func, condition)
+                    && Self::is_true(func, then_value)
+                    && Self::is_false(func, else_value)
+                {
+                    Some(condition)
+                } else {
+                    None
+                }
+            }
+            InstKind::Phi(incoming) => {
+                let &(_, first) = incoming.first()?;
+                let first = resolve(first);
+                incoming
+                    .iter()
+                    .all(|&(_, value)| Self::same_value(func, resolve(value), first))
+                    .then_some(first)
             }
             _ => None,
         }
+    }
+
+    fn const_fold_inst(
+        func: &mut Function,
+        kind: &InstKind,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> Option<ValueId> {
+        let resolve = |value| Self::resolve_replacement(replacements, value);
+        let constant = |func: &Function, value| Self::as_u256(func, resolve(value));
+
+        match *kind {
+            InstKind::Add(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)?.wrapping_add(constant(func, b)?)))
+            }
+            InstKind::Sub(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)?.wrapping_sub(constant(func, b)?)))
+            }
+            InstKind::Mul(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)?.wrapping_mul(constant(func, b)?)))
+            }
+            InstKind::Div(a, b) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                Some(Self::imm_u256(func, if b.is_zero() { U256::ZERO } else { a / b }))
+            }
+            InstKind::SDiv(a, b) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                Some(Self::imm_u256(func, Self::signed_div(a, b)))
+            }
+            InstKind::Mod(a, b) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                Some(Self::imm_u256(func, if b.is_zero() { U256::ZERO } else { a % b }))
+            }
+            InstKind::SMod(a, b) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                Some(Self::imm_u256(func, Self::signed_mod(a, b)))
+            }
+            InstKind::Exp(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)?.wrapping_pow(constant(func, b)?)))
+            }
+            InstKind::AddMod(a, b, n) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                let n = constant(func, n)?;
+                if n.is_zero() {
+                    Some(Self::imm_u256(func, U256::ZERO))
+                } else {
+                    Some(Self::imm_u256(func, a.checked_add(b)? % n))
+                }
+            }
+            InstKind::MulMod(a, b, n) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                let n = constant(func, n)?;
+                if n.is_zero() {
+                    Some(Self::imm_u256(func, U256::ZERO))
+                } else {
+                    Some(Self::imm_u256(func, a.checked_mul(b)? % n))
+                }
+            }
+            InstKind::And(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)? & constant(func, b)?))
+            }
+            InstKind::Or(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)? | constant(func, b)?))
+            }
+            InstKind::Xor(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)? ^ constant(func, b)?))
+            }
+            InstKind::Not(a) => Some(Self::imm_u256(func, !constant(func, a)?)),
+            InstKind::Shl(shift, value) => {
+                let shift = constant(func, shift)?;
+                let value = constant(func, value)?;
+                let folded = if shift >= U256::from(256) {
+                    U256::ZERO
+                } else {
+                    value << shift.to::<usize>()
+                };
+                Some(Self::imm_u256(func, folded))
+            }
+            InstKind::Shr(shift, value) => {
+                let shift = constant(func, shift)?;
+                let value = constant(func, value)?;
+                let folded = if shift >= U256::from(256) {
+                    U256::ZERO
+                } else {
+                    value >> shift.to::<usize>()
+                };
+                Some(Self::imm_u256(func, folded))
+            }
+            InstKind::Sar(shift, value) => Some(Self::imm_u256(
+                func,
+                Self::sar(constant(func, value)?, constant(func, shift)?),
+            )),
+            InstKind::Byte(index, value) => Some(Self::imm_u256(
+                func,
+                Self::byte(constant(func, index)?, constant(func, value)?),
+            )),
+            InstKind::SignExtend(size, value) => Some(Self::imm_u256(
+                func,
+                Self::signextend(constant(func, size)?, constant(func, value)?),
+            )),
+            InstKind::Lt(a, b) => {
+                Some(Self::imm_bool(func, constant(func, a)? < constant(func, b)?))
+            }
+            InstKind::Gt(a, b) => {
+                Some(Self::imm_bool(func, constant(func, a)? > constant(func, b)?))
+            }
+            InstKind::SLt(a, b) => {
+                Some(Self::imm_bool(func, Self::signed_lt(constant(func, a)?, constant(func, b)?)))
+            }
+            InstKind::SGt(a, b) => {
+                Some(Self::imm_bool(func, Self::signed_gt(constant(func, a)?, constant(func, b)?)))
+            }
+            InstKind::Eq(a, b) => {
+                Some(Self::imm_bool(func, constant(func, a)? == constant(func, b)?))
+            }
+            InstKind::IsZero(a) => Some(Self::imm_bool(func, constant(func, a)?.is_zero())),
+            InstKind::Select(condition, then_value, else_value) => {
+                let condition = constant(func, condition)?;
+                Some(if condition.is_zero() { resolve(else_value) } else { resolve(then_value) })
+            }
+            _ => None,
+        }
+    }
+
+    fn is_dead_noop_inst(
+        &self,
+        func: &Function,
+        kind: &InstKind,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> bool {
+        let resolve = |value| Self::resolve_replacement(replacements, value);
+        match kind {
+            InstKind::MCopy(_, _, size)
+            | InstKind::CalldataCopy(_, _, size)
+            | InstKind::CodeCopy(_, _, size) => Self::is_zero(func, resolve(*size)),
+            InstKind::ReturnDataCopy(_, offset, size) => {
+                Self::is_zero(func, resolve(*offset)) && Self::is_zero(func, resolve(*size))
+            }
+            _ => false,
+        }
+    }
+
+    fn rewrite_add(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+        if Self::is_zero(func, a) || Self::is_zero(func, b) {
+            return None;
+        }
+        match (Self::as_u256(func, a), Self::as_u256(func, b)) {
+            (None, Some(offset)) => Self::offset_base(func, a).map(|(base, existing)| {
+                self.add_offset_kind(func, base, existing.wrapping_add(offset))
+            }),
+            (Some(offset), None) => Self::offset_base(func, b)
+                .map(|(base, existing)| {
+                    self.add_offset_kind(func, base, existing.wrapping_add(offset))
+                })
+                .or(Some(InstKind::Add(b, a))),
+            _ => None,
+        }
+    }
+
+    fn rewrite_sub(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+        let offset = Self::as_u256(func, b)?;
+        let (base, existing) = Self::offset_base(func, a)?;
+        Some(self.add_offset_kind(func, base, existing.wrapping_sub(offset)))
+    }
+
+    fn rewrite_mul(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+        if Self::is_zero(func, a)
+            || Self::is_zero(func, b)
+            || Self::is_one(func, a)
+            || Self::is_one(func, b)
+        {
+            return None;
+        }
+        if Self::as_u256(func, a).is_some() && Self::as_u256(func, b).is_none() {
+            return Some(InstKind::Mul(b, a));
+        }
+        let (value, constant) = Self::const_operand(func, a, b)?;
+        let shift = Self::power_of_two_shift(constant)?;
+        if shift.is_zero() {
+            return None;
+        }
+        let shift = Self::imm_u256(func, shift);
+        Some(InstKind::Shl(shift, value))
+    }
+
+    fn rewrite_div(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+        let shift = Self::power_of_two_shift(Self::as_u256(func, b)?)?;
+        if shift.is_zero() {
+            return None;
+        }
+        let shift = Self::imm_u256(func, shift);
+        Some(InstKind::Shr(shift, a))
+    }
+
+    fn rewrite_mod(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+        let constant = Self::as_u256(func, b)?;
+        let shift = Self::power_of_two_shift(constant)?;
+        if shift.is_zero() {
+            return None;
+        }
+        let mask = Self::imm_u256(func, constant - U256::from(1));
+        Some(InstKind::And(a, mask))
+    }
+
+    fn rewrite_and(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+        if a == b
+            || Self::is_zero(func, a)
+            || Self::is_zero(func, b)
+            || Self::is_all_ones(func, a)
+            || Self::is_all_ones(func, b)
+            || (Self::is_uint160_mask(func, a) && Self::is_clean_address(func, b))
+            || (Self::is_uint160_mask(func, b) && Self::is_clean_address(func, a))
+        {
+            return None;
+        }
+        if Self::as_u256(func, a).is_some() && Self::as_u256(func, b).is_none() {
+            return Some(InstKind::And(b, a));
+        }
+        let (value, mask) = Self::const_operand(func, a, b)?;
+        let (base, existing_mask) = Self::and_mask_base(func, value)?;
+        let combined = Self::imm_u256(func, mask & existing_mask);
+        Some(InstKind::And(base, combined))
+    }
+
+    fn add_offset_kind(&self, func: &mut Function, base: ValueId, offset: U256) -> InstKind {
+        let offset = Self::imm_u256(func, offset);
+        InstKind::Add(base, offset)
+    }
+
+    fn const_operand(func: &Function, a: ValueId, b: ValueId) -> Option<(ValueId, U256)> {
+        if let Some(constant) = Self::as_u256(func, b) {
+            Some((a, constant))
+        } else {
+            Self::as_u256(func, a).map(|constant| (b, constant))
+        }
+    }
+
+    fn offset_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
+        let Value::Inst(inst_id) = func.value(value) else { return None };
+        match func.instructions[*inst_id].kind {
+            InstKind::Add(a, b) => Self::const_operand(func, a, b),
+            InstKind::Sub(a, b) => {
+                let offset = Self::as_u256(func, b)?;
+                Some((a, U256::ZERO.wrapping_sub(offset)))
+            }
+            _ => None,
+        }
+    }
+
+    fn and_mask_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
+        let Value::Inst(inst_id) = func.value(value) else { return None };
+        match func.instructions[*inst_id].kind {
+            InstKind::And(a, b) => Self::const_operand(func, a, b),
+            _ => None,
+        }
+    }
+
+    fn power_of_two_shift(value: U256) -> Option<U256> {
+        if value.is_zero() || (value & (value - U256::from(1))) != U256::ZERO {
+            return None;
+        }
+        Some(U256::from(value.trailing_zeros()))
+    }
+
+    fn signed_div(a: U256, b: U256) -> U256 {
+        if b.is_zero() {
+            return U256::ZERO;
+        }
+        let negative = Self::is_negative(a) != Self::is_negative(b);
+        let quotient = Self::signed_abs(a) / Self::signed_abs(b);
+        if negative { U256::ZERO.wrapping_sub(quotient) } else { quotient }
+    }
+
+    fn signed_mod(a: U256, b: U256) -> U256 {
+        if b.is_zero() {
+            return U256::ZERO;
+        }
+        let remainder = Self::signed_abs(a) % Self::signed_abs(b);
+        if Self::is_negative(a) { U256::ZERO.wrapping_sub(remainder) } else { remainder }
+    }
+
+    fn signed_lt(a: U256, b: U256) -> bool {
+        match (Self::is_negative(a), Self::is_negative(b)) {
+            (true, false) => true,
+            (false, true) => false,
+            _ => a < b,
+        }
+    }
+
+    fn signed_gt(a: U256, b: U256) -> bool {
+        Self::signed_lt(b, a)
+    }
+
+    fn signed_abs(value: U256) -> U256 {
+        if Self::is_negative(value) { U256::ZERO.wrapping_sub(value) } else { value }
+    }
+
+    fn is_negative(value: U256) -> bool {
+        !((value >> 255usize) & U256::from(1)).is_zero()
+    }
+
+    fn sar(value: U256, shift: U256) -> U256 {
+        let negative = Self::is_negative(value);
+        if shift >= U256::from(256) {
+            return if negative { U256::MAX } else { U256::ZERO };
+        }
+
+        let shift = shift.to::<usize>();
+        if shift == 0 || !negative {
+            return value >> shift;
+        }
+
+        let low_mask = (U256::from(1) << (256 - shift)) - U256::from(1);
+        (value >> shift) | !low_mask
+    }
+
+    fn byte(index: U256, value: U256) -> U256 {
+        if index >= U256::from(32) {
+            U256::ZERO
+        } else {
+            let shift = 8 * (31 - index.to::<usize>());
+            (value >> shift) & U256::from(0xff)
+        }
+    }
+
+    fn signextend(size: U256, value: U256) -> U256 {
+        if size >= U256::from(31) {
+            return value;
+        }
+        let bit = size.to::<usize>() * 8 + 7;
+        let sign_bit = U256::from(1) << bit;
+        let mask = sign_bit - U256::from(1);
+        if (value & sign_bit).is_zero() { value & mask } else { value | !mask }
     }
 
     fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
@@ -312,6 +848,31 @@ impl InstSimplifier {
 
     fn is_one(func: &Function, value: ValueId) -> bool {
         Self::is_const(func, value, U256::from(1))
+    }
+
+    fn is_true(func: &Function, value: ValueId) -> bool {
+        Self::is_one(func, value)
+    }
+
+    fn is_false(func: &Function, value: ValueId) -> bool {
+        Self::is_zero(func, value)
+    }
+
+    fn is_bool_value(func: &Function, value: ValueId) -> bool {
+        match &func.values[value] {
+            Value::Immediate(Immediate::Bool(_)) => true,
+            Value::Arg { ty: MirType::Bool, .. } | Value::Phi { ty: MirType::Bool, .. } => true,
+            Value::Inst(inst_id) => func.instructions[*inst_id].result_ty == Some(MirType::Bool),
+            _ => false,
+        }
+    }
+
+    fn same_value(func: &Function, a: ValueId, b: ValueId) -> bool {
+        a == b
+            || match (&func.values[a], &func.values[b]) {
+                (Value::Immediate(a), Value::Immediate(b)) => a == b,
+                _ => false,
+            }
     }
 
     fn is_all_ones(func: &Function, value: ValueId) -> bool {
@@ -364,13 +925,15 @@ impl InstSimplifier {
         }
 
         for (block_id, inner) in rewrites.iter().copied() {
-            let Some(Terminator::Branch { condition, then_block, else_block }) =
-                &mut func.blocks[block_id].terminator
-            else {
-                continue;
-            };
-            *condition = inner;
-            std::mem::swap(then_block, else_block);
+            {
+                let Some(Terminator::Branch { condition, then_block, else_block }) =
+                    &mut func.blocks[block_id].terminator
+                else {
+                    continue;
+                };
+                *condition = inner;
+                std::mem::swap(then_block, else_block);
+            }
         }
 
         rewrites.len()
@@ -394,6 +957,10 @@ impl InstSimplifier {
             },
             _ => None,
         }
+    }
+
+    fn is_bitwise_complement_pair(func: &Function, a: ValueId, b: ValueId) -> bool {
+        Self::not_operand(func, a) == Some(b) || Self::not_operand(func, b) == Some(a)
     }
 
     fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
@@ -420,143 +987,12 @@ impl InstSimplifier {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        let replace = |value: &mut ValueId| {
+        kind.visit_operands_mut(|value| {
             if replacements.contains_key(value) {
                 *value = Self::resolve_replacement(replacements, *value);
             }
-        };
-
-        match kind {
-            InstKind::Add(a, b)
-            | InstKind::Sub(a, b)
-            | InstKind::Mul(a, b)
-            | InstKind::Div(a, b)
-            | InstKind::SDiv(a, b)
-            | InstKind::Mod(a, b)
-            | InstKind::SMod(a, b)
-            | InstKind::Exp(a, b)
-            | InstKind::And(a, b)
-            | InstKind::Or(a, b)
-            | InstKind::Xor(a, b)
-            | InstKind::Shl(a, b)
-            | InstKind::Shr(a, b)
-            | InstKind::Sar(a, b)
-            | InstKind::Byte(a, b)
-            | InstKind::Lt(a, b)
-            | InstKind::Gt(a, b)
-            | InstKind::SLt(a, b)
-            | InstKind::SGt(a, b)
-            | InstKind::Eq(a, b)
-            | InstKind::MStore(a, b)
-            | InstKind::MStore8(a, b)
-            | InstKind::SStore(a, b)
-            | InstKind::TStore(a, b)
-            | InstKind::Keccak256(a, b)
-            | InstKind::Log0(a, b)
-            | InstKind::SignExtend(a, b) => {
-                replace(a);
-                replace(b);
-            }
-            InstKind::Not(a)
-            | InstKind::IsZero(a)
-            | InstKind::MLoad(a)
-            | InstKind::SLoad(a)
-            | InstKind::TLoad(a)
-            | InstKind::CalldataLoad(a)
-            | InstKind::ExtCodeSize(a)
-            | InstKind::ExtCodeHash(a)
-            | InstKind::Balance(a)
-            | InstKind::BlockHash(a)
-            | InstKind::BlobHash(a) => {
-                replace(a);
-            }
-            InstKind::AddMod(a, b, c)
-            | InstKind::MulMod(a, b, c)
-            | InstKind::MCopy(a, b, c)
-            | InstKind::CalldataCopy(a, b, c)
-            | InstKind::CodeCopy(a, b, c)
-            | InstKind::ReturnDataCopy(a, b, c)
-            | InstKind::Create(a, b, c)
-            | InstKind::Log1(a, b, c)
-            | InstKind::Select(a, b, c) => {
-                replace(a);
-                replace(b);
-                replace(c);
-            }
-            InstKind::ExtCodeCopy(a, b, c, d)
-            | InstKind::Create2(a, b, c, d)
-            | InstKind::Log2(a, b, c, d) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-            }
-            InstKind::Log3(a, b, c, d, e) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-            }
-            InstKind::Log4(a, b, c, d, e, f) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-                replace(f);
-            }
-            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(value);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
-            | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-            InstKind::InternalCall { args, .. } => {
-                for arg in args {
-                    replace(arg);
-                }
-            }
-            InstKind::Phi(incoming) => {
-                for (_, value) in incoming {
-                    replace(value);
-                }
-            }
-            InstKind::MSize
-            | InstKind::CalldataSize
-            | InstKind::InternalFrameAddr(_)
-            | InstKind::CodeSize
-            | InstKind::ReturnDataSize
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::ChainId
-            | InstKind::Address
-            | InstKind::SelfBalance
-            | InstKind::Gas
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee => {}
-        }
+        });
     }
 
     fn replace_terminator_operands(
@@ -809,7 +1245,7 @@ mod tests {
         let mut builder = FunctionBuilder::new(&mut func);
         let arg = builder.add_param(MirType::uint256());
         let zero = builder.imm_u64(0);
-        let cmp = builder.lt(arg, zero);
+        let cmp = builder.lt(zero, arg);
         let inverted = builder.iszero(cmp);
         let then_block = builder.create_block();
         let else_block = builder.create_block();

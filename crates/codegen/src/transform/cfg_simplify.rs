@@ -28,6 +28,8 @@ pub struct CfgSimplifyStats {
     pub blocks_merged: usize,
     /// Number of empty blocks eliminated.
     pub empty_blocks_eliminated: usize,
+    /// Number of degenerate terminators simplified.
+    pub terminators_simplified: usize,
     /// Number of dead functions eliminated.
     pub dead_functions_eliminated: usize,
     /// Estimated gas saved (8 gas per eliminated jump).
@@ -38,13 +40,17 @@ impl CfgSimplifyStats {
     /// Returns total optimizations performed.
     #[must_use]
     pub fn total(&self) -> usize {
-        self.blocks_merged + self.empty_blocks_eliminated + self.dead_functions_eliminated
+        self.blocks_merged
+            + self.empty_blocks_eliminated
+            + self.terminators_simplified
+            + self.dead_functions_eliminated
     }
 
     /// Combines stats from another run.
     pub fn combine(&mut self, other: &Self) {
         self.blocks_merged += other.blocks_merged;
         self.empty_blocks_eliminated += other.empty_blocks_eliminated;
+        self.terminators_simplified += other.terminators_simplified;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
         self.gas_saved += other.gas_saved;
     }
@@ -65,8 +71,8 @@ impl FunctionPass for CfgSimplifyPass {
         "cfg-simplify"
     }
 
-    fn run_on_function(&mut self, func: &mut Function) {
-        CfgSimplifier::new().run_to_fixpoint(func);
+    fn run_on_function(&mut self, func: &mut Function) -> bool {
+        CfgSimplifier::new().run_to_fixpoint(func).total() != 0
     }
 }
 
@@ -82,10 +88,36 @@ impl CfgSimplifier {
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.stats = CfgSimplifyStats::default();
 
+        self.simplify_degenerate_terminators(func);
         self.merge_blocks(func);
         self.eliminate_empty_blocks(func);
 
         self.stats.total()
+    }
+
+    fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
+        let block_ids: Vec<_> = func.blocks.indices().collect();
+        let mut changed = false;
+        for block_id in block_ids {
+            let Some(Terminator::Branch { then_block, else_block, .. }) =
+                func.blocks[block_id].terminator.as_ref()
+            else {
+                continue;
+            };
+            if then_block != else_block {
+                continue;
+            }
+
+            let target = *then_block;
+            func.blocks[block_id].terminator = Some(Terminator::Jump(target));
+            self.stats.terminators_simplified += 1;
+            self.stats.gas_saved += 10;
+            changed = true;
+        }
+
+        if changed {
+            repair_reachability_phis(func);
+        }
     }
 
     /// Runs CFG simplification iteratively until no more changes.
@@ -168,12 +200,11 @@ impl CfgSimplifier {
             .filter(|&inst_id| !matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
             .collect();
         let target_terminator = func.blocks[target].terminator.take();
-        let target_successors: Vec<_> = func.blocks[target].successors.to_vec();
+        let target_successors =
+            target_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
 
         func.blocks[block_id].instructions.extend(target_instructions);
         func.blocks[block_id].terminator = target_terminator;
-        func.blocks[block_id].successors.clear();
-        func.blocks[block_id].successors.extend(target_successors.iter().copied());
 
         for &succ in &target_successors {
             self.redirect_target_phi_incoming(func, target, succ, &[block_id]);
@@ -189,7 +220,6 @@ impl CfgSimplifier {
         func.blocks[target].instructions.clear();
         func.blocks[target].terminator = Some(Terminator::Invalid);
         func.blocks[target].predecessors.clear();
-        func.blocks[target].successors.clear();
 
         Self::replace_uses(func, &phi_replacements);
     }
@@ -247,141 +277,12 @@ impl CfgSimplifier {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        let replace = |value: &mut ValueId| {
+        kind.visit_operands_mut(|value| {
             if let Some(&replacement) = replacements.get(value) {
                 *value = replacement;
             }
-        };
-
-        match kind {
-            InstKind::Add(a, b)
-            | InstKind::Sub(a, b)
-            | InstKind::Mul(a, b)
-            | InstKind::Div(a, b)
-            | InstKind::SDiv(a, b)
-            | InstKind::Mod(a, b)
-            | InstKind::SMod(a, b)
-            | InstKind::Exp(a, b)
-            | InstKind::And(a, b)
-            | InstKind::Or(a, b)
-            | InstKind::Xor(a, b)
-            | InstKind::Shl(a, b)
-            | InstKind::Shr(a, b)
-            | InstKind::Sar(a, b)
-            | InstKind::Byte(a, b)
-            | InstKind::Lt(a, b)
-            | InstKind::Gt(a, b)
-            | InstKind::SLt(a, b)
-            | InstKind::SGt(a, b)
-            | InstKind::Eq(a, b)
-            | InstKind::MStore(a, b)
-            | InstKind::MStore8(a, b)
-            | InstKind::SStore(a, b)
-            | InstKind::TStore(a, b)
-            | InstKind::Keccak256(a, b)
-            | InstKind::Log0(a, b)
-            | InstKind::SignExtend(a, b) => {
-                replace(a);
-                replace(b);
-            }
-            InstKind::Not(a)
-            | InstKind::IsZero(a)
-            | InstKind::MLoad(a)
-            | InstKind::SLoad(a)
-            | InstKind::TLoad(a)
-            | InstKind::CalldataLoad(a)
-            | InstKind::ExtCodeSize(a)
-            | InstKind::ExtCodeHash(a)
-            | InstKind::Balance(a)
-            | InstKind::BlockHash(a)
-            | InstKind::BlobHash(a) => replace(a),
-            InstKind::MCopy(a, b, c)
-            | InstKind::CalldataCopy(a, b, c)
-            | InstKind::CodeCopy(a, b, c)
-            | InstKind::ReturnDataCopy(a, b, c)
-            | InstKind::AddMod(a, b, c)
-            | InstKind::MulMod(a, b, c)
-            | InstKind::Create(a, b, c)
-            | InstKind::Log1(a, b, c)
-            | InstKind::Select(a, b, c) => {
-                replace(a);
-                replace(b);
-                replace(c);
-            }
-            InstKind::ExtCodeCopy(a, b, c, d)
-            | InstKind::Create2(a, b, c, d)
-            | InstKind::Log2(a, b, c, d) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-            }
-            InstKind::Log3(a, b, c, d, e) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-            }
-            InstKind::Log4(a, b, c, d, e, f) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-                replace(f);
-            }
-            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(value);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
-            | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-            InstKind::InternalCall { args, .. } => {
-                for arg in args {
-                    replace(arg);
-                }
-            }
-            InstKind::Phi(incoming) => {
-                for (_, value) in incoming {
-                    replace(value);
-                }
-            }
-            InstKind::MSize
-            | InstKind::CalldataSize
-            | InstKind::InternalFrameAddr(_)
-            | InstKind::CodeSize
-            | InstKind::ReturnDataSize
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::ChainId
-            | InstKind::Address
-            | InstKind::SelfBalance
-            | InstKind::Gas
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee => {}
-        }
+        });
     }
 
     fn replace_terminator_operands(
@@ -463,11 +364,6 @@ impl CfgSimplifier {
         for pred_id in predecessors {
             self.redirect_terminator(func, pred_id, block_id, target);
 
-            func.blocks[pred_id].successors.retain(|s| *s != block_id);
-            if !func.blocks[pred_id].successors.contains(&target) {
-                func.blocks[pred_id].successors.push(target);
-            }
-
             func.blocks[target].predecessors.push(pred_id);
         }
 
@@ -476,7 +372,6 @@ impl CfgSimplifier {
         func.blocks[block_id].instructions.clear();
         func.blocks[block_id].terminator = Some(Terminator::Invalid);
         func.blocks[block_id].predecessors.clear();
-        func.blocks[block_id].successors.clear();
     }
 
     fn redirect_target_phi_incoming(
@@ -554,8 +449,8 @@ impl ModulePass for FunctionDcePass {
         "function-dce"
     }
 
-    fn run(&mut self, module: &mut Module) {
-        DeadFunctionEliminator::new().run(module);
+    fn run(&mut self, module: &mut Module) -> bool {
+        DeadFunctionEliminator::new().run(module) != 0
     }
 }
 
@@ -742,12 +637,10 @@ pub fn repair_reachability_phis(func: &mut Function) {
 
     for block in func.blocks.iter_mut() {
         block.predecessors.clear();
-        block.successors.clear();
     }
 
     for (block, successors) in edges {
         for succ in successors {
-            func.blocks[block].successors.push(succ);
             func.blocks[succ].predecessors.push(block);
         }
     }

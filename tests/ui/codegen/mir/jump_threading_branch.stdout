@@ -12,4 +12,3 @@ fn @branch_forwarders(arg0: u256) -> u256 {
   bb4:
     ret arg0
 }
-

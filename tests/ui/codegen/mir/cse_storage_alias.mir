@@ -1,0 +1,42 @@
+//@ignore-host: windows
+//@compile-flags: --pass cse
+; module @CseStorageAlias
+fn @reuse_sload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = sload arg0
+    v3 = add arg0, 1
+    sstore v3, arg1
+    v5 = sload arg0
+    v6 = add v2, v5
+    ret v6
+}
+
+fn @keep_sload_after_aliasing_store(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = sload arg0
+    v3 = add arg0, 0
+    sstore v3, arg1
+    v5 = sload arg0
+    v6 = add v2, v5
+    ret v6
+}
+
+fn @reuse_tload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = tload arg0
+    v3 = add arg0, 1
+    tstore v3, arg1
+    v5 = tload arg0
+    v6 = add v2, v5
+    ret v6
+}
+
+fn @keep_sload_after_external_call(arg0: u256, arg1: address) -> u256 {
+  bb0 (entry):
+    v2 = sload arg0
+    v3 = call 100000, arg1, 0, 0, 0, 0, 0
+    v4 = sload arg0
+    v5 = add v2, v4
+    v6 = add v5, v3
+    ret v6
+}

@@ -7,7 +7,7 @@
 //! - `stack`: Stack scheduling for DUP/SWAP generation
 
 mod codegen;
-pub use codegen::{EvmArtifact, EvmCodegen};
+pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
 
 pub mod assembler;
 pub use assembler::{AssembledCode, Assembler, Label};

@@ -11,4 +11,3 @@ fn @diamond(arg0: bool) -> u256 {
     v3 = phi [bb1: 10], [bb2: 20]
     ret v3
 }
-

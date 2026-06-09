@@ -20,7 +20,7 @@ fn @fact(arg0: u256) {
 fn @fact(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    mstore v1, 0
+    mstore v1, 0 !metadata(memory=internal_frame)
     v5 = gt arg0, 1
     v6 = iszero v5
     br v6, bb1, bb2
@@ -55,7 +55,7 @@ fn @fib(arg0: u256) {
 fn @fib(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    mstore v1, 0
+    mstore v1, 0 !metadata(memory=internal_frame)
     v5 = gt arg0, 1
     v6 = iszero v5
     br v6, bb1, bb2
@@ -88,7 +88,7 @@ fn @isEven(arg0: u256) {
 fn @isOdd(arg0: u256) -> bool {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    mstore v1, 0
+    mstore v1, 0 !metadata(memory=internal_frame)
     v5 = eq arg0, 0
     br v5, bb1, bb2
   bb1:
@@ -102,7 +102,7 @@ fn @isOdd(arg0: u256) -> bool {
 fn @isEven(arg0: u256) -> bool {
   bb0 (entry):
     v1 = internal_frame_addr 128
-    mstore v1, 0
+    mstore v1, 0 !metadata(memory=internal_frame)
     v5 = eq arg0, 0
     br v5, bb1, bb2
   bb1:
