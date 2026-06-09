@@ -934,9 +934,6 @@ impl InstSimplifier {
                 *condition = inner;
                 std::mem::swap(then_block, else_block);
             }
-            if let Some(term) = &func.blocks[block_id].terminator {
-                func.blocks[block_id].successors = term.successors();
-            }
         }
 
         rewrites.len()

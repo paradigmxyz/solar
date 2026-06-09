@@ -2,7 +2,7 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, Threads,
+    ImportRemapping, Language, OptimizationMode, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -93,8 +93,11 @@ pub struct Opts {
     #[cfg_attr(feature = "clap", arg(long, value_enum))]
     pub stop_after: Option<CompilerStage>,
     /// Disable MIR optimization passes during codegen.
-    #[cfg_attr(feature = "clap", arg(long))]
+    #[cfg_attr(feature = "clap", arg(long, hide = true))]
     pub no_opt: bool,
+    /// MIR optimization objective.
+    #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
+    pub optimization: OptimizationMode,
 
     /// Directory to write output files.
     #[cfg_attr(feature = "clap", arg(long, value_hint = ValueHint::DirPath))]
@@ -176,6 +179,12 @@ pub struct Opts {
 }
 
 impl Opts {
+    /// Returns whether MIR optimization passes should run during codegen.
+    #[inline]
+    pub const fn optimize_mir(&self) -> bool {
+        !self.no_opt && !matches!(self.optimization, OptimizationMode::None)
+    }
+
     /// Returns the number of threads to use.
     #[inline]
     pub fn threads(&self) -> NonZeroUsize {

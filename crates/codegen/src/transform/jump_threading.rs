@@ -266,7 +266,6 @@ impl JumpThreader {
         let block_ids: Vec<_> = func.blocks.indices().collect();
         for block_id in &block_ids {
             func.blocks[*block_id].predecessors.clear();
-            func.blocks[*block_id].successors.clear();
         }
 
         for block_id in block_ids {
@@ -277,7 +276,6 @@ impl JumpThreader {
                 .unwrap_or_default();
 
             for succ in successors {
-                func.blocks[block_id].successors.push(succ);
                 func.blocks[succ].predecessors.push(block_id);
             }
         }

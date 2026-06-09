@@ -18,6 +18,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_interface::Session;
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
 // 0x80 is used as the static ABI return buffer. Keep the internal-call frame
@@ -26,6 +27,44 @@ const INTERNAL_FRAME_PTR_SLOT: u64 = 0xa0;
 const LOW_MEMORY_START: u64 = 0x80;
 const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
 const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
+
+/// Configuration for the EVM backend.
+#[derive(Clone, Copy, Debug)]
+pub struct EvmCodegenConfig {
+    /// Whether to run the MIR optimization pipeline before bytecode generation.
+    pub optimize: bool,
+    /// Print MIR after each pass before bytecode generation.
+    pub mir_print_after_each: bool,
+}
+
+impl Default for EvmCodegenConfig {
+    fn default() -> Self {
+        Self { optimize: true, mir_print_after_each: false }
+    }
+}
+
+impl EvmCodegenConfig {
+    /// Creates backend configuration from a compiler session.
+    #[must_use]
+    pub fn from_session(sess: &Session) -> Self {
+        Self {
+            optimize: sess.opts.optimize_mir(),
+            mir_print_after_each: sess.opts.unstable.mir_print_after_each,
+        }
+    }
+}
+
+impl From<&Session> for EvmCodegenConfig {
+    fn from(sess: &Session) -> Self {
+        Self::from_session(sess)
+    }
+}
+
+impl From<solar_sema::Gcx<'_>> for EvmCodegenConfig {
+    fn from(gcx: solar_sema::Gcx<'_>) -> Self {
+        Self::from_session(gcx.sess)
+    }
+}
 
 /// Describes the stack effect of an EVM instruction.
 /// This is used to keep the scheduler's stack model in sync with the actual EVM stack.
@@ -85,7 +124,8 @@ pub struct EvmCodegen {
 impl EvmCodegen {
     /// Creates a new EVM code generator.
     #[must_use]
-    pub fn new() -> Self {
+    pub fn new(config: impl Into<EvmCodegenConfig>) -> Self {
+        let config = config.into();
         Self {
             asm: Assembler::new(),
             scheduler: StackScheduler::new(),
@@ -96,19 +136,9 @@ impl EvmCodegen {
             in_constructor: false,
             constructor_param_count: 0,
             in_internal_function: false,
-            optimize: true,
-            mir_print_after_each: false,
+            optimize: config.optimize,
+            mir_print_after_each: config.mir_print_after_each,
         }
-    }
-
-    /// Enables or disables MIR optimization passes before bytecode generation.
-    pub const fn set_optimize(&mut self, enabled: bool) {
-        self.optimize = enabled;
-    }
-
-    /// Enables or disables MIR printing after every optimization pass.
-    pub const fn set_mir_print_after_each(&mut self, enabled: bool) {
-        self.mir_print_after_each = enabled;
     }
 
     // ==================== Stack-Aware Emitter API ====================
@@ -391,7 +421,10 @@ impl EvmCodegen {
         }
         run_default_pipeline_with_options(
             module,
-            PipelineOptions { print_after_each: self.mir_print_after_each },
+            PipelineOptions {
+                print_after_each: self.mir_print_after_each,
+                ..PipelineOptions::default()
+            },
         );
     }
 
@@ -2517,7 +2550,7 @@ impl EvmCodegen {
 
 impl Default for EvmCodegen {
     fn default() -> Self {
-        Self::new()
+        Self::new(EvmCodegenConfig::default())
     }
 }
 
@@ -2585,7 +2618,7 @@ mod tests {
             for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                 if contract.name.as_str() == "Test" {
                     let mut module = lower::lower_contract(gcx, contract_id);
-                    let mut codegen = EvmCodegen::new();
+                    let mut codegen = EvmCodegen::new(gcx);
                     let bytecode = codegen.generate_module(&mut module);
                     return Ok(bytecode);
                 }

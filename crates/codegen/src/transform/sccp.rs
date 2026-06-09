@@ -255,9 +255,12 @@ impl SccpPass {
         for (vid, val) in func.values.iter_enumerated() {
             if let Value::Phi { incoming, .. } = val {
                 // Is this phi for this block? Check if any incoming pred targets this block.
-                let is_for_block = incoming
-                    .iter()
-                    .any(|(pred, _)| func.blocks[*pred].successors.contains(&block_id));
+                let is_for_block = incoming.iter().any(|(pred, _)| {
+                    func.blocks[*pred]
+                        .terminator
+                        .as_ref()
+                        .is_some_and(|term| term.successors().contains(&block_id))
+                });
                 if !is_for_block {
                     continue;
                 }
@@ -628,8 +631,6 @@ impl SccpPass {
         // Phase 5: Apply branch rewrites.
         for (block_id, target) in branch_rewrites {
             func.blocks[block_id].terminator = Some(Terminator::Jump(target));
-            func.blocks[block_id].successors.clear();
-            func.blocks[block_id].successors.push(target);
             self.stats.branches_folded += 1;
         }
 
@@ -639,7 +640,6 @@ impl SccpPass {
                 func.blocks[block_id].instructions.clear();
                 func.blocks[block_id].terminator = Some(Terminator::Invalid);
                 func.blocks[block_id].predecessors.clear();
-                func.blocks[block_id].successors.clear();
             }
         }
 

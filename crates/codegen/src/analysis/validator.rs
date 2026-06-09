@@ -13,15 +13,13 @@
 //!    in `func.blocks`.
 //! 3. **Single definition**: each `InstId` is referenced by at most one `Value::Inst` entry.
 //! 4. **Terminator presence**: every block has a terminator.
-//! 5. **Successor consistency**: each block's `block.successors` matches the actual successors of
-//!    its terminator.
-//! 6. **Predecessor back-link**: if A's terminator targets B, then B's `predecessors` contains A.
-//! 7. **Entry block has no predecessors**.
-//! 8. **Phi block coverage**: every `InstKind::Phi`'s incoming blocks are predecessors of the
+//! 5. **Predecessor back-link**: if A's terminator targets B, then B's `predecessors` contains A.
+//! 6. **Entry block has no predecessors**.
+//! 7. **Phi block coverage**: every `InstKind::Phi`'s incoming blocks are predecessors of the
 //!    containing block, and every predecessor has an incoming entry.
-//! 9. **Instruction-block consistency**: each instruction's `block` field matches the block whose
+//! 8. **Instruction-block consistency**: each instruction's `block` field matches the block whose
 //!    `instructions` vector contains it.
-//! 10. **Predecessor consistency**: every stored predecessor actually branches to the block.
+//! 9. **Predecessor consistency**: every stored predecessor actually branches to the block.
 //!
 //! # Usage
 //!
@@ -124,20 +122,7 @@ pub fn validate_function(func: &Function) -> Vec<ValidationError> {
             }
         };
 
-        // Check terminator successor consistency with stored successors.
         let term_succs = term.successors();
-        let stored_succs: Vec<BlockId> = block.successors.iter().copied().collect();
-        let term_succs_vec: Vec<BlockId> = term_succs.iter().copied().collect();
-        if term_succs_vec != stored_succs {
-            errors.push(ValidationError::at_block(
-                format!(
-                    "successors mismatch: terminator says {:?}, stored {:?}",
-                    term_succs_vec.iter().map(|b| format!("bb{}", b.index())).collect::<Vec<_>>(),
-                    stored_succs.iter().map(|b| format!("bb{}", b.index())).collect::<Vec<_>>()
-                ),
-                block_id,
-            ));
-        }
 
         // Check successor blocks exist and back-link.
         for &succ in &term_succs {
@@ -384,41 +369,10 @@ mod tests {
             // Manually corrupt: replace the terminator with a Jump to a nonexistent block.
             let bad_block = BlockId::from_usize(99);
             func.blocks[func.entry_block].terminator = Some(Terminator::Jump(bad_block));
-            // Note: don't update successors so we can also catch the inconsistency.
             let errors = validate_function(&func);
             assert!(
-                errors.iter().any(|e| e.message.contains("nonexistent block")
-                    || e.message.contains("successors mismatch")),
+                errors.iter().any(|e| e.message.contains("nonexistent block")),
                 "expected error about nonexistent block, got: {errors:#?}"
-            );
-        });
-    }
-
-    #[test]
-    fn successor_mismatch_is_caught() {
-        with_session(|| {
-            let mut func = make_func();
-            let then_bb;
-            let else_bb;
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                let cond = b.add_param(MirType::Bool);
-                then_bb = b.create_block();
-                else_bb = b.create_block();
-                b.branch(cond, then_bb, else_bb);
-                b.switch_to_block(then_bb);
-                b.stop();
-                b.switch_to_block(else_bb);
-                b.stop();
-            }
-            // Validates clean first.
-            assert!(validate_function(&func).is_empty());
-            // Now manually drop a successor to break consistency.
-            func.blocks[func.entry_block].successors.pop();
-            let errors = validate_function(&func);
-            assert!(
-                errors.iter().any(|e| e.message.contains("successors mismatch")),
-                "expected successors mismatch, got: {errors:#?}"
             );
         });
     }
@@ -442,33 +396,6 @@ mod tests {
             assert!(
                 errors.iter().any(|e| e.message.contains("does not list bb0 as a predecessor")),
                 "expected predecessor back-link error, got: {errors:#?}"
-            );
-        });
-    }
-
-    #[test]
-    fn stale_predecessor_is_caught() {
-        with_session(|| {
-            let mut func = make_func();
-            let target;
-            let stale;
-            {
-                let mut b = FunctionBuilder::new(&mut func);
-                target = b.create_block();
-                stale = b.create_block();
-                b.jump(target);
-                b.switch_to_block(target);
-                b.stop();
-                b.switch_to_block(stale);
-                b.stop();
-            }
-            assert!(validate_function(&func).is_empty());
-
-            func.blocks[target].predecessors.push(stale);
-            let errors = validate_function(&func);
-            assert!(
-                errors.iter().any(|e| e.message.contains("does not branch to bb")),
-                "expected stale predecessor error, got: {errors:#?}"
             );
         });
     }

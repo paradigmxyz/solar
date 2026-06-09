@@ -132,7 +132,10 @@ fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), Stri
     if args.pipeline_default {
         run_default_pipeline_with_options(
             module,
-            PipelineOptions { print_after_each: args.print_after_each },
+            PipelineOptions {
+                print_after_each: args.print_after_each,
+                ..PipelineOptions::default()
+            },
         );
         if !args.print_after_each {
             print_module(module, name, "pipeline-default");

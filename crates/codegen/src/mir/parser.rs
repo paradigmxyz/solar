@@ -1101,10 +1101,9 @@ impl<'a> Parser<'a> {
     }
 
     fn set_terminator(&self, func: &mut Function, block: BlockId, term: Terminator) {
-        // Update successors / predecessors so downstream passes see a valid CFG.
+        // Update predecessors so downstream passes see a valid CFG.
         let succs = term.successors();
-        for &s in &succs {
-            func.blocks[block].successors.push(s);
+        for s in succs {
             func.blocks[s].predecessors.push(block);
         }
         func.blocks[block].terminator = Some(term);
@@ -1713,7 +1712,7 @@ fn @max(arg0: u256, arg1: u256) -> u256 {
             let func = parse_function(src).unwrap();
             assert_eq!(func.blocks.len(), 3);
             // bb0 should have 2 successors.
-            assert_eq!(func.blocks[func.entry_block].successors.len(), 2);
+            assert_eq!(func.blocks[func.entry_block].terminator().unwrap().successors().len(), 2);
         });
     }
 

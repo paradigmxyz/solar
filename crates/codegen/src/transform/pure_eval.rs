@@ -220,7 +220,6 @@ impl PureEvaluator {
         for block_id in block_ids {
             let block = &mut func.blocks[block_id];
             block.instructions.clear();
-            block.successors.clear();
             if block_id == entry {
                 block.predecessors.clear();
             } else {

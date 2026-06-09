@@ -361,6 +361,8 @@ pub enum InstKind {
     Keccak256(ValueId, ValueId),
 
     // Call operations
+    // TODO(codegen): Consider unifying external calls as one instruction with a call-kind enum
+    // and shared operands once the MIR shape stabilizes.
     /// External call: `call(gas, addr, value, argsOffset, argsSize, retOffset, retSize)`
     Call {
         gas: ValueId,
@@ -399,6 +401,7 @@ pub enum InstKind {
     Create2(ValueId, ValueId, ValueId, ValueId),
 
     // Log operations
+    // TODO(codegen): Consider unifying log0..log4 as one instruction with a topic list.
     /// Log with no topics: `log0(offset, size)`
     Log0(ValueId, ValueId),
     /// Log with 1 topic: `log1(offset, size, topic1)`
@@ -900,7 +903,7 @@ impl InstKind {
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
-            Self::MLoad(_) | Self::MSize => EffectKind::MemoryRead,
+            Self::MLoad(_) | Self::MSize | Self::Keccak256(_, _) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
             Self::SStore(_, _) => EffectKind::StorageWrite,
             Self::TLoad(_) => EffectKind::TransientRead,
@@ -939,7 +942,34 @@ impl InstKind {
             | Self::BaseFee
             | Self::BlobBaseFee
             | Self::BlobHash(_) => EffectKind::EnvironmentRead,
-            _ => EffectKind::Pure,
+            Self::Add(_, _)
+            | Self::Sub(_, _)
+            | Self::Mul(_, _)
+            | Self::Div(_, _)
+            | Self::SDiv(_, _)
+            | Self::Mod(_, _)
+            | Self::SMod(_, _)
+            | Self::Exp(_, _)
+            | Self::AddMod(_, _, _)
+            | Self::MulMod(_, _, _)
+            | Self::And(_, _)
+            | Self::Or(_, _)
+            | Self::Xor(_, _)
+            | Self::Not(_)
+            | Self::Shl(_, _)
+            | Self::Shr(_, _)
+            | Self::Sar(_, _)
+            | Self::Byte(_, _)
+            | Self::Lt(_, _)
+            | Self::Gt(_, _)
+            | Self::SLt(_, _)
+            | Self::SGt(_, _)
+            | Self::Eq(_, _)
+            | Self::IsZero(_)
+            | Self::InternalFrameAddr(_)
+            | Self::Phi(_)
+            | Self::Select(_, _, _)
+            | Self::SignExtend(_, _) => EffectKind::Pure,
         }
     }
 }

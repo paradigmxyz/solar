@@ -607,7 +607,6 @@ impl<'a> FunctionBuilder<'a> {
     pub fn jump(&mut self, target: BlockId) {
         let block = &mut self.func.blocks[self.current_block];
         block.terminator = Some(Terminator::Jump(target));
-        block.successors.push(target);
         self.func.blocks[target].predecessors.push(self.current_block);
     }
 
@@ -615,8 +614,6 @@ impl<'a> FunctionBuilder<'a> {
     pub fn branch(&mut self, condition: ValueId, then_block: BlockId, else_block: BlockId) {
         let block = &mut self.func.blocks[self.current_block];
         block.terminator = Some(Terminator::Branch { condition, then_block, else_block });
-        block.successors.push(then_block);
-        block.successors.push(else_block);
         self.func.blocks[then_block].predecessors.push(self.current_block);
         self.func.blocks[else_block].predecessors.push(self.current_block);
     }
@@ -626,10 +623,8 @@ impl<'a> FunctionBuilder<'a> {
         let current = self.current_block;
         self.func.blocks[current].terminator =
             Some(Terminator::Switch { value, default, cases: cases.clone() });
-        self.func.blocks[current].successors.push(default);
         self.func.blocks[default].predecessors.push(current);
         for (_, case_block) in cases {
-            self.func.blocks[current].successors.push(case_block);
             self.func.blocks[case_block].predecessors.push(current);
         }
     }

@@ -110,7 +110,6 @@ impl CfgSimplifier {
 
             let target = *then_block;
             func.blocks[block_id].terminator = Some(Terminator::Jump(target));
-            Self::refresh_successors(func, block_id);
             self.stats.terminators_simplified += 1;
             self.stats.gas_saved += 10;
             changed = true;
@@ -201,12 +200,11 @@ impl CfgSimplifier {
             .filter(|&inst_id| !matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
             .collect();
         let target_terminator = func.blocks[target].terminator.take();
-        let target_successors: Vec<_> = func.blocks[target].successors.to_vec();
+        let target_successors =
+            target_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
 
         func.blocks[block_id].instructions.extend(target_instructions);
         func.blocks[block_id].terminator = target_terminator;
-        func.blocks[block_id].successors.clear();
-        func.blocks[block_id].successors.extend(target_successors.iter().copied());
 
         for &succ in &target_successors {
             self.redirect_target_phi_incoming(func, target, succ, &[block_id]);
@@ -222,7 +220,6 @@ impl CfgSimplifier {
         func.blocks[target].instructions.clear();
         func.blocks[target].terminator = Some(Terminator::Invalid);
         func.blocks[target].predecessors.clear();
-        func.blocks[target].successors.clear();
 
         Self::replace_uses(func, &phi_replacements);
     }
@@ -366,7 +363,6 @@ impl CfgSimplifier {
 
         for pred_id in predecessors {
             self.redirect_terminator(func, pred_id, block_id, target);
-            Self::refresh_successors(func, pred_id);
 
             func.blocks[target].predecessors.push(pred_id);
         }
@@ -376,7 +372,6 @@ impl CfgSimplifier {
         func.blocks[block_id].instructions.clear();
         func.blocks[block_id].terminator = Some(Terminator::Invalid);
         func.blocks[block_id].predecessors.clear();
-        func.blocks[block_id].successors.clear();
     }
 
     fn redirect_target_phi_incoming(
@@ -436,14 +431,6 @@ impl CfgSimplifier {
             }
             _ => {}
         }
-    }
-
-    fn refresh_successors(func: &mut Function, block_id: BlockId) {
-        let Some(term) = func.blocks[block_id].terminator.as_ref() else {
-            func.blocks[block_id].successors.clear();
-            return;
-        };
-        func.blocks[block_id].successors = term.successors();
     }
 }
 
@@ -650,12 +637,10 @@ pub fn repair_reachability_phis(func: &mut Function) {
 
     for block in func.blocks.iter_mut() {
         block.predecessors.clear();
-        block.successors.clear();
     }
 
     for (block, successors) in edges {
         for succ in successors {
-            func.blocks[block].successors.push(succ);
             func.blocks[succ].predecessors.push(block);
         }
     }

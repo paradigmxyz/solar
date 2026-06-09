@@ -13,20 +13,13 @@ pub struct BasicBlock {
     pub terminator: Option<Terminator>,
     /// Predecessor blocks.
     pub predecessors: SmallVec<[BlockId; 4]>,
-    /// Successor blocks.
-    pub successors: SmallVec<[BlockId; 2]>,
 }
 
 impl BasicBlock {
     /// Creates a new empty basic block.
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            instructions: Vec::new(),
-            terminator: None,
-            predecessors: SmallVec::new(),
-            successors: SmallVec::new(),
-        }
+        Self { instructions: Vec::new(), terminator: None, predecessors: SmallVec::new() }
     }
 
     /// Returns true if this block has a terminator.

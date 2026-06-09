@@ -140,6 +140,22 @@ impl EvmVersion {
 }
 
 str_enum! {
+    /// MIR optimization objective.
+    #[derive(Default)]
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum OptimizationMode {
+        /// Disable MIR optimization passes.
+        None,
+        /// Optimize for runtime gas.
+        #[default]
+        Gas,
+        /// Optimize for bytecode size.
+        Size,
+    }
+}
+
+str_enum! {
     /// Type of output for the compiler to emit.
     #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]

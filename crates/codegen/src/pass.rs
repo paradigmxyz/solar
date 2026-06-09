@@ -54,119 +54,61 @@ impl PassInfo {
     }
 }
 
-fn make_inline_pass() -> Box<dyn ModulePass> {
-    Box::new(InlinePass)
-}
-
-fn make_function_dce_pass() -> Box<dyn ModulePass> {
-    Box::new(FunctionDcePass)
-}
-
-fn make_sccp_pass() -> Box<dyn ModulePass> {
-    Box::new(SccpTransformPass)
-}
-
-fn make_pure_eval_pass() -> Box<dyn ModulePass> {
-    Box::new(PureEvalPass)
-}
-
-fn make_inst_simplify_pass() -> Box<dyn ModulePass> {
-    Box::new(InstSimplifyPass)
-}
-
-fn make_cse_pass() -> Box<dyn ModulePass> {
-    Box::new(CsePass)
-}
-
-fn make_storage_load_cse_pass() -> Box<dyn ModulePass> {
-    Box::new(StorageLoadCsePass)
-}
-
-fn make_loop_canonicalize_pass() -> Box<dyn ModulePass> {
-    Box::new(LoopCanonicalizePass)
-}
-
-fn make_indvar_simplify_pass() -> Box<dyn ModulePass> {
-    Box::new(IndVarSimplifyPass)
-}
-
-fn make_storage_promotion_pass() -> Box<dyn ModulePass> {
-    Box::new(StorageScalarPromotionPass)
-}
-
-fn make_licm_pass() -> Box<dyn ModulePass> {
-    Box::new(LicmPass)
-}
-
-fn make_jump_threading_pass() -> Box<dyn ModulePass> {
-    Box::new(JumpThreadingPass)
-}
-
-fn make_cfg_simplify_pass() -> Box<dyn ModulePass> {
-    Box::new(CfgSimplifyPass)
-}
-
-fn make_frame_slot_promotion_pass() -> Box<dyn ModulePass> {
-    Box::new(FrameSlotPromotionPass)
-}
-
-fn make_memory_dse_pass() -> Box<dyn ModulePass> {
-    Box::new(MemoryDsePass)
-}
-
-fn make_dce_pass() -> Box<dyn ModulePass> {
-    Box::new(DcePass)
-}
-
 pub const INLINE_PASS: PassInfo =
-    PassInfo::new("inline", "Internal MIR function inlining", make_inline_pass);
+    PassInfo::new("inline", "Internal MIR function inlining", || Box::new(InlinePass));
 pub const FUNCTION_DCE_PASS: PassInfo =
-    PassInfo::new("function-dce", "Dead internal function elimination", make_function_dce_pass);
+    PassInfo::new("function-dce", "Dead internal function elimination", || {
+        Box::new(FunctionDcePass)
+    });
 pub const SCCP_PASS: PassInfo =
-    PassInfo::new("sccp", "Sparse Conditional Constant Propagation", make_sccp_pass);
-pub const PURE_EVAL_PASS: PassInfo = PassInfo::new(
-    "pure-eval",
-    "Bounded evaluator for closed pure MIR loops/functions",
-    make_pure_eval_pass,
-);
+    PassInfo::new("sccp", "Sparse Conditional Constant Propagation", || {
+        Box::new(SccpTransformPass)
+    });
+pub const PURE_EVAL_PASS: PassInfo =
+    PassInfo::new("pure-eval", "Bounded evaluator for closed pure MIR loops/functions", || {
+        Box::new(PureEvalPass)
+    });
 pub const INST_SIMPLIFY_PASS: PassInfo =
-    PassInfo::new("inst-simplify", "Local MIR instruction simplification", make_inst_simplify_pass);
+    PassInfo::new("inst-simplify", "Local MIR instruction simplification", || {
+        Box::new(InstSimplifyPass)
+    });
 pub const CSE_PASS: PassInfo =
-    PassInfo::new("cse", "Common Subexpression Elimination (fixed-point)", make_cse_pass);
+    PassInfo::new("cse", "Common Subexpression Elimination (fixed-point)", || Box::new(CsePass));
 pub const STORAGE_LOAD_CSE_PASS: PassInfo = PassInfo::new(
     "storage-load-cse",
     "Reuse storage loads across definitely-disjoint stores",
-    make_storage_load_cse_pass,
+    || Box::new(StorageLoadCsePass),
 );
 pub const LOOP_CANONICALIZE_PASS: PassInfo = PassInfo::new(
     "loop-canonicalize",
     "Canonicalize natural loops with explicit preheaders",
-    make_loop_canonicalize_pass,
+    || Box::new(LoopCanonicalizePass),
 );
 pub const INDVAR_SIMPLIFY_PASS: PassInfo = PassInfo::new(
     "indvar-simplify",
     "Strength-reduce affine induction-variable address expressions",
-    make_indvar_simplify_pass,
+    || Box::new(IndVarSimplifyPass),
 );
 pub const STORAGE_PROMOTION_PASS: PassInfo = PassInfo::new(
     "storage-promotion",
     "Promote simple loop-carried storage updates to memory",
-    make_storage_promotion_pass,
+    || Box::new(StorageScalarPromotionPass),
 );
-pub const LICM_PASS: PassInfo = PassInfo::new("licm", "Loop-Invariant Code Motion", make_licm_pass);
+pub const LICM_PASS: PassInfo =
+    PassInfo::new("licm", "Loop-Invariant Code Motion", || Box::new(LicmPass));
 pub const JUMP_THREADING_PASS: PassInfo =
-    PassInfo::new("jump-threading", "Jump Threading (fixed-point)", make_jump_threading_pass);
+    PassInfo::new("jump-threading", "Jump Threading (fixed-point)", || Box::new(JumpThreadingPass));
 pub const CFG_SIMPLIFY_PASS: PassInfo =
-    PassInfo::new("cfg-simplify", "CFG Simplification (fixed-point)", make_cfg_simplify_pass);
+    PassInfo::new("cfg-simplify", "CFG Simplification (fixed-point)", || Box::new(CfgSimplifyPass));
 pub const FRAME_SLOT_PROMOTION_PASS: PassInfo = PassInfo::new(
     "frame-slot-promotion",
     "Promote non-escaping compiler-local slots to SSA values",
-    make_frame_slot_promotion_pass,
+    || Box::new(FrameSlotPromotionPass),
 );
 pub const MEMORY_DSE_PASS: PassInfo =
-    PassInfo::new("memory-dse", "Local dead memory-store elimination", make_memory_dse_pass);
+    PassInfo::new("memory-dse", "Local dead memory-store elimination", || Box::new(MemoryDsePass));
 pub const DCE_PASS: PassInfo =
-    PassInfo::new("dce", "Dead Code Elimination (fixed-point)", make_dce_pass);
+    PassInfo::new("dce", "Dead Code Elimination (fixed-point)", || Box::new(DcePass));
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub const PASS_REGISTRY: &[&PassInfo] = &[
@@ -235,15 +177,28 @@ pub const DEFAULT_CLEANUP_PIPELINE: &[&PassInfo] = &[
 const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 
 /// Options for running a MIR pass pipeline.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct PipelineOptions {
     /// Print the full module after every pass in the pipeline.
     pub print_after_each: bool,
+    /// Validate MIR after every pass.
+    pub validate_after_each: bool,
+}
+
+impl Default for PipelineOptions {
+    fn default() -> Self {
+        Self { print_after_each: false, validate_after_each: cfg!(debug_assertions) }
+    }
 }
 
 /// Runs a named MIR pass over a module.
 pub fn run_pass(module: &mut Module, pass: &PassInfo) -> bool {
+    run_pass_with_options(module, pass, PipelineOptions::default())
+}
+
+fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
     let mut pm = PassManager::new();
+    pm.set_validate_after_each(options.validate_after_each);
     pm.add_pass(pass.make_pass());
     pm.run(module).1
 }
@@ -265,7 +220,7 @@ pub fn run_pipeline_with_options(
 ) -> bool {
     let mut changed = false;
     for &pass in passes {
-        changed |= run_pass(module, pass);
+        changed |= run_pass_with_options(module, pass, options);
         if options.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name);
             print!("{}", module_to_text(module));
@@ -297,7 +252,7 @@ fn run_cleanup_pipeline_to_fixpoint(
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
         for &pass in passes {
-            let pass_changed = run_pass(module, pass);
+            let pass_changed = run_pass_with_options(module, pass, options);
             round_changed |= pass_changed;
             if options.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
@@ -429,9 +384,15 @@ impl AnalysisManager {
 /// Orchestrates execution of [`ModulePass`]es on a module.
 ///
 /// Each transform automatically invalidates all cached analyses after changing MIR.
-#[derive(Default)]
 pub struct PassManager {
     passes: Vec<Box<dyn ModulePass>>,
+    validate_after_each: bool,
+}
+
+impl Default for PassManager {
+    fn default() -> Self {
+        Self { passes: Vec::new(), validate_after_each: cfg!(debug_assertions) }
+    }
 }
 
 impl PassManager {
@@ -445,6 +406,11 @@ impl PassManager {
         self.passes.push(pass);
     }
 
+    /// Enables or disables MIR validation after every pass.
+    pub const fn set_validate_after_each(&mut self, enabled: bool) {
+        self.validate_after_each = enabled;
+    }
+
     /// Runs all transforms in order on the given module.
     /// Returns an [`AnalysisManager`] and whether any transform changed MIR.
     pub fn run(&mut self, module: &mut Module) -> (AnalysisManager, bool) {
@@ -456,13 +422,14 @@ impl PassManager {
                 changed = true;
                 am.invalidate_all();
             }
-            validate_module_after_pass(module, &pass_name);
+            if self.validate_after_each {
+                validate_module_after_pass(module, &pass_name);
+            }
         }
         (am, changed)
     }
 }
 
-#[cfg(debug_assertions)]
 fn validate_module_after_pass(module: &Module, pass_name: &str) {
     let errors = validate_module(module);
     if errors.is_empty() {
@@ -476,9 +443,6 @@ fn validate_module_after_pass(module: &Module, pass_name: &str) {
     }
     panic!("{message}");
 }
-
-#[cfg(not(debug_assertions))]
-fn validate_module_after_pass(_module: &Module, _pass_name: &str) {}
 
 /// Liveness analysis pass.
 pub struct LivenessAnalysis;

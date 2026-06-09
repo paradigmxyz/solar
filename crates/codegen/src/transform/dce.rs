@@ -152,13 +152,6 @@ impl DeadCodeEliminator {
             block.instructions.clear();
             block.terminator = Some(Terminator::Invalid);
             block.predecessors.clear();
-            block.successors.clear();
-        }
-
-        // Update successor/predecessor lists of reachable blocks
-        for block_id in &reachable {
-            let block = func.block_mut(*block_id);
-            block.successors.retain(|succ| reachable.contains(succ));
         }
     }
 

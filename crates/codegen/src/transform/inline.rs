@@ -1535,12 +1535,10 @@ fn recompute_cfg(func: &mut Function) {
 
     for block in func.blocks.iter_mut() {
         block.predecessors.clear();
-        block.successors.clear();
     }
 
     for (block, successors) in edges {
         for succ in successors {
-            func.blocks[block].successors.push(succ);
             func.blocks[succ].predecessors.push(block);
         }
     }

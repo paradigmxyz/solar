@@ -710,7 +710,8 @@ impl StorageScalarPromoter {
 
         let old_instructions = std::mem::take(&mut func.blocks[exit].instructions);
         let old_terminator = func.blocks[exit].terminator.take();
-        let old_successors = std::mem::take(&mut func.blocks[exit].successors);
+        let old_successors =
+            old_terminator.as_ref().map(Terminator::successors).unwrap_or_default();
 
         // Keep existing exit phis in place; only the non-phi tail moves behind the dirty check.
         let split_pos = old_instructions
@@ -731,8 +732,6 @@ impl StorageScalarPromoter {
             then_block: store_block,
             else_block: continuation,
         });
-        func.blocks[exit].successors.push(store_block);
-        func.blocks[exit].successors.push(continuation);
 
         let load_inst =
             func.alloc_inst(Instruction::new(InstKind::MLoad(temp_addr), Some(MirType::uint256())));
@@ -744,13 +743,11 @@ impl StorageScalarPromoter {
         func.blocks[store_block].instructions.push(load_inst);
         func.blocks[store_block].instructions.push(store_inst);
         func.blocks[store_block].terminator = Some(Terminator::Jump(continuation));
-        func.blocks[store_block].successors.push(continuation);
 
         func.blocks[continuation].predecessors.push(exit);
         func.blocks[continuation].predecessors.push(store_block);
         func.blocks[continuation].instructions = continuation_instructions;
         func.blocks[continuation].terminator = old_terminator;
-        func.blocks[continuation].successors = old_successors.clone();
 
         self.redirect_successor_phi_incoming(func, exit, continuation, &old_successors);
         for successor in old_successors {
@@ -924,13 +921,10 @@ mod tests {
 
         let entry_store = inst(&mut func, entry, InstKind::SStore(slot, one), None);
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[entry].successors.push(header);
         func.blocks[header].predecessors.push(entry);
 
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.push(body);
-        func.blocks[header].successors.push(exit);
         func.blocks[body].predecessors.push(header);
         func.blocks[exit].predecessors.push(header);
 
@@ -953,11 +947,9 @@ mod tests {
             };
         let body_store = inst(&mut func, body, InstKind::SStore(slot, product), None);
         func.blocks[body].terminator = Some(Terminator::Jump(update));
-        func.blocks[body].successors.push(update);
         func.blocks[update].predecessors.push(body);
 
         func.blocks[update].terminator = Some(Terminator::Jump(header));
-        func.blocks[update].successors.push(header);
         func.blocks[header].predecessors.push(update);
 
         func.blocks[exit].terminator = Some(Terminator::Stop);
@@ -980,13 +972,10 @@ mod tests {
         let cond = imm(&mut func, 1);
 
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[entry].successors.push(header);
         func.blocks[header].predecessors.push(entry);
 
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.push(body);
-        func.blocks[header].successors.push(exit);
         func.blocks[body].predecessors.push(header);
         func.blocks[exit].predecessors.push(header);
 
@@ -1008,11 +997,9 @@ mod tests {
         };
         let body_store = inst(&mut func, body, InstKind::SStore(slot, sum), None);
         func.blocks[body].terminator = Some(Terminator::Jump(update));
-        func.blocks[body].successors.push(update);
         func.blocks[update].predecessors.push(body);
 
         func.blocks[update].terminator = Some(Terminator::Jump(header));
-        func.blocks[update].successors.push(header);
         func.blocks[header].predecessors.push(update);
 
         func.blocks[exit].terminator = Some(Terminator::Stop);
@@ -1035,23 +1022,18 @@ mod tests {
         let cond = imm(&mut func, 1);
 
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[entry].successors.push(header);
         func.blocks[header].predecessors.push(entry);
 
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.push(body);
-        func.blocks[header].successors.push(exit);
         func.blocks[body].predecessors.push(header);
         func.blocks[exit].predecessors.push(header);
 
         let body_store = inst(&mut func, body, InstKind::SStore(slot, value), None);
         func.blocks[body].terminator = Some(Terminator::Jump(update));
-        func.blocks[body].successors.push(update);
         func.blocks[update].predecessors.push(body);
 
         func.blocks[update].terminator = Some(Terminator::Jump(header));
-        func.blocks[update].successors.push(header);
         func.blocks[header].predecessors.push(update);
 
         func.blocks[exit].terminator = Some(Terminator::Stop);
@@ -1077,13 +1059,10 @@ mod tests {
 
         let entry_store = inst(&mut func, entry, InstKind::SStore(slot, one), None);
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[entry].successors.push(header);
         func.blocks[header].predecessors.push(entry);
 
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.push(body);
-        func.blocks[header].successors.push(exit);
         func.blocks[body].predecessors.push(header);
         func.blocks[exit].predecessors.push(header);
 
@@ -1093,11 +1072,9 @@ mod tests {
             inst_value(&mut func, body, InstKind::Mul(loaded, two), Some(MirType::uint256()));
         let body_store = inst(&mut func, body, InstKind::SStore(slot, product), None);
         func.blocks[body].terminator = Some(Terminator::Jump(update));
-        func.blocks[body].successors.push(update);
         func.blocks[update].predecessors.push(body);
 
         func.blocks[update].terminator = Some(Terminator::Jump(header));
-        func.blocks[update].successors.push(header);
         func.blocks[header].predecessors.push(update);
 
         func.blocks[exit].terminator = Some(Terminator::Stop);
@@ -1122,13 +1099,10 @@ mod tests {
         let cond = imm(&mut func, 1);
 
         func.blocks[entry].terminator = Some(Terminator::Jump(header));
-        func.blocks[entry].successors.push(header);
         func.blocks[header].predecessors.push(entry);
 
         func.blocks[header].terminator =
             Some(Terminator::Branch { condition: cond, then_block: body, else_block: exit });
-        func.blocks[header].successors.push(body);
-        func.blocks[header].successors.push(exit);
         func.blocks[body].predecessors.push(header);
         func.blocks[exit].predecessors.push(header);
 
@@ -1140,11 +1114,9 @@ mod tests {
             inst_value(&mut func, body, InstKind::Add(loaded, two), Some(MirType::uint256()));
         let body_store = inst(&mut func, body, InstKind::SStore(slot, sum), None);
         func.blocks[body].terminator = Some(Terminator::Jump(update));
-        func.blocks[body].successors.push(update);
         func.blocks[update].predecessors.push(body);
 
         func.blocks[update].terminator = Some(Terminator::Jump(header));
-        func.blocks[update].successors.push(header);
         func.blocks[header].predecessors.push(update);
 
         func.blocks[exit].terminator = Some(Terminator::Stop);
