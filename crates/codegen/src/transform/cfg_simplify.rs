@@ -365,11 +365,7 @@ impl CfgSimplifier {
 
         for pred_id in predecessors {
             self.redirect_terminator(func, pred_id, block_id, target);
-
-            func.blocks[pred_id].successors.retain(|s| *s != block_id);
-            if !func.blocks[pred_id].successors.contains(&target) {
-                func.blocks[pred_id].successors.push(target);
-            }
+            Self::refresh_successors(func, pred_id);
 
             func.blocks[target].predecessors.push(pred_id);
         }
@@ -439,6 +435,14 @@ impl CfgSimplifier {
             }
             _ => {}
         }
+    }
+
+    fn refresh_successors(func: &mut Function, block_id: BlockId) {
+        let Some(term) = func.blocks[block_id].terminator.as_ref() else {
+            func.blocks[block_id].successors.clear();
+            return;
+        };
+        func.blocks[block_id].successors = term.successors();
     }
 }
 
