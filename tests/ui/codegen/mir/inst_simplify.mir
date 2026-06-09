@@ -67,3 +67,31 @@ fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
     v4 = add v2, v3
     ret v4
 }
+
+fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
+  bb0 (entry):
+    v1 = add 7, 5
+    v2 = sub 7, 9
+    v3 = mul 6, 7
+    v4 = div 42, 5
+    v5 = div 42, 0
+    v6 = mod 42, 5
+    v7 = exp 2, 8
+    v8 = not 6
+    v9 = not 2
+    v10 = sdiv v8, v9
+    v11 = smod v8, 5
+    v12 = slt v8, 1
+    v13 = sgt 1, v8
+    v14 = and 255, 15
+    v15 = or 16, 1
+    v16 = xor 15, 3
+    v17 = shl 8, 1
+    v18 = shr 4, 256
+    v19 = sar 1, v8
+    v20 = byte 31, 255
+    v21 = signextend 0, 255
+    v22 = addmod 5, 7, 10
+    v23 = mulmod 5, 7, 10
+    ret v1, v2, v3, v4, v5, v6, v7, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23
+}

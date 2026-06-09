@@ -200,6 +200,10 @@ impl InstSimplifier {
     ) -> Option<ValueId> {
         let resolve = |value| Self::resolve_replacement(replacements, value);
 
+        if let Some(value) = Self::const_fold_inst(func, kind, replacements) {
+            return Some(value);
+        }
+
         match kind {
             InstKind::Add(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
@@ -400,7 +404,7 @@ impl InstSimplifier {
             InstKind::SignExtend(a, b) => {
                 let (byte, value) = (resolve(*a), resolve(*b));
                 Self::as_u256(func, byte)
-                    .is_some_and(|byte| byte >= U256::from(32))
+                    .is_some_and(|byte| byte >= U256::from(31))
                     .then_some(value)
             }
             InstKind::Select(condition, then_value, else_value) => {
@@ -428,6 +432,133 @@ impl InstSimplifier {
                     .iter()
                     .all(|&(_, value)| Self::same_value(func, resolve(value), first))
                     .then_some(first)
+            }
+            _ => None,
+        }
+    }
+
+    fn const_fold_inst(
+        func: &mut Function,
+        kind: &InstKind,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> Option<ValueId> {
+        let resolve = |value| Self::resolve_replacement(replacements, value);
+        let constant = |func: &Function, value| Self::as_u256(func, resolve(value));
+
+        match *kind {
+            InstKind::Add(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)?.wrapping_add(constant(func, b)?)))
+            }
+            InstKind::Sub(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)?.wrapping_sub(constant(func, b)?)))
+            }
+            InstKind::Mul(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)?.wrapping_mul(constant(func, b)?)))
+            }
+            InstKind::Div(a, b) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                Some(Self::imm_u256(func, if b.is_zero() { U256::ZERO } else { a / b }))
+            }
+            InstKind::SDiv(a, b) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                Some(Self::imm_u256(func, Self::signed_div(a, b)))
+            }
+            InstKind::Mod(a, b) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                Some(Self::imm_u256(func, if b.is_zero() { U256::ZERO } else { a % b }))
+            }
+            InstKind::SMod(a, b) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                Some(Self::imm_u256(func, Self::signed_mod(a, b)))
+            }
+            InstKind::Exp(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)?.wrapping_pow(constant(func, b)?)))
+            }
+            InstKind::AddMod(a, b, n) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                let n = constant(func, n)?;
+                if n.is_zero() {
+                    Some(Self::imm_u256(func, U256::ZERO))
+                } else {
+                    Some(Self::imm_u256(func, a.checked_add(b)? % n))
+                }
+            }
+            InstKind::MulMod(a, b, n) => {
+                let a = constant(func, a)?;
+                let b = constant(func, b)?;
+                let n = constant(func, n)?;
+                if n.is_zero() {
+                    Some(Self::imm_u256(func, U256::ZERO))
+                } else {
+                    Some(Self::imm_u256(func, a.checked_mul(b)? % n))
+                }
+            }
+            InstKind::And(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)? & constant(func, b)?))
+            }
+            InstKind::Or(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)? | constant(func, b)?))
+            }
+            InstKind::Xor(a, b) => {
+                Some(Self::imm_u256(func, constant(func, a)? ^ constant(func, b)?))
+            }
+            InstKind::Not(a) => Some(Self::imm_u256(func, !constant(func, a)?)),
+            InstKind::Shl(shift, value) => {
+                let shift = constant(func, shift)?;
+                let value = constant(func, value)?;
+                let folded = if shift >= U256::from(256) {
+                    U256::ZERO
+                } else {
+                    value << shift.to::<usize>()
+                };
+                Some(Self::imm_u256(func, folded))
+            }
+            InstKind::Shr(shift, value) => {
+                let shift = constant(func, shift)?;
+                let value = constant(func, value)?;
+                let folded = if shift >= U256::from(256) {
+                    U256::ZERO
+                } else {
+                    value >> shift.to::<usize>()
+                };
+                Some(Self::imm_u256(func, folded))
+            }
+            InstKind::Sar(shift, value) => Some(Self::imm_u256(
+                func,
+                Self::sar(constant(func, value)?, constant(func, shift)?),
+            )),
+            InstKind::Byte(index, value) => Some(Self::imm_u256(
+                func,
+                Self::byte(constant(func, index)?, constant(func, value)?),
+            )),
+            InstKind::SignExtend(size, value) => Some(Self::imm_u256(
+                func,
+                Self::signextend(constant(func, size)?, constant(func, value)?),
+            )),
+            InstKind::Lt(a, b) => {
+                Some(Self::imm_bool(func, constant(func, a)? < constant(func, b)?))
+            }
+            InstKind::Gt(a, b) => {
+                Some(Self::imm_bool(func, constant(func, a)? > constant(func, b)?))
+            }
+            InstKind::SLt(a, b) => {
+                Some(Self::imm_bool(func, Self::signed_lt(constant(func, a)?, constant(func, b)?)))
+            }
+            InstKind::SGt(a, b) => {
+                Some(Self::imm_bool(func, Self::signed_gt(constant(func, a)?, constant(func, b)?)))
+            }
+            InstKind::Eq(a, b) => {
+                Some(Self::imm_bool(func, constant(func, a)? == constant(func, b)?))
+            }
+            InstKind::IsZero(a) => Some(Self::imm_bool(func, constant(func, a)?.is_zero())),
+            InstKind::Select(condition, then_value, else_value) => {
+                let condition = constant(func, condition)?;
+                Some(if condition.is_zero() { resolve(else_value) } else { resolve(then_value) })
             }
             _ => None,
         }
@@ -571,6 +702,77 @@ impl InstSimplifier {
             return None;
         }
         Some(U256::from(value.trailing_zeros()))
+    }
+
+    fn signed_div(a: U256, b: U256) -> U256 {
+        if b.is_zero() {
+            return U256::ZERO;
+        }
+        let negative = Self::is_negative(a) != Self::is_negative(b);
+        let quotient = Self::signed_abs(a) / Self::signed_abs(b);
+        if negative { U256::ZERO.wrapping_sub(quotient) } else { quotient }
+    }
+
+    fn signed_mod(a: U256, b: U256) -> U256 {
+        if b.is_zero() {
+            return U256::ZERO;
+        }
+        let remainder = Self::signed_abs(a) % Self::signed_abs(b);
+        if Self::is_negative(a) { U256::ZERO.wrapping_sub(remainder) } else { remainder }
+    }
+
+    fn signed_lt(a: U256, b: U256) -> bool {
+        match (Self::is_negative(a), Self::is_negative(b)) {
+            (true, false) => true,
+            (false, true) => false,
+            _ => a < b,
+        }
+    }
+
+    fn signed_gt(a: U256, b: U256) -> bool {
+        Self::signed_lt(b, a)
+    }
+
+    fn signed_abs(value: U256) -> U256 {
+        if Self::is_negative(value) { U256::ZERO.wrapping_sub(value) } else { value }
+    }
+
+    fn is_negative(value: U256) -> bool {
+        !((value >> 255usize) & U256::from(1)).is_zero()
+    }
+
+    fn sar(value: U256, shift: U256) -> U256 {
+        let negative = Self::is_negative(value);
+        if shift >= U256::from(256) {
+            return if negative { U256::MAX } else { U256::ZERO };
+        }
+
+        let shift = shift.to::<usize>();
+        if shift == 0 || !negative {
+            return value >> shift;
+        }
+
+        let low_mask = (U256::from(1) << (256 - shift)) - U256::from(1);
+        (value >> shift) | !low_mask
+    }
+
+    fn byte(index: U256, value: U256) -> U256 {
+        if index >= U256::from(32) {
+            U256::ZERO
+        } else {
+            let shift = 8 * (31 - index.to::<usize>());
+            (value >> shift) & U256::from(0xff)
+        }
+    }
+
+    fn signextend(size: U256, value: U256) -> U256 {
+        if size >= U256::from(31) {
+            return value;
+        }
+        let bit = size.to::<usize>() * 8 + 7;
+        let sign_bit = U256::from(1) << bit;
+        let mask = sign_bit - U256::from(1);
+        if (value & sign_bit).is_zero() { value & mask } else { value | !mask }
     }
 
     fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
