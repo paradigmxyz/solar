@@ -61,6 +61,7 @@ struct Candidate {
     slot: StorageAlias,
     preheader: BlockId,
     init_store: Option<InstId>,
+    needs_initial_load: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -171,11 +172,9 @@ impl StorageScalarPromoter {
         } else {
             slot_value
         };
-        if init_store.is_none() && !saw_loop_load {
-            return None;
-        }
+        let needs_initial_load = init_store.is_none() && saw_loop_load;
 
-        Some(Candidate { slot_value, slot, preheader, init_store })
+        Some(Candidate { slot_value, slot, preheader, init_store, needs_initial_load })
     }
 
     fn find_initialized_candidates(
@@ -215,6 +214,7 @@ impl StorageScalarPromoter {
                 slot,
                 preheader,
                 init_store: Some(init_store),
+                needs_initial_load: false,
             });
         }
         candidates.sort_by_key(|candidate| candidate.init_store.map(|inst| inst.index()));
@@ -639,19 +639,29 @@ impl StorageScalarPromoter {
                 }
             }
             None => {
-                let (load_inst, load_value) = self.alloc_inst_value(
-                    func,
-                    InstKind::SLoad(candidate.slot_value),
-                    Some(MirType::uint256()),
-                );
-                let (store_inst, _) = self.alloc_inst_value(
-                    func,
-                    InstKind::MStore(promoted.temp_addr, load_value),
-                    None,
-                );
                 let insert_pos = func.blocks[candidate.preheader].instructions.len();
-                func.blocks[candidate.preheader].instructions.insert(insert_pos, store_inst);
-                func.blocks[candidate.preheader].instructions.insert(insert_pos, load_inst);
+                let mut inserted = 0;
+
+                if candidate.needs_initial_load {
+                    let (load_inst, load_value) = self.alloc_inst_value(
+                        func,
+                        InstKind::SLoad(candidate.slot_value),
+                        Some(MirType::uint256()),
+                    );
+                    let (store_inst, _) = self.alloc_inst_value(
+                        func,
+                        InstKind::MStore(promoted.temp_addr, load_value),
+                        None,
+                    );
+                    func.blocks[candidate.preheader]
+                        .instructions
+                        .insert(insert_pos + inserted, load_inst);
+                    inserted += 1;
+                    func.blocks[candidate.preheader]
+                        .instructions
+                        .insert(insert_pos + inserted, store_inst);
+                    inserted += 1;
+                }
 
                 if let Some(dirty_addr) = promoted.dirty_addr {
                     let false_word = self.bool_word(func, false);
@@ -659,7 +669,7 @@ impl StorageScalarPromoter {
                         self.alloc_inst_value(func, InstKind::MStore(dirty_addr, false_word), None);
                     func.blocks[candidate.preheader]
                         .instructions
-                        .insert(insert_pos + 2, dirty_store);
+                        .insert(insert_pos + inserted, dirty_store);
                 }
             }
         }
@@ -1252,13 +1262,36 @@ mod tests {
     }
 
     #[test]
-    fn skips_store_only_loop_without_preheader_store() {
+    fn promotes_store_only_loop_without_preheader_store() {
         let mut test = make_store_only_loop_without_init();
+        let entry = test.func.entry_block;
         let mut pass = StorageScalarPromoter::new();
         let stats = pass.run(&mut test.func);
 
-        assert_eq!(stats.loops_promoted, 0);
-        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::SStore(_, _)));
+        assert_eq!(stats.loops_promoted, 1);
+        assert_eq!(stats.loads_promoted, 0);
+        assert_eq!(stats.stores_promoted, 1);
+        assert_eq!(test.func.blocks[entry].instructions.len(), 1);
+        assert!(matches!(
+            test.func.instructions[test.func.blocks[entry].instructions[0]].kind,
+            InstKind::MStore(_, _)
+        ));
+        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::MStore(_, _)));
+
+        let Some(Terminator::Branch { then_block, else_block, .. }) =
+            test.func.blocks[test.exit].terminator.as_ref()
+        else {
+            panic!("dirty exit should branch");
+        };
+        assert!(matches!(
+            test.func.instructions[test.func.blocks[*then_block].instructions[0]].kind,
+            InstKind::MLoad(_)
+        ));
+        assert!(matches!(
+            test.func.instructions[test.func.blocks[*then_block].instructions[1]].kind,
+            InstKind::SStore(_, _)
+        ));
+        assert_eq!(test.func.blocks[*else_block].terminator, Some(Terminator::Stop));
     }
 
     #[test]

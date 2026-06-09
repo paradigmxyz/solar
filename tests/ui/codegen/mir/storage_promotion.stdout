@@ -39,6 +39,29 @@ fn @reject_loop_variant_offset_slot(arg0: u256) {
     stop
 }
 
+fn @promote_store_only_without_initial_load() {
+  bb0 (entry):
+    mstore 160, 0
+    jump bb1
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    mstore 128, 7
+    mstore 160, 1
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    v9 = mload 160
+    br v9, bb6, bb5
+  bb5:
+    stop
+  bb6:
+    v10 = mload 128
+    sstore 0, v10
+    jump bb5
+}
+
 fn @promote_two_initialized_slots() {
   bb0 (entry):
     mstore 128, 1
