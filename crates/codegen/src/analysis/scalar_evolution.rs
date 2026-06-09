@@ -3,6 +3,11 @@
 //! This is intentionally small: it recognizes expressions of the form
 //! `base + c + sum(iv * scale)` inside one natural loop. Optimization passes can use this to avoid
 //! ad hoc pattern matching when reasoning about memory/storage addresses derived from loop indices.
+//!
+//! Analysis contract:
+//! - loop-invariant values are represented as a single optional base
+//! - constants and induction scales use checked signed arithmetic
+//! - unrecognized or overflowing expressions are omitted instead of guessed
 
 use crate::{
     analysis::Loop,

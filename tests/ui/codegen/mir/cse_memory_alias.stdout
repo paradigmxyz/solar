@@ -32,3 +32,13 @@ fn @reuse_keccak_after_disjoint_memory_store(arg0: u256) -> u256 {
     v8 = add v3, v3
     ret v8
 }
+
+fn @keep_mload_after_external_call(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = mload 64
+    v9 = call 0x186a0, arg0, 0, 0, 0, 96, 32
+    v11 = mload 64
+    v12 = add v2, v11
+    v13 = add v12, v9
+    ret v13
+}

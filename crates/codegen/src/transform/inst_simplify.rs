@@ -4,6 +4,11 @@
 //! instruction patterns before stack scheduling. It is intentionally local and
 //! conservative: it only applies identities that are exact for EVM word
 //! semantics.
+//!
+//! Safety contract:
+//! - do not remove or reorder side effects
+//! - replace an instruction with a value only when the equality is exact for all 256-bit EVM words
+//! - preserve boolean-only rewrites behind explicit MIR boolean type checks
 
 use crate::{
     mir::{Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
@@ -147,6 +152,16 @@ impl InstSimplifier {
                 let (a, b) = (resolve(*a), resolve(*b));
                 self.rewrite_and(func, a, b)
             }
+            InstKind::Xor(a, b) => {
+                let (a, b) = (resolve(*a), resolve(*b));
+                if Self::is_all_ones(func, a) {
+                    Some(InstKind::Not(b))
+                } else if Self::is_all_ones(func, b) {
+                    Some(InstKind::Not(a))
+                } else {
+                    None
+                }
+            }
             InstKind::Eq(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if a != b && Self::is_zero(func, a) {
@@ -267,6 +282,10 @@ impl InstSimplifier {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if a == b {
                     Some(a)
+                } else if Self::is_all_ones(func, a) {
+                    Some(a)
+                } else if Self::is_all_ones(func, b) {
+                    Some(b)
                 } else if Self::is_zero(func, a) {
                     Some(b)
                 } else if Self::is_zero(func, b) {
@@ -294,15 +313,28 @@ impl InstSimplifier {
             }
             InstKind::IsZero(a) => {
                 let a = resolve(*a);
-                Self::as_u256(func, a).map(|v| Self::imm_bool(func, v.is_zero()))
+                Self::as_u256(func, a).map(|v| Self::imm_bool(func, v.is_zero())).or_else(|| {
+                    let inner = Self::iszero_operand(func, a)?;
+                    Self::is_bool_value(func, inner).then_some(inner)
+                })
             }
             InstKind::Shl(a, b) | InstKind::Shr(a, b) | InstKind::Sar(a, b) => {
                 let (shift, value) = (resolve(*a), resolve(*b));
                 if Self::is_zero(func, shift) || Self::is_zero(func, value) {
                     Some(value)
+                } else if !matches!(kind, InstKind::Sar(_, _))
+                    && Self::as_u256(func, shift).is_some_and(|shift| shift >= U256::from(256))
+                {
+                    Some(Self::imm_u256(func, U256::ZERO))
                 } else {
                     None
                 }
+            }
+            InstKind::Byte(a, _) => {
+                let a = resolve(*a);
+                Self::as_u256(func, a)
+                    .is_some_and(|index| index >= U256::from(32))
+                    .then(|| Self::imm_u256(func, U256::ZERO))
             }
             InstKind::Eq(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
@@ -325,8 +357,18 @@ impl InstSimplifier {
                         InstKind::Lt(_, _) if Self::is_zero(func, b) => {
                             Some(Self::imm_bool(func, false))
                         }
+                        InstKind::Lt(_, _)
+                            if Self::is_zero(func, a) && Self::is_bool_value(func, b) =>
+                        {
+                            Some(b)
+                        }
                         InstKind::Gt(_, _) if Self::is_zero(func, a) => {
                             Some(Self::imm_bool(func, false))
+                        }
+                        InstKind::Gt(_, _)
+                            if Self::is_zero(func, b) && Self::is_bool_value(func, a) =>
+                        {
+                            Some(a)
                         }
                         _ => None,
                     }
@@ -334,7 +376,10 @@ impl InstSimplifier {
             }
             InstKind::AddMod(a, b, n) => {
                 let (a, b, n) = (resolve(*a), resolve(*b), resolve(*n));
-                if Self::is_zero(func, n) || (Self::is_zero(func, a) && Self::is_zero(func, b)) {
+                if Self::is_zero(func, n)
+                    || Self::is_one(func, n)
+                    || (Self::is_zero(func, a) && Self::is_zero(func, b))
+                {
                     Some(Self::imm_u256(func, U256::ZERO))
                 } else {
                     None
@@ -342,11 +387,21 @@ impl InstSimplifier {
             }
             InstKind::MulMod(a, b, n) => {
                 let (a, b, n) = (resolve(*a), resolve(*b), resolve(*n));
-                if Self::is_zero(func, n) || Self::is_zero(func, a) || Self::is_zero(func, b) {
+                if Self::is_zero(func, n)
+                    || Self::is_one(func, n)
+                    || Self::is_zero(func, a)
+                    || Self::is_zero(func, b)
+                {
                     Some(Self::imm_u256(func, U256::ZERO))
                 } else {
                     None
                 }
+            }
+            InstKind::SignExtend(a, b) => {
+                let (byte, value) = (resolve(*a), resolve(*b));
+                Self::as_u256(func, byte)
+                    .is_some_and(|byte| byte >= U256::from(32))
+                    .then_some(value)
             }
             InstKind::Select(condition, then_value, else_value) => {
                 let (condition, then_value, else_value) =
@@ -692,143 +747,12 @@ impl InstSimplifier {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        let replace = |value: &mut ValueId| {
+        kind.visit_operands_mut(|value| {
             if replacements.contains_key(value) {
                 *value = Self::resolve_replacement(replacements, *value);
             }
-        };
-
-        match kind {
-            InstKind::Add(a, b)
-            | InstKind::Sub(a, b)
-            | InstKind::Mul(a, b)
-            | InstKind::Div(a, b)
-            | InstKind::SDiv(a, b)
-            | InstKind::Mod(a, b)
-            | InstKind::SMod(a, b)
-            | InstKind::Exp(a, b)
-            | InstKind::And(a, b)
-            | InstKind::Or(a, b)
-            | InstKind::Xor(a, b)
-            | InstKind::Shl(a, b)
-            | InstKind::Shr(a, b)
-            | InstKind::Sar(a, b)
-            | InstKind::Byte(a, b)
-            | InstKind::Lt(a, b)
-            | InstKind::Gt(a, b)
-            | InstKind::SLt(a, b)
-            | InstKind::SGt(a, b)
-            | InstKind::Eq(a, b)
-            | InstKind::MStore(a, b)
-            | InstKind::MStore8(a, b)
-            | InstKind::SStore(a, b)
-            | InstKind::TStore(a, b)
-            | InstKind::Keccak256(a, b)
-            | InstKind::Log0(a, b)
-            | InstKind::SignExtend(a, b) => {
-                replace(a);
-                replace(b);
-            }
-            InstKind::Not(a)
-            | InstKind::IsZero(a)
-            | InstKind::MLoad(a)
-            | InstKind::SLoad(a)
-            | InstKind::TLoad(a)
-            | InstKind::CalldataLoad(a)
-            | InstKind::ExtCodeSize(a)
-            | InstKind::ExtCodeHash(a)
-            | InstKind::Balance(a)
-            | InstKind::BlockHash(a)
-            | InstKind::BlobHash(a) => {
-                replace(a);
-            }
-            InstKind::AddMod(a, b, c)
-            | InstKind::MulMod(a, b, c)
-            | InstKind::MCopy(a, b, c)
-            | InstKind::CalldataCopy(a, b, c)
-            | InstKind::CodeCopy(a, b, c)
-            | InstKind::ReturnDataCopy(a, b, c)
-            | InstKind::Create(a, b, c)
-            | InstKind::Log1(a, b, c)
-            | InstKind::Select(a, b, c) => {
-                replace(a);
-                replace(b);
-                replace(c);
-            }
-            InstKind::ExtCodeCopy(a, b, c, d)
-            | InstKind::Create2(a, b, c, d)
-            | InstKind::Log2(a, b, c, d) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-            }
-            InstKind::Log3(a, b, c, d, e) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-            }
-            InstKind::Log4(a, b, c, d, e, f) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-                replace(f);
-            }
-            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(value);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
-            | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-            InstKind::InternalCall { args, .. } => {
-                for arg in args {
-                    replace(arg);
-                }
-            }
-            InstKind::Phi(incoming) => {
-                for (_, value) in incoming {
-                    replace(value);
-                }
-            }
-            InstKind::MSize
-            | InstKind::CalldataSize
-            | InstKind::InternalFrameAddr(_)
-            | InstKind::CodeSize
-            | InstKind::ReturnDataSize
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::ChainId
-            | InstKind::Address
-            | InstKind::SelfBalance
-            | InstKind::Gas
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee => {}
-        }
+        });
     }
 
     fn replace_terminator_operands(

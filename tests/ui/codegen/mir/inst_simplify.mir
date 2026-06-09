@@ -44,3 +44,26 @@ fn @fold_modular_helpers(arg0: u256) -> u256 {
     v3 = add v1, v2
     ret v3
 }
+
+fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool, bool, u256, u256, u256, u256) {
+  bb0 (entry):
+    v2 = or arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    v3 = xor arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    v4 = iszero arg1
+    v5 = iszero v4
+    v6 = lt 0, arg1
+    v7 = gt arg1, 0
+    v8 = shl 256, arg0
+    v9 = shr 300, arg0
+    v10 = byte 32, arg0
+    v11 = signextend 32, arg0
+    ret v2, v3, v5, v6, v7, v8, v9, v10, v11
+}
+
+fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = addmod arg0, arg1, 1
+    v3 = mulmod arg0, arg1, 1
+    v4 = add v2, v3
+    ret v4
+}

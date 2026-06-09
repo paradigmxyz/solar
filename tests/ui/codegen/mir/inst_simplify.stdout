@@ -33,3 +33,15 @@ fn @fold_modular_helpers(arg0: u256) -> u256 {
   bb0 (entry):
     ret 0
 }
+
+fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool, bool, u256, u256, u256, u256) {
+  bb0 (entry):
+    v5 = not arg0
+    v6 = iszero arg1
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v5, arg1, arg1, arg1, 0, 0, 0, arg0
+}
+
+fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    ret 0
+}

@@ -744,6 +744,8 @@ impl InstKind {
                 | Self::Call { .. }
                 | Self::DelegateCall { .. }
                 | Self::InternalCall { .. }
+                | Self::Create(_, _, _)
+                | Self::Create2(_, _, _, _)
         )
     }
 

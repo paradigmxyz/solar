@@ -5,6 +5,11 @@
 //! already come from a non-loop predecessor that jumps directly to the header.
 //! Later loop passes can rely on that shape for LICM, storage promotion, and
 //! ScalarEvolution-style reasoning.
+//!
+//! Safety contract:
+//! - only split header edges whose terminators explicitly target the header
+//! - preserve header phi semantics by moving outside incoming values through the inserted preheader
+//! - repair reachability-dependent phis after CFG rewrites
 
 use crate::{
     analysis::LoopAnalyzer,

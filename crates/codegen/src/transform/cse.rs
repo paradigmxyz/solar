@@ -26,6 +26,13 @@
 //!
 //! - Only operates within basic blocks (local CSE)
 //! - Does not perform PRE or global value numbering across branches
+//!
+//! Safety contract:
+//! - cache only pure expressions, classified memory reads, and exact storage or transient-storage
+//!   reads
+//! - invalidate memory reads by overlapping memory writes and unknown memory effects
+//! - invalidate storage reads by possibly-aliasing writes or calls that may re-enter and mutate the
+//!   current contract
 
 use crate::{
     mir::{
@@ -371,19 +378,19 @@ impl CommonSubexprEliminator {
                     _ => true,
                 });
             }
-            _ if Self::may_mutate_memory(kind) => {
+            _ if kind.may_mutate_memory() => {
                 expr_cache.retain(|key, _| !Self::is_memory_expr(key));
-                if Self::may_mutate_storage(kind) {
+                if kind.may_mutate_storage() {
                     expr_cache.retain(|key, _| !matches!(key, ExprKey::SLoad(_)));
                 }
-                if Self::may_mutate_transient_storage(kind) {
+                if kind.may_mutate_transient_storage() {
                     expr_cache.retain(|key, _| !matches!(key, ExprKey::TLoad(_)));
                 }
             }
-            _ if Self::may_mutate_storage(kind) => {
+            _ if kind.may_mutate_storage() => {
                 expr_cache.retain(|key, _| !matches!(key, ExprKey::SLoad(_)));
             }
-            _ if Self::may_mutate_transient_storage(kind) => {
+            _ if kind.may_mutate_transient_storage() => {
                 expr_cache.retain(|key, _| !matches!(key, ExprKey::TLoad(_)));
             }
             _ => {}
@@ -405,47 +412,6 @@ impl CommonSubexprEliminator {
 
     fn is_memory_expr(key: &ExprKey) -> bool {
         matches!(key, ExprKey::MLoad(_) | ExprKey::Keccak256(_))
-    }
-
-    fn may_mutate_memory(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::MStore(_, _)
-                | InstKind::MStore8(_, _)
-                | InstKind::MCopy(_, _, _)
-                | InstKind::CalldataCopy(_, _, _)
-                | InstKind::CodeCopy(_, _, _)
-                | InstKind::ExtCodeCopy(_, _, _, _)
-                | InstKind::ReturnDataCopy(_, _, _)
-                | InstKind::Call { .. }
-                | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::InternalCall { .. }
-                | InstKind::Create(_, _, _)
-                | InstKind::Create2(_, _, _, _)
-        )
-    }
-
-    fn may_mutate_storage(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::Call { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::InternalCall { .. }
-                | InstKind::Create(_, _, _)
-                | InstKind::Create2(_, _, _, _)
-        )
-    }
-
-    fn may_mutate_transient_storage(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::Call { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::InternalCall { .. }
-                | InstKind::Create(_, _, _)
-                | InstKind::Create2(_, _, _, _)
-        )
     }
 
     fn storage_alias(
@@ -643,156 +609,15 @@ impl CommonSubexprEliminator {
         }
     }
 
-    /// Replaces operands in an instruction kind.
     fn replace_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) -> bool {
         let mut changed = false;
-        let mut replace = |v: &mut ValueId| {
+        kind.visit_operands_mut(|v| {
             let new_v = Self::canonical_value(*v, replacements);
             if new_v != *v {
                 *v = new_v;
                 changed = true;
             }
-        };
-
-        match kind {
-            InstKind::Add(a, b)
-            | InstKind::Sub(a, b)
-            | InstKind::Mul(a, b)
-            | InstKind::Div(a, b)
-            | InstKind::SDiv(a, b)
-            | InstKind::Mod(a, b)
-            | InstKind::SMod(a, b)
-            | InstKind::Exp(a, b)
-            | InstKind::And(a, b)
-            | InstKind::Or(a, b)
-            | InstKind::Xor(a, b)
-            | InstKind::Shl(a, b)
-            | InstKind::Shr(a, b)
-            | InstKind::Sar(a, b)
-            | InstKind::Byte(a, b)
-            | InstKind::Lt(a, b)
-            | InstKind::Gt(a, b)
-            | InstKind::SLt(a, b)
-            | InstKind::SGt(a, b)
-            | InstKind::Eq(a, b)
-            | InstKind::MStore(a, b)
-            | InstKind::MStore8(a, b)
-            | InstKind::SStore(a, b)
-            | InstKind::TStore(a, b)
-            | InstKind::Keccak256(a, b)
-            | InstKind::Log0(a, b)
-            | InstKind::SignExtend(a, b) => {
-                replace(a);
-                replace(b);
-            }
-
-            InstKind::Not(a)
-            | InstKind::IsZero(a)
-            | InstKind::MLoad(a)
-            | InstKind::SLoad(a)
-            | InstKind::TLoad(a)
-            | InstKind::CalldataLoad(a)
-            | InstKind::ExtCodeSize(a)
-            | InstKind::ExtCodeHash(a)
-            | InstKind::Balance(a)
-            | InstKind::BlockHash(a)
-            | InstKind::BlobHash(a) => {
-                replace(a);
-            }
-
-            InstKind::AddMod(a, b, c)
-            | InstKind::MulMod(a, b, c)
-            | InstKind::MCopy(a, b, c)
-            | InstKind::CalldataCopy(a, b, c)
-            | InstKind::CodeCopy(a, b, c)
-            | InstKind::ReturnDataCopy(a, b, c)
-            | InstKind::Create(a, b, c)
-            | InstKind::Log1(a, b, c)
-            | InstKind::Select(a, b, c) => {
-                replace(a);
-                replace(b);
-                replace(c);
-            }
-
-            InstKind::ExtCodeCopy(a, b, c, d)
-            | InstKind::Create2(a, b, c, d)
-            | InstKind::Log2(a, b, c, d) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-            }
-
-            InstKind::Log3(a, b, c, d, e) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-            }
-
-            InstKind::Log4(a, b, c, d, e, f) => {
-                replace(a);
-                replace(b);
-                replace(c);
-                replace(d);
-                replace(e);
-                replace(f);
-            }
-
-            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(value);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-
-            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
-            | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                replace(gas);
-                replace(addr);
-                replace(args_offset);
-                replace(args_size);
-                replace(ret_offset);
-                replace(ret_size);
-            }
-            InstKind::InternalCall { args, .. } => {
-                for arg in args {
-                    replace(arg);
-                }
-            }
-
-            InstKind::Phi(incoming) => {
-                for (_, val) in incoming {
-                    replace(val);
-                }
-            }
-
-            // Nullary operations - no operands
-            InstKind::MSize
-            | InstKind::CalldataSize
-            | InstKind::InternalFrameAddr(_)
-            | InstKind::CodeSize
-            | InstKind::ReturnDataSize
-            | InstKind::Caller
-            | InstKind::CallValue
-            | InstKind::Origin
-            | InstKind::GasPrice
-            | InstKind::Coinbase
-            | InstKind::Timestamp
-            | InstKind::BlockNumber
-            | InstKind::PrevRandao
-            | InstKind::GasLimit
-            | InstKind::ChainId
-            | InstKind::Address
-            | InstKind::SelfBalance
-            | InstKind::Gas
-            | InstKind::BaseFee
-            | InstKind::BlobBaseFee => {}
-        }
+        });
 
         changed
     }

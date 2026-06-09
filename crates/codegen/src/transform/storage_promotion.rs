@@ -1,8 +1,14 @@
 //! Storage scalar promotion for simple loop-carried storage updates.
 //!
-//! This pass recognizes loops that repeatedly update a single storage slot and
-//! rewrites the loop to update a memory-backed scalar instead. The final value
-//! is stored back to storage once on each clean loop exit.
+//! This pass recognizes loops that repeatedly update one or more exact storage
+//! slots and rewrites the loop to update memory-backed scalars instead. Final
+//! values are stored back to storage once on each clean loop exit.
+//!
+//! Safety contract:
+//! - promote only exact storage aliases that are loop-invariant
+//! - reject loops with calls, unknown storage writes, or non-isolated exits
+//! - flush dirty promoted values before any clean observable exit
+//! - leave loop-variant mapping/array slots in storage
 
 use crate::{
     analysis::{Loop, LoopAnalyzer},
