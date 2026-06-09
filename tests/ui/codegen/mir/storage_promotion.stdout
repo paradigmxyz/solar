@@ -63,3 +63,35 @@ fn @promote_two_initialized_slots() {
     sstore 0, v17
     stop
 }
+
+fn @promote_without_init_rewrites_successor_phi() -> u256 {
+  bb0 (entry):
+    v12 = sload 0
+    mstore 128, v12
+    mstore 160, 0
+    jump bb1
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    v2 = mload 128
+    v4 = add v2, 2
+    mstore 128, v4
+    mstore 160, 1
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    v17 = mload 160
+    br v17, bb8, bb7
+  bb5:
+    v8 = phi [bb7: 7], [bb6: 9]
+    ret v8
+  bb6:
+    jump bb5
+  bb7:
+    jump bb5
+  bb8:
+    v18 = mload 128
+    sstore 0, v18
+    jump bb7
+}
