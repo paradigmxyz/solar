@@ -286,16 +286,10 @@ impl InstSimplifier {
             }
             InstKind::Or(a, b) => {
                 let (a, b) = (resolve(*a), resolve(*b));
-                if a == b {
+                if a == b || Self::is_all_ones(func, a) || Self::is_zero(func, b) {
                     Some(a)
-                } else if Self::is_all_ones(func, a) {
-                    Some(a)
-                } else if Self::is_all_ones(func, b) {
+                } else if Self::is_all_ones(func, b) || Self::is_zero(func, a) {
                     Some(b)
-                } else if Self::is_zero(func, a) {
-                    Some(b)
-                } else if Self::is_zero(func, b) {
-                    Some(a)
                 } else if Self::is_bitwise_complement_pair(func, a, b) {
                     Some(Self::imm_u256(func, U256::MAX))
                 } else {
