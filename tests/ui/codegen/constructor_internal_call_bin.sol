@@ -1,3 +1,4 @@
+//@ignore-host: windows
 //@compile-flags: -Zcodegen --emit=bin --pretty-json
 
 contract ConstructorInternalCallBin {

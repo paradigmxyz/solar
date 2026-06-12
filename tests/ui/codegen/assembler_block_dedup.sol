@@ -1,3 +1,4 @@
+//@ignore-host: windows
 //@compile-flags: -Zcodegen --emit=bin-runtime --pretty-json
 contract AssemblerBlockDedup {
     function a() public pure returns (uint256) {
