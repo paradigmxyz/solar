@@ -167,18 +167,23 @@ FileCheck "$2" < "$out"
     config.comment_defaults.base().require_annotations_for_level =
         Spanned::dummy(ui_test::diagnostics::Level::Warn).into();
 
-    let mut filters = Vec::new();
+    // `mut` is only used under `#[cfg(windows)]` below.
+    #[allow(unused_mut)]
+    let mut filters = vec![
+        (root.into(), b"ROOT".to_vec()),
+        (ui_test::Match::PathBackslash, b"/".to_vec()),
+        (
+            ui_test::Match::Exact(root.to_string_lossy().replace('\\', "/").into_bytes()),
+            b"ROOT".to_vec(),
+        ),
+    ];
+    // Windows paths carry `\\?\` long-path prefixes and `\r` line endings; strip
+    // both, ahead of the rewrites above.
     #[cfg(windows)]
     {
-        filters.push((ui_test::Match::Exact(br"\\?\".to_vec()), b"".to_vec()));
-        filters.push((ui_test::Match::Exact(vec![b'\r']), b"".to_vec()));
+        filters.insert(0, (ui_test::Match::Exact(vec![b'\r']), b"".to_vec()));
+        filters.insert(0, (ui_test::Match::Exact(br"\\?\".to_vec()), b"".to_vec()));
     }
-    filters.push((root.into(), b"ROOT".to_vec()));
-    filters.push((ui_test::Match::PathBackslash, b"/".to_vec()));
-    filters.push((
-        ui_test::Match::Exact(root.to_string_lossy().replace('\\', "/").into_bytes()),
-        b"ROOT".to_vec(),
-    ));
     config.comment_defaults.base().normalize_stderr.extend(filters.iter().cloned());
     config.comment_defaults.base().normalize_stdout.extend(filters);
 

@@ -1518,7 +1518,8 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         return;
     }
 
-    let mut insert_at = caller.blocks[continuation]
+    // Insert the stores right after the continuation block's leading phis.
+    let phi_count = caller.blocks[continuation]
         .instructions
         .iter()
         .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
@@ -1528,8 +1529,7 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         let offset = caller
             .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
         let store = caller.alloc_inst(Instruction::new(InstKind::MStore(offset, value), None));
-        caller.blocks[continuation].instructions.insert(insert_at, store);
-        insert_at += 1;
+        caller.blocks[continuation].instructions.insert(phi_count + index, store);
     }
 }
 
