@@ -87,6 +87,11 @@ struct SlotSsaBuilder<'a> {
     exit_values: FxHashMap<BlockId, Option<ValueId>>,
     processing_exit: FxHashSet<BlockId>,
     phis: FxHashMap<BlockId, PendingPhi>,
+    /// Blocks where this slot is live-in. Used to place phis only where the slot
+    /// is actually live (pruned SSA): forcing a phi at a multi-predecessor block
+    /// where the slot is dead can chain back to the entry with no reaching value
+    /// and spuriously abort the whole promotion.
+    live_in: FxHashSet<BlockId>,
     failed: bool,
     loads_promoted: usize,
     stores_promoted: usize,
@@ -577,13 +582,90 @@ impl<'a> SlotSsaBuilder<'a> {
             exit_values: FxHashMap::default(),
             processing_exit: FxHashSet::default(),
             phis: FxHashMap::default(),
+            live_in: FxHashSet::default(),
             failed: false,
             loads_promoted: 0,
             stores_promoted: 0,
         }
     }
 
+    /// Computes the set of blocks where `self.slot` is live-in (a load of the
+    /// slot may observe a value defined before the block).
+    ///
+    /// This is single-variable backward liveness:
+    /// - `gen` (upward-exposed use): a promotable load of the slot precedes any store of the slot
+    ///   in the block.
+    /// - `kill` (def): the block stores the slot, overwriting any entry value.
+    /// - `live_in(b) = gen(b) ∨ (live_out(b) ∧ ¬kill(b))`, with `live_out(b) = ⋁ live_in(succ)`.
+    ///
+    /// Phis are only created at live-in blocks (pruned SSA); see [`Self::entry_value`].
+    fn compute_live_in(&self, func: &Function) -> FxHashSet<BlockId> {
+        let mut gen_set: FxHashSet<BlockId> = FxHashSet::default();
+        let mut kill: FxHashSet<BlockId> = FxHashSet::default();
+        // Successors restricted to reachable blocks, derived by inverting the
+        // predecessor lists (avoids depending on a terminator-successors helper).
+        let mut succs: FxHashMap<BlockId, Vec<BlockId>> = FxHashMap::default();
+
+        for block in func.blocks.indices() {
+            if !self.reachable.contains(&block) {
+                continue;
+            }
+
+            let mut saw_store = false;
+            for &inst_id in &func.blocks[block].instructions {
+                match func.instructions[inst_id].kind {
+                    InstKind::MLoad(addr)
+                        if !saw_store
+                            && FrameSlotPromoter::promotable_slot(func, addr)
+                                == Some(self.slot) =>
+                    {
+                        gen_set.insert(block);
+                    }
+                    InstKind::MStore(addr, _)
+                        if FrameSlotPromoter::promotable_slot(func, addr) == Some(self.slot) =>
+                    {
+                        saw_store = true;
+                    }
+                    _ => {}
+                }
+            }
+            if saw_store {
+                kill.insert(block);
+            }
+
+            for &pred in &func.blocks[block].predecessors {
+                if self.reachable.contains(&pred) {
+                    succs.entry(pred).or_default().push(block);
+                }
+            }
+        }
+
+        // Backward fixpoint. `live_in` only grows, so a block already in the set
+        // can be skipped on later rounds.
+        let mut live_in = gen_set;
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for block in func.blocks.indices() {
+                if !self.reachable.contains(&block)
+                    || live_in.contains(&block)
+                    || kill.contains(&block)
+                {
+                    continue;
+                }
+                let live_out =
+                    succs.get(&block).is_some_and(|ss| ss.iter().any(|s| live_in.contains(s)));
+                if live_out {
+                    live_in.insert(block);
+                    changed = true;
+                }
+            }
+        }
+        live_in
+    }
+
     fn run(&mut self, func: &mut Function) -> bool {
+        self.live_in = self.compute_live_in(func);
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block in block_ids {
             if self.reachable.contains(&block) {
@@ -667,7 +749,12 @@ impl<'a> SlotSsaBuilder<'a> {
         let value = match preds.as_slice() {
             [] => None,
             [pred] if *pred != block => self.exit_value(func, *pred),
-            _ => Some(self.block_phi(func, block, &preds)),
+            // Only place a phi where the slot is actually live (pruned SSA). A
+            // multi-predecessor block where the slot is dead needs no phi; forcing
+            // one can chain back to an undefined entry value on some path and
+            // spuriously abort the entire promotion of this slot.
+            _ if self.live_in.contains(&block) => Some(self.block_phi(func, block, &preds)),
+            _ => None,
         };
 
         self.entry_values.insert(block, value);
