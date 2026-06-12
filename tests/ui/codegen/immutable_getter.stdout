@@ -3,17 +3,20 @@
 fn @owner() {
   bb0 (entry):
     mstore 128, 0
-    v3 = codesize
-    v5 = sub v3, 32
-    v7 = add v5, 0
-    codecopy 0, v7, 32 !metadata(memory=scratch)
-    v11 = mload 0 !metadata(memory=scratch)
-    mstore 128, v11
+    v3 = loadimmutable 0
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @_anonymous(arg0: address) {
   bb0 (entry):
+    v2 = mload 128
+    v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v2, v4
+    br v5, bb2, bb1
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 0x2000, arg0
     stop
 }

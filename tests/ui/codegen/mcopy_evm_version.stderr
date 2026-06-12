@@ -1,0 +1,10 @@
+error: codegen requires Cancun-compatible EVM for memory copy
+   ╭▸ ROOT/tests/ui/codegen/mcopy_evm_version.sol:LL:CC
+   │
+LL │             mcopy(0x80, 0xa0, 0x20)
+   │             ━━━━━━━━━━━━━━━━━━━━━━━
+   │
+   ╰ help: compile with `--evm-version cancun` or newer
+
+error: aborting due to 1 previous error
+

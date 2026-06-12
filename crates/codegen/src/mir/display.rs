@@ -318,6 +318,7 @@ fn format_inst_kind(kind: &InstKind, func: &Function) -> String {
                 fmt_val(*size, func)
             )
         }
+        InstKind::LoadImmutable(offset) => format!("loadimmutable {offset}"),
         InstKind::ExtCodeSize(addr) => format!("extcodesize {}", fmt_val(*addr, func)),
         InstKind::ExtCodeCopy(addr, dest, offset, size) => {
             format!(
@@ -465,6 +466,9 @@ fn format_inst_kind(kind: &InstKind, func: &Function) -> String {
 
         // SSA
         InstKind::Phi(args) => {
+            if args.is_empty() {
+                return "phi".to_string();
+            }
             let args_str: Vec<_> = args
                 .iter()
                 .map(|(block, val)| format!("[bb{}: {}]", block.index(), fmt_val(*val, func)))

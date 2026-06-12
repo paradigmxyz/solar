@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=abi,bin,bin-runtime --pretty-json
+//@compile-flags: -Zcodegen --emit=abi,bin,bin-runtime --pretty-json
 
 contract C {
     uint public x;

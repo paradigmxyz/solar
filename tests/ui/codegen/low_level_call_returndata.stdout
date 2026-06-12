@@ -1,0 +1,260 @@
+// === ROOT/tests/ui/codegen/low_level_call_returndata.sol:LowLevelCallReturndata ===
+; module @LowLevelCallReturndata
+fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 96
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = calldataload 36
+    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = eq v15, v17
+    br v18, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v23 = mload 64 !metadata(memory=scratch)
+    mstore v23, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v26 = add v23, 4
+    mstore v26, arg1
+    v29 = add v26, 32
+    mstore v29, arg2
+    v33 = add 64, 4
+    v35 = add v33, 31
+    v36 = not 31
+    v37 = and v35, v36
+    v38 = add v23, v37
+    mstore 64, v38 !metadata(memory=scratch)
+    v41 = gas
+    v45 = call v41, arg0, 0, v23, v33, 0, 0
+    mstore 128, v45
+    v48 = returndatasize
+    v50 = add v48, 31
+    v51 = not 31
+    v52 = and v50, v51
+    v54 = add v52, 32
+    v56 = mload 64 !metadata(memory=scratch)
+    v57 = add v56, v54
+    mstore 64, v57 !metadata(memory=scratch)
+    mstore v56, v48
+    v61 = add v56, 32
+    returndatacopy v61, 0, v48
+    mstore 160, v56
+    v67 = mload 128
+    br v67, bb7, bb8
+  bb7:
+    v69 = mload 160
+    v70 = mload v69
+    v72 = eq v70, 0
+    br v72, bb10, bb9
+  bb8:
+    v92 = phi [bb6: 0], [bb10: v90]
+    v93 = iszero v92
+    br v93, bb15, bb16
+  bb9:
+    v74 = mload 160
+    v76 = mload v74
+    v78 = lt v76, 32
+    br v78, bb11, bb12
+  bb10:
+    v90 = phi [bb7: 1], [bb14: v84]
+    jump bb8
+  bb11:
+    revert 0, 0
+  bb12:
+    v81 = add v74, 32
+    v82 = mload v81
+    v83 = iszero v82
+    v84 = iszero v83
+    v85 = eq v82, v84
+    v86 = iszero v85
+    br v86, bb13, bb14
+  bb13:
+    revert 0, 0
+  bb14:
+    jump bb10
+  bb15:
+    v95 = mload 64 !metadata(memory=scratch)
+    v97 = add v95, 64
+    mstore 64, v97 !metadata(memory=scratch)
+    mstore v95, 2
+    v103 = add v95, 32
+    v106 = add v103, 0
+    mstore v106, 0x5446000000000000000000000000000000000000000000000000000000000000
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    v114 = mload v95
+    mstore 36, v114 !metadata(memory=scratch)
+    v118 = add v114, 31
+    v120 = and v118, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v122 = iszero v120
+    v123 = iszero v122
+    br v123, bb17, bb18
+  bb16:
+    stop
+  bb17:
+    v125 = sub v120, 32
+    v126 = add 68, v125
+    mstore v126, 0
+    jump bb18
+  bb18:
+    v128 = add v95, 32
+    mcopy 68, v128, v114 !metadata(memory=scratch)
+    v130 = add 68, v120
+    revert 0, v130
+}
+
+fn @balanceOf(arg0: address) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    v17 = address
+    v19 = and v17, 0xffffffffffffffffffffffffffffffffffffffff
+    v21 = mload 64 !metadata(memory=scratch)
+    mstore v21, 0x70a0823100000000000000000000000000000000000000000000000000000000
+    v24 = add v21, 4
+    mstore v24, v19
+    v28 = add 32, 4
+    v30 = add v28, 31
+    v31 = not 31
+    v32 = and v30, v31
+    v33 = add v21, v32
+    mstore 64, v33 !metadata(memory=scratch)
+    v36 = gas
+    v40 = staticcall v36, arg0, v21, v28, 0, 0
+    mstore 160, v40
+    v43 = returndatasize
+    v45 = add v43, 31
+    v46 = not 31
+    v47 = and v45, v46
+    v49 = add v47, 32
+    v51 = mload 64 !metadata(memory=scratch)
+    v52 = add v51, v49
+    mstore 64, v52 !metadata(memory=scratch)
+    mstore v51, v43
+    v56 = add v51, 32
+    returndatacopy v56, 0, v43
+    mstore 192, v51
+    v62 = mload 160
+    v63 = iszero v62
+    br v63, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v67 = mload 192
+    v69 = mload v67
+    v71 = lt v69, 32
+    br v71, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v74 = add v67, 32
+    v75 = mload v74
+    mstore 128, v75
+    returndata 128, 32
+}
+
+fn @forward(arg0: address, arg1: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = add 4, arg1
+    v16 = calldataload v15
+    v18 = add v16, 31
+    v19 = not 31
+    v20 = and v18, v19
+    v22 = add v20, 32
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, v22
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v16
+    v29 = add v24, 32
+    v30 = add v15, 32
+    calldatacopy v29, v30, v16
+    mstore 128, 0
+    v36 = add v24, 32
+    v37 = mload v24
+    v38 = gas
+    v42 = call v38, arg0, 0, v36, v37, 0, 0
+    mstore 160, v42
+    v45 = returndatasize
+    v47 = add v45, 31
+    v48 = not 31
+    v49 = and v47, v48
+    v51 = add v49, 32
+    v53 = mload 64 !metadata(memory=scratch)
+    v54 = add v53, v51
+    mstore 64, v54 !metadata(memory=scratch)
+    mstore v53, v45
+    v58 = add v53, 32
+    returndatacopy v58, 0, v45
+    mstore 192, v53
+    v64 = mload 160
+    v65 = iszero v64
+    br v65, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v69 = mload 192
+    v71 = mload 64 !metadata(memory=scratch)
+    v73 = add v71, 32
+    mstore 64, v73 !metadata(memory=scratch)
+    v77 = add v71, 32
+    v78 = sub v77, v71
+    mstore v71, v78
+    v80 = mload v69
+    mstore v77, v80
+    v84 = not 31
+    v85 = add v80, 31
+    v86 = and v85, v84
+    v87 = add v77, 32
+    v88 = iszero v86
+    br v88, bb8, bb7
+  bb7:
+    v89 = sub v86, 32
+    v90 = add v87, v89
+    mstore v90, 0
+    jump bb8
+  bb8:
+    v93 = add v69, 32
+    v94 = add v87, v86
+    mcopy v87, v93, v80
+    v96 = sub v94, v71
+    returndata v71, v96
+}
+

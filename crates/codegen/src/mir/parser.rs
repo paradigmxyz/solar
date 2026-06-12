@@ -27,8 +27,7 @@
 //!   (different v-numbers).
 //! - Address and fixed-bytes immediate literals are not currently parsed — they're allocated as
 //!   `Immediate::uint256(0)`. If you need them, extend `parse_value`.
-//! - Phi values (`Value::Phi { .. }`) are NOT supported as inputs; the parser only emits phi
-//!   *instructions* (`InstKind::Phi`).
+//! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 //!
 //! [`function_to_text`]: super::function_to_text
 //! [`module_to_text`]: super::module_to_text
@@ -1362,6 +1361,10 @@ impl<'a> Parser<'a> {
                 comma!();
                 let c = v!();
                 (InstKind::CodeCopy(a, b, c), None)
+            }
+            "loadimmutable" => {
+                let offset = self.parse_uint_literal()?.to::<u64>();
+                (InstKind::LoadImmutable(offset), Some(MirType::uint256()))
             }
             "extcodesize" => {
                 let a = v!();

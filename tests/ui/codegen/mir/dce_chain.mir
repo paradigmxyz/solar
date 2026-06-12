@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass dce
 // Dead chain: v3 uses v2, v2 uses v1. None are used by ret.
 // run_to_fixpoint should eliminate all three.

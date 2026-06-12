@@ -1,0 +1,388 @@
+// === ROOT/tests/ui/codegen/memory_fixed_array_alloc.sol:MemoryFixedArrayAlloc ===
+; module @MemoryFixedArrayAlloc
+fn @guardedFix(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = mload 64 !metadata(memory=scratch)
+    v13 = add v11, 96
+    mstore 64, v13 !metadata(memory=scratch)
+    mstore v11, 0
+    v20 = add v11, 32
+    mstore v20, 0
+    v24 = add v11, 64
+    mstore v24, 0
+    v27 = mul arg0, 32
+    v29 = lt arg0, 3
+    br v29, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v37 = add v11, v27
+    v38 = mload v37
+    mstore 128, v38
+    returndata 128, 32
+}
+
+fn @structArr(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = mload 64 !metadata(memory=scratch)
+    v13 = add v11, 32
+    mstore 64, v13 !metadata(memory=scratch)
+    v17 = mload 64 !metadata(memory=scratch)
+    v19 = add v17, 96
+    mstore 64, v19 !metadata(memory=scratch)
+    mstore v17, 0
+    v26 = add v17, 32
+    mstore v26, 0
+    v30 = add v17, 64
+    mstore v30, 0
+    mstore v11, v17
+    v33 = mload v11
+    v35 = mul arg0, 32
+    v37 = lt arg0, 3
+    br v37, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v45 = add v33, v35
+    v46 = mload v45
+    mstore 128, v46
+    returndata 128, 32
+}
+
+fn @nested(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v12 = mload 64 !metadata(memory=scratch)
+    v14 = add v12, 96
+    mstore 64, v14 !metadata(memory=scratch)
+    v18 = mload 64 !metadata(memory=scratch)
+    v20 = add v18, 64
+    mstore 64, v20 !metadata(memory=scratch)
+    mstore v18, 0
+    v27 = add v18, 32
+    mstore v27, 0
+    mstore v12, v18
+    v31 = mload 64 !metadata(memory=scratch)
+    v33 = add v31, 64
+    mstore 64, v33 !metadata(memory=scratch)
+    mstore v31, 0
+    v40 = add v31, 32
+    mstore v40, 0
+    v43 = add v12, 32
+    mstore v43, v31
+    v46 = mload 64 !metadata(memory=scratch)
+    v48 = add v46, 64
+    mstore 64, v48 !metadata(memory=scratch)
+    mstore v46, 0
+    v55 = add v46, 32
+    mstore v55, 0
+    v58 = add v12, 64
+    mstore v58, v46
+    v63 = mul 0, 32
+    v65 = add v12, v63
+    v66 = mload v65
+    v69 = mul 0, 32
+    v71 = add v66, v69
+    mstore v71, 1
+    v74 = mul arg0, 32
+    v76 = lt arg0, 3
+    br v76, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v84 = add v12, v74
+    v85 = mload v84
+    v87 = mul arg1, 32
+    v89 = lt arg1, 2
+    br v89, bb6, bb5
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v97 = add v85, v87
+    v98 = mload v97
+    mstore 128, v98
+    returndata 128, 32
+}
+
+fn @fmpIntegrity() {
+  bb0 (entry):
+    mstore 128, 0
+    mstore 160, 0
+    v7 = mload 64 !metadata(memory=scratch)
+    v9 = add v7, 96
+    mstore 64, v9 !metadata(memory=scratch)
+    mstore v7, 0
+    v16 = add v7, 32
+    mstore v16, 0
+    v20 = add v7, 64
+    mstore v20, 0
+    v25 = mul 2, 32
+    v27 = add v7, v25
+    mstore v27, 7
+    v31 = mload 64 !metadata(memory=scratch)
+    mstore v31, 1
+    v34 = mul 1, 32
+    v35 = div v34, 32
+    v36 = eq v35, 1
+    br v36, bb2, bb1
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v44 = add v34, 32
+    v45 = lt v44, v34
+    br v45, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v53 = add v31, v44
+    v54 = lt v53, v31
+    br v54, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v63 = gt v53, 0xffffffffffffffff
+    br v63, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 64, v53 !metadata(memory=scratch)
+    v73 = add v31, 32
+    v74 = calldatasize
+    calldatacopy v73, v74, v34
+    v79 = mul 0, 32
+    v80 = mload v31
+    v81 = lt 0, v80
+    br v81, bb10, bb9
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v89 = add v31, 32
+    v90 = add v89, v79
+    mstore v90, 9
+    v94 = mul 2, 32
+    v96 = add v7, v94
+    v97 = mload v96
+    v100 = mul 0, 32
+    v101 = mload v31
+    v102 = lt 0, v101
+    br v102, bb12, bb11
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v110 = add v31, 32
+    v111 = add v110, v100
+    v112 = mload v111
+    mstore 128, v97
+    v116 = add 128, 32
+    mstore v116, v112
+    returndata 128, 64
+}
+
+fn @literal() {
+  bb0 (entry):
+    mstore 128, 0
+    v4 = mload 64 !metadata(memory=scratch)
+    v6 = add v4, 96
+    mstore 64, v6 !metadata(memory=scratch)
+    v11 = add v4, 0
+    mstore v11, 1
+    v15 = add v4, 32
+    mstore v15, 2
+    v19 = add v4, 64
+    mstore v19, 3
+    v23 = mul 2, 32
+    v25 = add v4, v23
+    v26 = mload v25
+    mstore 128, v26
+    returndata 128, 32
+}
+
+// === ROOT/tests/ui/codegen/memory_fixed_array_alloc.sol:NamedReturnAndDelete ===
+; module @NamedReturnAndDelete
+fn @namedReturn() {
+  bb0 (entry):
+    v2 = mload 64 !metadata(memory=scratch)
+    v4 = add v2, 96
+    mstore 64, v4 !metadata(memory=scratch)
+    mstore v2, 0
+    v11 = add v2, 32
+    mstore v11, 0
+    v15 = add v2, 64
+    mstore v15, 0
+    mstore 128, v2
+    mstore 160, 0
+    v23 = mload 128
+    v26 = mul 0, 32
+    v28 = add v23, v26
+    mstore v28, 1
+    v32 = mload 128
+    v35 = mul 2, 32
+    v37 = add v32, v35
+    mstore v37, 3
+    v41 = mload 64 !metadata(memory=scratch)
+    mstore v41, 32
+    v45 = add 32, 31
+    v46 = lt v45, 32
+    br v46, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    v54 = not 31
+    v55 = and v45, v54
+    v56 = add v55, 32
+    v57 = lt v56, v55
+    br v57, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v65 = add v41, v56
+    v66 = lt v65, v41
+    br v66, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v75 = gt v65, 0xffffffffffffffff
+    br v75, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 64, v65 !metadata(memory=scratch)
+    v85 = add v41, 32
+    v86 = calldatasize
+    calldatacopy v85, v86, v55
+    v90 = mload v41
+    v91 = lt 0, v90
+    br v91, bb10, bb9
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v100 = add v41, 32
+    v101 = add v100, 0
+    mstore8 v101, 238
+    v105 = mload v41
+    v106 = lt 0, v105
+    br v106, bb12, bb11
+  bb11:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb12:
+    v115 = add v41, 32
+    v116 = add v115, 0
+    v117 = mload v116
+    v119 = and v117, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v121 = shr 248, v119
+    v123 = and v121, 255
+    mstore 160, v123
+    v127 = mload 128
+    v129 = mload 160
+    v131 = mload v127
+    mstore 128, v131
+    v134 = add 128, 32
+    v136 = add v127, 32
+    v137 = mload v136
+    mstore v134, v137
+    v140 = add v134, 32
+    v142 = add v127, 64
+    v143 = mload v142
+    mstore v140, v143
+    v146 = add v140, 32
+    v148 = add 128, 96
+    mstore v148, v129
+    returndata 128, 128
+}
+
+fn @deleteInPlace() {
+  bb0 (entry):
+    mstore 128, 0
+    mstore 160, 0
+    v7 = mload 64 !metadata(memory=scratch)
+    v9 = add v7, 96
+    mstore 64, v9 !metadata(memory=scratch)
+    mstore v7, 0
+    v16 = add v7, 32
+    mstore v16, 0
+    v20 = add v7, 64
+    mstore v20, 0
+    v25 = mul 0, 32
+    v27 = add v7, v25
+    mstore v27, 5
+    v32 = mul 1, 32
+    v34 = add v7, v32
+    mstore v34, 6
+    v39 = mul 2, 32
+    v41 = add v7, v39
+    mstore v41, 7
+    mstore v7, 0
+    v48 = add v7, 32
+    mstore v48, 0
+    v52 = add v7, 64
+    mstore v52, 0
+    v57 = mul 2, 32
+    v59 = add v7, v57
+    mstore v59, 9
+    v63 = mul 0, 32
+    v65 = add v7, v63
+    v66 = mload v65
+    v69 = mul 2, 32
+    v71 = add v7, v69
+    v72 = mload v71
+    mstore 128, v66
+    v76 = add 128, 32
+    mstore v76, v72
+    returndata 128, 64
+}
+

@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass cse
 // Two SLOADs from the same slot within a block (no intervening SSTORE)
 // should be CSE'd. But after an SSTORE, the cache is invalidated.

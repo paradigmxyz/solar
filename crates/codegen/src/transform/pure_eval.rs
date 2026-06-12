@@ -8,6 +8,7 @@
 use crate::{
     mir::{Function, Immediate, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
+    transform::const_eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -38,8 +39,8 @@ impl FunctionPass for PureEvalPass {
 
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let changed = PureEvaluator::new().run(func).functions_folded != 0;
-        crate::transform::repair_reachability_phis(func);
-        changed
+        let repaired = crate::transform::repair_reachability_phis(func);
+        changed || repaired
     }
 }
 
@@ -72,9 +73,37 @@ impl PureEvaluator {
         let Some(values) = self.evaluate(func) else {
             return &self.stats;
         };
+        if self.is_already_folded(func, &values) {
+            return &self.stats;
+        }
         self.rewrite_to_return(func, &values);
         self.stats.functions_folded = 1;
         &self.stats
+    }
+
+    /// Returns true when the function is already in the exact shape
+    /// [`Self::rewrite_to_return`] would produce, so rewriting again would
+    /// report a change (and allocate fresh immediates) without progress.
+    fn is_already_folded(&self, func: &Function, values: &[U256]) -> bool {
+        let entry = func.entry_block;
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if !block.instructions.is_empty() {
+                return false;
+            }
+            if block_id != entry && !matches!(block.terminator, Some(Terminator::Invalid)) {
+                return false;
+            }
+        }
+        let Some(Terminator::Return { values: ret }) = &func.blocks[entry].terminator else {
+            return false;
+        };
+        ret.len() == values.len()
+            && ret.iter().zip(values).all(|(&ret_value, expected)| {
+                matches!(
+                    func.value(ret_value),
+                    Value::Immediate(imm) if imm.as_u256() == Some(*expected)
+                )
+            })
     }
 
     fn is_side_effect_free(&self, func: &Function) -> bool {
@@ -195,9 +224,9 @@ impl PureEvaluator {
                     get(value)? >> shift.to::<usize>()
                 }
             }
-            InstKind::Sar(shift, value) => arithmetic_shift_right(get(value)?, get(shift)?),
-            InstKind::Byte(index, value) => byte(get(index)?, get(value)?),
-            InstKind::SignExtend(size, value) => signextend(get(size)?, get(value)?),
+            InstKind::Sar(shift, value) => const_eval::sar(get(value)?, get(shift)?),
+            InstKind::Byte(index, value) => const_eval::byte(get(index)?, get(value)?),
+            InstKind::SignExtend(size, value) => const_eval::signextend(get(size)?, get(value)?),
             InstKind::Lt(a, b) => U256::from(get(a)? < get(b)?),
             InstKind::Gt(a, b) => U256::from(get(a)? > get(b)?),
             InstKind::Eq(a, b) => U256::from(get(a)? == get(b)?),
@@ -240,38 +269,4 @@ fn inst_result_value(func: &Function, inst_id: crate::mir::InstId) -> Option<Val
     func.values.iter_enumerated().find_map(|(value_id, value)| {
         matches!(value, Value::Inst(id) if *id == inst_id).then_some(value_id)
     })
-}
-
-fn byte(index: U256, value: U256) -> U256 {
-    if index >= U256::from(32) {
-        U256::ZERO
-    } else {
-        let shift = 8 * (31 - index.to::<usize>());
-        (value >> shift) & U256::from(0xff)
-    }
-}
-
-fn signextend(size: U256, value: U256) -> U256 {
-    if size >= U256::from(31) {
-        return value;
-    }
-    let bit = size.to::<usize>() * 8 + 7;
-    let sign_bit = U256::from(1) << bit;
-    let mask = sign_bit - U256::from(1);
-    if (value & sign_bit).is_zero() { value & mask } else { value | !mask }
-}
-
-fn arithmetic_shift_right(value: U256, shift: U256) -> U256 {
-    let negative = !((value >> 255usize) & U256::from(1)).is_zero();
-    if shift >= U256::from(256) {
-        return if negative { U256::MAX } else { U256::ZERO };
-    }
-
-    let shift = shift.to::<usize>();
-    if shift == 0 || !negative {
-        return value >> shift;
-    }
-
-    let low_mask = (U256::from(1) << (256 - shift)) - U256::from(1);
-    (value >> shift) | !low_mask
 }

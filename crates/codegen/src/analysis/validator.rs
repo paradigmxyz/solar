@@ -254,6 +254,25 @@ pub fn validate_function(func: &Function) -> Vec<ValidationError> {
                         ));
                     }
                 }
+                // Incoming lists are keyed per predecessor block, so duplicate
+                // entries for one block must agree on the value; conflicting
+                // duplicates make the chosen value depend on consumer order.
+                for (index, (pred_block, value)) in incoming.iter().enumerate() {
+                    if incoming
+                        .iter()
+                        .take(index)
+                        .any(|(other, other_value)| other == pred_block && other_value != value)
+                    {
+                        errors.push(ValidationError::at_inst(
+                            format!(
+                                "phi has conflicting incoming values for predecessor bb{}",
+                                pred_block.index()
+                            ),
+                            block_id,
+                            inst_id,
+                        ));
+                    }
+                }
             }
         }
     }

@@ -1,0 +1,198 @@
+// === ROOT/tests/ui/codegen/calldata_validation.sol:CalldataValidation ===
+; module @CalldataValidation
+fn @vUint8(arg0: u8) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 255
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @vInt16(arg0: i16) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = signextend 1, v8
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @vBool(arg0: bool) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v9 = iszero v8
+    v10 = iszero v9
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @vAddress(arg0: address) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @vBytes4(arg0: bytes4) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @vEnum(arg0: u8) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = lt v8, 3
+    br v10, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @vMulti(arg0: u32, arg1: i8) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffffffff
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = calldataload 36
+    v17 = signextend 0, v15
+    v18 = eq v15, v17
+    br v18, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 128, 0
+    v24 = and arg0, 0xffffffff
+    v26 = shl 248, arg1
+    v27 = sar 248, v26
+    v29 = and v27, 255
+    v30 = add v24, v29
+    v31 = lt v30, v24
+    br v31, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 128, v30
+    returndata 128, 32
+}
+
+fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 96
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v12 = add arg0, arg1
+    v13 = lt v12, arg0
+    br v13, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v21 = add v12, arg2
+    v22 = lt v21, v12
+    br v22, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 128, v21
+    returndata 128, 32
+}
+

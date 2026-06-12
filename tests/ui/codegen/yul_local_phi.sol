@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract YulLocalPhi {
     function branchLocal(uint256 flag) public pure returns (uint256 result) {

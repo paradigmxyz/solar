@@ -2,34 +2,62 @@
 ; module @Branch
 fn @max(arg0: u256, arg1: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = gt arg0, arg1
-    br v5, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
   bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = gt arg0, arg1
+    br v11, bb3, bb4
+  bb3:
     mstore 128, arg0
     returndata 128, 32
-  bb2:
+  bb4:
     mstore 128, arg1
     returndata 128, 32
 }
 
 fn @abs_diff(arg0: u256, arg1: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = lt arg0, arg1
-    v6 = iszero v5
-    br v6, bb1, bb3
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
   bb1:
-    v7 = sub arg0, arg1
-    mstore 128, v7
-    returndata 128, 32
+    revert 0, 0
   bb2:
-    v16 = mload 128
-    mstore 128, v16
-    returndata 128, 32
+    mstore 128, 0
+    v11 = lt arg0, arg1
+    v12 = iszero v11
+    br v12, bb3, bb5
   bb3:
-    v11 = sub arg1, arg0
-    mstore 128, v11
+    v13 = sub arg0, arg1
+    v14 = lt arg0, arg1
+    br v14, bb6, bb7
+  bb4:
+    v38 = mload 128
+    mstore 128, v38
+    returndata 128, 32
+  bb5:
+    v25 = sub arg1, arg0
+    v26 = lt arg1, arg0
+    br v26, bb8, bb9
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 128, v13
+    returndata 128, 32
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 128, v25
     returndata 128, 32
 }
 

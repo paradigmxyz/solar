@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract Linear {
     function add(uint256 x, uint256 y) public pure returns (uint256) {

@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract Branch {
     function max(uint256 a, uint256 b) public pure returns (uint256) {

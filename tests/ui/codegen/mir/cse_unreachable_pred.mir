@@ -1,0 +1,19 @@
+//@compile-flags: --pass cse
+// bb2 is reachable from the entry but also has the unreachable predecessor bb1.
+// Dominators are computed over reachable blocks only, so bb2 keeps its place in the
+// dominator tree and the duplicate sload's replacement must reach its use in bb3
+// instead of dangling on the deleted result.
+; module @CseUnreachablePred
+fn @no_dangling_use(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb2
+  bb1:
+    jump bb2
+  bb2:
+    v1 = sload arg0
+    v2 = sload arg0
+    jump bb3
+  bb3:
+    v3 = add v1, v2
+    ret v3
+}

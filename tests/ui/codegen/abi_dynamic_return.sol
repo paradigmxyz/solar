@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract AbiDynamicReturn {
     function bytesLiteral() public pure returns (bytes memory) {

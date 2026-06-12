@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass sccp
 // Branch on a constant condition: lt(5, 10) = true.
 // SCCP should fold the comparison and the branch, making bb2 unreachable.

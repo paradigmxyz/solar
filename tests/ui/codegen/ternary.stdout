@@ -2,66 +2,101 @@
 ; module @Ternary
 fn @max(arg0: u256, arg1: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = gt arg0, arg1
-    br v5, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
   bb1:
-    mstore 0, arg0 !metadata(memory=scratch)
-    jump bb3
+    revert 0, 0
   bb2:
-    mstore 0, arg1 !metadata(memory=scratch)
-    jump bb3
+    mstore 128, 0
+    v11 = gt arg0, arg1
+    br v11, bb3, bb4
   bb3:
-    v11 = mload 0 !metadata(memory=scratch)
-    mstore 128, v11
+    mstore 0, arg0 !metadata(memory=scratch)
+    jump bb5
+  bb4:
+    mstore 0, arg1 !metadata(memory=scratch)
+    jump bb5
+  bb5:
+    v17 = mload 0 !metadata(memory=scratch)
+    mstore 128, v17
     returndata 128, 32
 }
 
 fn @clamp(arg0: u256, arg1: u256, arg2: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v6 = lt arg0, arg1
-    br v6, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 96
+    br v4, bb1, bb2
   bb1:
-    mstore 0, arg1 !metadata(memory=scratch)
-    jump bb3
+    revert 0, 0
   bb2:
-    v9 = gt arg0, arg2
-    br v9, bb4, bb5
+    mstore 128, 0
+    v12 = lt arg0, arg1
+    br v12, bb3, bb4
   bb3:
-    v19 = mload 0 !metadata(memory=scratch)
-    v21 = mload 0 !metadata(memory=scratch)
-    mstore 128, v21
-    returndata 128, 32
+    mstore 0, arg1 !metadata(memory=scratch)
+    jump bb5
   bb4:
-    mstore 0, arg2 !metadata(memory=scratch)
-    jump bb6
+    v15 = gt arg0, arg2
+    br v15, bb6, bb7
   bb5:
-    mstore 0, arg0 !metadata(memory=scratch)
-    jump bb6
+    v25 = mload 0 !metadata(memory=scratch)
+    v27 = mload 0 !metadata(memory=scratch)
+    mstore 128, v27
+    returndata 128, 32
   bb6:
-    v15 = mload 0 !metadata(memory=scratch)
-    mstore 0, v15 !metadata(memory=scratch)
-    jump bb3
+    mstore 0, arg2 !metadata(memory=scratch)
+    jump bb8
+  bb7:
+    mstore 0, arg0 !metadata(memory=scratch)
+    jump bb8
+  bb8:
+    v21 = mload 0 !metadata(memory=scratch)
+    mstore 0, v21 !metadata(memory=scratch)
+    jump bb5
 }
 
 fn @abs_diff(arg0: u256, arg1: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = lt arg0, arg1
-    v6 = iszero v5
-    br v6, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
   bb1:
-    v7 = sub arg0, arg1
-    mstore 0, v7 !metadata(memory=scratch)
-    jump bb3
+    revert 0, 0
   bb2:
-    v10 = sub arg1, arg0
-    mstore 0, v10 !metadata(memory=scratch)
-    jump bb3
+    mstore 128, 0
+    v11 = lt arg0, arg1
+    v12 = iszero v11
+    br v12, bb3, bb4
   bb3:
-    v14 = mload 0 !metadata(memory=scratch)
-    mstore 128, v14
+    v13 = sub arg0, arg1
+    v14 = lt arg0, arg1
+    br v14, bb6, bb7
+  bb4:
+    v24 = sub arg1, arg0
+    v25 = lt arg1, arg0
+    br v25, bb8, bb9
+  bb5:
+    v36 = mload 0 !metadata(memory=scratch)
+    mstore 128, v36
     returndata 128, 32
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 0, v13 !metadata(memory=scratch)
+    jump bb5
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 0, v24 !metadata(memory=scratch)
+    jump bb5
 }
 

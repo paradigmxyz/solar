@@ -1,0 +1,59 @@
+// === ROOT/tests/ui/codegen/mir/check_elim_index_guard.mir (after check-elim) ===
+; module @CheckElimIndexGuard
+fn @fold_const_len_check(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = lt arg0, 3
+    br v2, bb1, bb4
+  bb1:
+    v4 = lt arg0, 3
+    jump bb3
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 50
+    revert 0, 36
+  bb3:
+    v12 = shl 5, arg0
+    v13 = mload v12
+    ret v13
+  bb4:
+    ret 0
+}
+
+fn @fold_dyn_len_check(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = sload 0
+    v3 = lt arg0, v2
+    br v3, bb1, bb4
+  bb1:
+    v4 = lt arg0, v2
+    jump bb3
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 50
+    revert 0, 36
+  bb3:
+    v12 = add arg0, 100
+    v13 = sload v12
+    ret v13
+  bb4:
+    ret 0
+}
+
+fn @keep_weaker_guard(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = lt arg0, 5
+    br v2, bb1, bb4
+  bb1:
+    v4 = lt arg0, 3
+    br v4, bb3, bb2
+  bb2:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 50
+    revert 0, 36
+  bb3:
+    v12 = shl 5, arg0
+    v13 = mload v12
+    ret v13
+  bb4:
+    ret 0
+}

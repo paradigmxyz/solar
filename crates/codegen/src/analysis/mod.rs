@@ -5,6 +5,9 @@
 //! - Phi elimination for converting SSA to CSSA
 //! - Loop analysis for detecting and analyzing natural loops
 
+mod cfg;
+pub use cfg::{CfgInfo, DominatorTree, cfg_reachability, reachable_blocks, reverse_postorder};
+
 mod liveness;
 pub use liveness::{LiveSet, Liveness, LivenessInfo};
 

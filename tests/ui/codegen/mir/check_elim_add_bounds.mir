@@ -1,0 +1,38 @@
+//@compile-flags: --pass check-elim
+; module @CheckElimAddBounds
+
+; `arg0 < 2^256 - 2` bounds `arg0` at `2^256 - 3`, so `arg0 + 2` tops out at
+; exactly `2^256 - 1` and cannot wrap: the check folds.
+fn @fold_exact_boundary(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = lt arg0, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    br v1, bb1, bb2
+  bb1:
+    v2 = add arg0, 2
+    v3 = lt v2, arg0
+    br v3, bb3, bb4
+  bb2:
+    ret 0
+  bb3:
+    revert 0, 0
+  bb4:
+    ret v2
+}
+
+; `arg0 < 2^256 - 1` only bounds `arg0` at `2^256 - 2`, so `arg0 + 2` can
+; still wrap: the check must stay.
+fn @keep_wrappable_boundary(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = lt arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    br v1, bb1, bb2
+  bb1:
+    v2 = add arg0, 2
+    v3 = lt v2, arg0
+    br v3, bb3, bb4
+  bb2:
+    ret 0
+  bb3:
+    revert 0, 0
+  bb4:
+    ret v2
+}

@@ -1,0 +1,45 @@
+//@compile-flags: --pipeline-default
+; module @CheckElimPipelineLoop
+
+; `for (uint i = 0; i < n; i++) s += i;` as the default pipeline shapes it
+; right before check-elim (counter promoted to a phi). Through the full
+; pipeline the loop-header guard `i < n` must fold the increment's
+; Panic(0x11) check — no `lt` after `add v, 1` and only one panic block —
+; while the unguarded accumulator check on `s += i` must survive.
+fn @sum(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    jump bb1
+  bb1:
+    v44 = phi [bb0: 0], [bb9: v28]
+    v9 = lt v44, arg0
+    br v9, bb4, bb5
+  bb2:
+    v40 = mload 128
+    mstore 128, v40
+    returndata 128, 32
+  bb3:
+    v28 = add v44, 1
+    v29 = lt v28, v44
+    br v29, bb8, bb9
+  bb4:
+    v13 = mload 128
+    v14 = add v13, v44
+    v15 = lt v14, v13
+    br v15, bb6, bb7
+  bb5:
+    jump bb2
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 128, v14
+    jump bb3
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    jump bb1
+}

@@ -2,20 +2,41 @@
 
 use super::Lowerer;
 use crate::{
-    mir::{FunctionBuilder, MirType, ValueId},
+    mir::{BlockId, FunctionBuilder, MirType, ValueId},
     transform::{ConstantFolder, FoldResult},
 };
-use alloy_primitives::U256;
+use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, StrKind};
+use solar_data_structures::map::FxHashSet;
 use solar_interface::{Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
+    ty::{Ty, TyKind},
 };
 
 enum PackedAbiArg {
+    /// Compile-time literal bytes, packed without padding.
     Bytes(Vec<u8>),
-    Value { value: ValueId, size: usize },
+    /// A single value occupying the top `size` bytes of its word.
+    Value { value: ValueId, size: usize, left_aligned: bool },
+    /// A memory `bytes`/`string` pointer (`[length][data...]`) whose data is
+    /// copied without padding.
+    DynamicBytes(ValueId),
+}
+
+#[derive(Clone, Copy)]
+struct IntegerInfo {
+    signed: bool,
+    bits: u16,
+}
+
+#[derive(Clone, Copy)]
+struct ArithmeticInfo {
+    integer: Option<IntegerInfo>,
+    is_signed: bool,
+    span: Span,
+    unsupported_udvt_operator: bool,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -26,7 +47,19 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &hir::Expr<'_>,
     ) -> ValueId {
         match &expr.kind {
-            ExprKind::Lit(lit) => self.lower_literal(builder, lit),
+            ExprKind::Lit(lit) => {
+                // A numeric literal typed `bytesN` uses the left-aligned word
+                // representation (data in the high bytes), not the right-aligned
+                // integer value, so e.g. `x == 0x11223344` compares correctly.
+                if let LitKind::Number(n) = &lit.kind
+                    && let Some(width) = self.fixed_bytes_width_of_expr(expr)
+                    && width < 32
+                {
+                    let aligned = *n << (usize::from(32 - width) * 8);
+                    return builder.imm_u256(aligned);
+                }
+                self.lower_literal(builder, lit)
+            }
 
             ExprKind::Ident(res_slice) => {
                 if let Some(res) = res_slice.first() {
@@ -39,17 +72,65 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Binary(lhs, op, rhs) => {
                 // Try constant folding first
                 let folder = ConstantFolder::new(&self.gcx.hir);
-                if let Some(folded) = folder.fold_to_integer(expr) {
-                    return builder.imm_u256(folded);
-                }
-                if let FoldResult::Bool(b) = folder.try_fold(expr) {
-                    return builder.imm_bool(b);
+                let int_info =
+                    self.integer_info_for_expr(expr).or_else(|| self.integer_info_for_expr(lhs));
+                let is_signed =
+                    int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
+                let unsupported_udvt_operator = int_info.is_none()
+                    && !matches!(op.kind, hir::BinOpKind::Eq | hir::BinOpKind::Ne)
+                    && (self.expr_has_udvt_type(expr)
+                        || self.expr_has_udvt_type(lhs)
+                        || self.expr_has_udvt_type(rhs));
+                if !Self::signed_binary_fold_is_unsafe(op.kind, is_signed) {
+                    if let Some(folded) = folder.fold_to_integer(expr) {
+                        return builder.imm_u256(folded);
+                    }
+                    if let FoldResult::Bool(b) = folder.try_fold(expr) {
+                        return builder.imm_bool(b);
+                    }
                 }
 
-                let lhs_val = self.lower_expr(builder, lhs);
-                let rhs_val = self.lower_expr(builder, rhs);
-                let is_signed = self.is_expr_signed(lhs);
-                self.lower_binary_op(builder, lhs_val, *op, rhs_val, is_signed)
+                // `&&`/`||` must short-circuit: the right operand may have
+                // side effects (external calls, reverts, ...).
+                if matches!(op.kind, hir::BinOpKind::And | hir::BinOpKind::Or) {
+                    return self.lower_short_circuit(
+                        builder,
+                        lhs,
+                        rhs,
+                        op.kind == hir::BinOpKind::And,
+                    );
+                }
+
+                // Shift operators take a plain integer count on the right, so it
+                // must not be treated as a `bytesN` sibling of the left operand.
+                let is_shift = matches!(op.kind, hir::BinOpKind::Shl | hir::BinOpKind::Shr);
+                let (lhs_val, rhs_val) = if is_shift {
+                    (self.lower_expr(builder, lhs), self.lower_expr(builder, rhs))
+                } else {
+                    (
+                        self.lower_fixed_bytes_operand(builder, lhs, rhs),
+                        self.lower_fixed_bytes_operand(builder, rhs, lhs),
+                    )
+                };
+                let result = self.lower_binary_op(
+                    builder,
+                    lhs_val,
+                    *op,
+                    rhs_val,
+                    ArithmeticInfo {
+                        integer: int_info,
+                        is_signed,
+                        span: expr.span,
+                        unsupported_udvt_operator,
+                    },
+                );
+                // A `bytesN`-typed result (e.g. `x >> 8`, `x & y`) stays
+                // left-aligned and must be re-masked to its width: a right shift
+                // moves data below the `N`-byte boundary, which has to be cleared.
+                if let Some(width) = self.fixed_bytes_width_of_expr(expr) {
+                    return self.clean_fixed_bytes(builder, result, width);
+                }
+                result
             }
 
             ExprKind::Unary(op, operand) => {
@@ -59,9 +140,28 @@ impl<'gcx> Lowerer<'gcx> {
                         // Increment/decrement need to read, compute, store, and return
                         let operand_val = self.lower_expr(builder, operand);
                         let one = builder.imm_u64(1);
+                        let int_info = self.integer_info_for_expr(operand);
+                        if int_info.is_none() && self.expr_has_udvt_type(operand) {
+                            self.emit_unsupported_udvt_operator(operand.span);
+                            return operand_val;
+                        }
                         let new_val = match op.kind {
-                            UnOpKind::PreInc | UnOpKind::PostInc => builder.add(operand_val, one),
-                            UnOpKind::PreDec | UnOpKind::PostDec => builder.sub(operand_val, one),
+                            UnOpKind::PreInc | UnOpKind::PostInc => self
+                                .lower_checked_or_wrapping_add(
+                                    builder,
+                                    operand_val,
+                                    one,
+                                    int_info,
+                                    operand.span,
+                                ),
+                            UnOpKind::PreDec | UnOpKind::PostDec => self
+                                .lower_checked_or_wrapping_sub(
+                                    builder,
+                                    operand_val,
+                                    one,
+                                    int_info,
+                                    operand.span,
+                                ),
                             _ => unreachable!(),
                         };
                         // Store the new value back
@@ -84,7 +184,17 @@ impl<'gcx> Lowerer<'gcx> {
                         }
 
                         let operand_val = self.lower_expr(builder, operand);
-                        self.lower_unary_op(builder, *op, operand_val)
+                        let int_info = self
+                            .integer_info_for_expr(expr)
+                            .or_else(|| self.integer_info_for_expr(operand));
+                        if int_info.is_none()
+                            && !matches!(op.kind, UnOpKind::Not)
+                            && self.expr_has_udvt_type(operand)
+                        {
+                            self.emit_unsupported_udvt_operator(expr.span);
+                            return operand_val;
+                        }
+                        self.lower_unary_op(builder, *op, operand_val, int_info, expr.span)
                     }
                 }
             }
@@ -131,6 +241,9 @@ impl<'gcx> Lowerer<'gcx> {
                         return computed_slot;
                     }
 
+                    if self.expr_has_bytes_or_string_type(expr) {
+                        return self.materialize_storage_bytes(builder, computed_slot);
+                    }
                     return builder.sload(computed_slot);
                 }
 
@@ -143,36 +256,123 @@ impl<'gcx> Lowerer<'gcx> {
                         Some(idx) => self.lower_expr(builder, idx),
                         None => builder.imm_u64(0),
                     };
-                    let computed_slot = self.compute_mapping_slot(builder, index_val, inner_slot);
+                    let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
+                    let computed_slot = self.compute_mapping_slot_for_index(
+                        builder,
+                        index.as_deref(),
+                        index_val,
+                        inner_slot,
+                        key_is_dynamic,
+                    );
 
                     // Check if the value is another nested mapping
                     if self.nested_mapping_value_is_mapping(base) {
                         return computed_slot;
                     }
 
+                    if self.expr_has_bytes_or_string_type(expr) {
+                        return self.materialize_storage_bytes(builder, computed_slot);
+                    }
                     return builder.sload(computed_slot);
                 }
 
-                // Check if base is a dynamic array in storage
-                if let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base) {
-                    // Dynamic array access: array[idx]
-                    // Data is stored at keccak256(slot) + idx
-                    let slot_val = builder.imm_u64(slot);
-
-                    // Compute data slot: keccak256(slot)
-                    let mem_0 = builder.imm_u64(0);
-                    builder.mstore(mem_0, slot_val);
-                    let size_32 = builder.imm_u64(32);
-                    let data_slot = builder.keccak256(mem_0, size_32);
-
-                    // Compute element slot: data_slot + index
+                // Check if base is an array in storage (state variable or
+                // storage-reference local), dynamic or fixed-size.
+                if let Some((slot_val, fixed_len, elem_slots)) =
+                    self.storage_array_slot_of_base(builder, base)
+                {
                     let index_val = match index {
                         Some(idx) => self.lower_expr(builder, idx),
                         None => builder.imm_u64(0),
                     };
-                    let element_slot = builder.add(data_slot, index_val);
-
+                    let element_slot = self.lower_storage_array_element_slot(
+                        builder, slot_val, fixed_len, index_val, elem_slots,
+                    );
                     return builder.sload(element_slot);
+                }
+
+                // Check if base is a dynamically-sized calldata parameter.
+                if let Some((head, is_bytes)) = self.calldata_dyn_head(base) {
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let four = builder.imm_u64(4);
+                    let len_pos = builder.add(four, head);
+                    let len = builder.calldataload(len_pos);
+                    self.emit_index_bounds_check(builder, index_val, len);
+                    let offset_32 = builder.imm_u64(32);
+                    let data_pos = builder.add(len_pos, offset_32);
+                    if is_bytes {
+                        // `bytes calldata` element: the byte at `data + index`,
+                        // left-aligned as `bytes1` (the top byte of the word
+                        // loaded at that position).
+                        let byte_pos = builder.add(data_pos, index_val);
+                        let word = builder.calldataload(byte_pos);
+                        let mask = builder.imm_u256(U256::from(0xffu64) << 248);
+                        return builder.and(word, mask);
+                    }
+                    let byte_offset = builder.mul(index_val, offset_32);
+                    let element_pos = builder.add(data_pos, byte_offset);
+                    return builder.calldataload(element_pos);
+                }
+
+                // Storage bytes/string: the base materializes to a packed
+                // `[length][data...]` memory copy; extract the byte
+                // left-aligned as `bytes1`.
+                if self.is_storage_bytes_expr(base) {
+                    let base_val = self.lower_expr(builder, base);
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let len = builder.mload(base_val);
+                    self.emit_index_bounds_check(builder, index_val, len);
+                    let offset_32 = builder.imm_u64(32);
+                    let data_base = builder.add(base_val, offset_32);
+                    let byte_addr = builder.add(data_base, index_val);
+                    let word = builder.mload(byte_addr);
+                    let mask = builder.imm_u256(U256::from(0xffu64) << 248);
+                    return builder.and(word, mask);
+                }
+
+                // Memory bytes/string: packed `[length][data...]`; extract the
+                // byte at `data + index`, left-aligned as `bytes1`.
+                if self.is_memory_bytes_expr(base) {
+                    let base_val = self.lower_expr(builder, base);
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let len = builder.mload(base_val);
+                    self.emit_index_bounds_check(builder, index_val, len);
+                    let offset_32 = builder.imm_u64(32);
+                    let data_base = builder.add(base_val, offset_32);
+                    let byte_addr = builder.add(data_base, index_val);
+                    let word = builder.mload(byte_addr);
+                    let mask = builder.imm_u256(U256::from(0xffu64) << 248);
+                    return builder.and(word, mask);
+                }
+
+                // Fixed-bytes value: `bytesN x; x[i]` extracts byte `i` as a
+                // left-aligned `bytes1`. The value carries its data in the
+                // word's top bytes, so byte `i` sits `i` bytes below the top;
+                // shift it up to the top byte and mask. Out-of-range indices
+                // panic like any other array access.
+                if let Some(ty) = self.get_expr_type(base)
+                    && let TyKind::Elementary(ElementaryType::FixedBytes(n)) = ty.peel_refs().kind
+                {
+                    let base_val = self.lower_expr(builder, base);
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let n_val = builder.imm_u64(u64::from(n.bytes()));
+                    self.emit_index_bounds_check(builder, index_val, n_val);
+                    let eight = builder.imm_u64(8);
+                    let shift = builder.mul(index_val, eight);
+                    let shifted = builder.shl(shift, base_val);
+                    return self.clean_fixed_bytes(builder, shifted, 1);
                 }
 
                 // Regular array/memory access
@@ -184,8 +384,20 @@ impl<'gcx> Lowerer<'gcx> {
                 let offset_32 = builder.imm_u64(32);
                 let byte_offset = builder.mul(index_val, offset_32);
                 let data_base = if self.is_dynamic_memory_array_expr(base) {
+                    // Dynamic memory arrays carry their length in the
+                    // first word; bounds-check against it and index past
+                    // it.
+                    let len = self
+                        .new_dynamic_memory_array_const_len(base)
+                        .map(|len| builder.imm_u64(len))
+                        .unwrap_or_else(|| builder.mload(base_val));
+                    self.emit_index_bounds_check(builder, index_val, len);
                     builder.add(base_val, offset_32)
                 } else {
+                    if let Some(len) = self.fixed_array_len_of_expr(base) {
+                        let len_val = builder.imm_u64(len);
+                        self.emit_index_bounds_check(builder, index_val, len_val);
+                    }
                     base_val
                 };
                 let addr = builder.add(data_base, byte_offset);
@@ -272,12 +484,31 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 // Handle dynamic array .length
-                if member.name.as_str() == "length"
-                    && let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base)
-                {
-                    // Length is stored directly at the base slot
-                    let slot_val = builder.imm_u64(slot);
-                    return builder.sload(slot_val);
+                if member.name.as_str() == "length" {
+                    // Storage array (state variable or storage-reference
+                    // local): dynamic length at the base slot, fixed length
+                    // is a compile-time constant.
+                    if let Some((slot_val, fixed_len, _)) =
+                        self.storage_array_slot_of_base(builder, base)
+                    {
+                        return match fixed_len {
+                            Some(len) => builder.imm_u64(len),
+                            None => builder.sload(slot_val),
+                        };
+                    }
+                    // Calldata dynamic array/bytes: length word at `4 + head`.
+                    if let Some((head, _)) = self.calldata_dyn_head(base) {
+                        let four = builder.imm_u64(4);
+                        let len_pos = builder.add(four, head);
+                        return builder.calldataload(len_pos);
+                    }
+                    // Fixed-size arrays have a compile-time length.
+                    if let Some(len) = self.fixed_array_len_of_expr(base) {
+                        return builder.imm_u64(len);
+                    }
+                    // Memory dynamic arrays and bytes fall through to the
+                    // generic member fallback, which loads the length word at
+                    // the base pointer.
                 }
 
                 // Handle function selector member access: `this.foo.selector`.
@@ -363,13 +594,32 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::YulMember(base, member) => self.lower_yul_member(builder, base, *member),
 
             ExprKind::Assign(lhs, op, rhs) => {
-                let rhs_val = self.lower_expr(builder, rhs);
+                let rhs_val = if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
+                    self.lower_expr_as_memory_bytes(builder, rhs)
+                } else {
+                    self.lower_expr(builder, rhs)
+                };
                 // Handle compound assignment (+=, -=, etc.)
                 let final_val = if let Some(bin_op) = op {
                     // Read current value, apply operator, then assign
                     let lhs_val = self.lower_expr(builder, lhs);
-                    let is_signed = self.is_expr_signed(lhs);
-                    self.lower_binary_op(builder, lhs_val, *bin_op, rhs_val, is_signed)
+                    let int_info = self.integer_info_for_expr(lhs);
+                    let is_signed =
+                        int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
+                    let unsupported_udvt_operator =
+                        int_info.is_none() && self.expr_has_udvt_type(lhs);
+                    self.lower_binary_op(
+                        builder,
+                        lhs_val,
+                        *bin_op,
+                        rhs_val,
+                        ArithmeticInfo {
+                            integer: int_info,
+                            is_signed,
+                            span: lhs.span,
+                            unsupported_udvt_operator,
+                        },
+                    )
                 } else {
                     rhs_val
                 };
@@ -385,7 +635,18 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Array(elements) => {
-                let ptr = builder.imm_u64(0x80);
+                let alloc_size = u64::try_from(elements.len())
+                    .ok()
+                    .and_then(|len| len.checked_mul(32))
+                    .unwrap_or_else(|| {
+                        self.gcx
+                            .dcx()
+                            .err("array literal is too large for codegen")
+                            .span(expr.span)
+                            .emit();
+                        0
+                    });
+                let ptr = self.allocate_memory(builder, alloc_size);
                 for (i, elem) in elements.iter().enumerate() {
                     let elem_val = self.lower_expr(builder, elem);
                     let offset_const = builder.imm_u64(i as u64 * 32);
@@ -403,6 +664,33 @@ impl<'gcx> Lowerer<'gcx> {
 
             ExprKind::Delete(target) => {
                 let zero = builder.imm_u256(U256::ZERO);
+                // Deleting a memory fixed-size array zeroes its elements in
+                // place; nulling the pointer would alias scratch memory on the
+                // next access. Storage targets keep the assignment path.
+                if let ExprKind::Ident(res_slice) = &target.kind
+                    && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+                    && !self.storage_ref_locals.contains(var_id)
+                    && !self.storage_slots.contains_key(var_id)
+                {
+                    let var = self.gcx.hir.variable(*var_id);
+                    if self.is_fixed_memory_array_type(&var.ty, var.data_location)
+                        && let Some(len) = self.fixed_memory_array_len(&var.ty)
+                        && let hir::TypeKind::Array(array) = &var.ty.kind
+                    {
+                        let ptr = self.lower_expr(builder, target);
+                        for i in 0..len {
+                            let value = self.zero_memory_field_value(builder, &array.element);
+                            if i == 0 {
+                                builder.mstore(ptr, value);
+                            } else {
+                                let offset = builder.imm_u64(i * 32);
+                                let addr = builder.add(ptr, offset);
+                                builder.mstore(addr, value);
+                            }
+                        }
+                        return zero;
+                    }
+                }
                 self.lower_assign(builder, target, zero);
                 zero
             }
@@ -446,7 +734,7 @@ impl<'gcx> Lowerer<'gcx> {
                     StrKind::Hex => {
                         let mut padded = [0u8; 32];
                         let len = bytes.len().min(32);
-                        padded[32 - len..].copy_from_slice(&bytes[..len]);
+                        padded[..len].copy_from_slice(&bytes[..len]);
                         builder.imm_u256(U256::from_be_bytes(padded))
                     }
                 }
@@ -484,6 +772,83 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         Some(ptr)
+    }
+
+    pub(super) fn lower_expr_as_memory_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let ExprKind::Lit(lit) = &expr.kind
+            && let Some(ptr) = self.lower_string_literal_to_memory(builder, lit)
+        {
+            return ptr;
+        }
+        if let Some((head, true)) = self.calldata_dyn_head(expr) {
+            return self.materialize_calldata_bytes(builder, head);
+        }
+        self.lower_expr(builder, expr)
+    }
+
+    /// Copies a calldata `bytes`/`string` parameter into Solidity's memory
+    /// bytes layout (`[length][data...]`).
+    fn materialize_calldata_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        head: ValueId,
+    ) -> ValueId {
+        let four = builder.imm_u64(4);
+        let len_pos = builder.add(four, head);
+        let len = builder.calldataload(len_pos);
+
+        let word_size = builder.imm_u64(32);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(len, thirty_one);
+        let rounded_overflow = builder.lt(rounded, len);
+        self.emit_panic_if(builder, rounded_overflow, 0x41);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let is_empty = builder.iszero(padded);
+        let data_size = builder.select(is_empty, word_size, padded);
+        let total_size = builder.add(word_size, data_size);
+        let total_overflow = builder.lt(total_size, data_size);
+        self.emit_panic_if(builder, total_overflow, 0x41);
+
+        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        builder.mstore(ptr, len);
+
+        let data_ptr = builder.add(ptr, word_size);
+        let zero = builder.imm_u64(0);
+        let last_word_offset = builder.sub(data_size, word_size);
+        let last_word = builder.add(data_ptr, last_word_offset);
+        builder.mstore(last_word, zero);
+
+        let data_pos = builder.add(len_pos, word_size);
+        builder.calldatacopy(data_ptr, data_pos, len);
+        ptr
+    }
+
+    pub(super) fn var_expects_memory_bytes_value(&self, var: &hir::Variable<'_>) -> bool {
+        matches!(
+            var.ty.kind,
+            hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
+        ) && !matches!(
+            var.data_location,
+            Some(solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage)
+        )
+    }
+
+    fn lhs_expects_memory_bytes_value(&self, lhs: &hir::Expr<'_>) -> bool {
+        if self.expr_has_bytes_or_string_type(lhs) {
+            return true;
+        }
+
+        let ExprKind::Ident(res_slice) = &lhs.kind else { return false };
+        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+            return false;
+        };
+        let var = self.gcx.hir.variable(*var_id);
+        self.var_expects_memory_bytes_value(var)
     }
 
     /// Lowers an identifier reference.
@@ -684,6 +1049,10 @@ impl<'gcx> Lowerer<'gcx> {
     /// Checks if an expression has a signed integer type.
     /// This is a best-effort check based on the expression structure.
     fn is_expr_signed(&self, expr: &hir::Expr<'_>) -> bool {
+        if let Some(ty) = self.get_expr_type(expr) {
+            return ty.is_signed();
+        }
+
         match &expr.kind {
             ExprKind::Ident(res_slice) => {
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
@@ -706,6 +1075,107 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
+    fn integer_info_for_expr(&self, expr: &hir::Expr<'_>) -> Option<IntegerInfo> {
+        self.get_expr_type(expr).and_then(Self::integer_info_for_ty)
+    }
+
+    fn integer_info_for_ty(ty: Ty<'_>) -> Option<IntegerInfo> {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Int(size)) => {
+                Some(IntegerInfo { signed: true, bits: size.bits() })
+            }
+            TyKind::Elementary(ElementaryType::UInt(size)) => {
+                Some(IntegerInfo { signed: false, bits: size.bits() })
+            }
+            TyKind::IntLiteral(signed, size, _) => Some(IntegerInfo { signed, bits: size.bits() }),
+            _ => None,
+        }
+    }
+
+    fn expr_has_udvt_type(&self, expr: &hir::Expr<'_>) -> bool {
+        matches!(self.get_expr_type(expr).map(|ty| ty.peel_refs().kind), Some(TyKind::Udvt(..)))
+    }
+
+    fn emit_unsupported_udvt_operator(&self, span: Span) {
+        self.gcx
+            .dcx()
+            .err("user-defined operators are not supported in codegen yet")
+            .span(span)
+            .help("unwrap the user-defined value type before using this operator")
+            .emit();
+    }
+
+    fn require_checked_arithmetic_info(
+        &self,
+        int_info: Option<IntegerInfo>,
+        span: Span,
+    ) -> Option<IntegerInfo> {
+        if self.in_unchecked_block || int_info.is_some() {
+            return int_info;
+        }
+
+        self.gcx
+            .dcx()
+            .err("cannot determine arithmetic type for checked operation")
+            .span(span)
+            .emit();
+        None
+    }
+
+    fn signed_binary_fold_is_unsafe(op: hir::BinOpKind, is_signed: bool) -> bool {
+        is_signed
+            && matches!(
+                op,
+                hir::BinOpKind::Div
+                    | hir::BinOpKind::Rem
+                    | hir::BinOpKind::Shr
+                    | hir::BinOpKind::Sar
+                    | hir::BinOpKind::Lt
+                    | hir::BinOpKind::Le
+                    | hir::BinOpKind::Gt
+                    | hir::BinOpKind::Ge
+            )
+    }
+
+    /// Lowers `lhs && rhs` / `lhs || rhs` with short-circuit evaluation: the
+    /// right operand is only evaluated when the left operand does not already
+    /// decide the result.
+    fn lower_short_circuit(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: &hir::Expr<'_>,
+        rhs: &hir::Expr<'_>,
+        is_and: bool,
+    ) -> ValueId {
+        let lhs_val = self.lower_expr(builder, lhs);
+        let pred_block = builder.current_block();
+        let rhs_block = builder.create_block();
+        let merge_block = builder.create_block();
+        if is_and {
+            builder.branch(lhs_val, rhs_block, merge_block);
+        } else {
+            builder.branch(lhs_val, merge_block, rhs_block);
+        }
+
+        builder.switch_to_block(rhs_block);
+        let rhs_val = self.lower_expr(builder, rhs);
+        let rhs_end = builder.current_block();
+        let rhs_terminated = builder.func().block(rhs_end).is_terminated();
+        if !rhs_terminated {
+            builder.jump(merge_block);
+        }
+
+        builder.switch_to_block(merge_block);
+        // `a && b` is false when `a` is false; `a || b` is true when `a` is
+        // true (bool values are canonical 0/1).
+        let decided = builder.imm_bool(!is_and);
+        let mut incoming = vec![(pred_block, decided)];
+        if !rhs_terminated {
+            incoming.push((rhs_end, rhs_val));
+        }
+        builder.phi(incoming)
+    }
+
     /// Lowers a binary operation.
     fn lower_binary_op(
         &mut self,
@@ -713,29 +1183,68 @@ impl<'gcx> Lowerer<'gcx> {
         lhs: ValueId,
         op: hir::BinOp,
         rhs: ValueId,
-        is_signed: bool,
+        arithmetic: ArithmeticInfo,
     ) -> ValueId {
         use hir::BinOpKind;
 
+        if arithmetic.unsupported_udvt_operator {
+            self.emit_unsupported_udvt_operator(arithmetic.span);
+            return builder.imm_u64(0);
+        }
+
         match op.kind {
-            BinOpKind::Add => builder.add(lhs, rhs),
-            BinOpKind::Sub => builder.sub(lhs, rhs),
-            BinOpKind::Mul => builder.mul(lhs, rhs),
+            BinOpKind::Add => self.lower_checked_or_wrapping_add(
+                builder,
+                lhs,
+                rhs,
+                arithmetic.integer,
+                arithmetic.span,
+            ),
+            BinOpKind::Sub => self.lower_checked_or_wrapping_sub(
+                builder,
+                lhs,
+                rhs,
+                arithmetic.integer,
+                arithmetic.span,
+            ),
+            BinOpKind::Mul => self.lower_checked_or_wrapping_mul(
+                builder,
+                lhs,
+                rhs,
+                arithmetic.integer,
+                arithmetic.span,
+            ),
             BinOpKind::Div => {
+                let int_info =
+                    self.require_checked_arithmetic_info(arithmetic.integer, arithmetic.span);
+                let is_signed = int_info.map_or(arithmetic.is_signed, |info| info.signed);
+                self.emit_panic_if_zero(builder, rhs, 0x12);
                 if is_signed {
+                    if !self.in_unchecked_block
+                        && let Some(info) = int_info
+                        && info.signed
+                    {
+                        self.emit_signed_min_div_minus_one_check(builder, lhs, rhs, info);
+                    }
                     builder.sdiv(lhs, rhs)
                 } else {
                     builder.div(lhs, rhs)
                 }
             }
             BinOpKind::Rem => {
-                if is_signed {
-                    builder.smod(lhs, rhs)
-                } else {
-                    builder.mod_(lhs, rhs)
-                }
+                let int_info =
+                    self.require_checked_arithmetic_info(arithmetic.integer, arithmetic.span);
+                let is_signed = int_info.map_or(arithmetic.is_signed, |info| info.signed);
+                self.emit_panic_if_zero(builder, rhs, 0x12);
+                if is_signed { builder.smod(lhs, rhs) } else { builder.mod_(lhs, rhs) }
             }
-            BinOpKind::Pow => builder.exp(lhs, rhs),
+            BinOpKind::Pow => self.lower_checked_or_wrapping_pow(
+                builder,
+                lhs,
+                rhs,
+                arithmetic.integer,
+                arithmetic.span,
+            ),
             // Logical AND: for bool inputs (guaranteed by type checker), just use bitwise AND.
             // Bool values are already 0 or 1, so a && b == a & b.
             BinOpKind::And => builder.and(lhs, rhs),
@@ -748,25 +1257,25 @@ impl<'gcx> Lowerer<'gcx> {
             BinOpKind::Shl => builder.shl(rhs, lhs),
             BinOpKind::Shr => {
                 // For signed types, >> is arithmetic shift (SAR)
-                if is_signed { builder.sar(rhs, lhs) } else { builder.shr(rhs, lhs) }
+                if arithmetic.is_signed { builder.sar(rhs, lhs) } else { builder.shr(rhs, lhs) }
             }
             BinOpKind::Sar => builder.sar(rhs, lhs),
             BinOpKind::Lt => {
-                if is_signed {
+                if arithmetic.is_signed {
                     builder.slt(lhs, rhs)
                 } else {
                     builder.lt(lhs, rhs)
                 }
             }
             BinOpKind::Gt => {
-                if is_signed {
+                if arithmetic.is_signed {
                     builder.sgt(lhs, rhs)
                 } else {
                     builder.gt(lhs, rhs)
                 }
             }
             BinOpKind::Le => {
-                if is_signed {
+                if arithmetic.is_signed {
                     let gt = builder.sgt(lhs, rhs);
                     builder.iszero(gt)
                 } else {
@@ -775,7 +1284,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             BinOpKind::Ge => {
-                if is_signed {
+                if arithmetic.is_signed {
                     let lt = builder.slt(lhs, rhs);
                     builder.iszero(lt)
                 } else {
@@ -789,6 +1298,813 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.iszero(eq)
             }
         }
+    }
+
+    /// Truncates a wrapping result back into its sub-word type. The checked
+    /// paths prove the result in range, but unchecked sub-word arithmetic can
+    /// wrap past the type's width, and the checked shapes (and ABI encoding)
+    /// rely on values of type `uintN`/`intN` being clean.
+    fn truncate_wrapping_result(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        int_info: Option<IntegerInfo>,
+    ) -> ValueId {
+        let Some(info) = int_info else { return value };
+        if info.bits >= 256 {
+            return value;
+        }
+        if info.signed {
+            self.sign_extend_to_bits(builder, value, u32::from(info.bits))
+        } else {
+            self.mask_to_bits(builder, value, u32::from(info.bits))
+        }
+    }
+
+    fn lower_checked_or_wrapping_add(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        int_info: Option<IntegerInfo>,
+        span: Span,
+    ) -> ValueId {
+        let result = builder.add(lhs, rhs);
+        if !self.in_unchecked_block {
+            let Some(info) = self.require_checked_arithmetic_info(int_info, span) else {
+                return result;
+            };
+            let overflow = if info.signed {
+                self.signed_add_overflow(builder, lhs, rhs, result, info)
+            } else {
+                self.unsigned_add_overflow(builder, lhs, result, info)
+            };
+            self.emit_panic_if(builder, overflow, 0x11);
+            result
+        } else {
+            self.truncate_wrapping_result(builder, result, int_info)
+        }
+    }
+
+    fn lower_checked_or_wrapping_sub(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        int_info: Option<IntegerInfo>,
+        span: Span,
+    ) -> ValueId {
+        let result = builder.sub(lhs, rhs);
+        if !self.in_unchecked_block {
+            let Some(info) = self.require_checked_arithmetic_info(int_info, span) else {
+                return result;
+            };
+            let overflow = if info.signed {
+                self.signed_sub_overflow(builder, lhs, rhs, result, info)
+            } else {
+                builder.lt(lhs, rhs)
+            };
+            self.emit_panic_if(builder, overflow, 0x11);
+            result
+        } else {
+            self.truncate_wrapping_result(builder, result, int_info)
+        }
+    }
+
+    fn lower_checked_or_wrapping_mul(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        int_info: Option<IntegerInfo>,
+        span: Span,
+    ) -> ValueId {
+        let result = builder.mul(lhs, rhs);
+        if !self.in_unchecked_block {
+            let Some(info) = self.require_checked_arithmetic_info(int_info, span) else {
+                return result;
+            };
+            let overflow = if info.signed {
+                self.signed_mul_overflow(builder, lhs, rhs, result, info)
+            } else {
+                self.unsigned_mul_overflow(builder, lhs, rhs, result, info)
+            };
+            self.emit_panic_if(builder, overflow, 0x11);
+            result
+        } else {
+            self.truncate_wrapping_result(builder, result, int_info)
+        }
+    }
+
+    /// Lowers `base ** exponent`, porting solc's `checked_exp_*` Yul helper
+    /// structure: trivial bases and small bases use native `EXP` guarded by
+    /// precomputed bounds, and only the general case falls back to checked
+    /// exponentiation by squaring.
+    fn lower_checked_or_wrapping_pow(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        int_info: Option<IntegerInfo>,
+        span: Span,
+    ) -> ValueId {
+        if self.in_unchecked_block {
+            let result = builder.exp(lhs, rhs);
+            return self.truncate_wrapping_result(builder, result, int_info);
+        }
+
+        let Some(info) = self.require_checked_arithmetic_info(int_info, span) else {
+            return builder.exp(lhs, rhs);
+        };
+
+        // Constant-base fast path (solc's `checked_exp_<literal>` shape): the
+        // largest exponent whose power still fits the type is known at compile
+        // time, so a single bound check makes native `EXP` exact. Like solc,
+        // only full-width types take this path.
+        if info.bits == 256
+            && let Some(imm) = builder.func().value(lhs).as_immediate()
+            && let Some(base) = imm.as_u256()
+        {
+            return self.lower_checked_pow_const_base(builder, lhs, base, rhs, info);
+        }
+
+        if info.signed {
+            self.lower_checked_pow_signed(builder, lhs, rhs, info)
+        } else {
+            self.lower_checked_pow_unsigned(builder, lhs, rhs, info)
+        }
+    }
+
+    /// Ports solc's `checked_exp_t_<rational>_t_uint*` literal-base helper:
+    /// `if gt(exponent, ub) panic; power := exp(base, exponent)` where `ub` is
+    /// the largest exponent such that `base ** ub` stays in range.
+    fn lower_checked_pow_const_base(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base_value: ValueId,
+        base: U256,
+        exponent: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        debug_assert_eq!(info.bits, 256);
+        // Bases 0, 1, and -1 (signed) can never overflow: their powers stay in
+        // {-1, 0, 1}, and native `EXP` on the two's-complement representation
+        // is exact mod 2^256.
+        let trivial = base == U256::ZERO || base == U256::ONE || (info.signed && base == U256::MAX);
+        if !trivial {
+            let bound = Self::const_base_max_exponent(base, info);
+            let bound = builder.imm_u64(u64::from(bound));
+            let too_large = builder.gt(exponent, bound);
+            self.emit_panic_if(builder, too_large, 0x11);
+        }
+        if base == U256::from(2) {
+            // `exp(2, e) == shl(e, 1)` for `e <= 255`, and SHL is cheaper.
+            let one = builder.imm_u64(1);
+            return builder.shl(exponent, one);
+        }
+        builder.exp(base_value, exponent)
+    }
+
+    /// Computes the largest exponent `e` with `base ** e` in range for the
+    /// type: `|base| ** e <= max` for non-negative bases and
+    /// `|base| ** e <= |min|` for negative ones. Underflow is the only
+    /// negative-base concern: an even power equal to `2^255` would need
+    /// `255 / e` integral for even `e`, which is impossible (255 is odd), so
+    /// bounding by `|min|` never admits a positive overflow (same argument as
+    /// solc's `overflowCheckedIntLiteralExpFunction`).
+    fn const_base_max_exponent(base: U256, info: IntegerInfo) -> u32 {
+        debug_assert_eq!(info.bits, 256);
+        let (abs_base, limit) = if info.signed && base.bit(255) {
+            // `wrapping_neg` maps MIN to 2^255, which is exactly `|min|`.
+            (base.wrapping_neg(), U256::from(1) << 255)
+        } else if info.signed {
+            (base, Self::signed_max(info.bits))
+        } else {
+            (base, U256::MAX)
+        };
+        debug_assert!(abs_base >= U256::from(2));
+        let mut bound = 0u32;
+        let mut power = U256::from(1);
+        while let Some(next) = power.checked_mul(abs_base) {
+            if next > limit {
+                break;
+            }
+            power = next;
+            bound += 1;
+        }
+        bound
+    }
+
+    /// Ports solc's `checked_exp_unsigned` Yul helper.
+    fn lower_checked_pow_unsigned(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        exponent: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        let max = Self::unsigned_max(info.bits);
+        let max_imm = builder.imm_u256(max);
+        let zero = builder.imm_u64(0);
+        let one = builder.imm_u64(1);
+
+        let join = builder.create_block();
+        let mut results: Vec<(BlockId, ValueId)> = Vec::new();
+
+        // if iszero(exponent) { power := 1 } (note that 0**0 == 1)
+        let base_zero_block = builder.create_block();
+        let exp_zero = builder.iszero(exponent);
+        results.push((builder.current_block(), one));
+        builder.branch(exp_zero, join, base_zero_block);
+
+        // if iszero(base) { power := 0 }
+        builder.switch_to_block(base_zero_block);
+        let dispatch_block = builder.create_block();
+        let base_zero = builder.iszero(base);
+        results.push((builder.current_block(), zero));
+        builder.branch(base_zero, join, dispatch_block);
+
+        // switch base: case 1 { power := 1 } case 2 { bounded shift }
+        // (lowered as an eq-chain, like solc's optimized switch output)
+        builder.switch_to_block(dispatch_block);
+        let base_two_check = builder.create_block();
+        let base_one = builder.eq(base, one);
+        results.push((builder.current_block(), one));
+        builder.branch(base_one, join, base_two_check);
+
+        builder.switch_to_block(base_two_check);
+        let base_two_block = builder.create_block();
+        let small_base_check = builder.create_block();
+        let two = builder.imm_u64(2);
+        let base_is_two = builder.eq(base, two);
+        builder.branch(base_is_two, base_two_block, small_base_check);
+
+        // Base 2: a power fits in 256 bits iff `exponent <= 255`, making the
+        // shift exact; sub-word types additionally range-check the result.
+        builder.switch_to_block(base_two_block);
+        let max_shift = builder.imm_u64(255);
+        let shift_too_large = builder.gt(exponent, max_shift);
+        self.emit_panic_if(builder, shift_too_large, 0x11);
+        let power = builder.shl(exponent, one);
+        if info.bits < 256 {
+            let out_of_range = builder.gt(power, max_imm);
+            self.emit_panic_if(builder, out_of_range, 0x11);
+        }
+        results.push((builder.current_block(), power));
+        builder.jump(join);
+
+        // Small-base specialization: within the bounds checked by
+        // `small_base_exp_is_exact`, native `EXP` cannot wrap and is exact.
+        builder.switch_to_block(small_base_check);
+        let native_block = builder.create_block();
+        let loop_block = builder.create_block();
+        let use_native = Self::small_base_exp_is_exact(builder, base, exponent);
+        builder.branch(use_native, native_block, loop_block);
+
+        builder.switch_to_block(native_block);
+        let power = builder.exp(base, exponent);
+        if info.bits < 256 {
+            let out_of_range = builder.gt(power, max_imm);
+            self.emit_panic_if(builder, out_of_range, 0x11);
+        }
+        results.push((builder.current_block(), power));
+        builder.jump(join);
+
+        // General case: checked exponentiation by squaring.
+        builder.switch_to_block(loop_block);
+        let (power, base) = self.emit_checked_exp_loop(builder, one, base, exponent, max_imm);
+        // Final multiply: panic iff `power * base > max`.
+        let quotient = builder.div(max_imm, base);
+        let overflow = builder.gt(power, quotient);
+        self.emit_panic_if(builder, overflow, 0x11);
+        let power = builder.mul(power, base);
+        results.push((builder.current_block(), power));
+        builder.jump(join);
+
+        builder.switch_to_block(join);
+        builder.phi(results)
+    }
+
+    /// Emits the condition under which native `EXP` of a non-negative base is
+    /// exact (no mod-2^256 wrap): `10**77 < 2^256` and `306**31 < 2^256`, so
+    /// `(base < 11 && exponent < 78) || (base < 307 && exponent < 32)` powers
+    /// fit in a word. The result still needs a range check against the type's
+    /// max.
+    fn small_base_exp_is_exact(
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        exponent: ValueId,
+    ) -> ValueId {
+        let eleven = builder.imm_u64(11);
+        let base_lt_11 = builder.lt(base, eleven);
+        let seventy_eight = builder.imm_u64(78);
+        let exp_lt_78 = builder.lt(exponent, seventy_eight);
+        let small_arm = builder.and(base_lt_11, exp_lt_78);
+        let three_oh_seven = builder.imm_u64(307);
+        let base_lt_307 = builder.lt(base, three_oh_seven);
+        let thirty_two = builder.imm_u64(32);
+        let exp_lt_32 = builder.lt(exponent, thirty_two);
+        let medium_arm = builder.and(base_lt_307, exp_lt_32);
+        builder.or(small_arm, medium_arm)
+    }
+
+    /// Ports solc's `checked_exp_signed` Yul helper: the first squaring is
+    /// pulled out because it is the only one with a possibly negative base;
+    /// afterwards the shared unsigned loop applies and only the final multiply
+    /// needs sign-aware bounds.
+    fn lower_checked_pow_signed(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        exponent: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        let min_imm = builder.imm_u256(Self::signed_min(info.bits));
+        let max_imm = builder.imm_u256(Self::signed_max(info.bits));
+        let zero = builder.imm_u64(0);
+        let one = builder.imm_u64(1);
+
+        let join = builder.create_block();
+        let mut results: Vec<(BlockId, ValueId)> = Vec::new();
+
+        // if iszero(exponent) { power := 1 } (note that 0**0 == 1)
+        let exp_one_block = builder.create_block();
+        let exp_zero = builder.iszero(exponent);
+        results.push((builder.current_block(), one));
+        builder.branch(exp_zero, join, exp_one_block);
+
+        // if eq(exponent, 1) { power := base }
+        builder.switch_to_block(exp_one_block);
+        let base_zero_block = builder.create_block();
+        let exp_one = builder.eq(exponent, one);
+        results.push((builder.current_block(), base));
+        builder.branch(exp_one, join, base_zero_block);
+
+        // if iszero(base) { power := 0 }
+        builder.switch_to_block(base_zero_block);
+        let first_square_block = builder.create_block();
+        let base_zero = builder.iszero(base);
+        results.push((builder.current_block(), zero));
+        builder.branch(base_zero, join, first_square_block);
+
+        // First squaring, pulled out because base can still be negative here.
+        // Exponent is at least 2. Overflow check for base * base:
+        // positive base panics iff `base > max / base`, negative base panics
+        // iff `base < max / base` (both sides signed; the quotient is
+        // `-(max / |base|)`, so the comparison is `|base| > max / |base|`).
+        builder.switch_to_block(first_square_block);
+        let positive_check = builder.create_block();
+        let negative_check = builder.create_block();
+        let square_block = builder.create_block();
+        let base_positive = builder.sgt(base, zero);
+        builder.branch(base_positive, positive_check, negative_check);
+
+        // Bases 1 and -1 short-circuit before the squaring loop: their powers
+        // are exactly `1` and `parity(exponent) ? -1 : 1` and can never panic.
+        // solc instead runs its loop (~log2(exponent) iterations of no-op
+        // squarings); the shortcut costs one comparison on the general path
+        // and caps the worst case (huge exponents) far below solc.
+        builder.switch_to_block(positive_check);
+        let positive_small_check = builder.create_block();
+        let base_is_one = builder.eq(base, one);
+        results.push((builder.current_block(), one));
+        builder.branch(base_is_one, join, positive_small_check);
+
+        // Positive bases reuse the unsigned small-base specialization (solc
+        // does not, but it is provably equivalent): within the bounds the
+        // native power is exact, and for `exponent >= 2` it panics iff the
+        // result exceeds max — `base * base <= power` makes the squaring
+        // check redundant with the range check on the result.
+        builder.switch_to_block(positive_small_check);
+        let positive_native = builder.create_block();
+        let positive_loop = builder.create_block();
+        let use_native = Self::small_base_exp_is_exact(builder, base, exponent);
+        builder.branch(use_native, positive_native, positive_loop);
+
+        builder.switch_to_block(positive_native);
+        let power = builder.exp(base, exponent);
+        let out_of_range = builder.gt(power, max_imm);
+        self.emit_panic_if(builder, out_of_range, 0x11);
+        results.push((builder.current_block(), power));
+        builder.jump(join);
+
+        builder.switch_to_block(positive_loop);
+        let quotient = builder.div(max_imm, base);
+        let overflow = builder.gt(base, quotient);
+        self.emit_panic_if(builder, overflow, 0x11);
+        builder.jump(square_block);
+
+        builder.switch_to_block(negative_check);
+        let minus_one_block = builder.create_block();
+        let negative_loop = builder.create_block();
+        let minus_one = builder.imm_u256(U256::MAX);
+        let base_is_minus_one = builder.eq(base, minus_one);
+        builder.branch(base_is_minus_one, minus_one_block, negative_loop);
+
+        builder.switch_to_block(minus_one_block);
+        let exp_odd = builder.and(exponent, one);
+        let parity_power = builder.select(exp_odd, minus_one, one);
+        results.push((builder.current_block(), parity_power));
+        builder.jump(join);
+
+        builder.switch_to_block(negative_loop);
+        let quotient = builder.sdiv(max_imm, base);
+        let overflow = builder.slt(base, quotient);
+        self.emit_panic_if(builder, overflow, 0x11);
+        builder.jump(square_block);
+
+        builder.switch_to_block(square_block);
+        // if and(exponent, 1) { power := base } (power starts at 1)
+        let exp_odd = builder.and(exponent, one);
+        let power = builder.select(exp_odd, base, one);
+        let squared = builder.mul(base, base);
+        let halved = builder.shr(one, exponent);
+
+        // Below this point, base is always positive.
+        let (power, base) = self.emit_checked_exp_loop(builder, power, squared, halved, max_imm);
+
+        // Final multiply with sign-aware bounds: positive power panics iff
+        // `power * base > max`, negative power panics iff `power * base < min`.
+        let power_positive = builder.sgt(power, zero);
+        let quotient = builder.div(max_imm, base);
+        let above_max = builder.gt(power, quotient);
+        let overflow = builder.and(power_positive, above_max);
+        self.emit_panic_if(builder, overflow, 0x11);
+        let power_negative = builder.slt(power, zero);
+        let quotient = builder.sdiv(min_imm, base);
+        let below_min = builder.slt(power, quotient);
+        let underflow = builder.and(power_negative, below_min);
+        self.emit_panic_if(builder, underflow, 0x11);
+        let power = builder.mul(power, base);
+        results.push((builder.current_block(), power));
+        builder.jump(join);
+
+        builder.switch_to_block(join);
+        builder.phi(results)
+    }
+
+    /// Ports solc's `checked_exp_helper` squaring loop. The only overflow
+    /// check needed is for `base * base`: `|power| <= base` holds by
+    /// induction, so `|power * base| <= base * base <= max` (equally true for
+    /// the signed caller, whose `power` may be negative but whose `base` is
+    /// already positive). The final multiply is left to the caller. Returns
+    /// the `(power, base)` values; the builder ends up in the exit block.
+    fn emit_checked_exp_loop(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        power_init: ValueId,
+        base_init: ValueId,
+        exponent_init: ValueId,
+        max_imm: ValueId,
+    ) -> (ValueId, ValueId) {
+        let preheader = builder.current_block();
+        let header = builder.create_block();
+        let body = builder.create_block();
+        let exit = builder.create_block();
+        builder.jump(header);
+
+        // for { } gt(exponent, 1) { }
+        builder.switch_to_block(header);
+        let power_phi = builder.phi(vec![(preheader, power_init)]);
+        let base_phi = builder.phi(vec![(preheader, base_init)]);
+        let exp_phi = builder.phi(vec![(preheader, exponent_init)]);
+        let one = builder.imm_u64(1);
+        let has_more = builder.gt(exp_phi, one);
+        builder.branch(has_more, body, exit);
+
+        builder.switch_to_block(body);
+        // Overflow check for base * base.
+        let quotient = builder.div(max_imm, base_phi);
+        let overflow = builder.gt(base_phi, quotient);
+        self.emit_panic_if(builder, overflow, 0x11);
+        // if and(exponent, 1) { power := mul(power, base) }. The product is
+        // computed unconditionally but only selected when the exponent bit is
+        // set, in which case the `base * base` check above proves it exact
+        // (`|power * base| <= base * base <= max`); otherwise its (possibly
+        // wrapped) value is dropped.
+        let exp_odd = builder.and(exp_phi, one);
+        let multiplied = builder.mul(power_phi, base_phi);
+        let power_next = builder.select(exp_odd, multiplied, power_phi);
+        let base_next = builder.mul(base_phi, base_phi);
+        let exp_next = builder.shr(one, exp_phi);
+        let latch = builder.current_block();
+        builder.jump(header);
+
+        builder.add_phi_incoming(power_phi, latch, power_next);
+        builder.add_phi_incoming(base_phi, latch, base_next);
+        builder.add_phi_incoming(exp_phi, latch, exp_next);
+
+        builder.switch_to_block(exit);
+        (power_phi, base_phi)
+    }
+
+    fn unsigned_add_overflow(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        result: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        if info.bits == 256 {
+            // The add wrapped iff the result is smaller than an operand.
+            return builder.lt(result, lhs);
+        }
+        // In-range n-bit operands cannot wrap a 256-bit add (their sum is
+        // below `2 * 2^n <= 2^256`), so a range check on the result is exact.
+        let max = builder.imm_u256(Self::unsigned_max(info.bits));
+        builder.gt(result, max)
+    }
+
+    fn unsigned_mul_overflow(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        result: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        if info.bits <= 128 {
+            // The 256-bit product of in-range operands (each below `2^128`)
+            // cannot wrap, so a range check on the result is exact.
+            let max = builder.imm_u256(Self::unsigned_max(info.bits));
+            return builder.gt(result, max);
+        }
+        // Division-inverse check: the product is exact iff `rhs == 0` or
+        // `result / rhs == lhs`.
+        let rhs_zero = builder.iszero(rhs);
+        let quotient = builder.div(result, rhs);
+        let inverse_ok = builder.eq(quotient, lhs);
+        let exact = builder.or(rhs_zero, inverse_ok);
+        let wrapped = builder.iszero(exact);
+        if info.bits == 256 {
+            return wrapped;
+        }
+        // Sub-word products can also stay within 256 bits while exceeding the
+        // n-bit range.
+        let max = builder.imm_u256(Self::unsigned_max(info.bits));
+        let out_of_range = builder.gt(result, max);
+        builder.or(wrapped, out_of_range)
+    }
+
+    fn signed_add_overflow(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        result: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        if info.bits != 256 {
+            // Sign-extended sub-word operands cannot wrap a 256-bit add, so a
+            // range check on the result is exact.
+            return self.signed_range_overflow(builder, result, info);
+        }
+        // For `lhs >= 0` the add overflowed iff `result < rhs`; for `lhs < 0`
+        // it overflowed iff `result >= rhs`. Both comparisons yield 0/1, so
+        // the overflow flag is their XOR.
+        let zero = builder.imm_u64(0);
+        let lhs_neg = builder.slt(lhs, zero);
+        let wrapped = builder.slt(result, rhs);
+        builder.xor(lhs_neg, wrapped)
+    }
+
+    fn signed_sub_overflow(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        result: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        if info.bits != 256 {
+            // Sign-extended sub-word operands cannot wrap a 256-bit sub, so a
+            // range check on the result is exact.
+            return self.signed_range_overflow(builder, result, info);
+        }
+        // For `rhs >= 0` the sub overflowed iff `result > lhs`; for `rhs < 0`
+        // it overflowed iff `result < lhs` (`result == lhs` requires
+        // `rhs == 0`, so `iszero(sgt)` is exact in the negative case). Both
+        // comparisons yield 0/1, so the overflow flag is their XOR.
+        let zero = builder.imm_u64(0);
+        let rhs_neg = builder.slt(rhs, zero);
+        let grew = builder.sgt(result, lhs);
+        builder.xor(rhs_neg, grew)
+    }
+
+    fn signed_mul_overflow(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        result: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        if info.bits <= 128 {
+            // The 256-bit product of sign-extended operands of at most 128
+            // bits stays below `2^254` in magnitude, so it cannot wrap and a
+            // range check on the result is exact.
+            return self.signed_range_overflow(builder, result, info);
+        }
+        // Division-inverse check: the product is exact iff `rhs == 0` or
+        // `result / rhs == lhs`.
+        let rhs_zero = builder.iszero(rhs);
+        let quotient = builder.sdiv(result, rhs);
+        let inverse_ok = builder.eq(quotient, lhs);
+        let exact = builder.or(rhs_zero, inverse_ok);
+        let wrapped = builder.iszero(exact);
+        if info.bits != 256 {
+            // Sub-word products can also stay within 256 bits while exceeding
+            // the n-bit range. The `sdiv(MIN, -1)` anomaly cannot fire here:
+            // `result == MIN_256 && rhs == -1` requires `lhs == MIN_256`,
+            // which is not an in-range sub-word value.
+            let range = self.signed_range_overflow(builder, result, info);
+            return builder.or(wrapped, range);
+        }
+        // The division check misses exactly `lhs == MIN && rhs == -1`, where
+        // EVM defines `sdiv(result == MIN, -1) == MIN == lhs`. Cover it with
+        // the superset `lhs == MIN && rhs < 0`, all of which truly overflow.
+        let min = builder.imm_u256(Self::signed_min(info.bits));
+        let lhs_min = builder.eq(lhs, min);
+        let zero = builder.imm_u64(0);
+        let rhs_neg = builder.slt(rhs, zero);
+        let min_overflow = builder.and(lhs_min, rhs_neg);
+        builder.or(wrapped, min_overflow)
+    }
+
+    fn signed_range_overflow(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        info: IntegerInfo,
+    ) -> ValueId {
+        let min = builder.imm_u256(Self::signed_min(info.bits));
+        let max = builder.imm_u256(Self::signed_max(info.bits));
+        let below_min = builder.slt(value, min);
+        let above_max = builder.sgt(value, max);
+        builder.or(below_min, above_max)
+    }
+
+    fn emit_signed_min_div_minus_one_check(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: ValueId,
+        rhs: ValueId,
+        info: IntegerInfo,
+    ) {
+        let min = builder.imm_u256(Self::signed_min(info.bits));
+        let minus_one = builder.imm_u256(U256::MAX);
+        let is_min = builder.eq(lhs, min);
+        let is_minus_one = builder.eq(rhs, minus_one);
+        let overflow = builder.and(is_min, is_minus_one);
+        self.emit_panic_if(builder, overflow, 0x11);
+    }
+
+    /// Emits an array bounds check: `if (!(index < len)) Panic(0x32)`.
+    ///
+    /// Constant operands fold at lowering: a provably in-range constant index
+    /// emits no check at all, and a provably out-of-range constant index
+    /// emits an unconditional panic (matching solc's runtime semantics for
+    /// out-of-bounds accesses), as a constant branch that later passes fold.
+    fn emit_index_bounds_check(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        index: ValueId,
+        len: ValueId,
+    ) {
+        if let (Some(index_const), Some(len_const)) =
+            (Self::const_u256_of(builder, index), Self::const_u256_of(builder, len))
+        {
+            if index_const < len_const {
+                return;
+            }
+            let always = builder.imm_bool(true);
+            self.emit_panic_if(builder, always, 0x32);
+            return;
+        }
+        let in_range = builder.lt(index, len);
+        self.emit_panic_if_zero(builder, in_range, 0x32);
+    }
+
+    /// Returns the constant value of a MIR immediate, if `value` is one.
+    fn const_u256_of(builder: &FunctionBuilder<'_>, value: ValueId) -> Option<U256> {
+        match builder.func().value(value) {
+            crate::mir::Value::Immediate(imm) => imm.as_u256(),
+            _ => None,
+        }
+    }
+
+    fn emit_panic_if_zero(&mut self, builder: &mut FunctionBuilder<'_>, value: ValueId, code: u64) {
+        // Branch directly on the value: zero falls into the revert block
+        // without materializing an `iszero`/`eq` flag.
+        let revert_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(value, continue_block, revert_block);
+
+        builder.switch_to_block(revert_block);
+        self.emit_panic_revert(builder, code);
+
+        builder.switch_to_block(continue_block);
+    }
+
+    fn emit_panic_if(&mut self, builder: &mut FunctionBuilder<'_>, cond: ValueId, code: u64) {
+        let revert_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(cond, revert_block, continue_block);
+
+        builder.switch_to_block(revert_block);
+        self.emit_panic_revert(builder, code);
+
+        builder.switch_to_block(continue_block);
+    }
+
+    fn emit_panic_revert(&mut self, builder: &mut FunctionBuilder<'_>, code: u64) {
+        let selector = U256::from(0x4e48_7b71u64) << 224;
+        let selector = builder.imm_u256(selector);
+        let zero = builder.imm_u64(0);
+        builder.mstore(zero, selector);
+        let code_offset = builder.imm_u64(4);
+        let code = builder.imm_u64(code);
+        builder.mstore(code_offset, code);
+        let size = builder.imm_u64(36);
+        builder.revert(zero, size);
+    }
+
+    fn emit_revert_error_string_from_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> bool {
+        let ptr = if let ExprKind::Lit(lit) = &expr.kind {
+            let Some(ptr) = self.lower_string_literal_to_memory(builder, lit) else {
+                return false;
+            };
+            ptr
+        } else {
+            let Some(ty) = self.get_expr_type(expr) else { return false };
+            if !matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::String)) {
+                return false;
+            }
+            self.lower_expr(builder, expr)
+        };
+
+        self.emit_revert_error_string_from_memory(builder, ptr);
+        true
+    }
+
+    fn emit_revert_error_string_from_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ptr: ValueId,
+    ) {
+        let selector = U256::from(0x08c3_79a0u64) << 224;
+        let zero = builder.imm_u64(0);
+        let selector = builder.imm_u256(selector);
+        builder.mstore(zero, selector);
+
+        let selector_size = builder.imm_u64(4);
+        let head_offset = builder.imm_u64(32);
+        builder.mstore(selector_size, head_offset);
+
+        let len = builder.mload(ptr);
+        let len_offset = builder.imm_u64(36);
+        builder.mstore(len_offset, len);
+
+        let thirty_one = builder.imm_u64(31);
+        let padded = builder.add(len, thirty_one);
+        let mask = builder.imm_u256(U256::MAX - U256::from(31));
+        let padded = builder.and(padded, mask);
+
+        let data_offset = builder.imm_u64(68);
+        let no_data = builder.iszero(padded);
+        let has_data = builder.iszero(no_data);
+        let zero_final_word = builder.create_block();
+        let copy_data = builder.create_block();
+        builder.branch(has_data, zero_final_word, copy_data);
+
+        builder.switch_to_block(zero_final_word);
+        let word = builder.imm_u64(32);
+        let final_word_offset = builder.sub(padded, word);
+        let final_word = builder.add(data_offset, final_word_offset);
+        builder.mstore(final_word, zero);
+        builder.jump(copy_data);
+
+        builder.switch_to_block(copy_data);
+        let src = builder.add(ptr, head_offset);
+        self.mcopy(builder, data_offset, src, len, None);
+        let size = builder.add(data_offset, padded);
+        builder.revert(zero, size);
+    }
+
+    fn unsigned_max(bits: u16) -> U256 {
+        if bits >= 256 { U256::MAX } else { (U256::from(1) << bits) - U256::from(1) }
+    }
+
+    fn signed_min(bits: u16) -> U256 {
+        U256::MAX - (U256::from(1) << (bits - 1)) + U256::from(1)
+    }
+
+    fn signed_max(bits: u16) -> U256 {
+        (U256::from(1) << (bits - 1)) - U256::from(1)
     }
 
     /// Lowers type(T).min or type(T).max to a constant value.
@@ -1008,46 +2324,58 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let (packed_args, total_len) = self.collect_packed_abi_args(builder, args);
-        let aligned_data_len = total_len.div_ceil(32) * 32;
-        let total_size = 32 + aligned_data_len;
+        // Arguments are fully lowered before the buffer is touched: nested
+        // calls in arguments may allocate memory of their own. The writes
+        // below allocate nothing, so filling the buffer past the unbumped
+        // free memory pointer and reserving it afterwards is safe.
+        let packed_args = self.collect_packed_abi_args(builder, args);
 
-        // Get free memory pointer
         let free_mem_ptr_slot = builder.imm_u64(0x40);
         let ptr = builder.mload(free_mem_ptr_slot);
 
-        // We'll write data starting at ptr+32 (leaving room for length)
+        // Data starts at ptr+32 (leaving room for the length word).
         let thirty_two = builder.imm_u64(32);
         let data_start = builder.add(ptr, thirty_two);
+        let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
 
-        // Reserve the output buffer before lowering arguments. Nested calls in arguments may
-        // allocate memory too, and must not reuse/clobber this buffer while it is being filled.
-        let total_size_val = builder.imm_u64(total_size);
-        let new_free_ptr = builder.add(ptr, total_size_val);
-        builder.mstore(free_mem_ptr_slot, new_free_ptr);
-
-        let length = builder.imm_u64(total_len);
+        // Finalize the allocation: length word + data padded to a word
+        // boundary, keeping the free memory pointer aligned.
+        let (length, total_size) = match static_len {
+            Some(len) => (builder.imm_u64(len), builder.imm_u64(32 + len.div_ceil(32) * 32)),
+            None => {
+                let length = builder.sub(end, data_start);
+                let thirty_one = builder.imm_u64(31);
+                let rounded = builder.add(length, thirty_one);
+                let mask = builder.not(thirty_one);
+                let aligned = builder.and(rounded, mask);
+                (length, builder.add(aligned, thirty_two))
+            }
+        };
         builder.mstore(ptr, length);
-
-        self.write_packed_abi_args(builder, data_start, &packed_args);
+        let new_free_ptr = builder.add(ptr, total_size);
+        builder.mstore(free_mem_ptr_slot, new_free_ptr);
 
         // Return pointer to the bytes value
         ptr
     }
 
-    /// Lowers `keccak256(abi.encodePacked(...))` without materializing a temporary bytes object.
+    /// Lowers `keccak256(abi.encodePacked(...))` without materializing a temporary bytes object:
+    /// the packed data is staged at the unbumped free memory pointer and hashed in place.
     pub(super) fn lower_keccak_abi_encode_packed(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
     ) -> ValueId {
-        let (packed_args, total_len) = self.collect_packed_abi_args(builder, args);
+        let packed_args = self.collect_packed_abi_args(builder, args);
 
         let free_mem_ptr_slot = builder.imm_u64(0x40);
         let data_start = builder.mload(free_mem_ptr_slot);
-        self.write_packed_abi_args(builder, data_start, &packed_args);
+        let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
 
-        let size = builder.imm_u64(total_len);
+        let size = match static_len {
+            Some(len) => builder.imm_u64(len),
+            None => builder.sub(end, data_start),
+        };
         builder.keccak256(data_start, size)
     }
 
@@ -1055,36 +2383,131 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         args: &CallArgs<'_>,
-    ) -> (Vec<PackedAbiArg>, u64) {
+    ) -> Vec<PackedAbiArg> {
         let mut packed_args = Vec::with_capacity(args.len());
-        let mut total_len = 0u64;
 
         for arg in args.exprs() {
             if let ExprKind::Lit(lit) = &arg.kind
                 && let LitKind::Str(_, bytes, _) = &lit.kind
             {
                 let bytes = bytes.as_byte_str().to_vec();
-                total_len += bytes.len() as u64;
                 packed_args.push(PackedAbiArg::Bytes(bytes));
                 continue;
             }
 
+            if self.expr_is_calldata_dynamic_bytes(arg) {
+                self.gcx
+                    .dcx()
+                    .err(
+                        "codegen does not support packed encoding of calldata `bytes`/`string` yet",
+                    )
+                    .span(arg.span)
+                    .emit();
+                continue;
+            }
+
+            // `bytes`/`string` values: their data is packed without padding.
+            if let Some(ty) = self.get_expr_type(arg)
+                && matches!(
+                    ty.peel_refs().kind,
+                    TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                )
+            {
+                let ptr = self.lower_expr(builder, arg);
+                packed_args.push(PackedAbiArg::DynamicBytes(ptr));
+                continue;
+            }
+
             let size = self.get_packed_size_from_expr(arg);
+            let left_aligned = self.expr_is_fixed_bytes(arg);
             let value = self.lower_expr(builder, arg);
-            total_len += size as u64;
-            packed_args.push(PackedAbiArg::Value { value, size });
+            packed_args.push(PackedAbiArg::Value { value, size, left_aligned });
         }
 
-        (packed_args, total_len)
+        packed_args
     }
 
+    /// Whether an expression's value uses the left-aligned fixed-bytes word
+    /// representation (`bytesN` values carry their data in the word's top
+    /// bytes).
+    fn expr_is_fixed_bytes(&self, expr: &hir::Expr<'_>) -> bool {
+        self.get_expr_type(expr).is_some_and(|ty| {
+            matches!(ty.peel_refs().kind, TyKind::Elementary(ElementaryType::FixedBytes(_)))
+        })
+    }
+
+    /// The byte width `N` of an expression typed `bytesN`, if it is one.
+    fn fixed_bytes_width_of_expr(&self, expr: &hir::Expr<'_>) -> Option<u8> {
+        match self.get_expr_type(expr)?.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::FixedBytes(n)) => Some(n.bytes()),
+            _ => None,
+        }
+    }
+
+    /// Lowers a binary-operator operand, left-aligning a bare numeric literal
+    /// when its sibling is `bytesN`. A literal like `0x11223344` in
+    /// `x == 0x11223344` is typed from its sibling, so it must use the same
+    /// left-aligned word representation as the `bytesN` value it is compared to.
+    fn lower_fixed_bytes_operand(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        operand: &hir::Expr<'_>,
+        sibling: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let ExprKind::Lit(lit) = &operand.kind
+            && let LitKind::Number(n) = &lit.kind
+            && self.fixed_bytes_width_of_expr(operand).is_none()
+            && let Some(width) = self.fixed_bytes_width_of_expr(sibling)
+            && width < 32
+        {
+            return builder.imm_u256(*n << (usize::from(32 - width) * 8));
+        }
+        self.lower_expr(builder, operand)
+    }
+
+    fn expr_has_bytes_or_string_type(&self, expr: &hir::Expr<'_>) -> bool {
+        self.get_expr_type(expr).is_some_and(|ty| {
+            matches!(
+                ty.peel_refs().kind,
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            )
+        })
+    }
+
+    fn expr_is_calldata_dynamic_bytes(&self, expr: &hir::Expr<'_>) -> bool {
+        let Some(ty) = self.get_expr_type(expr) else { return false };
+        match ty.kind {
+            TyKind::Ref(inner, solar_ast::DataLocation::Calldata) => matches!(
+                inner.kind,
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            ),
+            TyKind::Slice(array) => {
+                array.is_ref_at(solar_ast::DataLocation::Calldata)
+                    && matches!(
+                        array.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    )
+            }
+            _ => false,
+        }
+    }
+
+    /// Writes packed arguments starting at `data_start`. Returns the end
+    /// cursor (one past the last packed byte) and, when every argument has a
+    /// compile-time size, the total packed length. Word writes may spill up to
+    /// 31 bytes past their packed size; later writes overwrite the spill, and
+    /// trailing spill lands in dead padding/scratch.
     fn write_packed_abi_args(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         data_start: ValueId,
         args: &[PackedAbiArg],
-    ) {
-        let mut current_offset: u64 = 0;
+    ) -> (ValueId, Option<u64>) {
+        // The cursor is `base + offset`: the offset stays compile-time between
+        // dynamic (runtime-length) arguments, which rebase the cursor.
+        let mut base = data_start;
+        let mut offset: u64 = 0;
+        let mut is_static = true;
 
         for arg in args {
             match arg {
@@ -1093,38 +2516,86 @@ impl<'gcx> Lowerer<'gcx> {
                         let mut padded = [0u8; 32];
                         padded[..chunk.len()].copy_from_slice(chunk);
                         let val = builder.imm_u256(U256::from_be_bytes(padded));
-                        let offset = builder.imm_u64(current_offset);
-                        let dest = builder.add(data_start, offset);
+                        let dest = self.offset_ptr(builder, base, offset);
                         builder.mstore(dest, val);
-                        current_offset += chunk.len() as u64;
+                        offset += chunk.len() as u64;
                     }
                 }
-                &PackedAbiArg::Value { value, size } if size >= 32 => {
+                &PackedAbiArg::Value { value, size, .. } if size >= 32 => {
                     // Full 32 bytes - use MSTORE
-                    let offset = builder.imm_u64(current_offset);
-                    let dest = builder.add(data_start, offset);
+                    let dest = self.offset_ptr(builder, base, offset);
                     builder.mstore(dest, value);
-                    current_offset += size as u64;
+                    offset += size as u64;
                 }
-                &PackedAbiArg::Value { value, size } => {
-                    // Less than 32 bytes - need to left-align and use MSTORE.
-                    // Value is already right-aligned in the 256-bit word.
-                    let shift_bits = (32 - size) * 8;
-                    let shift_amount = builder.imm_u64(shift_bits as u64);
-                    let left_aligned = builder.shl(shift_amount, value);
+                &PackedAbiArg::Value { value, size, left_aligned } => {
+                    // Less than 32 bytes: the word's top `size` bytes are
+                    // written. Fixed-bytes values are already left-aligned;
+                    // every other value type is right-aligned and shifts up.
+                    // Fixed-bytes constants are disambiguated by value:
+                    // number-literal casts carry the raw (right-aligned)
+                    // number.
+                    let needs_shift = if left_aligned {
+                        match builder.func().value(value) {
+                            crate::mir::Value::Immediate(imm) => imm
+                                .as_u256()
+                                .is_some_and(|v| !v.is_zero() && v < U256::from(1) << (8 * size)),
+                            _ => false,
+                        }
+                    } else {
+                        true
+                    };
+                    let value = if needs_shift {
+                        let shift_bits = (32 - size) * 8;
+                        let shift_amount = builder.imm_u64(shift_bits as u64);
+                        builder.shl(shift_amount, value)
+                    } else {
+                        value
+                    };
 
-                    let offset = builder.imm_u64(current_offset);
-                    let dest = builder.add(data_start, offset);
-                    builder.mstore(dest, left_aligned);
-                    current_offset += size as u64;
+                    let dest = self.offset_ptr(builder, base, offset);
+                    builder.mstore(dest, value);
+                    offset += size as u64;
+                }
+                &PackedAbiArg::DynamicBytes(ptr) => {
+                    let dest = self.offset_ptr(builder, base, offset);
+                    let len = builder.mload(ptr);
+                    let word = builder.imm_u64(32);
+                    let src = builder.add(ptr, word);
+                    self.mcopy(builder, dest, src, len, None);
+                    base = builder.add(dest, len);
+                    offset = 0;
+                    is_static = false;
                 }
             }
+        }
+
+        if is_static {
+            (data_start, Some(offset))
+        } else {
+            let end = self.offset_ptr(builder, base, offset);
+            (end, None)
         }
     }
 
     pub(super) fn abi_encode_packed_call_args<'a>(
         &self,
         expr: &'a hir::Expr<'a>,
+    ) -> Option<&'a CallArgs<'a>> {
+        self.abi_member_call_args(expr, sym::encodePacked)
+    }
+
+    pub(super) fn abi_encode_call_args<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+    ) -> Option<&'a CallArgs<'a>> {
+        self.abi_member_call_args(expr, sym::encode)
+    }
+
+    /// Returns the arguments of an `abi.<member>(...)` call expression.
+    fn abi_member_call_args<'a>(
+        &self,
+        expr: &'a hir::Expr<'a>,
+        name: Symbol,
     ) -> Option<&'a CallArgs<'a>> {
         let ExprKind::Call(callee, args, _) = &expr.kind else {
             return None;
@@ -1137,7 +2608,7 @@ impl<'gcx> Lowerer<'gcx> {
         };
         matches!(res_slice.first(), Some(hir::Res::Builtin(Builtin::Abi)))
             .then_some(args)
-            .filter(|_| member.name == sym::encodePacked)
+            .filter(|_| member.name == name)
     }
 
     /// Gets the packed size in bytes for an expression (used by abi.encodePacked).
@@ -1231,6 +2702,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         op: hir::UnOp,
         operand: ValueId,
+        int_info: Option<IntegerInfo>,
+        span: Span,
     ) -> ValueId {
         use hir::UnOpKind;
 
@@ -1239,6 +2712,16 @@ impl<'gcx> Lowerer<'gcx> {
             UnOpKind::BitNot => builder.not(operand),
             UnOpKind::Neg => {
                 let zero = builder.imm_u256(U256::ZERO);
+                if !self.in_unchecked_block {
+                    let int_info = self.require_checked_arithmetic_info(int_info, span);
+                    if let Some(info) = int_info
+                        && info.signed
+                    {
+                        let min = builder.imm_u256(Self::signed_min(info.bits));
+                        let overflow = builder.eq(operand, min);
+                        self.emit_panic_if(builder, overflow, 0x11);
+                    }
+                }
                 builder.sub(zero, operand)
             }
             UnOpKind::PreInc | UnOpKind::PostInc => {
@@ -1279,6 +2762,18 @@ impl<'gcx> Lowerer<'gcx> {
                         {
                             // Recursively copy all fields (handles nested structs)
                             self.copy_memory_to_storage(builder, *struct_id, base_slot, rhs, 0);
+                        } else if matches!(
+                            var.ty.kind,
+                            hir::TypeKind::Elementary(
+                                hir::ElementaryType::String | hir::ElementaryType::Bytes
+                            )
+                        ) {
+                            // `string`/`bytes` state variable: `rhs` is a memory
+                            // `[length][data...]` pointer; encode it into the
+                            // short/long storage form instead of storing the
+                            // pointer word.
+                            let slot_val = builder.imm_u64(base_slot);
+                            self.copy_memory_bytes_to_storage(builder, slot_val, rhs);
                         } else {
                             // Simple scalar storage assignment
                             let slot_val = builder.imm_u64(base_slot);
@@ -1305,7 +2800,11 @@ impl<'gcx> Lowerer<'gcx> {
                         slot_val,
                         key_is_dynamic,
                     );
-                    builder.sstore(computed_slot, rhs);
+                    if self.expr_has_bytes_or_string_type(lhs) {
+                        self.copy_memory_bytes_to_storage(builder, computed_slot, rhs);
+                    } else {
+                        builder.sstore(computed_slot, rhs);
+                    }
                     return;
                 }
 
@@ -1316,8 +2815,68 @@ impl<'gcx> Lowerer<'gcx> {
                         Some(idx) => self.lower_expr(builder, idx),
                         None => builder.imm_u64(0),
                     };
-                    let computed_slot = self.compute_mapping_slot(builder, index_val, inner_slot);
-                    builder.sstore(computed_slot, rhs);
+                    let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
+                    let computed_slot = self.compute_mapping_slot_for_index(
+                        builder,
+                        index.as_deref(),
+                        index_val,
+                        inner_slot,
+                        key_is_dynamic,
+                    );
+                    if self.expr_has_bytes_or_string_type(lhs) {
+                        self.copy_memory_bytes_to_storage(builder, computed_slot, rhs);
+                    } else {
+                        builder.sstore(computed_slot, rhs);
+                    }
+                    return;
+                }
+
+                // Storage bytes/string element assignment updates one packed
+                // byte in either the short main-slot form or the long data
+                // slots. Do this before generic array handling/materialization:
+                // `lower_expr(base)` for storage bytes returns a memory copy.
+                if self.is_storage_bytes_expr(base)
+                    && let Some(slot) = self.lower_lvalue_slot(builder, base)
+                {
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    self.store_storage_bytes_element(builder, slot, index_val, rhs);
+                    return;
+                }
+
+                // Storage array element assignment (state variable or
+                // storage-reference local), dynamic or fixed-size.
+                if let Some((slot_val, fixed_len, elem_slots)) =
+                    self.storage_array_slot_of_base(builder, base)
+                {
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let element_slot = self.lower_storage_array_element_slot(
+                        builder, slot_val, fixed_len, index_val, elem_slots,
+                    );
+                    builder.sstore(element_slot, rhs);
+                    return;
+                }
+
+                // Memory bytes/string element store: a single-byte write at
+                // `data + index` into the packed `[length][data...]` layout.
+                if self.is_memory_bytes_expr(base) {
+                    let base_val = self.lower_expr(builder, base);
+                    let index_val = match index {
+                        Some(idx) => self.lower_expr(builder, idx),
+                        None => builder.imm_u64(0),
+                    };
+                    let len = builder.mload(base_val);
+                    self.emit_index_bounds_check(builder, index_val, len);
+                    let offset_32 = builder.imm_u64(32);
+                    let data_base = builder.add(base_val, offset_32);
+                    let byte_addr = builder.add(data_base, index_val);
+                    let byte_val = self.bytes1_store_byte(builder, rhs);
+                    builder.mstore8(byte_addr, byte_val);
                     return;
                 }
 
@@ -1330,8 +2889,14 @@ impl<'gcx> Lowerer<'gcx> {
                 let offset_32 = builder.imm_u64(32);
                 let byte_offset = builder.mul(index_val, offset_32);
                 let data_base = if self.is_dynamic_memory_array_expr(base) {
+                    let len = builder.mload(base_val);
+                    self.emit_index_bounds_check(builder, index_val, len);
                     builder.add(base_val, offset_32)
                 } else {
+                    if let Some(len) = self.fixed_array_len_of_expr(base) {
+                        let len_val = builder.imm_u64(len);
+                        self.emit_index_bounds_check(builder, index_val, len_val);
+                    }
                     base_val
                 };
                 let addr = builder.add(data_base, byte_offset);
@@ -1443,9 +3008,26 @@ impl<'gcx> Lowerer<'gcx> {
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
         if let ExprKind::Ident(res_slice) = &callee.kind
-            && let Some(hir::Res::Builtin(builtin)) = res_slice.first()
+            && let Some(builtin) = self.select_builtin_overload(res_slice, args)
         {
-            return self.lower_builtin_call(builder, *builtin, args);
+            return self.lower_builtin_call(builder, builtin, args);
+        }
+
+        if let Some(error_id) = self.custom_error_id_from_callee(callee) {
+            self.emit_custom_error_revert(builder, error_id, args);
+            return builder.imm_u64(0);
+        }
+
+        // `T.wrap(x)` / `T.unwrap(v)` for a user-defined value type are identity
+        // operations at the EVM level: a UDVT value is represented exactly as its
+        // underlying type, so no wrapper is added or removed.
+        if let ExprKind::Member(base, member) = &callee.kind
+            && matches!(member.name.as_str(), "wrap" | "unwrap")
+            && let ExprKind::Ident(res_slice) = &base.kind
+            && res_slice.iter().any(|r| matches!(r, hir::Res::Item(hir::ItemId::Udvt(_))))
+            && let Some(arg) = args.exprs().next()
+        {
+            return self.lower_expr(builder, arg);
         }
 
         if let ExprKind::Member(base, member) = &callee.kind {
@@ -1524,21 +3106,131 @@ impl<'gcx> Lowerer<'gcx> {
             && let Some(first_arg) = args.exprs().next()
         {
             let value = self.lower_expr(builder, first_arg);
-            return self.lower_type_conversion(builder, ty, value);
+            return self.lower_type_conversion(builder, ty, first_arg, value);
         }
 
         builder.imm_u64(0)
+    }
+
+    fn select_builtin_overload(
+        &self,
+        res_slice: &[hir::Res],
+        args: &CallArgs<'_>,
+    ) -> Option<Builtin> {
+        let arg_count = args.exprs().count();
+        res_slice
+            .iter()
+            .filter_map(|res| match res {
+                hir::Res::Builtin(builtin) => Some(*builtin),
+                _ => None,
+            })
+            .find(|builtin| match builtin {
+                Builtin::Revert => arg_count == 0,
+                Builtin::RevertMsg => arg_count == 1,
+                _ => true,
+            })
+    }
+
+    fn custom_error_id_from_callee(&self, callee: &hir::Expr<'_>) -> Option<hir::ErrorId> {
+        if let Some(ty) = self.get_expr_type(callee)
+            && let TyKind::Error(_, error_id) = ty.kind
+        {
+            return Some(error_id);
+        }
+
+        let ExprKind::Ident(res_slice) = &callee.kind else { return None };
+        res_slice.iter().find_map(|res| {
+            if let hir::Res::Item(hir::ItemId::Error(error_id)) = res {
+                Some(*error_id)
+            } else {
+                None
+            }
+        })
+    }
+
+    fn emit_revert_payload_from_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> bool {
+        if self.emit_custom_error_revert_from_expr(builder, expr) {
+            return true;
+        }
+        self.emit_revert_error_string_from_expr(builder, expr)
+    }
+
+    fn emit_custom_error_revert_from_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> bool {
+        let ExprKind::Call(callee, args, _) = &expr.kind else { return false };
+        let Some(error_id) = self.custom_error_id_from_callee(callee) else {
+            return false;
+        };
+        self.emit_custom_error_revert(builder, error_id, args);
+        true
+    }
+
+    fn emit_custom_error_revert(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        error_id: hir::ErrorId,
+        args: &CallArgs<'_>,
+    ) {
+        let param_tys = self.gcx.item_parameter_types(hir::ItemId::Error(error_id));
+        let arg_exprs = self.ordered_custom_error_args(error_id, args);
+        let mut items = Vec::with_capacity(param_tys.len());
+        for (&ty, arg) in param_tys.iter().zip(arg_exprs) {
+            let value = self.lower_return_value_for_ty(builder, arg, ty);
+            items.push((value, ty));
+        }
+
+        let selector = self.custom_error_selector(error_id);
+        self.emit_abi_error_revert(builder, selector, &items);
+    }
+
+    fn ordered_custom_error_args<'a>(
+        &self,
+        error_id: hir::ErrorId,
+        args: &'a CallArgs<'a>,
+    ) -> Vec<&'a hir::Expr<'a>> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => exprs.iter().collect(),
+            hir::CallArgsKind::Named(named_args) => {
+                let error = self.gcx.hir.error(error_id);
+                let mut ordered = Vec::with_capacity(error.parameters.len());
+                for &param_id in error.parameters {
+                    let Some(param_name) =
+                        self.gcx.hir.variable(param_id).name.map(|name| name.name)
+                    else {
+                        continue;
+                    };
+                    if let Some(arg) = named_args.iter().find(|arg| arg.name.name == param_name) {
+                        ordered.push(&arg.value);
+                    }
+                }
+                ordered
+            }
+        }
+    }
+
+    fn custom_error_selector(&self, error_id: hir::ErrorId) -> [u8; 4] {
+        let signature = self.gcx.item_signature(hir::ItemId::Error(error_id));
+        let hash = keccak256(signature.as_bytes());
+        [hash[0], hash[1], hash[2], hash[3]]
     }
 
     fn lower_type_conversion(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         ty: &hir::Type<'_>,
+        source: &hir::Expr<'_>,
         value: ValueId,
     ) -> ValueId {
         match &ty.kind {
             hir::TypeKind::Elementary(elem) => {
-                self.lower_elementary_type_conversion(builder, elem, value)
+                self.lower_elementary_type_conversion(builder, elem, source, value)
             }
             hir::TypeKind::Custom(hir::ItemId::Enum(_)) => self.mask_to_bits(builder, value, 8),
             _ => value,
@@ -1549,8 +3241,29 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         elem: &ElementaryType,
+        source: &hir::Expr<'_>,
         value: ValueId,
     ) -> ValueId {
+        // A fixed-bytes source is left-aligned (data in the high bytes). When the
+        // target is a numeric type, those bytes are reinterpreted as a
+        // right-aligned integer (`uint32(bytes4)`), so shift the data down first.
+        let value = match self.fixed_bytes_width_of_expr(source) {
+            Some(width)
+                if matches!(
+                    elem,
+                    ElementaryType::UInt(_) | ElementaryType::Int(_) | ElementaryType::Address(_)
+                ) =>
+            {
+                let shift_bits = u64::from(32 - width) * 8;
+                if shift_bits == 0 {
+                    value
+                } else {
+                    let shift = builder.imm_u64(shift_bits);
+                    builder.shr(shift, value)
+                }
+            }
+            _ => value,
+        };
         match elem {
             ElementaryType::Bool => {
                 let is_zero = builder.iszero(value);
@@ -1565,12 +3278,50 @@ impl<'gcx> Lowerer<'gcx> {
                 let bits = size.bits() as u32;
                 self.sign_extend_to_bits(builder, value, bits)
             }
-            ElementaryType::FixedBytes(_) => value,
+            ElementaryType::FixedBytes(size) => {
+                let bytes = size.bytes();
+                if self.expr_is_fixed_bytes(source) {
+                    self.clean_fixed_bytes(builder, value, bytes)
+                } else {
+                    self.shift_numeric_to_fixed_bytes(builder, value, bytes)
+                }
+            }
             ElementaryType::String
             | ElementaryType::Bytes
             | ElementaryType::Fixed(_, _)
             | ElementaryType::UFixed(_, _) => value,
         }
+    }
+
+    fn shift_numeric_to_fixed_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        bytes: u8,
+    ) -> ValueId {
+        let shift_bits = u64::from(32 - bytes) * 8;
+        let shifted = if shift_bits == 0 {
+            value
+        } else {
+            let shift = builder.imm_u64(shift_bits);
+            builder.shl(shift, value)
+        };
+        self.clean_fixed_bytes(builder, shifted, bytes)
+    }
+
+    fn clean_fixed_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        bytes: u8,
+    ) -> ValueId {
+        if bytes >= 32 {
+            return value;
+        }
+        let low_bits = u64::from(32 - bytes) * 8;
+        let mask = U256::MAX << low_bits;
+        let mask = builder.imm_u256(mask);
+        builder.and(value, mask)
     }
 
     fn mask_to_bits(
@@ -1625,11 +3376,46 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(ptr, len);
 
         let word_size = builder.imm_u64(32);
-        let data_size = builder.mul(len, word_size);
+        let data_size = if matches!(
+            &ty.kind,
+            hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) {
+            // `bytes`/`string`: the length counts bytes; the data area is the
+            // length padded up to a word.
+            let thirty_one = builder.imm_u64(31);
+            let rounded = builder.add(len, thirty_one);
+            let rounded_overflow = builder.lt(rounded, len);
+            self.emit_panic_if(builder, rounded_overflow, 0x41);
+            let mask = builder.not(thirty_one);
+            builder.and(rounded, mask)
+        } else {
+            // Arrays: one word per element.
+            let data_size = builder.mul(len, word_size);
+            let checked_len = builder.div(data_size, word_size);
+            let overflow = builder.eq(checked_len, len);
+            self.emit_panic_if_zero(builder, overflow, 0x41);
+            data_size
+        };
         let total_size = builder.add(data_size, word_size);
+        let total_overflow = builder.lt(total_size, data_size);
+        self.emit_panic_if(builder, total_overflow, 0x41);
         let new_free_ptr = builder.add(ptr, total_size);
+        let bump_overflow = builder.lt(new_free_ptr, ptr);
+        self.emit_panic_if(builder, bump_overflow, 0x41);
+        // Solidity caps memory at 2^64 bytes: an allocation past that limit
+        // panics (0x41) rather than running the VM out of gas on a huge size.
+        let mem_limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
+        let over_limit = builder.gt(new_free_ptr, mem_limit);
+        self.emit_panic_if(builder, over_limit, 0x41);
         let free_ptr_addr = builder.imm_u64(0x40);
         builder.mstore(free_ptr_addr, new_free_ptr);
+
+        // Zero-initialize the data area: memory past the free pointer can be
+        // dirty (keccak staging fast paths write there without bumping it).
+        // `calldatacopy` from the end of calldata writes zeroes.
+        let data_ptr = builder.add(ptr, word_size);
+        let cds = builder.calldatasize();
+        builder.calldatacopy(data_ptr, cds, data_size);
 
         ptr
     }
@@ -1654,13 +3440,31 @@ impl<'gcx> Lowerer<'gcx> {
         // Extract ContractId from the type
         let contract_id = match &ty.kind {
             hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
-            _ => panic!("codegen expected contract type for `new` expression"),
+            _ => {
+                self.gcx
+                    .dcx()
+                    .err("codegen expected a contract type for `new` expression")
+                    .span(ty.span)
+                    .emit();
+                return builder.imm_u64(0);
+            }
         };
 
         // Look up pre-compiled bytecode
         let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
             Some(bc) => bc.clone(),
-            None => panic!("codegen missing creation bytecode for contract deployment"),
+            None => {
+                self.gcx
+                    .dcx()
+                    .err(format!(
+                        "codegen is missing creation bytecode for `new {}`",
+                        self.gcx.hir.contract(contract_id).name
+                    ))
+                    .span(ty.span)
+                    .note("the deployed contract did not compile or was not lowered first")
+                    .emit();
+                return builder.imm_u64(0);
+            }
         };
 
         let bytecode_len = bytecode.len();
@@ -1745,17 +3549,29 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::Keccak256 => {
                 let mut exprs = args.exprs();
                 if let Some(first) = exprs.next() {
+                    if let ExprKind::Lit(lit) = &first.kind
+                        && let LitKind::Str(_, bytes, _) = &lit.kind
+                    {
+                        let hash = keccak256(bytes.as_byte_str());
+                        return builder.imm_u256(U256::from_be_bytes(hash.0));
+                    }
+
                     if let Some(packed_args) = self.abi_encode_packed_call_args(first) {
                         return self.lower_keccak_abi_encode_packed(builder, packed_args);
                     }
-
-                    let arg_val = self.lower_expr(builder, first);
-                    if self.is_dynamic_bytes_expr(first) {
-                        let len = builder.mload(arg_val);
-                        let word_size = builder.imm_u64(32);
-                        let data = builder.add(arg_val, word_size);
-                        return builder.keccak256(data, len);
+                    if let Some(encode_args) = self.abi_encode_call_args(first) {
+                        let arg_exprs: Vec<_> = encode_args.exprs().collect();
+                        if let Some(hash) = self.lower_keccak_abi_encode(builder, &arg_exprs) {
+                            return hash;
+                        }
                     }
+
+                    // Dynamic `bytes`/`string` (incl. `bytes(s)` of a calldata
+                    // value): hash the raw data after materializing it to memory.
+                    if let Some(hash) = self.keccak_dynamic_bytes(builder, first) {
+                        return hash;
+                    }
+                    let arg_val = self.lower_expr(builder, first);
                     let ptr = builder.imm_u64(0);
                     builder.mstore(ptr, arg_val);
                     let size = builder.imm_u64(32);
@@ -1775,16 +3591,36 @@ impl<'gcx> Lowerer<'gcx> {
                     builder.branch(is_false, revert_block, continue_block);
 
                     builder.switch_to_block(revert_block);
-                    let zero = builder.imm_u64(0);
-                    builder.revert(zero, zero);
+                    if matches!(builtin, Builtin::Assert) {
+                        self.emit_panic_revert(builder, 0x01);
+                    } else if let Some(message) = exprs.next() {
+                        if !self.emit_revert_payload_from_expr(builder, message) {
+                            let zero = builder.imm_u64(0);
+                            builder.revert(zero, zero);
+                        }
+                    } else {
+                        let zero = builder.imm_u64(0);
+                        builder.revert(zero, zero);
+                    }
 
                     builder.switch_to_block(continue_block);
                 }
                 builder.imm_u64(0)
             }
-            Builtin::Revert | Builtin::RevertMsg => {
+            Builtin::Revert => {
                 let zero = builder.imm_u64(0);
                 builder.revert(zero, zero);
+                zero
+            }
+            Builtin::RevertMsg => {
+                let mut exprs = args.exprs();
+                let emitted = exprs.next().is_some_and(|message| {
+                    self.emit_revert_error_string_from_expr(builder, message)
+                });
+                let zero = builder.imm_u64(0);
+                if !emitted {
+                    builder.revert(zero, zero);
+                }
                 zero
             }
             Builtin::AddressBalance => {
@@ -1795,24 +3631,32 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.imm_u64(0)
             }
+            Builtin::AddMod | Builtin::MulMod => {
+                let mut exprs = args.exprs();
+                let Some(a) = exprs.next() else { return builder.imm_u64(0) };
+                let Some(b) = exprs.next() else { return builder.imm_u64(0) };
+                let Some(n) = exprs.next() else { return builder.imm_u64(0) };
+                let a = self.lower_expr(builder, a);
+                let b = self.lower_expr(builder, b);
+                let n = self.lower_expr(builder, n);
+                if matches!(builtin, Builtin::AddMod) {
+                    builder.addmod(a, b, n)
+                } else {
+                    builder.mulmod(a, b, n)
+                }
+            }
             Builtin::AbiEncode => {
-                // abi.encode: pad everything to 32 bytes
-                let arg_vals: Vec<ValueId> =
-                    args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
-
-                if arg_vals.is_empty() {
-                    return builder.imm_u64(0);
+                // abi.encode: a fresh `bytes memory` allocation holding the
+                // padded ABI tuple encoding of the arguments.
+                let arg_exprs: Vec<_> = args.exprs().collect();
+                if let Some(ptr) = self.lower_abi_encode_to_bytes(builder, &arg_exprs) {
+                    return ptr;
                 }
-
-                if arg_vals.len() == 1 {
-                    return arg_vals[0];
-                }
-
-                // Multiple values - store at scratch memory with 32-byte padding
-                for (i, &val) in arg_vals.iter().enumerate() {
-                    let offset = builder.imm_u64((i * 32) as u64);
-                    builder.mstore(offset, val);
-                }
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support these `abi.encode` arguments yet")
+                    .span(args.span)
+                    .emit();
                 builder.imm_u64(0)
             }
             Builtin::AbiEncodePacked => {
@@ -1820,6 +3664,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // Returns bytes memory (length + data)
                 self.lower_abi_encode_packed(builder, args)
             }
+            Builtin::AbiDecode => self.lower_abi_decode(builder, args),
             Builtin::YulAdd
             | Builtin::YulSub
             | Builtin::YulMul
@@ -1970,7 +3815,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
             Builtin::YulMsize => builder.msize(),
             Builtin::YulMcopy => {
-                builder.mcopy(arg_vals[0], arg_vals[1], arg_vals[2]);
+                self.mcopy(builder, arg_vals[0], arg_vals[1], arg_vals[2], Some(args.span));
                 builder.imm_u64(0)
             }
             Builtin::YulSload => builder.sload(arg_vals[0]),
@@ -2371,8 +4216,19 @@ impl<'gcx> Lowerer<'gcx> {
             };
 
             // Low-level calls return `(bool, bytes)`, but this expression path
-            // exposes only the first value.
+            // exposes only the first value. `lower_multi_var_decl` copies the
+            // returndata bytes out of the return buffer when they are bound.
             return success;
+        }
+
+        // Handle storage `bytes`/`string` methods before the generic member
+        // call path. Their storage layout is Solidity's packed short/long
+        // bytes form, not the generic dynamic-array layout.
+        if self.is_storage_bytes_expr(base)
+            && matches!(member_name, "push" | "pop")
+            && let Some(slot) = self.lower_lvalue_slot(builder, base)
+        {
+            return self.lower_storage_bytes_method_call(builder, slot, member_name, args);
         }
 
         // Handle dynamic array methods (push, pop)
@@ -2586,6 +4442,340 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
+    /// Resolves an indexing base that is an array living in storage: an array state variable
+    /// or an array storage-reference local. Returns the base slot as a runtime value and the
+    /// constant length for fixed-size arrays (`None` for dynamic arrays, whose length is
+    /// stored at the base slot). Fixed-size elements occupy one slot each starting at the
+    /// base slot (this codebase does not pack storage).
+    fn storage_array_slot_of_base(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(ValueId, Option<u64>, u64)> {
+        let ExprKind::Ident(res_slice) = &expr.kind else { return None };
+        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+            return None;
+        };
+        let var = self.gcx.hir.variable(*var_id);
+        let hir::TypeKind::Array(arr) = &var.ty.kind else { return None };
+        let fixed_len = if arr.size.is_some() {
+            let solar_sema::ty::TyKind::Array(_, len) =
+                self.gcx.type_of_hir_ty(&var.ty).peel_refs().kind
+            else {
+                return None;
+            };
+            // Larger lengths already produced a layout diagnostic.
+            Some(u64::try_from(len).ok()?)
+        } else {
+            None
+        };
+        let elem_slots = self.calculate_storage_slots_for_type(&arr.element);
+        if let Some(&slot) = self.storage_slots.get(var_id) {
+            return Some((builder.imm_u64(slot), fixed_len, elem_slots));
+        }
+        if self.storage_ref_locals.contains(var_id) {
+            let slot_val = self.locals.get(var_id).copied()?;
+            return Some((slot_val, fixed_len, elem_slots));
+        }
+        None
+    }
+
+    /// Emits the bounds check for a storage array access and returns the element slot.
+    /// Dynamic arrays: length at `slot`, elements at `keccak256(slot) + index * elem_slots`.
+    /// Fixed-size arrays: constant length, elements at `slot + index * elem_slots`.
+    fn lower_storage_array_element_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot_val: ValueId,
+        fixed_len: Option<u64>,
+        index_val: ValueId,
+        elem_slots: u64,
+    ) -> ValueId {
+        match fixed_len {
+            Some(len) => {
+                let len_val = builder.imm_u64(len);
+                self.emit_index_bounds_check(builder, index_val, len_val);
+                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
+                builder.add(slot_val, offset)
+            }
+            None => {
+                let len = builder.sload(slot_val);
+                self.emit_index_bounds_check(builder, index_val, len);
+                let mem_0 = builder.imm_u64(0);
+                builder.mstore(mem_0, slot_val);
+                let size_32 = builder.imm_u64(32);
+                let data_slot = builder.keccak256(mem_0, size_32);
+                let offset = Self::scale_index_by_slots(builder, index_val, elem_slots);
+                builder.add(data_slot, offset)
+            }
+        }
+    }
+
+    /// Scales an array index by its element's slot count; single-slot elements
+    /// are addressed by the index directly.
+    fn scale_index_by_slots(
+        builder: &mut FunctionBuilder<'_>,
+        index_val: ValueId,
+        elem_slots: u64,
+    ) -> ValueId {
+        if elem_slots <= 1 {
+            return index_val;
+        }
+        let elem_slots = builder.imm_u64(elem_slots);
+        builder.mul(index_val, elem_slots)
+    }
+
+    /// Checks if an expression is a dynamically-sized calldata parameter (dynamic array or
+    /// bytes/string) and returns its ABI head value (the offset, relative to the start of the
+    /// args after the 4-byte selector, of its length word) and whether it is bytes/string.
+    ///
+    /// Fixed-size calldata array parameters are not ABI heads: they are decoded to memory in
+    /// the function prologue and take the regular memory path.
+    fn calldata_dyn_head(&self, expr: &hir::Expr<'_>) -> Option<(ValueId, bool)> {
+        let ExprKind::Ident(res_slice) = &expr.kind else { return None };
+        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+            return None;
+        };
+        let var = self.gcx.hir.variable(*var_id);
+        if var.data_location != Some(solar_ast::DataLocation::Calldata) {
+            return None;
+        }
+        let head = self.locals.get(var_id).copied()?;
+        match &var.ty.kind {
+            hir::TypeKind::Array(arr) if arr.size.is_none() => Some((head, false)),
+            hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String) => {
+                Some((head, true))
+            }
+            _ => None,
+        }
+    }
+
+    /// Returns the constant length of a fixed-size array expression, if its type is known.
+    fn fixed_array_len_of_expr(&self, expr: &hir::Expr<'_>) -> Option<u64> {
+        // Identifier: use the variable's declared type directly; `get_expr_type` may not
+        // resolve every local.
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            if let hir::TypeKind::Array(arr) = &var.ty.kind {
+                arr.size.as_ref()?;
+                if let solar_sema::ty::TyKind::Array(_, len) =
+                    self.gcx.type_of_hir_ty(&var.ty).peel_refs().kind
+                {
+                    return u64::try_from(len).ok();
+                }
+            }
+            return None;
+        }
+        if let Some(ty) = self.get_expr_type(expr)
+            && let solar_sema::ty::TyKind::Array(_, len) = ty.peel_refs().kind
+        {
+            return u64::try_from(len).ok();
+        }
+        None
+    }
+
+    /// Normalizes a `bytes1`-typed value to its single byte (in the word's low
+    /// 8 bits) for `mstore8`. Runtime `bytes1` values are left-aligned (the
+    /// convention used by every bytes-element read path), so they shift down;
+    /// constants are disambiguated by value: a left-aligned constant has only
+    /// the top byte set, while a number-literal constant is already the low
+    /// byte.
+    fn bytes1_store_byte(&mut self, builder: &mut FunctionBuilder<'_>, value: ValueId) -> ValueId {
+        if let crate::mir::Value::Immediate(imm) = builder.func().value(value)
+            && let Some(v) = imm.as_u256()
+        {
+            let byte = if v <= U256::from(0xffu64) { v } else { v >> 248 };
+            return builder.imm_u256(byte);
+        }
+        let shift = builder.imm_u64(248);
+        builder.shr(shift, value)
+    }
+
+    fn store_storage_bytes_element(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        index: ValueId,
+        value: ValueId,
+    ) {
+        let word = builder.sload(slot);
+        let one = builder.imm_u64(1);
+        let long_bit = builder.and(word, one);
+        let is_long = builder.eq(long_bit, one);
+        let low_byte_mask = builder.imm_u64(0xff);
+        let shift_one = builder.imm_u64(1);
+        let len_low = builder.and(word, low_byte_mask);
+        let short_len = builder.shr(shift_one, len_low);
+        let long_len = builder.shr(shift_one, word);
+        let len = builder.select(is_long, long_len, short_len);
+        self.emit_index_bounds_check(builder, index, len);
+        let byte = self.bytes1_store_byte(builder, value);
+
+        let short_block = builder.create_block();
+        let long_block = builder.create_block();
+        let done_block = builder.create_block();
+        builder.branch(is_long, long_block, short_block);
+
+        builder.switch_to_block(short_block);
+        let shift = self.storage_byte_shift(builder, index);
+        let updated = self.replace_byte_in_word(builder, word, shift, byte);
+        builder.sstore(slot, updated);
+        builder.jump(done_block);
+
+        builder.switch_to_block(long_block);
+        let word_size = builder.imm_u64(32);
+        let scratch = builder.imm_u64(0);
+        builder.mstore(scratch, slot);
+        let data_slot = builder.keccak256(scratch, word_size);
+        let word_index = builder.div(index, word_size);
+        let elem_slot = builder.add(data_slot, word_index);
+        let byte_index = builder.mod_(index, word_size);
+        let data_word = builder.sload(elem_slot);
+        let shift = self.storage_byte_shift(builder, byte_index);
+        let updated = self.replace_byte_in_word(builder, data_word, shift, byte);
+        builder.sstore(elem_slot, updated);
+        builder.jump(done_block);
+
+        builder.switch_to_block(done_block);
+    }
+
+    fn storage_byte_shift(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        index_in_word: ValueId,
+    ) -> ValueId {
+        let thirty_one = builder.imm_u64(31);
+        let bytes_from_right = builder.sub(thirty_one, index_in_word);
+        let eight = builder.imm_u64(8);
+        builder.mul(bytes_from_right, eight)
+    }
+
+    fn replace_byte_in_word(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        word: ValueId,
+        shift: ValueId,
+        byte: ValueId,
+    ) -> ValueId {
+        let byte_mask = builder.imm_u64(0xff);
+        let shifted_mask = builder.shl(shift, byte_mask);
+        let keep_mask = builder.not(shifted_mask);
+        let cleared = builder.and(word, keep_mask);
+        let shifted_byte = builder.shl(shift, byte);
+        builder.or(cleared, shifted_byte)
+    }
+
+    fn lower_storage_bytes_method_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        method: &str,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let current = self.materialize_storage_bytes(builder, slot);
+        let len = builder.mload(current);
+        match method {
+            "push" => {
+                let one = builder.imm_u64(1);
+                let new_len = builder.add(len, one);
+                let overflow = builder.lt(new_len, len);
+                self.emit_panic_if(builder, overflow, 0x41);
+
+                let resized = self.resize_memory_bytes(builder, current, len, new_len);
+                let byte = args
+                    .exprs()
+                    .next()
+                    .map(|arg| {
+                        let value = self.lower_expr(builder, arg);
+                        self.bytes1_store_byte(builder, value)
+                    })
+                    .unwrap_or_else(|| builder.imm_u64(0));
+                let word = builder.imm_u64(32);
+                let data = builder.add(resized, word);
+                let dst = builder.add(data, len);
+                builder.mstore8(dst, byte);
+                self.copy_memory_bytes_to_storage(builder, slot, resized);
+            }
+            "pop" => {
+                self.emit_panic_if_zero(builder, len, 0x31);
+                let one = builder.imm_u64(1);
+                let new_len = builder.sub(len, one);
+                let resized = self.resize_memory_bytes(builder, current, new_len, new_len);
+                self.copy_memory_bytes_to_storage(builder, slot, resized);
+            }
+            _ => {}
+        }
+        builder.imm_u64(0)
+    }
+
+    fn resize_memory_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        src: ValueId,
+        copy_len: ValueId,
+        new_len: ValueId,
+    ) -> ValueId {
+        let word = builder.imm_u64(32);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(new_len, thirty_one);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let zero = builder.imm_u64(0);
+        let is_empty = builder.iszero(padded);
+        let data_size = builder.select(is_empty, word, padded);
+        let total = builder.add(word, data_size);
+        let ptr = self.allocate_memory_dynamic(builder, total);
+        builder.mstore(ptr, new_len);
+
+        let data = builder.add(ptr, word);
+        let last_word_off = builder.sub(data_size, word);
+        let last_word = builder.add(data, last_word_off);
+        builder.mstore(last_word, zero);
+
+        let src_data = builder.add(src, word);
+        self.mcopy(builder, data, src_data, copy_len, None);
+        ptr
+    }
+
+    /// Whether an expression is a memory `bytes`/`string` value with the packed
+    /// `[length][data...]` layout. Storage bytes identifiers materialize to a
+    /// packed memory copy too, but have dedicated index paths and are excluded,
+    /// as are calldata bytes (which lower to their ABI head).
+    fn is_memory_bytes_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        if !self.is_dynamic_bytes_expr(expr) {
+            return false;
+        }
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            // Storage bytes and calldata bytes have dedicated paths.
+            return !self.storage_slots.contains_key(var_id)
+                && self.gcx.hir.variable(*var_id).data_location
+                    != Some(solar_ast::DataLocation::Calldata);
+        }
+        true
+    }
+
+    /// Whether an expression is a storage `bytes`/`string` state variable, whose value
+    /// lowers to a packed `[length][data...]` memory copy.
+    fn is_storage_bytes_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            return self.storage_slots.contains_key(var_id)
+                && matches!(
+                    var.ty.kind,
+                    hir::TypeKind::Elementary(
+                        hir::ElementaryType::Bytes | hir::ElementaryType::String
+                    )
+                );
+        }
+        false
+    }
+
     /// Lowers a struct constructor call (e.g., Point(10, 20)).
     /// Allocates memory for the struct and stores each field value.
     fn lower_struct_constructor(
@@ -2639,6 +4829,246 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(free_ptr_addr2, new_free_ptr);
 
         ptr
+    }
+
+    /// Copies the returndata of the call that was just lowered into a fresh
+    /// `bytes memory` allocation (`[length][data...]`) and returns the pointer.
+    ///
+    /// Must be emitted directly after the call instruction: the EVM return
+    /// buffer is only invalidated by another external call, so reading it here
+    /// is safe.
+    pub(super) fn materialize_returndata_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> ValueId {
+        let size = builder.returndatasize();
+        // total = 32 (length word) + ceil32(size), keeping the free memory
+        // pointer word-aligned. With empty returndata this degenerates to a
+        // 32-byte allocation holding a zero length.
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(size, thirty_one);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let word = builder.imm_u64(32);
+        let total = builder.add(padded, word);
+        let ptr = self.allocate_memory_dynamic(builder, total);
+        builder.mstore(ptr, size);
+        let data_ptr = builder.add(ptr, word);
+        let zero = builder.imm_u64(0);
+        builder.returndatacopy(data_ptr, zero, size);
+        ptr
+    }
+
+    /// Lowers `abi.decode(data, (T...))` for elementary values from memory
+    /// `bytes`: the first decoded value is returned and additional values are
+    /// written to the same scratch slots used by multi-return calls. Dynamic
+    /// `bytes`/`string` values are copied into fresh memory bytes.
+    ///
+    /// Like solc, a word that is not a clean value of `T` reverts with empty
+    /// returndata instead of being silently truncated.
+    fn lower_abi_decode(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let mut exprs = args.exprs();
+        let (Some(data), Some(types)) = (exprs.next(), exprs.next()) else {
+            return builder.imm_u64(0);
+        };
+
+        let Some(elems) = self.abi_decode_elementary_types(types, args.span) else {
+            return builder.imm_u64(0);
+        };
+
+        // The decode logic below expects a memory `[length][data...]` pointer.
+        // A calldata `bytes`/`string` parameter lowers to its ABI head, so copy
+        // it into memory first. Other calldata sources (e.g. `msg.data`, slices)
+        // don't have a head we can materialize, so reject them rather than
+        // silently decode garbage.
+        let ptr = if let Some((head, _)) = self.calldata_dyn_head(data) {
+            self.materialize_calldata_bytes(builder, head)
+        } else if self.expr_is_calldata_dynamic_bytes(data) {
+            self.gcx
+                .dcx()
+                .err("codegen does not support `abi.decode` from this calldata source yet")
+                .span(data.span)
+                .emit();
+            return builder.imm_u64(0);
+        } else {
+            self.lower_expr(builder, data)
+        };
+        let word = builder.imm_u64(32);
+        let len = builder.mload(ptr);
+        let head_size = (elems.len() * 32) as u64;
+        let required = builder.imm_u64(head_size);
+        let is_short = builder.lt(len, required);
+        self.emit_abi_decode_revert_if(builder, is_short);
+
+        let data_start = builder.add(ptr, word);
+        let mut first = None;
+        for (i, elem) in elems.iter().enumerate() {
+            let addr = self.offset_ptr(builder, data_start, (i * 32) as u64);
+            let value = builder.mload(addr);
+            let decoded = if matches!(elem, ElementaryType::Bytes | ElementaryType::String) {
+                self.lower_abi_decode_dynamic_bytes(builder, data_start, len, head_size, value)
+            } else {
+                self.lower_abi_decode_word(builder, elem, value)
+            };
+            if i == 0 {
+                first = Some(decoded);
+            } else {
+                let out = builder.imm_u64((i * 32) as u64);
+                builder.mstore(out, decoded);
+            }
+        }
+        first.unwrap_or_else(|| builder.imm_u64(0))
+    }
+
+    fn abi_decode_elementary_types(
+        &self,
+        types: &hir::Expr<'_>,
+        span: Span,
+    ) -> Option<Vec<ElementaryType>> {
+        let ExprKind::Tuple(elems) = &types.kind else {
+            self.gcx
+                .dcx()
+                .err("codegen only supports `abi.decode` into static values")
+                .span(span)
+                .emit();
+            return None;
+        };
+
+        let mut out = Vec::with_capacity(elems.len());
+        for elem in elems.iter().copied() {
+            let Some(elem_expr) = elem else {
+                self.gcx
+                    .dcx()
+                    .err("codegen only supports `abi.decode` into static values")
+                    .span(span)
+                    .emit();
+                return None;
+            };
+            let ExprKind::Type(ty) = &elem_expr.kind else {
+                self.gcx
+                    .dcx()
+                    .err("codegen only supports `abi.decode` into static values")
+                    .span(elem_expr.span)
+                    .emit();
+                return None;
+            };
+            let hir::TypeKind::Elementary(elem) = &ty.kind else {
+                self.gcx
+                    .dcx()
+                    .err("codegen only supports `abi.decode` into static values")
+                    .span(ty.span)
+                    .emit();
+                return None;
+            };
+            out.push(*elem);
+        }
+        Some(out)
+    }
+
+    fn lower_abi_decode_dynamic_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        tuple_base: ValueId,
+        tuple_len: ValueId,
+        head_size: u64,
+        head: ValueId,
+    ) -> ValueId {
+        let head_size = builder.imm_u64(head_size);
+        let head_before_tail = builder.lt(head, head_size);
+        self.emit_abi_decode_revert_if(builder, head_before_tail);
+
+        let word = builder.imm_u64(32);
+        let tail_head_end = builder.add(head, word);
+        let head_overflow = builder.lt(tail_head_end, head);
+        self.emit_abi_decode_revert_if(builder, head_overflow);
+        let head_oob = builder.gt(tail_head_end, tuple_len);
+        self.emit_abi_decode_revert_if(builder, head_oob);
+
+        let tail_len_addr = builder.add(tuple_base, head);
+        let tail_len = builder.mload(tail_len_addr);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(tail_len, thirty_one);
+        let rounded_overflow = builder.lt(rounded, tail_len);
+        self.emit_abi_decode_revert_if(builder, rounded_overflow);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let tail_end = builder.add(tail_head_end, padded);
+        let tail_overflow = builder.lt(tail_end, tail_head_end);
+        self.emit_abi_decode_revert_if(builder, tail_overflow);
+        let tail_oob = builder.gt(tail_end, tuple_len);
+        self.emit_abi_decode_revert_if(builder, tail_oob);
+
+        let is_empty = builder.iszero(padded);
+        let data_size = builder.select(is_empty, word, padded);
+        let total_size = builder.add(word, data_size);
+        let total_overflow = builder.lt(total_size, data_size);
+        self.emit_panic_if(builder, total_overflow, 0x41);
+        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        builder.mstore(ptr, tail_len);
+
+        let data_ptr = builder.add(ptr, word);
+        let zero = builder.imm_u64(0);
+        let last_word_offset = builder.sub(data_size, word);
+        let last_word = builder.add(data_ptr, last_word_offset);
+        builder.mstore(last_word, zero);
+
+        let src = builder.add(tail_len_addr, word);
+        self.mcopy(builder, data_ptr, src, tail_len, None);
+        ptr
+    }
+
+    fn emit_abi_decode_revert_if(&mut self, builder: &mut FunctionBuilder<'_>, cond: ValueId) {
+        let revert_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(cond, revert_block, continue_block);
+        builder.switch_to_block(revert_block);
+        let zero_off = builder.imm_u64(0);
+        let zero_len = builder.imm_u64(0);
+        builder.revert(zero_off, zero_len);
+        builder.switch_to_block(continue_block);
+    }
+
+    fn lower_abi_decode_word(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elem: &ElementaryType,
+        value: ValueId,
+    ) -> ValueId {
+        let cleaned = match elem {
+            ElementaryType::Bool => {
+                let is_zero = builder.iszero(value);
+                builder.iszero(is_zero)
+            }
+            ElementaryType::Address(_) => self.mask_to_bits(builder, value, 160),
+            ElementaryType::UInt(size) => self.mask_to_bits(builder, value, size.bits() as u32),
+            ElementaryType::Int(size) => {
+                self.sign_extend_to_bits(builder, value, size.bits() as u32)
+            }
+            ElementaryType::FixedBytes(size) => {
+                self.clean_fixed_bytes(builder, value, size.bytes())
+            }
+            ElementaryType::String
+            | ElementaryType::Bytes
+            | ElementaryType::Fixed(_, _)
+            | ElementaryType::UFixed(_, _) => value,
+        };
+        if cleaned != value {
+            let is_clean = builder.eq(value, cleaned);
+            let is_dirty = builder.iszero(is_clean);
+            let revert_block = builder.create_block();
+            let continue_block = builder.create_block();
+            builder.branch(is_dirty, revert_block, continue_block);
+            builder.switch_to_block(revert_block);
+            let zero_off = builder.imm_u64(0);
+            let zero_len = builder.imm_u64(0);
+            builder.revert(zero_off, zero_len);
+            builder.switch_to_block(continue_block);
+        }
+        cleaned
     }
 
     /// Checks if a member access is on a storage struct variable.
@@ -2743,7 +5173,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
         // Fall back to the inferred expression type.
         if let Some(ty) = self.get_expr_type(expr)
-            && let solar_sema::ty::TyKind::Struct(sid) = ty.kind
+            && let TyKind::Struct(sid) = ty.peel_refs().kind
         {
             return Some(sid);
         }
@@ -2836,20 +5266,27 @@ impl<'gcx> Lowerer<'gcx> {
                         Some(idx) => self.lower_expr(builder, idx),
                         None => builder.imm_u64(0),
                     };
-                    return Some(self.compute_mapping_slot(builder, index_val, inner_slot));
+                    let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
+                    return Some(self.compute_mapping_slot_for_index(
+                        builder,
+                        index.as_deref(),
+                        index_val,
+                        inner_slot,
+                        key_is_dynamic,
+                    ));
                 }
-                // Dynamic array element: keccak256(slot) + index.
-                if let Some((_var_id, slot)) = self.get_dyn_array_base_slot(base) {
-                    let slot_val = builder.imm_u64(slot);
-                    let mem_0 = builder.imm_u64(0);
-                    builder.mstore(mem_0, slot_val);
-                    let size_32 = builder.imm_u64(32);
-                    let data_slot = builder.keccak256(mem_0, size_32);
+                // Storage array element (state variable or storage-reference
+                // local): bounds-checked element slot.
+                if let Some((slot_val, fixed_len, elem_slots)) =
+                    self.storage_array_slot_of_base(builder, base)
+                {
                     let index_val = match index {
                         Some(idx) => self.lower_expr(builder, idx),
                         None => builder.imm_u64(0),
                     };
-                    return Some(builder.add(data_slot, index_val));
+                    return Some(self.lower_storage_array_element_slot(
+                        builder, slot_val, fixed_len, index_val, elem_slots,
+                    ));
                 }
                 None
             }
@@ -3294,6 +5731,8 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &hir::Expr<'_>,
     ) -> ValueId {
         if let ExprKind::Index(inner_base, inner_index) = &expr.kind {
+            let key_is_dynamic = self.mapping_level_key_is_dynamic(inner_base);
+
             // Check if inner_base is the root mapping variable
             if let Some((_var_id, slot)) = self.get_mapping_base_slot(inner_base) {
                 // Compute the slot for the inner access
@@ -3302,7 +5741,13 @@ impl<'gcx> Lowerer<'gcx> {
                     None => builder.imm_u64(0),
                 };
                 let slot_val = builder.imm_u64(slot);
-                return self.compute_mapping_slot(builder, inner_index_val, slot_val);
+                return self.compute_mapping_slot_for_index(
+                    builder,
+                    inner_index.as_deref(),
+                    inner_index_val,
+                    slot_val,
+                    key_is_dynamic,
+                );
             }
 
             // Recursively compute deeper nesting slot
@@ -3311,10 +5756,40 @@ impl<'gcx> Lowerer<'gcx> {
                 Some(idx) => self.lower_expr(builder, idx),
                 None => builder.imm_u64(0),
             };
-            return self.compute_mapping_slot(builder, inner_index_val, deeper_slot);
+            return self.compute_mapping_slot_for_index(
+                builder,
+                inner_index.as_deref(),
+                inner_index_val,
+                deeper_slot,
+                key_is_dynamic,
+            );
         }
         // Should not reach here if is_nested_mapping_index returned true
         builder.imm_u64(0)
+    }
+
+    /// Whether the mapping denoted by `base` (the expression being indexed,
+    /// `count_index_depth(base)` levels below the root mapping variable) has a
+    /// dynamic (`string`/`bytes`) key type.
+    fn mapping_level_key_is_dynamic(&self, base: &hir::Expr<'_>) -> bool {
+        let Some(var_id) = self.find_mapping_root(base) else {
+            return false;
+        };
+        let depth = self.count_index_depth(base);
+        let var = self.gcx.hir.variable(var_id);
+        let mut current_ty = &var.ty.kind;
+        for _ in 0..depth {
+            if let hir::TypeKind::Mapping(map) = current_ty {
+                current_ty = &map.value.kind;
+            } else {
+                return false;
+            }
+        }
+        if let hir::TypeKind::Mapping(map) = current_ty {
+            Self::is_dynamic_mapping_key(&map.key.kind)
+        } else {
+            false
+        }
     }
 
     /// Checks if the value type at this nesting level is itself a mapping.
@@ -3390,18 +5865,108 @@ impl<'gcx> Lowerer<'gcx> {
         builder.keccak256(mem_0, size_64)
     }
 
+    /// Dispatches a mapping-key hash on the key kind. Dynamic (`string`/`bytes`)
+    /// keys are hashed per spec as `keccak256(key bytes ++ uint256(slot))`;
+    /// everything else is the fixed `keccak256(key word ++ slot word)`.
     fn compute_mapping_slot_for_index(
-        &self,
+        &mut self,
         builder: &mut FunctionBuilder<'_>,
         index_expr: Option<&hir::Expr<'_>>,
         key: ValueId,
         slot: ValueId,
         key_is_dynamic: bool,
     ) -> ValueId {
-        if key_is_dynamic && self.is_dynamic_calldata_arg(index_expr) {
-            return self.compute_dynamic_calldata_mapping_slot(builder, key, slot);
+        if key_is_dynamic && let Some(expr) = index_expr {
+            // String/bytes literal: hash exactly the literal's bytes. The
+            // lowered `key` is a left-aligned word and must not be hashed.
+            if let Some(bytes) = Self::str_lit_key_bytes(expr) {
+                return self.compute_literal_mapping_slot(builder, bytes, slot);
+            }
+            if self.is_dynamic_calldata_arg(Some(expr)) {
+                return self.compute_dynamic_calldata_mapping_slot(builder, key, slot);
+            }
+            // Storage `bytes`/`string` state variable: its lowering already
+            // materialized a `[length][data...]` memory copy in `key`.
+            if self.expr_yields_memory_bytes(expr) || self.is_storage_bytes_expr(expr) {
+                return self.compute_dynamic_memory_mapping_slot(builder, key, slot);
+            }
+            // Storage-reference local (`string storage r`): `key` is the
+            // storage slot; materialize to memory first, then hash the bytes.
+            if self.is_storage_ref_bytes_local(expr) {
+                let ptr = self.materialize_storage_bytes(builder, key);
+                return self.compute_dynamic_memory_mapping_slot(builder, ptr, slot);
+            }
         }
         self.compute_mapping_slot(builder, key, slot)
+    }
+
+    /// Returns the raw bytes of a string/bytes literal expression.
+    fn str_lit_key_bytes<'a>(expr: &'a hir::Expr<'_>) -> Option<&'a [u8]> {
+        if let ExprKind::Lit(lit) = &expr.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            return Some(bytes.as_byte_str());
+        }
+        None
+    }
+
+    /// Whether `expr` is a storage-reference local of `string`/`bytes` type,
+    /// which lowers to its storage slot rather than a memory pointer.
+    fn is_storage_ref_bytes_local(&self, expr: &hir::Expr<'_>) -> bool {
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+            && self.storage_ref_locals.contains(var_id)
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            return Self::is_dynamic_mapping_key(&var.ty.kind);
+        }
+        false
+    }
+
+    /// Hashes a literal mapping key per spec: stage the literal's bytes at the
+    /// unbumped free-memory scratch, append the 32-byte slot, and hash exactly
+    /// `len + 32` bytes. The trailing slot store overwrites any zero padding
+    /// written by the last partial data word.
+    fn compute_literal_mapping_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        bytes: &[u8],
+        slot: ValueId,
+    ) -> ValueId {
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let scratch = builder.mload(free_mem_ptr_slot);
+        for (i, chunk) in bytes.chunks(32).enumerate() {
+            let mut padded = [0u8; 32];
+            padded[..chunk.len()].copy_from_slice(chunk);
+            let val = builder.imm_u256(U256::from_be_bytes(padded));
+            let off = builder.imm_u64((i * 32) as u64);
+            let dest = builder.add(scratch, off);
+            builder.mstore(dest, val);
+        }
+        let len = builder.imm_u64(bytes.len() as u64);
+        let slot_addr = builder.add(scratch, len);
+        builder.mstore(slot_addr, slot);
+        let word_size = builder.imm_u64(32);
+        let hash_len = builder.add(len, word_size);
+        builder.keccak256(scratch, hash_len)
+    }
+
+    fn compute_dynamic_memory_mapping_slot(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        ptr: ValueId,
+        slot: ValueId,
+    ) -> ValueId {
+        let len = builder.mload(ptr);
+        let word_size = builder.imm_u64(32);
+        let data_start = builder.add(ptr, word_size);
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let scratch = builder.mload(free_mem_ptr_slot);
+        self.mcopy(builder, scratch, data_start, len, None);
+        let slot_addr = builder.add(scratch, len);
+        builder.mstore(slot_addr, slot);
+        let hash_len = builder.add(len, word_size);
+        builder.keccak256(scratch, hash_len)
     }
 
     fn compute_dynamic_calldata_mapping_slot(
@@ -3410,16 +5975,20 @@ impl<'gcx> Lowerer<'gcx> {
         head_offset: ValueId,
         slot: ValueId,
     ) -> ValueId {
-        let mem_0 = builder.imm_u64(0);
         let selector_size = builder.imm_u64(4);
         let data_head = builder.add(head_offset, selector_size);
         let len = builder.calldataload(data_head);
         let word_size = builder.imm_u64(32);
         let data_start = builder.add(data_head, word_size);
-        builder.calldatacopy(mem_0, data_start, len);
-        builder.mstore(len, slot);
+        // Stage at the unbumped free-memory scratch: staging at offset 0 would
+        // clobber the free memory pointer (and live heap) for keys > 32 bytes.
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let scratch = builder.mload(free_mem_ptr_slot);
+        builder.calldatacopy(scratch, data_start, len);
+        let slot_addr = builder.add(scratch, len);
+        builder.mstore(slot_addr, slot);
         let hash_len = builder.add(len, word_size);
-        builder.keccak256(mem_0, hash_len)
+        builder.keccak256(scratch, hash_len)
     }
 
     fn mapping_base_has_dynamic_key(&self, expr: &hir::Expr<'_>) -> bool {
@@ -3454,6 +6023,9 @@ impl<'gcx> Lowerer<'gcx> {
             return false;
         }
         let var = self.gcx.hir.variable(*var_id);
+        if var.data_location != Some(solar_ast::DataLocation::Calldata) {
+            return false;
+        }
         Self::is_dynamic_mapping_key(&var.ty.kind)
     }
 
@@ -3497,6 +6069,15 @@ impl<'gcx> Lowerer<'gcx> {
         // The call's callee is an Ident resolving to a Contract/Interface
         if let ExprKind::Call(callee, _args, _named) = &base.kind
             && let ExprKind::Ident(res_slice) = &callee.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+            && let Some(sel) = lookup_in_contract(*contract_id)
+        {
+            return sel;
+        }
+
+        // Case 2b: base is the contract/interface name itself, e.g.
+        // `IERC20Minimal.transfer.selector`.
+        if let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
             && let Some(sel) = lookup_in_contract(*contract_id)
         {
@@ -3788,6 +6369,9 @@ impl<'gcx> Lowerer<'gcx> {
             args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
 
         if func.returns.is_empty() {
+            if self.function_is_recursive(func_id) {
+                return self.lower_internal_call_fallback(builder, func_id, arg_vals);
+            }
             return self.lower_inline_void_call(builder, func_id, arg_vals);
         }
 
@@ -3804,24 +6388,13 @@ impl<'gcx> Lowerer<'gcx> {
         // (`ensure_internal_mir_function`) for `internal_call` to target.
         let needs_call =
             !Self::is_simple_return_function(func) || self.function_is_recursive(func_id);
-        if !self.lowering_constructor && needs_call {
-            let result_ty = func
-                .returns
-                .first()
-                .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
-            let is_internal =
-                matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private);
-            let mir_id = if is_internal {
-                self.ensure_function_lowered(func_id)
-            } else {
-                self.ensure_internal_mir_function(func_id)
-            };
-            return builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len());
+        if needs_call {
+            return self.lower_internal_call_fallback(builder, func_id, arg_vals);
         }
 
         // Check for recursive inlining cycle AFTER evaluating arguments.
         if !self.try_enter_inline(func_id) {
-            panic!("codegen hit unsupported internal-call inline recursion");
+            return self.lower_internal_call_fallback(builder, func_id, arg_vals);
         }
 
         // Save current locals
@@ -3848,6 +6421,27 @@ impl<'gcx> Lowerer<'gcx> {
         self.exit_inline();
 
         result
+    }
+
+    fn lower_internal_call_fallback(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+        let result_ty = func
+            .returns
+            .first()
+            .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
+        let is_internal =
+            matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private);
+        let mir_id = if is_internal {
+            self.ensure_function_lowered(func_id)
+        } else {
+            self.ensure_internal_mir_function(func_id)
+        };
+        builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len())
     }
 
     /// Lowers a base constructor call using already-resolved constructor arguments.
@@ -3907,7 +6501,10 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if let Some(body) = body {
+            let saved_in_unchecked_block = self.in_unchecked_block;
+            self.in_unchecked_block = false;
             self.lower_block(builder, &body);
+            self.in_unchecked_block = saved_in_unchecked_block;
         }
 
         self.locals = saved_locals;
@@ -3919,9 +6516,10 @@ impl<'gcx> Lowerer<'gcx> {
         builder.imm_u64(0)
     }
 
-    /// Lowers constructor arguments, encoding short string/bytes literals the same way storage
-    /// strings are represented so base constructors like ERC20("Name", "SYM") initialize public
-    /// string slots correctly.
+    /// Lowers constructor arguments into the representation expected by the
+    /// callee body. Memory `bytes`/`string` parameters receive Solidity's
+    /// `[length][data...]` memory pointer, including literal base-constructor
+    /// arguments such as `ERC20("Name", "SYM")`.
     fn lower_constructor_arg(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -3931,29 +6529,11 @@ impl<'gcx> Lowerer<'gcx> {
         if matches!(
             param_ty.kind,
             hir::TypeKind::Elementary(hir::ElementaryType::String | hir::ElementaryType::Bytes)
-        ) && let Some(encoded) = Self::short_string_storage_literal(arg)
-        {
-            return builder.imm_u256(encoded);
+        ) {
+            return self.lower_expr_as_memory_bytes(builder, arg);
         }
 
         self.lower_expr(builder, arg)
-    }
-
-    fn short_string_storage_literal(arg: &hir::Expr<'_>) -> Option<U256> {
-        let ExprKind::Lit(lit) = &arg.kind else { return None };
-        let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-        Self::encode_short_storage_bytes(bytes.as_byte_str())
-    }
-
-    fn encode_short_storage_bytes(bytes: &[u8]) -> Option<U256> {
-        if bytes.len() > 31 {
-            return None;
-        }
-
-        let mut encoded = [0u8; 32];
-        encoded[..bytes.len()].copy_from_slice(bytes);
-        encoded[31] = (bytes.len() as u8) * 2;
-        Some(U256::from_be_bytes(encoded))
     }
 
     /// Lowers an internal library function call by inlining it.
@@ -3986,25 +6566,20 @@ impl<'gcx> Lowerer<'gcx> {
                 arg_vals.push(self.lower_expr(builder, arg));
             }
 
-            if !self.lowering_constructor && !Self::is_simple_return_function(func) {
-                let result_ty = func
-                    .returns
-                    .first()
-                    .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
-                let mir_id = self.ensure_function_lowered(func_id);
-                // Pass the full return arity (not just the single result type) so
-                // the backend copies return values 2..N into scratch memory for
-                // multi-value destructures and `return`s.
-                return builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len());
+            if func.returns.is_empty() {
+                if self.function_is_recursive(func_id) {
+                    return self.lower_internal_call_fallback(builder, func_id, arg_vals);
+                }
+                return self.lower_inline_void_call(builder, func_id, arg_vals);
             }
 
-            if func.returns.is_empty() {
-                return self.lower_inline_void_call(builder, func_id, arg_vals);
+            if !Self::is_simple_return_function(func) || self.function_is_recursive(func_id) {
+                return self.lower_internal_call_fallback(builder, func_id, arg_vals);
             }
 
             // Check for recursive inlining cycle AFTER evaluating arguments.
             if !self.try_enter_inline(func_id) {
-                panic!("codegen hit unsupported library-call inline recursion");
+                return self.lower_internal_call_fallback(builder, func_id, arg_vals);
             }
 
             // Simple inlining: bind parameters directly as SSA values
@@ -4049,6 +6624,9 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn is_simple_return_function(func: &hir::Function<'_>) -> bool {
+        if func.returns.len() != 1 {
+            return false;
+        }
         let Some(body) = func.body else {
             return false;
         };
@@ -4063,106 +6641,162 @@ impl<'gcx> Lowerer<'gcx> {
             })
     }
 
-    /// Whether `func_id` directly calls itself (cached). A recursive function
+    /// Whether `func_id` directly or indirectly calls itself (cached). A recursive function
     /// must be lowered as a real `internal_call` instead of being inlined.
     fn function_is_recursive(&mut self, func_id: hir::FunctionId) -> bool {
         if let Some(&cached) = self.recursive_functions.get(&func_id) {
             return cached;
         }
-        let func = self.gcx.hir.function(func_id);
-        let result =
-            func.body.is_some_and(|body| body.stmts.iter().any(|s| self.stmt_calls(s, func_id)));
+        let mut visiting = FxHashSet::default();
+        let result = self.function_reaches(func_id, func_id, &mut visiting);
         self.recursive_functions.insert(func_id, result);
         result
     }
 
-    /// Whether a statement (recursively) contains a call to `target`.
-    fn stmt_calls(&self, stmt: &hir::Stmt<'_>, target: hir::FunctionId) -> bool {
+    fn function_reaches(
+        &self,
+        current: hir::FunctionId,
+        target: hir::FunctionId,
+        visiting: &mut FxHashSet<hir::FunctionId>,
+    ) -> bool {
+        if !visiting.insert(current) {
+            return false;
+        }
+
+        for callee in self.function_callees(current) {
+            if callee == target || self.function_reaches(callee, target, visiting) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn function_callees(&self, func_id: hir::FunctionId) -> Vec<hir::FunctionId> {
+        let mut callees = Vec::new();
+        let func = self.gcx.hir.function(func_id);
+        if let Some(body) = func.body {
+            for stmt in body.stmts {
+                self.stmt_collect_callees(stmt, &mut callees);
+            }
+        }
+        callees
+    }
+
+    /// Collects calls contained recursively in a statement.
+    fn stmt_collect_callees(&self, stmt: &hir::Stmt<'_>, callees: &mut Vec<hir::FunctionId>) {
         use hir::StmtKind;
         match &stmt.kind {
             StmtKind::Expr(e)
             | StmtKind::Return(Some(e))
             | StmtKind::Revert(e)
-            | StmtKind::Emit(e) => self.expr_calls(e, target),
+            | StmtKind::Emit(e) => self.expr_collect_callees(e, callees),
             StmtKind::Block(b) | StmtKind::UncheckedBlock(b) | StmtKind::AssemblyBlock(b) => {
-                b.stmts.iter().any(|s| self.stmt_calls(s, target))
+                for stmt in b.stmts {
+                    self.stmt_collect_callees(stmt, callees);
+                }
             }
             StmtKind::If(c, t, e) => {
-                self.expr_calls(c, target)
-                    || self.stmt_calls(t, target)
-                    || e.is_some_and(|e| self.stmt_calls(e, target))
+                self.expr_collect_callees(c, callees);
+                self.stmt_collect_callees(t, callees);
+                if let Some(e) = e {
+                    self.stmt_collect_callees(e, callees);
+                }
             }
-            StmtKind::Loop(b, _) => b.stmts.iter().any(|s| self.stmt_calls(s, target)),
+            StmtKind::Loop(b, _) => {
+                for stmt in b.stmts {
+                    self.stmt_collect_callees(stmt, callees);
+                }
+            }
             StmtKind::Switch(sw) => {
-                self.expr_calls(sw.selector, target)
-                    || sw
-                        .cases
-                        .iter()
-                        .any(|c| c.body.stmts.iter().any(|s| self.stmt_calls(s, target)))
+                self.expr_collect_callees(sw.selector, callees);
+                for case in sw.cases {
+                    for stmt in case.body.stmts {
+                        self.stmt_collect_callees(stmt, callees);
+                    }
+                }
             }
             StmtKind::Try(t) => {
-                self.expr_calls(&t.expr, target)
-                    || t.clauses
-                        .iter()
-                        .any(|cl| cl.block.stmts.iter().any(|s| self.stmt_calls(s, target)))
+                self.expr_collect_callees(&t.expr, callees);
+                for clause in t.clauses {
+                    for stmt in clause.block.stmts {
+                        self.stmt_collect_callees(stmt, callees);
+                    }
+                }
             }
-            StmtKind::DeclSingle(var_id) => self
-                .gcx
-                .hir
-                .variable(*var_id)
-                .initializer
-                .is_some_and(|init| self.expr_calls(init, target)),
-            StmtKind::DeclMulti(_, init) => self.expr_calls(init, target),
+            StmtKind::DeclSingle(var_id) => {
+                if let Some(init) = self.gcx.hir.variable(*var_id).initializer {
+                    self.expr_collect_callees(init, callees);
+                }
+            }
+            StmtKind::DeclMulti(_, init) => self.expr_collect_callees(init, callees),
             StmtKind::Return(None)
             | StmtKind::Continue
             | StmtKind::Break
             | StmtKind::Placeholder
-            | StmtKind::Err(_) => false,
+            | StmtKind::Err(_) => {}
         }
     }
 
-    /// Whether an expression (recursively) contains a call to `target`.
-    fn expr_calls(&self, expr: &hir::Expr<'_>, target: hir::FunctionId) -> bool {
+    /// Collects calls contained recursively in an expression.
+    fn expr_collect_callees(&self, expr: &hir::Expr<'_>, callees: &mut Vec<hir::FunctionId>) {
         match &expr.kind {
             ExprKind::Call(callee, args, _) => {
                 if let ExprKind::Ident(res) = &callee.kind
-                    && res.iter().any(
-                        |r| matches!(r, hir::Res::Item(hir::ItemId::Function(f)) if *f == target),
-                    )
+                    && let Some(hir::Res::Item(hir::ItemId::Function(f))) = res.first()
                 {
-                    return true;
+                    callees.push(*f);
                 }
-                self.expr_calls(callee, target) || args.exprs().any(|a| self.expr_calls(a, target))
+                self.expr_collect_callees(callee, callees);
+                for arg in args.exprs() {
+                    self.expr_collect_callees(arg, callees);
+                }
             }
             ExprKind::Binary(l, _, r) | ExprKind::Assign(l, _, r) => {
-                self.expr_calls(l, target) || self.expr_calls(r, target)
+                self.expr_collect_callees(l, callees);
+                self.expr_collect_callees(r, callees);
             }
             ExprKind::Unary(_, e)
             | ExprKind::Member(e, _)
             | ExprKind::YulMember(e, _)
             | ExprKind::Payable(e)
-            | ExprKind::Delete(e) => self.expr_calls(e, target),
+            | ExprKind::Delete(e) => self.expr_collect_callees(e, callees),
             ExprKind::Ternary(c, t, f) => {
-                self.expr_calls(c, target)
-                    || self.expr_calls(t, target)
-                    || self.expr_calls(f, target)
+                self.expr_collect_callees(c, callees);
+                self.expr_collect_callees(t, callees);
+                self.expr_collect_callees(f, callees);
             }
             ExprKind::Index(b, i) => {
-                self.expr_calls(b, target) || i.is_some_and(|i| self.expr_calls(i, target))
+                self.expr_collect_callees(b, callees);
+                if let Some(i) = i {
+                    self.expr_collect_callees(i, callees);
+                }
             }
             ExprKind::Slice(b, s, e) => {
-                self.expr_calls(b, target)
-                    || s.is_some_and(|s| self.expr_calls(s, target))
-                    || e.is_some_and(|e| self.expr_calls(e, target))
+                self.expr_collect_callees(b, callees);
+                if let Some(s) = s {
+                    self.expr_collect_callees(s, callees);
+                }
+                if let Some(e) = e {
+                    self.expr_collect_callees(e, callees);
+                }
             }
-            ExprKind::Array(es) => es.iter().any(|e| self.expr_calls(e, target)),
-            ExprKind::Tuple(es) => es.iter().flatten().any(|e| self.expr_calls(e, target)),
+            ExprKind::Array(es) => {
+                for e in *es {
+                    self.expr_collect_callees(e, callees);
+                }
+            }
+            ExprKind::Tuple(es) => {
+                for e in es.iter().flatten() {
+                    self.expr_collect_callees(e, callees);
+                }
+            }
             ExprKind::New(_)
             | ExprKind::TypeCall(_)
             | ExprKind::Lit(_)
             | ExprKind::Ident(_)
             | ExprKind::Type(_)
-            | ExprKind::Err(_) => false,
+            | ExprKind::Err(_) => {}
         }
     }
 
@@ -4174,36 +6808,42 @@ impl<'gcx> Lowerer<'gcx> {
         body: &hir::Block<'_>,
         func: &hir::Function<'_>,
     ) -> ValueId {
+        let saved_in_unchecked_block = self.in_unchecked_block;
+        self.in_unchecked_block = false;
+
         for &return_id in func.returns {
             let zero = builder.imm_u64(0);
             self.locals.insert(return_id, zero);
         }
 
-        if let Some(value) = self.lower_library_block_return(builder, body) {
-            return value;
-        }
-
-        // Implicit named returns: the body assigned the named return variables
-        // (e.g. `success = ...; result = ...;` with no explicit `return`). Write
-        // returns 1..N to scratch memory at offset `i * 32` so the caller's
-        // `lower_multi_var_decl` (which reads `mload(i * 32)`) recovers them; the
-        // first return flows back as the MIR value below.
-        if func.returns.len() > 1 {
-            for (i, &return_id) in func.returns.iter().enumerate().skip(1) {
-                if let Some(&value) = self.locals.get(&return_id) {
-                    let offset = builder.imm_u64((i * 32) as u64);
-                    builder.mstore(offset, value);
+        let result = if let Some(value) = self.lower_library_block_return(builder, body) {
+            value
+        } else {
+            // Implicit named returns: the body assigned the named return variables
+            // (e.g. `success = ...; result = ...;` with no explicit `return`). Write
+            // returns 1..N to scratch memory at offset `i * 32` so the caller's
+            // `lower_multi_var_decl` (which reads `mload(i * 32)`) recovers them; the
+            // first return flows back as the MIR value below.
+            if func.returns.len() > 1 {
+                for (i, &return_id) in func.returns.iter().enumerate().skip(1) {
+                    if let Some(&value) = self.locals.get(&return_id) {
+                        let offset = builder.imm_u64((i * 32) as u64);
+                        builder.mstore(offset, value);
+                    }
                 }
             }
-        }
 
-        if let Some(&return_id) = func.returns.first()
-            && let Some(&value) = self.locals.get(&return_id)
-        {
-            return value;
-        }
+            if let Some(&return_id) = func.returns.first()
+                && let Some(&value) = self.locals.get(&return_id)
+            {
+                value
+            } else {
+                builder.imm_u64(0)
+            }
+        };
 
-        builder.imm_u64(0)
+        self.in_unchecked_block = saved_in_unchecked_block;
+        result
     }
 
     fn lower_library_block_return(
@@ -4289,7 +6929,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> (ValueId, ValueId) {
         // Handle literal strings/bytes: "" or hex"..."
         if let ExprKind::Lit(lit) = &expr.kind
-            && let LitKind::Str(kind, bytes, _) = &lit.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
         {
             let bytes = bytes.as_byte_str();
             let len = bytes.len();
@@ -4299,51 +6939,186 @@ impl<'gcx> Lowerer<'gcx> {
                 return (builder.imm_u64(0), builder.imm_u64(0));
             }
 
-            // Write bytes to memory at offset 0
-            // For bytes up to 32, we can use a single MSTORE
-            // For longer bytes, we need multiple MSTOREs
-            let mut offset = 0u64;
-            for chunk in bytes.chunks(32) {
+            // Write the (left-aligned) bytes into a fresh allocation.
+            let alloc_size = (len as u64).div_ceil(32) * 32;
+            let ptr = self.allocate_memory(builder, alloc_size);
+            for (i, chunk) in bytes.chunks(32).enumerate() {
                 let mut padded = [0u8; 32];
-                match kind {
-                    StrKind::Str | StrKind::Unicode => {
-                        // Left-aligned for strings
-                        padded[..chunk.len()].copy_from_slice(chunk);
-                    }
-                    StrKind::Hex => {
-                        // Left-aligned for hex bytes
-                        padded[..chunk.len()].copy_from_slice(chunk);
-                    }
-                }
+                padded[..chunk.len()].copy_from_slice(chunk);
                 let val = builder.imm_u256(U256::from_be_bytes(padded));
-                let offset_val = builder.imm_u64(offset);
-                builder.mstore(offset_val, val);
-                offset += 32;
+                let addr = if i == 0 {
+                    ptr
+                } else {
+                    let offset_val = builder.imm_u64((i as u64) * 32);
+                    builder.add(ptr, offset_val)
+                };
+                builder.mstore(addr, val);
             }
 
-            return (builder.imm_u64(0), builder.imm_u64(len as u64));
+            return (ptr, builder.imm_u64(len as u64));
         }
 
-        // Handle abi.encodeWithSelector and similar
+        // Handle the abi.encode* family.
         if let ExprKind::Call(callee, args, _) = &expr.kind
             && let ExprKind::Member(base, member) = &callee.kind
             && let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Builtin(Builtin::Abi)) = res_slice.first()
         {
-            let member_name = member.name.as_str();
-            if member_name == "encodeWithSelector"
-                || member_name == "encodeWithSignature"
-                || member_name == "encode"
-                || member_name == "encodePacked"
-            {
-                // Lower the abi.encode* call which writes to memory and returns length
-                let result = self.lower_builtin_call(builder, Builtin::AbiEncode, args);
-                // The result is the size of encoded data, data is at offset 0
-                return (builder.imm_u64(0), result);
+            match member.name.as_str() {
+                "encodePacked" => {
+                    // Returns a `bytes memory` pointer: `[length][data...]`.
+                    let ptr = self.lower_abi_encode_packed(builder, args);
+                    let word = builder.imm_u64(32);
+                    let data = builder.add(ptr, word);
+                    let len = builder.mload(ptr);
+                    return (data, len);
+                }
+                "encode" => {
+                    let arg_exprs: Vec<_> = args.exprs().collect();
+                    if let Some(payload) = self.abi_encode_call_payload(builder, None, &arg_exprs) {
+                        return payload;
+                    }
+                }
+                "encodeWithSelector" => {
+                    let mut exprs = args.exprs();
+                    if let Some(selector_expr) = exprs.next() {
+                        // `bytes4` values are left-aligned words.
+                        let selector = self.lower_expr(builder, selector_expr);
+                        let arg_exprs: Vec<_> = exprs.collect();
+                        if let Some(payload) =
+                            self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
+                        {
+                            return payload;
+                        }
+                    }
+                }
+                "encodeWithSignature" => {
+                    let mut exprs = args.exprs();
+                    if let Some(sig_expr) = exprs.next()
+                        && let ExprKind::Lit(lit) = &sig_expr.kind
+                        && let LitKind::Str(_, sig, _) = &lit.kind
+                    {
+                        let hash = keccak256(sig.as_byte_str());
+                        let selector =
+                            U256::from(u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]]))
+                                << 224;
+                        let selector = builder.imm_u256(selector);
+                        let arg_exprs: Vec<_> = exprs.collect();
+                        if let Some(payload) =
+                            self.abi_encode_call_payload(builder, Some(selector), &arg_exprs)
+                        {
+                            return payload;
+                        }
+                    }
+                }
+                _ => {}
             }
+
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "codegen does not support `abi.{}` with these arguments as low-level call data yet",
+                    member.name
+                ))
+                .span(expr.span)
+                .emit();
+            return (builder.imm_u64(0), builder.imm_u64(0));
         }
 
-        panic!("codegen does not support non-literal bytes calldata for low-level calls yet")
+        // A `bytes memory` value: `[length][data...]` pointer.
+        if self.expr_yields_memory_bytes(expr) {
+            let ptr = self.lower_expr(builder, expr);
+            let word = builder.imm_u64(32);
+            let data = builder.add(ptr, word);
+            let len = builder.mload(ptr);
+            return (data, len);
+        }
+
+        self.gcx
+            .dcx()
+            .err("codegen does not support this `bytes` expression as low-level call data yet")
+            .span(expr.span)
+            .emit();
+        (builder.imm_u64(0), builder.imm_u64(0))
+    }
+
+    /// Looks through a `bytes(x)` / `string(x)` conversion to the underlying
+    /// value; returns `expr` unchanged otherwise.
+    fn peel_bytes_conversion<'b>(&self, expr: &'b hir::Expr<'b>) -> &'b hir::Expr<'b> {
+        if let ExprKind::Call(callee, args, _) = &expr.kind
+            && let ExprKind::Type(ty) = &callee.kind
+            && matches!(
+                ty.kind,
+                hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String)
+            )
+            && let Some(inner) = args.exprs().next()
+        {
+            return inner;
+        }
+        expr
+    }
+
+    /// Computes `keccak256` over the byte contents of a dynamic `bytes`/`string`
+    /// expression, materializing calldata (and storage) values to memory first.
+    /// This is what indexed event topics and `keccak256(bytes(s))` need: the
+    /// hash of the raw data, never the pointer word. Returns `None` when `expr`
+    /// is not a dynamic bytes/string value.
+    pub(super) fn keccak_dynamic_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        let inner = self.peel_bytes_conversion(expr);
+
+        // String/bytes literal: hash the bytes at compile time.
+        if let ExprKind::Lit(lit) = &inner.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            let hash = keccak256(bytes.as_byte_str());
+            return Some(builder.imm_u256(U256::from_be_bytes(hash.0)));
+        }
+
+        if !self.expr_has_bytes_or_string_type(inner) {
+            return None;
+        }
+
+        // Calldata `bytes`/`string`: copy the data into memory, then hash it
+        // (`keccak256` only reads memory).
+        if let Some((head, _)) = self.calldata_dyn_head(inner) {
+            let ptr = self.materialize_calldata_bytes(builder, head);
+            let word = builder.imm_u64(32);
+            let len = builder.mload(ptr);
+            let data = builder.add(ptr, word);
+            return Some(builder.keccak256(data, len));
+        }
+
+        // Memory and storage values lower to a memory `[length][data...]`
+        // pointer; hash the data that follows the length word.
+        let ptr = self.lower_expr(builder, inner);
+        let word = builder.imm_u64(32);
+        let len = builder.mload(ptr);
+        let data = builder.add(ptr, word);
+        Some(builder.keccak256(data, len))
+    }
+
+    /// Whether lowering `expr` yields a memory `bytes`/`string` pointer
+    /// (`[length][data...]`).
+    fn expr_yields_memory_bytes(&self, expr: &hir::Expr<'_>) -> bool {
+        // Calldata- and storage-located values lower to their ABI head or
+        // storage slot, not to a memory pointer.
+        if let ExprKind::Ident(res_slice) = &expr.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            if var.data_location != Some(solar_ast::DataLocation::Memory) {
+                return false;
+            }
+        }
+        let Some(ty) = self.get_expr_type(expr) else { return false };
+        let TyKind::Ref(inner, solar_ast::DataLocation::Memory) = ty.kind else {
+            return false;
+        };
+        matches!(inner.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
     }
 
     /// Checks if an expression has a contract type (as opposed to address type).
@@ -4458,7 +7233,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Gets the type of an expression. Prefers the type computed by sema's type
     /// checker (recorded during analysis whenever codegen runs); falls back to
     /// re-deriving it from the HIR for any expression the checker didn't record.
-    fn get_expr_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'_>> {
+    pub(super) fn get_expr_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'gcx>> {
         if let Some(ty) = self.gcx.type_of_expr(expr.id) {
             return Some(ty);
         }
@@ -4467,7 +7242,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Re-derives the type of an expression by walking the HIR. Used as a
     /// fallback when sema's type checker did not record a type for it.
-    fn get_expr_type_fallback(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'_>> {
+    fn get_expr_type_fallback(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'gcx>> {
         // Case 1: Variable - get its declared type
         if let ExprKind::Ident(res_slice) = &expr.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
@@ -4478,7 +7253,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Case 2: Struct field access - get the declared field type.
         if let ExprKind::Member(base, member) = &expr.kind
-            && let Some(struct_id) = self.expr_struct_id(base)
+            && let Some(struct_id) = self.struct_id_of_expr(base)
         {
             let strukt = self.gcx.hir.strukt(struct_id);
             for &field_id in strukt.fields {
@@ -4489,15 +7264,20 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        // Case 3: Array indexing - use the array element type.
+        // Case 3: Indexing - use the array element or mapping value type.
         if let ExprKind::Index(base, _) = &expr.kind
-            && let Some(element_ty) = self.array_element_type(base)
+            && let Some(element_ty) = self.indexed_value_type(base)
         {
             return Some(element_ty);
         }
 
         // Case 3: Call result - use the callee's first return type.
         if let ExprKind::Call(callee, args, _) = &expr.kind {
+            // Type conversion: `address(this)`, `uint160(x)`, ...
+            if let ExprKind::Type(ty) = &callee.kind {
+                return Some(self.gcx.type_of_hir_ty(ty));
+            }
+
             if let ExprKind::Ident(res_slice) = &callee.kind
                 && let Some(hir::Res::Item(hir::ItemId::Function(func_id))) = res_slice.first()
             {
@@ -4537,48 +7317,32 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Case 3: Binary/unary operations - typically return the operand type
-        if let ExprKind::Binary(lhs, _, _) = &expr.kind {
-            return self.get_expr_type(lhs);
+        if let ExprKind::Binary(lhs, _, rhs) = &expr.kind {
+            return self.get_expr_type(lhs).or_else(|| self.get_expr_type(rhs));
         }
         if let ExprKind::Unary(_, operand) = &expr.kind {
             return self.get_expr_type(operand);
+        }
+        if let ExprKind::Tuple(elements) = &expr.kind {
+            return elements.iter().flatten().find_map(|expr| self.get_expr_type(expr));
         }
 
         None
     }
 
-    fn array_element_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'gcx>> {
-        match &expr.kind {
-            ExprKind::Ident(res_slice) => {
-                let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
-                    return None;
-                };
-                let var = self.gcx.hir.variable(*var_id);
-                if let hir::TypeKind::Array(array) = &var.ty.kind {
-                    return Some(self.gcx.type_of_hir_ty(&array.element));
-                }
-                None
+    fn indexed_value_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'gcx>> {
+        let ty = self.get_expr_type(expr)?;
+        let loc = ty.loc();
+        match ty.peel_refs().kind {
+            TyKind::Mapping(_, value) => {
+                Some(value.with_loc_if_ref(self.gcx, solar_ast::DataLocation::Storage))
             }
-            ExprKind::Member(base, member) => {
-                let struct_id = self.expr_struct_id(base)?;
-                let strukt = self.gcx.hir.strukt(struct_id);
-                for &field_id in strukt.fields {
-                    let field = self.gcx.hir.variable(field_id);
-                    if field.name.is_some_and(|name| name.name == member.name)
-                        && let hir::TypeKind::Array(array) = &field.ty.kind
-                    {
-                        return Some(self.gcx.type_of_hir_ty(&array.element));
-                    }
-                }
-                None
+            TyKind::Array(element, _) | TyKind::DynArray(element) => {
+                Some(element.with_loc_if_ref_opt(self.gcx, loc))
             }
-            ExprKind::Index(base, _) => {
-                let base_ty = self.array_element_type(base)?;
-                match base_ty.kind {
-                    solar_sema::ty::TyKind::Array(element, _)
-                    | solar_sema::ty::TyKind::DynArray(element) => Some(element),
-                    _ => None,
-                }
+            TyKind::Slice(array) => array.with_loc_if_ref_opt(self.gcx, loc).base_type(self.gcx),
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(self.gcx.types.fixed_bytes(1))
             }
             _ => None,
         }
@@ -4624,6 +7388,27 @@ impl<'gcx> Lowerer<'gcx> {
             }
             _ => false,
         }
+    }
+
+    fn new_dynamic_memory_array_const_len(&self, expr: &hir::Expr<'_>) -> Option<u64> {
+        let ExprKind::Call(callee, args, _) = &expr.kind else {
+            return None;
+        };
+        if !matches!(
+            &callee.kind,
+            ExprKind::New(ty) if matches!(&ty.kind, hir::TypeKind::Array(array) if array.size.is_none())
+        ) {
+            return None;
+        }
+
+        let len = args.exprs().next()?;
+        let ExprKind::Lit(lit) = &len.kind else {
+            return None;
+        };
+        let LitKind::Number(value) = &lit.kind else {
+            return None;
+        };
+        u64::try_from(*value).ok()
     }
 
     fn is_dynamic_bytes_expr(&self, expr: &hir::Expr<'_>) -> bool {

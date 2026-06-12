@@ -1,0 +1,36 @@
+//@compile-flags: --pass memory-dse
+; module @MemoryDseCrossBlock
+
+fn @remove_store_overwritten_on_unique_edge() -> u256 {
+  bb0 (entry):
+    mstore 128, 1
+    jump bb1
+  bb1:
+    mstore 128, 2
+    v3 = mload 128
+    ret v3
+}
+
+fn @keep_store_read_before_successor_overwrite() -> u256 {
+  bb0 (entry):
+    mstore 128, 1
+    jump bb1
+  bb1:
+    v2 = mload 128
+    mstore 128, 2
+    ret v2
+}
+
+fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    mstore 128, 1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    mstore 128, 2
+    v4 = mload 128
+    ret v4
+}

@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass cse
 // add is commutative: add(a,b) == add(b,a).
 // CSE should recognize this and eliminate the second computation.

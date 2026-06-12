@@ -2,97 +2,164 @@
 ; module @NestedLoops
 fn @sum_grid(arg0: u256, arg1: u256) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
-    jump bb1
-  bb1:
-    v12 = mload 192
-    v13 = lt v12, arg0
-    br v13, bb4, bb5
-  bb2:
-    v43 = mload 160
-    mstore 128, v43
-    returndata 128, 32
-  bb3:
-    v37 = mload 192
-    v39 = add v37, 1
-    mstore 192, v39
-    jump bb1
-  bb4:
-    mstore 224, 0
-    jump bb6
-  bb5:
-    jump bb2
-  bb6:
-    v18 = mload 224
-    v19 = lt v18, arg1
-    br v19, bb9, bb10
-  bb7:
     jump bb3
-  bb8:
-    v31 = mload 224
-    v33 = add v31, 1
-    mstore 224, v33
-    jump bb6
-  bb9:
-    v21 = mload 160
-    v23 = mload 192
-    v25 = mload 224
-    v26 = mul v23, v25
-    v27 = add v21, v26
-    mstore 160, v27
+  bb3:
+    v18 = mload 192
+    v19 = lt v18, arg0
+    br v19, bb6, bb7
+  bb4:
+    v85 = mload 160
+    mstore 128, v85
+    returndata 128, 32
+  bb5:
+    v71 = mload 192
+    v73 = add v71, 1
+    v74 = lt v73, v71
+    br v74, bb19, bb20
+  bb6:
+    mstore 224, 0
     jump bb8
+  bb7:
+    jump bb4
+  bb8:
+    v24 = mload 224
+    v25 = lt v24, arg1
+    br v25, bb11, bb12
+  bb9:
+    jump bb5
   bb10:
-    jump bb7
+    v57 = mload 224
+    v59 = add v57, 1
+    v60 = lt v59, v57
+    br v60, bb17, bb18
+  bb11:
+    v27 = mload 160
+    v29 = mload 192
+    v31 = mload 224
+    v32 = mul v29, v31
+    v33 = iszero v31
+    v34 = div v32, v31
+    v35 = eq v34, v29
+    v36 = or v33, v35
+    v37 = iszero v36
+    br v37, bb13, bb14
+  bb12:
+    jump bb9
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v45 = add v27, v32
+    v46 = lt v45, v27
+    br v46, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    mstore 160, v45
+    jump bb10
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    mstore 224, v59
+    jump bb8
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    mstore 192, v73
+    jump bb3
 }
 
 fn @find_first(arg0: u256, arg1: u256) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
     mstore 160, 0
-    jump bb1
-  bb1:
-    v9 = mload 160
-    v10 = lt v9, arg0
-    br v10, bb4, bb5
-  bb2:
+    jump bb3
+  bb3:
+    v15 = mload 160
+    v16 = lt v15, arg0
+    br v16, bb6, bb7
+  bb4:
     mstore 128, arg0
     returndata 128, 32
-  bb3:
-    v35 = mload 160
-    v37 = add v35, 1
-    mstore 160, v37
-    jump bb1
-  bb4:
-    mstore 192, 0
-    jump bb6
   bb5:
-    jump bb2
+    v57 = mload 160
+    v59 = add v57, 1
+    v60 = lt v59, v57
+    br v60, bb19, bb20
   bb6:
-    v15 = mload 192
-    v16 = lt v15, arg0
-    br v16, bb9, bb10
+    mstore 192, 0
+    jump bb8
   bb7:
-    jump bb3
+    jump bb4
   bb8:
-    v29 = mload 192
-    v31 = add v29, 1
-    mstore 192, v31
-    jump bb6
-  bb9:
-    v18 = mload 160
-    v20 = mload 192
-    v21 = add v18, v20
-    v22 = eq v21, arg1
+    v21 = mload 192
+    v22 = lt v21, arg0
     br v22, bb11, bb12
+  bb9:
+    jump bb5
   bb10:
-    jump bb7
+    v43 = mload 192
+    v45 = add v43, 1
+    v46 = lt v45, v43
+    br v46, bb17, bb18
   bb11:
     v24 = mload 160
-    mstore 128, v24
-    returndata 128, 32
+    v26 = mload 192
+    v27 = add v24, v26
+    v28 = lt v27, v24
+    br v28, bb13, bb14
   bb12:
+    jump bb9
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v36 = eq v27, arg1
+    br v36, bb15, bb16
+  bb15:
+    v38 = mload 160
+    mstore 128, v38
+    returndata 128, 32
+  bb16:
+    jump bb10
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    mstore 192, v45
     jump bb8
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    mstore 160, v59
+    jump bb3
 }
 

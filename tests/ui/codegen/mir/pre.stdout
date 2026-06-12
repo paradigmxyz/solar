@@ -1,0 +1,68 @@
+// === ROOT/tests/ui/codegen/mir/pre.mir (after pre) ===
+; module @Pre
+fn @insert_missing_predecessor(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    switch arg1, default bb3, [1 => bb1, 2 => bb2]
+  bb1:
+    v5 = add arg0, 7
+    jump bb4
+  bb2:
+    v7 = add 7, arg0
+    jump bb4
+  bb3:
+    v10 = add arg0, 7
+    jump bb4
+  bb4:
+    v11 = phi [bb1: v5], [bb2: v7], [bb3: v10]
+    ret v11
+}
+
+fn @translate_join_phi(arg0: u256, arg1: u256, arg2: u256, arg3: u256) -> u256 {
+  bb0 (entry):
+    switch arg3, default bb3, [1 => bb1, 2 => bb2]
+  bb1:
+    v7 = add arg0, 1
+    jump bb4
+  bb2:
+    v9 = add arg1, 1
+    jump bb4
+  bb3:
+    v13 = add arg2, 1
+    jump bb4
+  bb4:
+    v10 = phi [bb1: arg0], [bb2: arg1], [bb3: arg2]
+    v14 = phi [bb1: v7], [bb2: v9], [bb3: v13]
+    ret v14
+}
+
+fn @two_way_join(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    br arg1, bb1, bb2
+  bb1:
+    v3 = add arg0, 1
+    jump bb3
+  bb2:
+    v6 = add arg0, 1
+    jump bb3
+  bb3:
+    v7 = phi [bb1: v3], [bb2: v6]
+    ret v7
+}
+
+fn @split_branch_terminated_pred(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    br arg1, bb1, bb2
+  bb1:
+    v3 = add arg0, 1
+    jump bb3
+  bb2:
+    br arg1, bb5, bb4
+  bb3:
+    v7 = phi [bb1: v3], [bb5: v6]
+    ret v7
+  bb4:
+    ret arg0
+  bb5:
+    v6 = add arg0, 1
+    jump bb3
+}

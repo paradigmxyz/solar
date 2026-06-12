@@ -136,7 +136,7 @@ impl ScalarEvolution {
         let expr = match func.value(value) {
             Value::Immediate(imm) => AffineExpr::constant(u256_to_i128(imm.as_u256()?)?),
             Value::Arg { .. } => AffineExpr::base(value),
-            Value::Undef(_) | Value::Phi { .. } => return None,
+            Value::Undef(_) => return None,
             Value::Inst(_) if !value_defined_in_loop(func, value, loop_data) => {
                 AffineExpr::base(value)
             }
@@ -198,7 +198,7 @@ fn value_defined_in_loop(func: &Function, value: ValueId, loop_data: &Loop) -> b
             .blocks
             .iter()
             .any(|&block_id| func.blocks[block_id].instructions.contains(inst_id)),
-        Value::Phi { .. } | Value::Undef(_) => true,
+        Value::Undef(_) => true,
         Value::Arg { .. } | Value::Immediate(_) => false,
     }
 }

@@ -79,7 +79,7 @@ impl StorageAlias {
                 }
                 _ => Self::Symbolic(value),
             },
-            Value::Arg { .. } | Value::Phi { .. } | Value::Undef(_) => Self::Symbolic(value),
+            Value::Arg { .. } | Value::Undef(_) => Self::Symbolic(value),
         }
     }
 
@@ -311,6 +311,12 @@ pub enum InstKind {
     ExtCodeCopy(ValueId, ValueId, ValueId, ValueId),
     /// Get external code hash: `extcodehash(addr)`
     ExtCodeHash(ValueId),
+    /// Read an immutable word identified by its byte offset: `loadimmutable <offset>`
+    ///
+    /// In runtime code this assembles to a `PUSH32` placeholder that the
+    /// constructor patches with the staged value before returning the runtime
+    /// code. In constructor code it reads the staged scratch word instead.
+    LoadImmutable(u64),
 
     // Return data operations
     /// Get return data size: `returndatasize()`
@@ -560,6 +566,7 @@ impl InstKind {
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
             | Self::CodeSize
+            | Self::LoadImmutable(_)
             | Self::ReturnDataSize
             | Self::Caller
             | Self::CallValue
@@ -705,6 +712,7 @@ impl InstKind {
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
             | Self::CodeSize
+            | Self::LoadImmutable(_)
             | Self::ReturnDataSize
             | Self::Caller
             | Self::CallValue
@@ -815,6 +823,7 @@ impl InstKind {
             Self::CalldataSize => "calldatasize",
             Self::CodeSize => "codesize",
             Self::CodeCopy(_, _, _) => "codecopy",
+            Self::LoadImmutable(_) => "loadimmutable",
             Self::ExtCodeSize(_) => "extcodesize",
             Self::ExtCodeCopy(_, _, _, _) => "extcodecopy",
             Self::ExtCodeHash(_) => "extcodehash",
@@ -921,6 +930,7 @@ impl InstKind {
             Self::CalldataLoad(_)
             | Self::CalldataSize
             | Self::CodeSize
+            | Self::LoadImmutable(_)
             | Self::ExtCodeSize(_)
             | Self::ExtCodeHash(_)
             | Self::ReturnDataSize

@@ -1,0 +1,35 @@
+// === ROOT/tests/ui/codegen/mir/fresh_array_bounds_pipeline.mir (after pipeline-default) ===
+; module @FreshArrayBoundsPipeline
+fn @constant_index() -> u256 {
+  bb0 (entry):
+    v1 = mload 64
+    mstore v1, 3
+    v4 = add v1, 128
+    mstore 64, v4
+    v7 = add v1, 32
+    calldatacopy v7, 0, 96
+    ret 7
+  bb1:
+    invalid
+  bb2:
+    invalid
+}
+
+fn @runtime_index(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = mload 64
+    mstore v2, arg0
+    v4 = shl 5, arg0
+    v6 = add v4, 32
+    v7 = add v2, v6
+    mstore 64, v7
+    v10 = add v2, 32
+    calldatacopy v10, 0, v4
+    v12 = mload v2
+    v14 = lt 1, v12
+    br v14, bb2, bb1
+  bb1:
+    revert 0, 36
+  bb2:
+    ret 7
+}

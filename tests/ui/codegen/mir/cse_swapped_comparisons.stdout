@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/codegen/mir/cse_swapped_comparisons.mir (after cse) ===
+; module @CseSwappedComparisons
+fn @reuse_gt_after_lt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = lt arg0, arg1
+    ret v2, v2
+}
+
+fn @reuse_lt_after_gt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = gt arg1, arg0
+    ret v2, v2
+}
+
+fn @reuse_sgt_after_slt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = slt arg0, arg1
+    ret v2, v2
+}
+
+fn @reuse_slt_after_sgt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = sgt arg1, arg0
+    ret v2, v2
+}
+
+fn @keep_same_order_lt_gt(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = lt arg0, arg1
+    v3 = gt arg0, arg1
+    ret v2, v3
+}
+
+fn @keep_unsigned_signed_distinct(arg0: u256, arg1: u256) -> (bool, bool) {
+  bb0 (entry):
+    v2 = lt arg0, arg1
+    v3 = sgt arg1, arg0
+    ret v2, v3
+}

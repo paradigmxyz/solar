@@ -16,7 +16,7 @@ pub struct Module {
     pub data_segments: Vec<DataSegment>,
     /// Storage layout.
     pub storage_layout: Vec<StorageSlot>,
-    /// Runtime immutable data layout.
+    /// Immutable scratch-area layout (one staged word per immutable).
     pub immutables: Vec<ImmutableSlot>,
     /// Whether this is an interface (no bytecode generation).
     pub is_interface: bool,
@@ -73,7 +73,8 @@ impl Module {
         index
     }
 
-    /// Returns the number of bytes appended to runtime code for immutable data.
+    /// Returns the size in bytes of the constructor scratch area that stages
+    /// immutable words before they are patched into the runtime code.
     #[must_use]
     pub fn immutable_data_len(&self) -> usize {
         self.immutables.len() * 32
@@ -105,10 +106,11 @@ pub struct StorageSlot {
     pub name: Option<Ident>,
 }
 
-/// A 32-byte immutable word appended to runtime code.
+/// A 32-byte immutable word staged in constructor scratch memory and patched
+/// into the runtime code's `PUSH32` placeholders at deploy time.
 #[derive(Clone, Debug)]
 pub struct ImmutableSlot {
-    /// Byte offset from the start of the immutable data area.
+    /// Byte offset from the start of the immutable scratch area.
     pub offset: u64,
     /// The type of the value stored.
     pub ty: MirType,
