@@ -334,6 +334,14 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub mir_print_after_each: bool,
 
+    /// Enable the experimental EVM code generator (MIR lowering and backend).
+    ///
+    /// Off by default: MIR and bytecode output is only produced when this is
+    /// set. Codegen is a work in progress and not yet part of the compiler's
+    /// stable, solc-compatible behavior.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub codegen: bool,
+
     // ----------------------------------------
     // Please add new options above this point!
     // ----------------------------------------
