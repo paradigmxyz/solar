@@ -18,9 +18,9 @@ use solar_sema::{
     ty::TyKind,
 };
 
-struct MappingElementSlot {
-    slot: ValueId,
-    value_is_mapping: bool,
+pub(super) struct MappingElementSlot {
+    pub(super) slot: ValueId,
+    pub(super) value_is_mapping: bool,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -192,144 +192,7 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Index(base, index) => {
-                if let Some(mapping) =
-                    self.lower_mapping_element_slot(builder, base, index.as_deref())
-                {
-                    if mapping.value_is_mapping {
-                        return mapping.slot;
-                    }
-                    if self.expr_has_bytes_or_string_type(expr) {
-                        return self.materialize_storage_bytes(builder, mapping.slot);
-                    }
-                    return builder.sload(mapping.slot);
-                }
-
-                // Check if base is an array in storage (state variable or
-                // storage-reference local), dynamic or fixed-size.
-                if let Some((slot_val, fixed_len, elem_slots)) =
-                    self.storage_array_slot_of_base(builder, base)
-                {
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let element_slot = self.lower_storage_array_element_slot(
-                        builder, slot_val, fixed_len, index_val, elem_slots,
-                    );
-                    return builder.sload(element_slot);
-                }
-
-                // Check if base is a dynamically-sized calldata parameter.
-                if let Some((head, is_bytes)) = self.calldata_dyn_head(base) {
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let four = builder.imm_u64(4);
-                    let len_pos = builder.add(four, head);
-                    let len = builder.calldataload(len_pos);
-                    self.emit_index_bounds_check(builder, index_val, len);
-                    let offset_32 = builder.imm_u64(32);
-                    let data_pos = builder.add(len_pos, offset_32);
-                    if is_bytes {
-                        // `bytes calldata` element: the byte at `data + index`,
-                        // left-aligned as `bytes1` (the top byte of the word
-                        // loaded at that position).
-                        let byte_pos = builder.add(data_pos, index_val);
-                        let word = builder.calldataload(byte_pos);
-                        let mask = builder.imm_u256(U256::from(0xffu64) << 248);
-                        return builder.and(word, mask);
-                    }
-                    let byte_offset = builder.mul(index_val, offset_32);
-                    let element_pos = builder.add(data_pos, byte_offset);
-                    return builder.calldataload(element_pos);
-                }
-
-                // Storage bytes/string: the base materializes to a packed
-                // `[length][data...]` memory copy; extract the byte
-                // left-aligned as `bytes1`.
-                if self.is_storage_bytes_expr(base) {
-                    let base_val = self.lower_expr(builder, base);
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let len = builder.mload(base_val);
-                    self.emit_index_bounds_check(builder, index_val, len);
-                    let offset_32 = builder.imm_u64(32);
-                    let data_base = builder.add(base_val, offset_32);
-                    let byte_addr = builder.add(data_base, index_val);
-                    let word = builder.mload(byte_addr);
-                    let mask = builder.imm_u256(U256::from(0xffu64) << 248);
-                    return builder.and(word, mask);
-                }
-
-                // Memory bytes/string: packed `[length][data...]`; extract the
-                // byte at `data + index`, left-aligned as `bytes1`.
-                if self.is_memory_bytes_expr(base) {
-                    let base_val = self.lower_expr(builder, base);
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let len = builder.mload(base_val);
-                    self.emit_index_bounds_check(builder, index_val, len);
-                    let offset_32 = builder.imm_u64(32);
-                    let data_base = builder.add(base_val, offset_32);
-                    let byte_addr = builder.add(data_base, index_val);
-                    let word = builder.mload(byte_addr);
-                    let mask = builder.imm_u256(U256::from(0xffu64) << 248);
-                    return builder.and(word, mask);
-                }
-
-                // Fixed-bytes value: `bytesN x; x[i]` extracts byte `i` as a
-                // left-aligned `bytes1`. The value carries its data in the
-                // word's top bytes, so byte `i` sits `i` bytes below the top;
-                // shift it up to the top byte and mask. Out-of-range indices
-                // panic like any other array access.
-                if let Some(ty) = self.get_expr_type(base)
-                    && let TyKind::Elementary(ElementaryType::FixedBytes(n)) = ty.peel_refs().kind
-                {
-                    let base_val = self.lower_expr(builder, base);
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let n_val = builder.imm_u64(u64::from(n.bytes()));
-                    self.emit_index_bounds_check(builder, index_val, n_val);
-                    let eight = builder.imm_u64(8);
-                    let shift = builder.mul(index_val, eight);
-                    let shifted = builder.shl(shift, base_val);
-                    return self.clean_fixed_bytes(builder, shifted, 1);
-                }
-
-                // Regular array/memory access
-                let base_val = self.lower_expr(builder, base);
-                let index_val = match index {
-                    Some(idx) => self.lower_expr(builder, idx),
-                    None => builder.imm_u64(0),
-                };
-                let offset_32 = builder.imm_u64(32);
-                let byte_offset = builder.mul(index_val, offset_32);
-                let data_base = if self.is_dynamic_memory_array_expr(base) {
-                    // Dynamic memory arrays carry their length in the
-                    // first word; bounds-check against it and index past
-                    // it.
-                    let len = self
-                        .new_dynamic_memory_array_const_len(base)
-                        .map(|len| builder.imm_u64(len))
-                        .unwrap_or_else(|| builder.mload(base_val));
-                    self.emit_index_bounds_check(builder, index_val, len);
-                    builder.add(base_val, offset_32)
-                } else {
-                    if let Some(len) = self.fixed_array_len_of_expr(base) {
-                        let len_val = builder.imm_u64(len);
-                        self.emit_index_bounds_check(builder, index_val, len_val);
-                    }
-                    base_val
-                };
-                let addr = builder.add(data_base, byte_offset);
-                builder.mload(addr)
+                self.lower_index_expr(builder, expr, base, index.as_deref())
             }
 
             ExprKind::Member(base, member) => {
@@ -1255,87 +1118,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             ExprKind::Index(base, index) => {
-                if let Some(mapping) =
-                    self.lower_mapping_element_slot(builder, base, index.as_deref())
-                {
-                    if self.expr_has_bytes_or_string_type(lhs) {
-                        self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
-                    } else {
-                        builder.sstore(mapping.slot, rhs);
-                    }
-                    return;
-                }
-
-                // Storage bytes/string element assignment updates one packed
-                // byte in either the short main-slot form or the long data
-                // slots. Do this before generic array handling/materialization:
-                // `lower_expr(base)` for storage bytes returns a memory copy.
-                if self.is_storage_bytes_expr(base)
-                    && let Some(slot) = self.lower_lvalue_slot(builder, base)
-                {
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    self.store_storage_bytes_element(builder, slot, index_val, rhs);
-                    return;
-                }
-
-                // Storage array element assignment (state variable or
-                // storage-reference local), dynamic or fixed-size.
-                if let Some((slot_val, fixed_len, elem_slots)) =
-                    self.storage_array_slot_of_base(builder, base)
-                {
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let element_slot = self.lower_storage_array_element_slot(
-                        builder, slot_val, fixed_len, index_val, elem_slots,
-                    );
-                    builder.sstore(element_slot, rhs);
-                    return;
-                }
-
-                // Memory bytes/string element store: a single-byte write at
-                // `data + index` into the packed `[length][data...]` layout.
-                if self.is_memory_bytes_expr(base) {
-                    let base_val = self.lower_expr(builder, base);
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let len = builder.mload(base_val);
-                    self.emit_index_bounds_check(builder, index_val, len);
-                    let offset_32 = builder.imm_u64(32);
-                    let data_base = builder.add(base_val, offset_32);
-                    let byte_addr = builder.add(data_base, index_val);
-                    let byte_val = self.bytes1_store_byte(builder, rhs);
-                    builder.mstore8(byte_addr, byte_val);
-                    return;
-                }
-
-                // Regular array/memory assignment
-                let base_val = self.lower_expr(builder, base);
-                let index_val = match index {
-                    Some(idx) => self.lower_expr(builder, idx),
-                    None => builder.imm_u64(0),
-                };
-                let offset_32 = builder.imm_u64(32);
-                let byte_offset = builder.mul(index_val, offset_32);
-                let data_base = if self.is_dynamic_memory_array_expr(base) {
-                    let len = builder.mload(base_val);
-                    self.emit_index_bounds_check(builder, index_val, len);
-                    builder.add(base_val, offset_32)
-                } else {
-                    if let Some(len) = self.fixed_array_len_of_expr(base) {
-                        let len_val = builder.imm_u64(len);
-                        self.emit_index_bounds_check(builder, index_val, len_val);
-                    }
-                    base_val
-                };
-                let addr = builder.add(data_base, byte_offset);
-                builder.mstore(addr, rhs);
+                self.lower_index_assign(builder, lhs, base, index.as_deref(), rhs);
             }
             ExprKind::Member(base, member) => {
                 // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
@@ -1744,7 +1527,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.clean_fixed_bytes(builder, shifted, bytes)
     }
 
-    fn clean_fixed_bytes(
+    pub(super) fn clean_fixed_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
@@ -2882,7 +2665,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// constant length for fixed-size arrays (`None` for dynamic arrays, whose length is
     /// stored at the base slot). Fixed-size elements occupy one slot each starting at the
     /// base slot (this codebase does not pack storage).
-    fn storage_array_slot_of_base(
+    pub(super) fn storage_array_slot_of_base(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
@@ -2918,7 +2701,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Emits the bounds check for a storage array access and returns the element slot.
     /// Dynamic arrays: length at `slot`, elements at `keccak256(slot) + index * elem_slots`.
     /// Fixed-size arrays: constant length, elements at `slot + index * elem_slots`.
-    fn lower_storage_array_element_slot(
+    pub(super) fn lower_storage_array_element_slot(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot_val: ValueId,
@@ -2986,7 +2769,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the constant length of a fixed-size array expression, if its type is known.
-    fn fixed_array_len_of_expr(&self, expr: &hir::Expr<'_>) -> Option<u64> {
+    pub(super) fn fixed_array_len_of_expr(&self, expr: &hir::Expr<'_>) -> Option<u64> {
         // Identifier: use the variable's declared type directly; `get_expr_type` may not
         // resolve every local.
         if let ExprKind::Ident(res_slice) = &expr.kind
@@ -3446,25 +3229,7 @@ impl<'gcx> Lowerer<'gcx> {
                 None
             }
             ExprKind::Index(base, index) => {
-                if let Some(mapping) =
-                    self.lower_mapping_element_slot(builder, base, index.as_deref())
-                {
-                    return Some(mapping.slot);
-                }
-                // Storage array element (state variable or storage-reference
-                // local): bounds-checked element slot.
-                if let Some((slot_val, fixed_len, elem_slots)) =
-                    self.storage_array_slot_of_base(builder, base)
-                {
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    return Some(self.lower_storage_array_element_slot(
-                        builder, slot_val, fixed_len, index_val, elem_slots,
-                    ));
-                }
-                None
+                self.lower_index_lvalue_slot(builder, base, index.as_deref())
             }
             ExprKind::Member(base, member) => {
                 // State-variable storage struct field.
@@ -3899,22 +3664,11 @@ impl<'gcx> Lowerer<'gcx> {
         false
     }
 
-    fn lower_index_or_zero(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        index: Option<&hir::Expr<'_>>,
-    ) -> ValueId {
-        match index {
-            Some(index) => self.lower_expr(builder, index),
-            None => builder.imm_u64(0),
-        }
-    }
-
     /// Computes the storage slot for `base[index]` when the base is a mapping
     /// or nested mapping expression. Also reports whether the indexed value is
     /// itself another mapping, in which case callers should forward the slot
     /// instead of loading from it.
-    fn lower_mapping_element_slot(
+    pub(super) fn lower_mapping_element_slot(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         base: &hir::Expr<'_>,
@@ -5383,7 +5137,7 @@ impl<'gcx> Lowerer<'gcx> {
         Some(self.gcx.type_of_hir_ty(&ret.ty))
     }
 
-    fn is_dynamic_memory_array_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    pub(super) fn is_dynamic_memory_array_expr(&self, expr: &hir::Expr<'_>) -> bool {
         match &expr.kind {
             ExprKind::Ident(res_slice) => {
                 let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
@@ -5418,7 +5172,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn new_dynamic_memory_array_const_len(&self, expr: &hir::Expr<'_>) -> Option<u64> {
+    pub(super) fn new_dynamic_memory_array_const_len(&self, expr: &hir::Expr<'_>) -> Option<u64> {
         let ExprKind::Call(callee, args, _) = &expr.kind else {
             return None;
         };

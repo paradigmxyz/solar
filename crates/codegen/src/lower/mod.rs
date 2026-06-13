@@ -7,6 +7,7 @@ mod abi_packed;
 mod bytes;
 mod checked_arith;
 mod expr;
+mod index;
 mod stmt;
 
 use crate::{
