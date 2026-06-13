@@ -91,7 +91,7 @@ jobs:
       - name: build wasm
         env:
           RUSTFLAGS: -C link-arg=--export-table -C link-arg=--growable-table
-        run: cargo build -p solar-cli --lib --no-default-features --target wasm32-unknown-unknown
+        run: cargo build -p solar-cli --lib --profile minsize --no-default-features --target wasm32-unknown-unknown
 
   typos:
     runs-on: ubuntu-latest

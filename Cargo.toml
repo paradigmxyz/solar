@@ -90,6 +90,10 @@ inherits = "profiling"
 inherits = "release"
 codegen-units = 1
 
+[profile.minsize]
+inherits = "dist"
+opt-level = "s"
+
 # `dist` with debug assertions.
 [profile.dist-dbg]
 inherits = "dist"
