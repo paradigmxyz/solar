@@ -9,4 +9,4 @@ artifacts = [
     "../../target/dist/soljson-wrapper.js",
     "../../target/dist/solar-wasm.tar.gz",
 ]
-build = ["bash", "../../scripts/dist-wasm.sh"]
+build = ["bash", "../../scripts/wasm/dist-wasm.sh"]

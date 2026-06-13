@@ -89,7 +89,7 @@ jobs:
         with:
           cache-on-failure: true
       - name: build wasm
-        run: bash scripts/dist-wasm.sh
+        run: bash scripts/wasm/dist-wasm.sh
       - name: test soljson
         run: node crates/cli/tests/soljson.js
 

@@ -227,7 +227,7 @@
   </div>
 
   <script>
-    const SOLJSON_PATH = "../target/dist/soljson.js";
+    const SOLJSON_PATH = "../../target/dist/soljson.js";
     const statusEl = document.getElementById("status");
     const compileButton = document.getElementById("compile");
     const sourceEl = document.getElementById("source");
@@ -296,7 +296,7 @@
       };
       script.onerror = () => {
         setStatus("missing target/dist/soljson.js", true);
-        outputEl.textContent = "Run: bash scripts/dist-wasm.sh";
+        outputEl.textContent = "Run: bash scripts/wasm/dist-wasm.sh";
       };
       document.head.appendChild(script);
     }

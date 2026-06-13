@@ -55,7 +55,7 @@ else
     fi
 fi
 
-bash scripts/dist-wasm.sh
+bash scripts/wasm/dist-wasm.sh
 
 wasm="target/dist/solar.wasm"
 wrapper="target/dist/soljson-wrapper.js"

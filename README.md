@@ -148,7 +148,7 @@ There are two ways to use the WASM API:
 
 ```bash
 rustup target add wasm32-unknown-unknown
-bash scripts/dist-wasm.sh
+bash scripts/wasm/dist-wasm.sh
 ```
 
 This produces the same files under `target/dist/`. The script builds with an
