@@ -91,7 +91,7 @@ jobs:
       - name: build wasm
         run: bash scripts/dist-wasm.sh
       - name: test soljson
-        run: node crates/cli/test-soljson.js
+        run: node crates/cli/tests/soljson.js
 
   typos:
     runs-on: ubuntu-latest
