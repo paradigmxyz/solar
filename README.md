@@ -133,20 +133,14 @@ browser and JavaScript runtimes as a `cdylib`.
 Solidity releases ship solc-js as a `soljson.js` release asset next to the
 native `solc` binaries. That file is a packed JavaScript wrapper containing the
 compiled WebAssembly bytes in `Module.wasmBinary`; the `solc-js` npm package
-then wraps that module. This repository also ships a packed `soljson.js` in
-`solar-soljson.tar.gz`, alongside the raw `solar.wasm` module and unpacked
+then wraps that module. This repository also ships a packed `soljson.js`
+release asset, alongside the raw `solar.wasm` module and unpacked
 `soljson-wrapper.js`.
 
 There are two ways to use the WASM API:
 
-1. Download `solar-soljson.tar.gz` from a release and extract it:
-
-```bash
-tar -xzf solar-soljson.tar.gz
-```
-
-This creates a `solar-soljson/` directory containing `solar.wasm` and
-`soljson.js`.
+1. Download `soljson.js` from a release. Download `solar.wasm` and
+   `soljson-wrapper.js` too if you want to instantiate the raw module yourself.
 
 2. Build it from source:
 
@@ -155,10 +149,9 @@ rustup target add wasm32-unknown-unknown
 bash scripts/dist-wasm.sh
 ```
 
-This produces the same files under `target/dist/solar-soljson/` and a
-`target/dist/solar-soljson.tar.gz` archive. The script builds with an exported,
-growable WebAssembly table so JavaScript callbacks can be installed, then packs
-the wasm bytes into `soljson.js`.
+This produces the same files under `target/dist/solar-soljson/`. The script
+builds with an exported, growable WebAssembly table so JavaScript callbacks can
+be installed, then packs the wasm bytes into `soljson.js`.
 
 The WASM module exports the modern soljson C ABI:
 `solidity_license`, `solidity_version`, `solidity_alloc`, `solidity_free`,

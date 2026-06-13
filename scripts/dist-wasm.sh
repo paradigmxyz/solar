@@ -13,5 +13,3 @@ mkdir -p "$out_dir"
 cp target/wasm32-unknown-unknown/minsize/solar_cli.wasm "$out_dir/solar.wasm"
 cp crates/cli/soljson.js "$out_dir/soljson-wrapper.js"
 scripts/pack-soljson.sh "$out_dir/solar.wasm" "$out_dir/soljson-wrapper.js" "$out_dir/soljson.js"
-
-tar -C target/dist -czf target/dist/solar-soljson.tar.gz solar-soljson
