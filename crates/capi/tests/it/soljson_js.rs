@@ -1,5 +1,3 @@
-#![allow(unused_crate_dependencies)]
-
 use std::{path::Path, process::Command};
 
 fn js_string(path: &Path) -> String {

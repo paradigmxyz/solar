@@ -3006,6 +3006,7 @@ dependencies = [
 name = "solar-capi"
 version = "0.1.8"
 dependencies = [
+ "cc",
  "solar-cli",
 ]
 

@@ -21,6 +21,9 @@ crate-type = ["rlib", "cdylib"]
 [dependencies]
 solar-cli = { version = "=0.1.8", path = "../cli", default-features = false }
 
+[dev-dependencies]
+cc = "1.2"
+
 [features]
 default = []
 nightly = ["solar-cli/nightly"]
