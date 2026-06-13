@@ -8,7 +8,7 @@ rustup target add wasm32-unknown-unknown
 export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C link-arg=--export-table -C link-arg=--growable-table"
 cargo build -p solar-cli --lib --profile minsize --no-default-features --target wasm32-unknown-unknown
 
-out_dir="target/dist/solar-soljson"
+out_dir="target/dist"
 mkdir -p "$out_dir"
 cp target/wasm32-unknown-unknown/minsize/solar_cli.wasm "$out_dir/solar.wasm"
 cp crates/cli/soljson.js "$out_dir/soljson-wrapper.js"

@@ -149,9 +149,9 @@ rustup target add wasm32-unknown-unknown
 bash scripts/dist-wasm.sh
 ```
 
-This produces the same files under `target/dist/solar-soljson/`. The script
-builds with an exported, growable WebAssembly table so JavaScript callbacks can
-be installed, then packs the wasm bytes into `soljson.js`.
+This produces the same files under `target/dist/`. The script builds with an
+exported, growable WebAssembly table so JavaScript callbacks can be installed,
+then packs the wasm bytes into `soljson.js`.
 
 The WASM module exports the modern soljson C ABI:
 `solidity_license`, `solidity_version`, `solidity_alloc`, `solidity_free`,

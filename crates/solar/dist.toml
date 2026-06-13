@@ -4,8 +4,8 @@ name = "solar"
 
 [[dist.extra-artifacts]]
 artifacts = [
-    "../../target/dist/solar-soljson/soljson.js",
-    "../../target/dist/solar-soljson/solar.wasm",
-    "../../target/dist/solar-soljson/soljson-wrapper.js",
+    "../../target/dist/soljson.js",
+    "../../target/dist/solar.wasm",
+    "../../target/dist/soljson-wrapper.js",
 ]
 build = ["bash", "../../scripts/dist-wasm.sh"]

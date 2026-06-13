@@ -197,7 +197,7 @@
     <header>
       <h1>Solar WASM Demo</h1>
       <div class="toolbar">
-        <div id="status" class="status">loading target/dist/solar-soljson/soljson.js</div>
+        <div id="status" class="status">loading target/dist/soljson.js</div>
         <button id="compile" type="button" disabled>Compile</button>
       </div>
     </header>
@@ -227,7 +227,7 @@
   </div>
 
   <script>
-    const SOLJSON_PATH = "../target/dist/solar-soljson/soljson.js";
+    const SOLJSON_PATH = "../target/dist/soljson.js";
     const statusEl = document.getElementById("status");
     const compileButton = document.getElementById("compile");
     const sourceEl = document.getElementById("source");
@@ -295,7 +295,7 @@
         compile();
       };
       script.onerror = () => {
-        setStatus("missing target/dist/solar-soljson/soljson.js", true);
+        setStatus("missing target/dist/soljson.js", true);
         outputEl.textContent = "Run: bash scripts/dist-wasm.sh";
       };
       document.head.appendChild(script);

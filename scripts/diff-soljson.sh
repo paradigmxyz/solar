@@ -57,8 +57,8 @@ fi
 
 bash scripts/dist-wasm.sh
 
-wasm="target/dist/solar-soljson/solar.wasm"
-wrapper="target/dist/solar-soljson/soljson-wrapper.js"
+wasm="target/dist/solar.wasm"
+wrapper="target/dist/soljson-wrapper.js"
 solc_out="$work_dir/solc.json"
 solar_out="$work_dir/solar-wasm.json"
 solc_norm="$work_dir/solc.normalized.json"
