@@ -125,26 +125,39 @@ EOF
 solar $(forge re) src/Contract.sol
 ```
 
-### WASM and JavaScript usage
+### C API, WASM, and JavaScript usage
 
-The `solar-capi` crate exposes a solc-js-compatible Standard JSON API for
-browser and JavaScript runtimes as a `cdylib`.
+The `solar-capi` crate exposes the compiler through a Solidity-compatible C API.
+That same ABI is also the boundary used by the WebAssembly build and the
+soljson-compatible JavaScript wrapper.
 
-Solidity releases ship solc-js as a `soljson.js` release asset next to the
-native `solc` binaries. That file is a packed JavaScript wrapper containing the
-compiled WebAssembly bytes in `Module.wasmBinary`; the `solc-js` npm package
-then wraps that module. This repository also ships a packed `soljson.js`
-release asset for compatibility, alongside the raw `solar.wasm` module,
-unpacked `soljson-wrapper.js`, and a `solar-wasm.tar.gz` archive containing
-all three files.
+The C header is the source of truth for the ABI:
+[`crates/capi/include/libsolc.h`](/crates/capi/include/libsolc.h). The API
+accepts Standard JSON input and returns Standard JSON output, matching the
+interface used by Solidity's `libsolc` and raw `soljson.js` builds. Like
+Solidity, client code owns memory explicitly through the C API described in the
+header.
 
-There are two ways to use the WASM API:
+Solidity distributes JavaScript compiler builds as `soljson.js` files. Modern
+builds are WebAssembly modules loaded through a JavaScript wrapper, with the
+wasm bytes made available as `Module.wasmBinary`. The JavaScript package
+`solc-js` then layers a higher-level API over that raw module.
 
-1. Download `soljson.js` from a release. Download `solar.wasm` and
-   `soljson-wrapper.js` too if you want to instantiate the raw module yourself,
-   or download `solar-wasm.tar.gz` to get all three files together.
+This repository ships the wasm distribution as `solar-wasm.tar.gz` in releases.
+The archive contains:
 
-2. Build it from source:
+- `soljson.js`: a packed, soljson-compatible JavaScript file with wasm embedded.
+- `solar.wasm`: the raw WebAssembly module.
+- `soljson-wrapper.js`: the JavaScript wrapper for loading `solar.wasm`
+  yourself.
+
+There are two ways to use the wasm and JavaScript distribution:
+
+1. Download `solar-wasm.tar.gz` from a release and extract the file you need.
+   Use `soljson.js` for the most solc-js-compatible path, or use
+   `solar.wasm` with `soljson-wrapper.js` when you want to control wasm loading.
+
+2. Build the same files from source:
 
 ```bash
 rustup target add wasm32-unknown-unknown
@@ -155,15 +168,7 @@ This produces the same files under `target/dist/`. The script builds with an
 exported, growable WebAssembly table so JavaScript callbacks can be installed,
 then packs the wasm bytes into `soljson.js`.
 
-The WASM module exports the modern soljson C ABI:
-`solidity_license`, `solidity_version`, `solidity_alloc`, `solidity_free`,
-`solidity_reset`, and `solidity_compile`. `solidity_compile(input,
-read_callback, read_context)` accepts a UTF-8 Standard JSON input string and
-returns UTF-8 Standard JSON output. Callback kind `source` is used for import
-resolution. The JavaScript wrapper also routes `smt-query` callbacks to
-`callbacks.smtSolver` when the compiler requests them.
-
-Use the packed release `soljson.js` directly:
+Use the packed `soljson.js` directly:
 
 ```js
 const solar = require("./soljson.js");
@@ -184,7 +189,7 @@ const output = solar.compile(JSON.stringify({
 });
 ```
 
-For custom wasm loading, use `soljson-wrapper.js` from the release artifact or
+For custom wasm loading, use `soljson-wrapper.js` from the release archive or
 [`crates/capi/soljson.js`](/crates/capi/soljson.js) from source.
 
 In Node, load the separate wasm bytes through the same `Module.wasmBinary`
@@ -218,10 +223,9 @@ const output = solar.compile(JSON.stringify({
 In browsers, serve `solar.wasm` and `soljson-wrapper.js`, fetch the wasm bytes,
 assign `globalThis.Module = { wasmBinary }`, and then load the wrapper script.
 
-The wrapper exposes `compile(inputJsonString, callbacks?)`, `version()`,
-`semver()`, `license()`, `features`, `lowlevel.compileStandard(...)`, and
-`setupMethods(...)`. Legacy low-level solc-js entry points are intentionally
-set to `null`.
+The wrapper exposes the solc-js-style Standard JSON compile entry point plus
+metadata helpers. Legacy low-level solc-js entry points are intentionally set to
+`null`.
 
 ## Roadmap
 
