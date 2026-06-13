@@ -819,7 +819,7 @@ fn strip_json_comments(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use snapbox::{assert_data_eq, str};
+    use snapbox::{IntoData as _, assert_data_eq, str};
     use std::collections::BTreeMap;
 
     struct Sources(BTreeMap<String, String>);
@@ -863,7 +863,7 @@ mod tests {
     }
 
     fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
-        assert_data_eq!(actual, expected.into_data().is(snapbox::data::DataFormat::Json));
+        assert_data_eq!(actual, expected.into_data().is_json());
     }
 
     #[test]
