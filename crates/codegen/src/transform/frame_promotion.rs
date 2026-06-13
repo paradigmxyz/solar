@@ -13,7 +13,7 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::{
-    analysis::reachable_blocks,
+    analysis::CfgInfo,
     mir::{BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
     transform::repair_reachability_phis,
@@ -111,14 +111,15 @@ impl FrameSlotPromoter {
             return self.stats;
         }
 
-        let reachable = reachable_blocks(func);
-        let Some(slots) = Self::collect_promotable_slots(func, &reachable) else {
+        let cfg = CfgInfo::new(func);
+        let reachable = cfg.reachable();
+        let Some(slots) = Self::collect_promotable_slots(func, reachable) else {
             return self.stats;
         };
 
         for slot in slots {
             let inst_results = Self::inst_results(func);
-            let mut builder = SlotSsaBuilder::new(slot, &reachable, &inst_results);
+            let mut builder = SlotSsaBuilder::new(slot, reachable, &inst_results);
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;

@@ -73,7 +73,7 @@
 //! 3. A function-size-derived rewrite budget backstops the above.
 
 use crate::{
-    analysis::{CfgInfo, DominatorTree, cfg_reachability},
+    analysis::{CfgInfo, DominatorTree},
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion,
         MirType, StorageAlias, Terminator, Value, ValueId,
@@ -319,7 +319,7 @@ impl LoadRedundancyEliminator {
     /// Computes the key universe, the per-block gen/kill summaries, and the
     /// availability fixpoint. Returns `None` if no read is trackable.
     fn compute_analysis(func: &Function) -> Option<Analysis> {
-        let cfg = CfgInfo::new(func);
+        let mut cfg = CfgInfo::new(func);
         let rpo = cfg.rpo();
 
         // The key universe: every key genned in a reachable block.
@@ -418,7 +418,11 @@ impl LoadRedundancyEliminator {
             }
         }
 
-        let reach = if kills.is_empty() { FxHashMap::default() } else { cfg_reachability(func) };
+        let reach = if kills.is_empty() {
+            FxHashMap::default()
+        } else {
+            cfg.transitive_reachability().clone()
+        };
 
         Some(Analysis {
             keys,

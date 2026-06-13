@@ -16,6 +16,7 @@ pub struct CfgInfo {
     reachable: FxHashSet<BlockId>,
     rpo: Vec<BlockId>,
     dominators: DominatorTree,
+    reachability: Option<FxHashMap<BlockId, FxHashSet<BlockId>>>,
 }
 
 impl CfgInfo {
@@ -25,7 +26,7 @@ impl CfgInfo {
         let successors = collect_successors(func);
         let (reachable, postorder, rpo) = reachable_orders(func, &successors);
         let dominators = DominatorTree::compute(func, &postorder);
-        Self { successors, reachable, rpo, dominators }
+        Self { successors, reachable, rpo, dominators, reachability: None }
     }
 
     /// Returns successor blocks for `block`.
@@ -56,6 +57,14 @@ impl CfgInfo {
     #[must_use]
     pub fn dominators(&self) -> &DominatorTree {
         &self.dominators
+    }
+
+    /// Returns block-to-block reachability through at least one CFG edge.
+    ///
+    /// The map is computed lazily because only memory/state-aware passes need
+    /// this more expensive transitive query.
+    pub fn transitive_reachability(&mut self) -> &FxHashMap<BlockId, FxHashSet<BlockId>> {
+        self.reachability.get_or_insert_with(|| compute_transitive_reachability(&self.successors))
     }
 }
 
@@ -177,25 +186,12 @@ impl DominatorTree {
     }
 }
 
-/// Returns blocks reachable from the entry.
-#[must_use]
-pub fn reachable_blocks(func: &Function) -> FxHashSet<BlockId> {
-    CfgInfo::new(func).reachable
-}
-
-/// Returns reachable blocks in reverse postorder.
-#[must_use]
-pub fn reverse_postorder(func: &Function) -> Vec<BlockId> {
-    CfgInfo::new(func).rpo
-}
-
-/// Computes, for every block, the set of blocks reachable through at least one
-/// CFG edge. A block reaches itself only when it lies on a cycle.
-#[must_use]
-pub fn cfg_reachability(func: &Function) -> FxHashMap<BlockId, FxHashSet<BlockId>> {
-    let successors = collect_successors(func);
+fn compute_transitive_reachability(
+    successors: &[Vec<BlockId>],
+) -> FxHashMap<BlockId, FxHashSet<BlockId>> {
     let mut reachability = FxHashMap::default();
-    for block_id in func.blocks.indices() {
+    for block_index in 0..successors.len() {
+        let block_id = BlockId::from_usize(block_index);
         let mut reachable = FxHashSet::default();
         let mut stack = successors[block_id.index()].clone();
         while let Some(block) = stack.pop() {

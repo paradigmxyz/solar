@@ -3,7 +3,7 @@
 //! This pass removes MIR instructions whose results are never used and have no side effects.
 
 use crate::{
-    analysis::reachable_blocks,
+    analysis::CfgInfo,
     mir::{BlockId, Function, InstId, Terminator, Value, ValueId},
     pass::FunctionPass,
     transform::repair_reachability_phis,
@@ -134,7 +134,8 @@ impl DeadCodeEliminator {
 
     /// Eliminates unreachable blocks using CFG reachability analysis.
     fn eliminate_unreachable_blocks(&mut self, func: &mut Function) {
-        let reachable = reachable_blocks(func);
+        let cfg = CfgInfo::new(func);
+        let reachable = cfg.reachable();
 
         // Collect unreachable block IDs
         let unreachable: Vec<BlockId> = func

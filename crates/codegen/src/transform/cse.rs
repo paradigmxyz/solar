@@ -36,7 +36,7 @@
 //!   (diamond arms, loop bodies), including the child itself when it sits on a cycle
 
 use crate::{
-    analysis::{CfgInfo, DominatorTree, cfg_reachability},
+    analysis::{CfgInfo, DominatorTree},
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
         StorageAlias, Value, ValueId,
@@ -219,10 +219,13 @@ impl CommonSubexprEliminator {
         func: &mut Function,
         inst_results: &FxHashMap<InstId, ValueId>,
     ) {
-        let cfg = CfgInfo::new(func);
+        let mut cfg = CfgInfo::new(func);
         let block_clobbers = self.block_clobber_summaries(func);
-        let reachability =
-            if block_clobbers.is_empty() { FxHashMap::default() } else { cfg_reachability(func) };
+        let reachability = if block_clobbers.is_empty() {
+            FxHashMap::default()
+        } else {
+            cfg.transitive_reachability().clone()
+        };
         let mut replacements = FxHashMap::default();
         let mut dead = FxHashSet::default();
         let mut cache = FxHashMap::default();
