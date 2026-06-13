@@ -7,18 +7,15 @@
 })(typeof globalThis !== "undefined" ? globalThis : this, function () {
   "use strict";
 
-  const features = {
-    legacySingleInput: false,
-    multipleInputs: true,
-    importCallback: true,
-    nativeStandardJSON: true,
-  };
-
   function setupMethods(soljson) {
     soljson = soljson || {};
     const lowlevel = createLowlevel(soljson);
+    const features = createFeatures(lowlevel);
     const methods = {
       compile(inputJsonString, callbacks) {
+        if (typeof lowlevel.compileStandard !== "function") {
+          throw new Error("solidity_compile is not available");
+        }
         return lowlevel.compileStandard(inputJsonString, callbacks);
       },
       version() {
@@ -55,6 +52,17 @@
       license: soljson.license || cStringFunction(soljson, "solidity_license", "MIT OR Apache-2.0"),
       version: soljson.version || cStringFunction(soljson, "solidity_version", "unknown"),
       semver: soljson.semver || null,
+      reset: soljson.reset || exportedFunction(soljson, "solidity_reset") || null,
+    };
+  }
+
+  function createFeatures(lowlevel) {
+    const hasStandardJson = typeof lowlevel.compileStandard === "function";
+    return {
+      legacySingleInput: false,
+      multipleInputs: hasStandardJson,
+      importCallback: hasStandardJson,
+      nativeStandardJSON: hasStandardJson,
     };
   }
 
@@ -62,13 +70,16 @@
     const compile = exportedFunction(soljson, "solidity_compile");
     const alloc = exportedFunction(soljson, "solidity_alloc");
     const free = exportedFunction(soljson, "solidity_free");
+    const reset = exportedFunction(soljson, "solidity_reset");
     if (!compile || !alloc || !free) {
-      return function missingCompileStandard() {
-        throw new Error("solidity_compile is not available");
-      };
+      return null;
     }
 
     return function compileStandard(inputJsonString, callbacks) {
+      if (callbacks != null && typeof callbacks !== "object") {
+        throw new Error("Invalid callback object specified.");
+      }
+      callbacks = callbacks || {};
       const inputPtr = allocateString(soljson, alloc, inputJsonString);
       const callbackPtr = makeReadCallback(soljson, alloc, callbacks);
       try {
@@ -80,18 +91,21 @@
         }
       } finally {
         free(inputPtr);
-        if (callbackPtr && typeof soljson.removeFunction === "function") {
-          soljson.removeFunction(callbackPtr);
+        if (callbackPtr) {
+          removeFunction(soljson, callbackPtr);
+        }
+        if (typeof reset === "function") {
+          reset();
         }
       }
     };
   }
 
   function makeReadCallback(soljson, alloc, callbacks) {
-    if (!callbacks || typeof soljson.addFunction !== "function") {
+    if (!canAddFunction(soljson)) {
       return 0;
     }
-    return soljson.addFunction(function (_context, kindPtr, dataPtr, contentsPtr, errorPtr) {
+    return addFunction(soljson, function (_context, kindPtr, dataPtr, contentsPtr, errorPtr) {
       const result = handleReadCallback(
         readString(soljson, kindPtr),
         readString(soljson, dataPtr),
@@ -102,27 +116,66 @@
       } else if (result.error != null) {
         setPointer(soljson, errorPtr, allocateString(soljson, alloc, result.error));
       }
-    }, "vppppp");
+    }, "viiiii");
   }
 
   function handleReadCallback(kind, data, callbacks) {
     if (kind === "source") {
-      if (!callbacks || typeof callbacks.import !== "function") {
-        return { error: "File import callback not supported" };
-      }
-      const result = callbacks.import(data);
-      if (typeof result === "string") {
-        return { contents: result };
-      }
-      if (result && result.contents != null) {
-        return { contents: String(result.contents) };
-      }
-      if (result && result.error != null) {
-        return { error: String(result.error) };
-      }
-      return { error: "File import callback returned no contents" };
+      return normalizeCallbackResult(
+        (callbacks.import || defaultImportCallback)(data),
+        "File import callback returned no contents",
+      );
+    }
+    if (kind === "smt-query") {
+      return normalizeCallbackResult(
+        (callbacks.smtSolver || defaultSmtSolverCallback)(data),
+        "SMT solver callback returned no contents",
+      );
     }
     return { error: `Callback kind \`${kind}\` is not supported` };
+  }
+
+  function normalizeCallbackResult(result, missingMessage) {
+    if (typeof result === "string") {
+      return { contents: result };
+    }
+    if (result && result.contents != null) {
+      return { contents: String(result.contents) };
+    }
+    if (result && result.error != null) {
+      return { error: String(result.error) };
+    }
+    return { error: missingMessage };
+  }
+
+  function defaultImportCallback() {
+    return { error: "File import callback not supported" };
+  }
+
+  function defaultSmtSolverCallback() {
+    return { error: "SMT solver callback not supported" };
+  }
+
+  function canAddFunction(soljson) {
+    return (
+      typeof soljson.addFunction === "function" ||
+      !!(soljson.Runtime && typeof soljson.Runtime.addFunction === "function")
+    );
+  }
+
+  function addFunction(soljson, callback, signature) {
+    if (typeof soljson.addFunction === "function") {
+      return soljson.addFunction(callback, signature);
+    }
+    return soljson.Runtime.addFunction(callback, signature);
+  }
+
+  function removeFunction(soljson, callbackPtr) {
+    if (typeof soljson.removeFunction === "function") {
+      soljson.removeFunction(callbackPtr);
+    } else if (soljson.Runtime && typeof soljson.Runtime.removeFunction === "function") {
+      soljson.Runtime.removeFunction(callbackPtr);
+    }
   }
 
   function cStringFunction(soljson, name, fallback) {
@@ -148,7 +201,14 @@
   }
 
   function allocateString(soljson, alloc, value) {
-    const bytes = textEncoder().encode(String(value) + "\0");
+    value = String(value);
+    if (typeof soljson.lengthBytesUTF8 === "function" && typeof soljson.stringToUTF8 === "function") {
+      const length = soljson.lengthBytesUTF8(value) + 1;
+      const ptr = alloc(length);
+      soljson.stringToUTF8(value, ptr, length);
+      return ptr;
+    }
+    const bytes = textEncoder().encode(value + "\0");
     const ptr = alloc(bytes.length);
     heap(soljson).set(bytes, ptr);
     return ptr;
@@ -160,6 +220,9 @@
     }
     if (typeof soljson.UTF8ToString === "function") {
       return soljson.UTF8ToString(ptr);
+    }
+    if (typeof soljson.Pointer_stringify === "function") {
+      return soljson.Pointer_stringify(ptr);
     }
     const bytes = heap(soljson);
     let end = ptr;

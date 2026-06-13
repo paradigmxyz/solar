@@ -48,6 +48,9 @@ libc.workspace = true
 
 tikv-jemallocator = { version = "0.6", optional = true }
 
+[dev-dependencies]
+snapbox.workspace = true
+
 [features]
 default = ["mimalloc", "tracing"]
 # Nightly-only features for faster/smaller builds.

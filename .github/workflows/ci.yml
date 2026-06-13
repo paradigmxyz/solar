@@ -89,6 +89,8 @@ jobs:
         with:
           cache-on-failure: true
       - name: build wasm
+        env:
+          RUSTFLAGS: -C link-arg=--export-table -C link-arg=--growable-table
         run: cargo build -p solar-cli --lib --no-default-features --target wasm32-unknown-unknown
 
   typos:

@@ -128,20 +128,44 @@ solar $(forge re) src/Contract.sol
 ### WASM and JavaScript usage
 
 The `solar-cli` crate exposes a solc-js-compatible Standard JSON API for
-browser and JavaScript runtimes as a `cdylib`. Build it with:
+browser and JavaScript runtimes as a `cdylib`.
+
+Solidity releases ship solc-js as a `soljson.js` release asset next to the
+native `solc` binaries. That file is a packed JavaScript wrapper containing the
+compiled WebAssembly bytes in `Module.wasmBinary`; the `solc-js` npm package
+then wraps that module. This repository ships the same pieces as
+`solar-soljson.tar.gz`: a compiled `solar.wasm` module and the `soljson.js`
+wrapper.
+
+There are two ways to use the WASM API:
+
+1. Download `solar-soljson.tar.gz` from a release and extract it:
+
+```bash
+tar -xzf solar-soljson.tar.gz
+```
+
+This creates a `solar-soljson/` directory containing `solar.wasm` and
+`soljson.js`.
+
+2. Build it from source:
 
 ```bash
 rustup target add wasm32-unknown-unknown
-cargo build -p solar-cli --lib --release --no-default-features --target wasm32-unknown-unknown
+bash scripts/dist-wasm.sh
 ```
 
-The resulting WASM exports the modern soljson C ABI:
+This produces the same files under `target/dist/solar-soljson/` and a
+`target/dist/solar-soljson.tar.gz` archive. The script builds with an exported,
+growable WebAssembly table so JavaScript callbacks can be installed.
+
+The WASM module exports the modern soljson C ABI:
 `solidity_license`, `solidity_version`, `solidity_alloc`, `solidity_free`,
 `solidity_reset`, and `solidity_compile`. `solidity_compile(input,
 read_callback, read_context)` accepts a UTF-8 Standard JSON input string and
 returns UTF-8 Standard JSON output. Callback kind `source` is used for import
-resolution. Other callback kinds, including `smt-query`, currently return an
-unsupported callback error.
+resolution. The JavaScript wrapper also routes `smt-query` callbacks to
+`callbacks.smtSolver` when the compiler requests them.
 
 Use [`crates/cli/soljson.js`](/crates/cli/soljson.js) as the JavaScript
 wrapper:
@@ -169,9 +193,6 @@ The wrapper exposes `compile(inputJsonString, callbacks?)`, `version()`,
 `semver()`, `license()`, `features`, `lowlevel.compileStandard(...)`, and
 `setupMethods(...)`. Legacy low-level solc-js entry points are intentionally
 set to `null`.
-
-Release artifacts include `solar-soljson.tar.gz`, which packages the compiled
-`solar.wasm` module together with `soljson.js`.
 
 ## Roadmap
 

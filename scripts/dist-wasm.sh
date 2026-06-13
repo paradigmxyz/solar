@@ -5,6 +5,7 @@ root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
 rustup target add wasm32-unknown-unknown
+export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C link-arg=--export-table -C link-arg=--growable-table"
 cargo build -p solar-cli --lib --release --no-default-features --target wasm32-unknown-unknown
 
 out_dir="target/dist/solar-soljson"

@@ -101,7 +101,7 @@ pub(crate) fn compile_standard_json(
     mut opts: Opts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut dyn Write,
-) -> io::Result<()> {
+) {
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(StandardJsonFileLoader { read_callback });
     let (emitter, diagnostics) = InMemoryEmitter::new();
@@ -139,12 +139,12 @@ pub(crate) fn compile_standard_json(
         output.contracts.clear();
     }
 
-    if opts.pretty_json {
-        serde_json::to_writer_pretty(out, &output)?;
+    let result = if opts.pretty_json {
+        serde_json::to_writer_pretty(out, &output)
     } else {
-        serde_json::to_writer(out, &output)?;
-    }
-    Ok(())
+        serde_json::to_writer(out, &output)
+    };
+    let _ = result;
 }
 
 pub(crate) fn run(opts: Opts) -> io::Result<()> {
@@ -152,7 +152,7 @@ pub(crate) fn run(opts: Opts) -> io::Result<()> {
     let stdout = io::stdout();
     let mut stdout = io::BufWriter::new(stdout.lock());
     match io::stdin().read_to_string(&mut input) {
-        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
+        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout),
         Err(e) => standard_json_error_output(
             format!("failed to read standard JSON input: {e}"),
             &mut stdout,
@@ -211,6 +211,7 @@ fn compile(
     opts.stop_after =
         input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
     opts.input = input.sources.keys().map(ToString::to_string).collect();
+    opts.unstable.typeck = true;
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -819,7 +820,7 @@ fn strip_json_comments(input: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Value;
+    use snapbox::{assert_data_eq, str};
     use std::collections::BTreeMap;
 
     struct Sources(BTreeMap<String, String>);
@@ -836,16 +837,26 @@ mod tests {
         }
     }
 
-    fn compile(input: &str, callback: Option<Arc<dyn StandardJsonReadCallback>>) -> Value {
+    fn compile(input: &str, callback: Option<Arc<dyn StandardJsonReadCallback>>) -> String {
         let mut output = Vec::new();
-        compile_standard_json(input, Opts::default(), callback, &mut output).unwrap();
-        serde_json::from_slice(&output).unwrap()
+        let opts = Opts {
+            pretty_json: true,
+            unstable: solar_config::UnstableOpts { ui_testing: true, ..Default::default() },
+            ..Opts::default()
+        };
+        compile_standard_json(input, opts, callback, &mut output);
+        String::from_utf8(output).unwrap().replace(env!("CARGO_MANIFEST_DIR"), "ROOT")
+    }
+
+    fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
+        assert_data_eq!(actual, expected.into_data().is(snapbox::data::DataFormat::Json));
     }
 
     #[test]
     fn compile_without_imports() {
-        let output = compile(
-            r#"{
+        assert_json(
+            &compile(
+                r#"{
                 "language": "Solidity",
                 "sources": {
                     "A.sol": {
@@ -856,11 +867,84 @@ mod tests {
                     "outputSelection": { "*": { "*": ["abi"] } }
                 }
             }"#,
-            None,
+                None,
+            ),
+            str![[r#"
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "abi": [
+          {
+            "inputs": [],
+            "name": "f",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "pure",
+            "type": "function"
+          }
+        ]
+      }
+    }
+  }
+}
+"#]],
         );
+    }
 
-        assert!(output.get("errors").is_none(), "{output:#}");
-        assert!(output["contracts"]["A.sol"]["A"]["abi"].is_array(), "{output:#}");
+    #[test]
+    fn type_errors_are_reported() {
+        assert_json(
+            &compile(
+                r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "contract A { function f() public pure { uint x = true; } }"
+                    }
+                },
+                "settings": {
+                    "outputSelection": { "*": { "*": ["abi"] } }
+                }
+            }"#,
+                None,
+            ),
+            str![[r#"
+{
+  "errors": [
+    {
+      "component": "general",
+      "errorCode": null,
+      "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:1:50\n   │\nLL │ contract A { function f() public pure { uint x = true; } }\n   ╰╴                                                 ━━━━ expected `uint256`, found `bool`\n\n",
+      "message": "mismatched types",
+      "secondarySourceLocations": [],
+      "severity": "error",
+      "sourceLocation": {
+        "end": 53,
+        "file": "A.sol",
+        "start": 49
+      },
+      "type": "Exception"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}
+"#]],
+        );
     }
 
     #[test]
@@ -871,8 +955,9 @@ mod tests {
             "contract B { function g() public pure returns (uint) { return 2; } }".to_string(),
         );
 
-        let output = compile(
-            r#"{
+        assert_json(
+            &compile(
+                r#"{
                 "language": "Solidity",
                 "sources": {
                     "A.sol": {
@@ -883,18 +968,68 @@ mod tests {
                     "outputSelection": { "*": { "*": ["abi"] } }
                 }
             }"#,
-            Some(Arc::new(Sources(sources))),
+                Some(Arc::new(Sources(sources))),
+            ),
+            str![[r#"
+{
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "abi": [
+          {
+            "inputs": [],
+            "name": "g",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "pure",
+            "type": "function"
+          }
+        ]
+      }
+    },
+    "ROOT/B.sol": {
+      "B": {
+        "abi": [
+          {
+            "inputs": [],
+            "name": "g",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "pure",
+            "type": "function"
+          }
+        ]
+      }
+    }
+  },
+  "sources": {
+    "A.sol": {
+      "id": 1
+    },
+    "ROOT/B.sol": {
+      "id": 0
+    }
+  }
+}
+"#]],
         );
-
-        assert!(output.get("errors").is_none(), "{output:#}");
-        assert!(output["contracts"]["A.sol"]["A"]["abi"].is_array(), "{output:#}");
-        assert!(output["contracts"]["B.sol"]["B"]["abi"].is_array(), "{output:#}");
     }
 
     #[test]
     fn missing_import_callback_is_reported() {
-        let output = compile(
-            r#"{
+        assert_json(
+            &compile(
+                r#"{
                 "language": "Solidity",
                 "sources": {
                     "A.sol": {
@@ -902,15 +1037,33 @@ mod tests {
                     }
                 }
             }"#,
-            None,
-        );
-
-        let errors = output["errors"].as_array().unwrap();
-        assert!(
-            errors.iter().any(|error| error["message"]
-                .as_str()
-                .is_some_and(|message| message.contains("File import callback not supported"))),
-            "{output:#}",
+                None,
+            ),
+            str![[r#"
+{
+  "errors": [
+    {
+      "component": "general",
+      "errorCode": null,
+      "formattedMessage": "error: couldn't read Missing.sol: File import callback not supported\n   ╭▸ A.sol:1:8\n   │\nLL │ import \"Missing.sol\"; contract A {}\n   ╰╴       ━━━━━━━━━━━━━\n\n",
+      "message": "couldn't read Missing.sol: File import callback not supported",
+      "secondarySourceLocations": [],
+      "severity": "error",
+      "sourceLocation": {
+        "end": 20,
+        "file": "A.sol",
+        "start": 7
+      },
+      "type": "Exception"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}
+"#]],
         );
     }
 }
