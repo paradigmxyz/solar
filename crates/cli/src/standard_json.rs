@@ -100,7 +100,7 @@ pub(crate) fn compile_standard_json(
     input: &str,
     mut opts: Opts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
-    out: impl Write,
+    out: &mut dyn Write,
 ) -> io::Result<()> {
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(StandardJsonFileLoader { read_callback });
@@ -139,11 +139,10 @@ pub(crate) fn compile_standard_json(
         output.contracts.clear();
     }
 
-    let mut out = out;
     if opts.pretty_json {
-        serde_json::to_writer_pretty(&mut out, &output)?;
+        serde_json::to_writer_pretty(out, &output)?;
     } else {
-        serde_json::to_writer(&mut out, &output)?;
+        serde_json::to_writer(out, &output)?;
     }
     Ok(())
 }
@@ -163,7 +162,7 @@ pub(crate) fn run(opts: Opts) -> io::Result<()> {
     stdout.flush()
 }
 
-fn standard_json_error_output(message: String, out: impl Write) -> io::Result<()> {
+fn standard_json_error_output(message: String, out: &mut dyn Write) -> io::Result<()> {
     let output = json!({
         "errors": [{
             "severity": "error",
