@@ -1,5 +1,14 @@
-use crate::standard_json::{ReadCallbackResult, StandardJsonReadCallback, compile_standard_json};
-use solar_config::Opts;
+#![doc = include_str!("../README.md")]
+#![doc(
+    html_logo_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/logo.png",
+    html_favicon_url = "https://raw.githubusercontent.com/paradigmxyz/solar/main/assets/favicon.ico"
+)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
+use solar_cli::{
+    Opts,
+    standard_json::{ReadCallbackResult, StandardJsonReadCallback, compile_standard_json},
+};
 use std::{
     alloc::{Layout, alloc, dealloc},
     ffi::{CStr, c_char, c_void},
@@ -28,22 +37,28 @@ struct AllocationHeader {
 }
 
 #[unsafe(no_mangle)]
-pub(crate) extern "C" fn solidity_license() -> *const c_char {
+pub extern "C" fn solidity_license() -> *const c_char {
     LICENSE.as_ptr().cast()
 }
 
 #[unsafe(no_mangle)]
-pub(crate) extern "C" fn solidity_version() -> *const c_char {
+pub extern "C" fn solidity_version() -> *const c_char {
     VERSION.as_ptr().cast()
 }
 
 #[unsafe(no_mangle)]
-pub(crate) extern "C" fn solidity_alloc(size: usize) -> *mut c_char {
+pub extern "C" fn solidity_alloc(size: usize) -> *mut c_char {
     alloc_with_header(size).cast()
 }
 
+/// Explicitly frees memory allocated by `solidity_alloc` or returned by `solidity_compile`.
+///
+/// # Safety
+///
+/// `data` must be null or a pointer returned by `solidity_alloc` or `solidity_compile` that has
+/// not already been freed.
 #[unsafe(no_mangle)]
-pub(crate) unsafe extern "C" fn solidity_free(data: *mut c_char) {
+pub unsafe extern "C" fn solidity_free(data: *mut c_char) {
     if data.is_null() {
         return;
     }
@@ -53,7 +68,7 @@ pub(crate) unsafe extern "C" fn solidity_free(data: *mut c_char) {
 }
 
 #[unsafe(no_mangle)]
-pub(crate) extern "C" fn solidity_reset() {
+pub extern "C" fn solidity_reset() {
     unsafe {
         reset_allocations();
     }
@@ -67,7 +82,7 @@ pub(crate) extern "C" fn solidity_reset() {
 /// provided, it must follow the `CStyleReadFileCallback` ABI and write only null pointers or
 /// pointers allocated with `solidity_alloc` to its output parameters.
 #[unsafe(no_mangle)]
-pub(crate) unsafe extern "C" fn solidity_compile(
+pub unsafe extern "C" fn solidity_compile(
     input: *const c_char,
     read_callback: Option<CStyleReadFileCallback>,
     read_context: *mut c_void,

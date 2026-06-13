@@ -1,0 +1,27 @@
+[package]
+name = "solar-capi"
+description = "Solar compiler C API"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/capi"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+solar-cli = { version = "=0.1.8", path = "../cli", default-features = false }
+
+[features]
+default = []
+nightly = ["solar-cli/nightly"]
+asm = ["solar-cli/asm"]

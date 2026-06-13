@@ -15,9 +15,6 @@ categories.workspace = true
 [lints]
 workspace = true
 
-[lib]
-crate-type = ["rlib", "cdylib"]
-
 [dependencies]
 solar-config = { workspace = true, features = ["clap"] }
 solar-interface = { workspace = true, features = ["json"] }

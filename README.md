@@ -127,7 +127,7 @@ solar $(forge re) src/Contract.sol
 
 ### WASM and JavaScript usage
 
-The `solar-cli` crate exposes a solc-js-compatible Standard JSON API for
+The `solar-capi` crate exposes a solc-js-compatible Standard JSON API for
 browser and JavaScript runtimes as a `cdylib`.
 
 Solidity releases ship solc-js as a `soljson.js` release asset next to the
@@ -185,7 +185,7 @@ const output = solar.compile(JSON.stringify({
 ```
 
 For custom wasm loading, use `soljson-wrapper.js` from the release artifact or
-[`crates/cli/soljson.js`](/crates/cli/soljson.js) from source.
+[`crates/capi/soljson.js`](/crates/capi/soljson.js) from source.
 
 In Node, load the separate wasm bytes through the same `Module.wasmBinary`
 hook used by the packed file:

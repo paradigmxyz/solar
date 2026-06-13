@@ -3003,6 +3003,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-capi"
+version = "0.1.8"
+dependencies = [
+ "solar-cli",
+]
+
+[[package]]
 name = "solar-cli"
 version = "0.1.8"
 dependencies = [

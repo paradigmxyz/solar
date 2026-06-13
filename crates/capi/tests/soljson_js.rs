@@ -2,6 +2,10 @@
 
 use std::{path::Path, process::Command};
 
+fn js_string(path: &Path) -> String {
+    format!("{:?}", path.to_string_lossy())
+}
+
 #[test]
 fn js_wrapper_api_shape_and_compile_behavior() {
     if Command::new("node").arg("--version").output().is_err() {
@@ -10,7 +14,7 @@ fn js_wrapper_api_shape_and_compile_behavior() {
     }
 
     let wrapper = Path::new(env!("CARGO_MANIFEST_DIR")).join("soljson.js");
-    let wrapper = serde_json::to_string(&wrapper).unwrap();
+    let wrapper = js_string(&wrapper);
     let script = format!(
         r#"
 const assert = require("node:assert/strict");
@@ -75,7 +79,7 @@ fn js_wrapper_c_abi_callbacks_match_solcjs_shape() {
     }
 
     let wrapper = Path::new(env!("CARGO_MANIFEST_DIR")).join("soljson.js");
-    let wrapper = serde_json::to_string(&wrapper).unwrap();
+    let wrapper = js_string(&wrapper);
     let script = r#"
 const assert = require("node:assert/strict");
 const solar = require(__WRAPPER__);
