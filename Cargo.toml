@@ -90,16 +90,16 @@ inherits = "profiling"
 inherits = "release"
 codegen-units = 1
 
-[profile.minsize]
-inherits = "dist"
-opt-level = "s"
-
 # `dist` with debug assertions.
 [profile.dist-dbg]
 inherits = "dist"
 debug = "full"
 strip = false
 debug-assertions = true
+
+[profile.minsize]
+inherits = "dist"
+opt-level = "s"
 
 [workspace.dependencies]
 # compiler crates
