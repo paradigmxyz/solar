@@ -173,6 +173,8 @@ fn config(
         config.filter(pattern, replacement);
     }
     let stdout_filters: &[(&str, &str)] = &[
+        (r"\\\\", "/"),
+        (r"\\/", "/"),
         //
         (&env!("CARGO_PKG_VERSION").replace(".", r"\."), "VERSION"),
     ];

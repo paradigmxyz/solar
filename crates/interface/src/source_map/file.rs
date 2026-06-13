@@ -141,14 +141,7 @@ impl fmt::Display for FileNameDisplay<'_> {
                 } else {
                     path.as_path()
                 };
-                #[cfg(windows)]
-                {
-                    f.write_str(&path.display().to_string().replace('\\', "/"))
-                }
-                #[cfg(not(windows))]
-                {
-                    path.display().fmt(f)
-                }
+                path.display().fmt(f)
             }
             FileName::Stdin => f.write_str("<stdin>"),
             FileName::Custom(s) => write!(f, "<{s}>"),
