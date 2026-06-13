@@ -76,35 +76,53 @@ struct CompilerOutput<'a> {
     contracts: BTreeMap<String, BTreeMap<String, ContractOutput>>,
 }
 
-pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
+/// Result returned by a Standard JSON read callback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReadCallbackResult {
+    /// The requested data was found.
+    Success(String),
+    /// The callback handled the request and returned an error.
+    Error(String),
+    /// The callback does not support this request kind.
+    Unsupported,
+}
+
+/// Callback used by Standard JSON compilation to retrieve extra input.
+pub trait StandardJsonReadCallback: Send + Sync + 'static {
+    /// Reads data for `kind`.
+    ///
+    /// The modern soljson API currently uses `source` for import resolution.
+    fn read(&self, kind: &str, data: &str) -> ReadCallbackResult;
+}
+
+/// Compiles Standard JSON input and returns Standard JSON output.
+pub fn compile_standard_json(
+    input: &str,
+    mut opts: Opts,
+    read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+) -> io::Result<String> {
     let source_map = Arc::new(SourceMap::empty());
-    source_map.set_file_loader(StandardJsonFileLoader);
+    source_map.set_file_loader(StandardJsonFileLoader { read_callback });
     let (emitter, diagnostics) = InMemoryEmitter::new();
     let dcx = DiagCtxt::new(Box::new(emitter))
         .with_flags(|flags| flags.update_from_opts(&opts))
         .with_allowed_diagnostic_codes(opts.allow.iter().cloned());
 
     let mut output = CompilerOutput::default();
-    let mut input = String::new();
-    match io::stdin().read_to_string(&mut input) {
-        Ok(_) => {
-            if opts.unstable.ui_testing {
-                input = strip_json_comments(&input);
+    let input = if opts.unstable.ui_testing {
+        Cow::Owned(strip_json_comments(input))
+    } else {
+        Cow::Borrowed(input)
+    };
+    match serde_json::from_str::<CompilerInput<'_>>(&input) {
+        Ok(compiler_input) => {
+            if opts.unstable.standard_json_stats {
+                print_standard_json_stats(&input, &compiler_input);
             }
-            match serde_json::from_str::<CompilerInput<'_>>(&input) {
-                Ok(compiler_input) => {
-                    if opts.unstable.standard_json_stats {
-                        print_standard_json_stats(&input, &compiler_input);
-                    }
-                    compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
-                }
-                Err(e) => {
-                    dcx.err(format!("JSON parse error: {e}")).emit();
-                }
-            }
+            compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
         }
         Err(e) => {
-            dcx.err(format!("failed to read standard JSON input: {e}")).emit();
+            dcx.err(format!("JSON parse error: {e}")).emit();
         }
     }
 
@@ -120,15 +138,38 @@ pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
         output.contracts.clear();
     }
 
+    let mut json = Vec::new();
+    if opts.pretty_json {
+        serde_json::to_writer_pretty(&mut json, &output)?;
+    } else {
+        serde_json::to_writer(&mut json, &output)?;
+    }
+    String::from_utf8(json).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+}
+
+pub(crate) fn run(opts: Opts) -> io::Result<()> {
+    let mut input = String::new();
+    let output = match io::stdin().read_to_string(&mut input) {
+        Ok(_) => compile_standard_json(&input, opts, None)?,
+        Err(e) => standard_json_error_output(format!("failed to read standard JSON input: {e}"))?,
+    };
+
     let stdout = io::stdout();
     let mut stdout = io::BufWriter::new(stdout.lock());
-    if opts.pretty_json {
-        serde_json::to_writer_pretty(&mut stdout, &output)?;
-    } else {
-        serde_json::to_writer(&mut stdout, &output)?;
-    }
+    stdout.write_all(output.as_bytes())?;
     stdout.write_all(b"\n")?;
     stdout.flush()
+}
+
+fn standard_json_error_output(message: String) -> io::Result<String> {
+    let output = json!({
+        "errors": [{
+            "severity": "error",
+            "type": "IOError",
+            "message": message,
+        }],
+    });
+    serde_json::to_string(&output).map_err(io::Error::other)
 }
 
 fn compile(
@@ -411,24 +452,69 @@ fn default_language<'a>() -> CowStr<'a> {
     CowStr(Cow::Borrowed("Solidity"))
 }
 
-struct StandardJsonFileLoader;
+struct StandardJsonFileLoader {
+    read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+}
 
 impl FileLoader for StandardJsonFileLoader {
     fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
-        Err(disallowed_io(path))
+        if path.is_absolute()
+            && let Ok(cwd) = std::env::current_dir()
+            && let Ok(path) = path.strip_prefix(cwd)
+        {
+            Ok(path.to_path_buf())
+        } else {
+            Ok(path.to_path_buf())
+        }
     }
 
     fn load_stdin(&self) -> io::Result<String> {
-        Err(disallowed_io(Path::new("stdin")))
+        self.read_source(Path::new("stdin"))
     }
 
     fn load_file(&self, path: &Path) -> io::Result<String> {
-        Err(disallowed_io(path))
+        self.read_source(path)
     }
 
     fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
         Err(disallowed_io(path))
     }
+}
+
+impl StandardJsonFileLoader {
+    fn read_source(&self, path: &Path) -> io::Result<String> {
+        let Some(read_callback) = &self.read_callback else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "File import callback not supported",
+            ));
+        };
+        let data = callback_path(path);
+        match read_callback.read("source", &data) {
+            ReadCallbackResult::Success(contents) => Ok(contents),
+            ReadCallbackResult::Error(error) => Err(io::Error::other(error)),
+            ReadCallbackResult::Unsupported => {
+                Err(io::Error::new(io::ErrorKind::Unsupported, unsupported_callback_kind("source")))
+            }
+        }
+    }
+}
+
+/// Returns the diagnostic message for an unsupported Standard JSON callback kind.
+pub fn unsupported_callback_kind(kind: &str) -> String {
+    format!("Callback kind `{kind}` is not supported")
+}
+
+fn callback_path(path: &Path) -> Cow<'_, str> {
+    let path = if path.is_absolute()
+        && let Ok(cwd) = std::env::current_dir()
+        && let Ok(path) = path.strip_prefix(cwd)
+    {
+        path
+    } else {
+        path
+    };
+    path.to_string_lossy()
 }
 
 fn disallowed_io(path: &Path) -> io::Error {
@@ -727,4 +813,102 @@ fn strip_json_comments(input: &str) -> String {
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+    use std::collections::BTreeMap;
+
+    struct Sources(BTreeMap<String, String>);
+
+    impl StandardJsonReadCallback for Sources {
+        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+            if kind != "source" {
+                return ReadCallbackResult::Unsupported;
+            }
+            self.0.get(data).cloned().map_or_else(
+                || ReadCallbackResult::Error(format!("source `{data}` not found")),
+                ReadCallbackResult::Success,
+            )
+        }
+    }
+
+    fn compile(input: &str, callback: Option<Arc<dyn StandardJsonReadCallback>>) -> Value {
+        let output = compile_standard_json(input, Opts::default(), callback).unwrap();
+        serde_json::from_str(&output).unwrap()
+    }
+
+    #[test]
+    fn compile_without_imports() {
+        let output = compile(
+            r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "contract A { function f() public pure returns (uint) { return 1; } }"
+                    }
+                },
+                "settings": {
+                    "outputSelection": { "*": { "*": ["abi"] } }
+                }
+            }"#,
+            None,
+        );
+
+        assert!(output.get("errors").is_none(), "{output:#}");
+        assert!(output["contracts"]["A.sol"]["A"]["abi"].is_array(), "{output:#}");
+    }
+
+    #[test]
+    fn import_callback_resolves_source() {
+        let mut sources = BTreeMap::new();
+        sources.insert(
+            "B.sol".to_string(),
+            "contract B { function g() public pure returns (uint) { return 2; } }".to_string(),
+        );
+
+        let output = compile(
+            r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "import \"B.sol\"; contract A is B {}"
+                    }
+                },
+                "settings": {
+                    "outputSelection": { "*": { "*": ["abi"] } }
+                }
+            }"#,
+            Some(Arc::new(Sources(sources))),
+        );
+
+        assert!(output.get("errors").is_none(), "{output:#}");
+        assert!(output["contracts"]["A.sol"]["A"]["abi"].is_array(), "{output:#}");
+        assert!(output["contracts"]["B.sol"]["B"]["abi"].is_array(), "{output:#}");
+    }
+
+    #[test]
+    fn missing_import_callback_is_reported() {
+        let output = compile(
+            r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "import \"Missing.sol\"; contract A {}"
+                    }
+                }
+            }"#,
+            None,
+        );
+
+        let errors = output["errors"].as_array().unwrap();
+        assert!(
+            errors.iter().any(|error| error["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("File import callback not supported"))),
+            "{output:#}",
+        );
+    }
 }

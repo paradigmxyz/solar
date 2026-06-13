@@ -1,5 +1,5 @@
 // CHECK: "errors": [
-// CHECK: "message": "file tests/ui/standard-json/auxiliary/on-disk.sol not found"
+// CHECK: "message": "couldn't read tests/ui/standard-json/auxiliary/on-disk.sol: File import callback not supported"
 // CHECK: "message": "unresolved symbol `OnDisk`"
 // CHECK-NOT: "contracts"
 {

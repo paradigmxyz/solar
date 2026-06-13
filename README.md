@@ -125,6 +125,57 @@ EOF
 solar $(forge re) src/Contract.sol
 ```
 
+### WASM and JavaScript usage
+
+The `solar-wasm` crate exposes a solc-js-compatible Standard JSON API for
+browser and JavaScript runtimes. Build it with:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo build -p solar-wasm --release --target wasm32-unknown-unknown
+```
+
+The resulting WASM exports the modern soljson C ABI:
+`solidity_license`, `solidity_version`, `solidity_alloc`, `solidity_free`,
+`solidity_reset`, and `solidity_compile`. `solidity_compile(input,
+read_callback, read_context)` accepts a UTF-8 Standard JSON input string and
+returns UTF-8 Standard JSON output. Callback kind `source` is used for import
+resolution. Other callback kinds, including `smt-query`, currently return an
+unsupported callback error.
+
+Use [`crates/wasm/soljson.js`](/crates/wasm/soljson.js) as the JavaScript
+wrapper:
+
+```js
+const solar = require("./soljson.js").setupMethods(soljsonModule);
+
+const output = solar.compile(JSON.stringify({
+  language: "Solidity",
+  sources: {
+    "A.sol": { content: 'import "B.sol"; contract A is B {}' },
+  },
+  settings: { outputSelection: { "*": { "*": ["abi"] } } },
+}), {
+  import(path) {
+    if (path === "B.sol") {
+      return { contents: "contract B {}" };
+    }
+    return { error: `source not found: ${path}` };
+  },
+});
+```
+
+The wrapper exposes `compile(inputJsonString, callbacks?)`, `version()`,
+`semver()`, `license()`, `features`, `lowlevel.compileStandard(...)`, and
+`setupMethods(...)`. Legacy low-level solc-js entry points are intentionally
+set to `null`.
+
+Release artifacts should package the compiled
+`target/wasm32-unknown-unknown/release/solar_wasm.wasm` together with
+`crates/wasm/soljson.js`. The native cargo-dist release flow does not yet
+publish that pair automatically, so the CI build verifies the target while
+release packaging remains an explicit artifact step.
+
 ## Roadmap
 
 You can find a more detailed list in the [pinned GitHub issue](https://github.com/paradigmxyz/solar/issues/1).

@@ -51,6 +51,11 @@ jobs:
           cache-on-failure: true
       - name: build
         run: cargo build
+      - name: build wasm
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
+        run: |
+          rustup target add wasm32-unknown-unknown
+          cargo build -p solar-wasm --target wasm32-unknown-unknown
       - name: test
         run: cargo nextest run --workspace
       - name: test --features nightly

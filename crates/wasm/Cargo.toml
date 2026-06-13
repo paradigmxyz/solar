@@ -1,0 +1,30 @@
+[package]
+name = "solar-wasm"
+description = "Solar solc-js compatible WASM API"
+homepage = "https://github.com/paradigmxyz/solar/tree/main/crates/wasm"
+
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[test]]
+name = "tests"
+path = "tests.rs"
+
+[dependencies]
+solar-cli = { workspace = true, default-features = false }
+solar-config.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
