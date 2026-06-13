@@ -1,14 +1,10 @@
-#![allow(unused_crate_dependencies)]
-
-use solar_cli::standard_json::{
-    ReadCallbackResult, StandardJsonReadCallback, compile_standard_json,
-};
+use crate::standard_json::{ReadCallbackResult, StandardJsonReadCallback, compile_standard_json};
 use solar_config::Opts;
 use std::{
-    collections::HashMap,
+    alloc::{Layout, alloc, dealloc},
     ffi::{CStr, c_char, c_void},
+    mem::{align_of, size_of},
     ptr,
-    sync::{Mutex, OnceLock},
 };
 
 type CStyleReadFileCallback = unsafe extern "C" fn(
@@ -22,40 +18,33 @@ type CStyleReadFileCallback = unsafe extern "C" fn(
 const LICENSE: &[u8] = concat!(env!("CARGO_PKG_LICENSE"), "\0").as_bytes();
 const VERSION: &[u8] = concat!(env!("CARGO_PKG_VERSION"), "\0").as_bytes();
 
-static ALLOCATIONS: OnceLock<Mutex<HashMap<usize, Box<[u8]>>>> = OnceLock::new();
-
 #[unsafe(no_mangle)]
-pub extern "C" fn solidity_license() -> *const c_char {
+pub(crate) extern "C" fn solidity_license() -> *const c_char {
     LICENSE.as_ptr().cast()
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn solidity_version() -> *const c_char {
+pub(crate) extern "C" fn solidity_version() -> *const c_char {
     VERSION.as_ptr().cast()
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn solidity_alloc(size: usize) -> *mut c_char {
-    let mut allocation = vec![0; size].into_boxed_slice();
-    let ptr = allocation.as_mut_ptr();
-    allocations().lock().unwrap().insert(ptr.addr(), allocation);
-    ptr.cast()
+pub(crate) extern "C" fn solidity_alloc(size: usize) -> *mut c_char {
+    alloc_with_header(size).cast()
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn solidity_free(data: *mut c_char) {
+pub(crate) unsafe extern "C" fn solidity_free(data: *mut c_char) {
     if data.is_null() {
         return;
     }
-    if allocations().lock().unwrap().remove(&data.addr()).is_none() {
-        std::process::abort();
+    unsafe {
+        free_with_header(data.cast());
     }
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn solidity_reset() {
-    allocations().lock().unwrap().clear();
-}
+pub(crate) extern "C" fn solidity_reset() {}
 
 /// Compiles a UTF-8 Standard JSON input string and returns a newly allocated output string.
 ///
@@ -65,7 +54,7 @@ pub extern "C" fn solidity_reset() {
 /// provided, it must follow the `CStyleReadFileCallback` ABI and write only null pointers or
 /// pointers allocated with `solidity_alloc` to its output parameters.
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn solidity_compile(
+pub(crate) unsafe extern "C" fn solidity_compile(
     input: *const c_char,
     read_callback: Option<CStyleReadFileCallback>,
     read_context: *mut c_void,
@@ -85,18 +74,48 @@ pub unsafe extern "C" fn solidity_compile(
     allocate_c_string(&output)
 }
 
-fn allocations() -> &'static Mutex<HashMap<usize, Box<[u8]>>> {
-    ALLOCATIONS.get_or_init(Default::default)
+fn allocate_c_string(value: &str) -> *mut c_char {
+    let allocation = solidity_alloc(value.len() + 1).cast::<u8>();
+    if allocation.is_null() {
+        return ptr::null_mut();
+    }
+    unsafe {
+        ptr::copy_nonoverlapping(value.as_ptr(), allocation, value.len());
+        allocation.add(value.len()).write(0);
+    }
+    allocation.cast()
 }
 
-fn allocate_c_string(value: &str) -> *mut c_char {
-    let mut allocation = Vec::with_capacity(value.len() + 1);
-    allocation.extend_from_slice(value.as_bytes());
-    allocation.push(0);
-    let mut allocation = allocation.into_boxed_slice();
-    let ptr = allocation.as_mut_ptr();
-    allocations().lock().unwrap().insert(ptr.addr(), allocation);
-    ptr.cast()
+fn alloc_with_header(size: usize) -> *mut u8 {
+    let Some(total) = header_size().checked_add(size) else {
+        return ptr::null_mut();
+    };
+    let Ok(layout) = Layout::from_size_align(total, align_of::<usize>()) else {
+        return ptr::null_mut();
+    };
+    unsafe {
+        let base = alloc(layout);
+        if base.is_null() {
+            return ptr::null_mut();
+        }
+        base.cast::<usize>().write(size);
+        base.add(header_size())
+    }
+}
+
+unsafe fn free_with_header(data: *mut u8) {
+    let header = header_size();
+    let base = unsafe { data.sub(header) };
+    let size = unsafe { base.cast::<usize>().read() };
+    let total = header + size;
+    let layout = Layout::from_size_align(total, align_of::<usize>()).unwrap();
+    unsafe {
+        dealloc(base, layout);
+    }
+}
+
+const fn header_size() -> usize {
+    size_of::<usize>()
 }
 
 struct CReadCallback {
@@ -132,10 +151,14 @@ impl StandardJsonReadCallback for CReadCallback {
         };
 
         if !contents.is_null() {
-            solidity_free(contents);
+            unsafe {
+                solidity_free(contents);
+            }
         }
         if !error.is_null() {
-            solidity_free(error);
+            unsafe {
+                solidity_free(error);
+            }
         }
 
         result
@@ -166,5 +189,15 @@ mod tests {
             unsafe { CStr::from_ptr(solidity_version()) }.to_str().unwrap(),
             env!("CARGO_PKG_VERSION")
         );
+    }
+
+    #[test]
+    fn allocator_roundtrip() {
+        let ptr = solidity_alloc(4).cast::<u8>();
+        assert!(!ptr.is_null());
+        unsafe {
+            ptr.copy_from_nonoverlapping([1, 2, 3, 4].as_ptr(), 4);
+            solidity_free(ptr.cast());
+        }
     }
 }

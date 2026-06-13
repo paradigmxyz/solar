@@ -74,10 +74,8 @@ impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for LogDestination {
 #[must_use]
 pub fn init_logger(dst: LogDestination) -> impl Sized {
     #[cfg(not(feature = "tracing"))]
-    let _ = dst;
-
-    #[cfg(not(feature = "tracing"))]
     {
+        let _ = dst;
         if std::env::var_os("RUST_LOG").is_some() {
             let msg = "`RUST_LOG` is set, but \"tracing\" support was not enabled at compile time";
             DiagCtxt::new_early().warn(msg).emit();

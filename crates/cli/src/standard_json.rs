@@ -78,7 +78,7 @@ struct CompilerOutput<'a> {
 
 /// Result returned by a Standard JSON read callback.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ReadCallbackResult {
+pub(crate) enum ReadCallbackResult {
     /// The requested data was found.
     Success(String),
     /// The callback handled the request and returned an error.
@@ -88,7 +88,7 @@ pub enum ReadCallbackResult {
 }
 
 /// Callback used by Standard JSON compilation to retrieve extra input.
-pub trait StandardJsonReadCallback: Send + Sync + 'static {
+pub(crate) trait StandardJsonReadCallback: Send + Sync + 'static {
     /// Reads data for `kind`.
     ///
     /// The modern soljson API currently uses `source` for import resolution.
@@ -96,7 +96,7 @@ pub trait StandardJsonReadCallback: Send + Sync + 'static {
 }
 
 /// Compiles Standard JSON input and returns Standard JSON output.
-pub fn compile_standard_json(
+pub(crate) fn compile_standard_json(
     input: &str,
     mut opts: Opts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
@@ -501,7 +501,7 @@ impl StandardJsonFileLoader {
 }
 
 /// Returns the diagnostic message for an unsupported Standard JSON callback kind.
-pub fn unsupported_callback_kind(kind: &str) -> String {
+pub(crate) fn unsupported_callback_kind(kind: &str) -> String {
     format!("Callback kind `{kind}` is not supported")
 }
 

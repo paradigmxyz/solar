@@ -127,12 +127,12 @@ solar $(forge re) src/Contract.sol
 
 ### WASM and JavaScript usage
 
-The `solar-wasm` crate exposes a solc-js-compatible Standard JSON API for
-browser and JavaScript runtimes. Build it with:
+The `solar-cli` crate exposes a solc-js-compatible Standard JSON API for
+browser and JavaScript runtimes as a `cdylib`. Build it with:
 
 ```bash
 rustup target add wasm32-unknown-unknown
-cargo build -p solar-wasm --release --target wasm32-unknown-unknown
+cargo build -p solar-cli --lib --release --no-default-features --target wasm32-unknown-unknown
 ```
 
 The resulting WASM exports the modern soljson C ABI:
@@ -143,7 +143,7 @@ returns UTF-8 Standard JSON output. Callback kind `source` is used for import
 resolution. Other callback kinds, including `smt-query`, currently return an
 unsupported callback error.
 
-Use [`crates/wasm/soljson.js`](/crates/wasm/soljson.js) as the JavaScript
+Use [`crates/cli/soljson.js`](/crates/cli/soljson.js) as the JavaScript
 wrapper:
 
 ```js
@@ -171,8 +171,8 @@ The wrapper exposes `compile(inputJsonString, callbacks?)`, `version()`,
 set to `null`.
 
 Release artifacts should package the compiled
-`target/wasm32-unknown-unknown/release/solar_wasm.wasm` together with
-`crates/wasm/soljson.js`. The native cargo-dist release flow does not yet
+`target/wasm32-unknown-unknown/release/solar_cli.wasm` together with
+`crates/cli/soljson.js`. The native cargo-dist release flow does not yet
 publish that pair automatically, so the CI build verifies the target while
 release packaging remains an explicit artifact step.
 

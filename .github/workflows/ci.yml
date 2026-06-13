@@ -55,7 +55,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
         run: |
           rustup target add wasm32-unknown-unknown
-          cargo build -p solar-wasm --target wasm32-unknown-unknown
+          cargo build -p solar-cli --lib --no-default-features --target wasm32-unknown-unknown
       - name: test
         run: cargo nextest run --workspace
       - name: test --features nightly

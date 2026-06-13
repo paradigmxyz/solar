@@ -12,7 +12,8 @@ use std::ops::ControlFlow;
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
-pub mod standard_json;
+mod standard_json;
+mod wasm;
 
 pub mod utils;
 
