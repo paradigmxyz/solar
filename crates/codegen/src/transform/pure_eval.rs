@@ -8,7 +8,7 @@
 use crate::{
     mir::{Function, Immediate, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
-    utils::const_eval,
+    utils::evm_word,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -224,9 +224,9 @@ impl PureEvaluator {
                     get(value)? >> shift.to::<usize>()
                 }
             }
-            InstKind::Sar(shift, value) => const_eval::sar(get(value)?, get(shift)?),
-            InstKind::Byte(index, value) => const_eval::byte(get(index)?, get(value)?),
-            InstKind::SignExtend(size, value) => const_eval::signextend(get(size)?, get(value)?),
+            InstKind::Sar(shift, value) => evm_word::sar(get(value)?, get(shift)?),
+            InstKind::Byte(index, value) => evm_word::byte(get(index)?, get(value)?),
+            InstKind::SignExtend(size, value) => evm_word::signextend(get(size)?, get(value)?),
             InstKind::Lt(a, b) => U256::from(get(a)? < get(b)?),
             InstKind::Gt(a, b) => U256::from(get(a)? > get(b)?),
             InstKind::Eq(a, b) => U256::from(get(a)? == get(b)?),

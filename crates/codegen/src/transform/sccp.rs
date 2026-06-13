@@ -17,7 +17,7 @@
 use crate::{
     mir::{BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
-    utils::{const_eval, repair_reachability_phis},
+    utils::{evm_word, repair_reachability_phis},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -323,7 +323,7 @@ impl SccpPass {
             },
             InstKind::SDiv(a, b) => match (get_const(*a), get_const(*b)) {
                 (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(const_eval::signed_div(a, b)),
+                (Some(a), Some(b)) => LatticeValue::Constant(evm_word::signed_div(a, b)),
                 _ => self.check_any_bottom(&[*a, *b], lattice),
             },
             InstKind::Mod(a, b) => match (get_const(*a), get_const(*b)) {
@@ -333,7 +333,7 @@ impl SccpPass {
             },
             InstKind::SMod(a, b) => match (get_const(*a), get_const(*b)) {
                 (_, Some(b)) if b.is_zero() => LatticeValue::Constant(U256::ZERO),
-                (Some(a), Some(b)) => LatticeValue::Constant(const_eval::signed_mod(a, b)),
+                (Some(a), Some(b)) => LatticeValue::Constant(evm_word::signed_mod(a, b)),
                 _ => self.check_any_bottom(&[*a, *b], lattice),
             },
             // A known-zero modulus folds to 0 even when the operands are unknown.
@@ -365,15 +365,11 @@ impl SccpPass {
                 _ => self.check_any_bottom(&[*a, *b], lattice),
             },
             InstKind::SLt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => {
-                    LatticeValue::Constant(U256::from(const_eval::signed_lt(a, b)))
-                }
+                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(evm_word::signed_lt(a, b))),
                 _ => self.check_any_bottom(&[*a, *b], lattice),
             },
             InstKind::SGt(a, b) => match (get_const(*a), get_const(*b)) {
-                (Some(a), Some(b)) => {
-                    LatticeValue::Constant(U256::from(const_eval::signed_gt(a, b)))
-                }
+                (Some(a), Some(b)) => LatticeValue::Constant(U256::from(evm_word::signed_gt(a, b))),
                 _ => self.check_any_bottom(&[*a, *b], lattice),
             },
             InstKind::Eq(a, b) => match (get_const(*a), get_const(*b)) {
@@ -423,15 +419,15 @@ impl SccpPass {
                 _ => self.check_any_bottom(&[*shift, *val], lattice),
             },
             InstKind::Sar(shift, val) => match (get_const(*shift), get_const(*val)) {
-                (Some(s), Some(v)) => LatticeValue::Constant(const_eval::sar(v, s)),
+                (Some(s), Some(v)) => LatticeValue::Constant(evm_word::sar(v, s)),
                 _ => self.check_any_bottom(&[*shift, *val], lattice),
             },
             InstKind::Byte(index, val) => match (get_const(*index), get_const(*val)) {
-                (Some(i), Some(v)) => LatticeValue::Constant(const_eval::byte(i, v)),
+                (Some(i), Some(v)) => LatticeValue::Constant(evm_word::byte(i, v)),
                 _ => self.check_any_bottom(&[*index, *val], lattice),
             },
             InstKind::SignExtend(size, val) => match (get_const(*size), get_const(*val)) {
-                (Some(s), Some(v)) => LatticeValue::Constant(const_eval::signextend(s, v)),
+                (Some(s), Some(v)) => LatticeValue::Constant(evm_word::signextend(s, v)),
                 _ => self.check_any_bottom(&[*size, *val], lattice),
             },
 

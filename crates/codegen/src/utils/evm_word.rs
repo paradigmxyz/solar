@@ -1,7 +1,8 @@
-//! Constant-evaluation helpers with exact EVM semantics.
+//! EVM word-level constant operations used by MIR folding passes.
 //!
-//! Shared by the folding passes (`inst_simplify`, `pure_eval`, `sccp`) so they
-//! all agree on signed arithmetic, shifts, and byte-level operations.
+//! These helpers intentionally do not reuse `sema::eval::ConstantEvaluator`:
+//! sema evaluates Solidity source constants and reports semantic errors, while
+//! MIR folding must match 256-bit EVM wrapping and zero-divisor semantics.
 
 use alloy_primitives::U256;
 

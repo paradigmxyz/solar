@@ -54,7 +54,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             ExprKind::Binary(lhs, op, rhs) => {
                 // Try constant folding first
-                let folder = ConstantFolder::new(&self.gcx.hir);
+                let folder = ConstantFolder::new(self.gcx);
                 let int_info =
                     self.integer_info_for_expr(expr).or_else(|| self.integer_info_for_expr(lhs));
                 let is_signed =
@@ -65,11 +65,10 @@ impl<'gcx> Lowerer<'gcx> {
                         || self.expr_has_udvt_type(lhs)
                         || self.expr_has_udvt_type(rhs));
                 if !Self::signed_binary_fold_is_unsafe(op.kind, is_signed) {
-                    if let Some(folded) = folder.fold_to_integer(expr) {
-                        return builder.imm_u256(folded);
-                    }
-                    if let FoldResult::Bool(b) = folder.try_fold(expr) {
-                        return builder.imm_bool(b);
+                    match folder.try_fold(expr) {
+                        FoldResult::Integer(folded) => return builder.imm_u256(folded),
+                        FoldResult::Bool(b) => return builder.imm_bool(b),
+                        FoldResult::NotConstant | FoldResult::Error => {}
                     }
                 }
 
@@ -158,12 +157,11 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                     _ => {
                         // Try constant folding for non-mutating unary ops
-                        let folder = ConstantFolder::new(&self.gcx.hir);
-                        if let Some(folded) = folder.fold_to_integer(expr) {
-                            return builder.imm_u256(folded);
-                        }
-                        if let FoldResult::Bool(b) = folder.try_fold(expr) {
-                            return builder.imm_bool(b);
+                        let folder = ConstantFolder::new(self.gcx);
+                        match folder.try_fold(expr) {
+                            FoldResult::Integer(folded) => return builder.imm_u256(folded),
+                            FoldResult::Bool(b) => return builder.imm_bool(b),
+                            FoldResult::NotConstant | FoldResult::Error => {}
                         }
 
                         let operand_val = self.lower_expr(builder, operand);

@@ -13,7 +13,7 @@
 use crate::{
     mir::{Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
-    utils::const_eval,
+    utils::evm_word,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -506,7 +506,7 @@ impl InstSimplifier {
             InstKind::SDiv(a, b) => {
                 let a = constant(func, a)?;
                 let b = constant(func, b)?;
-                Some(Self::imm_u256(func, const_eval::signed_div(a, b)))
+                Some(Self::imm_u256(func, evm_word::signed_div(a, b)))
             }
             InstKind::Mod(a, b) => {
                 let a = constant(func, a)?;
@@ -516,7 +516,7 @@ impl InstSimplifier {
             InstKind::SMod(a, b) => {
                 let a = constant(func, a)?;
                 let b = constant(func, b)?;
-                Some(Self::imm_u256(func, const_eval::signed_mod(a, b)))
+                Some(Self::imm_u256(func, evm_word::signed_mod(a, b)))
             }
             InstKind::Exp(a, b) => {
                 Some(Self::imm_u256(func, constant(func, a)?.wrapping_pow(constant(func, b)?)))
@@ -573,15 +573,15 @@ impl InstSimplifier {
             }
             InstKind::Sar(shift, value) => Some(Self::imm_u256(
                 func,
-                const_eval::sar(constant(func, value)?, constant(func, shift)?),
+                evm_word::sar(constant(func, value)?, constant(func, shift)?),
             )),
             InstKind::Byte(index, value) => Some(Self::imm_u256(
                 func,
-                const_eval::byte(constant(func, index)?, constant(func, value)?),
+                evm_word::byte(constant(func, index)?, constant(func, value)?),
             )),
             InstKind::SignExtend(size, value) => Some(Self::imm_u256(
                 func,
-                const_eval::signextend(constant(func, size)?, constant(func, value)?),
+                evm_word::signextend(constant(func, size)?, constant(func, value)?),
             )),
             InstKind::Lt(a, b) => {
                 Some(Self::imm_bool(func, constant(func, a)? < constant(func, b)?))
@@ -591,11 +591,11 @@ impl InstSimplifier {
             }
             InstKind::SLt(a, b) => Some(Self::imm_bool(
                 func,
-                const_eval::signed_lt(constant(func, a)?, constant(func, b)?),
+                evm_word::signed_lt(constant(func, a)?, constant(func, b)?),
             )),
             InstKind::SGt(a, b) => Some(Self::imm_bool(
                 func,
-                const_eval::signed_gt(constant(func, a)?, constant(func, b)?),
+                evm_word::signed_gt(constant(func, a)?, constant(func, b)?),
             )),
             InstKind::Eq(a, b) => {
                 Some(Self::imm_bool(func, constant(func, a)? == constant(func, b)?))
