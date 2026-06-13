@@ -247,7 +247,7 @@ fn compile(
                 let gcx = compiler.gcx();
                 for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                     let source = gcx.hir.source(contract.source);
-                    let source_name = source.file.name.display().to_string();
+                    let source_name = standard_json_source_name(&source.file.name);
                     let contract_name = contract.name.to_string();
                     let contract_output = make_contract_output(
                         gcx,
@@ -518,6 +518,10 @@ fn callback_path(path: &Path) -> Cow<'_, str> {
     path.to_string_lossy()
 }
 
+fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
+    name.display().to_string().replace('\\', "/")
+}
+
 fn disallowed_io(path: &Path) -> io::Error {
     io::Error::new(
         io::ErrorKind::PermissionDenied,
@@ -687,7 +691,7 @@ fn source_outputs_from_compiler(
         .sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+            (standard_json_source_name(&source.file.name), SourceOutput { id: id.index() as u32 })
         })
         .collect()
 }
