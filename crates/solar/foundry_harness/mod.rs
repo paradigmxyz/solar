@@ -386,8 +386,7 @@ fn run_forge_test_solc(
         .arg("--out")
         .arg(out_dir)
         .arg("--cache-path")
-        .arg(cache_dir)
-        .env("RUST_LOG", "foundry_compilers=trace");
+        .arg(cache_dir);
 
     // Add forge match filters if specified
     if let Some(ref test_filter) = config.test_filter {
