@@ -8,7 +8,8 @@
 use crate::{
     mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::{DeadCodeEliminator, repair_reachability_phis},
+    transform::DeadCodeEliminator,
+    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 

@@ -36,7 +36,7 @@ use crate::{
         Terminator, Value, ValueId,
     },
     pass::FunctionPass,
-    transform::{repair_reachability_phis, split_edge},
+    utils::{repair_reachability_phis, split_edge},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;

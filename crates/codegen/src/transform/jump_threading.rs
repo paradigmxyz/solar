@@ -17,7 +17,7 @@
 use crate::{
     mir::{BlockId, Function, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::repair_reachability_phis,
+    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 

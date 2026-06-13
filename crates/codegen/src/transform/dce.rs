@@ -6,7 +6,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, InstId, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::repair_reachability_phis,
+    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 

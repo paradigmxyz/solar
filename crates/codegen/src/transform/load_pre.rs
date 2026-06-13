@@ -79,7 +79,7 @@ use crate::{
         MirType, StorageAlias, Terminator, Value, ValueId,
     },
     pass::FunctionPass,
-    transform::repair_reachability_phis,
+    utils::repair_reachability_phis,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};

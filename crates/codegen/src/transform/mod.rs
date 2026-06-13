@@ -3,11 +3,8 @@
 pub mod adce;
 pub mod cfg_simplify;
 pub mod check_elim;
-pub(crate) mod const_eval;
-pub mod constant_fold;
 pub mod cse;
 pub mod dce;
-pub mod edges;
 pub mod frame_promotion;
 pub mod gvn;
 pub mod indvar_simplify;
@@ -28,13 +25,11 @@ pub mod storage_promotion;
 pub use adce::{AdcePass, AdceStats, AggressiveDeadCodeEliminator};
 pub use cfg_simplify::{
     CfgSimplifier, CfgSimplifyPass, CfgSimplifyStats, DeadFunctionEliminator, FunctionDcePass,
-    repair_reachability_phis, simplify_cfg, simplify_module_cfg,
+    simplify_cfg, simplify_module_cfg,
 };
 pub use check_elim::{CheckElimPass, CheckElimStats, CheckEliminator};
-pub use constant_fold::{ConstantFolder, FoldResult};
 pub use cse::{CommonSubexprEliminator, CsePass};
 pub use dce::{DcePass, DceStats, DeadCodeEliminator};
-pub use edges::split_edge;
 pub use frame_promotion::{FramePromotionStats, FrameSlotPromoter, FrameSlotPromotionPass};
 pub use gvn::{GlobalValueNumberer, GvnPass};
 pub use indvar_simplify::{IndVarSimplifier, IndVarSimplifyPass, IndVarSimplifyStats};

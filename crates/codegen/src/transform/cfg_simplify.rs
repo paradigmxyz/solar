@@ -21,6 +21,7 @@ use crate::{
         Terminator, Value, ValueId,
     },
     pass::{FunctionPass, ModulePass},
+    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -767,40 +768,6 @@ impl DeadFunctionEliminator {
 pub fn simplify_cfg(func: &mut Function) -> CfgSimplifyStats {
     let mut simplifier = CfgSimplifier::new();
     simplifier.run_to_fixpoint(func)
-}
-
-/// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
-/// that are no longer predecessors. Returns true if any phi input was dropped.
-pub fn repair_reachability_phis(func: &mut Function) -> bool {
-    let mut edges = Vec::new();
-    for (block, bb) in func.blocks.iter_enumerated() {
-        if let Some(term) = &bb.terminator {
-            edges.push((block, term.successors()));
-        }
-    }
-
-    for block in func.blocks.iter_mut() {
-        block.predecessors.clear();
-    }
-
-    for (block, successors) in edges {
-        for succ in successors {
-            func.blocks[succ].predecessors.push(block);
-        }
-    }
-
-    let mut changed = false;
-    for block_id in func.blocks.indices() {
-        let predecessors = func.blocks[block_id].predecessors.clone();
-        for &inst_id in &func.blocks[block_id].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
-                let len_before = incoming.len();
-                incoming.retain(|(pred, _)| predecessors.contains(pred));
-                changed |= incoming.len() != len_before;
-            }
-        }
-    }
-    changed
 }
 
 /// Runs all CFG simplification passes on a module.

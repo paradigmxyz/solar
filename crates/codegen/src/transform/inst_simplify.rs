@@ -13,7 +13,7 @@
 use crate::{
     mir::{Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::const_eval,
+    utils::const_eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};

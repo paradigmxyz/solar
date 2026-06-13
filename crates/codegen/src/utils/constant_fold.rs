@@ -1,7 +1,6 @@
-//! Constant folding optimization pass.
+//! HIR constant folding helpers.
 //!
-//! This pass evaluates constant expressions at compile time, replacing binary operations
-//! on immediate values with their computed results.
+//! These helpers evaluate constant HIR expressions before MIR lowering.
 
 use alloy_primitives::U256;
 use solar_ast::{BinOpKind, LitKind, UnOpKind};
@@ -9,7 +8,7 @@ use solar_sema::hir::{Expr, ExprKind, Hir, Lit};
 
 /// Result of a constant folding operation.
 #[derive(Debug, Clone)]
-pub enum FoldResult {
+pub(crate) enum FoldResult {
     /// The expression was folded to a constant integer value.
     Integer(U256),
     /// The expression was folded to a constant boolean value.
@@ -22,26 +21,24 @@ pub enum FoldResult {
 
 /// Errors that can occur during constant folding.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FoldError {
+pub(crate) enum FoldError {
     /// Division by zero.
     DivisionByZero,
     /// Arithmetic overflow.
     Overflow,
-    /// Shift amount too large.
-    ShiftOverflow,
 }
 
 /// A constant folder that evaluates compile-time constant expressions.
 ///
 /// This struct walks HIR expressions and attempts to fold binary and unary operations
 /// where all operands are immediate values (literals).
-pub struct ConstantFolder<'hir> {
+pub(crate) struct ConstantFolder<'hir> {
     _hir: &'hir Hir<'hir>,
 }
 
 impl<'hir> ConstantFolder<'hir> {
     /// Creates a new constant folder.
-    pub fn new(hir: &'hir Hir<'hir>) -> Self {
+    pub(crate) fn new(hir: &'hir Hir<'hir>) -> Self {
         Self { _hir: hir }
     }
 
@@ -50,12 +47,12 @@ impl<'hir> ConstantFolder<'hir> {
     /// Returns `FoldResult::Integer` or `FoldResult::Bool` if the expression can be
     /// evaluated at compile time, `FoldResult::NotConstant` if it cannot, or
     /// `FoldResult::Error` if an error occurred during evaluation.
-    pub fn try_fold(&self, expr: &Expr<'_>) -> FoldResult {
+    pub(crate) fn try_fold(&self, expr: &Expr<'_>) -> FoldResult {
         self.fold_expr(expr)
     }
 
     /// Attempts to fold an expression and returns the integer value if successful.
-    pub fn fold_to_integer(&self, expr: &Expr<'_>) -> Option<U256> {
+    pub(crate) fn fold_to_integer(&self, expr: &Expr<'_>) -> Option<U256> {
         match self.try_fold(expr) {
             FoldResult::Integer(n) => Some(n),
             FoldResult::Bool(b) => Some(U256::from(b as u8)),
@@ -204,106 +201,5 @@ impl<'hir> ConstantFolder<'hir> {
             FoldResult::Error(e) => FoldResult::Error(e),
             FoldResult::NotConstant => FoldResult::NotConstant,
         }
-    }
-}
-
-/// Statistics from a constant folding pass.
-#[derive(Debug, Default)]
-pub struct FoldStats {
-    /// Number of expressions analyzed.
-    pub expressions_analyzed: usize,
-    /// Number of expressions successfully folded.
-    pub expressions_folded: usize,
-    /// Number of binary operations folded.
-    pub binary_ops_folded: usize,
-    /// Number of unary operations folded.
-    pub unary_ops_folded: usize,
-}
-
-/// Analyzes an expression and returns fold statistics.
-pub fn analyze_foldable(folder: &ConstantFolder<'_>, expr: &Expr<'_>) -> FoldStats {
-    let mut stats = FoldStats::default();
-    analyze_expr_recursive(folder, expr, &mut stats);
-    stats
-}
-
-fn analyze_expr_recursive(folder: &ConstantFolder<'_>, expr: &Expr<'_>, stats: &mut FoldStats) {
-    stats.expressions_analyzed += 1;
-
-    let expr = expr.peel_parens();
-    match &expr.kind {
-        ExprKind::Binary(left, _op, right) => {
-            analyze_expr_recursive(folder, left, stats);
-            analyze_expr_recursive(folder, right, stats);
-
-            if matches!(folder.try_fold(expr), FoldResult::Integer(_) | FoldResult::Bool(_)) {
-                stats.expressions_folded += 1;
-                stats.binary_ops_folded += 1;
-            }
-        }
-        ExprKind::Unary(_op, operand) => {
-            analyze_expr_recursive(folder, operand, stats);
-
-            if matches!(folder.try_fold(expr), FoldResult::Integer(_) | FoldResult::Bool(_)) {
-                stats.expressions_folded += 1;
-                stats.unary_ops_folded += 1;
-            }
-        }
-        ExprKind::Ternary(cond, then_expr, else_expr) => {
-            analyze_expr_recursive(folder, cond, stats);
-            analyze_expr_recursive(folder, then_expr, stats);
-            analyze_expr_recursive(folder, else_expr, stats);
-
-            if matches!(folder.try_fold(expr), FoldResult::Integer(_) | FoldResult::Bool(_)) {
-                stats.expressions_folded += 1;
-            }
-        }
-        ExprKind::Array(exprs) => {
-            for e in *exprs {
-                analyze_expr_recursive(folder, e, stats);
-            }
-        }
-        ExprKind::Tuple(exprs) => {
-            for e in exprs.iter().flatten() {
-                analyze_expr_recursive(folder, e, stats);
-            }
-        }
-        ExprKind::Call(callee, args, _opts) => {
-            analyze_expr_recursive(folder, callee, stats);
-            for arg in args.kind.exprs() {
-                analyze_expr_recursive(folder, arg, stats);
-            }
-        }
-        ExprKind::Index(base, index) => {
-            analyze_expr_recursive(folder, base, stats);
-            if let Some(idx) = index {
-                analyze_expr_recursive(folder, idx, stats);
-            }
-        }
-        ExprKind::Slice(base, start, end) => {
-            analyze_expr_recursive(folder, base, stats);
-            if let Some(s) = start {
-                analyze_expr_recursive(folder, s, stats);
-            }
-            if let Some(e) = end {
-                analyze_expr_recursive(folder, e, stats);
-            }
-        }
-        ExprKind::Member(base, _) | ExprKind::YulMember(base, _) => {
-            analyze_expr_recursive(folder, base, stats);
-        }
-        ExprKind::Assign(left, _, right) => {
-            analyze_expr_recursive(folder, left, stats);
-            analyze_expr_recursive(folder, right, stats);
-        }
-        ExprKind::Delete(e) | ExprKind::Payable(e) => {
-            analyze_expr_recursive(folder, e, stats);
-        }
-        ExprKind::Lit(_)
-        | ExprKind::Ident(_)
-        | ExprKind::Type(_)
-        | ExprKind::TypeCall(_)
-        | ExprKind::New(_)
-        | ExprKind::Err(_) => {}
     }
 }

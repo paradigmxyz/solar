@@ -3,7 +3,7 @@
 use super::Lowerer;
 use crate::{
     mir::{BlockId, FunctionBuilder, MirType, ValueId},
-    transform::{ConstantFolder, FoldResult},
+    utils::{ConstantFolder, FoldResult},
 };
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, StrKind};

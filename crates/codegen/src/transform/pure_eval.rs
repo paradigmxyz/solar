@@ -8,7 +8,7 @@
 use crate::{
     mir::{Function, Immediate, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::const_eval,
+    utils::const_eval,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -39,7 +39,7 @@ impl FunctionPass for PureEvalPass {
 
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let changed = PureEvaluator::new().run(func).functions_folded != 0;
-        let repaired = crate::transform::repair_reachability_phis(func);
+        let repaired = crate::utils::repair_reachability_phis(func);
         changed || repaired
     }
 }

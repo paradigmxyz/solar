@@ -1,4 +1,4 @@
-//! CFG edge utilities shared by transformation passes.
+//! CFG mutation utilities shared by MIR analyses and transformation passes.
 
 use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator};
 use smallvec::smallvec;
@@ -17,7 +17,7 @@ use smallvec::smallvec;
 /// backedge and `succ`'s phis are rekeyed from `pred` to the new block.
 ///
 /// `succ` cannot be the entry block, which has no predecessors by definition.
-pub fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId {
+pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId {
     debug_assert_ne!(succ, func.entry_block, "the entry block has no predecessor edges to split");
 
     let new_block = func.blocks.push(BasicBlock {
@@ -73,4 +73,38 @@ pub fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> BlockId 
     }
 
     new_block
+}
+
+/// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
+/// that are no longer predecessors. Returns true if any phi input was dropped.
+pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
+    let mut edges = Vec::new();
+    for (block, bb) in func.blocks.iter_enumerated() {
+        if let Some(term) = &bb.terminator {
+            edges.push((block, term.successors()));
+        }
+    }
+
+    for block in func.blocks.iter_mut() {
+        block.predecessors.clear();
+    }
+
+    for (block, successors) in edges {
+        for succ in successors {
+            func.blocks[succ].predecessors.push(block);
+        }
+    }
+
+    let mut changed = false;
+    for block_id in func.blocks.indices() {
+        let predecessors = func.blocks[block_id].predecessors.clone();
+        for &inst_id in &func.blocks[block_id].instructions {
+            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
+                let len_before = incoming.len();
+                incoming.retain(|(pred, _)| predecessors.contains(pred));
+                changed |= incoming.len() != len_before;
+            }
+        }
+    }
+    changed
 }

@@ -40,8 +40,9 @@ pub use lower::Lowerer;
 
 pub mod pass;
 pub mod transform;
+pub(crate) mod utils;
 pub use transform::{
-    CommonSubexprEliminator, ConstantFolder, DceStats, DeadCodeEliminator, FunctionInlineInfo,
-    InlineAnalyzer, InlineConfig, InlineDecision, InlineStats, InstSimplifier, JumpThreader,
-    JumpThreadingStats, LoopOptConfig, LoopOptStats, LoopOptimizer, OptLevel,
+    CommonSubexprEliminator, DceStats, DeadCodeEliminator, FunctionInlineInfo, InlineAnalyzer,
+    InlineConfig, InlineDecision, InlineStats, InstSimplifier, JumpThreader, JumpThreadingStats,
+    LoopOptConfig, LoopOptStats, LoopOptimizer, OptLevel,
 };
