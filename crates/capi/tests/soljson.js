@@ -4,6 +4,7 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
+const vm = require("node:vm");
 
 const distDir = path.resolve(process.argv[2] || "target/dist");
 const packedPath = path.join(distDir, "soljson.js");
@@ -60,6 +61,17 @@ async function main() {
   const packed = require(packedPath);
   assert.equal(packed.features.importCallback, true, "packed soljson: import callback");
   assertCompiler(packed, "packed soljson", true);
+
+  const browserContext = {
+    Buffer,
+    TextDecoder,
+    TextEncoder,
+    Uint8Array,
+    WebAssembly,
+  };
+  vm.runInNewContext(fs.readFileSync(packedPath, "utf8"), browserContext, { filename: packedPath });
+  assert.equal(browserContext.SolarSoljson, undefined, "browser soljson: no SolarSoljson global");
+  assertCompiler(browserContext.Module, "browser soljson", true);
 
   globalThis.Module = { wasmBinary: fs.readFileSync(wasmPath) };
   const wrapper = require(wrapperPath);

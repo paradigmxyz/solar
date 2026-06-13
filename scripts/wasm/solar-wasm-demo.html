@@ -284,9 +284,9 @@
       const script = document.createElement("script");
       script.src = SOLJSON_PATH;
       script.onload = () => {
-        compiler = window.SolarSoljson;
+        compiler = window.Module;
         if (!compiler || typeof compiler.compile !== "function") {
-          setStatus("soljson.js did not expose SolarSoljson", true);
+          setStatus("soljson.js did not expose Module", true);
           return;
         }
         compileButton.disabled = false;
