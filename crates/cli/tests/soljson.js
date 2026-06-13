@@ -61,18 +61,11 @@ async function main() {
   assert.equal(packed.features.importCallback, true, "packed soljson: import callback");
   assertCompiler(packed, "packed soljson", true);
 
+  globalThis.Module = { wasmBinary: fs.readFileSync(wasmPath) };
   const wrapper = require(wrapperPath);
-  const wasm = fs.readFileSync(wasmPath);
-  const { instance } = await WebAssembly.instantiate(wasm, {});
-  assertCompiler(
-    wrapper.setupMethods({
-      instance,
-      exports: instance.exports,
-      memory: instance.exports.memory,
-    }),
-    "raw wasm",
-    false,
-  );
+  delete globalThis.Module;
+  assert.equal(wrapper.features.importCallback, true, "wrapper wasm: import callback");
+  assertCompiler(wrapper, "wrapper wasm", true);
 }
 
 main().catch((error) => {

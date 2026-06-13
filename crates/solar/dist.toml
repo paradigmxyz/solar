@@ -7,5 +7,6 @@ artifacts = [
     "../../target/dist/soljson.js",
     "../../target/dist/solar.wasm",
     "../../target/dist/soljson-wrapper.js",
+    "../../target/dist/solar-soljson.tar.gz",
 ]
 build = ["bash", "../../scripts/dist-wasm.sh"]
