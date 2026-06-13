@@ -868,6 +868,7 @@ mod tests {
     }
 
     fn normalize_manifest_dir(mut output: String) -> String {
+        output = output.replace("\\\\", "/");
         output = output.replace("\\/", "/");
         let native = env!("CARGO_MANIFEST_DIR");
         let slash = native.replace('\\', "/");
@@ -893,6 +894,10 @@ mod tests {
     fn normalize_manifest_dir_rewrites_windows_paths() {
         assert_eq!(
             normalize_manifest_dir(r#"{"D:/a/solar/solar/crates/cli/B.sol":{}}"#.to_string()),
+            r#"{"ROOT/B.sol":{}}"#,
+        );
+        assert_eq!(
+            normalize_manifest_dir(r#"{"D:\\a\\solar\\solar\\crates\\cli\\B.sol":{}}"#.to_string()),
             r#"{"ROOT/B.sol":{}}"#,
         );
     }
