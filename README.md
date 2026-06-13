@@ -133,9 +133,9 @@ browser and JavaScript runtimes as a `cdylib`.
 Solidity releases ship solc-js as a `soljson.js` release asset next to the
 native `solc` binaries. That file is a packed JavaScript wrapper containing the
 compiled WebAssembly bytes in `Module.wasmBinary`; the `solc-js` npm package
-then wraps that module. This repository ships the same pieces as
-`solar-soljson.tar.gz`: a compiled `solar.wasm` module and the `soljson.js`
-wrapper.
+then wraps that module. This repository also ships a packed `soljson.js` in
+`solar-soljson.tar.gz`, alongside the raw `solar.wasm` module and unpacked
+`soljson-wrapper.js`.
 
 There are two ways to use the WASM API:
 
@@ -157,7 +157,8 @@ bash scripts/dist-wasm.sh
 
 This produces the same files under `target/dist/solar-soljson/` and a
 `target/dist/solar-soljson.tar.gz` archive. The script builds with an exported,
-growable WebAssembly table so JavaScript callbacks can be installed.
+growable WebAssembly table so JavaScript callbacks can be installed, then packs
+the wasm bytes into `soljson.js`.
 
 The WASM module exports the modern soljson C ABI:
 `solidity_license`, `solidity_version`, `solidity_alloc`, `solidity_free`,
@@ -167,11 +168,10 @@ returns UTF-8 Standard JSON output. Callback kind `source` is used for import
 resolution. The JavaScript wrapper also routes `smt-query` callbacks to
 `callbacks.smtSolver` when the compiler requests them.
 
-Use [`crates/cli/soljson.js`](/crates/cli/soljson.js) as the JavaScript
-wrapper:
+Use the packed release `soljson.js` directly:
 
 ```js
-const solar = require("./soljson.js").setupMethods(soljsonModule);
+const solar = require("./soljson.js");
 
 const output = solar.compile(JSON.stringify({
   language: "Solidity",
@@ -188,6 +188,10 @@ const output = solar.compile(JSON.stringify({
   },
 });
 ```
+
+For custom wasm loading, use `soljson-wrapper.js` from the release artifact or
+[`crates/cli/soljson.js`](/crates/cli/soljson.js) from source and pass a module
+object to `setupMethods(...)`.
 
 The wrapper exposes `compile(inputJsonString, callbacks?)`, `version()`,
 `semver()`, `license()`, `features`, `lowlevel.compileStandard(...)`, and

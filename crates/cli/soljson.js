@@ -255,6 +255,100 @@
     return new Uint8Array(memory.buffer);
   }
 
+  function createEmbeddedSoljson() {
+    if (typeof Module !== "object" || Module === null || !Module.wasmBinary) {
+      return {};
+    }
+    const instance = new WebAssembly.Instance(new WebAssembly.Module(Module.wasmBinary), {});
+    Module.wasmBinary = undefined;
+    const soljson = {
+      instance,
+      exports: instance.exports,
+      memory: instance.exports.memory,
+    };
+    const table = instance.exports.__indirect_function_table;
+    if (table) {
+      soljson.addFunction = function (callback, signature) {
+        const index = table.length;
+        table.grow(1);
+        table.set(index, wasmFunction(callback, signature));
+        return index;
+      };
+      soljson.removeFunction = function (index) {
+        table.set(index, null);
+      };
+    }
+    return soljson;
+  }
+
+  function wasmFunction(callback, signature) {
+    if (typeof WebAssembly.Function === "function") {
+      return new WebAssembly.Function(wasmFunctionType(signature), callback);
+    }
+    const module = wasmCallbackModule(signature);
+    return new WebAssembly.Instance(module, { e: { f: callback } }).exports.f;
+  }
+
+  function wasmFunctionType(signature) {
+    if (signature !== "viiiii") {
+      throw new Error(`Unsupported callback signature: ${signature}`);
+    }
+    return {
+      parameters: ["i32", "i32", "i32", "i32", "i32"],
+      results: [],
+    };
+  }
+
+  let callbackModule;
+  function wasmCallbackModule(signature) {
+    if (signature !== "viiiii") {
+      throw new Error(`Unsupported callback signature: ${signature}`);
+    }
+    if (!callbackModule) {
+      callbackModule = new WebAssembly.Module(Uint8Array.from(wasmCallbackModuleBytes()));
+    }
+    return callbackModule;
+  }
+
+  function wasmCallbackModuleBytes() {
+    const bytes = [0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00];
+    pushSection(bytes, 1, [
+      0x01, 0x60, 0x05, 0x7f, 0x7f, 0x7f, 0x7f, 0x7f, 0x00,
+    ]);
+    pushSection(bytes, 2, [
+      0x01, ...wasmString("e"), ...wasmString("f"), 0x00, 0x00,
+    ]);
+    pushSection(bytes, 3, [0x01, 0x00]);
+    pushSection(bytes, 7, [0x01, ...wasmString("f"), 0x00, 0x01]);
+    pushSection(bytes, 10, [
+      0x01, 0x0e, 0x00, 0x20, 0x00, 0x20, 0x01, 0x20, 0x02, 0x20, 0x03, 0x20, 0x04, 0x10, 0x00,
+      0x0b,
+    ]);
+    return bytes;
+  }
+
+  function pushSection(bytes, id, payload) {
+    bytes.push(id, ...wasmU32(payload.length), ...payload);
+  }
+
+  function wasmString(value) {
+    const bytes = Array.from(textEncoder().encode(value));
+    return [...wasmU32(bytes.length), ...bytes];
+  }
+
+  function wasmU32(value) {
+    const bytes = [];
+    do {
+      let byte = value & 0x7f;
+      value >>>= 7;
+      if (value !== 0) {
+        byte |= 0x80;
+      }
+      bytes.push(byte);
+    } while (value !== 0);
+    return bytes;
+  }
+
   let encoder;
   function textEncoder() {
     encoder = encoder || new TextEncoder();
@@ -267,5 +361,5 @@
     return decoder;
   }
 
-  return setupMethods({});
+  return setupMethods(createEmbeddedSoljson());
 });
