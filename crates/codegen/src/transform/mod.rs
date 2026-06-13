@@ -1,26 +1,26 @@
 //! Optimization and transformation passes for the Solar compiler.
 
-pub mod adce;
-pub mod cfg_simplify;
-pub mod check_elim;
-pub mod cse;
-pub mod dce;
-pub mod frame_promotion;
-pub mod gvn;
-pub mod indvar_simplify;
-pub mod inline;
-pub mod inst_simplify;
-pub mod jump_threading;
-pub mod load_pre;
-pub mod loop_canonicalize;
-pub mod loop_opt;
-pub mod memory_dse;
-pub mod pre;
-pub mod pure_eval;
-pub mod sccp;
-pub mod storage_dse;
-pub mod storage_load_cse;
-pub mod storage_promotion;
+mod adce;
+mod cfg_simplify;
+mod check_elim;
+mod cse;
+mod dce;
+mod frame_promotion;
+mod gvn;
+mod indvar_simplify;
+mod inline;
+mod inst_simplify;
+mod jump_threading;
+mod load_pre;
+mod loop_canonicalize;
+mod loop_opt;
+mod memory_dse;
+mod pre;
+mod pure_eval;
+mod sccp;
+mod storage_dse;
+mod storage_load_cse;
+mod storage_promotion;
 
 pub use adce::{AdcePass, AdceStats, AggressiveDeadCodeEliminator};
 pub use cfg_simplify::{
