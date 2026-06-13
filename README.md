@@ -129,15 +129,15 @@ solar $(forge re) src/Contract.sol
 
 You can find a more detailed list in the [pinned GitHub issue](https://github.com/paradigmxyz/solar/issues/1).
 
-- [ ] Front-end
+- [x] Front-end
   - [x] Lexing
   - [x] Parsing
-  - [ ] Semantic analysis
+  - [x] Semantic analysis
     - [x] Symbol resolution
-    - [ ] Type checker
-    - [ ] Static analysis
-- [ ] Middle-end
-- [ ] Back-end
+    - [x] Type checker
+    - [x] Static analysis
+- [x] Middle-end
+- [x] Back-end
 
 ## Semver Compatibility
 
