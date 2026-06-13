@@ -161,7 +161,7 @@ There are two ways to use the wasm and JavaScript distribution:
 
 ```bash
 rustup target add wasm32-unknown-unknown
-bash scripts/wasm/dist-wasm.sh
+scripts/wasm/dist-wasm.sh
 ```
 
 This produces the same files under `target/dist/`. The script builds with an

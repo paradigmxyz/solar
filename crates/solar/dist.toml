@@ -6,4 +6,4 @@ name = "solar"
 artifacts = [
     "../../target/dist/solar-wasm.tar.gz",
 ]
-build = ["bash", "../../scripts/wasm/dist-wasm.sh"]
+build = ["../../scripts/wasm/dist-wasm.sh"]

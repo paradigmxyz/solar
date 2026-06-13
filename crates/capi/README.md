@@ -14,7 +14,7 @@ For JavaScript and browser use, build the wasm distribution from the repository
 root:
 
 ```bash
-bash scripts/wasm/dist-wasm.sh
+scripts/wasm/dist-wasm.sh
 ```
 
 That produces `target/dist/solar-wasm.tar.gz`, containing the packed

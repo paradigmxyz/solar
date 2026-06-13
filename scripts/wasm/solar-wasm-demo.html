@@ -296,7 +296,7 @@
       };
       script.onerror = () => {
         setStatus("missing target/dist/soljson.js", true);
-        outputEl.textContent = "Run: bash scripts/wasm/dist-wasm.sh";
+        outputEl.textContent = "Run: scripts/wasm/dist-wasm.sh";
       };
       document.head.appendChild(script);
     }
