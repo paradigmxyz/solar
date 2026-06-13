@@ -9,6 +9,7 @@ mod checked_arith;
 mod expr;
 mod index;
 mod stmt;
+mod type_query;
 
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
