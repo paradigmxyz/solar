@@ -5,7 +5,7 @@
 #![allow(unreachable_pub)]
 
 use eyre::{Result, eyre};
-use std::path::Path;
+use std::{path::Path, process::Command};
 use ui_test::{color_eyre::eyre, spanned::Spanned};
 
 mod errors;
@@ -33,9 +33,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         args.format = ui_test::Format::Terse;
     }
 
-    let default_modes =
-        if get_host().contains("windows") { DEFAULT_MODES_WINDOWS } else { DEFAULT_MODES };
-    let mut modes = default_modes;
+    let mut modes = DEFAULT_MODES;
     let mode_tmp;
     if let Ok(mode) = std::env::var("TESTER_MODE") {
         mode_tmp = Mode::parse(&mode).ok_or_else(|| eyre!("invalid mode: {mode}"))?;
@@ -44,7 +42,8 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 
     let tmp_dir = tempfile::tempdir()?;
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
-    let configs = modes.iter().copied().map(|mode| config(cmd, &args, mode)).collect();
+    let runner = &*Box::leak(std::env::current_exe()?.into_boxed_path());
+    let configs = modes.iter().copied().map(|mode| config(cmd, runner, &args, mode)).collect();
 
     let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
     let gha_name = if modes.len() == 1 { modes[0].to_string() } else { "ui-tests".to_string() };
@@ -67,7 +66,29 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     Ok(())
 }
 
-fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Config {
+/// Argument used to run a Standard JSON test through the test binary.
+pub const STANDARD_JSON_ARG: &str = "--solar-tester-standard-json";
+
+/// Runs one Standard JSON UI test.
+pub fn run_standard_json_test(cmd: &Path, input: &Path) -> Result<()> {
+    let input = std::fs::File::open(input)?;
+    let status = Command::new(cmd)
+        .args(["--standard-json", "--pretty-json", "-Zui-testing"])
+        .stdin(input)
+        .status()?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(eyre!("standard JSON test failed with status {status}"))
+    }
+}
+
+fn config(
+    cmd: &'static Path,
+    runner: &'static Path,
+    args: &ui_test::Args,
+    mode: Mode,
+) -> ui_test::Config {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
 
     let path = match mode {
@@ -82,32 +103,16 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
          you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
-    let standard_json_script = r#"out=$(mktemp "${TMPDIR:-/tmp}/solar-standard-json.XXXXXX") || exit 1
-trap 'rm -f "$out"' EXIT
-"$1" --standard-json --pretty-json -Zui-testing < "$2" > "$out"
-status=$?
-cat "$out"
-if [ "$status" -ne 0 ]; then
-    exit "$status"
-fi
-FileCheck "$2" < "$out"
-"#;
-
     let mut config = ui_test::Config {
         // `host` and `target` are used for `//@ ignore-...` comments.
         host: Some(get_host().to_string()),
         target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
-            program: if matches!(mode, Mode::StandardJson) { "sh".into() } else { cmd.into() },
+            program: if matches!(mode, Mode::StandardJson) { runner.into() } else { cmd.into() },
             args: {
                 let mut args = if matches!(mode, Mode::StandardJson) {
-                    vec![
-                        "-c".into(),
-                        standard_json_script.into(),
-                        "solar-standard-json".into(),
-                        cmd.as_os_str().to_os_string(),
-                    ]
+                    vec![STANDARD_JSON_ARG.into()]
                 } else {
                     vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
                         .into_iter()
@@ -220,7 +225,7 @@ fn get_host() -> &'static str {
 }
 
 fn mode_from_config(config: &ui_test::Config) -> Mode {
-    if config.program.program == Path::new("sh") {
+    if config.program.args.first().is_some_and(|arg| arg == STANDARD_JSON_ARG) {
         Mode::StandardJson
     } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
         Mode::SolcYul
@@ -321,7 +326,6 @@ enum Mode {
 }
 
 const DEFAULT_MODES: &[Mode] = &[Mode::Ui, Mode::StandardJson, Mode::SolcSolidity, Mode::SolcYul];
-const DEFAULT_MODES_WINDOWS: &[Mode] = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul];
 
 impl Mode {
     fn parse(s: &str) -> Option<Self> {
