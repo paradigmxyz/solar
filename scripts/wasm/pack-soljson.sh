@@ -18,7 +18,10 @@ fi
 var Module = typeof Module === "object" ? Module : {};
 Module["wasmBinary"] = (function (source) {
   if (typeof Buffer === "function") {
-    return Uint8Array.from(Buffer.from(source, "base64"));
+    return Buffer.from(source, "base64");
+  }
+  if (typeof Uint8Array.fromBase64 === "function") {
+    return Uint8Array.fromBase64(source);
   }
   var binary = atob(source);
   var bytes = new Uint8Array(binary.length);
