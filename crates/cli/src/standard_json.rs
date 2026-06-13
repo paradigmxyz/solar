@@ -863,6 +863,7 @@ mod tests {
     }
 
     fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
+        let actual = normalize_manifest_dir(actual.to_owned());
         assert_data_eq!(actual, expected.into_data().is_json());
     }
 
@@ -886,6 +887,14 @@ mod tests {
             output.replace_range(start..end, "ROOT");
         }
         output
+    }
+
+    #[test]
+    fn normalize_manifest_dir_rewrites_windows_paths() {
+        assert_eq!(
+            normalize_manifest_dir(r#"{"D:/a/solar/solar/crates/cli/B.sol":{}}"#.to_string()),
+            r#"{"ROOT/B.sol":{}}"#,
+        );
     }
 
     #[test]
