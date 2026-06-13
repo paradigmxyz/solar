@@ -22,7 +22,7 @@ mod function;
 pub use function::{Function, FunctionAttributes};
 
 mod module;
-pub use module::{DataSegment, ImmutableSlot, Module, StorageSlot};
+pub use module::{DataSegment, IMMUTABLE_WORD_SIZE, ImmutableSlot, Module, StorageSlot};
 
 mod builder;
 pub use builder::FunctionBuilder;

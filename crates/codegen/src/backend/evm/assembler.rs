@@ -5,6 +5,7 @@
 //! - Two-pass assembly for resolving jump targets
 //! - Variable-width PUSH sizing based on offset magnitudes
 
+use crate::mir::IMMUTABLE_WORD_SIZE;
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
@@ -34,12 +35,18 @@ pub enum AsmInst {
     /// `PUSH32` zero placeholder for the immutable identified by this byte
     /// offset. The constructor patches the placeholder with the immutable's
     /// value before returning the runtime code.
+    ///
+    /// TODO: Generalize this to `PUSH<N>` once immutable byte widths are part
+    /// of MIR and constructor patching can update only the placeholder bytes.
     PushImmutable(u64),
     /// Define a label at this position.
     Label(Label),
 }
 
 /// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
+///
+/// TODO: Track placeholder byte width here when smaller immutable references
+/// are supported.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ImmutableRef {
     /// The immutable's byte offset identifier.
@@ -270,7 +277,7 @@ impl Assembler {
                 AsmInst::PushImmutable(id) => {
                     immutable_refs.push(ImmutableRef { id: *id, code_offset: bytecode.len() });
                     bytecode.push(0x7f); // PUSH32
-                    bytecode.extend_from_slice(&[0u8; 32]);
+                    bytecode.extend(std::iter::repeat_n(0, IMMUTABLE_WORD_SIZE));
                 }
                 AsmInst::Label(_) => {
                     // Labels don't emit anything - they just mark positions

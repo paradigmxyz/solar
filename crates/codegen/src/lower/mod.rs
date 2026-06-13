@@ -18,8 +18,8 @@ pub(super) const ARRAY_METHOD_POP: &str = "pop";
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
     mir::{
-        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableSlot, MirType,
-        Module, StorageSlot, ValueId,
+        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
+        ImmutableSlot, MirType, Module, StorageSlot, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -443,7 +443,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // runtime code's `PUSH32` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
                     let offset = self.next_immutable_offset;
-                    self.next_immutable_offset += 32;
+                    self.next_immutable_offset += IMMUTABLE_WORD_SIZE as u64;
                     self.immutable_slots.insert(var_id, offset);
 
                     let mir_ty = self.lower_type_from_var(var);
