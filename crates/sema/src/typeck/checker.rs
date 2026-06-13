@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::ConstantEvaluator,
+    eval::{ConstValue, ConstantEvaluator},
     hir::{self, Visit},
     ty::{Gcx, Ty, TyConvertError, TyFn, TyFnKind, TyKind},
 };
@@ -104,13 +104,17 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
-        match ConstantEvaluator::new(self.gcx).eval(slot) {
-            Ok(value) => {
+        let mut evaluator = ConstantEvaluator::new(self.gcx);
+        match evaluator.try_eval_value(slot) {
+            Ok(ConstValue::Integer(value)) => {
                 if value.as_u256().is_none() {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
-            Err(_err) => {}
+            Ok(ConstValue::Bool(_)) => {}
+            Err(err) => {
+                evaluator.emit_eval_error(slot, err);
+            }
         }
     }
 

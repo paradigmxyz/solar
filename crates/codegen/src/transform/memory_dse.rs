@@ -217,25 +217,21 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
-                | InstKind::ReturnDataCopy(dest, _, size)
-                    if !Self::insert_full_word_overwritten_range(
+                | InstKind::ReturnDataCopy(dest, _, size) => {
+                    Self::insert_or_clear_full_word_overwritten_range(
                         func,
                         &mut overwritten,
                         *dest,
                         *size,
-                    ) =>
-                {
-                    overwritten.clear();
+                    );
                 }
-                InstKind::ExtCodeCopy(_, dest, _, size)
-                    if !Self::insert_full_word_overwritten_range(
+                InstKind::ExtCodeCopy(_, dest, _, size) => {
+                    Self::insert_or_clear_full_word_overwritten_range(
                         func,
                         &mut overwritten,
                         *dest,
                         *size,
-                    ) =>
-                {
-                    overwritten.clear();
+                    );
                 }
                 kind if Self::is_memory_or_gas_observer(kind) => {
                     overwritten.clear();
@@ -701,6 +697,17 @@ impl MemoryStoreEliminator {
             overwritten.insert(key);
         }
         true
+    }
+
+    fn insert_or_clear_full_word_overwritten_range(
+        func: &Function,
+        overwritten: &mut FxHashSet<MemAddrKey>,
+        dest: ValueId,
+        size: ValueId,
+    ) {
+        if !Self::insert_full_word_overwritten_range(func, overwritten, dest, size) {
+            overwritten.clear();
+        }
     }
 
     fn offset_mem_addr_key(key: MemAddrKey, add: u64) -> Option<MemAddrKey> {

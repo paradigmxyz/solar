@@ -3,19 +3,19 @@
 fn @a() {
   bb0 (entry):
     mstore 128, 0
-    v5 = sload 0 !metadata(storage=slot(0))
-    v7 = and v5, 255
-    mstore 128, v7
+    v4 = sload 0 !metadata(storage=slot(0))
+    v6 = and v4, 255
+    mstore 128, v6
     returndata 128, 32
 }
 
 fn @b() {
   bb0 (entry):
     mstore 128, 0
-    v5 = sload 0 !metadata(storage=slot(0))
-    v7 = shr 8, v5
-    v9 = and v7, 255
-    mstore 128, v9
+    v4 = sload 0 !metadata(storage=slot(0))
+    v6 = shr 8, v4
+    v8 = and v6, 255
+    mstore 128, v8
     returndata 128, 32
 }
 
@@ -61,17 +61,17 @@ fn @set(arg0: bool, arg1: bool) {
 fn @both() {
   bb0 (entry):
     mstore 128, 0
-    v5 = sload 0 !metadata(storage=slot(0))
-    v7 = and v5, 255
-    br v7, bb1, bb2
+    v4 = sload 0 !metadata(storage=slot(0))
+    v6 = and v4, 255
+    br v6, bb1, bb2
   bb1:
-    v10 = sload 0 !metadata(storage=slot(0))
-    v12 = shr 8, v10
-    v14 = and v12, 255
+    v8 = sload 0 !metadata(storage=slot(0))
+    v10 = shr 8, v8
+    v12 = and v10, 255
     jump bb2
   bb2:
-    v16 = phi [bb0: 0], [bb1: v14]
-    mstore 128, v16
+    v14 = phi [bb0: 0], [bb1: v12]
+    mstore 128, v14
     returndata 128, 32
 }
 

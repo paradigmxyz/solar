@@ -594,7 +594,7 @@ impl<'gcx> Lowerer<'gcx> {
                         }
 
                         // For scalar storage variables, just load the value
-                        return self.load_storage_location(builder, location);
+                        return self.load_storage_location_at_slot(builder, location, slot_val);
                     }
                 }
                 builder.imm_u64(0)

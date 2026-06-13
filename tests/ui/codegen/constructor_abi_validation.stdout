@@ -4,15 +4,18 @@ fn @flag() {
   bb0 (entry):
     mstore 128, 0
     v4 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v4
+    v6 = and v4, 255
+    mstore 128, v6
     returndata 128, 32
 }
 
 fn @second() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 1 !metadata(storage=slot(1))
-    mstore 128, v4
+    v4 = sload 0 !metadata(storage=slot(0))
+    v6 = shr 8, v4
+    v8 = and v6, 255
+    mstore 128, v8
     returndata 128, 32
 }
 
@@ -48,11 +51,20 @@ fn @_anonymous(arg0: bool, arg1: u256, arg2: u256) {
   bb6:
     v29 = add v8, 32
     mstore v29, arg2
-    sstore 0, arg0 !metadata(storage=slot(0))
-    v35 = mul 1, 32
-    v37 = add v8, v35
-    v38 = mload v37
-    sstore 1, v38 !metadata(storage=slot(1))
+    v34 = sload 0 !metadata(storage=slot(0))
+    v35 = and v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v36 = and arg0, 255
+    v37 = or v35, v36
+    sstore 0, v37 !metadata(storage=slot(0))
+    v41 = mul 1, 32
+    v43 = add v8, v41
+    v44 = mload v43
+    v48 = sload 0 !metadata(storage=slot(0))
+    v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v50 = and v44, 255
+    v52 = shl 8, v50
+    v53 = or v49, v52
+    sstore 0, v53 !metadata(storage=slot(0))
     stop
 }
 

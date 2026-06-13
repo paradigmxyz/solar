@@ -105,12 +105,12 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    pub(super) fn load_storage_location(
+    pub(super) fn load_storage_location_at_slot(
         &self,
         builder: &mut FunctionBuilder<'_>,
         location: StorageLocation,
+        slot: ValueId,
     ) -> ValueId {
-        let slot = builder.imm_u64(location.slot);
         let word = builder.sload(slot);
         if !location.is_packed() {
             return word;
