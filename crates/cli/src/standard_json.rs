@@ -879,6 +879,11 @@ mod tests {
         for prefix in prefixes {
             output = output.replace(&prefix, "ROOT");
         }
+        while let Some(end) = output.find("/crates/cli") {
+            let end = end + "/crates/cli".len();
+            let start = output[..end].rfind('"').map_or(0, |i| i + 1);
+            output.replace_range(start..end, "ROOT");
+        }
         output
     }
 
