@@ -100,7 +100,8 @@ pub(crate) fn compile_standard_json(
     input: &str,
     mut opts: Opts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
-) -> io::Result<String> {
+    out: impl Write,
+) -> io::Result<()> {
     let source_map = Arc::new(SourceMap::empty());
     source_map.set_file_loader(StandardJsonFileLoader { read_callback });
     let (emitter, diagnostics) = InMemoryEmitter::new();
@@ -138,30 +139,31 @@ pub(crate) fn compile_standard_json(
         output.contracts.clear();
     }
 
-    let mut json = Vec::new();
+    let mut out = out;
     if opts.pretty_json {
-        serde_json::to_writer_pretty(&mut json, &output)?;
+        serde_json::to_writer_pretty(&mut out, &output)?;
     } else {
-        serde_json::to_writer(&mut json, &output)?;
+        serde_json::to_writer(&mut out, &output)?;
     }
-    String::from_utf8(json).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+    Ok(())
 }
 
 pub(crate) fn run(opts: Opts) -> io::Result<()> {
     let mut input = String::new();
-    let output = match io::stdin().read_to_string(&mut input) {
-        Ok(_) => compile_standard_json(&input, opts, None)?,
-        Err(e) => standard_json_error_output(format!("failed to read standard JSON input: {e}"))?,
-    };
-
     let stdout = io::stdout();
     let mut stdout = io::BufWriter::new(stdout.lock());
-    stdout.write_all(output.as_bytes())?;
+    match io::stdin().read_to_string(&mut input) {
+        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout)?,
+        Err(e) => standard_json_error_output(
+            format!("failed to read standard JSON input: {e}"),
+            &mut stdout,
+        )?,
+    }
     stdout.write_all(b"\n")?;
     stdout.flush()
 }
 
-fn standard_json_error_output(message: String) -> io::Result<String> {
+fn standard_json_error_output(message: String, out: impl Write) -> io::Result<()> {
     let output = json!({
         "errors": [{
             "severity": "error",
@@ -169,7 +171,7 @@ fn standard_json_error_output(message: String) -> io::Result<String> {
             "message": message,
         }],
     });
-    serde_json::to_string(&output).map_err(io::Error::other)
+    serde_json::to_writer(out, &output).map_err(io::Error::other)
 }
 
 fn compile(
@@ -836,8 +838,9 @@ mod tests {
     }
 
     fn compile(input: &str, callback: Option<Arc<dyn StandardJsonReadCallback>>) -> Value {
-        let output = compile_standard_json(input, Opts::default(), callback).unwrap();
-        serde_json::from_str(&output).unwrap()
+        let mut output = Vec::new();
+        compile_standard_json(input, Opts::default(), callback, &mut output).unwrap();
+        serde_json::from_slice(&output).unwrap()
     }
 
     #[test]

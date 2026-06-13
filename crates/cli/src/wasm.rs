@@ -65,16 +65,17 @@ pub(crate) unsafe extern "C" fn solidity_compile(
         std::sync::Arc::new(CReadCallback { read_callback, read_context })
             as std::sync::Arc<dyn StandardJsonReadCallback>
     });
-    let output = match compile_standard_json(input, Opts::default(), read_callback) {
-        Ok(output) => output,
-        Err(error) => format!(
+    let mut output = Vec::new();
+    if let Err(error) = compile_standard_json(input, Opts::default(), read_callback, &mut output) {
+        output = format!(
             r#"{{"errors":[{{"severity":"error","type":"InternalCompilerError","message":"{error}"}}]}}"#
-        ),
-    };
+        )
+        .into_bytes();
+    }
     allocate_c_string(&output)
 }
 
-fn allocate_c_string(value: &str) -> *mut c_char {
+fn allocate_c_string(value: &[u8]) -> *mut c_char {
     let allocation = solidity_alloc(value.len() + 1).cast::<u8>();
     if allocation.is_null() {
         return ptr::null_mut();
