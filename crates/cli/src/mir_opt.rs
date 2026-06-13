@@ -24,7 +24,7 @@ use solar_sema::Compiler;
 use std::{ffi::OsString, iter::from_fn, ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
-    let mut passes = PASS_REGISTRY.iter().copied();
+    let mut passes = PASS_REGISTRY.iter();
     let pass_lines =
         from_fn(|| passes.next().map(|pass| format!("  {:<20} {}", pass.name, pass.description)))
             .chain(std::iter::once(format!(
@@ -98,7 +98,7 @@ fn pass_label(pass: Option<&PassInfo>) -> &'static str {
     }
 }
 
-fn pass_list_label(passes: &[&PassInfo], separator: &str) -> String {
+fn pass_list_label(passes: &[PassInfo], separator: &str) -> String {
     let mut label = String::new();
     for (i, pass) in passes.iter().enumerate() {
         if i != 0 {
