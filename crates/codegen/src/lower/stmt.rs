@@ -3,9 +3,11 @@
 use super::{LoopContext, Lowerer};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
+use solar_interface::Span;
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ExprKind, StmtKind},
+    ty::{Ty, TyKind},
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -180,7 +182,7 @@ impl<'gcx> Lowerer<'gcx> {
         var_id: hir::VariableId,
     ) {
         let var = self.gcx.hir.variable(var_id);
-        let _ty = self.lower_type_from_var(var);
+        let var_ty = self.gcx.type_of_hir_ty(&var.ty);
 
         // Storage reference: `T storage r = <lvalue>`. Bind the storage *slot*
         // (not the dereferenced value) so `r.field` reads/writes `sload`/`sstore`
@@ -213,7 +215,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Check if this is a struct type - struct returns from external calls are already
         // allocated in proper memory, so they don't need extra local memory storage
-        let is_struct_type = matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Struct(_)));
+        let is_struct_type = matches!(var_ty.peel_refs().kind, TyKind::Struct(_));
 
         let initial_value = if let Some(init) = var.initializer {
             if self.var_expects_memory_bytes_value(var) {
@@ -221,7 +223,7 @@ impl<'gcx> Lowerer<'gcx> {
             } else {
                 self.lower_expr(builder, init)
             }
-        } else if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &var.ty.kind {
+        } else if is_struct_type {
             // Struct without initializer: allocate memory and zero-initialize
             let struct_size = self.memory_struct_size(&var.ty);
             let struct_ptr = self.allocate_memory(builder, struct_size);
@@ -252,8 +254,9 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn memory_struct_size(&self, ty: &hir::Type<'_>) -> u64 {
-        if matches!(ty.kind, hir::TypeKind::Custom(hir::ItemId::Struct(_))) {
-            self.calculate_memory_words_for_type(ty) * 32
+        let ty = self.gcx.type_of_hir_ty(ty);
+        if matches!(ty.peel_refs().kind, TyKind::Struct(_)) {
+            self.calculate_memory_words_for_ty(ty) * 32
         } else {
             32
         }
@@ -265,25 +268,7 @@ impl<'gcx> Lowerer<'gcx> {
         ty: &hir::Type<'_>,
         ptr: ValueId,
     ) {
-        let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &ty.kind else {
-            let zero = builder.imm_u256(U256::ZERO);
-            builder.mstore(ptr, zero);
-            return;
-        };
-
-        let strukt = self.gcx.hir.strukt(*struct_id);
-        for (i, &field_id) in strukt.fields.iter().enumerate() {
-            let field = self.gcx.hir.variable(field_id);
-            let value = self.zero_memory_field_value(builder, &field.ty);
-            let field_offset = (i as u64) * 32;
-            if field_offset == 0 {
-                builder.mstore(ptr, value);
-            } else {
-                let offset_val = builder.imm_u64(field_offset);
-                let field_addr = builder.add(ptr, offset_val);
-                builder.mstore(field_addr, value);
-            }
-        }
+        self.zero_initialize_memory_ty(builder, self.gcx.type_of_hir_ty(ty), ptr, ty.span);
     }
 
     pub(super) fn zero_memory_field_value(
@@ -291,23 +276,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         ty: &hir::Type<'_>,
     ) -> ValueId {
-        match &ty.kind {
-            hir::TypeKind::Array(array) if array.size.is_some() => self
-                .allocate_zeroed_fixed_memory_array(builder, ty)
-                .unwrap_or_else(|| builder.imm_u256(U256::ZERO)),
-            hir::TypeKind::Array(array) if array.size.is_none() => {
-                let ptr = self.allocate_memory(builder, 32);
-                let zero = builder.imm_u256(U256::ZERO);
-                builder.mstore(ptr, zero);
-                ptr
-            }
-            hir::TypeKind::Custom(hir::ItemId::Struct(_)) => {
-                let ptr = self.allocate_memory(builder, self.memory_struct_size(ty));
-                self.zero_initialize_memory_value(builder, ty, ptr);
-                ptr
-            }
-            _ => builder.imm_u256(U256::ZERO),
-        }
+        self.zero_memory_field_value_ty(builder, self.gcx.type_of_hir_ty(ty), ty.span)
     }
 
     pub(super) fn is_fixed_memory_array_type(
@@ -316,14 +285,11 @@ impl<'gcx> Lowerer<'gcx> {
         loc: Option<solar_ast::DataLocation>,
     ) -> bool {
         matches!(loc, None | Some(solar_ast::DataLocation::Memory))
-            && matches!(&ty.kind, hir::TypeKind::Array(array) if array.size.is_some())
+            && matches!(self.gcx.type_of_hir_ty(ty).peel_refs().kind, TyKind::Array(_, _))
     }
 
     pub(super) fn fixed_memory_array_len(&self, ty: &hir::Type<'_>) -> Option<u64> {
-        let hir::TypeKind::Array(array) = &ty.kind else { return None };
-        array.size?;
-        let solar_sema::ty::TyKind::Array(_, len) = self.gcx.type_of_hir_ty(ty).peel_refs().kind
-        else {
+        let TyKind::Array(_, len) = self.gcx.type_of_hir_ty(ty).peel_refs().kind else {
             return None;
         };
         u64::try_from(len).ok()
@@ -334,7 +300,10 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         ty: &hir::Type<'_>,
     ) -> Option<ValueId> {
-        let hir::TypeKind::Array(array) = &ty.kind else { return None };
+        let array_ty = self.gcx.type_of_hir_ty(ty);
+        let TyKind::Array(elem_ty, _) = array_ty.peel_refs().kind else {
+            return None;
+        };
         let len = self.fixed_memory_array_len(ty)?;
         let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
             self.gcx
@@ -346,7 +315,7 @@ impl<'gcx> Lowerer<'gcx> {
         });
         let ptr = self.allocate_memory(builder, alloc_size);
         for i in 0..len {
-            let value = self.zero_memory_field_value(builder, &array.element);
+            let value = self.zero_memory_field_value_ty(builder, elem_ty, ty.span);
             if i == 0 {
                 builder.mstore(ptr, value);
             } else {
@@ -356,6 +325,86 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
         Some(ptr)
+    }
+
+    fn zero_memory_field_value_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        span: Span,
+    ) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Array(elem_ty, len) => {
+                let Some(len) = u64::try_from(len).ok() else {
+                    self.gcx
+                        .dcx()
+                        .err("fixed-size memory array is too large for codegen")
+                        .span(span)
+                        .emit();
+                    return builder.imm_u256(U256::ZERO);
+                };
+                let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
+                    self.gcx
+                        .dcx()
+                        .err("fixed-size memory array is too large for codegen")
+                        .span(span)
+                        .emit();
+                    0
+                });
+                let ptr = self.allocate_memory(builder, alloc_size);
+                for i in 0..len {
+                    let value = self.zero_memory_field_value_ty(builder, elem_ty, span);
+                    if i == 0 {
+                        builder.mstore(ptr, value);
+                    } else {
+                        let offset = builder.imm_u64(i * 32);
+                        let addr = builder.add(ptr, offset);
+                        builder.mstore(addr, value);
+                    }
+                }
+                ptr
+            }
+            TyKind::DynArray(_) => {
+                let ptr = self.allocate_memory(builder, 32);
+                let zero = builder.imm_u256(U256::ZERO);
+                builder.mstore(ptr, zero);
+                ptr
+            }
+            TyKind::Struct(_) => {
+                let ptr =
+                    self.allocate_memory(builder, self.calculate_memory_words_for_ty(ty) * 32);
+                self.zero_initialize_memory_ty(builder, ty, ptr, span);
+                ptr
+            }
+            _ => builder.imm_u256(U256::ZERO),
+        }
+    }
+
+    fn zero_initialize_memory_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        ptr: ValueId,
+        span: Span,
+    ) {
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else {
+            let zero = builder.imm_u256(U256::ZERO);
+            builder.mstore(ptr, zero);
+            return;
+        };
+
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        for (i, field_ty) in field_tys.into_iter().enumerate() {
+            let value = self.zero_memory_field_value_ty(builder, field_ty, span);
+            let field_offset = (i as u64) * 32;
+            if field_offset == 0 {
+                builder.mstore(ptr, value);
+            } else {
+                let offset_val = builder.imm_u64(field_offset);
+                let field_addr = builder.add(ptr, offset_val);
+                builder.mstore(field_addr, value);
+            }
+        }
     }
 
     /// Lowers a multi-variable declaration.

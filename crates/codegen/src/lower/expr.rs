@@ -568,7 +568,8 @@ impl<'gcx> Lowerer<'gcx> {
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
                         {
                             // Calculate total flattened size (handles nested structs)
-                            let total_words = self.calculate_memory_words_for_type(&var.ty);
+                            let total_words = self
+                                .calculate_memory_words_for_ty(self.gcx.type_of_hir_ty(&var.ty));
                             let struct_size = total_words * 32;
                             let struct_ptr = self.allocate_memory(builder, struct_size);
 
@@ -1403,7 +1404,10 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             None
         };
-        let elem_slots = self.calculate_storage_slots_for_type(&arr.element);
+        let elem_slots = self.calculate_storage_slots_for_ty(
+            self.gcx.type_of_hir_ty(&arr.element),
+            arr.element.span,
+        );
         if let Some(&slot) = self.storage_slots.get(var_id) {
             return Some((builder.imm_u64(slot), fixed_len, elem_slots));
         }

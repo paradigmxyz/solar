@@ -455,12 +455,13 @@ impl<'gcx> Lowerer<'gcx> {
                 } else if var.is_state_variable() && !var.is_constant() {
                     let base_slot = self.next_storage_slot;
 
-                    // Calculate how many slots this variable needs
-                    let num_slots = self.calculate_storage_slots_for_type(&var.ty);
+                    // Calculate how many slots this variable needs.
+                    let var_ty = self.gcx.type_of_hir_ty(&var.ty);
+                    let num_slots = self.calculate_storage_slots_for_ty(var_ty, var.ty.span);
                     self.next_storage_slot += num_slots;
 
                     // Track struct base slots for field access
-                    if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &var.ty.kind {
+                    if matches!(var_ty.peel_refs().kind, TyKind::Struct(_)) {
                         self.struct_storage_base_slots.insert(var_id, base_slot);
                     }
 
@@ -479,37 +480,29 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Calculates the number of storage slots needed for a type.
-    fn calculate_storage_slots_for_type(&self, ty: &hir::Type<'_>) -> u64 {
-        match &ty.kind {
-            hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) => {
-                let strukt = self.gcx.hir.strukt(*struct_id);
+    pub(super) fn calculate_storage_slots_for_ty(&self, ty: Ty<'gcx>, span: Span) -> u64 {
+        match ty.peel_refs().kind {
+            TyKind::Struct(struct_id) => {
                 let mut total = 0u64;
-                for &field_id in strukt.fields {
-                    let field = self.gcx.hir.variable(field_id);
-                    total += self.calculate_storage_slots_for_type(&field.ty);
+                for &field_ty in self.gcx.struct_field_types(struct_id) {
+                    total += self.calculate_storage_slots_for_ty(field_ty, span);
                 }
                 total.max(1)
             }
             // Fixed-size arrays occupy one slot per element (no packing),
             // starting at the base slot. Dynamic arrays keep one length slot.
-            hir::TypeKind::Array(arr) if arr.size.is_some() => {
-                if let solar_sema::ty::TyKind::Array(_, len) =
-                    self.gcx.type_of_hir_ty(ty).peel_refs().kind
-                {
-                    let elem_slots = self.calculate_storage_slots_for_type(&arr.element);
-                    match u64::try_from(len).ok().and_then(|len| len.checked_mul(elem_slots)) {
-                        Some(slots) => slots.max(1),
-                        None => {
-                            self.gcx
-                                .dcx()
-                                .err("fixed-size storage arrays this large are not supported")
-                                .span(ty.span)
-                                .emit();
-                            1
-                        }
+            TyKind::Array(elem, len) => {
+                let elem_slots = self.calculate_storage_slots_for_ty(elem, span);
+                match u64::try_from(len).ok().and_then(|len| len.checked_mul(elem_slots)) {
+                    Some(slots) => slots.max(1),
+                    None => {
+                        self.gcx
+                            .dcx()
+                            .err("fixed-size storage arrays this large are not supported")
+                            .span(span)
+                            .emit();
+                        1
                     }
-                } else {
-                    1
                 }
             }
             _ => 1,
@@ -519,15 +512,10 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns the constant length of a fixed-size array parameter whose elements are single
     /// ABI words, for prologue decoding. Other parameter shapes return `None`.
     fn fixed_word_array_param_len(&self, param: &hir::Variable<'_>) -> Option<u64> {
-        let hir::TypeKind::Array(arr) = &param.ty.kind else { return None };
-        arr.size.as_ref()?;
-        let solar_sema::ty::TyKind::Array(elem, len) =
-            self.gcx.type_of_hir_ty(&param.ty).peel_refs().kind
-        else {
+        let TyKind::Array(elem, len) = self.gcx.type_of_hir_ty(&param.ty).peel_refs().kind else {
             return None;
         };
-        (self.abi_is_word_element(elem) && len <= alloy_primitives::U256::from(u16::MAX))
-            .then(|| len.to::<u64>())
+        (self.abi_is_word_element(elem) && len <= U256::from(u16::MAX)).then(|| len.to::<u64>())
     }
 
     /// Whether a parameter is a memory-located dynamic array of single-word elements, which
@@ -536,12 +524,8 @@ impl<'gcx> Lowerer<'gcx> {
         if param.data_location != Some(solar_ast::DataLocation::Memory) {
             return false;
         }
-        let hir::TypeKind::Array(arr) = &param.ty.kind else { return false };
-        if arr.size.is_some() {
-            return false;
-        }
         match self.gcx.type_of_hir_ty(&param.ty).peel_refs().kind {
-            solar_sema::ty::TyKind::DynArray(elem) => self.abi_is_word_element(elem),
+            TyKind::DynArray(elem) => self.abi_is_word_element(elem),
             _ => false,
         }
     }
@@ -556,14 +540,12 @@ impl<'gcx> Lowerer<'gcx> {
             return offset;
         }
 
-        let strukt = self.gcx.hir.strukt(struct_id);
         let mut offset = 0u64;
-        for (i, &field_id) in strukt.fields.iter().enumerate() {
+        for (i, &field_ty) in self.gcx.struct_field_types(struct_id).iter().enumerate() {
             if i == field_index {
                 break;
             }
-            let field = self.gcx.hir.variable(field_id);
-            offset += self.calculate_storage_slots_for_type(&field.ty);
+            offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
         }
 
         self.struct_field_offsets.insert((struct_id, field_index), offset);
@@ -571,14 +553,12 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Calculates the number of 32-byte memory words needed for a type (flattened for structs).
-    pub fn calculate_memory_words_for_type(&self, ty: &hir::Type<'_>) -> u64 {
-        match &ty.kind {
-            hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) => {
-                let strukt = self.gcx.hir.strukt(*struct_id);
+    pub fn calculate_memory_words_for_ty(&self, ty: Ty<'gcx>) -> u64 {
+        match ty.peel_refs().kind {
+            TyKind::Struct(struct_id) => {
                 let mut total = 0u64;
-                for &field_id in strukt.fields {
-                    let field = self.gcx.hir.variable(field_id);
-                    total += self.calculate_memory_words_for_type(&field.ty);
+                for &field_ty in self.gcx.struct_field_types(struct_id) {
+                    total += self.calculate_memory_words_for_ty(field_ty);
                 }
                 total.max(1)
             }
@@ -613,23 +593,21 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
-        let strukt = self.gcx.hir.strukt(struct_id);
         let mut current_slot_offset = 0u64;
         let mut current_mem_offset = mem_offset;
 
-        for &field_id in strukt.fields {
-            let field = self.gcx.hir.variable(field_id);
-
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        for field_ty in field_tys {
+            if let TyKind::Struct(inner_struct_id) = field_ty.peel_refs().kind {
                 // Recursively copy nested struct
                 current_mem_offset = self.copy_storage_to_memory(
                     builder,
-                    *inner_struct_id,
+                    inner_struct_id,
                     base_slot + current_slot_offset,
                     mem_ptr,
                     current_mem_offset,
                 );
-                current_slot_offset += self.calculate_storage_slots_for_type(&field.ty);
+                current_slot_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
             } else {
                 // Copy scalar field: SLOAD from storage, MSTORE to memory
                 let slot = base_slot + current_slot_offset;
@@ -663,23 +641,21 @@ impl<'gcx> Lowerer<'gcx> {
         mem_ptr: ValueId,
         mem_offset: u64,
     ) -> u64 {
-        let strukt = self.gcx.hir.strukt(struct_id);
         let mut current_slot_offset = 0u64;
         let mut current_mem_offset = mem_offset;
 
-        for &field_id in strukt.fields {
-            let field = self.gcx.hir.variable(field_id);
-
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        for field_ty in field_tys {
+            if let TyKind::Struct(inner_struct_id) = field_ty.peel_refs().kind {
                 // Recursively copy nested struct
                 current_mem_offset = self.copy_memory_to_storage(
                     builder,
-                    *inner_struct_id,
+                    inner_struct_id,
                     base_slot + current_slot_offset,
                     mem_ptr,
                     current_mem_offset,
                 );
-                current_slot_offset += self.calculate_storage_slots_for_type(&field.ty);
+                current_slot_offset += self.calculate_storage_slots_for_ty(field_ty, Span::DUMMY);
             } else {
                 // Copy scalar field: MLOAD from memory, SSTORE to storage
                 let slot = base_slot + current_slot_offset;
@@ -865,6 +841,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             for &param_id in hir_func.parameters {
                 let param = self.gcx.hir.variable(param_id);
+                let param_ty = self.gcx.type_of_hir_ty(&param.ty);
                 let ty = self.lower_type_from_var(param);
 
                 // Check if this is a struct parameter that needs special handling
@@ -874,11 +851,9 @@ impl<'gcx> Lowerer<'gcx> {
                     AbiParamSource::ExternalCalldata
                 };
 
-                if decodes_abi_params
-                    && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &param.ty.kind
-                {
+                if decodes_abi_params && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind {
                     // Struct parameters: copy fields from calldata to memory
-                    let strukt = self.gcx.hir.strukt(*struct_id);
+                    let strukt = self.gcx.hir.strukt(struct_id);
                     let field_ids = strukt.fields;
                     let num_fields = field_ids.len();
 
@@ -976,10 +951,8 @@ impl<'gcx> Lowerer<'gcx> {
                 } else if decodes_abi_params
                     && param.data_location == Some(solar_ast::DataLocation::Memory)
                     && matches!(
-                        param.ty.kind,
-                        hir::TypeKind::Elementary(
-                            hir::ElementaryType::Bytes | hir::ElementaryType::String
-                        )
+                        param_ty.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
                     )
                 {
                     // `bytes`/`string` memory parameter: the ABI head word is
@@ -1030,14 +1003,15 @@ impl<'gcx> Lowerer<'gcx> {
 
             for &ret_id in hir_func.returns {
                 let ret_var = self.gcx.hir.variable(ret_id);
+                let ret_ty = self.gcx.type_of_hir_ty(&ret_var.ty);
                 let ty = self.lower_type_from_var(ret_var);
                 builder.add_return(ty);
                 // Allocate memory for return variables so they can be assigned to
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
                 let offset = self.alloc_local_memory(ret_id);
                 let offset_val = self.local_memory_addr(&mut builder, offset);
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &ret_var.ty.kind {
-                    let struct_size = self.calculate_memory_words_for_type(&ret_var.ty) * 32;
+                if matches!(ret_ty.peel_refs().kind, TyKind::Struct(_)) {
+                    let struct_size = self.calculate_memory_words_for_ty(ret_ty) * 32;
                     let struct_ptr = self.allocate_memory(&mut builder, struct_size);
                     builder.mstore(offset_val, struct_ptr);
                 } else if self.is_fixed_memory_array_type(&ret_var.ty, ret_var.data_location)
@@ -1328,33 +1302,35 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a type from a variable declaration.
     fn lower_type_from_var(&self, var: &hir::Variable<'_>) -> MirType {
-        self.lower_type_kind(&var.ty.kind)
+        self.lower_type_from_ty(self.gcx.type_of_hir_ty(&var.ty))
     }
 
-    /// Lowers a TypeKind to MirType.
-    fn lower_type_kind(&self, kind: &hir::TypeKind<'_>) -> MirType {
-        match kind {
-            hir::TypeKind::Elementary(elem) => match elem {
-                hir::ElementaryType::Bool => MirType::Bool,
-                hir::ElementaryType::Address(_) => MirType::Address,
-                hir::ElementaryType::Int(bits) => MirType::Int(bits.bits()),
-                hir::ElementaryType::UInt(bits) => MirType::UInt(bits.bits()),
-                hir::ElementaryType::Fixed(_, _) => MirType::Int(256),
-                hir::ElementaryType::UFixed(_, _) => MirType::UInt(256),
-                hir::ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
-                hir::ElementaryType::String => MirType::MemPtr,
-                hir::ElementaryType::Bytes => MirType::MemPtr,
+    /// Lowers a type-checked Solidity type to MIR's coarse value type.
+    fn lower_type_from_ty(&self, ty: Ty<'gcx>) -> MirType {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(elem) => match elem {
+                ElementaryType::Bool => MirType::Bool,
+                ElementaryType::Address(_) => MirType::Address,
+                ElementaryType::Int(bits) => MirType::Int(bits.bits()),
+                ElementaryType::UInt(bits) => MirType::UInt(bits.bits()),
+                ElementaryType::Fixed(_, _) => MirType::Int(256),
+                ElementaryType::UFixed(_, _) => MirType::UInt(256),
+                ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
+                ElementaryType::String | ElementaryType::Bytes => MirType::MemPtr,
             },
-            hir::TypeKind::Mapping(_) => MirType::StoragePtr,
-            hir::TypeKind::Array(_) => MirType::MemPtr,
-            hir::TypeKind::Function(_) => MirType::Function,
-            hir::TypeKind::Custom(item_id) => match item_id {
-                hir::ItemId::Struct(_) => MirType::MemPtr,
-                hir::ItemId::Enum(_) => MirType::UInt(8),
-                hir::ItemId::Contract(_) => MirType::Address,
-                _ => MirType::uint256(),
-            },
-            hir::TypeKind::Err(_) => MirType::uint256(),
+            TyKind::Mapping(_, _) => MirType::StoragePtr,
+            TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => MirType::MemPtr,
+            TyKind::Fn(_) => MirType::Function,
+            TyKind::Struct(_) => MirType::MemPtr,
+            TyKind::Enum(_) => MirType::UInt(8),
+            TyKind::Contract(_) | TyKind::Super(_) => MirType::Address,
+            TyKind::StringLiteral(_, _)
+            | TyKind::IntLiteral(_, _, _)
+            | TyKind::Tuple(_)
+            | TyKind::Variadic
+            | TyKind::Error(_, _)
+            | TyKind::Event(_, _)
+            | _ => MirType::uint256(),
         }
     }
 
