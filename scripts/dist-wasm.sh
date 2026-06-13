@@ -14,12 +14,12 @@ cp target/wasm32-unknown-unknown/minsize/solar_cli.wasm "$out_dir/solar.wasm"
 cp crates/cli/soljson.js "$out_dir/soljson-wrapper.js"
 scripts/pack-soljson.sh "$out_dir/solar.wasm" "$out_dir/soljson-wrapper.js" "$out_dir/soljson.js"
 
-bundle_dir="$out_dir/solar-soljson"
+bundle_dir="$out_dir/solar-wasm"
 mkdir -p "$bundle_dir"
 cp "$out_dir/solar.wasm" "$bundle_dir/solar.wasm"
 cp "$out_dir/soljson-wrapper.js" "$bundle_dir/soljson-wrapper.js"
 cp "$out_dir/soljson.js" "$bundle_dir/soljson.js"
-tar -C "$out_dir" -czf "$out_dir/solar-soljson.tar.gz" \
-  solar-soljson/solar.wasm \
-  solar-soljson/soljson-wrapper.js \
-  solar-soljson/soljson.js
+tar -C "$out_dir" -czf "$out_dir/solar-wasm.tar.gz" \
+  solar-wasm/solar.wasm \
+  solar-wasm/soljson-wrapper.js \
+  solar-wasm/soljson.js

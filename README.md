@@ -135,14 +135,14 @@ native `solc` binaries. That file is a packed JavaScript wrapper containing the
 compiled WebAssembly bytes in `Module.wasmBinary`; the `solc-js` npm package
 then wraps that module. This repository also ships a packed `soljson.js`
 release asset for compatibility, alongside the raw `solar.wasm` module,
-unpacked `soljson-wrapper.js`, and a `solar-soljson.tar.gz` archive containing
+unpacked `soljson-wrapper.js`, and a `solar-wasm.tar.gz` archive containing
 all three files.
 
 There are two ways to use the WASM API:
 
 1. Download `soljson.js` from a release. Download `solar.wasm` and
    `soljson-wrapper.js` too if you want to instantiate the raw module yourself,
-   or download `solar-soljson.tar.gz` to get all three files together.
+   or download `solar-wasm.tar.gz` to get all three files together.
 
 2. Build it from source:
 
