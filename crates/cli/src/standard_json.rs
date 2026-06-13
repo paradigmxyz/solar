@@ -859,14 +859,27 @@ mod tests {
             ..Opts::default()
         };
         compile_standard_json(input, opts, callback, &mut output);
-        String::from_utf8(output)
-            .unwrap()
-            .replace(env!("CARGO_MANIFEST_DIR"), "ROOT")
-            .replace(&env!("CARGO_MANIFEST_DIR").replace('\\', "/"), "ROOT")
+        normalize_manifest_dir(String::from_utf8(output).unwrap())
     }
 
     fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
         assert_data_eq!(actual, expected.into_data().is_json());
+    }
+
+    fn normalize_manifest_dir(mut output: String) -> String {
+        let native = env!("CARGO_MANIFEST_DIR");
+        let slash = native.replace('\\', "/");
+        let stripped = slash.strip_prefix("//?/").unwrap_or(&slash).to_string();
+        let mut prefixes = vec![native.to_string(), slash, stripped.clone()];
+        if let Some((drive, rest)) = stripped.split_once(':') {
+            prefixes.push(format!("{}:{rest}", drive.to_ascii_uppercase()));
+            prefixes.push(format!("{}:{rest}", drive.to_ascii_lowercase()));
+        }
+        prefixes.dedup();
+        for prefix in prefixes {
+            output = output.replace(&prefix, "ROOT");
+        }
+        output
     }
 
     #[test]
