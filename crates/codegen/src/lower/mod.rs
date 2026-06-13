@@ -3,6 +3,7 @@
 //! This module transforms the high-level IR from solar-sema into MIR.
 
 mod abi_encode;
+mod abi_packed;
 mod expr;
 mod stmt;
 
