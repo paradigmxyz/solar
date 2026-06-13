@@ -37,10 +37,6 @@ harness = false
 name = "foundry"
 path = "./foundry.rs"
 
-[[test]]
-name = "ice_sweep"
-path = "./ice_sweep.rs"
-
 [dependencies]
 solar-ast.workspace = true
 solar-config.workspace = true
