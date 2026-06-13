@@ -867,6 +867,7 @@ mod tests {
     }
 
     fn normalize_manifest_dir(mut output: String) -> String {
+        output = output.replace("\\/", "/");
         let native = env!("CARGO_MANIFEST_DIR");
         let slash = native.replace('\\', "/");
         let stripped = slash.strip_prefix("//?/").unwrap_or(&slash).to_string();
