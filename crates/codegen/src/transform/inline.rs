@@ -21,11 +21,12 @@
 use crate::{
     analysis::LoopAnalyzer,
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, InstId, InstKind, Instruction, MirType,
-        Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId as MirFunctionId, Immediate, InstId, InstKind, Instruction,
+        MirType, Module, Terminator, Value, ValueId,
     },
     pass::ModulePass,
 };
+use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_sema::hir::{self, FunctionId, StmtKind};
@@ -579,6 +580,9 @@ pub struct MirInlineConfig {
     pub max_instructions: usize,
     /// Maximum instruction count for functions that have exactly one call site.
     pub max_single_call_instructions: usize,
+    /// Hard sanity limit for single-call-site callees. These bypass the normal
+    /// size and block caps because function DCE removes their original body.
+    pub max_single_call_sanity_instructions: usize,
     /// Maximum number of blocks to clone from one callee.
     pub max_blocks: usize,
     /// Whether a single call site may use the larger threshold.
@@ -587,6 +591,9 @@ pub struct MirInlineConfig {
     pub max_cold_code_growth: usize,
     /// Maximum estimated runtime bytecode growth for a call site inside a loop.
     pub max_hot_code_growth: usize,
+    /// Maximum number of instructions a single caller may gain from inlining
+    /// multi-use callees, bounding total code growth per function.
+    pub max_caller_inlined_instructions: usize,
     /// Minimum estimated internal-call protocol gas saved before inlining.
     pub min_call_savings: u64,
 }
@@ -596,10 +603,12 @@ impl Default for MirInlineConfig {
         Self {
             max_instructions: 96,
             max_single_call_instructions: 96,
+            max_single_call_sanity_instructions: 4096,
             max_blocks: 10,
             inline_single_call: true,
             max_cold_code_growth: 256,
             max_hot_code_growth: 512,
+            max_caller_inlined_instructions: 64,
             min_call_savings: 120,
         }
     }
@@ -674,11 +683,17 @@ impl MirInliner {
     /// Runs the inliner over the whole module.
     pub fn run(&mut self, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
-        let summaries = self.summarize_module(module);
-        let call_counts = self.call_counts(module);
+        let mut summaries = self.summarize_module(module);
+        let mut call_counts = self.call_counts(module);
+        let recursive_functions = self.recursive_functions(module);
 
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
             let loop_depths = block_loop_depths(module.function(caller_id));
+            // Bound how much each caller may grow from inlining so a function
+            // calling many internal helpers (e.g. a large verifier) cannot
+            // balloon past the deployable code-size limit.
+            let base_instructions =
+                summaries.get(&caller_id).map(|s| s.instruction_count).unwrap_or_default();
             let mut cursor = (0, 0);
             while let Some(site) =
                 self.find_next_call(module.function(caller_id), cursor, &loop_depths)
@@ -691,7 +706,14 @@ impl MirInliner {
                     continue;
                 };
                 let call_count = call_counts.get(&site.callee).copied().unwrap_or_default();
-                if !self.is_inlineable(caller_id, site, summary, call_count) {
+                let grew_too_much = summaries.get(&caller_id).is_some_and(|s| {
+                    s.instruction_count.saturating_sub(base_instructions)
+                        > self.config.max_caller_inlined_instructions
+                });
+                if grew_too_much
+                    || recursive_functions.contains(&site.callee)
+                    || !self.is_inlineable(caller_id, site, summary, call_count)
+                {
                     stats.skipped += 1;
                     continue;
                 }
@@ -700,6 +722,8 @@ impl MirInliner {
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
+                    summaries.insert(caller_id, summarize_function(module.function(caller_id)));
+                    call_counts = self.call_counts(module);
                     cursor = (site.block.index(), 0);
                 } else {
                     stats.skipped += 1;
@@ -731,6 +755,49 @@ impl MirInliner {
             }
         }
         counts
+    }
+
+    fn recursive_functions(&self, module: &Module) -> FxHashSet<MirFunctionId> {
+        let mut recursive = FxHashSet::default();
+        for func_id in module.functions.indices() {
+            let mut visiting = FxHashSet::default();
+            if self.function_reaches(module, func_id, func_id, &mut visiting) {
+                recursive.insert(func_id);
+            }
+        }
+        recursive
+    }
+
+    fn function_reaches(
+        &self,
+        module: &Module,
+        current: MirFunctionId,
+        target: MirFunctionId,
+        visiting: &mut FxHashSet<MirFunctionId>,
+    ) -> bool {
+        if !visiting.insert(current) {
+            return false;
+        }
+
+        for callee in self.function_callees(module.function(current)) {
+            if callee == target || self.function_reaches(module, callee, target, visiting) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn function_callees(&self, func: &Function) -> Vec<MirFunctionId> {
+        let mut callees = Vec::new();
+        for block in func.blocks.iter() {
+            for &inst_id in &block.instructions {
+                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+                    callees.push(function);
+                }
+            }
+        }
+        callees
     }
 
     fn find_next_call(
@@ -766,34 +833,39 @@ impl MirInliner {
         summary: MirInlineSummary,
         call_count: usize,
     ) -> bool {
+        let single_call = self.config.inline_single_call && call_count == 1;
+
         if caller == site.callee
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi
             || summary.has_unsupported_terminator
             || summary.return_count == 0
-            || summary.block_count > self.config.max_blocks
         {
             return false;
         }
 
-        let single_call = self.config.inline_single_call && call_count == 1;
-        let limit = if single_call {
-            self.config.max_single_call_instructions
-        } else {
-            self.config.max_instructions
-        };
-        if summary.instruction_count > limit {
+        if single_call {
+            if summary.instruction_count > self.config.max_single_call_sanity_instructions {
+                return false;
+            }
+        } else if summary.block_count > self.config.max_blocks
+            || summary.instruction_count > self.config.max_instructions
+        {
             return false;
         }
 
         // Multi-use stateful callees are usually not worth cloning unless the
-        // call is hot and tiny. Single-call callees disappear from emitted
-        // runtime bytecode after inlining, so they are allowed through the
-        // normal code-growth check below.
+        // call is hot or the body is no larger than the internal-call protocol
+        // it replaces. Single-call callees disappear from emitted runtime
+        // bytecode after inlining, so they are allowed through the normal
+        // code-growth check below.
         if !single_call
             && site.loop_depth == 0
             && (summary.has_storage_write || summary.has_external_call || summary.has_log)
+            && summary.estimated_code_size
+                > estimated_internal_call_code_size(site)
+                    + estimated_internal_return_code_size(summary, site)
         {
             return false;
         }
@@ -836,12 +908,6 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
         ..MirInlineSummary::default()
     };
 
-    for value in func.values.iter() {
-        if matches!(value, Value::Phi { .. }) {
-            summary.has_phi = true;
-        }
-    }
-
     for block in func.blocks.iter() {
         summary.instruction_count += block.instructions.len();
         for &inst_id in &block.instructions {
@@ -878,6 +944,12 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
                 let term_cost = estimate_terminator_cost(term);
                 summary.estimated_code_size += term_cost.code_size;
                 summary.estimated_runtime_gas += term_cost.runtime_gas;
+            }
+            // A void internal function returns via `Stop` (the backend lowers it
+            // to an internal return). Treat it as a return point so void callees
+            // can be inlined.
+            Some(Terminator::Stop) if func.returns.is_empty() => {
+                summary.return_count += 1;
             }
             Some(Terminator::Jump(_))
             | Some(Terminator::Branch { .. })
@@ -959,6 +1031,8 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         | InstKind::ReturnDataCopy(..) => (12, 1),
         InstKind::MSize | InstKind::CodeSize | InstKind::ReturnDataSize => (2, 1),
         InstKind::InternalFrameAddr(_) => (6, 3),
+        // PUSH32 placeholder patched at deploy time.
+        InstKind::LoadImmutable(_) => (3, 33),
         InstKind::ExtCodeSize(..)
         | InstKind::ExtCodeHash(..)
         | InstKind::Balance(..)
@@ -1066,12 +1140,12 @@ fn inline_call_impl(
     else {
         return None;
     };
-    if returns > 1 || returns != callee.returns.len() {
+    if returns != callee.returns.len() {
         return None;
     }
 
     let call_result = find_inst_result(caller, call_inst);
-    if returns == 1 && call_result.is_none() {
+    if returns > 0 && call_result.is_none() {
         return None;
     }
 
@@ -1095,10 +1169,15 @@ fn inline_call_impl(
     cloner.caller.blocks[call_block].terminator = Some(Terminator::Jump(cloned_entry));
 
     let mut replacements = FxHashMap::default();
-    if returns == 1 {
-        let return_value =
-            build_return_value(cloner.caller, continuation, &callee.returns, &cloner.return_edges)?;
-        replacements.insert(call_result?, return_value);
+    if returns > 0 {
+        let return_values = build_return_values(
+            cloner.caller,
+            continuation,
+            &callee.returns,
+            &cloner.return_edges,
+        )?;
+        replacements.insert(call_result?, return_values[0]);
+        insert_extra_return_stores(cloner.caller, continuation, &return_values[1..]);
     }
 
     replace_uses(cloner.caller, &replacements);
@@ -1180,7 +1259,7 @@ impl<'a> InlineCloner<'a> {
         let cloned = match self.callee.values[value].clone() {
             Value::Immediate(imm) => self.caller.alloc_value(Value::Immediate(imm)),
             Value::Undef(ty) => self.caller.alloc_value(Value::Undef(ty)),
-            Value::Arg { .. } | Value::Inst(_) | Value::Phi { .. } => return None,
+            Value::Arg { .. } | Value::Inst(_) => return None,
         };
         self.value_map.insert(value, cloned);
         Some(cloned)
@@ -1245,6 +1324,7 @@ impl<'a> InlineCloner<'a> {
                 InstKind::InternalFrameAddr(self.frame_base + offset)
             }
             InstKind::CodeSize => InstKind::CodeSize,
+            InstKind::LoadImmutable(offset) => InstKind::LoadImmutable(offset),
             InstKind::CodeCopy(a, b, c) => {
                 InstKind::CodeCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }
@@ -1397,6 +1477,11 @@ impl<'a> InlineCloner<'a> {
                 self.return_edges.push((cloned_block, mapped));
                 Terminator::Jump(continuation)
             }
+            // A void callee's `Stop` is an internal return with no values.
+            Terminator::Stop if self.callee.returns.is_empty() => {
+                self.return_edges.push((cloned_block, SmallVec::new()));
+                Terminator::Jump(continuation)
+            }
             Terminator::Revert { offset, size } => Terminator::Revert {
                 offset: self.clone_value(*offset)?,
                 size: self.clone_value(*size)?,
@@ -1409,22 +1494,43 @@ impl<'a> InlineCloner<'a> {
     }
 }
 
-fn build_return_value(
+fn build_return_values(
     caller: &mut Function,
     continuation: BlockId,
     return_tys: &[MirType],
     return_edges: &[(BlockId, SmallVec<[ValueId; 2]>)],
-) -> Option<ValueId> {
-    if return_tys.len() != 1 {
-        return None;
+) -> Option<Vec<ValueId>> {
+    let mut values = Vec::with_capacity(return_tys.len());
+    for (index, &ty) in return_tys.iter().enumerate() {
+        let incoming = return_edges
+            .iter()
+            .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
+            .collect::<Option<Vec<_>>>()?;
+        let phi = caller.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(ty)));
+        caller.blocks[continuation].instructions.insert(index, phi);
+        values.push(caller.alloc_value(Value::Inst(phi)));
     }
-    let incoming = return_edges
+    Some(values)
+}
+
+fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, values: &[ValueId]) {
+    if values.is_empty() {
+        return;
+    }
+
+    // Insert the stores right after the continuation block's leading phis.
+    let phi_count = caller.blocks[continuation]
+        .instructions
         .iter()
-        .map(|(block, values)| Some((*block, *values.first()?)))
-        .collect::<Option<Vec<_>>>()?;
-    let phi = caller.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(return_tys[0])));
-    caller.blocks[continuation].instructions.insert(0, phi);
-    Some(caller.alloc_value(Value::Inst(phi)))
+        .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
+        .count();
+
+    for (index, &value) in values.iter().enumerate() {
+        let offset = caller
+            .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
+        let store = caller.alloc_inst(Instruction::new(InstKind::MStore(offset, value), None));
+        caller.blocks[continuation].instructions.insert(phi_count + index, store);
+    }
 }
 
 fn redirect_phi_predecessors(
@@ -1448,16 +1554,6 @@ fn redirect_phi_predecessors(
             }
         }
     }
-
-    for value in func.values.iter_mut() {
-        if let Value::Phi { incoming, .. } = value {
-            for (pred, _) in incoming {
-                if *pred == old_pred {
-                    *pred = new_pred;
-                }
-            }
-        }
-    }
 }
 
 fn find_inst_result(func: &Function, inst: InstId) -> Option<ValueId> {
@@ -1473,13 +1569,6 @@ fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>)
 
     for inst in func.instructions.iter_mut() {
         replace_inst_operands(&mut inst.kind, replacements);
-    }
-    for value in func.values.iter_mut() {
-        if let Value::Phi { incoming, .. } = value {
-            for (_, value) in incoming {
-                *value = replacements.get(value).copied().unwrap_or(*value);
-            }
-        }
     }
     for block in func.blocks.iter_mut() {
         if let Some(term) = &mut block.terminator {

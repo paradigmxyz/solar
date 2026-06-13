@@ -1,0 +1,152 @@
+// === ROOT/tests/ui/codegen/event_dynamic_data.sol:EventDynamicData ===
+; module @EventDynamicData
+fn @text(arg0: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = add 4, arg0
+    v9 = calldataload v8
+    v11 = add v9, 31
+    v12 = not 31
+    v13 = and v11, v12
+    v15 = add v13, 32
+    v17 = mload 64 !metadata(memory=scratch)
+    v18 = add v17, v15
+    mstore 64, v18 !metadata(memory=scratch)
+    mstore v17, v9
+    v22 = add v17, 32
+    v23 = add v8, 32
+    calldatacopy v22, v23, v9
+    v30 = mload 64 !metadata(memory=scratch)
+    v32 = add v30, 64
+    v33 = sub v32, v30
+    mstore v30, v33
+    v35 = mload v17
+    mstore v32, v35
+    v39 = not 31
+    v40 = add v35, 31
+    v41 = and v40, v39
+    v42 = add v32, 32
+    v43 = iszero v41
+    br v43, bb4, bb3
+  bb3:
+    v44 = sub v41, 32
+    v45 = add v42, v44
+    mstore v45, 0
+    jump bb4
+  bb4:
+    v48 = add v17, 32
+    v49 = add v42, v41
+    mcopy v42, v48, v35
+    v52 = add v30, 32
+    mstore v52, 7
+    v54 = sub v49, v30
+    v56 = add v54, 31
+    v57 = not 31
+    v58 = and v56, v57
+    v59 = add v30, v58
+    mstore 64, v59 !metadata(memory=scratch)
+    log2 v30, v54, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 1
+    stop
+}
+
+fn @literal() {
+  bb0 (entry):
+    v3 = mload 64 !metadata(memory=scratch)
+    v5 = add v3, 64
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v3, 5
+    v11 = add v3, 32
+    v14 = add v11, 0
+    mstore v14, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    v19 = mload 64 !metadata(memory=scratch)
+    v21 = add v19, 64
+    v22 = sub v21, v19
+    mstore v19, v22
+    v24 = mload v3
+    mstore v21, v24
+    v28 = not 31
+    v29 = add v24, 31
+    v30 = and v29, v28
+    v31 = add v21, 32
+    v32 = iszero v30
+    br v32, bb2, bb1
+  bb1:
+    v33 = sub v30, 32
+    v34 = add v31, v33
+    mstore v34, 0
+    jump bb2
+  bb2:
+    v37 = add v3, 32
+    v38 = add v31, v30
+    mcopy v31, v37, v24
+    v41 = add v19, 32
+    mstore v41, 9
+    v43 = sub v38, v19
+    v45 = add v43, 31
+    v46 = not 31
+    v47 = and v45, v46
+    v48 = add v19, v47
+    mstore 64, v48 !metadata(memory=scratch)
+    log2 v19, v43, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
+    stop
+}
+
+fn @blob(arg0: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = add 4, arg0
+    v9 = calldataload v8
+    v11 = add v9, 31
+    v12 = not 31
+    v13 = and v11, v12
+    v15 = add v13, 32
+    v17 = mload 64 !metadata(memory=scratch)
+    v18 = add v17, v15
+    mstore 64, v18 !metadata(memory=scratch)
+    mstore v17, v9
+    v22 = add v17, 32
+    v23 = add v8, 32
+    calldatacopy v22, v23, v9
+    v28 = mload 64 !metadata(memory=scratch)
+    v30 = add v28, 32
+    v31 = sub v30, v28
+    mstore v28, v31
+    v33 = mload v17
+    mstore v30, v33
+    v37 = not 31
+    v38 = add v33, 31
+    v39 = and v38, v37
+    v40 = add v30, 32
+    v41 = iszero v39
+    br v41, bb4, bb3
+  bb3:
+    v42 = sub v39, 32
+    v43 = add v40, v42
+    mstore v43, 0
+    jump bb4
+  bb4:
+    v46 = add v17, 32
+    v47 = add v40, v39
+    mcopy v40, v46, v33
+    v49 = sub v47, v28
+    v51 = add v49, 31
+    v52 = not 31
+    v53 = and v51, v52
+    v54 = add v28, v53
+    mstore 64, v54 !metadata(memory=scratch)
+    log1 v28, v49, 0xd05ce3dc4caf4a4b252e3323bde615dc3b9d54623e1859c892f0b4ecf5e45164
+    stop
+}
+

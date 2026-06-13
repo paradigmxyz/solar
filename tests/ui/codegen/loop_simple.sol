@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract LoopSimple {
     function sum_to(uint256 n) public pure returns (uint256) {

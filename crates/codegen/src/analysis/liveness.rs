@@ -6,12 +6,9 @@
 //!
 //! The analysis uses dense bitsets indexed by `ValueId` for efficiency.
 //!
-//! # Phi node handling
-//!
-//! Phi values (`Value::Phi`) are not instructions — they exist only in the value table.
-//! Their incoming operands are treated as uses at the **exit** of the corresponding
-//! predecessor block (standard SSA liveness convention). The phi result is treated as
-//! defined at the **entry** of the merge block.
+//! Phi nodes are ordinary instructions (`InstKind::Phi`): their incoming operands are
+//! treated as uses at the phi instruction in the merge block, and the phi result is
+//! defined like any other instruction result.
 
 use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
 use smallvec::SmallVec;
@@ -224,57 +221,9 @@ impl Liveness {
             }
         }
 
-        // Handle phi values (Value::Phi).
-        //
-        // Phi nodes are not instructions — they live in the value table.
-        // We need two pieces of information for the phi-aware dataflow:
-        //   - phi_defs[B] = set of ValueIds defined by phis at the entry of B
-        //   - phi_uses: for each (succ_block, pred_block) pair, the set of ValueIds that flow from
-        //     pred to succ via a phi
-        //
-        // The phi-aware live_out equation is:
-        //   live_out(B) = union over S in succ(B) of:
-        //       (live_in(S) - phi_defs(S)) | phi_uses(S, B)
-        let mut phi_defs: Vec<LiveSet> =
-            (0..num_blocks).map(|_| LiveSet::with_capacity(num_values)).collect();
-        // phi_uses_map[(succ, pred)] = set of values flowing from pred to succ via phi.
-        let mut phi_uses_map: FxHashMap<(usize, usize), LiveSet> = FxHashMap::default();
-
-        for (val_id, val) in func.values.iter_enumerated() {
-            if let Value::Phi { incoming, .. } = val {
-                // Find the merge block for this phi.
-                if let Some(&(first_pred, _)) = incoming.first() {
-                    let successors = func.blocks[first_pred]
-                        .terminator
-                        .as_ref()
-                        .map(Terminator::successors)
-                        .unwrap_or_default();
-                    for succ in successors {
-                        let succ_preds = &func.blocks[succ].predecessors;
-                        if incoming.iter().all(|(pred, _)| succ_preds.contains(pred)) {
-                            // succ is the merge block — phi is defined here.
-                            block_defs[succ.index()].insert(val_id);
-                            phi_defs[succ.index()].insert(val_id);
-                            // Record phi_uses for each predecessor.
-                            for &(pred_block, operand) in incoming {
-                                phi_uses_map
-                                    .entry((succ.index(), pred_block.index()))
-                                    .or_insert_with(|| LiveSet::with_capacity(num_values))
-                                    .insert(operand);
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
         // Worklist algorithm for computing live_in/live_out.
         //
-        // Phi-aware live_out:
-        //   live_out(B) = union over S in succ(B) of:
-        //       (live_in(S) - phi_defs(S)) | phi_uses(S, B)
-        //
+        // live_out(B) = union over S in succ(B) of live_in(S)
         // live_in(B) = block_uses(B) | (live_out(B) - block_defs(B))
         let mut worklist: VecDeque<BlockId> = func.blocks.indices().collect();
 
@@ -282,19 +231,11 @@ impl Liveness {
             let bidx = block_id.index();
             let block = &func.blocks[block_id];
 
-            // Phi-aware live_out.
             let mut new_live_out = LiveSet::with_capacity(num_values);
             let successors =
                 block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
             for succ in successors {
-                // (live_in(S) - phi_defs(S))
-                let mut contribution = block_liveness[succ.index()].live_in.clone();
-                contribution.subtract(&phi_defs[succ.index()]);
-                // | phi_uses(S, B)
-                if let Some(pu) = phi_uses_map.get(&(succ.index(), bidx)) {
-                    contribution.union_with(pu);
-                }
-                new_live_out.union_with(&contribution);
+                new_live_out.union_with(&block_liveness[succ.index()].live_in);
             }
 
             // live_in = use ∪ (live_out - def)
@@ -919,11 +860,9 @@ mod tests {
 
     #[test]
     fn test_phi_liveness() {
-        // The fix in this commit added phi handling to the liveness analysis.
-        // Value::Phi nodes are not instructions — they live in the value table.
-        // Their incoming operands must be live at the EXIT of the predecessor
-        // block, and the phi result must be defined at the ENTRY of the merge
-        // block.
+        // Phi nodes are ordinary instructions (`InstKind::Phi`): their incoming
+        // operands are uses at the phi instruction in the merge block, and the
+        // phi result is defined like any other instruction result.
         //
         // entry: jump header
         // header: phi_val = phi [(entry, init), (body, updated)]
@@ -939,7 +878,7 @@ mod tests {
         let exit;
         let init;
         let updated;
-        let phi_placeholder; // ValueId slot we'll replace with a real Phi.
+        let phi_placeholder; // ValueId slot we'll point at the phi instruction.
         {
             let mut b = FunctionBuilder::new(&mut func);
             init = b.imm_u64(0);
@@ -951,7 +890,7 @@ mod tests {
             b.jump(header);
 
             b.switch_to_block(header);
-            // Allocate a placeholder for the phi (an undef that we'll replace).
+            // Allocate a placeholder for the phi result (an undef that we'll replace).
             phi_placeholder = b.undef(MirType::uint256());
             let limit = b.imm_u64(10);
             let cond = b.lt(phi_placeholder, limit);
@@ -966,18 +905,21 @@ mod tests {
             b.ret([phi_placeholder]);
         }
 
-        // Phase 2: replace the placeholder with a real Value::Phi.
+        // Phase 2: insert the phi instruction at the head of `header` and point
+        // the placeholder value at its result.
         let phi_val = phi_placeholder;
-        func.values[phi_val] = crate::mir::Value::Phi {
-            ty: MirType::uint256(),
-            incoming: vec![(entry, init), (body, updated)],
-        };
+        let phi_inst = func.alloc_inst(crate::mir::Instruction::new(
+            crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
+            Some(MirType::uint256()),
+        ));
+        func.blocks[header].instructions.insert(0, phi_inst);
+        func.values[phi_val] = crate::mir::Value::Inst(phi_inst);
 
         let liveness = Liveness::compute(&func);
 
-        // init must be live-out of entry (flows to phi in header).
+        // init must be live-out of entry (used by the phi in header).
         assert!(liveness.live_out(entry).contains(init), "init live-out of entry");
-        // updated must be live-out of body (flows back to phi via back-edge).
+        // updated must be live-out of body (flows back to the phi via the back-edge).
         assert!(liveness.live_out(body).contains(updated), "updated live-out of body");
         // phi_val must be live-in to body and exit (used by add and ret).
         assert!(liveness.live_in(body).contains(phi_val), "phi_val live-in to body");

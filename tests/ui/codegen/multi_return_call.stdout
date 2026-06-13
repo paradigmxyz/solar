@@ -26,20 +26,27 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
 ; module @C
 fn @sat(arg0: u256, arg1: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = internal_call fn1, 2, arg0, arg1
-    mstore 160, v5
-    v9 = mload 32 !metadata(memory=scratch)
-    mstore 192, v9
-    v13 = mload 160
-    v14 = iszero v13
-    br v14, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
   bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = internal_call fn1, 2, arg0, arg1
+    mstore 160, v11
+    v15 = mload 32 !metadata(memory=scratch)
+    mstore 192, v15
+    v19 = mload 160
+    v20 = iszero v19
+    br v20, bb3, bb4
+  bb3:
     mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     returndata 128, 32
-  bb2:
-    v20 = mload 192
-    mstore 128, v20
+  bb4:
+    v26 = mload 192
+    mstore 128, v26
     returndata 128, 32
 }
 
@@ -67,13 +74,20 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
 
 fn @tryA(arg0: u256, arg1: u256) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
     mstore 160, 0
-    v8 = internal_call fn1, 2, arg0, arg1
-    v10 = mload 32 !metadata(memory=scratch)
-    mstore 128, v8
-    v14 = add 128, 32
-    mstore v14, v10
+    v14 = internal_call fn1, 2, arg0, arg1
+    v16 = mload 32 !metadata(memory=scratch)
+    mstore 128, v14
+    v20 = add 128, 32
+    mstore v20, v16
     returndata 128, 64
 }
 

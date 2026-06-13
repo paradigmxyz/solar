@@ -2,18 +2,43 @@
 ; module @Recursive
 fn @fact(arg0: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = gt arg0, 1
-    v6 = iszero v5
-    br v6, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
   bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = gt arg0, 1
+    v12 = iszero v11
+    br v12, bb3, bb4
+  bb3:
     mstore 128, 1
     returndata 128, 32
-  bb2:
-    v12 = sub arg0, 1
-    v13 = internal_call fn1, 1, v12
-    v14 = mul arg0, v13
-    mstore 128, v14
+  bb4:
+    v18 = sub arg0, 1
+    v19 = lt arg0, 1
+    br v19, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v27 = internal_call fn1, 1, v18
+    v28 = mul arg0, v27
+    v29 = iszero v27
+    v30 = div v28, v27
+    v31 = eq v30, arg0
+    v32 = or v29, v31
+    v33 = iszero v32
+    br v33, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 128, v28
     returndata 128, 32
 }
 
@@ -28,27 +53,73 @@ fn @fact(arg0: u256) -> u256 {
     ret 1
   bb2:
     v9 = sub arg0, 1
-    v10 = internal_call fn1, 1, v9
-    v11 = mul arg0, v10
-    ret v11
+    v10 = lt arg0, 1
+    br v10, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v18 = internal_call fn1, 1, v9
+    v19 = mul arg0, v18
+    v20 = iszero v18
+    v21 = div v19, v18
+    v22 = eq v21, arg0
+    v23 = or v20, v22
+    v24 = iszero v23
+    br v24, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    ret v19
 }
 
 fn @fib(arg0: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = gt arg0, 1
-    v6 = iszero v5
-    br v6, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
   bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = gt arg0, 1
+    v12 = iszero v11
+    br v12, bb3, bb4
+  bb3:
     mstore 128, arg0
     returndata 128, 32
-  bb2:
-    v11 = sub arg0, 1
-    v12 = internal_call fn3, 1, v11
-    v14 = sub arg0, 2
-    v15 = internal_call fn3, 1, v14
-    v16 = add v12, v15
-    mstore 128, v16
+  bb4:
+    v17 = sub arg0, 1
+    v18 = lt arg0, 1
+    br v18, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v26 = internal_call fn3, 1, v17
+    v28 = sub arg0, 2
+    v29 = lt arg0, 2
+    br v29, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v37 = internal_call fn3, 1, v28
+    v38 = add v26, v37
+    v39 = lt v38, v26
+    br v39, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    mstore 128, v38
     returndata 128, 32
 }
 
@@ -63,25 +134,60 @@ fn @fib(arg0: u256) -> u256 {
     ret arg0
   bb2:
     v8 = sub arg0, 1
-    v9 = internal_call fn3, 1, v8
-    v11 = sub arg0, 2
-    v12 = internal_call fn3, 1, v11
-    v13 = add v9, v12
-    ret v13
+    v9 = lt arg0, 1
+    br v9, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v17 = internal_call fn3, 1, v8
+    v19 = sub arg0, 2
+    v20 = lt arg0, 2
+    br v20, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v28 = internal_call fn3, 1, v19
+    v29 = add v17, v28
+    v30 = lt v29, v17
+    br v30, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    ret v29
 }
 
 fn @isEven(arg0: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = eq arg0, 0
-    br v5, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
   bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = eq arg0, 0
+    br v11, bb3, bb4
+  bb3:
     mstore 128, 1
     returndata 128, 32
-  bb2:
-    v11 = sub arg0, 1
-    v12 = internal_call fn5, 1, v11
-    mstore 128, v12
+  bb4:
+    v17 = sub arg0, 1
+    v18 = lt arg0, 1
+    br v18, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v26 = internal_call fn5, 1, v17
+    mstore 128, v26
     returndata 128, 32
 }
 
@@ -95,8 +201,15 @@ fn @isOdd(arg0: u256) -> bool {
     ret 0
   bb2:
     v8 = sub arg0, 1
-    v9 = internal_call fn6, 1, v8
-    ret v9
+    v9 = lt arg0, 1
+    br v9, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v17 = internal_call fn6, 1, v8
+    ret v17
 }
 
 fn @isEven(arg0: u256) -> bool {
@@ -109,22 +222,43 @@ fn @isEven(arg0: u256) -> bool {
     ret 1
   bb2:
     v8 = sub arg0, 1
-    v9 = internal_call fn5, 1, v8
-    ret v9
+    v9 = lt arg0, 1
+    br v9, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v17 = internal_call fn5, 1, v8
+    ret v17
 }
 
 fn @isOdd(arg0: u256) {
   bb0 (entry):
-    mstore 128, 0
-    v5 = eq arg0, 0
-    br v5, bb1, bb2
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
   bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = eq arg0, 0
+    br v11, bb3, bb4
+  bb3:
     mstore 128, 0
     returndata 128, 32
-  bb2:
-    v11 = sub arg0, 1
-    v12 = internal_call fn6, 1, v11
-    mstore 128, v12
+  bb4:
+    v17 = sub arg0, 1
+    v18 = lt arg0, 1
+    br v18, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v26 = internal_call fn6, 1, v17
+    mstore 128, v26
     returndata 128, 32
 }
 

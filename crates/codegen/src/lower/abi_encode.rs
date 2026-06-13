@@ -65,7 +65,12 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// `base + off` (or `base` when `off == 0`).
-    fn offset_ptr(&self, builder: &mut FunctionBuilder<'_>, base: ValueId, off: u64) -> ValueId {
+    pub(super) fn offset_ptr(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        off: u64,
+    ) -> ValueId {
         if off == 0 {
             base
         } else {
@@ -111,6 +116,39 @@ impl<'gcx> Lowerer<'gcx> {
             head_off += self.abi_head_size(ty);
         }
         builder.sub(tail, dest)
+    }
+
+    /// Emits ABI-encoded custom error data and terminates with `REVERT`.
+    pub(super) fn emit_abi_error_revert(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        selector: [u8; 4],
+        items: &[(ValueId, Ty<'gcx>)],
+    ) {
+        let head_size: u64 = items.iter().map(|&(_, ty)| self.abi_head_size(ty)).sum();
+        let scratch_words = self.abi_scratch_words(items);
+        let scratch_base =
+            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
+
+        let buf = self.allocate_memory(builder, 4 + head_size);
+        let selector = U256::from(u32::from_be_bytes(selector)) << 224;
+        let selector = builder.imm_u256(selector);
+        builder.mstore(buf, selector);
+
+        let args_base = self.offset_ptr(builder, buf, 4);
+        let args_size = if items.is_empty() {
+            builder.imm_u64(0)
+        } else {
+            self.abi_encode_tuple(
+                builder,
+                items,
+                args_base,
+                AbiScratch { base: scratch_base, depth: 0 },
+            )
+        };
+        let selector_size = builder.imm_u64(4);
+        let size = builder.add(args_size, selector_size);
+        builder.revert(buf, size);
     }
 
     /// Encodes one ABI tuple element. Dynamic values write their tail offset into
@@ -196,7 +234,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let data_dst = builder.add(dst, word);
                 let data_src = builder.add(value, word);
                 let new_tail = builder.add(data_dst, bytes);
-                builder.mcopy(data_dst, data_src, bytes);
+                self.mcopy(builder, data_dst, data_src, bytes, None);
                 new_tail
             }
             TyKind::DynArray(elem) => self.abi_encode_dynamic_array_body(
@@ -344,7 +382,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(copy_block);
         let data_src = builder.add(value, word);
         let new_tail = builder.add(data_dst, padded);
-        builder.mcopy(data_dst, data_src, len);
+        self.mcopy(builder, data_dst, data_src, len, None);
         new_tail
     }
 
@@ -412,7 +450,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.offset_ptr(builder, scratch_base, scratch_depth * 160 + slot * 32)
     }
 
-    fn abi_is_word_element(&self, ty: Ty<'gcx>) -> bool {
+    pub(super) fn abi_is_word_element(&self, ty: Ty<'gcx>) -> bool {
         match ty.peel_refs().kind {
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => false,
             TyKind::Elementary(_) | TyKind::Enum(_) | TyKind::Contract(_) => true,
@@ -421,7 +459,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn allocate_memory_dynamic(
+    pub(super) fn allocate_memory_dynamic(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         size: ValueId,
@@ -434,7 +472,190 @@ impl<'gcx> Lowerer<'gcx> {
         ptr
     }
 
-    fn lower_return_value_for_ty(
+    /// Resolves each argument's ABI type and lowers it to a `(value, type)`
+    /// item for the tuple encoder. Returns `None` when an argument's type
+    /// cannot be determined. Arguments are evaluated before any output buffer
+    /// is reserved: lowering an argument can allocate memory of its own.
+    fn lower_abi_encode_items(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arg_exprs: &[&solar_sema::hir::Expr<'_>],
+    ) -> Option<Vec<(ValueId, Ty<'gcx>)>> {
+        let mut tys = Vec::with_capacity(arg_exprs.len());
+        for arg in arg_exprs {
+            let ty = self.get_expr_type(arg)?;
+            // String literals encode as `string memory` values.
+            let ty = match ty.peel_refs().kind {
+                TyKind::StringLiteral(..) => self.gcx.types.string_ref.memory,
+                _ => ty,
+            };
+            tys.push(ty);
+        }
+        Some(
+            arg_exprs
+                .iter()
+                .zip(tys)
+                .map(|(arg, ty)| (self.lower_return_value_for_ty(builder, arg, ty), ty))
+                .collect(),
+        )
+    }
+
+    /// Lowers `abi.encode(...)` to a fresh `bytes memory` allocation
+    /// (`[length][ABI tuple encoding]`) from the free memory pointer and
+    /// returns the pointer. Returns `None` when an argument's type cannot be
+    /// determined.
+    pub(super) fn lower_abi_encode_to_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arg_exprs: &[&solar_sema::hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        let items = self.lower_abi_encode_items(builder, arg_exprs)?;
+        let scratch_words = self.abi_scratch_words(&items);
+        let scratch_base =
+            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
+
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let ptr = builder.mload(free_ptr_addr);
+        let word = builder.imm_u64(32);
+        let dest = builder.add(ptr, word);
+        let size = if items.is_empty() {
+            builder.imm_u64(0)
+        } else {
+            self.abi_encode_tuple(
+                builder,
+                &items,
+                dest,
+                AbiScratch { base: scratch_base, depth: 0 },
+            )
+        };
+        builder.mstore(ptr, size);
+
+        // Finalize the allocation: length word + encoded data. The tuple
+        // encoder itself never allocates (its scratch is reserved above), so
+        // nothing else writes into the buffer region before this bump. The
+        // encoded size is always a multiple of 32, keeping the free memory
+        // pointer word-aligned.
+        let total = builder.add(size, word);
+        let new_free_ptr = builder.add(ptr, total);
+        let free_ptr_addr = builder.imm_u64(0x40);
+        builder.mstore(free_ptr_addr, new_free_ptr);
+        Some(ptr)
+    }
+
+    /// Lowers `keccak256(abi.encode(...))` without materializing a `bytes`
+    /// object: the tuple encoding is staged at the unbumped free memory
+    /// pointer and hashed in place, like solc. Returns `None` when an
+    /// argument's type cannot be determined.
+    pub(super) fn lower_keccak_abi_encode(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arg_exprs: &[&solar_sema::hir::Expr<'_>],
+    ) -> Option<ValueId> {
+        let items = self.lower_abi_encode_items(builder, arg_exprs)?;
+        // Loop scratch must be a real allocation so it sits below the staging
+        // area read by the hash.
+        let scratch_words = self.abi_scratch_words(&items);
+        let scratch_base =
+            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
+
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let data = builder.mload(free_ptr_addr);
+        let size = if items.is_empty() {
+            builder.imm_u64(0)
+        } else {
+            self.abi_encode_tuple(
+                builder,
+                &items,
+                data,
+                AbiScratch { base: scratch_base, depth: 0 },
+            )
+        };
+        Some(builder.keccak256(data, size))
+    }
+
+    /// ABI-encodes already-lowered tuple items into a fresh allocation from
+    /// the free memory pointer and returns `(offset, size)`.
+    pub(super) fn abi_encode_items_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        items: &[(ValueId, Ty<'gcx>)],
+    ) -> (ValueId, ValueId) {
+        let zero = builder.imm_u64(0);
+        if items.is_empty() {
+            return (zero, zero);
+        }
+
+        let scratch_words = self.abi_scratch_words(items);
+        let scratch_base =
+            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
+
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let data = builder.mload(free_ptr_addr);
+        let size = self.abi_encode_tuple(
+            builder,
+            items,
+            data,
+            AbiScratch { base: scratch_base, depth: 0 },
+        );
+
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(size, thirty_one);
+        let mask = builder.not(thirty_one);
+        let aligned = builder.and(rounded, mask);
+        let new_free_ptr = builder.add(data, aligned);
+        let free_ptr_addr = builder.imm_u64(0x40);
+        builder.mstore(free_ptr_addr, new_free_ptr);
+
+        (data, size)
+    }
+
+    /// ABI-encodes call arguments (optionally prefixed by a left-aligned
+    /// 4-byte selector word) into a fresh allocation from the free memory
+    /// pointer. Returns `(offset, size)` of the encoded payload, or `None`
+    /// when an argument's type cannot be determined.
+    pub(super) fn abi_encode_call_payload(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        selector: Option<ValueId>,
+        arg_exprs: &[&solar_sema::hir::Expr<'_>],
+    ) -> Option<(ValueId, ValueId)> {
+        let items = self.lower_abi_encode_items(builder, arg_exprs)?;
+        let scratch_words = self.abi_scratch_words(&items);
+        let scratch_base =
+            (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
+
+        let sel_size = if selector.is_some() { 4u64 } else { 0 };
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let buf = builder.mload(free_ptr_addr);
+        if let Some(sel) = selector {
+            builder.mstore(buf, sel);
+        }
+        let dest = self.offset_ptr(builder, buf, sel_size);
+        let size = self.abi_encode_tuple(
+            builder,
+            &items,
+            dest,
+            AbiScratch { base: scratch_base, depth: 0 },
+        );
+        let sel_size_val = builder.imm_u64(sel_size);
+        let total = builder.add(size, sel_size_val);
+
+        // Finalize the allocation, keeping the free memory pointer
+        // word-aligned. The tuple encoder itself never allocates (its scratch
+        // is reserved above), so nothing else writes into the buffer region
+        // before this bump.
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(total, thirty_one);
+        let mask = builder.not(thirty_one);
+        let aligned = builder.and(rounded, mask);
+        let new_free_ptr = builder.add(buf, aligned);
+        let free_ptr_addr = builder.imm_u64(0x40);
+        builder.mstore(free_ptr_addr, new_free_ptr);
+
+        Some((buf, total))
+    }
+
+    pub(super) fn lower_return_value_for_ty(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &solar_sema::hir::Expr<'_>,
@@ -532,6 +753,125 @@ impl<'gcx> Lowerer<'gcx> {
 
         builder.switch_to_block(done_block);
         ptr
+    }
+
+    /// Encodes a memory `bytes`/`string` value (`[length][data...]` at `ptr`)
+    /// into a storage `bytes`/`string` at `slot` using Solidity's short/long
+    /// storage forms, then clears any leftover data slots from a previous
+    /// longer value.
+    pub(super) fn copy_memory_bytes_to_storage(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+        ptr: ValueId,
+    ) {
+        let len = builder.mload(ptr);
+        let word_size = builder.imm_u64(32);
+        let data = builder.add(ptr, word_size);
+
+        // Decode the previous value's data-word count so stale slots are cleared.
+        let old_word = builder.sload(slot);
+        let one = builder.imm_u64(1);
+        let old_long_bit = builder.and(old_word, one);
+        let old_is_long = builder.eq(old_long_bit, one);
+        let low_byte_mask = builder.imm_u64(0xff);
+        let old_len_low = builder.and(old_word, low_byte_mask);
+        let shift_one = builder.imm_u64(1);
+        let old_short_len = builder.shr(shift_one, old_len_low);
+        let old_long_len = builder.shr(shift_one, old_word);
+        let old_len = builder.select(old_is_long, old_long_len, old_short_len);
+        let thirty_one = builder.imm_u64(31);
+        let not_31 = builder.not(thirty_one);
+        let old_len_round = builder.add(old_len, thirty_one);
+        let old_padded = builder.and(old_len_round, not_31);
+        let old_words_long = builder.div(old_padded, word_size);
+        let zero = builder.imm_u64(0);
+        let old_words = builder.select(old_is_long, old_words_long, zero);
+
+        let new_len_round = builder.add(len, thirty_one);
+        let new_padded = builder.and(new_len_round, not_31);
+        let new_words_long = builder.div(new_padded, word_size);
+        let is_long = builder.gt(len, thirty_one);
+        let new_words = builder.select(is_long, new_words_long, zero);
+
+        // Loop counter scratch; its first word also stages `slot` for the
+        // data-slot keccak.
+        let scratch = self.allocate_memory(builder, 32);
+        builder.mstore(scratch, slot);
+        let data_slot = builder.keccak256(scratch, word_size);
+
+        let short_block = builder.create_block();
+        let long_block = builder.create_block();
+        let copy_cond = builder.create_block();
+        let copy_body = builder.create_block();
+        let clear_init = builder.create_block();
+        let clear_cond = builder.create_block();
+        let clear_body = builder.create_block();
+        let done_block = builder.create_block();
+
+        builder.branch(is_long, long_block, short_block);
+
+        // Short form: `data bytes | (len * 2)` packed into the main slot.
+        // Mask the loaded word to exactly `len` bytes: memory past the value
+        // is not guaranteed to be zero.
+        builder.switch_to_block(short_block);
+        let word = builder.mload(data);
+        let eight = builder.imm_u64(8);
+        let len_bits = builder.mul(len, eight);
+        let all_ones = builder.imm_u256(U256::MAX);
+        let low_mask = builder.shr(len_bits, all_ones);
+        let keep_mask = builder.not(low_mask);
+        let masked = builder.and(word, keep_mask);
+        let len_twice_short = builder.shl(shift_one, len);
+        let stored = builder.or(masked, len_twice_short);
+        builder.sstore(slot, stored);
+        builder.jump(clear_init);
+
+        // Long form: `len * 2 + 1` in the main slot, data words at
+        // `keccak256(slot) + i`.
+        builder.switch_to_block(long_block);
+        let len_twice_long = builder.shl(shift_one, len);
+        let main_word = builder.or(len_twice_long, one);
+        builder.sstore(slot, main_word);
+        builder.mstore(scratch, zero);
+        builder.jump(copy_cond);
+
+        builder.switch_to_block(copy_cond);
+        let i = builder.mload(scratch);
+        let more = builder.lt(i, new_words);
+        builder.branch(more, copy_body, clear_init);
+
+        builder.switch_to_block(copy_body);
+        let i = builder.mload(scratch);
+        let dst = builder.add(data_slot, i);
+        let src_off = builder.mul(i, word_size);
+        let src = builder.add(data, src_off);
+        let data_word = builder.mload(src);
+        builder.sstore(dst, data_word);
+        let next_i = builder.add(i, one);
+        builder.mstore(scratch, next_i);
+        builder.jump(copy_cond);
+
+        // Clear data slots `[new_words, old_words)` left over from a longer
+        // previous value.
+        builder.switch_to_block(clear_init);
+        builder.mstore(scratch, new_words);
+        builder.jump(clear_cond);
+
+        builder.switch_to_block(clear_cond);
+        let j = builder.mload(scratch);
+        let more_clear = builder.lt(j, old_words);
+        builder.branch(more_clear, clear_body, done_block);
+
+        builder.switch_to_block(clear_body);
+        let j = builder.mload(scratch);
+        let clear_dst = builder.add(data_slot, j);
+        builder.sstore(clear_dst, zero);
+        let next_j = builder.add(j, one);
+        builder.mstore(scratch, next_j);
+        builder.jump(clear_cond);
+
+        builder.switch_to_block(done_block);
     }
 
     /// Terminates the current function for the implicit-return epilogue's gathered

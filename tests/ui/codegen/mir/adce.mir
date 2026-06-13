@@ -1,0 +1,38 @@
+//@compile-flags: --pass adce
+; module @Adce
+fn @removes_dead_branch_region(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    v1 = add 1, 2
+    jump bb3
+  bb2:
+    v2 = mul 3, 4
+    jump bb3
+  bb3:
+    ret 7
+}
+
+fn @keeps_effectful_branch_region(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    mstore 0, 1
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    ret 7
+}
+
+fn @keeps_phi_target(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v1 = phi [bb1: 1], [bb2: 2]
+    ret v1
+}

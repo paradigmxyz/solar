@@ -7,9 +7,11 @@
 //! no intervening operation can mutate memory.
 
 use crate::{
-    mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
+    analysis::CfgInfo,
+    mir::{BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
 };
+use alloy_primitives::{U256, keccak256};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 /// Local dead memory optimization pass.
@@ -68,6 +70,7 @@ impl MemoryStoreEliminator {
         for block_id in block_ids {
             self.process_block(func, block_id);
         }
+        self.remove_cross_block_overwrites(func);
 
         self.eliminated_count
     }
@@ -87,7 +90,7 @@ impl MemoryStoreEliminator {
 
     fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
         let inst_results = Self::inst_results(func);
-        let dominators = Self::compute_dominators(func);
+        let cfg = CfgInfo::new(func);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
         let mut dead = FxHashSet::default();
@@ -119,7 +122,7 @@ impl MemoryStoreEliminator {
                 };
 
                 if let Some(cached_copy) = cached.get(&key).copied()
-                    && Self::copy_dominates(&dominators, cached_copy, block_id, index)
+                    && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
                 {
                     replacements.insert(loaded_value, cached_copy.value);
                     func.instructions[codecopy].kind = InstKind::MStore(dest, cached_copy.value);
@@ -182,7 +185,9 @@ impl MemoryStoreEliminator {
     }
 
     fn process_block(&mut self, func: &mut Function, block_id: BlockId) {
+        self.fold_constant_keccak(func, block_id);
         self.forward_loads(func, block_id);
+        self.remove_equal_stores(func, block_id);
 
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut overwritten: FxHashSet<MemAddrKey> = FxHashSet::default();
@@ -210,8 +215,186 @@ impl MemoryStoreEliminator {
                         overwritten.clear();
                     }
                 }
+                InstKind::CalldataCopy(dest, _, size)
+                | InstKind::CodeCopy(dest, _, size)
+                | InstKind::ReturnDataCopy(dest, _, size) => {
+                    if !Self::insert_full_word_overwritten_range(
+                        func,
+                        &mut overwritten,
+                        *dest,
+                        *size,
+                    ) {
+                        overwritten.clear();
+                    }
+                }
+                InstKind::ExtCodeCopy(_, dest, _, size) => {
+                    if !Self::insert_full_word_overwritten_range(
+                        func,
+                        &mut overwritten,
+                        *dest,
+                        *size,
+                    ) {
+                        overwritten.clear();
+                    }
+                }
                 kind if Self::is_memory_or_gas_observer(kind) => {
                     overwritten.clear();
+                }
+                _ => {}
+            }
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+
+        func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+    }
+
+    fn remove_cross_block_overwrites(&mut self, func: &mut Function) {
+        let mut dead = FxHashSet::default();
+
+        for pred in func.blocks.indices() {
+            let Some(succ) = Self::single_jump_successor(func, pred) else {
+                continue;
+            };
+            if func.blocks[succ].predecessors.as_slice() != [pred] {
+                continue;
+            }
+
+            let Some((store, pred_key)) = self.last_cross_block_store_candidate(func, pred) else {
+                continue;
+            };
+            let Some(succ_key) = self.first_cross_block_overwrite(func, succ) else {
+                continue;
+            };
+            if pred_key == succ_key {
+                dead.insert(store);
+            }
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+
+        self.eliminated_count += dead.len();
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|id| !dead.contains(id));
+        }
+    }
+
+    fn single_jump_successor(func: &Function, block: BlockId) -> Option<BlockId> {
+        let Some(Terminator::Jump(target)) = func.blocks[block].terminator.as_ref() else {
+            return None;
+        };
+        Some(*target)
+    }
+
+    fn last_cross_block_store_candidate(
+        &self,
+        func: &Function,
+        block: BlockId,
+    ) -> Option<(InstId, MemAddrKey)> {
+        for &inst_id in func.blocks[block].instructions.iter().rev() {
+            match func.instructions[inst_id].kind {
+                InstKind::MStore(addr, _) => {
+                    let key = self.mem_addr_key(func, addr)?;
+                    return Some((inst_id, key));
+                }
+                ref kind if Self::cross_block_memory_barrier(kind) => return None,
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn first_cross_block_overwrite(&self, func: &Function, block: BlockId) -> Option<MemAddrKey> {
+        for &inst_id in &func.blocks[block].instructions {
+            match func.instructions[inst_id].kind {
+                InstKind::MStore(addr, _) => return self.mem_addr_key(func, addr),
+                ref kind if Self::cross_block_memory_barrier(kind) => return None,
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn fold_constant_keccak(&mut self, func: &mut Function, block_id: BlockId) {
+        let inst_ids = func.blocks[block_id].instructions.clone();
+        let inst_results = Self::inst_results(func);
+        let mut stored_words: FxHashMap<MemAddrKey, U256> = FxHashMap::default();
+        let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
+        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+
+        for &inst_id in &inst_ids {
+            match &func.instructions[inst_id].kind {
+                InstKind::MStore(addr, value) => {
+                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                        stored_words.clear();
+                        continue;
+                    };
+                    Self::remove_overlapping_map(&mut stored_words, key);
+                    if let Some(value) = Self::as_u256(func, *value) {
+                        stored_words.insert(key, value);
+                    }
+                }
+                InstKind::Keccak256(offset, size) => {
+                    let Some(bytes) =
+                        Self::constant_memory_bytes(func, &stored_words, *offset, *size)
+                    else {
+                        continue;
+                    };
+                    let Some(&result) = inst_results.get(&inst_id) else {
+                        continue;
+                    };
+                    let hash = keccak256(&bytes);
+                    let replacement = func.alloc_value(Value::Immediate(Immediate::uint256(
+                        U256::from_be_bytes(hash.0),
+                    )));
+                    replacements.insert(result, replacement);
+                    dead.insert(inst_id);
+                    self.eliminated_count += 1;
+                }
+                kind if Self::can_mutate_memory(kind) => {
+                    stored_words.clear();
+                }
+                _ => {}
+            }
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+
+        Self::replace_uses(func, &replacements);
+        func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+    }
+
+    fn remove_equal_stores(&mut self, func: &mut Function, block_id: BlockId) {
+        let inst_ids = func.blocks[block_id].instructions.clone();
+        let mut stored_values: FxHashMap<MemAddrKey, ValueId> = FxHashMap::default();
+        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+
+        for &inst_id in &inst_ids {
+            let inst = &func.instructions[inst_id];
+            match &inst.kind {
+                InstKind::MStore(addr, value) => {
+                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                        stored_values.clear();
+                        continue;
+                    };
+
+                    if stored_values.get(&key).is_some_and(|&stored| stored == *value) {
+                        dead.insert(inst_id);
+                        self.eliminated_count += 1;
+                        continue;
+                    }
+
+                    Self::remove_overlapping_map(&mut stored_values, key);
+                    stored_values.insert(key, *value);
+                }
+                kind if Self::can_mutate_memory(kind) => {
+                    stored_values.clear();
                 }
                 _ => {}
             }
@@ -236,7 +419,15 @@ impl MemoryStoreEliminator {
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
                     if let Some(key) = self.mem_addr_key(func, *addr) {
-                        Self::remove_overlapping_map(&mut stored_values, key);
+                        if !Self::remove_overlapping_write_range(
+                            func,
+                            &mut stored_values,
+                            *addr,
+                            32,
+                        ) {
+                            stored_values.clear();
+                            continue;
+                        }
                         stored_values.insert(key, Self::resolve_replacement(&replacements, *value));
                     } else {
                         stored_values.clear();
@@ -252,6 +443,33 @@ impl MemoryStoreEliminator {
                     if let Some(&loaded_value) = inst_results.get(&inst_id) {
                         replacements.insert(loaded_value, stored_value);
                         dead.insert(inst_id);
+                    }
+                }
+                InstKind::MStore8(addr, _) => {
+                    if !Self::remove_overlapping_write_range(func, &mut stored_values, *addr, 1) {
+                        stored_values.clear();
+                    }
+                }
+                InstKind::CalldataCopy(dest, _, size)
+                | InstKind::CodeCopy(dest, _, size)
+                | InstKind::ReturnDataCopy(dest, _, size) => {
+                    let Some(size) = Self::as_u64(func, *size) else {
+                        stored_values.clear();
+                        continue;
+                    };
+                    if !Self::remove_overlapping_write_range(func, &mut stored_values, *dest, size)
+                    {
+                        stored_values.clear();
+                    }
+                }
+                InstKind::ExtCodeCopy(_, dest, _, size) => {
+                    let Some(size) = Self::as_u64(func, *size) else {
+                        stored_values.clear();
+                        continue;
+                    };
+                    if !Self::remove_overlapping_write_range(func, &mut stored_values, *dest, size)
+                    {
+                        stored_values.clear();
                     }
                 }
                 kind if Self::can_mutate_memory(kind) => {
@@ -317,9 +535,7 @@ impl MemoryStoreEliminator {
                     .or(Some(MemAddrKey::BaseOffset { base: value, offset: 0 })),
                 _ => Some(MemAddrKey::BaseOffset { base: value, offset: 0 }),
             },
-            Value::Arg { .. } | Value::Phi { .. } => {
-                Some(MemAddrKey::BaseOffset { base: value, offset: 0 })
-            }
+            Value::Arg { .. } => Some(MemAddrKey::BaseOffset { base: value, offset: 0 }),
             Value::Undef(_) => None,
         }
     }
@@ -369,51 +585,8 @@ impl MemoryStoreEliminator {
         matches!(func.values[value], Value::Inst(inst_id) if matches!(func.instructions[inst_id].kind, InstKind::CodeSize))
     }
 
-    fn compute_dominators(func: &Function) -> FxHashMap<BlockId, FxHashSet<BlockId>> {
-        let all_blocks: FxHashSet<BlockId> = func.blocks.indices().collect();
-        let mut dominators = FxHashMap::default();
-
-        for block_id in func.blocks.indices() {
-            if block_id == func.entry_block {
-                dominators.insert(block_id, FxHashSet::from_iter([block_id]));
-            } else {
-                dominators.insert(block_id, all_blocks.clone());
-            }
-        }
-
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                if block_id == func.entry_block {
-                    continue;
-                }
-
-                let mut new_doms: Option<FxHashSet<BlockId>> = None;
-                for &pred in &block.predecessors {
-                    let Some(pred_doms) = dominators.get(&pred) else {
-                        continue;
-                    };
-                    match &mut new_doms {
-                        Some(doms) => doms.retain(|block| pred_doms.contains(block)),
-                        None => new_doms = Some(pred_doms.clone()),
-                    }
-                }
-
-                let mut new_doms = new_doms.unwrap_or_default();
-                new_doms.insert(block_id);
-                if dominators.get(&block_id) != Some(&new_doms) {
-                    dominators.insert(block_id, new_doms);
-                    changed = true;
-                }
-            }
-        }
-
-        dominators
-    }
-
     fn copy_dominates(
-        dominators: &FxHashMap<BlockId, FxHashSet<BlockId>>,
+        dominators: &crate::analysis::DominatorTree,
         cached: CachedImmutableCopy,
         block: BlockId,
         index: usize,
@@ -421,12 +594,37 @@ impl MemoryStoreEliminator {
         if cached.block == block {
             return cached.index < index;
         }
-        dominators.get(&block).is_some_and(|doms| doms.contains(&cached.block))
+        dominators.dominates(cached.block, block)
     }
 
     fn as_u64(func: &Function, value: ValueId) -> Option<u64> {
-        let value = func.values[value].as_immediate()?.as_u256()?;
+        let value = Self::as_u256(func, value)?;
         u64::try_from(value).ok()
+    }
+
+    fn as_u256(func: &Function, value: ValueId) -> Option<U256> {
+        func.values[value].as_immediate()?.as_u256()
+    }
+
+    fn constant_memory_bytes(
+        func: &Function,
+        stored_words: &FxHashMap<MemAddrKey, U256>,
+        offset: ValueId,
+        size: ValueId,
+    ) -> Option<Vec<u8>> {
+        let offset = Self::as_u64(func, offset)?;
+        let size = Self::as_u64(func, size)?;
+        if size > 4096 || size % 32 != 0 {
+            return None;
+        }
+
+        let mut bytes = Vec::with_capacity(size as usize);
+        for word_offset in (0..size).step_by(32) {
+            let addr = offset.checked_add(word_offset)?;
+            let word = stored_words.get(&MemAddrKey::Const(addr))?;
+            bytes.extend_from_slice(&word.to_be_bytes::<32>());
+        }
+        Some(bytes)
     }
 
     fn overlaps(a: MemAddrKey, b: MemAddrKey) -> bool {
@@ -436,7 +634,7 @@ impl MemoryStoreEliminator {
                 MemAddrKey::BaseOffset { base: a_base, offset: a_offset },
                 MemAddrKey::BaseOffset { base: b_base, offset: b_offset },
             ) if a_base == b_base => Self::ranges_overlap(a_offset, b_offset),
-            _ => false,
+            _ => true,
         }
     }
 
@@ -460,6 +658,108 @@ impl MemoryStoreEliminator {
 
     fn remove_overlapping_set(set: &mut FxHashSet<MemAddrKey>, key: MemAddrKey) {
         set.retain(|&stored| !Self::overlaps(stored, key));
+    }
+
+    fn remove_overlapping_write_range<T>(
+        func: &Function,
+        map: &mut FxHashMap<MemAddrKey, T>,
+        dest: ValueId,
+        size: u64,
+    ) -> bool {
+        let Some(write) = Self::mem_addr_key_static(func, dest) else {
+            return false;
+        };
+        map.retain(|&stored, _| !Self::ranges_overlap_mem_keys(func, stored, 32, write, size));
+        true
+    }
+
+    fn insert_full_word_overwritten_range(
+        func: &Function,
+        overwritten: &mut FxHashSet<MemAddrKey>,
+        dest: ValueId,
+        size: ValueId,
+    ) -> bool {
+        let Some(size) = Self::as_u64(func, size) else {
+            return false;
+        };
+        if size % 32 != 0 || size > 4096 {
+            return false;
+        }
+
+        let Some(base) = Self::mem_addr_key_static(func, dest) else {
+            return false;
+        };
+        for offset in (0..size).step_by(32) {
+            let Some(key) = Self::offset_mem_addr_key(base, offset) else {
+                return false;
+            };
+            overwritten.insert(key);
+        }
+        true
+    }
+
+    fn offset_mem_addr_key(key: MemAddrKey, add: u64) -> Option<MemAddrKey> {
+        match key {
+            MemAddrKey::Const(offset) => offset.checked_add(add).map(MemAddrKey::Const),
+            MemAddrKey::BaseOffset { base, offset } => {
+                offset.checked_add(add).map(|offset| MemAddrKey::BaseOffset { base, offset })
+            }
+        }
+    }
+
+    fn ranges_overlap_mem_keys(
+        func: &Function,
+        read: MemAddrKey,
+        read_size: u64,
+        write: MemAddrKey,
+        write_size: u64,
+    ) -> bool {
+        if (Self::is_scratch_const(read) && Self::is_fmp_heap_key(func, write))
+            || (Self::is_fmp_heap_key(func, read) && Self::is_scratch_const(write))
+        {
+            return false;
+        }
+
+        match (read, write) {
+            (MemAddrKey::Const(read), MemAddrKey::Const(write)) => {
+                Self::ranges_overlap_size(read, read_size, write, write_size)
+            }
+            (
+                MemAddrKey::BaseOffset { base: read_base, offset: read },
+                MemAddrKey::BaseOffset { base: write_base, offset: write },
+            ) if read_base == write_base => {
+                Self::ranges_overlap_size(read, read_size, write, write_size)
+            }
+            _ => true,
+        }
+    }
+
+    fn is_scratch_const(key: MemAddrKey) -> bool {
+        matches!(key, MemAddrKey::Const(offset) if offset < 128)
+    }
+
+    fn is_fmp_heap_key(func: &Function, key: MemAddrKey) -> bool {
+        let MemAddrKey::BaseOffset { base, .. } = key else {
+            return false;
+        };
+        Self::is_fmp_heap_value(func, base, 0)
+    }
+
+    fn is_fmp_heap_value(func: &Function, value: ValueId, depth: usize) -> bool {
+        if depth > 8 {
+            return false;
+        }
+        let Value::Inst(inst_id) = func.values[value] else {
+            return false;
+        };
+        match func.instructions[inst_id].kind {
+            InstKind::MLoad(addr) => Self::as_u64(func, addr) == Some(0x40),
+            InstKind::Add(a, b) => {
+                Self::is_fmp_heap_value(func, a, depth + 1)
+                    || Self::is_fmp_heap_value(func, b, depth + 1)
+            }
+            _ => false,
+        }
     }
 
     fn is_memory_or_gas_observer(kind: &InstKind) -> bool {
@@ -614,6 +914,10 @@ impl MemoryStoreEliminator {
         )
     }
 
+    fn cross_block_memory_barrier(kind: &InstKind) -> bool {
+        matches!(kind, InstKind::MLoad(_)) || Self::is_memory_or_gas_observer(kind)
+    }
+
     fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
         if replacements.is_empty() {
             return;
@@ -621,15 +925,6 @@ impl MemoryStoreEliminator {
 
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
-        }
-        for value in func.values.iter_mut() {
-            if let Value::Phi { incoming, .. } = value {
-                for (_, value) in incoming {
-                    if replacements.contains_key(value) {
-                        *value = Self::resolve_replacement(replacements, *value);
-                    }
-                }
-            }
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {

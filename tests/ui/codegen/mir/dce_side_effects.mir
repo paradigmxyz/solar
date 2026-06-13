@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass dce
 // Side-effect instructions must survive DCE even if their results are unused.
 // sstore, log0, call all have side effects.

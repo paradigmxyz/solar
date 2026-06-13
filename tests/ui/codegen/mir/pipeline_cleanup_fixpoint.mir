@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pipeline-default
 ; module @PipelineCleanupFixpoint
 fn @fold_phi_after_promotion(arg0: bool) -> u256 {

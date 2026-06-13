@@ -122,6 +122,19 @@ pub(crate) fn run_pipeline(
         return Ok(ControlFlow::Break(()));
     };
 
+    // Code generation (MIR and bytecode) is experimental and not part of the
+    // stable, solc-compatible pipeline yet, so it is gated behind `-Zcodegen`.
+    let needs_codegen = sess.opts.emit.iter().any(|e| {
+        matches!(e, CompilerOutput::Mir | CompilerOutput::Bin | CompilerOutput::BinRuntime)
+    });
+    if needs_codegen && !sess.opts.unstable.codegen {
+        return Err(sess
+            .dcx
+            .err("code generation is experimental")
+            .help("pass `-Zcodegen` to emit MIR or bytecode")
+            .emit());
+    }
+
     // Handle MIR emit if requested (does not require bytecode generation).
     if sess.opts.emit.contains(&CompilerOutput::Mir) {
         emit_mir(compiler)?;

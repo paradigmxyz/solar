@@ -1,0 +1,42 @@
+//@compile-flags: --pass licm
+; module @LicmDescendingIv
+
+; Descending loop: i starts at 64, condition i < 100, i = i - 1 each iteration.
+; Real execution: i = 64, 63, ..., 1, 0, then wraps to 2^256-1 (>= 100) and
+; exits. mstore(i, ...) therefore writes bytes [0, 96), overlapping mload 0's
+; [0, 32): the mload must not be hoisted.
+fn @keep_mload_descending_iv() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 64], [bb2: v9]
+    v2 = lt v1, 100
+    br v2, bb2, bb3
+  bb2:
+    v3 = mload 0
+    sstore v1, v3
+    mstore v1, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    v9 = sub v1, 1
+    jump bb1
+  bb3:
+    ret v3
+}
+
+; Ascending control: i = 64..99, the mstore range [64, 131) really is disjoint
+; from mload 0's [0, 32); hoisting here is correct.
+fn @hoist_mload_ascending_iv() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 64], [bb2: v9]
+    v2 = lt v1, 100
+    br v2, bb2, bb3
+  bb2:
+    v3 = mload 0
+    sstore v1, v3
+    mstore v1, 7
+    v9 = add v1, 1
+    jump bb1
+  bb3:
+    ret v3
+}

@@ -1,0 +1,45 @@
+// === ROOT/tests/ui/codegen/mir/load_pre_loop.mir (after load-pre) ===
+; module @LoadPreLoop
+fn @loop_header_reload(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = sload 5
+    jump bb1
+  bb1:
+    v6 = phi [bb0: v2], [bb2: v6]
+    v5 = lt v6, arg0
+    br v5, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    ret v6
+}
+
+fn @loop_clobbered_keeps_reload(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v3 = sload 5
+    jump bb1
+  bb1:
+    v5 = sload 5
+    v6 = lt v5, arg0
+    br v6, bb2, bb3
+  bb2:
+    sstore arg1, 9
+    jump bb1
+  bb3:
+    ret v5
+}
+
+fn @loop_clobbered_no_insert(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v3 = sload 5
+    jump bb1
+  bb1:
+    v5 = sload 5
+    v6 = lt v5, arg0
+    br v6, bb2, bb3
+  bb2:
+    sstore arg1, 9
+    br v6, bb1, bb3
+  bb3:
+    ret v5
+}

@@ -77,9 +77,32 @@ impl StackScheduler {
     /// Ensures a value is on top of the stack.
     /// Returns the operations needed to achieve this.
     pub fn ensure_on_top(&mut self, value: ValueId, func: &Function) -> &[ScheduledOp] {
+        self.ensure_on_top_impl(value, func, true)
+    }
+
+    /// Emits a fresh operand occurrence for a consuming instruction.
+    ///
+    /// If `value` is already on top, `ensure_on_top` can claim that existing stack item. That is
+    /// correct for a single use, but wrong for instructions that consume the same MIR value more
+    /// than once, such as `revert(x, x)` or `log1(x, x, x)`. In those cases every operand
+    /// occurrence needs its own stack item, so a top-of-stack value must be duplicated.
+    pub fn ensure_operand_on_top(&mut self, value: ValueId, func: &Function) -> &[ScheduledOp] {
+        self.ensure_on_top_impl(value, func, false)
+    }
+
+    fn ensure_on_top_impl(
+        &mut self,
+        value: ValueId,
+        func: &Function,
+        claim_top: bool,
+    ) -> &[ScheduledOp] {
         self.ops.clear();
 
         if self.stack.is_on_top(value) {
+            if !claim_top {
+                self.ops.push(ScheduledOp::Stack(StackOp::Dup(1)));
+                self.stack.dup(1);
+            }
             return &self.ops;
         }
 
@@ -158,7 +181,7 @@ impl StackScheduler {
 
         // Push in reverse order so first value ends up on top
         for &value in values.iter().rev() {
-            self.ensure_on_top(value, func);
+            self.ensure_operand_on_top(value, func);
             all_ops.append(&mut self.ops);
         }
 

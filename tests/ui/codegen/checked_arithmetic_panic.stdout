@@ -1,0 +1,340 @@
+// === ROOT/tests/ui/codegen/checked_arithmetic_panic.sol:CheckedArithmeticPanic ===
+; module @CheckedArithmeticPanic
+fn @add(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = add arg0, arg1
+    v12 = lt v11, arg0
+    br v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @sub(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = sub arg0, arg1
+    v12 = lt arg0, arg1
+    br v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @mul(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = mul arg0, arg1
+    v12 = iszero arg1
+    v13 = div v11, arg1
+    v14 = eq v13, arg0
+    v15 = or v12, v14
+    v16 = iszero v15
+    br v16, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @div_zero(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    br arg1, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 18 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v18 = div arg0, arg1
+    mstore 128, v18
+    returndata 128, 32
+}
+
+fn @pow(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v14 = iszero arg1
+    br v14, bb3, bb4
+  bb3:
+    v70 = phi [bb2: 1], [bb4: 0], [bb5: 1], [bb10: v28], [bb11: v40], [bb19: v69]
+    mstore 128, v70
+    returndata 128, 32
+  bb4:
+    v15 = iszero arg0
+    br v15, bb3, bb5
+  bb5:
+    v16 = eq arg0, 1
+    br v16, bb3, bb6
+  bb6:
+    v18 = eq arg0, 2
+    br v18, bb7, bb8
+  bb7:
+    v20 = gt arg1, 255
+    br v20, bb9, bb10
+  bb8:
+    v30 = lt arg0, 11
+    v32 = lt arg1, 78
+    v33 = and v30, v32
+    v35 = lt arg0, 307
+    v37 = lt arg1, 32
+    v38 = and v35, v37
+    v39 = or v33, v38
+    br v39, bb11, bb12
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v28 = shl arg1, 1
+    jump bb3
+  bb11:
+    v40 = exp arg0, arg1
+    jump bb3
+  bb12:
+    jump bb13
+  bb13:
+    v41 = phi [bb12: 1], [bb17: v57]
+    v42 = phi [bb12: arg0], [bb17: v58]
+    v43 = phi [bb12: arg1], [bb17: v59]
+    v45 = gt v43, 1
+    br v45, bb14, bb15
+  bb14:
+    v46 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v42
+    v47 = gt v42, v46
+    br v47, bb16, bb17
+  bb15:
+    v60 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v42
+    v61 = gt v41, v60
+    br v61, bb18, bb19
+  bb16:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    v55 = and v43, 1
+    v56 = mul v41, v42
+    v57 = select v55, v56, v41
+    v58 = mul v42, v42
+    v59 = shr 1, v43
+    jump bb13
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    v69 = mul v41, v42
+    jump bb3
+}
+
+fn @signed_add(arg0: i256, arg1: i256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = add arg0, arg1
+    v13 = slt arg0, 0
+    v14 = slt v11, arg1
+    v15 = xor v13, v14
+    br v15, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @signed_neg(arg0: i256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v12 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    br v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v20 = sub 0, arg0
+    mstore 128, v20
+    returndata 128, 32
+}
+
+fn @narrow_add(arg0: u8, arg1: u8) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 255
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = calldataload 36
+    v17 = and v15, 255
+    v18 = eq v15, v17
+    br v18, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 128, 0
+    v23 = add arg0, arg1
+    v25 = gt v23, 255
+    br v25, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore 128, v23
+    returndata 128, 32
+}
+
+fn @unchecked_add(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = add arg0, arg1
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @unchecked_neg(arg0: i256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = sub 0, arg0
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @unchecked_pow(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = exp arg0, arg1
+    mstore 128, v11
+    returndata 128, 32
+}
+
+fn @unchecked_call(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v12 = add arg0, arg1
+    v13 = lt v12, arg0
+    br v13, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    mstore 128, v12
+    returndata 128, 32
+}
+
+fn @checked_inner(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = internal_frame_addr 160
+    mstore v2, 0 !metadata(memory=internal_frame)
+    v5 = add arg0, arg1
+    v6 = lt v5, arg0
+    br v6, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret v5
+}
+

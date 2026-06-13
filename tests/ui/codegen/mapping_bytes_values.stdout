@@ -1,0 +1,392 @@
+// === ROOT/tests/ui/codegen/mapping_bytes_values.sol:MappingBytesValues ===
+; module @MappingBytesValues
+fn @set(arg0: u256, arg1: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v9 = add 4, arg1
+    v10 = calldataload v9
+    v12 = add v10, 31
+    v13 = not 31
+    v14 = and v12, v13
+    v16 = add v14, 32
+    v18 = mload 64 !metadata(memory=scratch)
+    v19 = add v18, v16
+    mstore 64, v19 !metadata(memory=scratch)
+    mstore v18, v10
+    v23 = add v18, 32
+    v24 = add v9, 32
+    calldatacopy v23, v24, v10
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v32 = keccak256 0, 64 !metadata(memory=scratch)
+    v33 = mload v18
+    v35 = add v18, 32
+    v36 = sload v32 !metadata(storage=symbolic(v32))
+    v38 = and v36, 1
+    v39 = eq v38, 1
+    v41 = and v36, 255
+    v43 = shr 1, v41
+    v44 = shr 1, v36
+    v45 = select v39, v44, v43
+    v47 = not 31
+    v48 = add v45, 31
+    v49 = and v48, v47
+    v50 = div v49, 32
+    v52 = select v39, v50, 0
+    v53 = add v33, 31
+    v54 = and v53, v47
+    v55 = div v54, 32
+    v56 = gt v33, 31
+    v57 = select v56, v55, 0
+    v59 = mload 64 !metadata(memory=scratch)
+    v61 = add v59, 32
+    mstore 64, v61 !metadata(memory=scratch)
+    mstore v59, v32
+    v65 = keccak256 v59, 32
+    br v56, bb4, bb3
+  bb3:
+    v66 = mload v35
+    v68 = mul v33, 8
+    v70 = shr v68, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v71 = not v70
+    v72 = and v66, v71
+    v73 = shl 1, v33
+    v74 = or v72, v73
+    sstore v32, v74 !metadata(storage=symbolic(v32))
+    jump bb7
+  bb4:
+    v76 = shl 1, v33
+    v77 = or v76, 1
+    sstore v32, v77 !metadata(storage=symbolic(v32))
+    mstore v59, 0
+    jump bb5
+  bb5:
+    v80 = mload v59
+    v81 = lt v80, v57
+    br v81, bb6, bb7
+  bb6:
+    v82 = mload v59
+    v83 = add v65, v82
+    v84 = mul v82, 32
+    v85 = add v35, v84
+    v86 = mload v85
+    sstore v83, v86 !metadata(storage=symbolic(v83))
+    v88 = add v82, 1
+    mstore v59, v88
+    jump bb5
+  bb7:
+    mstore v59, v57
+    jump bb8
+  bb8:
+    v91 = mload v59
+    v92 = lt v91, v52
+    br v92, bb9, bb10
+  bb9:
+    v93 = mload v59
+    v94 = add v65, v93
+    sstore v94, 0 !metadata(storage=symbolic(v94))
+    v96 = add v93, 1
+    mstore v59, v96
+    jump bb8
+  bb10:
+    stop
+}
+
+fn @setNested(arg0: u256, arg1: u256, arg2: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 96
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v10 = add 4, arg2
+    v11 = calldataload v10
+    v13 = add v11, 31
+    v14 = not 31
+    v15 = and v13, v14
+    v17 = add v15, 32
+    v19 = mload 64 !metadata(memory=scratch)
+    v20 = add v19, v17
+    mstore 64, v20 !metadata(memory=scratch)
+    mstore v19, v11
+    v24 = add v19, 32
+    v25 = add v10, 32
+    calldatacopy v24, v25, v11
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, 1 !metadata(memory=scratch)
+    v33 = keccak256 0, 64 !metadata(memory=scratch)
+    mstore 0, arg1 !metadata(memory=scratch)
+    mstore 32, v33 !metadata(memory=scratch)
+    v39 = keccak256 0, 64 !metadata(memory=scratch)
+    v40 = mload v19
+    v42 = add v19, 32
+    v43 = sload v39 !metadata(storage=symbolic(v39))
+    v45 = and v43, 1
+    v46 = eq v45, 1
+    v48 = and v43, 255
+    v50 = shr 1, v48
+    v51 = shr 1, v43
+    v52 = select v46, v51, v50
+    v54 = not 31
+    v55 = add v52, 31
+    v56 = and v55, v54
+    v57 = div v56, 32
+    v59 = select v46, v57, 0
+    v60 = add v40, 31
+    v61 = and v60, v54
+    v62 = div v61, 32
+    v63 = gt v40, 31
+    v64 = select v63, v62, 0
+    v66 = mload 64 !metadata(memory=scratch)
+    v68 = add v66, 32
+    mstore 64, v68 !metadata(memory=scratch)
+    mstore v66, v39
+    v72 = keccak256 v66, 32
+    br v63, bb4, bb3
+  bb3:
+    v73 = mload v42
+    v75 = mul v40, 8
+    v77 = shr v75, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v78 = not v77
+    v79 = and v73, v78
+    v80 = shl 1, v40
+    v81 = or v79, v80
+    sstore v39, v81 !metadata(storage=symbolic(v39))
+    jump bb7
+  bb4:
+    v83 = shl 1, v40
+    v84 = or v83, 1
+    sstore v39, v84 !metadata(storage=symbolic(v39))
+    mstore v66, 0
+    jump bb5
+  bb5:
+    v87 = mload v66
+    v88 = lt v87, v64
+    br v88, bb6, bb7
+  bb6:
+    v89 = mload v66
+    v90 = add v72, v89
+    v91 = mul v89, 32
+    v92 = add v42, v91
+    v93 = mload v92
+    sstore v90, v93 !metadata(storage=symbolic(v90))
+    v95 = add v89, 1
+    mstore v66, v95
+    jump bb5
+  bb7:
+    mstore v66, v64
+    jump bb8
+  bb8:
+    v98 = mload v66
+    v99 = lt v98, v59
+    br v99, bb9, bb10
+  bb9:
+    v100 = mload v66
+    v101 = add v72, v100
+    sstore v101, 0 !metadata(storage=symbolic(v101))
+    v103 = add v100, 1
+    mstore v66, v103
+    jump bb8
+  bb10:
+    stop
+}
+
+fn @get(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, 0 !metadata(memory=scratch)
+    v16 = keccak256 0, 64 !metadata(memory=scratch)
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    v19 = and v17, 1
+    v20 = eq v19, 1
+    v22 = and v17, 255
+    v24 = shr 1, v22
+    v25 = shr 1, v17
+    v26 = select v20, v25, v24
+    v29 = not 31
+    v30 = add v26, 31
+    v31 = and v30, v29
+    v32 = iszero v31
+    v33 = select v32, 32, v31
+    v34 = add 32, v33
+    v36 = mload 64 !metadata(memory=scratch)
+    v38 = add v36, 96
+    mstore 64, v38 !metadata(memory=scratch)
+    v42 = mload 64 !metadata(memory=scratch)
+    v43 = add v42, v34
+    mstore 64, v43 !metadata(memory=scratch)
+    mstore v42, v26
+    v47 = add v42, 32
+    br v20, bb4, bb3
+  bb3:
+    v49 = and v17, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v47, v49
+    jump bb5
+  bb4:
+    mstore v36, v16
+    v52 = keccak256 v36, 32
+    v53 = div v31, 32
+    v55 = add v36, 32
+    v57 = add v36, 64
+    mstore v36, v47
+    mstore v55, v53
+    mstore v57, v52
+    jump bb6
+  bb5:
+    v77 = mload 64 !metadata(memory=scratch)
+    v79 = add v77, 32
+    mstore 64, v79 !metadata(memory=scratch)
+    v83 = add v77, 32
+    v84 = sub v83, v77
+    mstore v77, v84
+    v86 = mload v42
+    mstore v83, v86
+    v90 = not 31
+    v91 = add v86, 31
+    v92 = and v91, v90
+    v93 = add v83, 32
+    v94 = iszero v92
+    br v94, bb9, bb8
+  bb6:
+    v61 = mload v55
+    v63 = gt v61, 0
+    br v63, bb7, bb5
+  bb7:
+    v64 = mload v57
+    v65 = sload v64 !metadata(storage=symbolic(v64))
+    v66 = mload v36
+    mstore v66, v65
+    v68 = add v64, 1
+    mstore v57, v68
+    v71 = add v66, 32
+    mstore v36, v71
+    v73 = mload v55
+    v74 = sub v73, 1
+    mstore v55, v74
+    jump bb6
+  bb8:
+    v95 = sub v92, 32
+    v96 = add v93, v95
+    mstore v96, 0
+    jump bb9
+  bb9:
+    v99 = add v42, 32
+    v100 = add v93, v92
+    mcopy v93, v99, v86
+    v102 = sub v100, v77
+    returndata v77, v102
+}
+
+fn @getNested(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, 1 !metadata(memory=scratch)
+    v17 = keccak256 0, 64 !metadata(memory=scratch)
+    mstore 0, arg1 !metadata(memory=scratch)
+    mstore 32, v17 !metadata(memory=scratch)
+    v23 = keccak256 0, 64 !metadata(memory=scratch)
+    v24 = sload v23 !metadata(storage=symbolic(v23))
+    v26 = and v24, 1
+    v27 = eq v26, 1
+    v29 = and v24, 255
+    v31 = shr 1, v29
+    v32 = shr 1, v24
+    v33 = select v27, v32, v31
+    v36 = not 31
+    v37 = add v33, 31
+    v38 = and v37, v36
+    v39 = iszero v38
+    v40 = select v39, 32, v38
+    v41 = add 32, v40
+    v43 = mload 64 !metadata(memory=scratch)
+    v45 = add v43, 96
+    mstore 64, v45 !metadata(memory=scratch)
+    v49 = mload 64 !metadata(memory=scratch)
+    v50 = add v49, v41
+    mstore 64, v50 !metadata(memory=scratch)
+    mstore v49, v33
+    v54 = add v49, 32
+    br v27, bb4, bb3
+  bb3:
+    v56 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v54, v56
+    jump bb5
+  bb4:
+    mstore v43, v23
+    v59 = keccak256 v43, 32
+    v60 = div v38, 32
+    v62 = add v43, 32
+    v64 = add v43, 64
+    mstore v43, v54
+    mstore v62, v60
+    mstore v64, v59
+    jump bb6
+  bb5:
+    v84 = mload 64 !metadata(memory=scratch)
+    v86 = add v84, 32
+    mstore 64, v86 !metadata(memory=scratch)
+    v90 = add v84, 32
+    v91 = sub v90, v84
+    mstore v84, v91
+    v93 = mload v49
+    mstore v90, v93
+    v97 = not 31
+    v98 = add v93, 31
+    v99 = and v98, v97
+    v100 = add v90, 32
+    v101 = iszero v99
+    br v101, bb9, bb8
+  bb6:
+    v68 = mload v62
+    v70 = gt v68, 0
+    br v70, bb7, bb5
+  bb7:
+    v71 = mload v64
+    v72 = sload v71 !metadata(storage=symbolic(v71))
+    v73 = mload v43
+    mstore v73, v72
+    v75 = add v71, 1
+    mstore v64, v75
+    v78 = add v73, 32
+    mstore v43, v78
+    v80 = mload v62
+    v81 = sub v80, 1
+    mstore v62, v81
+    jump bb6
+  bb8:
+    v102 = sub v99, 32
+    v103 = add v100, v102
+    mstore v103, 0
+    jump bb9
+  bb9:
+    v106 = add v49, 32
+    v107 = add v100, v99
+    mcopy v100, v106, v93
+    v109 = sub v107, v84
+    returndata v84, v109
+}
+

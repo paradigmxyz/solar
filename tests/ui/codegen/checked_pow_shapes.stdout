@@ -1,0 +1,558 @@
+// === ROOT/tests/ui/codegen/checked_pow_shapes.sol:CheckedPowShapes ===
+; module @CheckedPowShapes
+fn @upow(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v14 = iszero arg1
+    br v14, bb3, bb4
+  bb3:
+    v70 = phi [bb2: 1], [bb4: 0], [bb5: 1], [bb10: v28], [bb11: v40], [bb19: v69]
+    mstore 128, v70
+    returndata 128, 32
+  bb4:
+    v15 = iszero arg0
+    br v15, bb3, bb5
+  bb5:
+    v16 = eq arg0, 1
+    br v16, bb3, bb6
+  bb6:
+    v18 = eq arg0, 2
+    br v18, bb7, bb8
+  bb7:
+    v20 = gt arg1, 255
+    br v20, bb9, bb10
+  bb8:
+    v30 = lt arg0, 11
+    v32 = lt arg1, 78
+    v33 = and v30, v32
+    v35 = lt arg0, 307
+    v37 = lt arg1, 32
+    v38 = and v35, v37
+    v39 = or v33, v38
+    br v39, bb11, bb12
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v28 = shl arg1, 1
+    jump bb3
+  bb11:
+    v40 = exp arg0, arg1
+    jump bb3
+  bb12:
+    jump bb13
+  bb13:
+    v41 = phi [bb12: 1], [bb17: v57]
+    v42 = phi [bb12: arg0], [bb17: v58]
+    v43 = phi [bb12: arg1], [bb17: v59]
+    v45 = gt v43, 1
+    br v45, bb14, bb15
+  bb14:
+    v46 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v42
+    v47 = gt v42, v46
+    br v47, bb16, bb17
+  bb15:
+    v60 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v42
+    v61 = gt v41, v60
+    br v61, bb18, bb19
+  bb16:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    v55 = and v43, 1
+    v56 = mul v41, v42
+    v57 = select v55, v56, v41
+    v58 = mul v42, v42
+    v59 = shr 1, v43
+    jump bb13
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    v69 = mul v41, v42
+    jump bb3
+}
+
+fn @spow(arg0: i256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v15 = iszero arg1
+    br v15, bb3, bb4
+  bb3:
+    v108 = phi [bb2: 1], [bb4: arg0], [bb5: 0], [bb7: 1], [bb14: v31], [bb17: v52], [bb29: v107]
+    mstore 128, v108
+    returndata 128, 32
+  bb4:
+    v16 = eq arg1, 1
+    br v16, bb3, bb5
+  bb5:
+    v17 = iszero arg0
+    br v17, bb3, bb6
+  bb6:
+    v18 = sgt arg0, 0
+    br v18, bb7, bb8
+  bb7:
+    v19 = eq arg0, 1
+    br v19, bb3, bb10
+  bb8:
+    v50 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    br v50, bb17, bb18
+  bb9:
+    v62 = and arg1, 1
+    v63 = select v62, arg0, 1
+    v64 = mul arg0, arg0
+    v65 = shr 1, arg1
+    jump bb21
+  bb10:
+    v21 = lt arg0, 11
+    v23 = lt arg1, 78
+    v24 = and v21, v23
+    v26 = lt arg0, 307
+    v28 = lt arg1, 32
+    v29 = and v26, v28
+    v30 = or v24, v29
+    br v30, bb11, bb12
+  bb11:
+    v31 = exp arg0, arg1
+    v32 = gt v31, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    br v32, bb13, bb14
+  bb12:
+    v40 = div 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    v41 = gt arg0, v40
+    br v41, bb15, bb16
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    jump bb3
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    jump bb9
+  bb17:
+    v51 = and arg1, 1
+    v52 = select v51, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    jump bb3
+  bb18:
+    v53 = sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, arg0
+    v54 = slt arg0, v53
+    br v54, bb19, bb20
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    jump bb9
+  bb21:
+    v66 = phi [bb9: v63], [bb25: v82]
+    v67 = phi [bb9: v64], [bb25: v83]
+    v68 = phi [bb9: v65], [bb25: v84]
+    v70 = gt v68, 1
+    br v70, bb22, bb23
+  bb22:
+    v71 = div 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v67
+    v72 = gt v67, v71
+    br v72, bb24, bb25
+  bb23:
+    v85 = sgt v66, 0
+    v86 = div 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v67
+    v87 = gt v66, v86
+    v88 = and v85, v87
+    br v88, bb26, bb27
+  bb24:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb25:
+    v80 = and v68, 1
+    v81 = mul v66, v67
+    v82 = select v80, v81, v66
+    v83 = mul v67, v67
+    v84 = shr 1, v68
+    jump bb21
+  bb26:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb27:
+    v96 = slt v66, 0
+    v97 = sdiv 0x8000000000000000000000000000000000000000000000000000000000000000, v67
+    v98 = slt v66, v97
+    v99 = and v96, v98
+    br v99, bb28, bb29
+  bb28:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb29:
+    v107 = mul v66, v67
+    jump bb3
+}
+
+fn @upow8(arg0: u8, arg1: u8) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 255
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = calldataload 36
+    v17 = and v15, 255
+    v18 = eq v15, v17
+    br v18, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 128, 0
+    v26 = iszero arg1
+    br v26, bb7, bb8
+  bb7:
+    v98 = phi [bb6: 1], [bb8: 0], [bb9: 1], [bb16: v40], [bb20: v60], [bb27: v97]
+    mstore 128, v98
+    returndata 128, 32
+  bb8:
+    v27 = iszero arg0
+    br v27, bb7, bb9
+  bb9:
+    v28 = eq arg0, 1
+    br v28, bb7, bb10
+  bb10:
+    v30 = eq arg0, 2
+    br v30, bb11, bb12
+  bb11:
+    v32 = gt arg1, 255
+    br v32, bb13, bb14
+  bb12:
+    v50 = lt arg0, 11
+    v52 = lt arg1, 78
+    v53 = and v50, v52
+    v55 = lt arg0, 307
+    v57 = lt arg1, 32
+    v58 = and v55, v57
+    v59 = or v53, v58
+    br v59, bb17, bb18
+  bb13:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb14:
+    v40 = shl arg1, 1
+    v41 = gt v40, 255
+    br v41, bb15, bb16
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    jump bb7
+  bb17:
+    v60 = exp arg0, arg1
+    v61 = gt v60, 255
+    br v61, bb19, bb20
+  bb18:
+    jump bb21
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    jump bb7
+  bb21:
+    v69 = phi [bb18: 1], [bb25: v85]
+    v70 = phi [bb18: arg0], [bb25: v86]
+    v71 = phi [bb18: arg1], [bb25: v87]
+    v73 = gt v71, 1
+    br v73, bb22, bb23
+  bb22:
+    v74 = div 255, v70
+    v75 = gt v70, v74
+    br v75, bb24, bb25
+  bb23:
+    v88 = div 255, v70
+    v89 = gt v69, v88
+    br v89, bb26, bb27
+  bb24:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb25:
+    v83 = and v71, 1
+    v84 = mul v69, v70
+    v85 = select v83, v84, v69
+    v86 = mul v70, v70
+    v87 = shr 1, v71
+    jump bb21
+  bb26:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb27:
+    v97 = mul v69, v70
+    jump bb7
+}
+
+fn @spow8(arg0: i8, arg1: u8) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = signextend 0, v8
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = calldataload 36
+    v17 = and v15, 255
+    v18 = eq v15, v17
+    br v18, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 128, 0
+    v27 = iszero arg1
+    br v27, bb7, bb8
+  bb7:
+    v120 = phi [bb6: 1], [bb8: arg0], [bb9: 0], [bb11: 1], [bb18: v43], [bb21: v64], [bb33: v119]
+    mstore 128, v120
+    returndata 128, 32
+  bb8:
+    v28 = eq arg1, 1
+    br v28, bb7, bb9
+  bb9:
+    v29 = iszero arg0
+    br v29, bb7, bb10
+  bb10:
+    v30 = sgt arg0, 0
+    br v30, bb11, bb12
+  bb11:
+    v31 = eq arg0, 1
+    br v31, bb7, bb14
+  bb12:
+    v62 = eq arg0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    br v62, bb21, bb22
+  bb13:
+    v74 = and arg1, 1
+    v75 = select v74, arg0, 1
+    v76 = mul arg0, arg0
+    v77 = shr 1, arg1
+    jump bb25
+  bb14:
+    v33 = lt arg0, 11
+    v35 = lt arg1, 78
+    v36 = and v33, v35
+    v38 = lt arg0, 307
+    v40 = lt arg1, 32
+    v41 = and v38, v40
+    v42 = or v36, v41
+    br v42, bb15, bb16
+  bb15:
+    v43 = exp arg0, arg1
+    v44 = gt v43, 127
+    br v44, bb17, bb18
+  bb16:
+    v52 = div 127, arg0
+    v53 = gt arg0, v52
+    br v53, bb19, bb20
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    jump bb7
+  bb19:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb20:
+    jump bb13
+  bb21:
+    v63 = and arg1, 1
+    v64 = select v63, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    jump bb7
+  bb22:
+    v65 = sdiv 127, arg0
+    v66 = slt arg0, v65
+    br v66, bb23, bb24
+  bb23:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb24:
+    jump bb13
+  bb25:
+    v78 = phi [bb13: v75], [bb29: v94]
+    v79 = phi [bb13: v76], [bb29: v95]
+    v80 = phi [bb13: v77], [bb29: v96]
+    v82 = gt v80, 1
+    br v82, bb26, bb27
+  bb26:
+    v83 = div 127, v79
+    v84 = gt v79, v83
+    br v84, bb28, bb29
+  bb27:
+    v97 = sgt v78, 0
+    v98 = div 127, v79
+    v99 = gt v78, v98
+    v100 = and v97, v99
+    br v100, bb30, bb31
+  bb28:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb29:
+    v92 = and v80, 1
+    v93 = mul v78, v79
+    v94 = select v92, v93, v78
+    v95 = mul v79, v79
+    v96 = shr 1, v80
+    jump bb25
+  bb30:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb31:
+    v108 = slt v78, 0
+    v109 = sdiv 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80, v79
+    v110 = slt v78, v109
+    v111 = and v108, v110
+    br v111, bb32, bb33
+  bb32:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb33:
+    v119 = mul v78, v79
+    jump bb7
+}
+
+fn @const2(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v12 = gt arg0, 255
+    br v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v21 = shl arg0, 1
+    mstore 128, v21
+    returndata 128, 32
+}
+
+fn @const10(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v12 = gt arg0, 77
+    br v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v20 = exp 10, arg0
+    mstore 128, v20
+    returndata 128, 32
+}
+
+fn @const_neg2(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v12 = gt arg0, 255
+    br v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v20 = exp 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, arg0
+    mstore 128, v20
+    returndata 128, 32
+}
+
+fn @unchecked_pow8(arg0: u8, arg1: u8) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 255
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = calldataload 36
+    v17 = and v15, 255
+    v18 = eq v15, v17
+    br v18, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 128, 0
+    v23 = exp arg0, arg1
+    v25 = and v23, 255
+    mstore 128, v25
+    returndata 128, 32
+}
+

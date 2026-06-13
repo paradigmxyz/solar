@@ -23,9 +23,10 @@ use crate::{
     analysis::validate_module,
     mir::{Function, Module, module_to_text},
     transform::{
-        CfgSimplifyPass, CsePass, DcePass, FrameSlotPromotionPass, FunctionDcePass,
-        IndVarSimplifyPass, InlinePass, InstSimplifyPass, JumpThreadingPass, LicmPass,
-        LoopCanonicalizePass, MemoryDsePass, PureEvalPass, SccpTransformPass, StorageLoadCsePass,
+        AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
+        FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
+        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, MemoryDsePass, PrePass,
+        PureEvalPass, SccpTransformPass, StorageDsePass, StorageLoadCsePass,
         StorageScalarPromotionPass,
     },
 };
@@ -74,10 +75,25 @@ pub const INST_SIMPLIFY_PASS: PassInfo =
     });
 pub const CSE_PASS: PassInfo =
     PassInfo::new("cse", "Common Subexpression Elimination (fixed-point)", || Box::new(CsePass));
+pub const PRE_PASS: PassInfo =
+    PassInfo::new("pre", "Partial redundancy elimination for pure expressions", || {
+        Box::new(PrePass)
+    });
+pub const GVN_PASS: PassInfo =
+    PassInfo::new("gvn", "Congruence-class global value numbering", || Box::new(GvnPass));
 pub const STORAGE_LOAD_CSE_PASS: PassInfo = PassInfo::new(
     "storage-load-cse",
     "Reuse storage loads across definitely-disjoint stores",
     || Box::new(StorageLoadCsePass),
+);
+pub const STORAGE_DSE_PASS: PassInfo =
+    PassInfo::new("storage-dse", "Eliminate overwritten or repeated storage stores", || {
+        Box::new(StorageDsePass)
+    });
+pub const LOAD_PRE_PASS: PassInfo = PassInfo::new(
+    "load-pre",
+    "Availability-dataflow redundancy elimination and PRE for memory-dependent reads",
+    || Box::new(LoadPrePass),
 );
 pub const LOOP_CANONICALIZE_PASS: PassInfo = PassInfo::new(
     "loop-canonicalize",
@@ -96,6 +112,11 @@ pub const STORAGE_PROMOTION_PASS: PassInfo = PassInfo::new(
 );
 pub const LICM_PASS: PassInfo =
     PassInfo::new("licm", "Loop-Invariant Code Motion", || Box::new(LicmPass));
+pub const CHECK_ELIM_PASS: PassInfo = PassInfo::new(
+    "check-elim",
+    "Range-based elimination of provably dead overflow-check branches",
+    || Box::new(CheckElimPass),
+);
 pub const JUMP_THREADING_PASS: PassInfo =
     PassInfo::new("jump-threading", "Jump Threading (fixed-point)", || Box::new(JumpThreadingPass));
 pub const CFG_SIMPLIFY_PASS: PassInfo =
@@ -109,20 +130,30 @@ pub const MEMORY_DSE_PASS: PassInfo =
     PassInfo::new("memory-dse", "Local dead memory-store elimination", || Box::new(MemoryDsePass));
 pub const DCE_PASS: PassInfo =
     PassInfo::new("dce", "Dead Code Elimination (fixed-point)", || Box::new(DcePass));
+pub const ADCE_PASS: PassInfo =
+    PassInfo::new("adce", "Aggressive dead-code elimination for dead control regions", || {
+        Box::new(AdcePass)
+    });
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub const PASS_REGISTRY: &[&PassInfo] = &[
     &INLINE_PASS,
     &FUNCTION_DCE_PASS,
+    &ADCE_PASS,
     &DCE_PASS,
     &INST_SIMPLIFY_PASS,
     &CSE_PASS,
+    &GVN_PASS,
+    &PRE_PASS,
     &STORAGE_LOAD_CSE_PASS,
+    &STORAGE_DSE_PASS,
+    &LOAD_PRE_PASS,
     &LOOP_CANONICALIZE_PASS,
     &INDVAR_SIMPLIFY_PASS,
     &SCCP_PASS,
     &PURE_EVAL_PASS,
     &LICM_PASS,
+    &CHECK_ELIM_PASS,
     &CFG_SIMPLIFY_PASS,
     &JUMP_THREADING_PASS,
     &FRAME_SLOT_PROMOTION_PASS,
@@ -143,15 +174,21 @@ pub const DEFAULT_PIPELINE: &[&PassInfo] = &[
     &PURE_EVAL_PASS,
     &INST_SIMPLIFY_PASS,
     &CSE_PASS,
+    &GVN_PASS,
+    &PRE_PASS,
     &STORAGE_LOAD_CSE_PASS,
+    &STORAGE_DSE_PASS,
+    &LOAD_PRE_PASS,
+    &FRAME_SLOT_PROMOTION_PASS,
     &LOOP_CANONICALIZE_PASS,
     &INDVAR_SIMPLIFY_PASS,
     &STORAGE_PROMOTION_PASS,
     &LICM_PASS,
+    &CHECK_ELIM_PASS,
     &JUMP_THREADING_PASS,
     &CFG_SIMPLIFY_PASS,
-    &FRAME_SLOT_PROMOTION_PASS,
     &MEMORY_DSE_PASS,
+    &ADCE_PASS,
     &DCE_PASS,
 ];
 
@@ -166,11 +203,17 @@ pub const DEFAULT_CLEANUP_PIPELINE: &[&PassInfo] = &[
     &PURE_EVAL_PASS,
     &INST_SIMPLIFY_PASS,
     &CSE_PASS,
+    &GVN_PASS,
+    &PRE_PASS,
     &STORAGE_LOAD_CSE_PASS,
+    &STORAGE_DSE_PASS,
+    &LOAD_PRE_PASS,
+    &CHECK_ELIM_PASS,
     &JUMP_THREADING_PASS,
     &CFG_SIMPLIFY_PASS,
     &FRAME_SLOT_PROMOTION_PASS,
     &MEMORY_DSE_PASS,
+    &ADCE_PASS,
     &DCE_PASS,
 ];
 
@@ -253,6 +296,9 @@ fn run_cleanup_pipeline_to_fixpoint(
         let mut round_changed = false;
         for &pass in passes {
             let pass_changed = run_pass_with_options(module, pass, options);
+            if pass_changed && std::env::var_os("SOLAR_DEBUG_CLEANUP").is_some() {
+                eprintln!("[cleanup-{round}] {} changed", pass.name);
+            }
             round_changed |= pass_changed;
             if options.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);

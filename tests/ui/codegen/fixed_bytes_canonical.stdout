@@ -1,0 +1,97 @@
+// === ROOT/tests/ui/codegen/fixed_bytes_canonical.sol:FixedBytesCanonical ===
+; module @FixedBytesCanonical
+fn @fromUint(arg0: u8) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 255
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    v17 = shl 248, arg0
+    v19 = and v17, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v19
+    returndata 128, 32
+}
+
+fn @fromHex() {
+  bb0 (entry):
+    mstore 128, 0
+    mstore 128, 0x100000000000000000000000000000000000000000000000000000000000000
+    returndata 128, 32
+}
+
+fn @compareElement(arg0: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = add 4, arg0
+    v9 = calldataload v8
+    v11 = add v9, 31
+    v12 = not 31
+    v13 = and v11, v12
+    v15 = add v13, 32
+    v17 = mload 64 !metadata(memory=scratch)
+    v18 = add v17, v15
+    mstore 64, v18 !metadata(memory=scratch)
+    mstore v17, v9
+    v22 = add v17, 32
+    v23 = add v8, 32
+    calldatacopy v22, v23, v9
+    mstore 128, 0
+    v29 = mload v17
+    v30 = lt 0, v29
+    br v30, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v39 = add v17, 32
+    v40 = add v39, 0
+    v41 = mload v40
+    v43 = and v41, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v46 = and 1, 255
+    v48 = shl 248, v46
+    v50 = and v48, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v51 = eq v43, v50
+    mstore 128, v51
+    returndata 128, 32
+}
+
+fn @narrow(arg0: bytes4) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    v17 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v17
+    returndata 128, 32
+}
+

@@ -3,12 +3,12 @@
 //! This pass removes MIR instructions whose results are never used and have no side effects.
 
 use crate::{
+    analysis::reachable_blocks,
     mir::{BlockId, Function, InstId, Terminator, Value, ValueId},
     pass::FunctionPass,
     transform::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use std::collections::VecDeque;
 
 /// Dead Code Elimination pass.
 ///
@@ -134,7 +134,7 @@ impl DeadCodeEliminator {
 
     /// Eliminates unreachable blocks using CFG reachability analysis.
     fn eliminate_unreachable_blocks(&mut self, func: &mut Function) {
-        let reachable = self.find_reachable_blocks(func);
+        let reachable = reachable_blocks(func);
 
         // Collect unreachable block IDs
         let unreachable: Vec<BlockId> = func
@@ -153,30 +153,6 @@ impl DeadCodeEliminator {
             block.terminator = Some(Terminator::Invalid);
             block.predecessors.clear();
         }
-    }
-
-    /// Finds all reachable blocks from the entry using BFS.
-    fn find_reachable_blocks(&self, func: &Function) -> FxHashSet<BlockId> {
-        let mut reachable = FxHashSet::default();
-        let mut worklist = VecDeque::new();
-
-        worklist.push_back(func.entry_block);
-        reachable.insert(func.entry_block);
-
-        while let Some(block_id) = worklist.pop_front() {
-            let block = func.block(block_id);
-
-            // Add successors from terminator
-            if let Some(ref term) = block.terminator {
-                for succ in term.successors() {
-                    if reachable.insert(succ) {
-                        worklist.push_back(succ);
-                    }
-                }
-            }
-        }
-
-        reachable
     }
 
     /// Finds unused function parameters.

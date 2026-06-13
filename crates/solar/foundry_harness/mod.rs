@@ -110,23 +110,64 @@ struct CompilerRun {
 // Helpers
 // ============================================================================
 
-/// Gets the path to the Solar binary (release build preferred, falls back to debug).
+/// Gets the path to the Solar binary.
+///
+/// Prefers `CARGO_BIN_EXE_solar`, which Cargo sets to the `solar` binary it
+/// built for this test run. That binary is always rebuilt from the current
+/// sources before the test runs, so it cannot go stale — avoiding the race
+/// where the harness picked up an out-of-date `target/release/solar` and
+/// produced flaky failures. Falls back to a binary on disk when the variable
+/// is absent (e.g. when the harness is reused outside `cargo test`).
 fn get_solar_binary() -> PathBuf {
-    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let workspace_root = manifest_dir.parent().unwrap().parent().unwrap();
+    if let Some(path) = option_env!("CARGO_BIN_EXE_solar") {
+        return PathBuf::from(path);
+    }
 
-    // Prefer release build for accurate benchmarks
+    let workspace_root = workspace_root();
     let release_binary = workspace_root.join("target/release/solar");
     if release_binary.exists() {
         return release_binary;
     }
-
     workspace_root.join("target/debug/solar")
 }
 
 /// Gets the path to the workspace root.
 fn workspace_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap().to_path_buf()
+}
+
+/// A `solc`-compatible executable for `FOUNDRY_SOLC` that enables Solar's
+/// experimental code generator.
+///
+/// Code generation is gated behind `-Zcodegen`, but Forge invokes
+/// `FOUNDRY_SOLC` with solc-style arguments and cannot pass that flag itself.
+/// On Unix we therefore point it at a tiny wrapper script that forwards every
+/// call to Solar with `-Zcodegen` prepended; otherwise Forge would receive
+/// empty bytecode.
+fn foundry_solc() -> PathBuf {
+    use std::sync::OnceLock;
+    static WRAPPER: OnceLock<PathBuf> = OnceLock::new();
+    WRAPPER
+        .get_or_init(|| {
+            let solar = get_solar_binary();
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+                let path =
+                    std::env::temp_dir().join(format!("solar-zcodegen-{}.sh", std::process::id()));
+                let script = format!("#!/bin/sh\nexec \"{}\" -Zcodegen \"$@\"\n", solar.display());
+                fs::write(&path, script).expect("failed to write solar codegen wrapper");
+                let mut perms = fs::metadata(&path).unwrap().permissions();
+                perms.set_mode(0o755);
+                fs::set_permissions(&path, perms).unwrap();
+                path
+            }
+            #[cfg(not(unix))]
+            {
+                solar
+            }
+        })
+        .clone()
 }
 
 /// Checks if forge is available.
@@ -290,7 +331,7 @@ fn run_forge_test_solar(
         .arg(cache_dir)
         // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
         .env("SOLC_WRAPPER", "1")
-        .env("FOUNDRY_SOLC", get_solar_binary());
+        .env("FOUNDRY_SOLC", foundry_solc());
 
     // Add forge match filters if specified
     if let Some(ref test_filter) = config.test_filter {

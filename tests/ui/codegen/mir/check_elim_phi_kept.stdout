@@ -1,0 +1,22 @@
+// === ROOT/tests/ui/codegen/mir/check_elim_phi_kept.mir (after check-elim) ===
+; module @CheckElimPhiKept
+fn @keep_check_on_loop_phi(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    v3 = lt arg0, 100
+    br v3, bb1, bb5
+  bb1:
+    jump bb2
+  bb2:
+    v5 = phi [bb1: arg0], [bb3: v4]
+    v4 = add v5, 1
+    v7 = lt v4, v5
+    br v7, bb4, bb3
+  bb3:
+    br arg1, bb2, bb6
+  bb4:
+    revert 0, 0
+  bb5:
+    ret 0
+  bb6:
+    ret v4
+}

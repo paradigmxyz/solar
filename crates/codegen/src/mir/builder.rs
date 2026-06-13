@@ -116,9 +116,7 @@ impl<'a> FunctionBuilder<'a> {
                 }
                 _ => MemoryRegion::Unknown,
             },
-            Value::Arg { .. } | Value::Immediate(_) | Value::Phi { .. } | Value::Undef(_) => {
-                MemoryRegion::Unknown
-            }
+            Value::Arg { .. } | Value::Immediate(_) | Value::Undef(_) => MemoryRegion::Unknown,
         }
     }
 
@@ -343,6 +341,11 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits an extcodesize instruction.
     pub fn extcodesize(&mut self, addr: ValueId) -> ValueId {
         self.emit_inst(InstKind::ExtCodeSize(addr), Some(MirType::uint256()))
+    }
+
+    /// Emits a loadimmutable instruction for the immutable at `offset`.
+    pub fn load_immutable(&mut self, offset: u64) -> ValueId {
+        self.emit_inst(InstKind::LoadImmutable(offset), Some(MirType::uint256()))
     }
 
     /// Emits an extcodecopy instruction.
@@ -598,9 +601,28 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Select(cond, then_val, else_val), Some(MirType::uint256()))
     }
 
-    /// Emits a phi instruction.
-    pub fn phi(&mut self, ty: MirType, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        self.func.alloc_value(Value::Phi { ty, incoming })
+    /// Emits a phi instruction. `incoming` pairs each predecessor block of the
+    /// current block with the value the phi takes when control arrives from
+    /// that block. Emit phis before any other instruction in their block.
+    pub fn phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
+        self.emit_inst(InstKind::Phi(incoming), Some(MirType::uint256()))
+    }
+
+    /// Adds an incoming `(block, value)` edge to an existing phi. This is used
+    /// to patch loop-carried phis whose back-edge values are only known after
+    /// the loop body has been built.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `phi` does not refer to a phi instruction result.
+    pub fn add_phi_incoming(&mut self, phi: ValueId, block: BlockId, value: ValueId) {
+        let Value::Inst(inst_id) = *self.func.value(phi) else {
+            panic!("add_phi_incoming: value is not an instruction result");
+        };
+        let InstKind::Phi(incoming) = &mut self.func.instructions[inst_id].kind else {
+            panic!("add_phi_incoming: instruction is not a phi");
+        };
+        incoming.push((block, value));
     }
 
     /// Sets a jump terminator.

@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass dce
 // v1 is computed in bb0 and used in bb2. It must NOT be eliminated.
 // v2 is computed in bb1 but never used anywhere. It should be eliminated.

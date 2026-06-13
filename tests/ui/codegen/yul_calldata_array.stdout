@@ -2,19 +2,26 @@
 ; module @C
 fn @probe(arg0: memptr) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
     mstore 160, 0
-    v8 = add 4, arg0
-    v9 = calldataload v8
-    mstore 128, v9
-    v13 = add 36, arg0
-    v14 = calldataload v13
-    mstore 160, v14
-    v18 = mload 128
-    v20 = mload 160
-    mstore 128, v18
-    v24 = add 128, 32
-    mstore v24, v20
+    v14 = add 4, arg0
+    v15 = calldataload v14
+    mstore 128, v15
+    v19 = add 36, arg0
+    v20 = calldataload v19
+    mstore 160, v20
+    v24 = mload 128
+    v26 = mload 160
+    mstore 128, v24
+    v30 = add 128, 32
+    mstore v30, v26
     returndata 128, 64
 }
 

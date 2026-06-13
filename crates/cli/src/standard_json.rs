@@ -205,7 +205,11 @@ fn compile(
 
             if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
                 let gcx = compiler.gcx();
-                let bytecodes = if needs_bytecode_output(gcx, &output_selection) {
+                // Code generation is experimental and gated behind `-Zcodegen`;
+                // without it, no bytecode is produced even when requested.
+                let bytecodes = if gcx.sess.opts.unstable.codegen
+                    && needs_bytecode_output(gcx, &output_selection)
+                {
                     Some(generate_contract_bytecodes(gcx)?)
                 } else {
                     None

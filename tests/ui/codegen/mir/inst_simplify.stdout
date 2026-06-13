@@ -52,6 +52,17 @@ fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
     ret 0
 }
 
+fn @keep_exp_zero_base_with_unknown_exponent(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = exp 0, arg0
+    ret v2
+}
+
+fn @fold_wide_modular_constants() -> (u256, u256) {
+  bb0 (entry):
+    ret 2, 2
+}
+
 fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
   bb0 (entry):
     ret 12, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 42, 8, 0, 2, 256, 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, 1, 1, 15, 17, 12, 256, 16, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc, 255, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 2, 5

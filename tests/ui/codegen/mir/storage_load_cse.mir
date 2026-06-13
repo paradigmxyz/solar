@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass storage-load-cse
 ; module @StorageLoadCse
 fn @reuse_across_disjoint_constant_store() -> u256 {
