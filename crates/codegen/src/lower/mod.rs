@@ -12,6 +12,9 @@ mod index;
 mod stmt;
 mod type_query;
 
+pub(super) const ARRAY_METHOD_PUSH: &str = "push";
+pub(super) const ARRAY_METHOD_POP: &str = "pop";
+
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
     mir::{

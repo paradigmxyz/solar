@@ -1,7 +1,7 @@
 //! Expression lowering.
 
 use super::{
-    Lowerer,
+    ARRAY_METHOD_POP, ARRAY_METHOD_PUSH, Lowerer,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
 use crate::{
@@ -2297,7 +2297,7 @@ impl<'gcx> Lowerer<'gcx> {
         let slot_val = builder.imm_u64(slot);
 
         match method {
-            "push" => {
+            ARRAY_METHOD_PUSH => {
                 // 1. Load current length from slot
                 let length = builder.sload(slot_val);
 
@@ -2328,7 +2328,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // push returns void, return dummy
                 builder.imm_u64(0)
             }
-            "pop" => {
+            ARRAY_METHOD_POP => {
                 // pop() decrements length and clears the last element
                 // Storage layout:
                 // - Length at slot

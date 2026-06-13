@@ -1,6 +1,6 @@
 //! Bytes and string lowering helpers.
 
-use super::{Lowerer, checked_arith::PanicCode};
+use super::{ARRAY_METHOD_POP, ARRAY_METHOD_PUSH, Lowerer, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
@@ -223,7 +223,7 @@ impl<'gcx> Lowerer<'gcx> {
         let current = self.materialize_storage_bytes(builder, slot);
         let len = builder.mload(current);
         match method {
-            "push" => {
+            ARRAY_METHOD_PUSH => {
                 let one = builder.imm_u64(1);
                 let new_len = builder.add(len, one);
                 let overflow = builder.lt(new_len, len);
@@ -244,7 +244,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore8(dst, byte);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
             }
-            "pop" => {
+            ARRAY_METHOD_POP => {
                 self.emit_panic_if_zero(builder, len, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
                 let new_len = builder.sub(len, one);

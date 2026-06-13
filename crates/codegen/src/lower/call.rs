@@ -1,6 +1,6 @@
 //! Call and member-call lowering.
 
-use super::{Lowerer, checked_arith::PanicCode};
+use super::{ARRAY_METHOD_POP, ARRAY_METHOD_PUSH, Lowerer, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, Span};
@@ -1106,7 +1106,7 @@ impl<'gcx> Lowerer<'gcx> {
         // call path. Their storage layout is Solidity's packed short/long
         // bytes form, not the generic dynamic-array layout.
         if self.is_storage_bytes_expr(base)
-            && matches!(member_name, "push" | "pop")
+            && matches!(member_name, ARRAY_METHOD_PUSH | ARRAY_METHOD_POP)
             && let Some(slot) = self.lower_lvalue_slot(builder, base)
         {
             return self.lower_storage_bytes_method_call(builder, slot, member_name, args);
