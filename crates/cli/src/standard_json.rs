@@ -211,7 +211,6 @@ fn compile(
     opts.stop_after =
         input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
     opts.input = input.sources.keys().map(ToString::to_string).collect();
-    opts.unstable.typeck = true;
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -838,10 +837,25 @@ mod tests {
     }
 
     fn compile(input: &str, callback: Option<Arc<dyn StandardJsonReadCallback>>) -> String {
+        compile_with(input, callback, false)
+    }
+
+    fn compile_with_typeck(
+        input: &str,
+        callback: Option<Arc<dyn StandardJsonReadCallback>>,
+    ) -> String {
+        compile_with(input, callback, true)
+    }
+
+    fn compile_with(
+        input: &str,
+        callback: Option<Arc<dyn StandardJsonReadCallback>>,
+        typeck: bool,
+    ) -> String {
         let mut output = Vec::new();
         let opts = Opts {
             pretty_json: true,
-            unstable: solar_config::UnstableOpts { ui_testing: true, ..Default::default() },
+            unstable: solar_config::UnstableOpts { ui_testing: true, typeck, ..Default::default() },
             ..Opts::default()
         };
         compile_standard_json(input, opts, callback, &mut output);
@@ -905,7 +919,7 @@ mod tests {
     #[test]
     fn type_errors_are_reported() {
         assert_json(
-            &compile(
+            &compile_with_typeck(
                 r#"{
                 "language": "Solidity",
                 "sources": {
