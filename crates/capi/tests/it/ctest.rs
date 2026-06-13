@@ -1,6 +1,6 @@
 use std::{
     env,
-    ffi::OsString,
+    ffi::{OsStr, OsString},
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -8,11 +8,6 @@ use std::{
 
 #[test]
 fn c_api_smoke_test() {
-    if cfg!(windows) {
-        eprintln!("skipping C API smoke test on Windows");
-        return;
-    }
-
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let workspace_dir = manifest_dir.join("../..");
     let target_dir = env::var_os("CARGO_TARGET_DIR")
@@ -26,34 +21,59 @@ fn c_api_smoke_test() {
 
     let out_dir = target_dir.join("ctest");
     fs::create_dir_all(&out_dir).unwrap();
-    let exe = out_dir.join("solar-capi-ctest");
+    let exe = out_dir.join(format!("solar-capi-ctest{}", env::consts::EXE_SUFFIX));
 
-    let Some(mut compile) = c_compiler() else {
+    let Some(compiler) = c_compiler() else {
         eprintln!("skipping C API smoke test because no C compiler was found");
         return;
     };
-    compile
-        .arg("-I")
-        .arg(manifest_dir.join("include"))
-        .arg(manifest_dir.join("ctest/solidity_capi_test.c"))
-        .arg("-L")
-        .arg(&lib_dir)
-        .arg("-lsolar_capi")
-        .arg(format!("-Wl,-rpath,{}", lib_dir.display()))
-        .arg("-o")
-        .arg(&exe);
+
+    let source = manifest_dir.join("ctest/solidity_capi_test.c");
+    let include_dir = manifest_dir.join("include");
+    let runtime_lib_dir =
+        dynamic_library(&lib_dir).and_then(|path| path.parent().map(Path::to_path_buf));
+    let mut compile = compiler.to_command();
+    if compiler.is_like_msvc() {
+        let Some(import_lib) =
+            find_existing(&library_search_dirs(&lib_dir), &["solar.lib", "solar.dll.lib"])
+        else {
+            panic!("failed to find solar import library in {}", lib_dir.display());
+        };
+        compile
+            .arg("/nologo")
+            .arg(format!("/I{}", include_dir.display()))
+            .arg(&source)
+            .arg(import_lib)
+            .arg(format!("/Fe:{}", exe.display()));
+    } else {
+        compile.arg("-I").arg(&include_dir).arg(&source);
+        if cfg!(windows) {
+            if let Some(import_lib) = find_existing(
+                &library_search_dirs(&lib_dir),
+                &["libsolar.dll.a", "solar.dll.a", "solar.lib"],
+            ) {
+                compile.arg(import_lib);
+            } else {
+                compile.arg("-L").arg(&lib_dir).arg("-lsolar");
+            }
+        } else {
+            compile.arg("-L").arg(&lib_dir).arg("-lsolar");
+            compile.arg(format!("-Wl,-rpath,{}", lib_dir.display()));
+        }
+        compile.arg("-o").arg(&exe);
+    }
     crate::assert_command(compile, "compile C API smoke test");
 
     let mut run = Command::new(&exe);
-    prepend_dynamic_library_path(&mut run, &lib_dir);
+    prepend_dynamic_library_path(&mut run, runtime_lib_dir.as_deref().unwrap_or(&lib_dir));
     crate::assert_command(run, "run C API smoke test");
 }
 
-fn c_compiler() -> Option<Command> {
+fn c_compiler() -> Option<cc::Tool> {
     let target = target_triple()?;
     let mut build = cc::Build::new();
     build.cargo_metadata(false).warnings(false).target(&target).host(&target).opt_level(0);
-    build.try_get_compiler().ok().map(|tool| tool.to_command())
+    build.try_get_compiler().ok()
 }
 
 fn target_triple() -> Option<String> {
@@ -70,10 +90,40 @@ fn target_triple() -> Option<String> {
 }
 
 fn prepend_dynamic_library_path(command: &mut Command, lib_dir: &Path) {
-    let key = if cfg!(target_os = "macos") { "DYLD_LIBRARY_PATH" } else { "LD_LIBRARY_PATH" };
+    let key = if cfg!(windows) {
+        "PATH"
+    } else if cfg!(target_os = "macos") {
+        "DYLD_LIBRARY_PATH"
+    } else {
+        "LD_LIBRARY_PATH"
+    };
     let mut paths = vec![lib_dir.to_path_buf()];
     if let Some(existing) = env::var_os(key) {
         paths.extend(env::split_paths(&existing));
     }
     command.env(key, env::join_paths(paths).unwrap());
+}
+
+fn dynamic_library(lib_dir: &Path) -> Option<PathBuf> {
+    find_existing(&library_search_dirs(lib_dir), dynamic_library_names())
+}
+
+fn library_search_dirs(lib_dir: &Path) -> [PathBuf; 2] {
+    [lib_dir.to_path_buf(), lib_dir.join("deps")]
+}
+
+fn dynamic_library_names() -> &'static [&'static str] {
+    if cfg!(windows) {
+        &["solar.dll"]
+    } else if cfg!(target_os = "macos") {
+        &["libsolar.dylib"]
+    } else {
+        &["libsolar.so"]
+    }
+}
+
+fn find_existing(dirs: &[PathBuf], names: &[&str]) -> Option<PathBuf> {
+    dirs.iter()
+        .flat_map(|dir| names.iter().map(move |name| dir.join(OsStr::new(name))))
+        .find(|path| path.exists())
 }

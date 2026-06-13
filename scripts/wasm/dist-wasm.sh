@@ -10,7 +10,7 @@ cargo build -p solar-capi --lib --profile minsize --no-default-features --target
 
 out_dir="target/dist"
 mkdir -p "$out_dir"
-cp target/wasm32-unknown-unknown/minsize/solar_capi.wasm "$out_dir/solar.wasm"
+cp target/wasm32-unknown-unknown/minsize/solar.wasm "$out_dir/solar.wasm"
 cp crates/capi/soljson.js "$out_dir/soljson-wrapper.js"
 scripts/wasm/pack-soljson.sh "$out_dir/solar.wasm" "$out_dir/soljson-wrapper.js" "$out_dir/soljson.js"
 
