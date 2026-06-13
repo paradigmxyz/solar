@@ -217,25 +217,25 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
-                | InstKind::ReturnDataCopy(dest, _, size) => {
+                | InstKind::ReturnDataCopy(dest, _, size)
                     if !Self::insert_full_word_overwritten_range(
                         func,
                         &mut overwritten,
                         *dest,
                         *size,
-                    ) {
-                        overwritten.clear();
-                    }
+                    ) =>
+                {
+                    overwritten.clear();
                 }
-                InstKind::ExtCodeCopy(_, dest, _, size) => {
+                InstKind::ExtCodeCopy(_, dest, _, size)
                     if !Self::insert_full_word_overwritten_range(
                         func,
                         &mut overwritten,
                         *dest,
                         *size,
-                    ) {
-                        overwritten.clear();
-                    }
+                    ) =>
+                {
+                    overwritten.clear();
                 }
                 kind if Self::is_memory_or_gas_observer(kind) => {
                     overwritten.clear();
@@ -445,10 +445,15 @@ impl MemoryStoreEliminator {
                         dead.insert(inst_id);
                     }
                 }
-                InstKind::MStore8(addr, _) => {
-                    if !Self::remove_overlapping_write_range(func, &mut stored_values, *addr, 1) {
-                        stored_values.clear();
-                    }
+                InstKind::MStore8(addr, _)
+                    if !Self::remove_overlapping_write_range(
+                        func,
+                        &mut stored_values,
+                        *addr,
+                        1,
+                    ) =>
+                {
+                    stored_values.clear();
                 }
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
