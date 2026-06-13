@@ -859,7 +859,10 @@ mod tests {
             ..Opts::default()
         };
         compile_standard_json(input, opts, callback, &mut output);
-        String::from_utf8(output).unwrap().replace(env!("CARGO_MANIFEST_DIR"), "ROOT")
+        String::from_utf8(output)
+            .unwrap()
+            .replace(env!("CARGO_MANIFEST_DIR"), "ROOT")
+            .replace(&env!("CARGO_MANIFEST_DIR").replace('\\', "/"), "ROOT")
     }
 
     fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
