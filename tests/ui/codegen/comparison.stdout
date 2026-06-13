@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/comparison.sol:Comparison ===
+; module @Comparison
+fn @eq(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = eq arg0, arg1
+    mstore 128, v5
+    returndata 128, 32
+}
+
+fn @lt(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = lt arg0, arg1
+    mstore 128, v5
+    returndata 128, 32
+}
+
+fn @is_zero(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = eq arg0, 0
+    mstore 128, v5
+    returndata 128, 32
+}
+

@@ -1,0 +1,14 @@
+//@ignore-host: windows
+//@compile-flags: --pass inline
+; module @InlineInternalCall
+fn @caller(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = internal_call fn1, 1, arg0
+    ret v1
+}
+
+fn @callee(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = add arg0, 1
+    ret v1
+}

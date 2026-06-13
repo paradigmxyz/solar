@@ -1,0 +1,45 @@
+// === ROOT/tests/ui/codegen/internal_void_call.sol:InternalVoidCall ===
+; module @InternalVoidCall
+fn @value() {
+  bb0 (entry):
+    mstore 128, 0
+    v4 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @set(arg0: u256) {
+  bb0 (entry):
+    v2 = eq arg0, 0
+    v3 = iszero v2
+    br v3, bb1, bb2
+  bb1:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    jump bb2
+  bb2:
+    stop
+}
+
+fn @setUnlessZero(arg0: u256) {
+  bb0 (entry):
+    v2 = eq arg0, 0
+    br v2, bb1, bb2
+  bb1:
+    stop
+  bb2:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    stop
+}
+
+fn @writeIfNonZero(arg0: u256) {
+  bb0 (entry):
+    v2 = eq arg0, 0
+    v3 = iszero v2
+    br v3, bb1, bb2
+  bb1:
+    sstore 0, arg0 !metadata(storage=slot(0))
+    jump bb2
+  bb2:
+    stop
+}
+

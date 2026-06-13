@@ -140,18 +140,44 @@ impl EvmVersion {
 }
 
 str_enum! {
+    /// MIR optimization objective.
+    #[derive(Default)]
+    #[strum(serialize_all = "kebab-case")]
+    #[non_exhaustive]
+    pub enum OptimizationMode {
+        /// Disable MIR optimization passes.
+        None,
+        /// Optimize for runtime gas.
+        #[default]
+        Gas,
+        /// Optimize for bytecode size.
+        Size,
+    }
+}
+
+str_enum! {
     /// Type of output for the compiler to emit.
     #[strum(serialize_all = "kebab-case")]
     #[non_exhaustive]
     pub enum CompilerOutput {
         /// JSON ABI.
         Abi,
-        // /// Creation bytecode.
-        // Bin,
-        // /// Runtime bytecode.
-        // BinRuntime,
+        /// Creation bytecode (deployment).
+        Bin,
+        /// Runtime bytecode (deployed).
+        BinRuntime,
         /// Function signature hashes.
         Hashes,
+        /// Textual MIR (mid-level IR) for inspection and FileCheck-style tests.
+        Mir,
+    }
+}
+
+impl CompilerOutput {
+    /// Returns `true` for outputs produced by the codegen backend (which lowers
+    /// to MIR), i.e. `bin`, `bin-runtime`, and `mir`.
+    pub fn is_codegen(self) -> bool {
+        matches!(self, Self::Bin | Self::BinRuntime | Self::Mir)
     }
 }
 

@@ -18,9 +18,10 @@ fn main() -> anyhow::Result<()> {
     match flags.subcommand {
         flags::XtaskCmd::Test(flags::Test { bless, test_name, rest }) => {
             let sh = Shell::new()?;
+
             let mut cmd = cmd!(sh, "cargo test");
             if let Some(t) = test_name {
-                if matches!(t.as_str(), "ui" | "solc-solidity" | "solc-yul") {
+                if matches!(t.as_str(), "ui" | "mir" | "solc-solidity" | "solc-yul") {
                     cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", &t);
                 } else {
                     cmd = cmd.arg(t);

@@ -1,0 +1,98 @@
+// === ROOT/tests/ui/codegen/nested_loops.sol:NestedLoops ===
+; module @NestedLoops
+fn @sum_grid(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    mstore 160, 0
+    mstore 192, 0
+    jump bb1
+  bb1:
+    v12 = mload 192
+    v13 = lt v12, arg0
+    br v13, bb4, bb5
+  bb2:
+    v43 = mload 160
+    mstore 128, v43
+    returndata 128, 32
+  bb3:
+    v37 = mload 192
+    v39 = add v37, 1
+    mstore 192, v39
+    jump bb1
+  bb4:
+    mstore 224, 0
+    jump bb6
+  bb5:
+    jump bb2
+  bb6:
+    v18 = mload 224
+    v19 = lt v18, arg1
+    br v19, bb9, bb10
+  bb7:
+    jump bb3
+  bb8:
+    v31 = mload 224
+    v33 = add v31, 1
+    mstore 224, v33
+    jump bb6
+  bb9:
+    v21 = mload 160
+    v23 = mload 192
+    v25 = mload 224
+    v26 = mul v23, v25
+    v27 = add v21, v26
+    mstore 160, v27
+    jump bb8
+  bb10:
+    jump bb7
+}
+
+fn @find_first(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    mstore 160, 0
+    jump bb1
+  bb1:
+    v9 = mload 160
+    v10 = lt v9, arg0
+    br v10, bb4, bb5
+  bb2:
+    mstore 128, arg0
+    returndata 128, 32
+  bb3:
+    v35 = mload 160
+    v37 = add v35, 1
+    mstore 160, v37
+    jump bb1
+  bb4:
+    mstore 192, 0
+    jump bb6
+  bb5:
+    jump bb2
+  bb6:
+    v15 = mload 192
+    v16 = lt v15, arg0
+    br v16, bb9, bb10
+  bb7:
+    jump bb3
+  bb8:
+    v29 = mload 192
+    v31 = add v29, 1
+    mstore 192, v31
+    jump bb6
+  bb9:
+    v18 = mload 160
+    v20 = mload 192
+    v21 = add v18, v20
+    v22 = eq v21, arg1
+    br v22, bb11, bb12
+  bb10:
+    jump bb7
+  bb11:
+    v24 = mload 160
+    mstore 128, v24
+    returndata 128, 32
+  bb12:
+    jump bb8
+}
+

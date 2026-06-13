@@ -3010,12 +3010,14 @@ dependencies = [
  "cfg-if",
  "clap",
  "indexmap",
+ "itertools 0.10.5",
  "libc",
  "mimalloc",
- "rustc-hash",
  "serde",
  "serde_json",
+ "solar-codegen",
  "solar-config",
+ "solar-data-structures",
  "solar-interface",
  "solar-sema",
  "tikv-jemallocator",
@@ -3027,10 +3029,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-codegen"
+version = "0.1.8"
+dependencies = [
+ "alloy-primitives",
+ "derive_more",
+ "smallvec",
+ "snapbox",
+ "solar-ast",
+ "solar-data-structures",
+ "solar-interface",
+ "solar-sema",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
 name = "solar-compiler"
 version = "0.1.8"
 dependencies = [
  "alloy-primitives",
+ "serde_json",
  "solar-ast",
  "solar-cli",
  "solar-config",

@@ -1,0 +1,112 @@
+//@ignore-host: windows
+//@compile-flags: --pass inst-simplify
+; module @InstSimplify
+fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = mul arg0, 32
+    v2 = div v1, 8
+    v3 = mod arg0, 16
+    v4 = exp arg0, 2
+    v5 = add arg0, 4
+    v6 = add v5, 28
+    v7 = and arg0, 255
+    v8 = and v7, 15
+    v9 = add v2, v3
+    v10 = add v4, v6
+    v11 = add v9, v10
+    v12 = add v11, v8
+    ret v12
+}
+
+fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
+  bb0 (entry):
+    v3 = eq arg0, true
+    v4 = eq arg0, false
+    v5 = select true, arg1, arg2
+    v6 = select arg0, true, false
+    v7 = select arg0, false, true
+    ret v3, v4, v5, v6, v7
+}
+
+fn @remove_zero_length_copies(arg0: u256) -> u256 {
+  bb0 (entry):
+    mcopy 64, 96, 0
+    calldatacopy 128, 0, 0
+    codecopy 160, 0, 0
+    returndatacopy 192, 0, 0
+    ret arg0
+}
+
+fn @fold_modular_helpers(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = addmod arg0, 0, 0
+    v2 = mulmod arg0, 0, 97
+    v3 = add v1, v2
+    ret v3
+}
+
+fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool, bool, u256, u256, u256, u256) {
+  bb0 (entry):
+    v2 = or arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    v3 = xor arg0, 115792089237316195423570985008687907853269984665640564039457584007913129639935
+    v4 = iszero arg1
+    v5 = iszero v4
+    v6 = lt 0, arg1
+    v7 = gt arg1, 0
+    v8 = shl 256, arg0
+    v9 = shr 300, arg0
+    v10 = byte 32, arg0
+    v11 = signextend 32, arg0
+    ret v2, v3, v5, v6, v7, v8, v9, v10, v11
+}
+
+fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256, bool, bool, bool, bool, u256, u256) {
+  bb0 (entry):
+    v2 = not arg0
+    v3 = and arg0, v2
+    v4 = or arg0, v2
+    v5 = xor arg0, v2
+    v6 = lt arg1, 2
+    v7 = lt 1, arg1
+    v8 = gt 2, arg1
+    v9 = gt arg1, 1
+    v10 = byte 0, 0
+    v11 = signextend 3, 0
+    ret v2, v3, v4, v5, v6, v7, v8, v9, v10, v11
+}
+
+fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = addmod arg0, arg1, 1
+    v3 = mulmod arg0, arg1, 1
+    v4 = add v2, v3
+    ret v4
+}
+
+fn @fold_constant_ops() -> (u256, u256, u256, u256, u256, u256, u256, u256, u256, bool, bool, u256, u256, u256, u256, u256, u256, u256, u256, u256, u256) {
+  bb0 (entry):
+    v1 = add 7, 5
+    v2 = sub 7, 9
+    v3 = mul 6, 7
+    v4 = div 42, 5
+    v5 = div 42, 0
+    v6 = mod 42, 5
+    v7 = exp 2, 8
+    v8 = not 6
+    v9 = not 2
+    v10 = sdiv v8, v9
+    v11 = smod v8, 5
+    v12 = slt v8, 1
+    v13 = sgt 1, v8
+    v14 = and 255, 15
+    v15 = or 16, 1
+    v16 = xor 15, 3
+    v17 = shl 8, 1
+    v18 = shr 4, 256
+    v19 = sar 1, v8
+    v20 = byte 31, 255
+    v21 = signextend 0, 255
+    v22 = addmod 5, 7, 10
+    v23 = mulmod 5, 7, 10
+    ret v1, v2, v3, v4, v5, v6, v7, v10, v11, v12, v13, v14, v15, v16, v17, v18, v19, v20, v21, v22, v23
+}

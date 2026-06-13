@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/mir/dce_side_effects.mir (after dce) ===
+; module @DceSideEffects
+fn @effects(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    sstore arg0, arg1
+    log0 0, 32
+    stop
+}

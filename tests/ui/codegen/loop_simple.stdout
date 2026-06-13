@@ -1,0 +1,31 @@
+// === ROOT/tests/ui/codegen/loop_simple.sol:LoopSimple ===
+; module @LoopSimple
+fn @sum_to(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    mstore 160, 0
+    mstore 192, 0
+    jump bb1
+  bb1:
+    v11 = mload 192
+    v12 = lt v11, arg0
+    br v12, bb4, bb5
+  bb2:
+    v27 = mload 160
+    mstore 128, v27
+    returndata 128, 32
+  bb3:
+    v21 = mload 192
+    v23 = add v21, 1
+    mstore 192, v23
+    jump bb1
+  bb4:
+    v14 = mload 160
+    v16 = mload 192
+    v17 = add v14, v16
+    mstore 160, v17
+    jump bb3
+  bb5:
+    jump bb2
+}
+

@@ -1,0 +1,179 @@
+// === ROOT/tests/ui/codegen/recursive_memory_return.sol:C ===
+; module @C
+fn @build(arg0: u256) {
+  bb0 (entry):
+    v3 = mload 64 !metadata(memory=scratch)
+    v5 = add v3, 64
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore 128, v3
+    v10 = eq arg0, 0
+    br v10, bb1, bb2
+  bb1:
+    v12 = mload 64 !metadata(memory=scratch)
+    v14 = add v12, 64
+    mstore 64, v14 !metadata(memory=scratch)
+    mstore v12, 0
+    v21 = add v12, 32
+    mstore v21, 0
+    v24 = mload v12
+    mstore 128, v24
+    v27 = add 128, 32
+    v29 = add v12, 32
+    v30 = mload v29
+    mstore v27, v30
+    v33 = add v27, 32
+    returndata 128, 64
+  bb2:
+    v36 = sub arg0, 1
+    v37 = internal_call fn1, 1, v36
+    v39 = mload 64 !metadata(memory=scratch)
+    v41 = add v39, 64
+    mstore 64, v41 !metadata(memory=scratch)
+    v44 = mload v37
+    v45 = add v44, arg0
+    mstore v39, v45
+    v48 = add v37, 32
+    v49 = mload v48
+    v51 = add v49, 1
+    v53 = add v39, 32
+    mstore v53, v51
+    v56 = mload v39
+    mstore 128, v56
+    v59 = add 128, 32
+    v61 = add v39, 32
+    v62 = mload v61
+    mstore v59, v62
+    v65 = add v59, 32
+    returndata 128, 64
+}
+
+fn @build(arg0: u256) -> memptr {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    v3 = mload 64 !metadata(memory=scratch)
+    v5 = add v3, 64
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v1, v3 !metadata(memory=internal_frame)
+    v10 = eq arg0, 0
+    br v10, bb1, bb2
+  bb1:
+    v12 = mload 64 !metadata(memory=scratch)
+    v14 = add v12, 64
+    mstore 64, v14 !metadata(memory=scratch)
+    mstore v12, 0
+    v21 = add v12, 32
+    mstore v21, 0
+    ret v12
+  bb2:
+    v24 = sub arg0, 1
+    v25 = internal_call fn1, 1, v24
+    v27 = mload 64 !metadata(memory=scratch)
+    v29 = add v27, 64
+    mstore 64, v29 !metadata(memory=scratch)
+    v32 = mload v25
+    v33 = add v32, arg0
+    mstore v27, v33
+    v36 = add v25, 32
+    v37 = mload v36
+    v39 = add v37, 1
+    v41 = add v27, 32
+    mstore v41, v39
+    ret v27
+}
+
+fn @mkArr(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = mload 64 !metadata(memory=scratch)
+    mstore v5, arg0
+    v8 = mul arg0, 32
+    v9 = add v8, 32
+    v10 = add v5, v9
+    mstore 64, v10 !metadata(memory=scratch)
+    mstore 160, 0
+    jump bb1
+  bb1:
+    v17 = mload 160
+    v18 = lt v17, arg0
+    br v18, bb4, bb5
+  bb2:
+    v37 = mload 64 !metadata(memory=scratch)
+    v39 = add v37, 32
+    mstore 64, v39 !metadata(memory=scratch)
+    v43 = add v37, 32
+    v44 = sub v43, v37
+    mstore v37, v44
+    v46 = mload v5
+    mstore v43, v46
+    v49 = mul v46, 32
+    v50 = add v43, 32
+    v51 = add v5, 32
+    v52 = add v50, v49
+    mcopy v50, v51, v49
+    v54 = sub v52, v37
+    returndata v37, v54
+  bb3:
+    v31 = mload 160
+    v33 = add v31, 1
+    mstore 160, v33
+    jump bb1
+  bb4:
+    v20 = mload 160
+    v22 = mul v20, 10
+    v24 = mload 160
+    v26 = mul v24, 32
+    v27 = add v5, 32
+    v28 = add v27, v26
+    mstore v28, v22
+    jump bb3
+  bb5:
+    jump bb2
+}
+
+fn @fillImpl(arg0: memptr, arg1: u256) -> memptr {
+  bb0 (entry):
+    v2 = internal_frame_addr 160
+    mstore v2, 0 !metadata(memory=internal_frame)
+    v5 = mload arg0
+    v6 = eq arg1, v5
+    br v6, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    v7 = mul arg1, arg1
+    v9 = mul arg1, 32
+    v10 = add arg0, 32
+    v11 = add v10, v9
+    mstore v11, v7
+    v14 = add arg1, 1
+    v15 = internal_call fn3, 1, arg0, v14
+    ret v15
+}
+
+fn @squares(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = mload 64 !metadata(memory=scratch)
+    mstore v5, arg0
+    v8 = mul arg0, 32
+    v9 = add v8, 32
+    v10 = add v5, v9
+    mstore 64, v10 !metadata(memory=scratch)
+    v14 = internal_call fn3, 1, v5, 0
+    v16 = mload 64 !metadata(memory=scratch)
+    v18 = add v16, 32
+    mstore 64, v18 !metadata(memory=scratch)
+    v22 = add v16, 32
+    v23 = sub v22, v16
+    mstore v16, v23
+    v25 = mload v14
+    mstore v22, v25
+    v28 = mul v25, 32
+    v29 = add v22, 32
+    v30 = add v14, 32
+    v31 = add v29, v28
+    mcopy v29, v30, v28
+    v33 = sub v31, v16
+    returndata v16, v33
+}
+

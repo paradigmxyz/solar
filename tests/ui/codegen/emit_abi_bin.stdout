@@ -1,0 +1,67 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/codegen/emit_abi_bin.sol:C": {
+      "abi": [
+        {
+          "type": "constructor",
+          "inputs": [
+            {
+              "name": "value",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable"
+        },
+        {
+          "type": "function",
+          "name": "x",
+          "inputs": [],
+          "outputs": [
+            {
+              "name": "",
+              "type": "uint256",
+              "internalType": "uint256"
+            }
+          ],
+          "stateMutability": "view"
+        }
+      ]
+    }
+  },
+  "version": "VERSION"
+}{
+  "contracts": {
+    "ROOT/tests/ui/codegen/emit_abi_bin.sol:C": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "uint256",
+              "name": "value",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "inputs": [],
+          "name": "x",
+          "outputs": [
+            {
+              "internalType": "uint256",
+              "name": "",
+              "type": "uint256"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function"
+        }
+      ],
+      "bin": "6140006040526053380360536080396080515f55603480601f5f3960345ff33460305736600b576030565b5f3560e01c80630c55699c14601e576030565b506101a06040525f5460805260206080f35b5f5ffd",
+      "bin-runtime": "3460305736600b576030565b5f3560e01c80630c55699c14601e576030565b506101a06040525f5460805260206080f35b5f5ffd"
+    }
+  },
+  "version": "VERSION"
+}

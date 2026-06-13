@@ -2,3 +2,4 @@
 *.sol linguist-language=Solidity
 *.yul linguist-language=Yul
 /testdata/* linguist-vendored
+/tests/foundry/** linguist-vendored

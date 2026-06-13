@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/type_conversion.sol:TypeConversion ===
+; module @TypeConversion
+fn @narrowAddress(arg0: address) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = and v5, 0xffff
+    mstore 128, v7
+    returndata 128, 32
+}
+
+fn @narrowUint(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = and arg0, 0xffff
+    mstore 128, v5
+    returndata 128, 32
+}
+
+fn @narrowSigned(arg0: i256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = shl 248, arg0
+    v6 = sar 248, v5
+    mstore 128, v6
+    returndata 128, 32
+}
+

@@ -1,0 +1,130 @@
+// === ROOT/tests/ui/codegen/recursive.sol:Recursive ===
+; module @Recursive
+fn @fact(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = gt arg0, 1
+    v6 = iszero v5
+    br v6, bb1, bb2
+  bb1:
+    mstore 128, 1
+    returndata 128, 32
+  bb2:
+    v12 = sub arg0, 1
+    v13 = internal_call fn1, 1, v12
+    v14 = mul arg0, v13
+    mstore 128, v14
+    returndata 128, 32
+}
+
+fn @fact(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v5 = gt arg0, 1
+    v6 = iszero v5
+    br v6, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    v9 = sub arg0, 1
+    v10 = internal_call fn1, 1, v9
+    v11 = mul arg0, v10
+    ret v11
+}
+
+fn @fib(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = gt arg0, 1
+    v6 = iszero v5
+    br v6, bb1, bb2
+  bb1:
+    mstore 128, arg0
+    returndata 128, 32
+  bb2:
+    v11 = sub arg0, 1
+    v12 = internal_call fn3, 1, v11
+    v14 = sub arg0, 2
+    v15 = internal_call fn3, 1, v14
+    v16 = add v12, v15
+    mstore 128, v16
+    returndata 128, 32
+}
+
+fn @fib(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v5 = gt arg0, 1
+    v6 = iszero v5
+    br v6, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    v8 = sub arg0, 1
+    v9 = internal_call fn3, 1, v8
+    v11 = sub arg0, 2
+    v12 = internal_call fn3, 1, v11
+    v13 = add v9, v12
+    ret v13
+}
+
+fn @isEven(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = eq arg0, 0
+    br v5, bb1, bb2
+  bb1:
+    mstore 128, 1
+    returndata 128, 32
+  bb2:
+    v11 = sub arg0, 1
+    v12 = internal_call fn5, 1, v11
+    mstore 128, v12
+    returndata 128, 32
+}
+
+fn @isOdd(arg0: u256) -> bool {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v5 = eq arg0, 0
+    br v5, bb1, bb2
+  bb1:
+    ret 0
+  bb2:
+    v8 = sub arg0, 1
+    v9 = internal_call fn6, 1, v8
+    ret v9
+}
+
+fn @isEven(arg0: u256) -> bool {
+  bb0 (entry):
+    v1 = internal_frame_addr 128
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v5 = eq arg0, 0
+    br v5, bb1, bb2
+  bb1:
+    ret 1
+  bb2:
+    v8 = sub arg0, 1
+    v9 = internal_call fn5, 1, v8
+    ret v9
+}
+
+fn @isOdd(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = eq arg0, 0
+    br v5, bb1, bb2
+  bb1:
+    mstore 128, 0
+    returndata 128, 32
+  bb2:
+    v11 = sub arg0, 1
+    v12 = internal_call fn6, 1, v11
+    mstore 128, v12
+    returndata 128, 32
+}
+
