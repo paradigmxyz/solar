@@ -170,11 +170,8 @@ The wrapper exposes `compile(inputJsonString, callbacks?)`, `version()`,
 `setupMethods(...)`. Legacy low-level solc-js entry points are intentionally
 set to `null`.
 
-Release artifacts should package the compiled
-`target/wasm32-unknown-unknown/release/solar_cli.wasm` together with
-`crates/cli/soljson.js`. The native cargo-dist release flow does not yet
-publish that pair automatically, so the CI build verifies the target while
-release packaging remains an explicit artifact step.
+Release artifacts include `solar-soljson.tar.gz`, which packages the compiled
+`solar.wasm` module together with `soljson.js`.
 
 ## Roadmap
 
