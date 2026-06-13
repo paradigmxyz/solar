@@ -49,6 +49,26 @@ enum AbiParamSource {
     ConstructorMemory,
 }
 
+/// Storage position for a state variable.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct StorageLocation {
+    pub(super) slot: u64,
+    pub(super) offset: u8,
+    pub(super) size: u8,
+}
+
+impl StorageLocation {
+    const WORD_SIZE: u8 = 32;
+
+    const fn full_word(slot: u64) -> Self {
+        Self { slot, offset: 0, size: Self::WORD_SIZE }
+    }
+
+    const fn is_packed(self) -> bool {
+        self.offset != 0 || self.size != Self::WORD_SIZE
+    }
+}
+
 /// Lowering context for converting HIR to MIR.
 pub struct Lowerer<'gcx> {
     /// The global context.
@@ -59,8 +79,12 @@ pub struct Lowerer<'gcx> {
     current_contract_id: Option<ContractId>,
     /// Mapping from HIR variable IDs to storage slots.
     storage_slots: FxHashMap<VariableId, u64>,
+    /// Mapping from HIR variable IDs to full storage locations.
+    storage_locations: FxHashMap<VariableId, StorageLocation>,
     /// Next available storage slot.
     next_storage_slot: u64,
+    /// Next available byte offset in `next_storage_slot` for packed variables.
+    next_storage_offset: u8,
     /// Mapping from HIR immutable variable IDs to runtime immutable byte offsets.
     immutable_slots: FxHashMap<VariableId, u64>,
     /// Next available immutable byte offset.
@@ -122,7 +146,9 @@ impl<'gcx> Lowerer<'gcx> {
             module: Module::new(name),
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
+            storage_locations: FxHashMap::default(),
             next_storage_slot: 0,
+            next_storage_offset: 0,
             immutable_slots: FxHashMap::default(),
             next_immutable_offset: 0,
             locals: FxHashMap::default(),
@@ -453,12 +479,9 @@ impl<'gcx> Lowerer<'gcx> {
                         name: var.name,
                     });
                 } else if var.is_state_variable() && !var.is_constant() {
-                    let base_slot = self.next_storage_slot;
-
-                    // Calculate how many slots this variable needs.
                     let var_ty = self.gcx.type_of_hir_ty(&var.ty);
-                    let num_slots = self.calculate_storage_slots_for_ty(var_ty, var.ty.span);
-                    self.next_storage_slot += num_slots;
+                    let location = self.allocate_storage_location(var_ty, var.ty.span);
+                    let base_slot = location.slot;
 
                     // Track struct base slots for field access
                     if matches!(var_ty.peel_refs().kind, TyKind::Struct(_)) {
@@ -466,16 +489,59 @@ impl<'gcx> Lowerer<'gcx> {
                     }
 
                     self.storage_slots.insert(var_id, base_slot);
+                    self.storage_locations.insert(var_id, location);
 
                     let mir_ty = self.lower_type_from_var(var);
                     self.module.add_storage_slot(StorageSlot {
                         slot: base_slot,
-                        offset: 0,
+                        offset: location.offset,
                         ty: mir_ty,
                         name: var.name,
                     });
                 }
             }
+        }
+    }
+
+    /// Allocates the storage location for a state variable.
+    fn allocate_storage_location(&mut self, ty: Ty<'gcx>, span: Span) -> StorageLocation {
+        if let Some(size) = self.packed_storage_size(ty)
+            && size < StorageLocation::WORD_SIZE
+        {
+            if self.next_storage_offset + size > StorageLocation::WORD_SIZE {
+                self.next_storage_slot += 1;
+                self.next_storage_offset = 0;
+            }
+            let location = StorageLocation {
+                slot: self.next_storage_slot,
+                offset: self.next_storage_offset,
+                size,
+            };
+            self.next_storage_offset += size;
+            if self.next_storage_offset == StorageLocation::WORD_SIZE {
+                self.next_storage_slot += 1;
+                self.next_storage_offset = 0;
+            }
+            return location;
+        }
+
+        if self.next_storage_offset != 0 {
+            self.next_storage_slot += 1;
+            self.next_storage_offset = 0;
+        }
+
+        let slot = self.next_storage_slot;
+        let num_slots = self.calculate_storage_slots_for_ty(ty, span);
+        self.next_storage_slot += num_slots;
+        StorageLocation::full_word(slot)
+    }
+
+    /// Returns the byte width for scalar types that this lowering can safely pack.
+    fn packed_storage_size(&self, ty: Ty<'gcx>) -> Option<u8> {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(ElementaryType::Bool) => Some(1),
+            TyKind::Udvt(inner, _) => self.packed_storage_size(inner),
+            _ => None,
         }
     }
 
@@ -506,6 +572,67 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             _ => 1,
+        }
+    }
+
+    pub(super) fn load_storage_location(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+    ) -> ValueId {
+        let slot = builder.imm_u64(location.slot);
+        let word = builder.sload(slot);
+        if !location.is_packed() {
+            return word;
+        }
+
+        let shifted = if location.offset == 0 {
+            word
+        } else {
+            let shift = builder.imm_u64(u64::from(location.offset) * 8);
+            builder.shr(shift, word)
+        };
+        let mask = Self::packed_storage_mask(location.size);
+        let mask = builder.imm_u256(mask);
+        builder.and(shifted, mask)
+    }
+
+    pub(super) fn store_storage_location(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        location: StorageLocation,
+        value: ValueId,
+    ) {
+        let slot = builder.imm_u64(location.slot);
+        if !location.is_packed() {
+            builder.sstore(slot, value);
+            return;
+        }
+
+        let shift_bits = u64::from(location.offset) * 8;
+        let field_mask = Self::packed_storage_mask(location.size);
+        let shifted_mask = field_mask << shift_bits;
+        let keep_mask = builder.imm_u256(!shifted_mask);
+        let value_mask = builder.imm_u256(field_mask);
+
+        let word = builder.sload(slot);
+        let cleared = builder.and(word, keep_mask);
+        let masked = builder.and(value, value_mask);
+        let shifted = if location.offset == 0 {
+            masked
+        } else {
+            let shift = builder.imm_u64(shift_bits);
+            builder.shl(shift, masked)
+        };
+        let updated = builder.or(cleared, shifted);
+        builder.sstore(slot, updated);
+    }
+
+    fn packed_storage_mask(size: u8) -> U256 {
+        if size >= StorageLocation::WORD_SIZE {
+            U256::MAX
+        } else {
+            (U256::from(1) << (usize::from(size) * 8)) - U256::from(1)
         }
     }
 
@@ -1264,9 +1391,8 @@ impl<'gcx> Lowerer<'gcx> {
                     let init_val = self.lower_expr(builder, init);
                     if let Some(&offset) = self.immutable_slots.get(&var_id) {
                         self.store_immutable_value(builder, offset, init_val);
-                    } else if let Some(&slot) = self.storage_slots.get(&var_id) {
-                        let slot_val = builder.imm_u64(slot);
-                        builder.sstore(slot_val, init_val);
+                    } else if let Some(&location) = self.storage_locations.get(&var_id) {
+                        self.store_storage_location(builder, location, init_val);
                     }
                 }
             }

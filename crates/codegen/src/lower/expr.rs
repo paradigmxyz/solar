@@ -563,7 +563,8 @@ impl<'gcx> Lowerer<'gcx> {
                     }
 
                     // Check if it's a storage variable
-                    if let Some(&slot) = self.storage_slots.get(var_id) {
+                    if let Some(&location) = self.storage_locations.get(var_id) {
+                        let slot = location.slot;
                         // For storage structs, we need to copy to memory and return the pointer
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
                         {
@@ -593,7 +594,7 @@ impl<'gcx> Lowerer<'gcx> {
                         }
 
                         // For scalar storage variables, just load the value
-                        return builder.sload(slot_val);
+                        return self.load_storage_location(builder, location);
                     }
                 }
                 builder.imm_u64(0)
@@ -699,6 +700,9 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             sym::offset => {
+                if let Some(location) = self.storage_locations.get(var_id) {
+                    return builder.imm_u64(u64::from(location.offset));
+                }
                 if let Some(head) = calldata_head {
                     let base = builder.imm_u64(4 + 32);
                     return builder.add(base, head);
@@ -1080,7 +1084,8 @@ impl<'gcx> Lowerer<'gcx> {
                         self.locals.insert(*var_id, rhs);
                     } else if let Some(&offset) = self.immutable_slots.get(var_id) {
                         self.store_immutable_value(builder, offset, rhs);
-                    } else if let Some(&base_slot) = self.storage_slots.get(var_id) {
+                    } else if let Some(&location) = self.storage_locations.get(var_id) {
+                        let base_slot = location.slot;
                         // Check if this is a struct assignment (memory struct -> storage struct)
                         if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
                         {
@@ -1100,8 +1105,7 @@ impl<'gcx> Lowerer<'gcx> {
                             self.copy_memory_bytes_to_storage(builder, slot_val, rhs);
                         } else {
                             // Simple scalar storage assignment
-                            let slot_val = builder.imm_u64(base_slot);
-                            builder.sstore(slot_val, rhs);
+                            self.store_storage_location(builder, location, rhs);
                         }
                     }
                 }

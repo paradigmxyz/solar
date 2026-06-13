@@ -1,0 +1,77 @@
+// === ROOT/tests/ui/codegen/storage_packed_bool.sol:PackedBool ===
+; module @PackedBool
+fn @a() {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = sload 0 !metadata(storage=slot(0))
+    v7 = and v5, 255
+    mstore 128, v7
+    returndata 128, 32
+}
+
+fn @b() {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = sload 0 !metadata(storage=slot(0))
+    v7 = shr 8, v5
+    v9 = and v7, 255
+    mstore 128, v9
+    returndata 128, 32
+}
+
+fn @set(arg0: bool, arg1: bool) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v9 = iszero v8
+    v10 = iszero v9
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = calldataload 36
+    v16 = iszero v15
+    v17 = iszero v16
+    v18 = eq v15, v17
+    br v18, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v23 = sload 0 !metadata(storage=slot(0))
+    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v25 = and arg0, 255
+    v26 = or v24, v25
+    sstore 0, v26 !metadata(storage=slot(0))
+    v31 = sload 0 !metadata(storage=slot(0))
+    v32 = and v31, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v33 = and arg1, 255
+    v35 = shl 8, v33
+    v36 = or v32, v35
+    sstore 0, v36 !metadata(storage=slot(0))
+    stop
+}
+
+fn @both() {
+  bb0 (entry):
+    mstore 128, 0
+    v5 = sload 0 !metadata(storage=slot(0))
+    v7 = and v5, 255
+    br v7, bb1, bb2
+  bb1:
+    v10 = sload 0 !metadata(storage=slot(0))
+    v12 = shr 8, v10
+    v14 = and v12, 255
+    jump bb2
+  bb2:
+    v16 = phi [bb0: 0], [bb1: v14]
+    mstore 128, v16
+    returndata 128, 32
+}
+
