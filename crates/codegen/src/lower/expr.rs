@@ -25,6 +25,11 @@ enum PackedAbiArg {
     DynamicBytes(ValueId),
 }
 
+struct MappingElementSlot {
+    slot: ValueId,
+    value_is_mapping: bool,
+}
+
 #[derive(Clone, Copy)]
 struct IntegerInfo {
     signed: bool,
@@ -231,72 +236,16 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Index(base, index) => {
-                // Check if base is a mapping (state variable with mapping type)
-                if let Some((var_id, slot)) = self.get_mapping_base_slot(base) {
-                    // This is a mapping access: mapping[key]
-                    // Storage slot = keccak256(abi.encode(key, base_slot))
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let slot_val = builder.imm_u64(slot);
-                    let (key_is_dynamic, value_is_mapping) = {
-                        let var = self.gcx.hir.variable(var_id);
-                        if let hir::TypeKind::Mapping(map) = &var.ty.kind {
-                            (
-                                Self::is_dynamic_mapping_key(&map.key.kind),
-                                matches!(map.value.kind, hir::TypeKind::Mapping(_)),
-                            )
-                        } else {
-                            (false, false)
-                        }
-                    };
-                    let computed_slot = self.compute_mapping_slot_for_index(
-                        builder,
-                        index.as_deref(),
-                        index_val,
-                        slot_val,
-                        key_is_dynamic,
-                    );
-
-                    if value_is_mapping {
-                        // Nested mapping - return the computed slot for further indexing
-                        return computed_slot;
+                if let Some(mapping) =
+                    self.lower_mapping_element_slot(builder, base, index.as_deref())
+                {
+                    if mapping.value_is_mapping {
+                        return mapping.slot;
                     }
-
                     if self.expr_has_bytes_or_string_type(expr) {
-                        return self.materialize_storage_bytes(builder, computed_slot);
+                        return self.materialize_storage_bytes(builder, mapping.slot);
                     }
-                    return builder.sload(computed_slot);
-                }
-
-                // Check if base is a nested mapping access (e.g., m[a][b] where m[a] returns a
-                // slot)
-                if self.is_nested_mapping_index(base) {
-                    // This is a nested mapping access
-                    let inner_slot = self.lower_nested_mapping_slot(builder, base);
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
-                    let computed_slot = self.compute_mapping_slot_for_index(
-                        builder,
-                        index.as_deref(),
-                        index_val,
-                        inner_slot,
-                        key_is_dynamic,
-                    );
-
-                    // Check if the value is another nested mapping
-                    if self.nested_mapping_value_is_mapping(base) {
-                        return computed_slot;
-                    }
-
-                    if self.expr_has_bytes_or_string_type(expr) {
-                        return self.materialize_storage_bytes(builder, computed_slot);
-                    }
-                    return builder.sload(computed_slot);
+                    return builder.sload(mapping.slot);
                 }
 
                 // Check if base is an array in storage (state variable or
@@ -2815,50 +2764,13 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
             ExprKind::Index(base, index) => {
-                // Check if base is a mapping (state variable with mapping type)
-                if let Some((_var_id, slot)) = self.get_mapping_base_slot(base) {
-                    // This is a mapping assignment: mapping[key] = value
-                    // Storage slot = keccak256(abi.encode(key, base_slot))
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let slot_val = builder.imm_u64(slot);
-                    let key_is_dynamic = self.mapping_base_has_dynamic_key(base);
-                    let computed_slot = self.compute_mapping_slot_for_index(
-                        builder,
-                        index.as_deref(),
-                        index_val,
-                        slot_val,
-                        key_is_dynamic,
-                    );
+                if let Some(mapping) =
+                    self.lower_mapping_element_slot(builder, base, index.as_deref())
+                {
                     if self.expr_has_bytes_or_string_type(lhs) {
-                        self.copy_memory_bytes_to_storage(builder, computed_slot, rhs);
+                        self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
                     } else {
-                        builder.sstore(computed_slot, rhs);
-                    }
-                    return;
-                }
-
-                // Check if base is a nested mapping access (e.g., m[a][b] = value)
-                if self.is_nested_mapping_index(base) {
-                    let inner_slot = self.lower_nested_mapping_slot(builder, base);
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
-                    let computed_slot = self.compute_mapping_slot_for_index(
-                        builder,
-                        index.as_deref(),
-                        index_val,
-                        inner_slot,
-                        key_is_dynamic,
-                    );
-                    if self.expr_has_bytes_or_string_type(lhs) {
-                        self.copy_memory_bytes_to_storage(builder, computed_slot, rhs);
-                    } else {
-                        builder.sstore(computed_slot, rhs);
+                        builder.sstore(mapping.slot, rhs);
                     }
                     return;
                 }
@@ -5271,41 +5183,10 @@ impl<'gcx> Lowerer<'gcx> {
                 None
             }
             ExprKind::Index(base, index) => {
-                // Mapping element: keccak256(key, base_slot).
-                if let Some((var_id, slot)) = self.get_mapping_base_slot(base) {
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let slot_val = builder.imm_u64(slot);
-                    let key_is_dynamic = {
-                        let var = self.gcx.hir.variable(var_id);
-                        matches!(&var.ty.kind, hir::TypeKind::Mapping(map)
-                            if Self::is_dynamic_mapping_key(&map.key.kind))
-                    };
-                    return Some(self.compute_mapping_slot_for_index(
-                        builder,
-                        index.as_deref(),
-                        index_val,
-                        slot_val,
-                        key_is_dynamic,
-                    ));
-                }
-                // Nested mapping element.
-                if self.is_nested_mapping_index(base) {
-                    let inner_slot = self.lower_nested_mapping_slot(builder, base);
-                    let index_val = match index {
-                        Some(idx) => self.lower_expr(builder, idx),
-                        None => builder.imm_u64(0),
-                    };
-                    let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
-                    return Some(self.compute_mapping_slot_for_index(
-                        builder,
-                        index.as_deref(),
-                        index_val,
-                        inner_slot,
-                        key_is_dynamic,
-                    ));
+                if let Some(mapping) =
+                    self.lower_mapping_element_slot(builder, base, index.as_deref())
+                {
+                    return Some(mapping.slot);
                 }
                 // Storage array element (state variable or storage-reference
                 // local): bounds-checked element slot.
@@ -5755,6 +5636,70 @@ impl<'gcx> Lowerer<'gcx> {
         false
     }
 
+    fn lower_index_or_zero(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        index: Option<&hir::Expr<'_>>,
+    ) -> ValueId {
+        match index {
+            Some(index) => self.lower_expr(builder, index),
+            None => builder.imm_u64(0),
+        }
+    }
+
+    /// Computes the storage slot for `base[index]` when the base is a mapping
+    /// or nested mapping expression. Also reports whether the indexed value is
+    /// itself another mapping, in which case callers should forward the slot
+    /// instead of loading from it.
+    fn lower_mapping_element_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        index: Option<&hir::Expr<'_>>,
+    ) -> Option<MappingElementSlot> {
+        if let Some((var_id, slot)) = self.get_mapping_base_slot(base) {
+            let index_val = self.lower_index_or_zero(builder, index);
+            let slot_val = builder.imm_u64(slot);
+            let var = self.gcx.hir.variable(var_id);
+            let (key_is_dynamic, value_is_mapping) =
+                if let hir::TypeKind::Mapping(map) = &var.ty.kind {
+                    (
+                        Self::is_dynamic_mapping_key(&map.key.kind),
+                        matches!(map.value.kind, hir::TypeKind::Mapping(_)),
+                    )
+                } else {
+                    (false, false)
+                };
+            let slot = self.compute_mapping_slot_for_index(
+                builder,
+                index,
+                index_val,
+                slot_val,
+                key_is_dynamic,
+            );
+            return Some(MappingElementSlot { slot, value_is_mapping });
+        }
+
+        if self.is_nested_mapping_index(base) {
+            let inner_slot = self.lower_nested_mapping_slot(builder, base);
+            let index_val = self.lower_index_or_zero(builder, index);
+            let key_is_dynamic = self.mapping_level_key_is_dynamic(base);
+            let slot = self.compute_mapping_slot_for_index(
+                builder,
+                index,
+                index_val,
+                inner_slot,
+                key_is_dynamic,
+            );
+            return Some(MappingElementSlot {
+                slot,
+                value_is_mapping: self.nested_mapping_value_is_mapping(base),
+            });
+        }
+
+        None
+    }
+
     /// Computes the storage slot for a nested mapping access.
     /// For `m[a][b]`, this computes: `keccak256(b, keccak256(a, base_slot))`
     fn lower_nested_mapping_slot(
@@ -6021,17 +5966,6 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(slot_addr, slot);
         let hash_len = builder.add(len, word_size);
         builder.keccak256(scratch, hash_len)
-    }
-
-    fn mapping_base_has_dynamic_key(&self, expr: &hir::Expr<'_>) -> bool {
-        let Some((var_id, _)) = self.get_mapping_base_slot(expr) else {
-            return false;
-        };
-        let var = self.gcx.hir.variable(var_id);
-        let hir::TypeKind::Mapping(map) = &var.ty.kind else {
-            return false;
-        };
-        Self::is_dynamic_mapping_key(&map.key.kind)
     }
 
     fn is_dynamic_mapping_key(kind: &hir::TypeKind<'_>) -> bool {
