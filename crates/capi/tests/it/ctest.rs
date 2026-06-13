@@ -1,6 +1,6 @@
 use std::{
     env,
-    ffi::{OsStr, OsString},
+    ffi::OsString,
     fs,
     path::{Path, PathBuf},
     process::Command,
@@ -106,25 +106,16 @@ fn prepend_dynamic_library_path(command: &mut Command, lib_dir: &Path) {
 }
 
 fn dynamic_library(lib_dir: &Path) -> Option<PathBuf> {
-    find_existing(&library_search_dirs(lib_dir), dynamic_library_names())
+    let name = format!("{}solar_capi{}", env::consts::DLL_PREFIX, env::consts::DLL_SUFFIX);
+    find_existing(&library_search_dirs(lib_dir), &[name.as_str()])
 }
 
 fn library_search_dirs(lib_dir: &Path) -> [PathBuf; 2] {
     [lib_dir.to_path_buf(), lib_dir.join("deps")]
 }
 
-fn dynamic_library_names() -> &'static [&'static str] {
-    if cfg!(windows) {
-        &["solar_capi.dll"]
-    } else if cfg!(target_os = "macos") {
-        &["libsolar_capi.dylib"]
-    } else {
-        &["libsolar_capi.so"]
-    }
-}
-
 fn find_existing(dirs: &[PathBuf], names: &[&str]) -> Option<PathBuf> {
     dirs.iter()
-        .flat_map(|dir| names.iter().map(move |name| dir.join(OsStr::new(name))))
+        .flat_map(|dir| names.iter().map(move |name| dir.join(name)))
         .find(|path| path.exists())
 }
