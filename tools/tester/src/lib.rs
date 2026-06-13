@@ -171,6 +171,7 @@ FileCheck "$2" < "$out"
         //
         (&env!("CARGO_PKG_VERSION").replace(".", r"\."), "VERSION"),
     ];
+    add_root_stdout_filters(&mut config, root);
     for &(pattern, replacement) in stdout_filters {
         config.stdout_filter(pattern, replacement);
     }
@@ -190,6 +191,22 @@ FileCheck "$2" < "$out"
     }
 
     config
+}
+
+fn add_root_stdout_filters(config: &mut ui_test::Config, root: &Path) {
+    let native = root.to_string_lossy();
+    let slash = native.replace('\\', "/");
+    let escaped = native.replace('\\', r"\\");
+    let mut roots = vec![native.into_owned(), slash.clone(), escaped];
+    if let Some((drive, rest)) = slash.split_once(':') {
+        roots.push(format!("{}:{rest}", drive.to_ascii_uppercase()));
+        roots.push(format!("{}:{rest}", drive.to_ascii_lowercase()));
+    }
+    roots.sort();
+    roots.dedup();
+    for root in roots {
+        config.stdout_filter(&regex::escape(&root), "ROOT");
+    }
 }
 
 fn get_host() -> &'static str {
