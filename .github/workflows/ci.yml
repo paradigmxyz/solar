@@ -89,9 +89,9 @@ jobs:
         with:
           cache-on-failure: true
       - name: build wasm
-        env:
-          RUSTFLAGS: -C link-arg=--export-table -C link-arg=--growable-table
-        run: cargo build -p solar-cli --lib --profile minsize --no-default-features --target wasm32-unknown-unknown
+        run: bash scripts/dist-wasm.sh
+      - name: test soljson
+        run: node scripts/test-soljson.js
 
   typos:
     runs-on: ubuntu-latest
