@@ -39,6 +39,29 @@ struct ArithmeticInfo {
     unsupported_udvt_operator: bool,
 }
 
+#[derive(Clone, Copy)]
+enum PanicCode {
+    Assert,
+    ArithmeticOverflowUnderflow,
+    DivisionByZero,
+    PopEmptyArray,
+    ArrayOutOfBounds,
+    MemoryAllocationOverflow,
+}
+
+impl PanicCode {
+    fn as_u64(self) -> u64 {
+        match self {
+            Self::Assert => 0x01,
+            Self::ArithmeticOverflowUnderflow => 0x11,
+            Self::DivisionByZero => 0x12,
+            Self::PopEmptyArray => 0x31,
+            Self::ArrayOutOfBounds => 0x32,
+            Self::MemoryAllocationOverflow => 0x41,
+        }
+    }
+}
+
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers an expression to MIR.
     pub(super) fn lower_expr(
@@ -805,14 +828,14 @@ impl<'gcx> Lowerer<'gcx> {
         let thirty_one = builder.imm_u64(31);
         let rounded = builder.add(len, thirty_one);
         let rounded_overflow = builder.lt(rounded, len);
-        self.emit_panic_if(builder, rounded_overflow, 0x41);
+        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
         let mask = builder.not(thirty_one);
         let padded = builder.and(rounded, mask);
         let is_empty = builder.iszero(padded);
         let data_size = builder.select(is_empty, word_size, padded);
         let total_size = builder.add(word_size, data_size);
         let total_overflow = builder.lt(total_size, data_size);
-        self.emit_panic_if(builder, total_overflow, 0x41);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
         let ptr = self.allocate_memory_dynamic(builder, total_size);
         builder.mstore(ptr, len);
@@ -1218,7 +1241,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let int_info =
                     self.require_checked_arithmetic_info(arithmetic.integer, arithmetic.span);
                 let is_signed = int_info.map_or(arithmetic.is_signed, |info| info.signed);
-                self.emit_panic_if_zero(builder, rhs, 0x12);
+                self.emit_panic_if_zero(builder, rhs, PanicCode::DivisionByZero);
                 if is_signed {
                     if !self.in_unchecked_block
                         && let Some(info) = int_info
@@ -1235,7 +1258,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let int_info =
                     self.require_checked_arithmetic_info(arithmetic.integer, arithmetic.span);
                 let is_signed = int_info.map_or(arithmetic.is_signed, |info| info.signed);
-                self.emit_panic_if_zero(builder, rhs, 0x12);
+                self.emit_panic_if_zero(builder, rhs, PanicCode::DivisionByZero);
                 if is_signed { builder.smod(lhs, rhs) } else { builder.mod_(lhs, rhs) }
             }
             BinOpKind::Pow => self.lower_checked_or_wrapping_pow(
@@ -1339,7 +1362,7 @@ impl<'gcx> Lowerer<'gcx> {
             } else {
                 self.unsigned_add_overflow(builder, lhs, result, info)
             };
-            self.emit_panic_if(builder, overflow, 0x11);
+            self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
             result
         } else {
             self.truncate_wrapping_result(builder, result, int_info)
@@ -1364,7 +1387,7 @@ impl<'gcx> Lowerer<'gcx> {
             } else {
                 builder.lt(lhs, rhs)
             };
-            self.emit_panic_if(builder, overflow, 0x11);
+            self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
             result
         } else {
             self.truncate_wrapping_result(builder, result, int_info)
@@ -1389,7 +1412,7 @@ impl<'gcx> Lowerer<'gcx> {
             } else {
                 self.unsigned_mul_overflow(builder, lhs, rhs, result, info)
             };
-            self.emit_panic_if(builder, overflow, 0x11);
+            self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
             result
         } else {
             self.truncate_wrapping_result(builder, result, int_info)
@@ -1455,7 +1478,7 @@ impl<'gcx> Lowerer<'gcx> {
             let bound = Self::const_base_max_exponent(base, info);
             let bound = builder.imm_u64(u64::from(bound));
             let too_large = builder.gt(exponent, bound);
-            self.emit_panic_if(builder, too_large, 0x11);
+            self.emit_panic_if(builder, too_large, PanicCode::ArithmeticOverflowUnderflow);
         }
         if base == U256::from(2) {
             // `exp(2, e) == shl(e, 1)` for `e <= 255`, and SHL is cheaper.
@@ -1544,11 +1567,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(base_two_block);
         let max_shift = builder.imm_u64(255);
         let shift_too_large = builder.gt(exponent, max_shift);
-        self.emit_panic_if(builder, shift_too_large, 0x11);
+        self.emit_panic_if(builder, shift_too_large, PanicCode::ArithmeticOverflowUnderflow);
         let power = builder.shl(exponent, one);
         if info.bits < 256 {
             let out_of_range = builder.gt(power, max_imm);
-            self.emit_panic_if(builder, out_of_range, 0x11);
+            self.emit_panic_if(builder, out_of_range, PanicCode::ArithmeticOverflowUnderflow);
         }
         results.push((builder.current_block(), power));
         builder.jump(join);
@@ -1565,7 +1588,7 @@ impl<'gcx> Lowerer<'gcx> {
         let power = builder.exp(base, exponent);
         if info.bits < 256 {
             let out_of_range = builder.gt(power, max_imm);
-            self.emit_panic_if(builder, out_of_range, 0x11);
+            self.emit_panic_if(builder, out_of_range, PanicCode::ArithmeticOverflowUnderflow);
         }
         results.push((builder.current_block(), power));
         builder.jump(join);
@@ -1576,7 +1599,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Final multiply: panic iff `power * base > max`.
         let quotient = builder.div(max_imm, base);
         let overflow = builder.gt(power, quotient);
-        self.emit_panic_if(builder, overflow, 0x11);
+        self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
         let power = builder.mul(power, base);
         results.push((builder.current_block(), power));
         builder.jump(join);
@@ -1684,14 +1707,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(positive_native);
         let power = builder.exp(base, exponent);
         let out_of_range = builder.gt(power, max_imm);
-        self.emit_panic_if(builder, out_of_range, 0x11);
+        self.emit_panic_if(builder, out_of_range, PanicCode::ArithmeticOverflowUnderflow);
         results.push((builder.current_block(), power));
         builder.jump(join);
 
         builder.switch_to_block(positive_loop);
         let quotient = builder.div(max_imm, base);
         let overflow = builder.gt(base, quotient);
-        self.emit_panic_if(builder, overflow, 0x11);
+        self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
         builder.jump(square_block);
 
         builder.switch_to_block(negative_check);
@@ -1710,7 +1733,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(negative_loop);
         let quotient = builder.sdiv(max_imm, base);
         let overflow = builder.slt(base, quotient);
-        self.emit_panic_if(builder, overflow, 0x11);
+        self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
         builder.jump(square_block);
 
         builder.switch_to_block(square_block);
@@ -1729,12 +1752,12 @@ impl<'gcx> Lowerer<'gcx> {
         let quotient = builder.div(max_imm, base);
         let above_max = builder.gt(power, quotient);
         let overflow = builder.and(power_positive, above_max);
-        self.emit_panic_if(builder, overflow, 0x11);
+        self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
         let power_negative = builder.slt(power, zero);
         let quotient = builder.sdiv(min_imm, base);
         let below_min = builder.slt(power, quotient);
         let underflow = builder.and(power_negative, below_min);
-        self.emit_panic_if(builder, underflow, 0x11);
+        self.emit_panic_if(builder, underflow, PanicCode::ArithmeticOverflowUnderflow);
         let power = builder.mul(power, base);
         results.push((builder.current_block(), power));
         builder.jump(join);
@@ -1776,7 +1799,7 @@ impl<'gcx> Lowerer<'gcx> {
         // Overflow check for base * base.
         let quotient = builder.div(max_imm, base_phi);
         let overflow = builder.gt(base_phi, quotient);
-        self.emit_panic_if(builder, overflow, 0x11);
+        self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
         // if and(exponent, 1) { power := mul(power, base) }. The product is
         // computed unconditionally but only selected when the exponent bit is
         // set, in which case the `base * base` check above proves it exact
@@ -1956,7 +1979,7 @@ impl<'gcx> Lowerer<'gcx> {
         let is_min = builder.eq(lhs, min);
         let is_minus_one = builder.eq(rhs, minus_one);
         let overflow = builder.and(is_min, is_minus_one);
-        self.emit_panic_if(builder, overflow, 0x11);
+        self.emit_panic_if(builder, overflow, PanicCode::ArithmeticOverflowUnderflow);
     }
 
     /// Emits an array bounds check: `if (!(index < len)) Panic(0x32)`.
@@ -1978,11 +2001,11 @@ impl<'gcx> Lowerer<'gcx> {
                 return;
             }
             let always = builder.imm_bool(true);
-            self.emit_panic_if(builder, always, 0x32);
+            self.emit_panic_if(builder, always, PanicCode::ArrayOutOfBounds);
             return;
         }
         let in_range = builder.lt(index, len);
-        self.emit_panic_if_zero(builder, in_range, 0x32);
+        self.emit_panic_if_zero(builder, in_range, PanicCode::ArrayOutOfBounds);
     }
 
     /// Returns the constant value of a MIR immediate, if `value` is one.
@@ -1993,7 +2016,12 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn emit_panic_if_zero(&mut self, builder: &mut FunctionBuilder<'_>, value: ValueId, code: u64) {
+    fn emit_panic_if_zero(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        value: ValueId,
+        code: PanicCode,
+    ) {
         // Branch directly on the value: zero falls into the revert block
         // without materializing an `iszero`/`eq` flag.
         let revert_block = builder.create_block();
@@ -2006,7 +2034,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(continue_block);
     }
 
-    fn emit_panic_if(&mut self, builder: &mut FunctionBuilder<'_>, cond: ValueId, code: u64) {
+    fn emit_panic_if(&mut self, builder: &mut FunctionBuilder<'_>, cond: ValueId, code: PanicCode) {
         let revert_block = builder.create_block();
         let continue_block = builder.create_block();
         builder.branch(cond, revert_block, continue_block);
@@ -2017,13 +2045,13 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(continue_block);
     }
 
-    fn emit_panic_revert(&mut self, builder: &mut FunctionBuilder<'_>, code: u64) {
+    fn emit_panic_revert(&mut self, builder: &mut FunctionBuilder<'_>, code: PanicCode) {
         let selector = U256::from(0x4e48_7b71u64) << 224;
         let selector = builder.imm_u256(selector);
         let zero = builder.imm_u64(0);
         builder.mstore(zero, selector);
         let code_offset = builder.imm_u64(4);
-        let code = builder.imm_u64(code);
+        let code = builder.imm_u64(code.as_u64());
         builder.mstore(code_offset, code);
         let size = builder.imm_u64(36);
         builder.revert(zero, size);
@@ -2719,7 +2747,11 @@ impl<'gcx> Lowerer<'gcx> {
                     {
                         let min = builder.imm_u256(Self::signed_min(info.bits));
                         let overflow = builder.eq(operand, min);
-                        self.emit_panic_if(builder, overflow, 0x11);
+                        self.emit_panic_if(
+                            builder,
+                            overflow,
+                            PanicCode::ArithmeticOverflowUnderflow,
+                        );
                     }
                 }
                 builder.sub(zero, operand)
@@ -3385,7 +3417,7 @@ impl<'gcx> Lowerer<'gcx> {
             let thirty_one = builder.imm_u64(31);
             let rounded = builder.add(len, thirty_one);
             let rounded_overflow = builder.lt(rounded, len);
-            self.emit_panic_if(builder, rounded_overflow, 0x41);
+            self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
             let mask = builder.not(thirty_one);
             builder.and(rounded, mask)
         } else {
@@ -3393,20 +3425,20 @@ impl<'gcx> Lowerer<'gcx> {
             let data_size = builder.mul(len, word_size);
             let checked_len = builder.div(data_size, word_size);
             let overflow = builder.eq(checked_len, len);
-            self.emit_panic_if_zero(builder, overflow, 0x41);
+            self.emit_panic_if_zero(builder, overflow, PanicCode::MemoryAllocationOverflow);
             data_size
         };
         let total_size = builder.add(data_size, word_size);
         let total_overflow = builder.lt(total_size, data_size);
-        self.emit_panic_if(builder, total_overflow, 0x41);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
         let new_free_ptr = builder.add(ptr, total_size);
         let bump_overflow = builder.lt(new_free_ptr, ptr);
-        self.emit_panic_if(builder, bump_overflow, 0x41);
+        self.emit_panic_if(builder, bump_overflow, PanicCode::MemoryAllocationOverflow);
         // Solidity caps memory at 2^64 bytes: an allocation past that limit
         // panics (0x41) rather than running the VM out of gas on a huge size.
         let mem_limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
         let over_limit = builder.gt(new_free_ptr, mem_limit);
-        self.emit_panic_if(builder, over_limit, 0x41);
+        self.emit_panic_if(builder, over_limit, PanicCode::MemoryAllocationOverflow);
         let free_ptr_addr = builder.imm_u64(0x40);
         builder.mstore(free_ptr_addr, new_free_ptr);
 
@@ -3592,7 +3624,7 @@ impl<'gcx> Lowerer<'gcx> {
 
                     builder.switch_to_block(revert_block);
                     if matches!(builtin, Builtin::Assert) {
-                        self.emit_panic_revert(builder, 0x01);
+                        self.emit_panic_revert(builder, PanicCode::Assert);
                     } else if let Some(message) = exprs.next() {
                         if !self.emit_revert_payload_from_expr(builder, message) {
                             let zero = builder.imm_u64(0);
@@ -4681,7 +4713,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let one = builder.imm_u64(1);
                 let new_len = builder.add(len, one);
                 let overflow = builder.lt(new_len, len);
-                self.emit_panic_if(builder, overflow, 0x41);
+                self.emit_panic_if(builder, overflow, PanicCode::MemoryAllocationOverflow);
 
                 let resized = self.resize_memory_bytes(builder, current, len, new_len);
                 let byte = args
@@ -4699,7 +4731,7 @@ impl<'gcx> Lowerer<'gcx> {
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
             }
             "pop" => {
-                self.emit_panic_if_zero(builder, len, 0x31);
+                self.emit_panic_if_zero(builder, len, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
                 let new_len = builder.sub(len, one);
                 let resized = self.resize_memory_bytes(builder, current, new_len, new_len);
@@ -5006,7 +5038,7 @@ impl<'gcx> Lowerer<'gcx> {
         let data_size = builder.select(is_empty, word, padded);
         let total_size = builder.add(word, data_size);
         let total_overflow = builder.lt(total_size, data_size);
-        self.emit_panic_if(builder, total_overflow, 0x41);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
         let ptr = self.allocate_memory_dynamic(builder, total_size);
         builder.mstore(ptr, tail_len);
 
