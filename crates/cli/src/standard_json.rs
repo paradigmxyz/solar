@@ -15,6 +15,7 @@ use std::{
     borrow::{Borrow, Cow},
     collections::BTreeMap,
     fmt,
+    fs::File,
     io::{self, Read, Write},
     ops::Deref,
     path::{Path, PathBuf},
@@ -148,18 +149,33 @@ pub fn compile_standard_json(
 }
 
 pub(crate) fn run(opts: Opts) -> io::Result<()> {
-    let mut input = String::new();
     let stdout = io::stdout();
     let mut stdout = io::BufWriter::new(stdout.lock());
-    match io::stdin().read_to_string(&mut input) {
-        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout),
-        Err(e) => standard_json_error_output(
-            format!("failed to read standard JSON input: {e}"),
-            &mut stdout,
-        )?,
-    }
+    let stdin = io::stdin();
+    let mut stdin = stdin.lock();
+    run_with_io(opts, &mut stdin, &mut stdout)?;
     stdout.write_all(b"\n")?;
     stdout.flush()
+}
+
+fn run_with_io(opts: Opts, stdin: &mut dyn Read, stdout: &mut dyn Write) -> io::Result<()> {
+    match read_input(&opts, stdin) {
+        Ok(input) => compile_standard_json(&input, opts, None, stdout),
+        Err(e) => {
+            standard_json_error_output(format!("failed to read standard JSON input: {e}"), stdout)?
+        }
+    }
+    Ok(())
+}
+
+fn read_input(opts: &Opts, stdin: &mut dyn Read) -> io::Result<String> {
+    let mut input = String::new();
+    match opts.input.as_slice() {
+        [] => stdin.read_to_string(&mut input).map(|_| input),
+        [arg] if arg == "-" => stdin.read_to_string(&mut input).map(|_| input),
+        [path] => File::open(path)?.read_to_string(&mut input).map(|_| input),
+        _ => unreachable!("standard JSON input count is validated during argument parsing"),
+    }
 }
 
 fn standard_json_error_output(message: String, out: &mut dyn Write) -> io::Result<()> {
@@ -824,7 +840,10 @@ fn strip_json_comments(input: &str) -> String {
 mod tests {
     use super::*;
     use snapbox::{IntoData as _, assert_data_eq, str};
-    use std::collections::BTreeMap;
+    use std::{
+        collections::BTreeMap,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     struct Sources(BTreeMap<String, String>);
 
@@ -857,11 +876,7 @@ mod tests {
         typeck: bool,
     ) -> String {
         let mut output = Vec::new();
-        let opts = Opts {
-            pretty_json: true,
-            unstable: solar_config::UnstableOpts { ui_testing: true, typeck, ..Default::default() },
-            ..Opts::default()
-        };
+        let opts = Opts { unstable: test_unstable_opts(typeck), ..test_opts() };
         compile_standard_json(input, opts, callback, &mut output);
         normalize_manifest_dir(String::from_utf8(output).unwrap())
     }
@@ -869,6 +884,14 @@ mod tests {
     fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
         let actual = normalize_manifest_dir(actual.to_owned());
         assert_data_eq!(actual, expected.into_data().is_json());
+    }
+
+    fn test_opts() -> Opts {
+        Opts { pretty_json: true, ..Opts::default() }
+    }
+
+    fn test_unstable_opts(typeck: bool) -> solar_config::UnstableOpts {
+        solar_config::UnstableOpts { ui_testing: true, typeck, ..Default::default() }
     }
 
     fn normalize_manifest_dir(mut output: String) -> String {
@@ -903,6 +926,56 @@ mod tests {
         assert_eq!(
             normalize_manifest_dir(r#"{"D:\\a\\solar\\solar\\crates\\cli\\B.sol":{}}"#.to_string()),
             r#"{"ROOT/B.sol":{}}"#,
+        );
+    }
+
+    #[test]
+    fn run_reads_input_file() {
+        let input = r#"{
+            "language": "Solidity",
+            "sources": {
+                "A.sol": {
+                    "content": "contract A {}"
+                }
+            },
+            "settings": {
+                "outputSelection": { "*": { "*": ["abi"] } }
+            }
+        }"#;
+        let path = std::env::temp_dir().join(format!(
+            "solar-standard-json-{}-{}.json",
+            std::process::id(),
+            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+        ));
+        std::fs::write(&path, input).unwrap();
+
+        let mut output = Vec::new();
+        let opts = Opts {
+            input: vec![path.to_string_lossy().into_owned()],
+            unstable: test_unstable_opts(false),
+            ..test_opts()
+        };
+        run_with_io(opts, &mut std::io::empty(), &mut output).unwrap();
+        std::fs::remove_file(path).unwrap();
+
+        assert_json(
+            &String::from_utf8(output).unwrap(),
+            str![[r#"
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "abi": []
+      }
+    }
+  }
+}
+"#]],
         );
     }
 
