@@ -1,3 +1,7 @@
 # Required to override Cargo package name.
 [package]
 name = "solar"
+
+[[dist.extra-artifacts]]
+artifacts = ["../../target/dist/solar-soljson.tar.gz"]
+build = ["bash", "../../scripts/dist-wasm.sh"]

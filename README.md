@@ -125,6 +125,54 @@ EOF
 solar $(forge re) src/Contract.sol
 ```
 
+### WASM and JavaScript usage
+
+The `solar-cli` crate exposes a solc-js-compatible Standard JSON API for
+browser and JavaScript runtimes as a `cdylib`. Build it with:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo build -p solar-cli --lib --release --no-default-features --target wasm32-unknown-unknown
+```
+
+The resulting WASM exports the modern soljson C ABI:
+`solidity_license`, `solidity_version`, `solidity_alloc`, `solidity_free`,
+`solidity_reset`, and `solidity_compile`. `solidity_compile(input,
+read_callback, read_context)` accepts a UTF-8 Standard JSON input string and
+returns UTF-8 Standard JSON output. Callback kind `source` is used for import
+resolution. Other callback kinds, including `smt-query`, currently return an
+unsupported callback error.
+
+Use [`crates/cli/soljson.js`](/crates/cli/soljson.js) as the JavaScript
+wrapper:
+
+```js
+const solar = require("./soljson.js").setupMethods(soljsonModule);
+
+const output = solar.compile(JSON.stringify({
+  language: "Solidity",
+  sources: {
+    "A.sol": { content: 'import "B.sol"; contract A is B {}' },
+  },
+  settings: { outputSelection: { "*": { "*": ["abi"] } } },
+}), {
+  import(path) {
+    if (path === "B.sol") {
+      return { contents: "contract B {}" };
+    }
+    return { error: `source not found: ${path}` };
+  },
+});
+```
+
+The wrapper exposes `compile(inputJsonString, callbacks?)`, `version()`,
+`semver()`, `license()`, `features`, `lowlevel.compileStandard(...)`, and
+`setupMethods(...)`. Legacy low-level solc-js entry points are intentionally
+set to `null`.
+
+Release artifacts include `solar-soljson.tar.gz`, which packages the compiled
+`solar.wasm` module together with `soljson.js`.
+
 ## Roadmap
 
 You can find a more detailed list in the [pinned GitHub issue](https://github.com/paradigmxyz/solar/issues/1).

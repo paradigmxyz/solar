@@ -75,6 +75,22 @@ jobs:
       - name: cargo hack
         run: cargo hack check --feature-powerset --depth 1
 
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: build wasm
+        run: cargo build -p solar-cli --lib --no-default-features --target wasm32-unknown-unknown
+
   typos:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -168,6 +184,7 @@ jobs:
     needs:
       - test
       - feature-checks
+      - wasm
       - typos
       - clippy
       - docs
