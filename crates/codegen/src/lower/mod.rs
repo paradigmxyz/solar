@@ -4,6 +4,7 @@
 
 mod abi_encode;
 mod abi_packed;
+mod bytes;
 mod checked_arith;
 mod expr;
 mod stmt;
