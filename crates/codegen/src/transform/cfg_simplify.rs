@@ -15,6 +15,7 @@
 //! (public/external functions, constructor, fallback, receive).
 
 use crate::{
+    analysis::CallGraphInfo,
     mir::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
         Terminator, Value, ValueId,
@@ -22,7 +23,6 @@ use crate::{
     pass::{FunctionPass, ModulePass},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use std::collections::VecDeque;
 
 /// Alpha-equivalence key for a terminal block used by
 /// [`CfgSimplifier::deduplicate_terminal_blocks`].
@@ -741,7 +741,8 @@ impl DeadFunctionEliminator {
     pub fn run(&mut self, module: &mut Module) -> usize {
         self.stats = CfgSimplifyStats::default();
 
-        let reachable = self.find_reachable_functions(module);
+        let call_graph = CallGraphInfo::new(module);
+        let reachable = call_graph.reachable_from_entries();
         if reachable.is_empty() {
             return 0;
         }
@@ -760,138 +761,6 @@ impl DeadFunctionEliminator {
 
         self.stats.dead_functions_eliminated
     }
-
-    /// Finds all functions reachable from entry points.
-    fn find_reachable_functions(&self, module: &Module) -> FxHashSet<FunctionId> {
-        let mut reachable = FxHashSet::default();
-        let mut worklist = VecDeque::new();
-
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if self.is_entry_point(func) {
-                reachable.insert(func_id);
-                worklist.push_back(func_id);
-            }
-        }
-
-        let call_graph = self.build_call_graph(module);
-
-        while let Some(func_id) = worklist.pop_front() {
-            if let Some(callees) = call_graph.get(&func_id) {
-                for &callee in callees {
-                    if reachable.insert(callee) {
-                        worklist.push_back(callee);
-                    }
-                }
-            }
-        }
-
-        reachable
-    }
-
-    /// Checks if a function is an entry point.
-    fn is_entry_point(&self, func: &Function) -> bool {
-        func.selector.is_some()
-            || func.attributes.is_constructor
-            || func.attributes.is_fallback
-            || func.attributes.is_receive
-    }
-
-    /// Builds a call graph by analyzing internal calls in reachable MIR blocks.
-    fn build_call_graph(&self, module: &Module) -> FxHashMap<FunctionId, FxHashSet<FunctionId>> {
-        module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(func_id, func)| {
-                let callees = find_internal_callees(func);
-                (!callees.is_empty()).then_some((func_id, callees))
-            })
-            .collect()
-    }
-}
-
-/// Call graph analysis for detecting recursive functions.
-#[derive(Debug, Default)]
-pub struct CallGraphAnalyzer {
-    /// Functions that are recursive (directly or indirectly).
-    pub recursive_functions: FxHashSet<FunctionId>,
-    /// Call graph: caller -> set of callees.
-    pub call_graph: FxHashMap<FunctionId, FxHashSet<FunctionId>>,
-}
-
-impl CallGraphAnalyzer {
-    /// Creates a new call graph analyzer.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Analyzes a module and detects recursive functions.
-    pub fn analyze(&mut self, module: &Module) {
-        self.build_call_graph(module);
-        self.detect_recursion();
-    }
-
-    /// Builds the call graph from the module.
-    fn build_call_graph(&mut self, module: &Module) {
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let callees = self.find_callees(func, module);
-            if !callees.is_empty() {
-                self.call_graph.insert(func_id, callees);
-            }
-        }
-    }
-
-    /// Finds all functions called by this function.
-    fn find_callees(&self, func: &Function, _module: &Module) -> FxHashSet<FunctionId> {
-        find_internal_callees(func)
-    }
-
-    /// Detects recursive functions using DFS.
-    fn detect_recursion(&mut self) {
-        let func_ids: Vec<_> = self.call_graph.keys().copied().collect();
-
-        for func_id in func_ids {
-            if self.is_recursive(func_id, &mut FxHashSet::default()) {
-                self.recursive_functions.insert(func_id);
-            }
-        }
-    }
-
-    /// Checks if a function is recursive (directly or indirectly).
-    fn is_recursive(&self, func_id: FunctionId, visited: &mut FxHashSet<FunctionId>) -> bool {
-        if !visited.insert(func_id) {
-            return true;
-        }
-
-        if let Some(callees) = self.call_graph.get(&func_id) {
-            for &callee in callees {
-                if self.is_recursive(callee, visited) {
-                    return true;
-                }
-            }
-        }
-
-        visited.remove(&func_id);
-        false
-    }
-
-    /// Returns true if the function is recursive.
-    #[must_use]
-    pub fn is_function_recursive(&self, func_id: FunctionId) -> bool {
-        self.recursive_functions.contains(&func_id)
-    }
-}
-
-fn find_internal_callees(func: &Function) -> FxHashSet<FunctionId> {
-    let mut callees = FxHashSet::default();
-    for block in func.blocks.iter() {
-        for &inst_id in &block.instructions {
-            if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
-                callees.insert(function);
-            }
-        }
-    }
-    callees
 }
 
 /// Runs all CFG simplification passes on a function.

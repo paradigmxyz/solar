@@ -8,12 +8,16 @@
 mod cfg;
 pub use cfg::{CfgInfo, DominatorTree};
 
+mod call_graph;
+pub use call_graph::CallGraphInfo;
+
 mod liveness;
 pub use liveness::{LiveSet, Liveness, LivenessInfo};
 
 mod phi_elimination;
 pub use phi_elimination::{
-    BlockCopies, CopyDest, CopySource, ParallelCopy, PhiEliminationResult, eliminate_phis,
+    BlockCopies, CopyDest, CopySource, ParallelCopy, PhiEliminationResult, PhiEliminator,
+    eliminate_phis,
 };
 
 mod loop_analysis;
@@ -23,4 +27,6 @@ mod scalar_evolution;
 pub use scalar_evolution::{AffineExpr, AffineTerm, ScalarEvolution};
 
 mod validator;
-pub use validator::{ValidationError, ValidatorAnalysis, validate_function, validate_module};
+pub use validator::{
+    ValidationError, Validator, ValidatorAnalysis, validate_function, validate_module,
+};

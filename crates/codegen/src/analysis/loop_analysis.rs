@@ -87,8 +87,7 @@ impl LoopInfo {
 /// Loop analyzer that detects and analyzes loops in MIR functions.
 #[derive(Debug, Default)]
 pub struct LoopAnalyzer {
-    /// Dominators: for each block, the set of blocks that dominate it.
-    dominators: FxHashMap<BlockId, FxHashSet<BlockId>>,
+    cfg: Option<CfgInfo>,
 }
 
 impl LoopAnalyzer {
@@ -100,14 +99,14 @@ impl LoopAnalyzer {
     /// Returns true if `dominator` dominates `block` in the last analyzed function.
     #[must_use]
     pub fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
-        self.dominators.get(&block).is_some_and(|doms| doms.contains(&dominator))
+        self.cfg.as_ref().is_some_and(|cfg| cfg.dominators().dominates(dominator, block))
     }
 
     /// Analyzes loops in a function.
     pub fn analyze(&mut self, func: &Function) -> LoopInfo {
         let mut info = LoopInfo::default();
 
-        self.compute_dominators(func);
+        self.cfg = Some(CfgInfo::new(func));
         let loops = self.find_natural_loops(func);
 
         for mut loop_info in loops {
@@ -126,24 +125,15 @@ impl LoopAnalyzer {
         info
     }
 
-    fn compute_dominators(&mut self, func: &Function) {
-        self.dominators.clear();
-        let cfg = CfgInfo::new(func);
-        for &block in cfg.reachable() {
-            self.dominators
-                .insert(block, cfg.dominators().self_and_dominators(block).into_iter().collect());
-        }
-    }
-
     fn find_natural_loops(&self, func: &Function) -> Vec<Loop> {
         let mut loops: FxHashMap<BlockId, Loop> = FxHashMap::default();
+        let Some(cfg) = &self.cfg else { return Vec::new() };
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for &block_id in cfg.rpo() {
+            let block = &func.blocks[block_id];
             if let Some(term) = &block.terminator {
                 for succ in term.successors() {
-                    if let Some(doms) = self.dominators.get(&block_id)
-                        && doms.contains(&succ)
-                    {
+                    if cfg.dominators().dominates(succ, block_id) {
                         let loop_info = loops.entry(succ).or_insert_with(|| Loop {
                             header: succ,
                             blocks: FxHashSet::default(),

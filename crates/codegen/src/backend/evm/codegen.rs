@@ -12,7 +12,9 @@ use super::{
 };
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
-    analysis::{CopyDest, CopySource, Liveness, ParallelCopy, eliminate_phis},
+    analysis::{
+        CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, ParallelCopy, PhiEliminator,
+    },
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{AnalysisManager, LivenessAnalysis, PipelineOptions, run_default_pipeline_with_options},
 };
@@ -384,8 +386,8 @@ impl EvmCodegen {
                 }
             }
 
-            let internal_targets =
-                Self::collect_internal_call_targets(module, std::iter::once(ctor_id));
+            let call_graph = CallGraphInfo::new(module);
+            let internal_targets = call_graph.reachable_bodies_from(std::iter::once(ctor_id));
             for &func_id in &internal_targets {
                 self.function_labels.insert(func_id, self.asm.new_label());
             }
@@ -549,8 +551,8 @@ impl EvmCodegen {
         let fallback_idx =
             module.functions.iter().position(|f| f.attributes.is_fallback && Self::has_body(f));
 
-        let internal_targets = Self::collect_internal_call_targets(
-            module,
+        let call_graph = CallGraphInfo::new(module);
+        let internal_targets = call_graph.reachable_bodies_from(
             module
                 .functions
                 .iter_enumerated()
@@ -694,28 +696,6 @@ impl EvmCodegen {
         self.asm.emit_op(opcodes::REVERT);
 
         self.resolve_pending_frame_size_consts(module);
-    }
-
-    fn collect_internal_call_targets(
-        module: &Module,
-        roots: impl IntoIterator<Item = FunctionId>,
-    ) -> FxHashSet<FunctionId> {
-        let mut targets = FxHashSet::default();
-        let mut worklist: Vec<_> = roots.into_iter().collect();
-
-        while let Some(func_id) = worklist.pop() {
-            let func = &module.functions[func_id];
-            for inst in &func.instructions {
-                if let InstKind::InternalCall { function, .. } = inst.kind
-                    && Self::has_body(&module.functions[function])
-                    && targets.insert(function)
-                {
-                    worklist.push(function);
-                }
-            }
-        }
-
-        targets
     }
 
     /// Records the exact spill area size of the function body that just emitted.
@@ -862,7 +842,7 @@ impl EvmCodegen {
         let liveness: &Liveness = am.get_or_compute(&LivenessAnalysis, func);
 
         // Eliminate phis
-        let phi_result = eliminate_phis(func);
+        let phi_result = PhiEliminator::analyze(func);
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
@@ -1090,12 +1070,16 @@ impl EvmCodegen {
     }
 
     fn block_layout_order(func: &Function) -> Vec<BlockId> {
+        let cfg = CfgInfo::new(func);
+        let reachable = cfg.reachable();
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = FxHashSet::default();
 
-        Self::append_layout_chain(func, func.entry_block, &mut placed, &mut order);
+        Self::append_layout_chain(func, func.entry_block, reachable, &mut placed, &mut order);
         for block_id in func.blocks.indices() {
-            Self::append_layout_chain(func, block_id, &mut placed, &mut order);
+            if reachable.contains(&block_id) {
+                Self::append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
+            }
         }
 
         order
@@ -1104,11 +1088,12 @@ impl EvmCodegen {
     fn append_layout_chain(
         func: &Function,
         mut block_id: BlockId,
+        reachable: &FxHashSet<BlockId>,
         placed: &mut FxHashSet<BlockId>,
         order: &mut Vec<BlockId>,
     ) {
         loop {
-            if !placed.insert(block_id) {
+            if !reachable.contains(&block_id) || !placed.insert(block_id) {
                 return;
             }
             order.push(block_id);

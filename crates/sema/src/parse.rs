@@ -435,7 +435,7 @@ impl<'gcx> ParsingContext<'gcx> {
 
 impl Drop for ParsingContext<'_> {
     fn drop(&mut self) {
-        if self.parsed {
+        if self.parsed || self.dcx().err_count() > 0 {
             return;
         }
         // This used to be a call to `bug` but it can be hit legitimately for example when there is

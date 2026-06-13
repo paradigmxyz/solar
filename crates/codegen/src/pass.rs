@@ -20,7 +20,7 @@
 //! ```
 
 use crate::{
-    analysis::validate_module,
+    analysis::Validator,
     mir::{Function, Module, module_to_text},
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
@@ -477,7 +477,7 @@ impl PassManager {
 }
 
 fn validate_module_after_pass(module: &Module, pass_name: &str) {
-    let errors = validate_module(module);
+    let errors = Validator::validate_module(module);
     if errors.is_empty() {
         return;
     }

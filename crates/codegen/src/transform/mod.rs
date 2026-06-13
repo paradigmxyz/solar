@@ -27,8 +27,8 @@ pub mod storage_promotion;
 
 pub use adce::{AdcePass, AdceStats, AggressiveDeadCodeEliminator};
 pub use cfg_simplify::{
-    CallGraphAnalyzer, CfgSimplifier, CfgSimplifyPass, CfgSimplifyStats, DeadFunctionEliminator,
-    FunctionDcePass, repair_reachability_phis, simplify_cfg, simplify_module_cfg,
+    CfgSimplifier, CfgSimplifyPass, CfgSimplifyStats, DeadFunctionEliminator, FunctionDcePass,
+    repair_reachability_phis, simplify_cfg, simplify_module_cfg,
 };
 pub use check_elim::{CheckElimPass, CheckElimStats, CheckEliminator};
 pub use constant_fold::{ConstantFolder, FoldResult};
