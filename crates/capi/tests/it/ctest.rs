@@ -34,10 +34,11 @@ fn c_api_smoke_test() {
         dynamic_library(&lib_dir).and_then(|path| path.parent().map(Path::to_path_buf));
     let mut compile = compiler.to_command();
     if compiler.is_like_msvc() {
-        let Some(import_lib) =
-            find_existing(&library_search_dirs(&lib_dir), &["solar.lib", "solar.dll.lib"])
-        else {
-            panic!("failed to find solar import library in {}", lib_dir.display());
+        let Some(import_lib) = find_existing(
+            &library_search_dirs(&lib_dir),
+            &["solar_capi.lib", "solar_capi.dll.lib"],
+        ) else {
+            panic!("failed to find solar_capi import library in {}", lib_dir.display());
         };
         compile
             .arg("/nologo")
@@ -50,14 +51,14 @@ fn c_api_smoke_test() {
         if cfg!(windows) {
             if let Some(import_lib) = find_existing(
                 &library_search_dirs(&lib_dir),
-                &["libsolar.dll.a", "solar.dll.a", "solar.lib"],
+                &["libsolar_capi.dll.a", "solar_capi.dll.a", "solar_capi.lib"],
             ) {
                 compile.arg(import_lib);
             } else {
-                compile.arg("-L").arg(&lib_dir).arg("-lsolar");
+                compile.arg("-L").arg(&lib_dir).arg("-lsolar_capi");
             }
         } else {
-            compile.arg("-L").arg(&lib_dir).arg("-lsolar");
+            compile.arg("-L").arg(&lib_dir).arg("-lsolar_capi");
             compile.arg(format!("-Wl,-rpath,{}", lib_dir.display()));
         }
         compile.arg("-o").arg(&exe);
@@ -114,11 +115,11 @@ fn library_search_dirs(lib_dir: &Path) -> [PathBuf; 2] {
 
 fn dynamic_library_names() -> &'static [&'static str] {
     if cfg!(windows) {
-        &["solar.dll"]
+        &["solar_capi.dll"]
     } else if cfg!(target_os = "macos") {
-        &["libsolar.dylib"]
+        &["libsolar_capi.dylib"]
     } else {
-        &["libsolar.so"]
+        &["libsolar_capi.so"]
     }
 }
 

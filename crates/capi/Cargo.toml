@@ -16,9 +16,7 @@ categories.workspace = true
 workspace = true
 
 [lib]
-name = "solar"
-crate-type = ["cdylib"]
-doc = false
+crate-type = ["rlib", "cdylib"]
 
 [dependencies]
 solar-cli = { version = "=0.1.8", path = "../cli", default-features = false }
