@@ -97,6 +97,10 @@ debug = "full"
 strip = false
 debug-assertions = true
 
+[profile.minsize]
+inherits = "dist"
+opt-level = "s"
+
 [workspace.dependencies]
 # compiler crates
 solar = { version = "=0.1.8", path = "crates/solar", package = "solar-compiler", default-features = false }

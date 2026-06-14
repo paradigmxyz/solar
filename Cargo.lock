@@ -3003,6 +3003,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "solar-capi"
+version = "0.1.8"
+dependencies = [
+ "cc",
+ "solar-cli",
+]
+
+[[package]]
 name = "solar-cli"
 version = "0.1.8"
 dependencies = [
@@ -3015,6 +3023,7 @@ dependencies = [
  "rustc-hash",
  "serde",
  "serde_json",
+ "snapbox",
  "solar-config",
  "solar-interface",
  "solar-sema",

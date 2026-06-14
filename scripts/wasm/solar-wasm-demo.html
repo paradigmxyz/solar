@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Solar WASM Demo</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111318;
+      --panel: #191d24;
+      --panel-2: #202631;
+      --line: #343b49;
+      --text: #f2f4f8;
+      --muted: #9aa4b2;
+      --accent: #48d597;
+      --accent-2: #31a8ff;
+      --danger: #ff6b6b;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+    }
+
+    .shell {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 56px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #151922;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 16px;
+      font-weight: 650;
+      letter-spacing: 0;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .status {
+      overflow: hidden;
+      max-width: 44vw;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    button {
+      height: 34px;
+      border: 1px solid #298764;
+      border-radius: 6px;
+      background: #1f8f66;
+      color: #ffffff;
+      cursor: pointer;
+      font: 650 13px var(--sans);
+      padding: 0 14px;
+    }
+
+    button:disabled {
+      border-color: var(--line);
+      background: #2b313d;
+      color: var(--muted);
+      cursor: default;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+      min-height: 0;
+    }
+
+    section {
+      display: grid;
+      grid-template-rows: 38px 1fr;
+      min-width: 0;
+      min-height: 0;
+      border-right: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    section:last-child {
+      border-right: 0;
+    }
+
+    .pane-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      text-transform: uppercase;
+    }
+
+    .file-name {
+      color: var(--accent-2);
+      font-family: var(--mono);
+      font-size: 12px;
+      text-transform: none;
+    }
+
+    textarea,
+    pre {
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      border: 0;
+      outline: none;
+      resize: none;
+      background: #111318;
+      color: var(--text);
+      font: 13px/1.55 var(--mono);
+      letter-spacing: 0;
+      tab-size: 2;
+    }
+
+    textarea {
+      padding: 14px;
+    }
+
+    pre {
+      overflow: auto;
+      padding: 14px;
+      white-space: pre;
+    }
+
+    .line {
+      color: var(--accent);
+    }
+
+    @media (max-width: 780px) {
+      header {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .toolbar {
+        justify-content: space-between;
+      }
+
+      .status {
+        max-width: none;
+      }
+
+      main {
+        grid-template-columns: 1fr;
+        grid-template-rows: minmax(260px, 1fr) minmax(260px, 1fr);
+      }
+
+      section {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <h1>Solar WASM Demo</h1>
+      <div class="toolbar">
+        <div id="status" class="status">loading target/dist/soljson.js</div>
+        <button id="compile" type="button" disabled>Compile</button>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <div class="pane-title">
+          <span>Input</span>
+          <span class="file-name">A.sol</span>
+        </div>
+        <textarea id="source" spellcheck="false">contract A {
+  function answer() public pure returns (uint256) {
+    return 42;
+  }
+}
+</textarea>
+      </section>
+
+      <section>
+        <div class="pane-title">
+          <span>Output</span>
+          <span id="version" class="file-name"></span>
+        </div>
+        <pre id="output"><span class="line">{}</span></pre>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const SOLJSON_PATH = "../../target/dist/soljson.js";
+    const statusEl = document.getElementById("status");
+    const compileButton = document.getElementById("compile");
+    const sourceEl = document.getElementById("source");
+    const outputEl = document.getElementById("output");
+    const versionEl = document.getElementById("version");
+    let compiler = null;
+
+    function setStatus(message, isError) {
+      statusEl.textContent = message;
+      statusEl.classList.toggle("error", !!isError);
+    }
+
+    function standardJsonInput() {
+      return {
+        language: "Solidity",
+        sources: {
+          "A.sol": { content: sourceEl.value },
+        },
+        settings: {
+          outputSelection: {
+            "*": {
+              "*": ["abi", "devdoc", "userdoc", "storageLayout", "evm.methodIdentifiers"],
+            },
+          },
+        },
+      };
+    }
+
+    function compile() {
+      if (!compiler) {
+        return;
+      }
+      const started = performance.now();
+      try {
+        const raw = compiler.compile(JSON.stringify(standardJsonInput()), {
+          import(path) {
+            return { error: `source not found: ${path}` };
+          },
+        });
+        const parsed = JSON.parse(raw);
+        outputEl.textContent = JSON.stringify(parsed, null, 2);
+        const errors = Array.isArray(parsed.errors)
+          ? parsed.errors.filter((error) => error.severity === "error").length
+          : 0;
+        const elapsed = Math.round(performance.now() - started);
+        setStatus(errors ? `${errors} error${errors === 1 ? "" : "s"} in ${elapsed}ms` : `ok in ${elapsed}ms`, errors > 0);
+      } catch (error) {
+        outputEl.textContent = error && error.stack ? error.stack : String(error);
+        setStatus("compile failed", true);
+      }
+    }
+
+    function loadCompiler() {
+      const script = document.createElement("script");
+      script.src = SOLJSON_PATH;
+      script.onload = () => {
+        compiler = window.Module;
+        if (!compiler || typeof compiler.compile !== "function") {
+          setStatus("soljson.js did not expose Module", true);
+          return;
+        }
+        compileButton.disabled = false;
+        versionEl.textContent = compiler.version();
+        setStatus(SOLJSON_PATH);
+        compile();
+      };
+      script.onerror = () => {
+        setStatus("missing target/dist/soljson.js", true);
+        outputEl.textContent = "Run: scripts/wasm/dist-wasm.sh";
+      };
+      document.head.appendChild(script);
+    }
+
+    compileButton.addEventListener("click", compile);
+    sourceEl.addEventListener("keydown", (event) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+        event.preventDefault();
+        compile();
+      }
+    });
+
+    loadCompiler();
+  </script>
+</body>
+</html>

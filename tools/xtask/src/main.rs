@@ -20,7 +20,7 @@ fn main() -> anyhow::Result<()> {
             let sh = Shell::new()?;
             let mut cmd = cmd!(sh, "cargo test");
             if let Some(t) = test_name {
-                if matches!(t.as_str(), "ui" | "solc-solidity" | "solc-yul") {
+                if matches!(t.as_str(), "ui" | "standard-json" | "solc-solidity" | "solc-yul") {
                     cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", &t);
                 } else {
                     cmd = cmd.arg(t);

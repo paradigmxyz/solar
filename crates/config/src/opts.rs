@@ -26,6 +26,9 @@ pub struct Opts {
     ///
     /// `-` specifies standard input.
     ///
+    /// In Standard JSON mode, no input or `-` reads from standard input; otherwise, exactly one
+    /// input file may be specified.
+    ///
     /// Import remappings are specified as `[context:]prefix=path`.
     /// See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
     // NOTE: Remappings are parsed away into the `import_remappings` field. Use that instead.
@@ -182,6 +185,23 @@ impl Opts {
     /// Finishes argument parsing.
     #[cfg(feature = "clap")]
     pub fn finish(&mut self) -> Result<(), clap::Error> {
+        if self.standard_json {
+            if self.input.iter().any(|s| s.contains('=')) {
+                return Err(make_clap_error(
+                    clap::error::ErrorKind::InvalidValue,
+                    "Import remappings are not accepted on the command line in Standard JSON mode.\n\
+                     Please put them under 'settings.remappings' in the JSON input.",
+                ));
+            }
+            if self.input.len() > 1 {
+                return Err(make_clap_error(
+                    clap::error::ErrorKind::TooManyValues,
+                    "Too many input files for --standard-json.\n\
+                     Please either specify a single file name or provide its content on standard input.",
+                ));
+            }
+        }
+
         self.import_remappings = self
             .input
             .iter()
@@ -361,6 +381,37 @@ mod tests {
         opts.finish().unwrap();
 
         assert_eq!(opts.allow, ["1234", "5678"]);
+    }
+
+    #[test]
+    fn standard_json_input() {
+        let mut opts = Opts::try_parse_from(["solar", "--standard-json"]).unwrap();
+        opts.finish().unwrap();
+        assert!(opts.input.is_empty());
+
+        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "-"]).unwrap();
+        opts.finish().unwrap();
+        assert_eq!(opts.input, ["-"]);
+
+        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "input.json"]).unwrap();
+        opts.finish().unwrap();
+        assert_eq!(opts.input, ["input.json"]);
+    }
+
+    #[test]
+    fn standard_json_rejects_multiple_inputs() {
+        let mut opts =
+            Opts::try_parse_from(["solar", "--standard-json", "input1.json", "input2.json"])
+                .unwrap();
+        let error = opts.finish().unwrap_err().render().ansi().to_string();
+        assert!(error.contains("Too many input files for --standard-json."));
+    }
+
+    #[test]
+    fn standard_json_rejects_remappings() {
+        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "a=b"]).unwrap();
+        let error = opts.finish().unwrap_err().render().ansi().to_string();
+        assert!(error.contains("Import remappings are not accepted on the command line"));
     }
 
     #[test]

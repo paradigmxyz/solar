@@ -1,4 +1,3 @@
-//@ ignore-host: windows
 //@ compile-flags: --emit=abi,hashes --pretty-json
 
 struct S1 {
