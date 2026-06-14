@@ -76,6 +76,7 @@ pub struct InterfaceFunctions<'gcx> {
 pub struct TypeckResults<'gcx> {
     pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
     pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
+    pub(crate) unsupported_udvt_operators: FxHashSet<hir::ExprId>,
 }
 
 /// The target selected for a call callee expression.
@@ -113,6 +114,12 @@ impl<'gcx> TypeckResults<'gcx> {
             hir::Res::Builtin(builtin) => Some(builtin),
             _ => None,
         }
+    }
+
+    /// Returns whether codegen cannot lower the user-defined operator used by this expression.
+    #[inline]
+    pub fn unsupported_udvt_operator(&self, id: hir::ExprId) -> bool {
+        self.unsupported_udvt_operators.contains(&id)
     }
 }
 
@@ -456,6 +463,12 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn builtin_callee(self, id: hir::ExprId) -> Option<Builtin> {
         self.typeck_results.get()?.builtin_callee(id)
+    }
+
+    /// Returns whether codegen cannot lower the user-defined operator used by this expression.
+    #[inline]
+    pub fn unsupported_udvt_operator(self, id: hir::ExprId) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
     }
 
     pub(crate) fn set_typeck_results(self, results: TypeckResults<'gcx>) {

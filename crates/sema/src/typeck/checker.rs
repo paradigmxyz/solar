@@ -2403,6 +2403,10 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn register_ty(&mut self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) {
+        if self.unsupported_codegen_udvt_operator(expr, ty) {
+            self.results.unsupported_udvt_operators.insert(expr.id);
+        }
+
         if let Some(prev_ty) = self.results.expr_types.insert(expr.id, ty) {
             self.dcx()
                 .bug("already typechecked")
@@ -2418,6 +2422,31 @@ impl<'gcx> TypeChecker<'gcx> {
                 )
                 .emit();
         }
+    }
+
+    fn unsupported_codegen_udvt_operator(&self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) -> bool {
+        match &expr.kind {
+            hir::ExprKind::Assign(lhs, Some(_), rhs) => {
+                Self::ty_is_udvt(ty) || self.expr_type_is_udvt(lhs) || self.expr_type_is_udvt(rhs)
+            }
+            hir::ExprKind::Binary(lhs, op, rhs)
+                if !matches!(op.kind, hir::BinOpKind::Eq | hir::BinOpKind::Ne) =>
+            {
+                Self::ty_is_udvt(ty) || self.expr_type_is_udvt(lhs) || self.expr_type_is_udvt(rhs)
+            }
+            hir::ExprKind::Unary(op, inner) if op.kind != hir::UnOpKind::Not => {
+                Self::ty_is_udvt(ty) || self.expr_type_is_udvt(inner)
+            }
+            _ => false,
+        }
+    }
+
+    fn expr_type_is_udvt(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        self.results.expr_types.get(&expr.id).is_some_and(|&ty| Self::ty_is_udvt(ty))
+    }
+
+    fn ty_is_udvt(ty: Ty<'gcx>) -> bool {
+        matches!(ty.peel_refs().kind, TyKind::Udvt(..))
     }
 }
 

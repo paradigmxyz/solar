@@ -59,11 +59,7 @@ impl<'gcx> Lowerer<'gcx> {
                     self.integer_info_for_expr(expr).or_else(|| self.integer_info_for_expr(lhs));
                 let is_signed =
                     int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
-                let unsupported_udvt_operator = int_info.is_none()
-                    && !matches!(op.kind, hir::BinOpKind::Eq | hir::BinOpKind::Ne)
-                    && (self.expr_has_udvt_type(expr)
-                        || self.expr_has_udvt_type(lhs)
-                        || self.expr_has_udvt_type(rhs));
+                let unsupported_udvt_operator = self.gcx.unsupported_udvt_operator(expr.id);
                 if !Self::signed_binary_fold_is_unsafe(op.kind, is_signed) {
                     match folder.try_fold(expr) {
                         FoldResult::Integer(folded) => return builder.imm_u256(folded),
@@ -123,7 +119,7 @@ impl<'gcx> Lowerer<'gcx> {
                         let operand_val = self.lower_expr(builder, operand);
                         let one = builder.imm_u64(1);
                         let int_info = self.integer_info_for_expr(operand);
-                        if int_info.is_none() && self.expr_has_udvt_type(operand) {
+                        if self.gcx.unsupported_udvt_operator(expr.id) {
                             self.emit_unsupported_udvt_operator(operand.span);
                             return operand_val;
                         }
@@ -168,10 +164,7 @@ impl<'gcx> Lowerer<'gcx> {
                         let int_info = self
                             .integer_info_for_expr(expr)
                             .or_else(|| self.integer_info_for_expr(operand));
-                        if int_info.is_none()
-                            && !matches!(op.kind, UnOpKind::Not)
-                            && self.expr_has_udvt_type(operand)
-                        {
+                        if self.gcx.unsupported_udvt_operator(expr.id) {
                             self.emit_unsupported_udvt_operator(expr.span);
                             return operand_val;
                         }
@@ -394,8 +387,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let int_info = self.integer_info_for_expr(lhs);
                     let is_signed =
                         int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
-                    let unsupported_udvt_operator =
-                        int_info.is_none() && self.expr_has_udvt_type(lhs);
+                    let unsupported_udvt_operator = self.gcx.unsupported_udvt_operator(expr.id);
                     self.lower_binary_op(
                         builder,
                         lhs_val,

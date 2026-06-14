@@ -94,6 +94,8 @@ fn merge_typeck_results<'gcx>(
                 .emit();
         }
     }
+
+    results.unsupported_udvt_operators.extend(new_results.unsupported_udvt_operators);
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {

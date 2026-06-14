@@ -3,12 +3,12 @@
 use super::Lowerer;
 use crate::mir::{FunctionBuilder, Value, ValueId};
 use alloy_primitives::U256;
-use solar_ast::{ElementaryType, Ident, LitKind, StrKind};
+use solar_ast::{ElementaryType, LitKind};
 use solar_interface::{Symbol, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ExprKind},
-    ty::TyKind,
+    ty::{Ty, TyKind},
 };
 
 enum PackedAbiArg {
@@ -435,39 +435,22 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Gets the packed size in bytes for an expression (used by abi.encodePacked).
     fn get_packed_size_from_expr(&self, expr: &hir::Expr<'_>) -> usize {
-        match &expr.kind {
-            ExprKind::Lit(lit) => match &lit.kind {
-                LitKind::Str(StrKind::Hex, bytes, _) => bytes.as_byte_str().len(),
+        if let ExprKind::Lit(lit) = &expr.kind {
+            return match &lit.kind {
                 LitKind::Str(_, bytes, _) => bytes.as_byte_str().len(),
                 LitKind::Address(_) => 20,
                 LitKind::Bool(_) => 1,
-                LitKind::Number(_) | LitKind::Rational(_) => 32,
-                LitKind::Err(_) => 32,
-            },
-            ExprKind::Ident(res_slice) => {
-                if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
-                    let var = self.gcx.hir.variable(*var_id);
-                    return self.get_packed_size_from_hir_type(&var.ty);
-                }
-                32
-            }
-            ExprKind::Call(callee, _, _) => {
-                if let ExprKind::Type(ty) = &callee.kind {
-                    return self.get_packed_size_from_hir_type(ty);
-                }
-                32
-            }
-            ExprKind::Member(base, member) => {
-                self.get_member_packed_size(base, *member).unwrap_or(32)
-            }
-            _ => 32,
+                LitKind::Number(_) | LitKind::Rational(_) | LitKind::Err(_) => 32,
+            };
         }
+
+        self.get_expr_type(expr).map(|ty| self.get_packed_size_from_ty(ty)).unwrap_or(32)
     }
 
-    /// Gets the packed size from an HIR type.
-    fn get_packed_size_from_hir_type(&self, ty: &hir::Type<'_>) -> usize {
-        match &ty.kind {
-            hir::TypeKind::Elementary(elem) => match elem {
+    /// Gets the packed size from a sema type.
+    fn get_packed_size_from_ty(&self, ty: Ty<'gcx>) -> usize {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(elem) => match elem {
                 ElementaryType::FixedBytes(size) => size.bytes() as usize,
                 ElementaryType::Address(_) => 20,
                 ElementaryType::Bool => 1,
@@ -478,25 +461,13 @@ impl<'gcx> Lowerer<'gcx> {
                     size.bytes() as usize
                 }
             },
-            hir::TypeKind::Custom(item_id) => match item_id {
-                hir::ItemId::Enum(_) => 1,
-                hir::ItemId::Contract(_) => 20,
-                _ => 32,
-            },
-            // Everything else: 32 bytes default
+            TyKind::StringLiteral(_, size) => size.bytes() as usize,
+            TyKind::IntLiteral(..) => 32,
+            TyKind::Contract(_) | TyKind::Super(_) => 20,
+            TyKind::Enum(_) => 1,
+            TyKind::Udvt(inner, _) => self.get_packed_size_from_ty(inner),
+            TyKind::Ref(inner, _) => self.get_packed_size_from_ty(inner),
             _ => 32,
         }
-    }
-
-    fn get_member_packed_size(&self, base: &hir::Expr<'_>, member: Ident) -> Option<usize> {
-        let struct_id = self.expr_struct_id(base)?;
-        let strukt = self.gcx.hir.strukt(struct_id);
-        for &field_id in strukt.fields {
-            let field = self.gcx.hir.variable(field_id);
-            if field.name.is_some_and(|name| name.name == member.name) {
-                return Some(self.get_packed_size_from_hir_type(&field.ty));
-            }
-        }
-        None
     }
 }

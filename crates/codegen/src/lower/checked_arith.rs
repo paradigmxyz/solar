@@ -5,7 +5,7 @@ use crate::mir::{BlockId, FunctionBuilder, ValueId};
 use alloy_primitives::U256;
 use solar_interface::Span;
 use solar_sema::{
-    hir::{self, ElementaryType, ExprKind},
+    hir::{self, ElementaryType},
     ty::{Ty, TyKind},
 };
 
@@ -47,38 +47,9 @@ impl PanicCode {
 }
 
 impl<'gcx> Lowerer<'gcx> {
-    /// Checks if a HIR type is a signed integer type.
-    fn is_hir_type_signed(&self, ty: &hir::Type<'_>) -> bool {
-        matches!(ty.kind, hir::TypeKind::Elementary(ElementaryType::Int(_)))
-    }
-
     /// Checks if an expression has a signed integer type.
-    /// This is a best-effort check based on the expression structure.
     pub(super) fn is_expr_signed(&self, expr: &hir::Expr<'_>) -> bool {
-        if let Some(ty) = self.get_expr_type(expr) {
-            return ty.is_signed();
-        }
-
-        match &expr.kind {
-            ExprKind::Ident(res_slice) => {
-                if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
-                    let var = self.gcx.hir.variable(*var_id);
-                    self.is_hir_type_signed(&var.ty)
-                } else {
-                    false
-                }
-            }
-            ExprKind::Unary(_, inner) => self.is_expr_signed(inner),
-            ExprKind::Binary(lhs, _, _) => self.is_expr_signed(lhs),
-            ExprKind::Tuple(elements) => {
-                if let Some(Some(inner)) = elements.first() {
-                    self.is_expr_signed(inner)
-                } else {
-                    false
-                }
-            }
-            _ => false,
-        }
+        self.get_expr_type(expr).is_some_and(|ty| ty.is_signed())
     }
 
     pub(super) fn integer_info_for_expr(&self, expr: &hir::Expr<'_>) -> Option<IntegerInfo> {
@@ -96,10 +67,6 @@ impl<'gcx> Lowerer<'gcx> {
             TyKind::IntLiteral(signed, size, _) => Some(IntegerInfo { signed, bits: size.bits() }),
             _ => None,
         }
-    }
-
-    pub(super) fn expr_has_udvt_type(&self, expr: &hir::Expr<'_>) -> bool {
-        matches!(self.get_expr_type(expr).map(|ty| ty.peel_refs().kind), Some(TyKind::Udvt(..)))
     }
 
     pub(super) fn emit_unsupported_udvt_operator(&self, span: Span) {
