@@ -39,8 +39,12 @@ jobs:
       - name: Install LLVM (brew)
         if: matrix.os == 'macos-latest'
         run: .github/scripts/install_llvm.sh macos
+      - name: Install LLVM (choco)
+        if: matrix.os == 'windows-latest'
+        run: |
+          choco install llvm -y --no-progress
+          "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
       - name: llvm-config
-        if: matrix.os != 'windows-latest'
         run: llvm-config --version --bindir --libdir
       - uses: dtolnay/rust-toolchain@master
         with:

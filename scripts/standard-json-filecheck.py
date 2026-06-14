@@ -27,63 +27,16 @@ def main():
             return status
 
         filecheck = shutil.which("FileCheck") or shutil.which("filecheck")
-        if filecheck is not None:
-            return subprocess.run([filecheck, input_path], input=output).returncode
-        return check_file(input_path, output.decode(errors="replace"))
+        if filecheck is None:
+            print("FileCheck not found", file=sys.stderr)
+            return 1
+        check_input = output.replace(b"\\\\", b"/") if os.name == "nt" else output
+        return subprocess.run([filecheck, input_path], input=check_input).returncode
     finally:
         try:
             os.remove(out_path)
         except OSError:
             pass
-
-
-def check_file(input_path, output):
-    checks = []
-    with open(input_path, encoding="utf-8") as file:
-        for line in file:
-            line = line.strip()
-            if line.startswith("// CHECK-NEXT:"):
-                checks.append(("next", line.removeprefix("// CHECK-NEXT:").strip()))
-            elif line.startswith("// CHECK-NOT:"):
-                checks.append(("not", line.removeprefix("// CHECK-NOT:").strip()))
-            elif line.startswith("// CHECK:"):
-                checks.append(("check", line.removeprefix("// CHECK:").strip()))
-
-    lines = output.splitlines()
-    offset = 0
-    matched = -1
-    for kind, pattern in checks:
-        if kind == "check":
-            found = find_line(lines, pattern, offset)
-            if found is None:
-                print(f"CHECK failed: {pattern}", file=sys.stderr)
-                return 1
-            offset = found + 1
-            matched = found
-        elif kind == "next":
-            next_line = matched + 1
-            if next_line >= len(lines) or pattern not in lines[next_line]:
-                print(f"CHECK-NEXT failed: {pattern}", file=sys.stderr)
-                return 1
-            offset = next_line + 1
-            matched = next_line
-        elif kind == "not":
-            if find_line(lines, pattern, offset) is not None:
-                print(f"CHECK-NOT failed: {pattern}", file=sys.stderr)
-                return 1
-    return 0
-
-
-def find_line(lines, pattern, offset):
-    pattern = normalize(pattern)
-    for index in range(offset, len(lines)):
-        if pattern in normalize(lines[index]):
-            return index
-    return None
-
-
-def normalize(text):
-    return text.replace("\\\\", "/").replace("\\", "/")
 
 
 if __name__ == "__main__":
