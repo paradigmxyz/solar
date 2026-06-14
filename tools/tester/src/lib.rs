@@ -5,7 +5,7 @@
 #![allow(unreachable_pub)]
 
 use eyre::{Result, eyre};
-use std::{path::Path, process::Command};
+use std::path::Path;
 use ui_test::{color_eyre::eyre, spanned::Spanned};
 
 mod errors;
@@ -42,8 +42,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 
     let tmp_dir = tempfile::tempdir()?;
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
-    let runner = &*Box::leak(std::env::current_exe()?.into_boxed_path());
-    let configs = modes.iter().copied().map(|mode| config(cmd, runner, &args, mode)).collect();
+    let configs = modes.iter().copied().map(|mode| config(cmd, &args, mode)).collect();
 
     let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
     let gha_name = if modes.len() == 1 { modes[0].to_string() } else { "ui-tests".to_string() };
@@ -66,29 +65,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
     Ok(())
 }
 
-/// Argument used to run a Standard JSON test through the test binary.
-pub const STANDARD_JSON_ARG: &str = "--solar-tester-standard-json";
-
-/// Runs one Standard JSON UI test.
-pub fn run_standard_json_test(cmd: &Path, input: &Path) -> Result<()> {
-    let input = std::fs::File::open(input)?;
-    let status = Command::new(cmd)
-        .args(["--standard-json", "--pretty-json", "-Zui-testing"])
-        .stdin(input)
-        .status()?;
-    if status.success() {
-        Ok(())
-    } else {
-        Err(eyre!("standard JSON test failed with status {status}"))
-    }
-}
-
-fn config(
-    cmd: &'static Path,
-    runner: &'static Path,
-    args: &ui_test::Args,
-    mode: Mode,
-) -> ui_test::Config {
+fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Config {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
 
     let path = match mode {
@@ -109,10 +86,13 @@ fn config(
         target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
-            program: if matches!(mode, Mode::StandardJson) { runner.into() } else { cmd.into() },
+            program: cmd.into(),
             args: {
-                let mut args = if matches!(mode, Mode::StandardJson) {
-                    vec![STANDARD_JSON_ARG.into()]
+                let mut args: Vec<std::ffi::OsString> = if matches!(mode, Mode::StandardJson) {
+                    vec!["--standard-json", "--pretty-json", "-Zui-testing"]
+                        .into_iter()
+                        .map(Into::into)
+                        .collect()
                 } else {
                     vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
                         .into_iter()
@@ -227,7 +207,7 @@ fn get_host() -> &'static str {
 }
 
 fn mode_from_config(config: &ui_test::Config) -> Mode {
-    if config.program.args.first().is_some_and(|arg| arg == STANDARD_JSON_ARG) {
+    if config.program.args.first().is_some_and(|arg| arg == "--standard-json") {
         Mode::StandardJson
     } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
         Mode::SolcYul
