@@ -871,7 +871,7 @@ mod tests {
 
     fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
         let actual = normalize_manifest_dir(actual.to_owned());
-        assert_data_eq!(actual, expected.into_data().is_json());
+        assert_data_eq!(actual.into_data().is_json(), expected.into_data().is_json());
     }
 
     fn test_opts() -> Opts {
