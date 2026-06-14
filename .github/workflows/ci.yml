@@ -43,8 +43,11 @@ jobs:
         if: matrix.os == 'windows-latest'
         run: |
           choco install llvm -y --no-progress
-          "C:\Program Files\LLVM\bin" >> $env:GITHUB_PATH
+          $llvmBin = Join-Path $env:ProgramFiles "LLVM\bin"
+          $llvmBin >> $env:GITHUB_PATH
+          & (Join-Path $llvmBin "FileCheck.exe") --version
       - name: llvm-config
+        if: matrix.os != 'windows-latest'
         run: llvm-config --version --bindir --libdir
       - uses: dtolnay/rust-toolchain@master
         with:
