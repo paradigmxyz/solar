@@ -48,7 +48,11 @@ jobs:
       - name: FileCheck
         if: matrix.os == 'windows-latest'
         run: |
-          $fileCheck = "C:\msys64\ucrt64\bin\FileCheck.exe"
+          $fileCheck = Get-ChildItem C:\msys64 -Filter "FileCheck*.exe" -Recurse |
+            Select-Object -First 1 -ExpandProperty FullName
+          if (!$fileCheck) {
+            throw "FileCheck.exe not found"
+          }
           & $fileCheck --version
           "FILECHECK=$fileCheck" >> $env:GITHUB_ENV
       - name: llvm-config
