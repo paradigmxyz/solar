@@ -124,7 +124,7 @@ finally:
                 cmd.into()
             },
             args: {
-                let mut args: Vec<std::ffi::OsString> = if matches!(mode, Mode::StandardJson) {
+                let mut args = if matches!(mode, Mode::StandardJson) {
                     vec![
                         "-c".into(),
                         standard_json_script.into(),
