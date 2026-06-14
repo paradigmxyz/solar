@@ -75,10 +75,15 @@ def check_file(input_path, output):
 
 
 def find_line(lines, pattern, offset):
+    pattern = normalize(pattern)
     for index in range(offset, len(lines)):
-        if pattern in lines[index]:
+        if pattern in normalize(lines[index]):
             return index
     return None
+
+
+def normalize(text):
+    return text.replace("\\\\", "/").replace("\\", "/")
 
 
 if __name__ == "__main__":
