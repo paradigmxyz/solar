@@ -39,13 +39,18 @@ jobs:
       - name: Install LLVM (brew)
         if: matrix.os == 'macos-latest'
         run: .github/scripts/install_llvm.sh macos
-      - name: Install LLVM (choco)
+      - uses: msys2/setup-msys2@v2
+        if: matrix.os == 'windows-latest'
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-llvm
+      - name: FileCheck
         if: matrix.os == 'windows-latest'
         run: |
-          choco install llvm -y --no-progress
-          $llvmBin = Join-Path $env:ProgramFiles "LLVM\bin"
-          $llvmBin >> $env:GITHUB_PATH
-          & (Join-Path $llvmBin "FileCheck.exe") --version
+          $fileCheck = "C:\msys64\ucrt64\bin\FileCheck.exe"
+          & $fileCheck --version
+          "FILECHECK=$fileCheck" >> $env:GITHUB_ENV
       - name: llvm-config
         if: matrix.os != 'windows-latest'
         run: llvm-config --version --bindir --libdir

@@ -26,7 +26,9 @@ def main():
         if status != 0:
             return status
 
-        filecheck = shutil.which("FileCheck") or shutil.which("filecheck")
+        filecheck = (
+            os.environ.get("FILECHECK") or shutil.which("FileCheck") or shutil.which("filecheck")
+        )
         if filecheck is None:
             print("FileCheck not found", file=sys.stderr)
             return 1
