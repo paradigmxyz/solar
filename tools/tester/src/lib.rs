@@ -80,19 +80,57 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
          you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
+    let standard_json_script = r#"import os
+import subprocess
+import sys
+import tempfile
+
+solar = sys.argv[2]
+input_path = sys.argv[3]
+out = tempfile.NamedTemporaryFile(prefix="solar-standard-json.", delete=False)
+out_path = out.name
+out.close()
+
+try:
+    with open(out_path, "wb") as stdout:
+        status = subprocess.run(
+            [solar, "--standard-json", "--pretty-json", "-Zui-testing", input_path],
+            stdout=stdout,
+        ).returncode
+    with open(out_path, "rb") as stdout:
+        output = stdout.read()
+    sys.stdout.buffer.write(output)
+    sys.stdout.buffer.flush()
+    if status != 0:
+        sys.exit(status)
+    check = subprocess.run(["FileCheck", input_path], input=output)
+    sys.exit(check.returncode)
+finally:
+    try:
+        os.remove(out_path)
+    except OSError:
+        pass
+"#;
+
     let mut config = ui_test::Config {
         // `host` and `target` are used for `//@ ignore-...` comments.
         host: Some(get_host().to_string()),
         target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
-            program: cmd.into(),
+            program: if matches!(mode, Mode::StandardJson) {
+                if cfg!(windows) { "python".into() } else { "python3".into() }
+            } else {
+                cmd.into()
+            },
             args: {
                 let mut args: Vec<std::ffi::OsString> = if matches!(mode, Mode::StandardJson) {
-                    vec!["--standard-json", "--pretty-json", "-Zui-testing"]
-                        .into_iter()
-                        .map(Into::into)
-                        .collect()
+                    vec![
+                        "-c".into(),
+                        standard_json_script.into(),
+                        "solar-standard-json".into(),
+                        cmd.as_os_str().to_os_string(),
+                    ]
                 } else {
                     vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
                         .into_iter()
@@ -207,7 +245,7 @@ fn get_host() -> &'static str {
 }
 
 fn mode_from_config(config: &ui_test::Config) -> Mode {
-    if config.program.args.first().is_some_and(|arg| arg == "--standard-json") {
+    if config.program.args.get(2).is_some_and(|arg| arg == "solar-standard-json") {
         Mode::StandardJson
     } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
         Mode::SolcYul
