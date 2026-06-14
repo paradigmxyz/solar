@@ -95,6 +95,16 @@ fn merge_typeck_results<'gcx>(
         }
     }
 
+    for (id, member) in new_results.resolved_members {
+        if let Some(prev_member) = results.resolved_members.insert(id, member) {
+            gcx.dcx()
+                .bug(format!(
+                    "expression {id:?} already has resolved member {prev_member:?}; tried to register {member:?}",
+                ))
+                .emit();
+        }
+    }
+
     results.unsupported_udvt_operators.extend(new_results.unsupported_udvt_operators);
 }
 

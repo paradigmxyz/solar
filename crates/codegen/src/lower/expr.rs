@@ -14,7 +14,7 @@ use solar_interface::{Ident, Span, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::TyKind,
+    ty::{ResolvedMember, TyKind},
 };
 
 pub(super) struct MappingElementSlot {
@@ -186,127 +186,122 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Member(base, member) => {
-                // Check if this is a builtin module member access (e.g., msg.sender,
-                // block.timestamp)
-                if let ExprKind::Ident(res_slice) = &base.kind
-                    && let Some(hir::Res::Builtin(base_builtin)) = res_slice.first()
-                    && let Some(member_builtin) =
-                        self.resolve_builtin_member(*base_builtin, member.name)
-                {
-                    return self.lower_builtin(builder, member_builtin);
-                }
-
-                // Handle enum variant access (e.g., Status.Active)
-                if let ExprKind::Ident(res_slice) = &base.kind
-                    && let Some(hir::Res::Item(hir::ItemId::Enum(enum_id))) = res_slice.first()
-                {
-                    let enum_def = self.gcx.hir.enumm(*enum_id);
-                    for (i, variant) in enum_def.variants.iter().enumerate() {
-                        if variant.name == member.name {
-                            return builder.imm_u64(i as u64);
+                if let Some(builtin) = self.resolved_builtin_member(expr) {
+                    match builtin {
+                        // Handle address member access: addr.balance
+                        Builtin::AddressBalance => {
+                            let addr = self.lower_expr(builder, base);
+                            return builder.balance(addr);
                         }
-                    }
-                }
-
-                // Handle contract/library constants (e.g. MachineLib.NO_RECOVERY_PC).
-                if let ExprKind::Ident(res_slice) = &base.kind
-                    && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) =
-                        res_slice.first()
-                {
-                    let contract = self.gcx.hir.contract(*contract_id);
-                    for var_id in contract.variables() {
-                        let var = self.gcx.hir.variable(var_id);
-                        if var.is_constant()
-                            && var.name.is_some_and(|name| name.name == member.name)
-                            && let Some(init) = var.initializer
-                        {
-                            return self.lower_expr(builder, init);
-                        }
-                    }
-                }
-
-                // Handle nested enum variant access (e.g., Contract.Status.Active)
-                // base is Member(Ident(Contract), enum_name)
-                if let ExprKind::Member(contract_expr, enum_name) = &base.kind
-                    && let ExprKind::Ident(res_slice) = &contract_expr.kind
-                    && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) =
-                        res_slice.first()
-                {
-                    let contract = self.gcx.hir.contract(*contract_id);
-                    for &item_id in contract.items {
-                        if let hir::ItemId::Enum(enum_id) = item_id {
-                            let enum_def = self.gcx.hir.enumm(enum_id);
-                            if enum_def.name.name == enum_name.name {
-                                for (i, variant) in enum_def.variants.iter().enumerate() {
-                                    if variant.name == member.name {
-                                        return builder.imm_u64(i as u64);
-                                    }
-                                }
+                        // Handle function and error selector member access.
+                        Builtin::FunctionSelector => {
+                            if let Some(selector) = self.lower_resolved_function_selector(base) {
+                                return builder.imm_u256(U256::from(selector) << 224);
+                            }
+                            if let ExprKind::Member(receiver, function_name) = &base.kind {
+                                let selector =
+                                    self.compute_member_selector(receiver, *function_name);
+                                return builder.imm_u256(U256::from(selector) << 224);
                             }
                         }
-                    }
-                }
-
-                // Handle type(T).min, type(T).max, type(T).creationCode, type(T).runtimeCode
-                if let ExprKind::TypeCall(ty) = &base.kind {
-                    let member_name = member.name.as_str();
-                    match member_name {
-                        "max" | "min" => {
-                            return self.lower_type_minmax(builder, ty, member_name == "max");
+                        Builtin::EventSelector => {
+                            if let Some(selector) = self.lower_resolved_event_selector(base) {
+                                return builder.imm_u256(selector);
+                            }
                         }
-                        "creationCode" => {
-                            return self.lower_type_creation_code(builder, ty, true);
+                        // Handle type(T).min and type(T).max.
+                        Builtin::TypeMin | Builtin::TypeMax => {
+                            if let ExprKind::TypeCall(ty) = &base.kind {
+                                return self.lower_type_minmax(
+                                    builder,
+                                    ty,
+                                    builtin == Builtin::TypeMax,
+                                );
+                            }
                         }
-                        "runtimeCode" => {
-                            return self.lower_type_creation_code(builder, ty, false);
+                        // Handle type(T).creationCode and type(T).runtimeCode.
+                        Builtin::ContractCreationCode | Builtin::ContractRuntimeCode => {
+                            if let ExprKind::TypeCall(ty) = &base.kind {
+                                return self.lower_type_creation_code(
+                                    builder,
+                                    ty,
+                                    builtin == Builtin::ContractCreationCode,
+                                );
+                            }
                         }
+                        Builtin::ArrayLength => {
+                            if let Some(length) = self.lower_array_length_member(builder, base) {
+                                return length;
+                            }
+                        }
+                        Builtin::BlockCoinbase
+                        | Builtin::BlockTimestamp
+                        | Builtin::BlockDifficulty
+                        | Builtin::BlockPrevrandao
+                        | Builtin::BlockNumber
+                        | Builtin::BlockGaslimit
+                        | Builtin::BlockChainid
+                        | Builtin::BlockBasefee
+                        | Builtin::BlockBlobbasefee
+                        | Builtin::MsgSender
+                        | Builtin::MsgGas
+                        | Builtin::MsgValue
+                        | Builtin::MsgData
+                        | Builtin::MsgSig
+                        | Builtin::TxOrigin
+                        | Builtin::TxGasPrice
+                        | Builtin::AbiEncode
+                        | Builtin::AbiEncodePacked
+                        | Builtin::AbiEncodeWithSelector
+                        | Builtin::AbiEncodeCall
+                        | Builtin::AbiEncodeWithSignature
+                        | Builtin::AbiDecode => return self.lower_builtin(builder, builtin),
                         _ => {}
                     }
                 }
 
-                // Handle dynamic array .length
-                if member.name.as_str() == "length" {
+                // Handle enum variant access (e.g., Status.Active or Contract.Status.Active).
+                if let Some((_enum_id, variant_index)) = self.resolved_enum_variant(expr) {
+                    return builder.imm_u64(variant_index as u64);
+                }
+
+                // Handle contract/library constants (e.g. MachineLib.NO_RECOVERY_PC).
+                if let Some(ResolvedMember::Res(hir::Res::Item(hir::ItemId::Variable(var_id)))) =
+                    self.resolved_member(expr)
+                {
+                    let var = self.gcx.hir.variable(var_id);
+                    if var.is_constant()
+                        && let Some(init) = var.initializer
+                    {
+                        return self.lower_expr(builder, init);
+                    }
+                }
+
+                // Keep a name-based fallback for callers without sema results.
+                if member.name == sym::length {
                     // Storage array (state variable or storage-reference
                     // local): dynamic length at the base slot, fixed length
                     // is a compile-time constant.
-                    if let Some((slot_val, fixed_len, _)) =
-                        self.storage_array_slot_of_base(builder, base)
-                    {
-                        return match fixed_len {
-                            Some(len) => builder.imm_u64(len),
-                            None => builder.sload(slot_val),
-                        };
-                    }
-                    // Calldata dynamic array/bytes: length word at `4 + head`.
-                    if let Some((head, _)) = self.calldata_dyn_head(base) {
-                        let four = builder.imm_u64(4);
-                        let len_pos = builder.add(four, head);
-                        return builder.calldataload(len_pos);
-                    }
-                    // Fixed-size arrays have a compile-time length.
-                    if let Some(len) = self.fixed_array_len_of_expr(base) {
-                        return builder.imm_u64(len);
+                    if let Some(length) = self.lower_array_length_member(builder, base) {
+                        return length;
                     }
                     // Memory dynamic arrays and bytes fall through to the
                     // generic member fallback, which loads the length word at
                     // the base pointer.
                 }
 
-                // Handle function selector member access: `this.foo.selector`.
-                if member.name == sym::selector
-                    && let ExprKind::Member(receiver, function_name) = &base.kind
-                {
-                    let selector = self.compute_member_selector(receiver, *function_name);
-                    return builder.imm_u256(U256::from(selector) << 224);
-                }
-
-                // Handle address member access: addr.balance
-                if member.name.as_str() == "balance" {
-                    let addr = self.lower_expr(builder, base);
-                    return builder.balance(addr);
-                }
-
                 // Check if this is a storage struct member access (e.g., storedPoint.x)
+                if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
+                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                        builder,
+                        base,
+                        struct_id,
+                        field_index,
+                    )
+                {
+                    return builder.sload(slot);
+                }
+
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
@@ -354,6 +349,19 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 // Regular memory struct member access
+                if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
+                    && self.is_memory_struct_base(base, struct_id)
+                {
+                    let base_val = self.lower_expr(builder, base);
+                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
+                    if field_offset == 0 {
+                        return builder.mload(base_val);
+                    }
+                    let offset_val = builder.imm_u64(field_offset);
+                    let field_addr = builder.add(base_val, offset_val);
+                    return builder.mload(field_addr);
+                }
+
                 if let Some((struct_id, field_index)) =
                     self.get_memory_struct_field_info(base, *member)
                 {
@@ -824,6 +832,57 @@ impl<'gcx> Lowerer<'gcx> {
         builder.revert(zero, size);
     }
 
+    fn lower_array_length_member(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+    ) -> Option<ValueId> {
+        // Storage array (state variable or storage-reference local): dynamic
+        // length at the base slot, fixed length is a compile-time constant.
+        if let Some((slot_val, fixed_len, _)) = self.storage_array_slot_of_base(builder, base) {
+            return Some(match fixed_len {
+                Some(len) => builder.imm_u64(len),
+                None => builder.sload(slot_val),
+            });
+        }
+
+        // Calldata dynamic array/bytes: length word at `4 + head`.
+        if let Some((head, _)) = self.calldata_dyn_head(base) {
+            let four = builder.imm_u64(4);
+            let len_pos = builder.add(four, head);
+            return Some(builder.calldataload(len_pos));
+        }
+
+        // Fixed-size arrays have a compile-time length.
+        if let Some(len) = self.fixed_array_len_of_expr(base) {
+            return Some(builder.imm_u64(len));
+        }
+
+        // Memory dynamic arrays and bytes fall through to the generic member
+        // fallback, which loads the length word at the base pointer.
+        None
+    }
+
+    fn lower_resolved_function_selector(&self, expr: &hir::Expr<'_>) -> Option<u32> {
+        let ResolvedMember::Res(hir::Res::Item(item_id)) = self.resolved_member(expr)? else {
+            return None;
+        };
+        match item_id {
+            hir::ItemId::Function(id) => Some(u32::from_be_bytes(self.gcx.function_selector(id).0)),
+            hir::ItemId::Error(id) => Some(u32::from_be_bytes(self.gcx.function_selector(id).0)),
+            _ => None,
+        }
+    }
+
+    fn lower_resolved_event_selector(&self, expr: &hir::Expr<'_>) -> Option<U256> {
+        let ResolvedMember::Res(hir::Res::Item(hir::ItemId::Event(event_id))) =
+            self.resolved_member(expr)?
+        else {
+            return None;
+        };
+        Some(U256::from_be_bytes(self.gcx.event_selector(event_id).0))
+    }
+
     /// Lowers type(T).min or type(T).max to a constant value.
     fn lower_type_minmax(
         &mut self,
@@ -1107,6 +1166,18 @@ impl<'gcx> Lowerer<'gcx> {
             }
             ExprKind::Member(base, member) => {
                 // Check if this is a storage struct member assignment (e.g., storedPoint.x = value)
+                if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
+                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                        builder,
+                        base,
+                        struct_id,
+                        field_index,
+                    )
+                {
+                    builder.sstore(slot, rhs);
+                    return;
+                }
+
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)
                 {
@@ -1160,6 +1231,21 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 // Regular memory struct member assignment
+                if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
+                    && self.is_memory_struct_base(base, struct_id)
+                {
+                    let base_val = self.lower_expr(builder, base);
+                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
+                    if field_offset == 0 {
+                        builder.mstore(base_val, rhs);
+                        return;
+                    }
+                    let offset_val = builder.imm_u64(field_offset);
+                    let field_addr = builder.add(base_val, offset_val);
+                    builder.mstore(field_addr, rhs);
+                    return;
+                }
+
                 if let Some((struct_id, field_index)) =
                     self.get_memory_struct_field_info(base, *member)
                 {
@@ -1895,6 +1981,37 @@ impl<'gcx> Lowerer<'gcx> {
             .position(|&fid| self.gcx.hir.variable(fid).name.is_some_and(|n| n.name == member.name))
     }
 
+    fn is_memory_struct_base(&self, base: &hir::Expr<'_>, struct_id: hir::StructId) -> bool {
+        let Some(ty) = self.get_expr_type(base) else { return false };
+        match ty.kind {
+            TyKind::Ref(inner, solar_ast::DataLocation::Memory) => {
+                matches!(inner.kind, TyKind::Struct(id) if id == struct_id)
+            }
+            TyKind::Struct(id) => id == struct_id,
+            _ => false,
+        }
+    }
+
+    fn lower_storage_struct_field_slot_by_index(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: &hir::Expr<'_>,
+        struct_id: hir::StructId,
+        field_index: usize,
+    ) -> Option<ValueId> {
+        if self.struct_id_of_expr(base)? != struct_id {
+            return None;
+        }
+        let base_slot = self.lower_lvalue_slot(builder, base)?;
+        let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
+        Some(if field_offset == 0 {
+            base_slot
+        } else {
+            let off = builder.imm_u64(field_offset);
+            builder.add(base_slot, off)
+        })
+    }
+
     /// If `base` is a storage location of struct type and `member` is one of its
     /// fields, returns the field's storage slot (`base_slot + field_offset`) as a
     /// runtime value. Handles storage references (`r.a`) and storage struct
@@ -1908,14 +2025,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<ValueId> {
         let struct_id = self.struct_id_of_expr(base)?;
         let field_index = self.struct_field_index(struct_id, member)?;
-        let base_slot = self.lower_lvalue_slot(builder, base)?;
-        let field_offset = self.get_struct_field_slot_offset(struct_id, field_index);
-        Some(if field_offset == 0 {
-            base_slot
-        } else {
-            let off = builder.imm_u64(field_offset);
-            builder.add(base_slot, off)
-        })
+        self.lower_storage_struct_field_slot_by_index(builder, base, struct_id, field_index)
     }
 
     /// Computes the storage slot of an lvalue expression as a runtime value.
@@ -1948,6 +2058,17 @@ impl<'gcx> Lowerer<'gcx> {
                 self.lower_index_lvalue_slot(builder, base, index.as_deref())
             }
             ExprKind::Member(base, member) => {
+                if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
+                    && let Some(slot) = self.lower_storage_struct_field_slot_by_index(
+                        builder,
+                        base,
+                        struct_id,
+                        field_index,
+                    )
+                {
+                    return Some(slot);
+                }
+
                 // State-variable storage struct field.
                 if let Some((base_slot, struct_id, field_index)) =
                     self.get_storage_struct_field_info(base, *member)

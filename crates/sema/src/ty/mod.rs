@@ -76,6 +76,7 @@ pub struct InterfaceFunctions<'gcx> {
 pub struct TypeckResults<'gcx> {
     pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
     pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
+    pub(crate) resolved_members: FxHashMap<hir::ExprId, ResolvedMember>,
     pub(crate) unsupported_udvt_operators: FxHashSet<hir::ExprId>,
 }
 
@@ -94,6 +95,17 @@ impl ResolvedCallee {
     }
 }
 
+/// The target selected for a non-call member access expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ResolvedMember {
+    /// A member with a regular item or builtin resolution.
+    Res(hir::Res),
+    /// A struct field selected from the receiver type.
+    StructField { struct_id: hir::StructId, field_index: usize },
+    /// An enum variant selected from `Enum.Variant`.
+    EnumVariant { enum_id: hir::EnumId, variant_index: usize },
+}
+
 impl<'gcx> TypeckResults<'gcx> {
     /// Returns the type inferred for the given expression, if available.
     #[inline]
@@ -105,6 +117,21 @@ impl<'gcx> TypeckResults<'gcx> {
     #[inline]
     pub fn resolved_callee(&self, id: hir::ExprId) -> Option<ResolvedCallee> {
         self.resolved_callees.get(&id).copied()
+    }
+
+    /// Returns the target selected for a non-call member access expression, if available.
+    #[inline]
+    pub fn resolved_member(&self, id: hir::ExprId) -> Option<ResolvedMember> {
+        self.resolved_members.get(&id).copied()
+    }
+
+    /// Returns the selected builtin target for a non-call member access expression, if available.
+    #[inline]
+    pub fn builtin_member(&self, id: hir::ExprId) -> Option<Builtin> {
+        match self.resolved_member(id)? {
+            ResolvedMember::Res(hir::Res::Builtin(builtin)) => Some(builtin),
+            _ => None,
+        }
     }
 
     /// Returns the selected builtin target for a call callee expression, if available.
@@ -459,6 +486,18 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get()?.resolved_callee(id)
     }
 
+    /// Returns the target selected for a non-call member access expression, if available.
+    #[inline]
+    pub fn resolved_member(self, id: hir::ExprId) -> Option<ResolvedMember> {
+        self.typeck_results.get()?.resolved_member(id)
+    }
+
+    /// Returns the selected builtin target for a non-call member access expression, if available.
+    #[inline]
+    pub fn builtin_member(self, id: hir::ExprId) -> Option<Builtin> {
+        self.typeck_results.get()?.builtin_member(id)
+    }
+
     /// Returns the selected builtin target for a call callee expression, if available.
     #[inline]
     pub fn builtin_callee(self, id: hir::ExprId) -> Option<Builtin> {
@@ -469,6 +508,12 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn unsupported_udvt_operator(self, id: hir::ExprId) -> bool {
         self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
+    }
+
+    /// Returns whether sparse type-checker results are available for codegen queries.
+    #[inline]
+    pub fn has_typeck_results(self) -> bool {
+        self.typeck_results.get().is_some()
     }
 
     pub(crate) fn set_typeck_results(self, results: TypeckResults<'gcx>) {

@@ -2,7 +2,10 @@ use crate::{
     builtins::{Builtin, members},
     eval::{ConstValue, ConstantEvaluator},
     hir::{self, Visit},
-    ty::{Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind, TypeckResults},
+    ty::{
+        Gcx, ResolvedCallee, ResolvedMember, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
+        TypeckResults,
+    },
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -444,24 +447,27 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Lit(lit) if self.in_yul => self.check_yul_lit(lit),
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
-            hir::ExprKind::Member(expr, ident) => {
-                let expr_ty = self.check_expr_outside_lvalue_context(expr, None);
-                if expr_ty.references_error() {
-                    return expr_ty;
+            hir::ExprKind::Member(receiver, ident) => {
+                let receiver_ty = self.check_expr_outside_lvalue_context(receiver, None);
+                if receiver_ty.references_error() {
+                    return receiver_ty;
                 }
 
                 let possible_members = self
                     .gcx
-                    .members_of(expr_ty, self.source, self.contract)
+                    .members_of(receiver_ty, self.source, self.contract)
                     .filter(|m| m.name == ident.name)
                     .collect::<SmallVec<[_; 4]>>();
 
                 let ty = match self.select_member_access(&possible_members) {
-                    Ok(member) => member.ty,
+                    Ok(member) => {
+                        self.register_resolved_member(expr, receiver_ty, member);
+                        member.ty
+                    }
                     Err(MemberAccessError::NotFound) => {
                         let msg = format!(
                             "member `{ident}` not found on type `{}`",
-                            expr_ty.display(self.gcx)
+                            receiver_ty.display(self.gcx)
                         );
                         // TODO: Did you mean ...?
                         let err = self.dcx().err(msg).span(ident.span);
@@ -470,7 +476,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     Err(MemberAccessError::Ambiguous) => {
                         let msg = format!(
                             "member `{ident}` not unique on type `{}`",
-                            expr_ty.display(self.gcx)
+                            receiver_ty.display(self.gcx)
                         );
                         let err = self.dcx().err(msg).span(ident.span);
                         self.gcx.mk_ty_err(err.emit())
@@ -478,9 +484,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // Validate lvalue.
-                let not_lvalue_reason = match expr_ty.kind {
+                let not_lvalue_reason = match receiver_ty.kind {
                     _ if matches!(
-                        expr_ty.peel_refs().kind,
+                        receiver_ty.peel_refs().kind,
                         TyKind::Array(..) | TyKind::DynArray(_)
                     ) && possible_members.len() == 1
                         && possible_members[0].name == sym::length =>
@@ -1205,6 +1211,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let TyKind::Error(param_tys, id) = callee_ty.kind else {
             return self.check_expected(expr, callee_ty, self.gcx.types.string_ref.memory);
         };
+        self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(selected, false));
         if !self.results.expr_types.contains_key(&callee.id) {
             self.register_ty(callee, callee_ty);
         }
@@ -1610,6 +1617,56 @@ impl<'gcx> TypeChecker<'gcx> {
             [member] => Ok(member),
             [..] => Err(MemberAccessError::Ambiguous),
         }
+    }
+
+    fn register_resolved_member(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        receiver_ty: Ty<'gcx>,
+        member: &members::Member<'gcx>,
+    ) {
+        let Some(resolved) = self.resolved_member(receiver_ty, member) else { return };
+        self.results.resolved_members.insert(expr.id, resolved);
+    }
+
+    fn resolved_member(
+        &self,
+        receiver_ty: Ty<'gcx>,
+        member: &members::Member<'gcx>,
+    ) -> Option<ResolvedMember> {
+        if let Some(res) = member.res {
+            return Some(ResolvedMember::Res(res));
+        }
+
+        match receiver_ty.kind {
+            TyKind::Ref(inner, _) => {
+                let TyKind::Struct(struct_id) = inner.kind else { return None };
+                let field_index = self.struct_field_index(struct_id, member.name)?;
+                Some(ResolvedMember::StructField { struct_id, field_index })
+            }
+            TyKind::Struct(struct_id) => {
+                let field_index = self.struct_field_index(struct_id, member.name)?;
+                Some(ResolvedMember::StructField { struct_id, field_index })
+            }
+            TyKind::Type(ty) => {
+                let TyKind::Enum(enum_id) = ty.kind else { return None };
+                let variant_index = self
+                    .gcx
+                    .hir
+                    .enumm(enum_id)
+                    .variants
+                    .iter()
+                    .position(|variant| variant.name == member.name)?;
+                Some(ResolvedMember::EnumVariant { enum_id, variant_index })
+            }
+            _ => None,
+        }
+    }
+
+    fn struct_field_index(&self, struct_id: hir::StructId, name: Symbol) -> Option<usize> {
+        self.gcx.hir.strukt(struct_id).fields.iter().position(|&field_id| {
+            self.gcx.hir.variable(field_id).name.is_some_and(|field| field.name == name)
+        })
     }
 
     fn check_ident_call_callee(

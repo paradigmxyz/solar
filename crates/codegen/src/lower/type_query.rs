@@ -3,8 +3,9 @@
 use super::Lowerer;
 use solar_ast::{DataLocation, LitKind};
 use solar_sema::{
+    builtins::Builtin,
     hir::{self, ElementaryType, ExprKind},
-    ty::TyKind,
+    ty::{ResolvedMember, TyKind},
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -20,6 +21,39 @@ impl<'gcx> Lowerer<'gcx> {
     /// Gets the type of an expression computed by sema's type checker.
     pub(super) fn get_expr_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'gcx>> {
         self.gcx.type_of_expr(expr.id)
+    }
+
+    /// Gets the non-call member target selected by sema's type checker.
+    pub(super) fn resolved_member(&self, expr: &hir::Expr<'_>) -> Option<ResolvedMember> {
+        self.gcx.resolved_member(expr.id)
+    }
+
+    pub(super) fn resolved_builtin_member(&self, expr: &hir::Expr<'_>) -> Option<Builtin> {
+        self.gcx.builtin_member(expr.id)
+    }
+
+    pub(super) fn resolved_struct_field(
+        &self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(hir::StructId, usize)> {
+        match self.resolved_member(expr)? {
+            ResolvedMember::StructField { struct_id, field_index } => {
+                Some((struct_id, field_index))
+            }
+            _ => None,
+        }
+    }
+
+    pub(super) fn resolved_enum_variant(
+        &self,
+        expr: &hir::Expr<'_>,
+    ) -> Option<(hir::EnumId, usize)> {
+        match self.resolved_member(expr)? {
+            ResolvedMember::EnumVariant { enum_id, variant_index } => {
+                Some((enum_id, variant_index))
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn is_dynamic_memory_array_expr(&self, expr: &hir::Expr<'_>) -> bool {

@@ -5,7 +5,7 @@ use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, Span};
 use solar_data_structures::map::FxHashSet;
-use solar_interface::{Ident, Symbol, kw, sym};
+use solar_interface::Ident;
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -21,33 +21,24 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
-        if let Some(builtin) = self.gcx.builtin_callee(callee.id)
-            && Self::builtin_uses_direct_call_lowering(builtin)
-        {
-            return self.lower_builtin_call(builder, builtin, args);
-        }
+        if let Some(builtin) = self.gcx.builtin_callee(callee.id) {
+            // `T.wrap(x)` / `T.unwrap(v)` for a user-defined value type are identity
+            // operations at the EVM level: a UDVT value is represented exactly as its
+            // underlying type, so no wrapper is added or removed.
+            if matches!(builtin, Builtin::UdvtWrap | Builtin::UdvtUnwrap)
+                && let Some(arg) = args.exprs().next()
+            {
+                return self.lower_expr(builder, arg);
+            }
 
-        if let ExprKind::Ident(res_slice) = &callee.kind
-            && let Some(builtin) = self.select_builtin_overload(res_slice, args)
-        {
-            return self.lower_builtin_call(builder, builtin, args);
+            if Self::builtin_uses_direct_call_lowering(builtin) {
+                return self.lower_builtin_call(builder, builtin, args);
+            }
         }
 
         if let Some(error_id) = self.custom_error_id_from_callee(callee) {
             self.emit_custom_error_revert(builder, error_id, args);
             return builder.imm_u64(0);
-        }
-
-        // `T.wrap(x)` / `T.unwrap(v)` for a user-defined value type are identity
-        // operations at the EVM level: a UDVT value is represented exactly as its
-        // underlying type, so no wrapper is added or removed.
-        if let ExprKind::Member(base, member) = &callee.kind
-            && matches!(member.name.as_str(), "wrap" | "unwrap")
-            && let ExprKind::Ident(res_slice) = &base.kind
-            && res_slice.iter().any(|r| matches!(r, hir::Res::Item(hir::ItemId::Udvt(_))))
-            && let Some(arg) = args.exprs().next()
-        {
-            return self.lower_expr(builder, arg);
         }
 
         if let ExprKind::Member(base, member) = &callee.kind {
@@ -64,66 +55,23 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Handle internal function calls: func(args) where func is a function in the same contract
-        if let ExprKind::Ident(res_slice) = &callee.kind {
-            if let Some(resolved) = self.gcx.resolved_callee(callee.id)
-                && let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res
-            {
-                return self.lower_internal_call(builder, func_id, args);
-            }
-
-            let arg_count = args.exprs().count();
-
-            // Find the best matching overload based on argument count
-            // First, collect all function resolutions
-            let func_resolutions: Vec<_> = res_slice
-                .iter()
-                .filter_map(|r| {
-                    if let hir::Res::Item(hir::ItemId::Function(fid)) = r {
-                        Some(*fid)
-                    } else {
-                        None
+        if let ExprKind::Ident(_) = &callee.kind
+            && let Some(resolved) = self.gcx.resolved_callee(callee.id)
+            && let hir::Res::Item(item_id) = resolved.res
+        {
+            match item_id {
+                hir::ItemId::Function(func_id) => {
+                    return self.lower_internal_call(builder, func_id, args);
+                }
+                hir::ItemId::Contract(_) | hir::ItemId::Enum(_) => {
+                    if let Some(first_arg) = args.exprs().next() {
+                        return self.lower_expr(builder, first_arg);
                     }
-                })
-                .collect();
-
-            // Select the overload that matches the argument count
-            let selected_func = func_resolutions
-                .iter()
-                .find(|&&fid| {
-                    let f = self.gcx.hir.function(fid);
-                    f.parameters.len() == arg_count
-                })
-                .or_else(|| func_resolutions.first());
-
-            if let Some(&func_id) = selected_func {
-                return self.lower_internal_call(builder, func_id, args);
-            }
-        }
-
-        // Handle type conversion calls: Type(expr)
-        // e.g., ICallee(addr), uint256(x), address(y), Status(n)
-        // The callee is an Ident resolving to a contract/interface/enum type
-        if let ExprKind::Ident(res_slice) = &callee.kind {
-            // Check if this resolves to a contract or interface type
-            if let Some(hir::Res::Item(hir::ItemId::Contract(_))) = res_slice.first() {
-                // Type conversion: just return the first argument unchanged
-                // (The actual conversion is a no-op at the EVM level for addresses/contracts)
-                if let Some(first_arg) = args.exprs().next() {
-                    return self.lower_expr(builder, first_arg);
                 }
-            }
-            // Check if this resolves to an enum type (e.g., Status(n))
-            if let Some(hir::Res::Item(hir::ItemId::Enum(_))) = res_slice.first() {
-                // Enum conversion: just return the first argument unchanged
-                // (Enums are represented as uint8 at the EVM level)
-                if let Some(first_arg) = args.exprs().next() {
-                    return self.lower_expr(builder, first_arg);
+                hir::ItemId::Struct(struct_id) => {
+                    return self.lower_struct_constructor(builder, struct_id, args);
                 }
-            }
-            // Check if this resolves to a struct type (struct constructor call)
-            // e.g., Point(10, 20) creates a memory struct
-            if let Some(hir::Res::Item(hir::ItemId::Struct(struct_id))) = res_slice.first() {
-                return self.lower_struct_constructor(builder, *struct_id, args);
+                _ => {}
             }
         }
 
@@ -137,25 +85,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         builder.imm_u64(0)
-    }
-
-    fn select_builtin_overload(
-        &self,
-        res_slice: &[hir::Res],
-        args: &CallArgs<'_>,
-    ) -> Option<Builtin> {
-        let arg_count = args.exprs().count();
-        res_slice
-            .iter()
-            .filter_map(|res| match res {
-                hir::Res::Builtin(builtin) => Some(*builtin),
-                _ => None,
-            })
-            .find(|builtin| match builtin {
-                Builtin::Revert => arg_count == 0,
-                Builtin::RevertMsg => arg_count == 1,
-                _ => true,
-            })
     }
 
     fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {
@@ -176,26 +105,19 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn custom_error_id_from_callee(&self, callee: &hir::Expr<'_>) -> Option<hir::ErrorId> {
-        if let Some(ty) = self.get_expr_type(callee)
-            && let TyKind::Error(_, error_id) = ty.kind
-        {
-            return Some(error_id);
-        }
-
         if let Some(resolved) = self.gcx.resolved_callee(callee.id)
             && let hir::Res::Item(hir::ItemId::Error(error_id)) = resolved.res
         {
             return Some(error_id);
         }
 
-        let ExprKind::Ident(res_slice) = &callee.kind else { return None };
-        res_slice.iter().find_map(|res| {
-            if let hir::Res::Item(hir::ItemId::Error(error_id)) = res {
-                Some(*error_id)
-            } else {
-                None
-            }
-        })
+        if let Some(ty) = self.get_expr_type(callee)
+            && let TyKind::Error(_, error_id) = ty.kind
+        {
+            panic!("typeck did not record resolved custom-error callee {error_id:?}");
+        }
+
+        None
     }
 
     fn emit_revert_payload_from_expr(
@@ -981,50 +903,31 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
-        if let Some(builtin) = self.gcx.builtin_callee(callee.id)
+        let resolved = self.gcx.resolved_callee(callee.id);
+        let builtin = self.gcx.builtin_callee(callee.id);
+
+        if let Some(builtin) = builtin
             && Self::builtin_uses_direct_call_lowering(builtin)
         {
             return self.lower_builtin_call(builder, builtin, args);
         }
 
-        // Handle builtin member calls: abi.encode(), abi.encodePacked(), etc.
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Builtin(base_builtin)) = res_slice.first()
-            && let Some(member_builtin) = self.resolve_builtin_member(*base_builtin, member.name)
+        // Handle `Contract.StructType(args)`.
+        if let Some(resolved) = resolved
+            && let hir::Res::Item(hir::ItemId::Struct(struct_id)) = resolved.res
         {
-            return self.lower_builtin_call(builder, member_builtin, args);
+            return self.lower_struct_constructor(builder, struct_id, args);
         }
 
-        // Handle library function calls: Library.func(args)
-        // The base is an Ident resolving to a ContractId for a library
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+        // Handle library function calls: Library.func(args).
+        if self.is_library_type_expr(base)
+            && let Some(func_id) = self.resolved_function_callee(callee)
         {
-            let contract = self.gcx.hir.contract(*contract_id);
-
-            // Check if member is a struct type defined in this contract: Contract.StructType(args)
-            for &item_id in contract.items {
-                if let hir::ItemId::Struct(struct_id) = item_id {
-                    let strukt = self.gcx.hir.strukt(struct_id);
-                    if strukt.name.name == member.name {
-                        return self.lower_struct_constructor(builder, struct_id, args);
-                    }
-                }
-            }
-
-            if contract.kind.is_library()
-                && let Some(resolved) = self.gcx.resolved_callee(callee.id)
-                && let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res
-            {
-                return self.lower_library_call(builder, func_id, args, None);
-            }
+            return self.lower_library_call(builder, func_id, args, None);
         }
 
         // Handle address payable transfer/send builtins
-        // Only treat as address builtins if base is NOT a contract type
-        let member_name = member.name.as_str();
-        if (member_name == "transfer" || member_name == "send") && !self.is_contract_type_expr(base)
-        {
+        if matches!(builtin, Some(Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) {
             // payable(addr).transfer(amount) or payable(addr).send(amount)
             // CALL(2300, addr, amount, 0, 0, 0, 0)
             let addr = self.lower_expr(builder, base);
@@ -1054,7 +957,7 @@ impl<'gcx> Lowerer<'gcx> {
                 zero_ret_size,
             );
 
-            if member_name == "transfer" {
+            if builtin == Some(Builtin::AddressPayableTransfer) {
                 // transfer reverts on failure
                 let is_failure = builder.iszero(success);
                 let revert_block = builder.create_block();
@@ -1075,7 +978,10 @@ impl<'gcx> Lowerer<'gcx> {
         // addr.call{value: X}(data) returns (bool success, bytes memory returndata)
         // addr.staticcall(data) returns (bool success, bytes memory returndata)
         // addr.delegatecall(data) returns (bool success, bytes memory returndata)
-        if member_name == "call" || member_name == "staticcall" || member_name == "delegatecall" {
+        if matches!(
+            builtin,
+            Some(Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall)
+        ) {
             let addr = self.lower_expr(builder, base);
 
             // Get the calldata bytes argument.
@@ -1093,7 +999,7 @@ impl<'gcx> Lowerer<'gcx> {
             let gas = builder.gas();
 
             // Value: extract from call options {value: X} or default to 0
-            let value = if member_name == "call" {
+            let value = if builtin == Some(Builtin::AddressCall) {
                 self.extract_call_value(builder, call_opts)
             } else {
                 // staticcall and delegatecall don't transfer value
@@ -1107,8 +1013,8 @@ impl<'gcx> Lowerer<'gcx> {
             let ret_size = builder.imm_u64(0);
 
             // Emit the appropriate CALL/STATICCALL/DELEGATECALL instruction
-            let success = match member_name {
-                "call" => builder.call(
+            let success = match builtin {
+                Some(Builtin::AddressCall) => builder.call(
                     gas,
                     addr,
                     value,
@@ -1117,7 +1023,7 @@ impl<'gcx> Lowerer<'gcx> {
                     ret_offset,
                     ret_size,
                 ),
-                "staticcall" => builder.staticcall(
+                Some(Builtin::AddressStaticcall) => builder.staticcall(
                     gas,
                     addr,
                     calldata_offset,
@@ -1125,7 +1031,7 @@ impl<'gcx> Lowerer<'gcx> {
                     ret_offset,
                     ret_size,
                 ),
-                "delegatecall" => builder.delegatecall(
+                Some(Builtin::AddressDelegatecall) => builder.delegatecall(
                     gas,
                     addr,
                     calldata_offset,
@@ -1142,23 +1048,27 @@ impl<'gcx> Lowerer<'gcx> {
             return success;
         }
 
+        let array_method = builtin.and_then(Self::array_builtin_method_name);
+
         // Handle storage `bytes`/`string` methods before the generic member
         // call path. Their storage layout is Solidity's packed short/long
         // bytes form, not the generic dynamic-array layout.
         if self.is_storage_bytes_expr(base)
-            && matches!(member_name, ARRAY_METHOD_PUSH | ARRAY_METHOD_POP)
+            && let Some(method) = array_method
             && let Some(slot) = self.lower_lvalue_slot(builder, base)
         {
-            return self.lower_storage_bytes_method_call(builder, slot, member_name, args);
+            return self.lower_storage_bytes_method_call(builder, slot, method, args);
         }
 
         // Handle dynamic array methods (push, pop)
-        if let Some((var_id, slot)) = self.get_dyn_array_base_slot(base) {
-            return self.lower_array_method_call(builder, var_id, slot, member_name, args);
+        if let Some(method) = array_method
+            && let Some((var_id, slot)) = self.get_dyn_array_base_slot(base)
+        {
+            return self.lower_array_method_call(builder, var_id, slot, method, args);
         }
 
         // Handle `using X for Y` library calls: x.method(args) -> Library.method(x, args)
-        if let Some(resolved) = self.gcx.resolved_callee(callee.id)
+        if let Some(resolved) = resolved
             && resolved.attached
             && let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res
         {
@@ -1166,9 +1076,24 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_library_call(builder, func_id, args, Some(bound_arg));
         }
 
-        // Look up the function being called to get its selector and return count
-        let selector = self.compute_member_selector(base, member);
-        let num_returns = self.get_member_function_return_count(base, member);
+        // Look up the function being called to get its selector and return count.
+        let resolved_func = self.resolved_function_callee(callee);
+        if resolved_func.is_none() && self.gcx.has_typeck_results() {
+            panic!("typeck did not record resolved member-function callee `{member}`");
+        }
+        let (selector, num_returns, struct_return_info) = if let Some(func_id) = resolved_func {
+            (
+                u32::from_be_bytes(self.gcx.function_selector(func_id).0),
+                self.function_return_slot_count(func_id),
+                self.function_struct_return(func_id),
+            )
+        } else {
+            (
+                self.compute_member_selector(base, member),
+                self.get_member_function_return_count(base, member),
+                None,
+            )
+        };
 
         // Collect argument info: for structs we need the field count, for scalars just 1 slot
         let arg_infos: Vec<_> = args
@@ -1247,9 +1172,6 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
-        // Check if the return type is a struct - need special handling for return data
-        let struct_return_info = self.get_member_function_struct_return(base, member);
-
         // Determine where to store return data and whether it's a struct
         let (ret_offset, ret_size, struct_ptr_opt) =
             if let Some((_struct_id, field_count)) = struct_return_info {
@@ -1313,6 +1235,58 @@ impl<'gcx> Lowerer<'gcx> {
         // Note: for multi-return calls, lower_multi_var_decl will read additional values
         // from memory at offsets 32, 64, etc.
         builder.mload(ret_offset)
+    }
+
+    fn resolved_function_callee(&self, callee: &hir::Expr<'_>) -> Option<hir::FunctionId> {
+        let resolved = self.gcx.resolved_callee(callee.id)?;
+        let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res else { return None };
+        Some(func_id)
+    }
+
+    fn is_library_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        let Some(ty) = self.get_expr_type(expr) else { return false };
+        let TyKind::Type(ty) = ty.kind else { return false };
+        let TyKind::Contract(contract_id) = ty.kind else { return false };
+        self.gcx.hir.contract(contract_id).kind.is_library()
+    }
+
+    fn array_builtin_method_name(builtin: Builtin) -> Option<&'static str> {
+        match builtin {
+            Builtin::ArrayPush0 | Builtin::ArrayPush => Some(ARRAY_METHOD_PUSH),
+            Builtin::ArrayPop => Some(ARRAY_METHOD_POP),
+            _ => None,
+        }
+    }
+
+    fn function_return_slot_count(&self, func_id: hir::FunctionId) -> usize {
+        self.return_slot_count(self.gcx.hir.function(func_id).returns)
+    }
+
+    fn return_slot_count(&self, returns: &[hir::VariableId]) -> usize {
+        let mut total = 0;
+        for &var_id in returns {
+            let var = self.gcx.hir.variable(var_id);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                total += self.gcx.hir.strukt(*struct_id).fields.len();
+            } else {
+                total += 1;
+            }
+        }
+        total.max(1)
+    }
+
+    fn function_struct_return(&self, func_id: hir::FunctionId) -> Option<(hir::StructId, usize)> {
+        self.struct_return(self.gcx.hir.function(func_id).returns)
+    }
+
+    fn struct_return(&self, returns: &[hir::VariableId]) -> Option<(hir::StructId, usize)> {
+        if returns.len() == 1 {
+            let var = self.gcx.hir.variable(returns[0]);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                return Some((*struct_id, self.gcx.hir.strukt(*struct_id).fields.len()));
+            }
+        }
+        None
     }
 
     /// Extracts the `value` from call options `{value: X}`, or returns 0 if not present.
@@ -1482,148 +1456,6 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Unknown member calls are treated as single-value calls.
         1
-    }
-
-    /// Gets struct return info for a member function call.
-    /// Returns Some((struct_id, field_count)) if the function returns a single struct.
-    pub(super) fn get_member_function_struct_return(
-        &self,
-        base: &hir::Expr<'_>,
-        member: Ident,
-    ) -> Option<(hir::StructId, usize)> {
-        // Helper to check if the function returns a single struct and get its info.
-        let check_struct_return = |returns: &[hir::VariableId]| -> Option<(hir::StructId, usize)> {
-            if returns.len() == 1 {
-                let var = self.gcx.hir.variable(returns[0]);
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
-                    let strukt = self.gcx.hir.strukt(*struct_id);
-                    return Some((*struct_id, strukt.fields.len()));
-                }
-            }
-            None
-        };
-
-        // Helper to look up struct return from a contract, including inherited functions.
-        let lookup_in_contract = |contract_id: hir::ContractId| -> Option<(hir::StructId, usize)> {
-            let contract = self.gcx.hir.contract(contract_id);
-            for &base_id in contract.linearized_bases.iter() {
-                let base_contract = self.gcx.hir.contract(base_id);
-                for func_id in base_contract.all_functions() {
-                    let func = self.gcx.hir.function(func_id);
-                    if func.name.is_some_and(|n| n.name == member.name) {
-                        return check_struct_return(func.returns);
-                    }
-                }
-            }
-            None
-        };
-
-        // Case 1: base is an identifier (variable with contract type)
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
-            let ty = self.gcx.type_of_hir_ty(&var.ty);
-            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
-                && let Some(info) = lookup_in_contract(contract_id)
-            {
-                return Some(info);
-            }
-        }
-
-        // Case 2: base is a type conversion call like ICallee(addr)
-        if let ExprKind::Call(callee, _args, _named) = &base.kind
-            && let ExprKind::Ident(res_slice) = &callee.kind
-            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
-            && let Some(info) = lookup_in_contract(*contract_id)
-        {
-            return Some(info);
-        }
-
-        // Case 3: base is `this` (Builtin::This)
-        if let ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Builtin(Builtin::This)) = res_slice.first()
-        {
-            for contract_id in self.gcx.hir.contract_ids() {
-                if let Some(info) = lookup_in_contract(contract_id) {
-                    return Some(info);
-                }
-            }
-        }
-
-        None
-    }
-
-    /// Resolves a member of a builtin module to its corresponding builtin.
-    /// For example, (Builtin::Msg, "sender") -> Some(Builtin::MsgSender)
-    pub(super) fn resolve_builtin_member(&self, base: Builtin, member: Symbol) -> Option<Builtin> {
-        match base {
-            Builtin::Msg => {
-                if member == sym::sender {
-                    Some(Builtin::MsgSender)
-                } else if member == sym::value {
-                    Some(Builtin::MsgValue)
-                } else if member == sym::data {
-                    Some(Builtin::MsgData)
-                } else if member == sym::sig {
-                    Some(Builtin::MsgSig)
-                } else if member == kw::Gas {
-                    Some(Builtin::MsgGas)
-                } else {
-                    None
-                }
-            }
-            Builtin::Block => {
-                if member == kw::Coinbase {
-                    Some(Builtin::BlockCoinbase)
-                } else if member == kw::Timestamp {
-                    Some(Builtin::BlockTimestamp)
-                } else if member == kw::Difficulty {
-                    Some(Builtin::BlockDifficulty)
-                } else if member == kw::Prevrandao {
-                    Some(Builtin::BlockPrevrandao)
-                } else if member == kw::Number {
-                    Some(Builtin::BlockNumber)
-                } else if member == kw::Gaslimit {
-                    Some(Builtin::BlockGaslimit)
-                } else if member == kw::Chainid {
-                    Some(Builtin::BlockChainid)
-                } else if member == kw::Basefee {
-                    Some(Builtin::BlockBasefee)
-                } else if member == kw::Blobbasefee {
-                    Some(Builtin::BlockBlobbasefee)
-                } else {
-                    None
-                }
-            }
-            Builtin::Tx => {
-                if member == kw::Origin {
-                    Some(Builtin::TxOrigin)
-                } else if member == kw::Gasprice {
-                    Some(Builtin::TxGasPrice)
-                } else {
-                    None
-                }
-            }
-            Builtin::Abi => {
-                if member == sym::encode {
-                    Some(Builtin::AbiEncode)
-                } else if member == sym::encodePacked {
-                    Some(Builtin::AbiEncodePacked)
-                } else if member == sym::encodeWithSelector {
-                    Some(Builtin::AbiEncodeWithSelector)
-                } else if member == sym::encodeCall {
-                    Some(Builtin::AbiEncodeCall)
-                } else if member == sym::encodeWithSignature {
-                    Some(Builtin::AbiEncodeWithSignature)
-                } else if member == sym::decode {
-                    Some(Builtin::AbiDecode)
-                } else {
-                    None
-                }
-            }
-            _ => None,
-        }
     }
 
     /// Lowers an internal function call by inlining it.
@@ -2016,10 +1848,8 @@ impl<'gcx> Lowerer<'gcx> {
     fn expr_collect_callees(&self, expr: &hir::Expr<'_>, callees: &mut Vec<hir::FunctionId>) {
         match &expr.kind {
             ExprKind::Call(callee, args, _) => {
-                if let ExprKind::Ident(res) = &callee.kind
-                    && let Some(hir::Res::Item(hir::ItemId::Function(f))) = res.first()
-                {
-                    callees.push(*f);
+                if let Some(func_id) = self.resolved_function_callee(callee) {
+                    callees.push(func_id);
                 }
                 self.expr_collect_callees(callee, callees);
                 for arg in args.exprs() {
@@ -2194,28 +2024,8 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Checks if an expression has a contract type (as opposed to address type).
-    /// Used to distinguish between address.transfer(amount) and token.transfer(to, amount).
+    /// Checks if an expression has a contract value type.
     pub(super) fn is_contract_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
-        // Case 1: Variable with contract type (e.g., `token` where `MinimalERC20 token`)
-        if let ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
-            let ty = self.gcx.type_of_hir_ty(&var.ty);
-            if matches!(ty.kind, solar_sema::ty::TyKind::Contract(_)) {
-                return true;
-            }
-        }
-
-        // Case 2: Type conversion call like IToken(addr)
-        if let ExprKind::Call(callee, _, _) = &expr.kind
-            && let ExprKind::Ident(res_slice) = &callee.kind
-            && let Some(hir::Res::Item(hir::ItemId::Contract(_))) = res_slice.first()
-        {
-            return true;
-        }
-
-        false
+        self.get_expr_type(expr).is_some_and(|ty| matches!(ty.kind, TyKind::Contract(_)))
     }
 }
