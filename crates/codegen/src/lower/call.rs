@@ -21,6 +21,12 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
+        if let Some(builtin) = self.gcx.builtin_callee(callee.id)
+            && Self::builtin_uses_direct_call_lowering(builtin)
+        {
+            return self.lower_builtin_call(builder, builtin, args);
+        }
+
         if let ExprKind::Ident(res_slice) = &callee.kind
             && let Some(builtin) = self.select_builtin_overload(res_slice, args)
         {
@@ -45,7 +51,8 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if let ExprKind::Member(base, member) = &callee.kind {
-            return self.lower_member_call_with_opts(builder, base, *member, args, call_opts);
+            return self
+                .lower_member_call_with_opts(builder, callee, base, *member, args, call_opts);
         }
 
         // Handle `new Contract(args)` - contract creation
@@ -58,6 +65,12 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Handle internal function calls: func(args) where func is a function in the same contract
         if let ExprKind::Ident(res_slice) = &callee.kind {
+            if let Some(resolved) = self.gcx.resolved_callee(callee.id)
+                && let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res
+            {
+                return self.lower_internal_call(builder, func_id, args);
+            }
+
             let arg_count = args.exprs().count();
 
             // Find the best matching overload based on argument count
@@ -145,9 +158,32 @@ impl<'gcx> Lowerer<'gcx> {
             })
     }
 
+    fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {
+        !matches!(
+            builtin,
+            Builtin::AddressCall
+                | Builtin::AddressDelegatecall
+                | Builtin::AddressStaticcall
+                | Builtin::AddressPayableTransfer
+                | Builtin::AddressPayableSend
+                | Builtin::ArrayLength
+                | Builtin::ArrayPush0
+                | Builtin::ArrayPush
+                | Builtin::ArrayPop
+                | Builtin::UdvtWrap
+                | Builtin::UdvtUnwrap
+        )
+    }
+
     fn custom_error_id_from_callee(&self, callee: &hir::Expr<'_>) -> Option<hir::ErrorId> {
         if let Some(ty) = self.get_expr_type(callee)
             && let TyKind::Error(_, error_id) = ty.kind
+        {
+            return Some(error_id);
+        }
+
+        if let Some(resolved) = self.gcx.resolved_callee(callee.id)
+            && let hir::Res::Item(hir::ItemId::Error(error_id)) = resolved.res
         {
             return Some(error_id);
         }
@@ -939,11 +975,18 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_member_call_with_opts(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
         base: &hir::Expr<'_>,
         member: Ident,
         args: &CallArgs<'_>,
         call_opts: Option<&[hir::NamedArg<'_>]>,
     ) -> ValueId {
+        if let Some(builtin) = self.gcx.builtin_callee(callee.id)
+            && Self::builtin_uses_direct_call_lowering(builtin)
+        {
+            return self.lower_builtin_call(builder, builtin, args);
+        }
+
         // Handle builtin member calls: abi.encode(), abi.encodePacked(), etc.
         if let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Builtin(base_builtin)) = res_slice.first()
@@ -969,14 +1012,11 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
-            if contract.kind.is_library() {
-                // Find the library function by name, matching argument count for overloads
-                let arg_count = args.exprs().count();
-                if let Some(func_id) =
-                    self.find_library_function(*contract_id, member.name, arg_count)
-                {
-                    return self.lower_library_call(builder, func_id, args, None);
-                }
+            if contract.kind.is_library()
+                && let Some(resolved) = self.gcx.resolved_callee(callee.id)
+                && let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res
+            {
+                return self.lower_library_call(builder, func_id, args, None);
             }
         }
 
@@ -1118,7 +1158,10 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Handle `using X for Y` library calls: x.method(args) -> Library.method(x, args)
-        if let Some(func_id) = self.resolve_using_directive_call(base, member.name) {
+        if let Some(resolved) = self.gcx.resolved_callee(callee.id)
+            && resolved.attached
+            && let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res
+        {
             let bound_arg = self.lower_expr(builder, base);
             return self.lower_library_call(builder, func_id, args, Some(bound_arg));
         }
@@ -1581,34 +1624,6 @@ impl<'gcx> Lowerer<'gcx> {
             }
             _ => None,
         }
-    }
-
-    /// Finds a library function by name, preferring the overload matching arg_count.
-    pub(super) fn find_library_function(
-        &self,
-        library_id: hir::ContractId,
-        name: Symbol,
-        arg_count: usize,
-    ) -> Option<hir::FunctionId> {
-        let library = self.gcx.hir.contract(library_id);
-        let mut candidates: Vec<hir::FunctionId> = Vec::new();
-
-        for func_id in library.all_functions() {
-            let func = self.gcx.hir.function(func_id);
-            if func.name.is_some_and(|n| n.name == name) {
-                candidates.push(func_id);
-            }
-        }
-
-        // Select the overload that matches the argument count
-        candidates
-            .iter()
-            .find(|&&fid| {
-                let f = self.gcx.hir.function(fid);
-                f.parameters.len() == arg_count
-            })
-            .copied()
-            .or_else(|| candidates.first().copied())
     }
 
     /// Lowers an internal function call by inlining it.
@@ -2202,89 +2217,5 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         false
-    }
-
-    /// Resolves a member call that may be a `using X for Y` library extension call.
-    ///
-    /// If `base.member` matches a using directive, returns the library function ID.
-    /// The caller should pass the evaluated `base` as the first (bound) argument.
-    pub(super) fn resolve_using_directive_call(
-        &self,
-        base: &hir::Expr<'_>,
-        member_name: Symbol,
-    ) -> Option<hir::FunctionId> {
-        let contract_id = self.current_contract_id?;
-        let contract = self.gcx.hir.contract(contract_id);
-
-        // Get the type of the base expression
-        let base_ty = self.get_expr_type(base)?;
-
-        // Search through source- and contract-level using directives.
-        for using in self.gcx.hir.source(contract.source).usings.iter().chain(contract.usings) {
-            // Check if this using directive applies to the base type
-            let type_matches = if let Some(ref target_ty) = using.ty {
-                // Check if the types match
-                self.types_match_for_using(&base_ty, target_ty)
-            } else {
-                // `using X for *` matches all types
-                true
-            };
-
-            if !type_matches {
-                continue;
-            }
-
-            for entry in using.entries {
-                if entry.operator.is_some() {
-                    continue;
-                }
-
-                match &entry.kind {
-                    hir::UsingEntryKind::Library(library) => {
-                        for func_id in self.gcx.hir.contract(*library).functions() {
-                            let func = self.gcx.hir.function(func_id);
-                            if func.name.map(|n| n.name) != Some(member_name) {
-                                continue;
-                            }
-                            if self.using_function_matches(&base_ty, func_id) {
-                                return Some(func_id);
-                            }
-                        }
-                    }
-                    hir::UsingEntryKind::Functions(functions) => {
-                        for &func_id in *functions {
-                            let func = self.gcx.hir.function(func_id);
-                            let name = entry.name.or_else(|| func.name.map(|n| n.name));
-                            if name != Some(member_name) {
-                                continue;
-                            }
-                            if self.using_function_matches(&base_ty, func_id) {
-                                return Some(func_id);
-                            }
-                        }
-                    }
-                    hir::UsingEntryKind::Err(_) => {}
-                }
-            }
-        }
-
-        None
-    }
-
-    pub(super) fn using_function_matches(
-        &self,
-        base_ty: &solar_sema::ty::Ty<'_>,
-        func_id: hir::FunctionId,
-    ) -> bool {
-        let func = self.gcx.hir.function(func_id);
-        if !matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private) {
-            return false;
-        }
-
-        let Some(&first_param_id) = func.parameters.first() else {
-            return false;
-        };
-        let first_param = self.gcx.hir.variable(first_param_id);
-        self.types_match_for_using(base_ty, &first_param.ty)
     }
 }

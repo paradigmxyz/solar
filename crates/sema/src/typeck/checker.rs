@@ -2,13 +2,13 @@ use crate::{
     builtins::{Builtin, members},
     eval::{ConstValue, ConstantEvaluator},
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyConvertError, TyFn, TyFnKind, TyKind},
+    ty::{Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind, TypeckResults},
 };
 use alloy_primitives::U256;
 use solar_ast::{
     DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
-use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
+use solar_data_structures::{Never, pluralize, smallvec::SmallVec};
 use solar_interface::{
     Ident, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
@@ -42,13 +42,10 @@ enum AbiDecodeArg {
     Types,
 }
 
-pub(super) fn check<'gcx>(
-    gcx: Gcx<'gcx>,
-    source: hir::SourceId,
-) -> FxHashMap<hir::ExprId, Ty<'gcx>> {
+pub(super) fn check<'gcx>(gcx: Gcx<'gcx>, source: hir::SourceId) -> TypeckResults<'gcx> {
     let mut checker = TypeChecker::new(gcx, source);
     let _ = checker.visit_nested_source(source);
-    checker.types
+    checker.results
 }
 
 struct TypeChecker<'gcx> {
@@ -58,8 +55,7 @@ struct TypeChecker<'gcx> {
     function: Option<hir::FunctionId>,
     construction_context: u32,
 
-    types: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    builtin_callees: FxHashMap<hir::ExprId, Builtin>,
+    results: TypeckResults<'gcx>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
 
@@ -90,8 +86,7 @@ impl<'gcx> TypeChecker<'gcx> {
             contract: None,
             function: None,
             construction_context: 0,
-            types: Default::default(),
-            builtin_callees: Default::default(),
+            results: Default::default(),
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
@@ -119,7 +114,7 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        self.types[&expr.id]
+        self.results.expr_types[&expr.id]
     }
 
     #[must_use]
@@ -282,7 +277,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 "cannot call function via contract type name",
                             ));
                         }
-                        if self.builtin_callees.get(&callee.id) == Some(&Builtin::AbiDecode) {
+                        if self.results.builtin_callee(callee.id) == Some(Builtin::AbiDecode) {
                             let args_result = self.check_abi_decode_call_args(expr.span, args);
                             if let Err(guar) = args_result {
                                 return self.gcx.mk_ty_err(guar);
@@ -290,7 +285,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             return self.abi_decode_return_type(args);
                         }
 
-                        let builtin = self.builtin_callees.get(&callee.id).copied();
+                        let builtin = self.results.builtin_callee(callee.id);
                         let param_names = if let Some(id) = struct_id {
                             Some(ParamNamesSource::Struct(id))
                         } else {
@@ -353,7 +348,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // No-argument storage array `.push()` is the only call that can be an lvalue.
-                if self.builtin_callees.get(&callee.id) != Some(&Builtin::ArrayPush0) {
+                if self.results.builtin_callee(callee.id) != Some(Builtin::ArrayPush0) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -1163,7 +1158,7 @@ impl<'gcx> TypeChecker<'gcx> {
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
     ) -> Result<(), ErrorGuaranteed> {
-        if self.types.contains_key(&expr.id) {
+        if self.results.expr_types.contains_key(&expr.id) {
             let ty = self.get(expr);
             return if ty.is_unit() {
                 Ok(())
@@ -1210,7 +1205,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let TyKind::Error(param_tys, id) = callee_ty.kind else {
             return self.check_expected(expr, callee_ty, self.gcx.types.string_ref.memory);
         };
-        if !self.types.contains_key(&callee.id) {
+        if !self.results.expr_types.contains_key(&callee.id) {
             self.register_ty(callee, callee_ty);
         }
         let result =
@@ -1573,8 +1568,10 @@ impl<'gcx> TypeChecker<'gcx> {
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
-                if let Some(hir::Res::Builtin(builtin)) = member.res {
-                    self.builtin_callees.insert(callee.id, builtin);
+                if let Some(res) = member.res {
+                    self.results
+                        .resolved_callees
+                        .insert(callee.id, ResolvedCallee::new(res, member.attached));
                 }
                 self.member_call_ty(receiver_ty, member)
             }
@@ -1632,9 +1629,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         };
         let ty = self.type_of_res(res);
-        if let hir::Res::Builtin(builtin) = res {
-            self.builtin_callees.insert(callee.id, builtin);
-        }
+        self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
         self.register_ty(callee, ty);
         ty
     }
@@ -2082,7 +2077,11 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_expr_once(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        if let Some(&ty) = self.types.get(&expr.id) { ty } else { self.check_expr(expr) }
+        if let Some(&ty) = self.results.expr_types.get(&expr.id) {
+            ty
+        } else {
+            self.check_expr(expr)
+        }
     }
 
     fn check_expr_outside_lvalue_context(
@@ -2326,7 +2325,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | hir::ExprKind::Err(_) => true,
 
             hir::ExprKind::Call(callee, ..) => {
-                self.builtin_callees.get(&callee.id) == Some(&Builtin::ArrayPush0)
+                self.results.builtin_callee(callee.id) == Some(Builtin::ArrayPush0)
             }
 
             hir::ExprKind::Array(_)
@@ -2404,7 +2403,7 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn register_ty(&mut self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) {
-        if let Some(prev_ty) = self.types.insert(expr.id, ty) {
+        if let Some(prev_ty) = self.results.expr_types.insert(expr.id, ty) {
             self.dcx()
                 .bug("already typechecked")
                 .span(expr.span)

@@ -71,6 +71,51 @@ pub struct InterfaceFunctions<'gcx> {
     pub inheritance_start: usize,
 }
 
+/// Sparse results produced by semantic type checking for later compiler stages.
+#[derive(Clone, Debug, Default)]
+pub struct TypeckResults<'gcx> {
+    pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
+}
+
+/// The target selected for a call callee expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ResolvedCallee {
+    pub res: hir::Res,
+    /// Whether this member call was attached to the receiver through `using for`.
+    pub attached: bool,
+}
+
+impl ResolvedCallee {
+    #[inline]
+    pub fn new(res: hir::Res, attached: bool) -> Self {
+        Self { res, attached }
+    }
+}
+
+impl<'gcx> TypeckResults<'gcx> {
+    /// Returns the type inferred for the given expression, if available.
+    #[inline]
+    pub fn type_of_expr(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.expr_types.get(&id).copied()
+    }
+
+    /// Returns the overload/member target selected for a call callee expression, if available.
+    #[inline]
+    pub fn resolved_callee(&self, id: hir::ExprId) -> Option<ResolvedCallee> {
+        self.resolved_callees.get(&id).copied()
+    }
+
+    /// Returns the selected builtin target for a call callee expression, if available.
+    #[inline]
+    pub fn builtin_callee(&self, id: hir::ExprId) -> Option<Builtin> {
+        match self.resolved_callee(id)?.res {
+            hir::Res::Builtin(builtin) => Some(builtin),
+            _ => None,
+        }
+    }
+}
+
 impl<'gcx> InterfaceFunctions<'gcx> {
     /// Returns all the functions.
     pub fn all(&self) -> &'gcx [InterfaceFunction<'gcx>] {
@@ -225,7 +270,7 @@ pub struct GlobalCtxt<'gcx> {
     stage: AtomicCompilerStage,
 
     pub types: CommonTypes<'gcx>,
-    expr_types: OnceLock<FxHashMap<hir::ExprId, Ty<'gcx>>>,
+    typeck_results: OnceLock<TypeckResults<'gcx>>,
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
@@ -259,7 +304,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
                 &interner,
                 unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump(),
             ),
-            expr_types: Default::default(),
+            typeck_results: Default::default(),
 
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
@@ -398,12 +443,24 @@ impl<'gcx> Gcx<'gcx> {
     /// is enabled or a codegen output was requested.
     #[inline]
     pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
-        self.expr_types.get()?.get(&id).copied()
+        self.typeck_results.get()?.type_of_expr(id)
     }
 
-    pub(crate) fn set_expr_types(self, types: FxHashMap<hir::ExprId, Ty<'gcx>>) {
-        if self.expr_types.set(types).is_err() {
-            self.dcx().bug("expression types are already initialized").emit();
+    /// Returns the overload/member target selected for a call callee expression, if available.
+    #[inline]
+    pub fn resolved_callee(self, id: hir::ExprId) -> Option<ResolvedCallee> {
+        self.typeck_results.get()?.resolved_callee(id)
+    }
+
+    /// Returns the selected builtin target for a call callee expression, if available.
+    #[inline]
+    pub fn builtin_callee(self, id: hir::ExprId) -> Option<Builtin> {
+        self.typeck_results.get()?.builtin_callee(id)
+    }
+
+    pub(crate) fn set_typeck_results(self, results: TypeckResults<'gcx>) {
+        if self.typeck_results.set(results).is_err() {
+            self.dcx().bug("typeck results are already initialized").emit();
         }
     }
 
