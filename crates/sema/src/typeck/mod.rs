@@ -21,7 +21,10 @@ mod udvt;
 pub(crate) fn check(gcx: Gcx<'_>) {
     let mut typeck_results = None;
     parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {
-        if gcx.sess.opts.unstable.typeck || gcx.sess.opts.emit.iter().any(|e| e.is_codegen()) {
+        if gcx.sess.opts.unstable.typeck
+            || gcx.sess.opts.unstable.codegen
+            || gcx.sess.opts.emit.iter().any(|e| e.is_codegen())
+        {
             typeck_results = Some(
                 gcx.hir
                     .par_source_ids()

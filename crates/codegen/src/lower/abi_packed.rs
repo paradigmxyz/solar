@@ -73,8 +73,13 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let packed_args = self.collect_packed_abi_args(builder, args);
 
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let data_start = builder.mload(free_mem_ptr_slot);
+        let data_start = if Self::static_packed_max_write(&packed_args).is_some_and(|end| end <= 64)
+        {
+            builder.imm_u64(0)
+        } else {
+            let free_mem_ptr_slot = builder.imm_u64(0x40);
+            builder.mload(free_mem_ptr_slot)
+        };
         let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
 
         let size = match static_len {
@@ -180,8 +185,17 @@ impl<'gcx> Lowerer<'gcx> {
         let mut offset: u64 = 0;
         let mut is_static = true;
 
-        for arg in args {
-            match arg {
+        let mut i = 0;
+        while i < args.len() {
+            if let Some((consumed, len)) =
+                self.try_write_static_packed_word(builder, base, offset, &args[i..])
+            {
+                offset += len;
+                i += consumed;
+                continue;
+            }
+
+            match &args[i] {
                 PackedAbiArg::Bytes(bytes) => {
                     for chunk in bytes.chunks(32) {
                         let mut padded = [0u8; 32];
@@ -238,6 +252,7 @@ impl<'gcx> Lowerer<'gcx> {
                     is_static = false;
                 }
             }
+            i += 1;
         }
 
         if is_static {
@@ -246,6 +261,142 @@ impl<'gcx> Lowerer<'gcx> {
             let end = self.offset_ptr(builder, base, offset);
             (end, None)
         }
+    }
+
+    /// Coalesces a run of static packed arguments that fit in one ABI-packed
+    /// word into one `mstore`. This avoids overlapping word stores for common
+    /// patterns like `abi.encodePacked("prefix", uint64(a), uint64(b), x)`.
+    fn try_write_static_packed_word(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        offset: u64,
+        args: &[PackedAbiArg],
+    ) -> Option<(usize, u64)> {
+        let mut const_word = U256::ZERO;
+        let mut terms = Vec::new();
+        let mut len = 0usize;
+        let mut consumed = 0usize;
+
+        for arg in args {
+            match arg {
+                PackedAbiArg::Bytes(bytes) => {
+                    if bytes.is_empty() {
+                        consumed += 1;
+                        continue;
+                    }
+                    if len + bytes.len() > 32 {
+                        break;
+                    }
+                    let shift = (32 - len - bytes.len()) * 8;
+                    const_word |= U256::from_be_slice(bytes) << shift;
+                    len += bytes.len();
+                    consumed += 1;
+                }
+                &PackedAbiArg::Value { value, size, left_aligned: false } if size < 32 => {
+                    if size == 0 {
+                        consumed += 1;
+                        continue;
+                    }
+                    if len + size > 32 {
+                        break;
+                    }
+                    let shift = (32 - len - size) * 8;
+                    terms.push((value, shift));
+                    len += size;
+                    consumed += 1;
+                }
+                _ => break,
+            }
+        }
+
+        if consumed < 2 || len == 0 || terms.is_empty() {
+            return None;
+        }
+
+        let mut value = builder.imm_u256(const_word);
+        for (term, shift) in terms {
+            let shifted = if shift == 0 {
+                term
+            } else {
+                let shift = builder.imm_u64(shift as u64);
+                builder.shl(shift, term)
+            };
+            value = builder.or(value, shifted);
+        }
+
+        let dest = self.offset_ptr(builder, base, offset);
+        builder.mstore(dest, value);
+        Some((consumed, len as u64))
+    }
+
+    fn static_packed_max_write(args: &[PackedAbiArg]) -> Option<usize> {
+        let mut offset = 0usize;
+        let mut max_write = 0usize;
+        let mut i = 0usize;
+
+        while i < args.len() {
+            if let Some((consumed, len)) = Self::static_packed_word_run(&args[i..]) {
+                max_write = max_write.max(offset + 32);
+                offset += len;
+                i += consumed;
+                continue;
+            }
+
+            match &args[i] {
+                PackedAbiArg::Bytes(bytes) => {
+                    for chunk in bytes.chunks(32) {
+                        max_write = max_write.max(offset + 32);
+                        offset += chunk.len();
+                    }
+                }
+                PackedAbiArg::Value { size, .. } => {
+                    max_write = max_write.max(offset + 32);
+                    offset += *size;
+                }
+                PackedAbiArg::DynamicBytes(_) => return None,
+            }
+            i += 1;
+        }
+
+        Some(max_write)
+    }
+
+    fn static_packed_word_run(args: &[PackedAbiArg]) -> Option<(usize, usize)> {
+        let mut len = 0usize;
+        let mut consumed = 0usize;
+        let mut has_value = false;
+
+        for arg in args {
+            match arg {
+                PackedAbiArg::Bytes(bytes) => {
+                    if bytes.is_empty() {
+                        consumed += 1;
+                        continue;
+                    }
+                    if len + bytes.len() > 32 {
+                        break;
+                    }
+                    len += bytes.len();
+                    consumed += 1;
+                }
+                PackedAbiArg::Value { size, left_aligned: false, .. } if *size < 32 => {
+                    if *size == 0 {
+                        consumed += 1;
+                        continue;
+                    }
+                    if len + *size > 32 {
+                        break;
+                    }
+                    len += *size;
+                    consumed += 1;
+                    has_value = true;
+                }
+                _ => break,
+            }
+        }
+
+        (consumed >= 2 && len != 0 && has_value).then_some((consumed, len))
     }
 
     pub(super) fn abi_encode_packed_call_args<'a>(

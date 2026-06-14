@@ -7,7 +7,7 @@
 //! use this — they return raw words/pointers through the internal frame.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::mir::{FunctionBuilder, Value, ValueId};
 use alloy_primitives::U256;
 use solar_ast::ElementaryType;
 use solar_sema::ty::{Ty, TyKind};
@@ -73,6 +73,11 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         if off == 0 {
             base
+        } else if matches!(
+            builder.func().value(base),
+            Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.is_zero())
+        ) {
+            builder.imm_u64(off)
         } else {
             let o = builder.imm_u64(off);
             builder.add(base, o)
