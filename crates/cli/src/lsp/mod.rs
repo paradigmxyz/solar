@@ -6,7 +6,9 @@
 
 use std::io;
 
+mod protocol;
 mod server;
+mod state;
 mod transport;
 
 /// Runs the experimental LSP server over stdio.
