@@ -12,11 +12,10 @@ static ALLOC: utils::Allocator = utils::new_allocator();
 fn main() -> ExitCode {
     signal_handler::install();
     panic_hook::install();
-    let args = match parse_args(std::env::args_os()) {
+    let solar_cli::Args { command, compile } = match parse_args(std::env::args_os()) {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
-    let solar_cli::Args { command, compile, .. } = args;
     let result = match command {
         Some(Subcommands::Lsp) => {
             let _guard = utils::init_logger(utils::LogDestination::Stderr);

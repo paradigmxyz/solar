@@ -6,11 +6,9 @@ use std::{
     process::{Command, Stdio},
 };
 
-const CMD: &str = env!("CARGO_BIN_EXE_solar");
-
 #[test]
 fn lsp_lifecycle_over_stdio() {
-    let mut child = Command::new(CMD)
+    let mut child = Command::new(env!("CARGO_BIN_EXE_solar"))
         .arg("lsp")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

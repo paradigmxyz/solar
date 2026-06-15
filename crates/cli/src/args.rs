@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use solar_config::Opts;
 
 /// Blazingly fast Solidity compiler.
-#[derive(Clone, Debug, Default, Parser)]
+#[derive(Parser)]
 #[command(
     name = "solar",
     version = crate::version::short_version(),
@@ -16,7 +16,7 @@ pub struct Args {
     pub compile: Opts,
 }
 
-#[derive(Clone, Debug, Subcommand)]
+#[derive(Subcommand)]
 pub enum Subcommands {
     /// Start the language server over stdio.
     Lsp,

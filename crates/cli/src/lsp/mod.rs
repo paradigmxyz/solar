@@ -6,14 +6,10 @@
 
 use std::io;
 
-mod protocol;
 mod server;
-mod state;
 mod transport;
 
 /// Runs the experimental LSP server over stdio.
 pub(crate) fn run_stdio() -> io::Result<()> {
-    let stdin = io::stdin();
-    let stdout = io::stdout();
-    server::run(stdin.lock(), stdout.lock())
+    server::run(io::stdin().lock(), io::stdout().lock())
 }

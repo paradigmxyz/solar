@@ -48,14 +48,11 @@ fn read_content_length(input: &mut impl BufRead) -> io::Result<Option<usize>> {
         }
     }
 
-    let Some(content_length) = content_length else {
-        return Err(io::Error::new(
-            io::ErrorKind::InvalidData,
-            "missing LSP Content-Length header",
-        ));
-    };
-
-    Ok(Some(content_length))
+    content_length
+        .ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "missing LSP Content-Length header")
+        })
+        .map(Some)
 }
 
 #[cfg(test)]

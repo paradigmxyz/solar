@@ -1,70 +1,84 @@
 use std::io::{self, BufReader, Read, Write};
 
 use lsp_types::InitializeParams;
-use serde_json::Value;
+use serde_json::{Value, json};
 
-use super::{protocol, state::State, transport};
+use crate::version;
+
+use super::transport;
+
+const METHOD_NOT_FOUND: i64 = -32601;
+const INVALID_PARAMS: i64 = -32602;
 
 pub(super) fn run(input: impl Read, output: impl Write) -> io::Result<()> {
-    let mut server = Server::new(input, output);
-    server.run()
-}
+    let mut input = BufReader::new(input);
+    let mut output = output;
+    while let Some(message) = transport::read_message(&mut input)? {
+        let Some(method) = message.get("method").and_then(Value::as_str) else {
+            continue;
+        };
 
-struct Server<R, W> {
-    input: BufReader<R>,
-    output: W,
-    state: State,
-}
-
-impl<R: Read, W: Write> Server<R, W> {
-    fn new(input: R, output: W) -> Self {
-        Self { input: BufReader::new(input), output, state: State::new() }
-    }
-
-    fn run(&mut self) -> io::Result<()> {
-        while let Some(message) = transport::read_message(&mut self.input)? {
-            let Some(method) = message.get("method").and_then(Value::as_str) else {
-                continue;
-            };
-
-            match method {
-                "initialize" => {
-                    let id = request_id(&message);
-                    let Ok(params) = protocol::params::<InitializeParams>(&message) else {
-                        self.respond_error(
-                            id,
-                            protocol::INVALID_PARAMS,
-                            "invalid initialize params",
-                        )?;
-                        continue;
-                    };
-
-                    let result = self.state.initialize(params);
-                    self.respond(id, result)?;
+        match method {
+            "initialize" => {
+                let id = request_id(&message);
+                let params = message.get("params").cloned().unwrap_or(Value::Null);
+                if serde_json::from_value::<InitializeParams>(params).is_err() {
+                    respond_error(&mut output, id, INVALID_PARAMS, "invalid initialize params")?;
+                    continue;
                 }
-                "shutdown" => self.respond(request_id(&message), Value::Null)?,
-                "exit" => break,
-                _ if message.get("id").is_some() => {
-                    self.respond_error(
-                        request_id(&message),
-                        protocol::METHOD_NOT_FOUND,
-                        "method not found",
-                    )?;
-                }
-                _ => {}
+
+                respond(
+                    &mut output,
+                    id,
+                    json!({
+                        "capabilities": {},
+                        "serverInfo": {
+                            "name": "solar",
+                            "version": version::short_version(),
+                        },
+                    }),
+                )?;
             }
+            "shutdown" => respond(&mut output, request_id(&message), Value::Null)?,
+            "exit" => break,
+            _ if message.get("id").is_some() => {
+                respond_error(
+                    &mut output,
+                    request_id(&message),
+                    METHOD_NOT_FOUND,
+                    "method not found",
+                )?;
+            }
+            _ => {}
         }
-
-        Ok(())
     }
 
-    fn respond<T: serde::Serialize>(&mut self, id: Value, result: T) -> io::Result<()> {
-        transport::write_message(&mut self.output, &protocol::response(id, result)?)
-    }
+    Ok(())
+}
 
-    fn respond_error(&mut self, id: Value, code: i64, message: &str) -> io::Result<()> {
-        transport::write_message(&mut self.output, &protocol::error_response(id, code, message))
-    }
+fn respond(output: &mut impl Write, id: Value, result: Value) -> io::Result<()> {
+    transport::write_message(
+        output,
+        &json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": result,
+        }),
+    )
+}
+
+fn respond_error(output: &mut impl Write, id: Value, code: i64, message: &str) -> io::Result<()> {
+    transport::write_message(
+        output,
+        &json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": {
+                "code": code,
+                "message": message,
+            },
+        }),
+    )
 }
 
 fn request_id(message: &Value) -> Value {
