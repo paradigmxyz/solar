@@ -64,6 +64,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
       - uses: taiki-e/install-action@nextest
       - name: Install Foundry
+        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
