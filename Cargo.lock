@@ -3030,6 +3030,7 @@ name = "solar-compiler"
 version = "0.1.8"
 dependencies = [
  "alloy-primitives",
+ "serde_json",
  "solar-ast",
  "solar-cli",
  "solar-config",

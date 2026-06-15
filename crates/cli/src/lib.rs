@@ -12,8 +12,10 @@ use std::ops::ControlFlow;
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
+mod args;
+mod lsp;
 pub mod standard_json;
-
+pub use args::{Args, Subcommands};
 pub mod utils;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
@@ -36,14 +38,14 @@ use alloy_primitives as _;
 
 use tracing as _;
 
-pub fn parse_args<I, T>(itr: I) -> Result<Opts, clap::Error>
+pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    let mut opts = Opts::try_parse_from(itr)?;
-    opts.finish()?;
-    Ok(opts)
+    let mut args = Args::try_parse_from(itr)?;
+    args.compile.finish()?;
+    Ok(args)
 }
 
 pub fn run_compiler_args(opts: Opts) -> Result {
@@ -54,6 +56,14 @@ pub fn run_compiler_args(opts: Opts) -> Result {
     }
 
     run_compiler_with(opts, run_default)
+}
+
+pub fn run_lsp_stdio() -> Result {
+    lsp::run_stdio().map_err(|e| {
+        solar_interface::diagnostics::DiagCtxt::new_early()
+            .err(format!("LSP server failed: {e}"))
+            .emit()
+    })
 }
 
 fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
