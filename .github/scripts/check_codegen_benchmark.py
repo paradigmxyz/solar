@@ -84,6 +84,40 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     return details
 
 
+def baseline_regression_details(
+    results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
+) -> list[str]:
+    details = []
+    baseline = by_test_id(baseline_results)
+    for result in results:
+        test_id = str(result.get("test_id", "<unknown>"))
+        base = baseline.get(test_id)
+        if base is None:
+            continue
+
+        solar_gas = total_gas(result, "solar")
+        base_solar_gas = total_gas(base, "solar")
+        if solar_gas is not None and base_solar_gas is not None and solar_gas > base_solar_gas:
+            details.append(
+                f"{test_id} solar gas regressed vs previous Solar run: "
+                f"{base_solar_gas:,} -> {solar_gas:,} "
+                f"({absolute_delta(solar_gas, base_solar_gas)}, "
+                f"{pct_increase(solar_gas, base_solar_gas)} worse)"
+            )
+
+        solar_size = runtime_size(result, "solar")
+        base_solar_size = runtime_size(base, "solar")
+        if solar_size is not None and base_solar_size is not None and solar_size > base_solar_size:
+            details.append(
+                f"{test_id} solar runtime size regressed vs previous Solar run: "
+                f"{base_solar_size:,}B -> {solar_size:,}B "
+                f"({absolute_delta(solar_size, base_solar_size)}B, "
+                f"{pct_increase(solar_size, base_solar_size)} worse)"
+            )
+
+    return details
+
+
 def warning(message: str) -> None:
     escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"::warning::{escaped}", file=sys.stderr)
@@ -119,6 +153,13 @@ def pct_delta(current: int | None, baseline: int | None) -> str:
     if current is None or baseline in (None, 0):
         return "n/a"
     delta = (baseline - current) / baseline * 100
+    return f"{delta:+.2f}%"
+
+
+def pct_increase(current: int, baseline: int) -> str:
+    if baseline == 0:
+        return "n/a"
+    delta = (current - baseline) / baseline * 100
     return f"{delta:+.2f}%"
 
 
@@ -219,11 +260,15 @@ def report_section(
     return "\n".join(lines)
 
 
-def emit_warnings(label: str, results: list[dict[str, Any]]) -> None:
+def emit_warnings(
+    label: str, results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
+) -> None:
     for failure in compiler_failures(results):
         warning(f"{label} compiler failure recorded: {failure}")
     for detail in runtime_issue_details(results):
         warning(f"{label} runtime mismatch recorded: {detail}")
+    for detail in baseline_regression_details(results, baseline_results):
+        warning(f"{label} benchmark regression recorded: {detail}")
 
 
 def append_step_summary(markdown: str) -> None:
@@ -248,8 +293,8 @@ def main() -> int:
     baseline_micro = load_results(args.baseline_micro, "baseline micro")
     baseline_repo = load_results(args.baseline_repo, "baseline repository")
 
-    emit_warnings("micro", micro_results)
-    emit_warnings("repository", repo_results)
+    emit_warnings("micro", micro_results, baseline_micro)
+    emit_warnings("repository", repo_results, baseline_repo)
 
     sections = []
     if args.micro is not None:
