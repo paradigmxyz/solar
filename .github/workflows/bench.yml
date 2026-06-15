@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+      issues: write
       pull-requests: write
     steps:
       - name: Checkout Solar
@@ -128,7 +129,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: codegen-runtime-bench
