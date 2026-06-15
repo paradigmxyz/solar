@@ -1,0 +1,60 @@
+//@compile-flags: --pass storage-promotion
+; module @StoragePromotionNested
+; Blocks are laid out so the inner loop header (bb1) is processed before the
+; enclosing outer loop header (bb6). Promoting the inner loop splits its exit
+; bb4 and relocates the flush sstore into a new block inside the outer loop,
+; so the outer loop must be re-analyzed before it is considered.
+
+; The relocated inner flush writes the same slot the outer latch updates, so
+; after re-analysis the outer loop promotes both stores consistently.
+fn @promote_outer_after_inner_flush_split() [selector=0x01020304] {
+  bb0 (entry):
+    jump bb6
+  bb1:
+    br true, bb2, bb4
+  bb2:
+    sstore 0, 7
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    jump bb5
+  bb5:
+    v1 = sload 0
+    v2 = add v1, 1
+    sstore 0, v2
+    jump bb6
+  bb6:
+    br true, bb7, bb8
+  bb7:
+    jump bb1
+  bb8:
+    stop
+}
+
+; The relocated inner flush targets a symbolic slot that may alias the outer
+; latch's constant slot, so the outer loop must not be promoted.
+fn @reject_outer_when_inner_flush_may_alias(arg0: u256) [selector=0x01020304] {
+  bb0 (entry):
+    jump bb6
+  bb1:
+    br true, bb2, bb4
+  bb2:
+    sstore arg0, 7
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    jump bb5
+  bb5:
+    v1 = sload 0
+    v2 = add v1, 1
+    sstore 0, v2
+    jump bb6
+  bb6:
+    br true, bb7, bb8
+  bb7:
+    jump bb1
+  bb8:
+    stop
+}

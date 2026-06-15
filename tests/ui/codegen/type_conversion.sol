@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract TypeConversion {
     function narrowAddress(address asset) public pure returns (uint16) {

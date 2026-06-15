@@ -1,14 +1,17 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::ConstantEvaluator,
+    eval::{ConstValue, ConstantEvaluator},
     hir::{self, Visit},
-    ty::{Gcx, Ty, TyConvertError, TyFn, TyFnKind, TyKind},
+    ty::{
+        Gcx, ResolvedCallee, ResolvedMember, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
+        TypeckResults,
+    },
 };
 use alloy_primitives::U256;
 use solar_ast::{
     DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
-use solar_data_structures::{Never, map::FxHashMap, pluralize, smallvec::SmallVec};
+use solar_data_structures::{Never, pluralize, smallvec::SmallVec};
 use solar_interface::{
     Ident, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
@@ -42,13 +45,10 @@ enum AbiDecodeArg {
     Types,
 }
 
-pub(super) fn check<'gcx>(
-    gcx: Gcx<'gcx>,
-    source: hir::SourceId,
-) -> FxHashMap<hir::ExprId, Ty<'gcx>> {
+pub(super) fn check<'gcx>(gcx: Gcx<'gcx>, source: hir::SourceId) -> TypeckResults<'gcx> {
     let mut checker = TypeChecker::new(gcx, source);
     let _ = checker.visit_nested_source(source);
-    checker.types
+    checker.results
 }
 
 struct TypeChecker<'gcx> {
@@ -58,8 +58,7 @@ struct TypeChecker<'gcx> {
     function: Option<hir::FunctionId>,
     construction_context: u32,
 
-    types: FxHashMap<hir::ExprId, Ty<'gcx>>,
-    builtin_callees: FxHashMap<hir::ExprId, Builtin>,
+    results: TypeckResults<'gcx>,
 
     lvalue_context: Option<Result<(), NotLvalueReason>>,
 
@@ -90,8 +89,7 @@ impl<'gcx> TypeChecker<'gcx> {
             contract: None,
             function: None,
             construction_context: 0,
-            types: Default::default(),
-            builtin_callees: Default::default(),
+            results: Default::default(),
             lvalue_context: None,
             in_emit: false,
             in_revert: false,
@@ -104,18 +102,22 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
-        match ConstantEvaluator::new(self.gcx).eval(slot) {
-            Ok(value) => {
+        let mut evaluator = ConstantEvaluator::new(self.gcx);
+        match evaluator.try_eval_value(slot) {
+            Ok(ConstValue::Integer(value)) => {
                 if value.as_u256().is_none() {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
-            Err(_err) => {}
+            Ok(ConstValue::Bool(_)) => {}
+            Err(err) => {
+                evaluator.emit_eval_error(slot, err);
+            }
         }
     }
 
     fn get(&self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        self.types[&expr.id]
+        self.results.expr_types[&expr.id]
     }
 
     #[must_use]
@@ -278,7 +280,7 @@ impl<'gcx> TypeChecker<'gcx> {
                                 "cannot call function via contract type name",
                             ));
                         }
-                        if self.builtin_callees.get(&callee.id) == Some(&Builtin::AbiDecode) {
+                        if self.results.builtin_callee(callee.id) == Some(Builtin::AbiDecode) {
                             let args_result = self.check_abi_decode_call_args(expr.span, args);
                             if let Err(guar) = args_result {
                                 return self.gcx.mk_ty_err(guar);
@@ -286,7 +288,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             return self.abi_decode_return_type(args);
                         }
 
-                        let builtin = self.builtin_callees.get(&callee.id).copied();
+                        let builtin = self.results.builtin_callee(callee.id);
                         let param_names = if let Some(id) = struct_id {
                             Some(ParamNamesSource::Struct(id))
                         } else {
@@ -349,7 +351,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // No-argument storage array `.push()` is the only call that can be an lvalue.
-                if self.builtin_callees.get(&callee.id) != Some(&Builtin::ArrayPush0) {
+                if self.results.builtin_callee(callee.id) != Some(Builtin::ArrayPush0) {
                     self.try_set_not_lvalue(NotLvalueReason::Generic);
                 }
 
@@ -445,24 +447,27 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             hir::ExprKind::Lit(lit) if self.in_yul => self.check_yul_lit(lit),
             hir::ExprKind::Lit(lit) => self.gcx.type_of_lit(lit),
-            hir::ExprKind::Member(expr, ident) => {
-                let expr_ty = self.check_expr_outside_lvalue_context(expr, None);
-                if expr_ty.references_error() {
-                    return expr_ty;
+            hir::ExprKind::Member(receiver, ident) => {
+                let receiver_ty = self.check_expr_outside_lvalue_context(receiver, None);
+                if receiver_ty.references_error() {
+                    return receiver_ty;
                 }
 
                 let possible_members = self
                     .gcx
-                    .members_of(expr_ty, self.source, self.contract)
+                    .members_of(receiver_ty, self.source, self.contract)
                     .filter(|m| m.name == ident.name)
                     .collect::<SmallVec<[_; 4]>>();
 
                 let ty = match self.select_member_access(&possible_members) {
-                    Ok(member) => member.ty,
+                    Ok(member) => {
+                        self.register_resolved_member(expr, receiver_ty, member);
+                        member.ty
+                    }
                     Err(MemberAccessError::NotFound) => {
                         let msg = format!(
                             "member `{ident}` not found on type `{}`",
-                            expr_ty.display(self.gcx)
+                            receiver_ty.display(self.gcx)
                         );
                         // TODO: Did you mean ...?
                         let err = self.dcx().err(msg).span(ident.span);
@@ -471,7 +476,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     Err(MemberAccessError::Ambiguous) => {
                         let msg = format!(
                             "member `{ident}` not unique on type `{}`",
-                            expr_ty.display(self.gcx)
+                            receiver_ty.display(self.gcx)
                         );
                         let err = self.dcx().err(msg).span(ident.span);
                         self.gcx.mk_ty_err(err.emit())
@@ -479,9 +484,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 };
 
                 // Validate lvalue.
-                let not_lvalue_reason = match expr_ty.kind {
+                let not_lvalue_reason = match receiver_ty.kind {
                     _ if matches!(
-                        expr_ty.peel_refs().kind,
+                        receiver_ty.peel_refs().kind,
                         TyKind::Array(..) | TyKind::DynArray(_)
                     ) && possible_members.len() == 1
                         && possible_members[0].name == sym::length =>
@@ -1159,7 +1164,7 @@ impl<'gcx> TypeChecker<'gcx> {
         &mut self,
         expr: &'gcx hir::Expr<'gcx>,
     ) -> Result<(), ErrorGuaranteed> {
-        if self.types.contains_key(&expr.id) {
+        if self.results.expr_types.contains_key(&expr.id) {
             let ty = self.get(expr);
             return if ty.is_unit() {
                 Ok(())
@@ -1206,7 +1211,8 @@ impl<'gcx> TypeChecker<'gcx> {
         let TyKind::Error(param_tys, id) = callee_ty.kind else {
             return self.check_expected(expr, callee_ty, self.gcx.types.string_ref.memory);
         };
-        if !self.types.contains_key(&callee.id) {
+        self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(selected, false));
+        if !self.results.expr_types.contains_key(&callee.id) {
             self.register_ty(callee, callee_ty);
         }
         let result =
@@ -1569,8 +1575,10 @@ impl<'gcx> TypeChecker<'gcx> {
         let ty = match self.select_member_call_overload(receiver_ty, &possible_members, args) {
             Ok(member) => {
                 self.check_library_self_call(member, ident.span);
-                if let Some(hir::Res::Builtin(builtin)) = member.res {
-                    self.builtin_callees.insert(callee.id, builtin);
+                if let Some(res) = member.res {
+                    self.results
+                        .resolved_callees
+                        .insert(callee.id, ResolvedCallee::new(res, member.attached));
                 }
                 self.member_call_ty(receiver_ty, member)
             }
@@ -1611,6 +1619,56 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    fn register_resolved_member(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        receiver_ty: Ty<'gcx>,
+        member: &members::Member<'gcx>,
+    ) {
+        let Some(resolved) = self.resolved_member(receiver_ty, member) else { return };
+        self.results.resolved_members.insert(expr.id, resolved);
+    }
+
+    fn resolved_member(
+        &self,
+        receiver_ty: Ty<'gcx>,
+        member: &members::Member<'gcx>,
+    ) -> Option<ResolvedMember> {
+        if let Some(res) = member.res {
+            return Some(ResolvedMember::Res(res));
+        }
+
+        match receiver_ty.kind {
+            TyKind::Ref(inner, _) => {
+                let TyKind::Struct(struct_id) = inner.kind else { return None };
+                let field_index = self.struct_field_index(struct_id, member.name)?;
+                Some(ResolvedMember::StructField { struct_id, field_index })
+            }
+            TyKind::Struct(struct_id) => {
+                let field_index = self.struct_field_index(struct_id, member.name)?;
+                Some(ResolvedMember::StructField { struct_id, field_index })
+            }
+            TyKind::Type(ty) => {
+                let TyKind::Enum(enum_id) = ty.kind else { return None };
+                let variant_index = self
+                    .gcx
+                    .hir
+                    .enumm(enum_id)
+                    .variants
+                    .iter()
+                    .position(|variant| variant.name == member.name)?;
+                Some(ResolvedMember::EnumVariant { enum_id, variant_index })
+            }
+            _ => None,
+        }
+    }
+
+    fn struct_field_index(&self, struct_id: hir::StructId, name: Symbol) -> Option<usize> {
+        self.gcx.hir.strukt(struct_id).fields.iter().position(|&field_id| {
+            self.gcx.hir.variable(field_id).name.is_some_and(|field| field.name == name)
+        })
+    }
+
     fn check_ident_call_callee(
         &mut self,
         callee: &'gcx hir::Expr<'gcx>,
@@ -1628,9 +1686,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         };
         let ty = self.type_of_res(res);
-        if let hir::Res::Builtin(builtin) = res {
-            self.builtin_callees.insert(callee.id, builtin);
-        }
+        self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(res, false));
         self.register_ty(callee, ty);
         ty
     }
@@ -2078,7 +2134,11 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_expr_once(&mut self, expr: &'gcx hir::Expr<'gcx>) -> Ty<'gcx> {
-        if let Some(&ty) = self.types.get(&expr.id) { ty } else { self.check_expr(expr) }
+        if let Some(&ty) = self.results.expr_types.get(&expr.id) {
+            ty
+        } else {
+            self.check_expr(expr)
+        }
     }
 
     fn check_expr_outside_lvalue_context(
@@ -2322,7 +2382,7 @@ impl<'gcx> TypeChecker<'gcx> {
             | hir::ExprKind::Err(_) => true,
 
             hir::ExprKind::Call(callee, ..) => {
-                self.builtin_callees.get(&callee.id) == Some(&Builtin::ArrayPush0)
+                self.results.builtin_callee(callee.id) == Some(Builtin::ArrayPush0)
             }
 
             hir::ExprKind::Array(_)
@@ -2400,7 +2460,11 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn register_ty(&mut self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) {
-        if let Some(prev_ty) = self.types.insert(expr.id, ty) {
+        if self.unsupported_codegen_udvt_operator(expr, ty) {
+            self.results.unsupported_udvt_operators.insert(expr.id);
+        }
+
+        if let Some(prev_ty) = self.results.expr_types.insert(expr.id, ty) {
             self.dcx()
                 .bug("already typechecked")
                 .span(expr.span)
@@ -2415,6 +2479,31 @@ impl<'gcx> TypeChecker<'gcx> {
                 )
                 .emit();
         }
+    }
+
+    fn unsupported_codegen_udvt_operator(&self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) -> bool {
+        match &expr.kind {
+            hir::ExprKind::Assign(lhs, Some(_), rhs) => {
+                Self::ty_is_udvt(ty) || self.expr_type_is_udvt(lhs) || self.expr_type_is_udvt(rhs)
+            }
+            hir::ExprKind::Binary(lhs, op, rhs)
+                if !matches!(op.kind, hir::BinOpKind::Eq | hir::BinOpKind::Ne) =>
+            {
+                Self::ty_is_udvt(ty) || self.expr_type_is_udvt(lhs) || self.expr_type_is_udvt(rhs)
+            }
+            hir::ExprKind::Unary(op, inner) if op.kind != hir::UnOpKind::Not => {
+                Self::ty_is_udvt(ty) || self.expr_type_is_udvt(inner)
+            }
+            _ => false,
+        }
+    }
+
+    fn expr_type_is_udvt(&self, expr: &'gcx hir::Expr<'gcx>) -> bool {
+        self.results.expr_types.get(&expr.id).is_some_and(|&ty| Self::ty_is_udvt(ty))
+    }
+
+    fn ty_is_udvt(ty: Ty<'gcx>) -> bool {
+        matches!(ty.peel_refs().kind, TyKind::Udvt(..))
     }
 }
 

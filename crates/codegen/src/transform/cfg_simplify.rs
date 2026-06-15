@@ -15,11 +15,51 @@
 //! (public/external functions, constructor, fallback, receive).
 
 use crate::{
-    mir::{BlockId, Function, FunctionId, InstKind, Module, Terminator, Value, ValueId},
+    analysis::CallGraphInfo,
+    mir::{
+        BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
+        Terminator, Value, ValueId,
+    },
     pass::{FunctionPass, ModulePass},
+    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use std::collections::VecDeque;
+
+/// Alpha-equivalence key for a terminal block used by
+/// [`CfgSimplifier::deduplicate_terminal_blocks`].
+#[derive(Debug, PartialEq)]
+struct CanonBlock {
+    insts: Vec<CanonInst>,
+    term_mnemonic: &'static str,
+    term_operands: Vec<CanonOperand>,
+}
+
+/// Alpha-equivalence key for one instruction of a terminal block.
+#[derive(Debug, PartialEq)]
+struct CanonInst {
+    mnemonic: &'static str,
+    payload: CanonPayload,
+    operands: Vec<CanonOperand>,
+    result_ty: Option<MirType>,
+    metadata: InstructionMetadata,
+}
+
+/// Non-operand payload carried by an instruction kind.
+#[derive(Debug, PartialEq)]
+enum CanonPayload {
+    None,
+    FrameAddr(u64),
+    Call(FunctionId, usize),
+}
+
+/// A canonicalized operand: block-local results compare by definition
+/// position, immediates by value, and everything else by exact [`ValueId`].
+#[derive(Debug, PartialEq)]
+enum CanonOperand {
+    Local(usize),
+    Imm(Immediate),
+    Outside(ValueId),
+}
 
 /// Statistics from CFG simplification.
 #[derive(Debug, Default, Clone)]
@@ -30,6 +70,10 @@ pub struct CfgSimplifyStats {
     pub empty_blocks_eliminated: usize,
     /// Number of degenerate terminators simplified.
     pub terminators_simplified: usize,
+    /// Number of trivial phi nodes replaced by their unique incoming value.
+    pub trivial_phis_simplified: usize,
+    /// Number of identical terminal blocks merged into one shared block.
+    pub terminal_blocks_deduplicated: usize,
     /// Number of dead functions eliminated.
     pub dead_functions_eliminated: usize,
     /// Estimated gas saved (8 gas per eliminated jump).
@@ -43,6 +87,8 @@ impl CfgSimplifyStats {
         self.blocks_merged
             + self.empty_blocks_eliminated
             + self.terminators_simplified
+            + self.trivial_phis_simplified
+            + self.terminal_blocks_deduplicated
             + self.dead_functions_eliminated
     }
 
@@ -51,6 +97,8 @@ impl CfgSimplifyStats {
         self.blocks_merged += other.blocks_merged;
         self.empty_blocks_eliminated += other.empty_blocks_eliminated;
         self.terminators_simplified += other.terminators_simplified;
+        self.trivial_phis_simplified += other.trivial_phis_simplified;
+        self.terminal_blocks_deduplicated += other.terminal_blocks_deduplicated;
         self.dead_functions_eliminated += other.dead_functions_eliminated;
         self.gas_saved += other.gas_saved;
     }
@@ -91,8 +139,205 @@ impl CfgSimplifier {
         self.simplify_degenerate_terminators(func);
         self.merge_blocks(func);
         self.eliminate_empty_blocks(func);
+        self.deduplicate_terminal_blocks(func);
+        self.simplify_trivial_phis(func);
 
         self.stats.total()
+    }
+
+    /// Merges identical terminal blocks (no phis, terminator without
+    /// successors, alpha-equivalent instructions) into one shared block and
+    /// redirects all predecessor edges to it.
+    ///
+    /// Checked arithmetic materializes one panic block per check; this folds
+    /// them to one block per panic code (and shared revert-string blocks) per
+    /// function. The rewrite is phi-safe by construction: the kept block has
+    /// no phis and a terminal block has no successors, so no phi inputs
+    /// elsewhere can mention it.
+    fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
+        let mut inst_results: FxHashMap<crate::mir::InstId, ValueId> = FxHashMap::default();
+        for (value, kind) in func.values.iter_enumerated() {
+            if let Value::Inst(inst_id) = kind {
+                inst_results.insert(*inst_id, value);
+            }
+        }
+
+        let mut kept: Vec<(BlockId, CanonBlock)> = Vec::new();
+        let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
+        for block_id in func.blocks.indices() {
+            if block_id == func.entry_block || func.blocks[block_id].predecessors.is_empty() {
+                continue;
+            }
+            let Some(canon) = Self::canonicalize_terminal_block(func, block_id, &inst_results)
+            else {
+                continue;
+            };
+            if let Some((keep, _)) = kept.iter().find(|(_, existing)| *existing == canon) {
+                merges.push((block_id, *keep));
+            } else {
+                kept.push((block_id, canon));
+            }
+        }
+
+        for (dup, keep) in merges {
+            let predecessors: Vec<_> = func.blocks[dup].predecessors.to_vec();
+            for pred in predecessors {
+                self.redirect_terminator(func, pred, dup, keep);
+                if !func.blocks[keep].predecessors.contains(&pred) {
+                    func.blocks[keep].predecessors.push(pred);
+                }
+            }
+            func.blocks[dup].instructions.clear();
+            func.blocks[dup].terminator = Some(Terminator::Invalid);
+            func.blocks[dup].predecessors.clear();
+            self.stats.terminal_blocks_deduplicated += 1;
+        }
+    }
+
+    /// Builds the alpha-equivalence key of a terminal block, or `None` if the
+    /// block is not a dedup candidate.
+    fn canonicalize_terminal_block(
+        func: &Function,
+        block_id: BlockId,
+        inst_results: &FxHashMap<crate::mir::InstId, ValueId>,
+    ) -> Option<CanonBlock> {
+        let block = &func.blocks[block_id];
+        let term = block.terminator.as_ref()?;
+        if matches!(term, Terminator::Invalid) || !term.successors().is_empty() {
+            return None;
+        }
+
+        let mut local_defs: FxHashMap<ValueId, usize> = FxHashMap::default();
+        for (position, &inst_id) in block.instructions.iter().enumerate() {
+            if let Some(&result) = inst_results.get(&inst_id) {
+                local_defs.insert(result, position);
+            }
+        }
+
+        let canon_operand = |value: ValueId| {
+            if let Some(&position) = local_defs.get(&value) {
+                return CanonOperand::Local(position);
+            }
+            match &func.values[value] {
+                Value::Immediate(imm) => CanonOperand::Imm(imm.clone()),
+                _ => CanonOperand::Outside(value),
+            }
+        };
+
+        let mut insts = Vec::with_capacity(block.instructions.len());
+        for &inst_id in &block.instructions {
+            let inst = &func.instructions[inst_id];
+            let extra = match &inst.kind {
+                InstKind::Phi(_) => return None,
+                InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
+                InstKind::InternalCall { function, returns, .. } => {
+                    CanonPayload::Call(*function, *returns)
+                }
+                _ => CanonPayload::None,
+            };
+            let mut metadata = inst.metadata.clone();
+            metadata.hir_expr = None;
+            metadata.source_span = None;
+            metadata.loop_depth = 0;
+            insts.push(CanonInst {
+                mnemonic: inst.kind.mnemonic(),
+                payload: extra,
+                operands: inst.kind.operands().into_iter().map(canon_operand).collect(),
+                result_ty: inst.result_ty,
+                metadata,
+            });
+        }
+
+        let term_operands = term.operands().into_iter().map(canon_operand).collect();
+        Some(CanonBlock { insts, term_mnemonic: term.mnemonic(), term_operands })
+    }
+
+    fn simplify_trivial_phis(&mut self, func: &mut Function) {
+        let mut candidates = Vec::new();
+        let mut raw = FxHashMap::default();
+
+        for block_id in func.blocks.indices() {
+            let same_block_phi_results = Self::block_phi_results(func, block_id);
+            for &inst_id in &func.blocks[block_id].instructions {
+                let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+                    continue;
+                };
+                let Some(phi_value) = Self::find_inst_result(func, inst_id) else {
+                    continue;
+                };
+                let Some(replacement) =
+                    Self::trivial_phi_replacement(incoming, phi_value, &same_block_phi_results)
+                else {
+                    continue;
+                };
+                candidates.push((inst_id, phi_value));
+                raw.insert(phi_value, replacement);
+            }
+        }
+
+        if raw.is_empty() {
+            return;
+        }
+
+        // A trivial phi may be replaced by another phi deleted in the same
+        // batch (`v81 -> v82 -> v80`); uses must be rewritten to the end of
+        // the chain or they dangle once the intermediate phi is removed.
+        // Mutually-trivial cycles have no outside source; keep those phis.
+        let mut replacements = FxHashMap::default();
+        let mut dead = FxHashSet::default();
+        for &(inst_id, phi_value) in &candidates {
+            let mut seen = FxHashSet::from_iter([phi_value]);
+            let mut target = raw[&phi_value];
+            let mut cyclic = false;
+            while let Some(&next) = raw.get(&target) {
+                if !seen.insert(target) {
+                    cyclic = true;
+                    break;
+                }
+                target = next;
+            }
+            if !cyclic {
+                replacements.insert(phi_value, target);
+                dead.insert(inst_id);
+            }
+        }
+
+        if replacements.is_empty() {
+            return;
+        }
+
+        Self::replace_uses(func, &replacements);
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|inst_id| !dead.contains(inst_id));
+        }
+        self.stats.trivial_phis_simplified += dead.len();
+    }
+
+    fn block_phi_results(func: &Function, block_id: BlockId) -> FxHashSet<ValueId> {
+        func.blocks[block_id]
+            .instructions
+            .iter()
+            .filter_map(|&inst_id| {
+                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                    Self::find_inst_result(func, inst_id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    fn trivial_phi_replacement(
+        incoming: &[(BlockId, ValueId)],
+        phi_value: ValueId,
+        same_block_phi_results: &FxHashSet<ValueId>,
+    ) -> Option<ValueId> {
+        let mut incoming_values = incoming.iter().map(|(_, value)| *value);
+        let first = incoming_values.find(|value| *value != phi_value)?;
+        if same_block_phi_results.contains(&first) {
+            return None;
+        }
+        incoming_values.all(|value| value == phi_value || value == first).then_some(first)
     }
 
     fn simplify_degenerate_terminators(&mut self, func: &mut Function) {
@@ -261,15 +506,6 @@ impl CfgSimplifier {
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
         }
-        for value in func.values.iter_mut() {
-            if let Value::Phi { incoming, .. } = value {
-                for (_, value) in incoming {
-                    if let Some(&replacement) = replacements.get(value) {
-                        *value = replacement;
-                    }
-                }
-            }
-        }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
                 Self::replace_terminator_operands(term, replacements);
@@ -329,7 +565,9 @@ impl CfgSimplifier {
                     continue;
                 }
 
-                if self.is_empty_forwarder(func, block_id) {
+                if self.is_empty_forwarder(func, block_id)
+                    && self.forwarder_elimination_preserves_phis(func, block_id)
+                {
                     self.eliminate_forwarder(func, block_id);
                     eliminated = true;
                     self.stats.empty_blocks_eliminated += 1;
@@ -349,6 +587,32 @@ impl CfgSimplifier {
         }
 
         matches!(&block.terminator, Some(Terminator::Jump(target)) if *target != block_id)
+    }
+
+    /// Checks that redirecting the forwarder's predecessors into its target
+    /// keeps the target's phis well formed: a predecessor must not end up with
+    /// two incoming entries carrying different values (e.g. both arms of one
+    /// branch being forwarders into the same join), since phi incoming lists
+    /// are keyed per predecessor block, not per CFG edge.
+    fn forwarder_elimination_preserves_phis(&self, func: &Function, block_id: BlockId) -> bool {
+        let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
+            return false;
+        };
+        let predecessors = &func.blocks[block_id].predecessors;
+        for &inst_id in &func.blocks[target].instructions {
+            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+                continue;
+            };
+            let Some(&(_, forwarded)) = incoming.iter().find(|(pred, _)| *pred == block_id) else {
+                continue;
+            };
+            for &pred in predecessors {
+                if incoming.iter().any(|&(other, value)| other == pred && value != forwarded) {
+                    return false;
+                }
+            }
+        }
+        true
     }
 
     /// Eliminates an empty forwarder block by redirecting its predecessors.
@@ -386,7 +650,8 @@ impl CfgSimplifier {
                 continue;
             };
 
-            let mut rewritten = Vec::with_capacity(incoming.len() + new_preds.len());
+            let mut rewritten: Vec<(BlockId, ValueId)> =
+                Vec::with_capacity(incoming.len() + new_preds.len());
             for &(pred, value) in incoming.iter() {
                 if pred == old_pred {
                     rewritten.extend(new_preds.iter().map(|&new_pred| (new_pred, value)));
@@ -394,6 +659,17 @@ impl CfgSimplifier {
                     rewritten.push((pred, value));
                 }
             }
+            // The safety check guarantees colliding entries carry equal values;
+            // keep one entry per predecessor block.
+            let mut seen = Vec::with_capacity(rewritten.len());
+            rewritten.retain(|&(pred, _)| {
+                if seen.contains(&pred) {
+                    false
+                } else {
+                    seen.push(pred);
+                    true
+                }
+            });
             *incoming = rewritten;
         }
     }
@@ -466,7 +742,8 @@ impl DeadFunctionEliminator {
     pub fn run(&mut self, module: &mut Module) -> usize {
         self.stats = CfgSimplifyStats::default();
 
-        let reachable = self.find_reachable_functions(module);
+        let call_graph = CallGraphInfo::new(module);
+        let reachable = call_graph.reachable_from_entries();
         if reachable.is_empty() {
             return 0;
         }
@@ -485,174 +762,12 @@ impl DeadFunctionEliminator {
 
         self.stats.dead_functions_eliminated
     }
-
-    /// Finds all functions reachable from entry points.
-    fn find_reachable_functions(&self, module: &Module) -> FxHashSet<FunctionId> {
-        let mut reachable = FxHashSet::default();
-        let mut worklist = VecDeque::new();
-
-        for (func_id, func) in module.functions.iter_enumerated() {
-            if self.is_entry_point(func) {
-                reachable.insert(func_id);
-                worklist.push_back(func_id);
-            }
-        }
-
-        let call_graph = self.build_call_graph(module);
-
-        while let Some(func_id) = worklist.pop_front() {
-            if let Some(callees) = call_graph.get(&func_id) {
-                for &callee in callees {
-                    if reachable.insert(callee) {
-                        worklist.push_back(callee);
-                    }
-                }
-            }
-        }
-
-        reachable
-    }
-
-    /// Checks if a function is an entry point.
-    fn is_entry_point(&self, func: &Function) -> bool {
-        func.selector.is_some()
-            || func.attributes.is_constructor
-            || func.attributes.is_fallback
-            || func.attributes.is_receive
-    }
-
-    /// Builds a call graph by analyzing internal calls in reachable MIR blocks.
-    fn build_call_graph(&self, module: &Module) -> FxHashMap<FunctionId, FxHashSet<FunctionId>> {
-        module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(func_id, func)| {
-                let callees = find_internal_callees(func);
-                (!callees.is_empty()).then_some((func_id, callees))
-            })
-            .collect()
-    }
-}
-
-/// Call graph analysis for detecting recursive functions.
-#[derive(Debug, Default)]
-pub struct CallGraphAnalyzer {
-    /// Functions that are recursive (directly or indirectly).
-    pub recursive_functions: FxHashSet<FunctionId>,
-    /// Call graph: caller -> set of callees.
-    pub call_graph: FxHashMap<FunctionId, FxHashSet<FunctionId>>,
-}
-
-impl CallGraphAnalyzer {
-    /// Creates a new call graph analyzer.
-    #[must_use]
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Analyzes a module and detects recursive functions.
-    pub fn analyze(&mut self, module: &Module) {
-        self.build_call_graph(module);
-        self.detect_recursion();
-    }
-
-    /// Builds the call graph from the module.
-    fn build_call_graph(&mut self, module: &Module) {
-        for (func_id, func) in module.functions.iter_enumerated() {
-            let callees = self.find_callees(func, module);
-            if !callees.is_empty() {
-                self.call_graph.insert(func_id, callees);
-            }
-        }
-    }
-
-    /// Finds all functions called by this function.
-    fn find_callees(&self, func: &Function, _module: &Module) -> FxHashSet<FunctionId> {
-        find_internal_callees(func)
-    }
-
-    /// Detects recursive functions using DFS.
-    fn detect_recursion(&mut self) {
-        let func_ids: Vec<_> = self.call_graph.keys().copied().collect();
-
-        for func_id in func_ids {
-            if self.is_recursive(func_id, &mut FxHashSet::default()) {
-                self.recursive_functions.insert(func_id);
-            }
-        }
-    }
-
-    /// Checks if a function is recursive (directly or indirectly).
-    fn is_recursive(&self, func_id: FunctionId, visited: &mut FxHashSet<FunctionId>) -> bool {
-        if !visited.insert(func_id) {
-            return true;
-        }
-
-        if let Some(callees) = self.call_graph.get(&func_id) {
-            for &callee in callees {
-                if self.is_recursive(callee, visited) {
-                    return true;
-                }
-            }
-        }
-
-        visited.remove(&func_id);
-        false
-    }
-
-    /// Returns true if the function is recursive.
-    #[must_use]
-    pub fn is_function_recursive(&self, func_id: FunctionId) -> bool {
-        self.recursive_functions.contains(&func_id)
-    }
-}
-
-fn find_internal_callees(func: &Function) -> FxHashSet<FunctionId> {
-    let mut callees = FxHashSet::default();
-    for block in func.blocks.iter() {
-        for &inst_id in &block.instructions {
-            if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
-                callees.insert(function);
-            }
-        }
-    }
-    callees
 }
 
 /// Runs all CFG simplification passes on a function.
 pub fn simplify_cfg(func: &mut Function) -> CfgSimplifyStats {
     let mut simplifier = CfgSimplifier::new();
     simplifier.run_to_fixpoint(func)
-}
-
-/// Rebuilds CFG edge lists from terminators and drops phi inputs from blocks
-/// that are no longer predecessors.
-pub fn repair_reachability_phis(func: &mut Function) {
-    let mut edges = Vec::new();
-    for (block, bb) in func.blocks.iter_enumerated() {
-        if let Some(term) = &bb.terminator {
-            edges.push((block, term.successors()));
-        }
-    }
-
-    for block in func.blocks.iter_mut() {
-        block.predecessors.clear();
-    }
-
-    for (block, successors) in edges {
-        for succ in successors {
-            func.blocks[succ].predecessors.push(block);
-        }
-    }
-
-    for block_id in func.blocks.indices() {
-        let predecessors = func.blocks[block_id].predecessors.clone();
-        for &inst_id in &func.blocks[block_id].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
-                incoming.retain(|(pred, _)| predecessors.contains(pred));
-            }
-        }
-    }
 }
 
 /// Runs all CFG simplification passes on a module.

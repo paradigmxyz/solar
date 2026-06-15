@@ -5,24 +5,73 @@ fn @double(arg0: u256) -> u256 {
     v1 = internal_frame_addr 128
     mstore v1, 0 !metadata(memory=internal_frame)
     v4 = add arg0, arg0
+    v5 = lt v4, arg0
+    br v5, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
     ret v4
 }
 
 fn @quadruple(arg0: u256) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
-    v5 = add arg0, arg0
-    v7 = add v5, v5
-    mstore 128, v7
+    v11 = add arg0, arg0
+    v12 = lt v11, arg0
+    br v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v21 = add v11, v11
+    v22 = lt v21, v11
+    br v22, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 128, v21
     returndata 128, 32
 }
 
 fn @sum_then_double(arg0: u256, arg1: u256) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
-    v5 = add arg0, arg1
-    v7 = add v5, v5
-    mstore 128, v7
+    v11 = add arg0, arg1
+    v12 = lt v11, arg0
+    br v12, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v21 = add v11, v11
+    v22 = lt v21, v11
+    br v22, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 128, v21
     returndata 128, 32
 }
 

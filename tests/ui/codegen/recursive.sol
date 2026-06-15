@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 // Recursive functions. A recursive call can't be inlined (the inline path's
 // cycle detector would substitute a `0` placeholder), so the public function is

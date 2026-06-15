@@ -12,7 +12,7 @@
 
 use crate::{
     analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
-    mir::{BlockId, Function, InstId, InstKind, Value, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId},
     pass::FunctionPass,
 };
 use alloy_primitives::U256;
@@ -35,6 +35,7 @@ struct AffineRange {
 struct LoopOptContext<'a> {
     loop_data: &'a Loop,
     scev: &'a ScalarEvolution,
+    analyzer: &'a LoopAnalyzer,
 }
 
 fn ranges_overlap(a_start: u64, a_width: u64, b_start: u64, b_width: u64) -> bool {
@@ -84,7 +85,7 @@ impl FunctionPass for LicmPass {
 
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let config =
-            LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 4 };
+            LoopOptConfig { enable_licm: true, min_licm_profit: 3, max_licm_hoisted_insts: 8 };
         LoopOptimizer::new(config).optimize(func).instructions_hoisted != 0
     }
 }
@@ -110,6 +111,7 @@ impl LoopOptimizer {
     /// Runs all enabled loop optimizations on a function.
     pub fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
+        self.annotate_storage_aliases(func);
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
@@ -124,28 +126,28 @@ impl LoopOptimizer {
             if let Some(loop_data) = loop_info.loops.get(&header)
                 && self.config.enable_licm
             {
-                self.apply_licm(func, loop_data);
+                self.apply_licm(func, loop_data, &analyzer);
             }
         }
 
         &self.stats
     }
 
-    fn apply_licm(&mut self, func: &mut Function, loop_data: &Loop) {
+    fn apply_licm(&mut self, func: &mut Function, loop_data: &Loop, analyzer: &LoopAnalyzer) {
         let Some(preheader) = loop_data.preheader else { return };
         if self.loop_observes_gas(func, loop_data) {
             return;
         }
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let ctx = LoopOptContext { loop_data, scev: &scev };
+        let ctx = LoopOptContext { loop_data, scev: &scev, analyzer };
         let mut roots: Vec<InstId> = loop_data
             .invariant_insts
             .iter()
             .copied()
             .filter(|&inst_id| {
                 self.can_hoist_safely(func, inst_id, ctx)
-                    && self.licm_profit(func, inst_id) >= self.config.min_licm_profit
+                    && self.is_profitable_licm_root(func, inst_id, ctx)
             })
             .collect();
         roots.sort_by(|&a, &b| {
@@ -179,15 +181,22 @@ impl LoopOptimizer {
         let ordered = self.topological_sort_instructions(func, &hoistable);
 
         for inst_id in ordered {
+            // An enclosing loop's earlier hoist may have already moved the
+            // instruction out of these blocks; pushing it again would schedule
+            // the same instruction in two blocks.
+            let mut removed = false;
             for &block_id in &loop_data.blocks {
                 let block = &mut func.blocks[block_id];
                 if let Some(pos) = block.instructions.iter().position(|&id| id == inst_id) {
                     block.instructions.remove(pos);
+                    removed = true;
                     break;
                 }
             }
-            func.blocks[preheader].instructions.push(inst_id);
-            self.stats.instructions_hoisted += 1;
+            if removed {
+                func.blocks[preheader].instructions.push(inst_id);
+                self.stats.instructions_hoisted += 1;
+            }
         }
     }
 
@@ -237,36 +246,157 @@ impl LoopOptimizer {
             return false;
         }
         match inst.kind {
+            // Hoisting memory reads expands memory earlier (and unconditionally), which any
+            // MSIZE in the function could observe; on top of the dependence checks they must
+            // also be guaranteed to execute so a zero-trip loop cannot start trapping (OOG
+            // from speculated memory expansion) or paying for work it never did.
             InstKind::MLoad(addr) => {
-                return !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
+                return !self.function_observes_msize(func)
+                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && !self.loop_may_mutate_memory_range(func, ctx, addr, Some(32));
             }
             InstKind::Keccak256(offset, size) => {
-                return !self.loop_may_mutate_memory_range(
-                    func,
-                    ctx,
-                    offset,
-                    self.const_addr(func, size),
-                );
+                return !self.function_observes_msize(func)
+                    && self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && !self.loop_may_mutate_memory_range(
+                        func,
+                        ctx,
+                        offset,
+                        self.const_addr(func, size),
+                    );
             }
             InstKind::SLoad(slot) => {
-                return !self.loop_may_mutate_storage_slot(
-                    func,
-                    ctx.loop_data,
-                    slot,
-                    StorageSpace::Persistent,
-                );
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && !self.loop_may_mutate_storage_slot(
+                        func,
+                        ctx,
+                        inst_id,
+                        slot,
+                        StorageSpace::Persistent,
+                    );
             }
             InstKind::TLoad(slot) => {
-                return !self.loop_may_mutate_storage_slot(
-                    func,
-                    ctx.loop_data,
-                    slot,
-                    StorageSpace::Transient,
-                );
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && !self.loop_may_mutate_storage_slot(
+                        func,
+                        ctx,
+                        inst_id,
+                        slot,
+                        StorageSpace::Transient,
+                    );
+            }
+            // MSIZE observes every memory expansion, including from other hoisted
+            // instructions; never move it.
+            InstKind::MSize => return false,
+            // Environment reads that calls or creates can change: balances move with value
+            // transfers, code size/hash change on deploy/selfdestruct, and every external
+            // call rewrites the return-data buffer.
+            InstKind::Balance(_)
+            | InstKind::SelfBalance
+            | InstKind::ExtCodeSize(_)
+            | InstKind::ExtCodeHash(_)
+            | InstKind::ReturnDataSize => {
+                // Also require guaranteed execution: speculating a cold
+                // BALANCE/EXTCODESIZE/EXTCODEHASH into the preheader of a
+                // zero-trip loop wastes 2600 gas.
+                return self.hoist_execution_guaranteed(func, inst_id, ctx)
+                    && !self.loop_contains_call_or_create(func, ctx.loop_data);
             }
             _ => {}
         }
         true
+    }
+
+    /// Returns true if hoisting `inst_id` into the preheader cannot make it execute when the
+    /// original loop would not have executed it.
+    ///
+    /// This holds when the instruction's block dominates every (live) exiting block, or when
+    /// the loop is known to complete at least one iteration that executes the instruction:
+    /// a verified trip count of at least one, a single exiting block (so the trip-count guard
+    /// is the only way out), and the instruction dominating every backedge.
+    fn hoist_execution_guaranteed(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        ctx: LoopOptContext<'_>,
+    ) -> bool {
+        let loop_data = ctx.loop_data;
+        let Some(inst_block) = loop_data
+            .blocks
+            .iter()
+            .copied()
+            .find(|&block| func.blocks[block].instructions.contains(&inst_id))
+        else {
+            return false;
+        };
+
+        let exiting = self.live_exiting_blocks(func, loop_data);
+        // No live exit means the loop only terminates by running out of gas,
+        // which consumes the entire gas budget regardless of what executes
+        // beforehand, so any placement is observationally equivalent.
+        if exiting.is_empty() {
+            return true;
+        }
+        if exiting.iter().all(|&block| ctx.analyzer.dominates(inst_block, block)) {
+            return true;
+        }
+
+        loop_data.trip_count.is_some_and(|trip| trip >= 1)
+            && exiting.len() == 1
+            && loop_data.back_edges.iter().all(|&latch| ctx.analyzer.dominates(inst_block, latch))
+    }
+
+    /// Returns the in-loop blocks from which the loop can actually exit.
+    ///
+    /// Branches whose condition is a constant that always picks the in-loop successor cannot
+    /// leave the loop and are ignored.
+    fn live_exiting_blocks(&self, func: &Function, loop_data: &Loop) -> Vec<BlockId> {
+        let mut exiting = Vec::new();
+        for &block_id in &loop_data.blocks {
+            let Some(term) = &func.blocks[block_id].terminator else { continue };
+            let escapes = match term {
+                Terminator::Branch { condition, then_block, else_block } => {
+                    match self.const_condition(func, *condition) {
+                        Some(true) => !loop_data.blocks.contains(then_block),
+                        Some(false) => !loop_data.blocks.contains(else_block),
+                        None => {
+                            !loop_data.blocks.contains(then_block)
+                                || !loop_data.blocks.contains(else_block)
+                        }
+                    }
+                }
+                _ => term.successors().iter().any(|succ| !loop_data.blocks.contains(succ)),
+            };
+            if escapes {
+                exiting.push(block_id);
+            }
+        }
+        exiting
+    }
+
+    fn function_observes_msize(&self, func: &Function) -> bool {
+        func.blocks.iter().any(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MSize))
+        })
+    }
+
+    fn loop_contains_call_or_create(&self, func: &Function, loop_data: &Loop) -> bool {
+        loop_data.blocks.iter().any(|&block_id| {
+            func.blocks[block_id].instructions.iter().any(|&inst_id| {
+                matches!(
+                    func.instructions[inst_id].kind,
+                    InstKind::Call { .. }
+                        | InstKind::StaticCall { .. }
+                        | InstKind::DelegateCall { .. }
+                        | InstKind::InternalCall { .. }
+                        | InstKind::Create(_, _, _)
+                        | InstKind::Create2(_, _, _, _)
+                )
+            })
+        })
     }
 
     fn inst_in_loop(&self, func: &Function, inst_id: InstId, loop_data: &Loop) -> bool {
@@ -289,6 +419,21 @@ impl LoopOptimizer {
             InstKind::MLoad(_) | InstKind::CalldataLoad(_) => 3,
             _ => 0,
         }
+    }
+
+    fn is_profitable_licm_root(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        ctx: LoopOptContext<'_>,
+    ) -> bool {
+        self.licm_profit(func, inst_id) >= self.config.min_licm_profit
+            || (self.loop_has_known_multiple_iterations(ctx.loop_data)
+                && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
+    }
+
+    fn loop_has_known_multiple_iterations(&self, loop_data: &Loop) -> bool {
+        loop_data.trip_count.is_some_and(|trip_count| trip_count > 1)
     }
 
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
@@ -314,14 +459,15 @@ impl LoopOptimizer {
                 match func.instructions[inst_id].kind {
                     InstKind::MStore(addr, _)
                         if self.memory_ranges_may_alias(
-                            func, ctx, load_addr, load_width, addr, 32,
+                            func, ctx, load_addr, load_width, addr, 32, block_id,
                         ) =>
                     {
                         return true;
                     }
                     InstKind::MStore8(addr, _)
-                        if self
-                            .memory_ranges_may_alias(func, ctx, load_addr, load_width, addr, 1) =>
+                        if self.memory_ranges_may_alias(
+                            func, ctx, load_addr, load_width, addr, 1, block_id,
+                        ) =>
                     {
                         return true;
                     }
@@ -345,23 +491,42 @@ impl LoopOptimizer {
     fn loop_may_mutate_storage_slot(
         &self,
         func: &Function,
-        loop_data: &Loop,
+        ctx: LoopOptContext<'_>,
+        load_inst: InstId,
         load_slot: ValueId,
         space: StorageSpace,
     ) -> bool {
-        for &block_id in &loop_data.blocks {
+        let Some(load_alias) =
+            self.storage_alias_for_loop_value(func, load_inst, load_slot, ctx.loop_data)
+        else {
+            return true;
+        };
+        if !self.can_use_storage_alias_for_licm(load_alias, ctx.loop_data) {
+            return true;
+        }
+
+        for &block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match (space, &func.instructions[inst_id].kind) {
                     (StorageSpace::Persistent, InstKind::SStore(slot, _))
-                    | (StorageSpace::Transient, InstKind::TStore(slot, _))
-                        if self.slots_may_alias(func, load_slot, *slot) =>
-                    {
-                        return true;
+                    | (StorageSpace::Transient, InstKind::TStore(slot, _)) => {
+                        let Some(store_alias) =
+                            self.storage_alias_for_loop_value(func, inst_id, *slot, ctx.loop_data)
+                        else {
+                            return true;
+                        };
+                        if !self.can_use_storage_alias_for_licm(store_alias, ctx.loop_data) {
+                            return true;
+                        }
+                        if load_alias.may_alias(store_alias) {
+                            return true;
+                        }
                     }
+                    // STATICCALL cannot write storage or transient storage, even reentrantly;
+                    // it only clobbers memory (the return buffer).
                     (
                         _,
                         InstKind::Call { .. }
-                        | InstKind::StaticCall { .. }
                         | InstKind::DelegateCall { .. }
                         | InstKind::InternalCall { .. }
                         | InstKind::Create(_, _, _)
@@ -374,6 +539,7 @@ impl LoopOptimizer {
         false
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn memory_ranges_may_alias(
         &self,
         func: &Function,
@@ -382,6 +548,7 @@ impl LoopOptimizer {
         load_width: Option<u64>,
         write_addr: ValueId,
         write_width: u64,
+        write_block: BlockId,
     ) -> bool {
         match (self.const_addr(func, load_addr), load_width, self.const_addr(func, write_addr)) {
             (Some(load), Some(load_width), Some(write)) => {
@@ -389,10 +556,14 @@ impl LoopOptimizer {
             }
             _ => {
                 let Some(load_width) = load_width else { return true };
-                let Some(load) = self.affine_range(func, ctx, load_addr, load_width) else {
+                // The hoist candidate's address is loop-invariant, so its
+                // position never tightens the range.
+                let Some(load) = self.affine_range(func, ctx, load_addr, load_width, None) else {
                     return true;
                 };
-                let Some(write) = self.affine_range(func, ctx, write_addr, write_width) else {
+                let Some(write) =
+                    self.affine_range(func, ctx, write_addr, write_width, Some(write_block))
+                else {
                     return true;
                 };
                 if load.base != write.base {
@@ -409,9 +580,17 @@ impl LoopOptimizer {
         ctx: LoopOptContext<'_>,
         value: ValueId,
         width: u64,
+        inst_block: Option<BlockId>,
     ) -> Option<AffineRange> {
         let expr = ctx.scev.get(value).cloned().or_else(|| self.const_affine_expr(func, value))?;
-        self.affine_expr_range(func, ctx.loop_data, expr, width)
+        // Non-header blocks only execute after the header guard passed in
+        // their iteration, so they observe the induction variable strictly
+        // below the bound; everything else (header instructions, deeper
+        // guards, unknown position) also runs in the exiting partial
+        // iteration and sees one more stride.
+        let tight = ctx.loop_data.trip_guard_is_header
+            && inst_block.is_some_and(|block| block != ctx.loop_data.header);
+        self.affine_expr_range(func, ctx.loop_data, expr, width, tight)
     }
 
     fn affine_expr_range(
@@ -420,6 +599,7 @@ impl LoopOptimizer {
         loop_data: &Loop,
         expr: AffineExpr,
         width: u64,
+        tight: bool,
     ) -> Option<AffineRange> {
         let mut start = expr.constant;
         let mut end = expr.constant;
@@ -428,12 +608,18 @@ impl LoopOptimizer {
             if trip_count == 0 {
                 return None;
             }
+            let strides = if tight { trip_count.checked_sub(1)? } else { trip_count };
             for term in expr.terms {
                 let iv = loop_data.induction_vars.iter().find(|iv| iv.value == term.value)?;
+                // `last_iv` below assumes the variable grows from `init`; a descending
+                // variable instead shrinks (and may wrap), so its range is unknown here.
+                if iv.descending {
+                    return None;
+                }
                 let init = self.const_i128(func, iv.init)?;
                 let step = self.const_i128(func, iv.step)?;
                 let first = init.checked_mul(term.scale)?;
-                let last_iv = init.checked_add(step.checked_mul(trip_count.checked_sub(1)?)?)?;
+                let last_iv = init.checked_add(step.checked_mul(strides)?)?;
                 let last = last_iv.checked_mul(term.scale)?;
                 start = start.checked_add(first.min(last))?;
                 end = end.checked_add(first.max(last))?;
@@ -451,25 +637,143 @@ impl LoopOptimizer {
         })
     }
 
-    fn slots_may_alias(&self, func: &Function, load_slot: ValueId, write_slot: ValueId) -> bool {
-        match (self.const_addr(func, load_slot), self.const_addr(func, write_slot)) {
-            (Some(load), Some(write)) => load == write,
-            _ => true,
-        }
-    }
-
     fn const_addr(&self, func: &Function, value: ValueId) -> Option<u64> {
         match func.value(value) {
             Value::Immediate(imm) => imm.as_u256()?.try_into().ok(),
-            Value::Arg { .. } | Value::Inst(_) | Value::Phi { .. } | Value::Undef(_) => None,
+            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) => None,
+        }
+    }
+
+    fn const_condition(&self, func: &Function, value: ValueId) -> Option<bool> {
+        match func.value(value) {
+            Value::Immediate(imm) => Some(!imm.as_u256()?.is_zero()),
+            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) => None,
         }
     }
 
     fn const_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
         match func.value(value) {
             Value::Immediate(imm) => u256_to_i128(imm.as_u256()?),
-            Value::Arg { .. } | Value::Inst(_) | Value::Phi { .. } | Value::Undef(_) => None,
+            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) => None,
         }
+    }
+
+    fn storage_alias_for_loop_value(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        value: ValueId,
+        loop_data: &Loop,
+    ) -> Option<StorageAlias> {
+        let alias = func.instructions[inst_id]
+            .metadata
+            .storage_alias
+            .unwrap_or_else(|| StorageAlias::for_value(func, value));
+        if let Some(base) = alias.symbolic_base()
+            && self.value_defined_in_loop(func, base, loop_data)
+        {
+            return None;
+        }
+        Some(alias)
+    }
+
+    fn can_use_storage_alias_for_licm(&self, alias: StorageAlias, loop_data: &Loop) -> bool {
+        matches!(alias, StorageAlias::Slot(_)) || self.loop_has_known_multiple_iterations(loop_data)
+    }
+
+    fn value_defined_in_loop(&self, func: &Function, value: ValueId, loop_data: &Loop) -> bool {
+        match func.value(value) {
+            Value::Inst(inst_id) => self.inst_in_loop(func, *inst_id, loop_data),
+            Value::Undef(_) => true,
+            Value::Arg { .. } | Value::Immediate(_) => false,
+        }
+    }
+
+    fn annotate_storage_aliases(&self, func: &mut Function) {
+        let inst_ids: Vec<_> =
+            func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
+        for inst_id in inst_ids {
+            let slot = match func.instructions[inst_id].kind {
+                InstKind::SLoad(slot)
+                | InstKind::SStore(slot, _)
+                | InstKind::TLoad(slot)
+                | InstKind::TStore(slot, _) => Some(slot),
+                _ => None,
+            };
+            func.instructions[inst_id].metadata.storage_alias =
+                slot.map(|slot| StorageAlias::for_value(func, slot));
+        }
+    }
+
+    fn is_affine_address_base_used_in_loop(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        ctx: LoopOptContext<'_>,
+    ) -> bool {
+        let Some(result) = self.inst_result(func, inst_id) else { return false };
+        for &block_id in &ctx.loop_data.blocks {
+            for &user_inst in &func.blocks[block_id].instructions {
+                let kind = &func.instructions[user_inst].kind;
+                let address_operands: smallvec::SmallVec<[ValueId; 2]> = match kind {
+                    InstKind::MLoad(addr)
+                    | InstKind::MStore(addr, _)
+                    | InstKind::MStore8(addr, _)
+                    | InstKind::SLoad(addr)
+                    | InstKind::SStore(addr, _)
+                    | InstKind::TLoad(addr)
+                    | InstKind::TStore(addr, _)
+                    | InstKind::CalldataLoad(addr) => smallvec::smallvec![*addr],
+                    InstKind::Keccak256(addr, _)
+                    | InstKind::CalldataCopy(addr, _, _)
+                    | InstKind::CodeCopy(addr, _, _)
+                    | InstKind::ReturnDataCopy(addr, _, _) => smallvec::smallvec![*addr],
+                    InstKind::MCopy(dst, src, _) => smallvec::smallvec![*dst, *src],
+                    InstKind::ExtCodeCopy(_, dst, _, _) => smallvec::smallvec![*dst],
+                    _ => continue,
+                };
+
+                for address in address_operands {
+                    if self.value_feeds_affine_address(func, ctx, result, address, 0) {
+                        return true;
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn value_feeds_affine_address(
+        &self,
+        func: &Function,
+        ctx: LoopOptContext<'_>,
+        needle: ValueId,
+        value: ValueId,
+        depth: usize,
+    ) -> bool {
+        if value == needle {
+            return true;
+        }
+        if depth >= 4 || ctx.scev.get(value).is_none() {
+            return false;
+        }
+
+        let Value::Inst(inst_id) = func.value(value) else { return false };
+        if !self.inst_in_loop(func, *inst_id, ctx.loop_data) {
+            return false;
+        }
+        func.instructions[*inst_id]
+            .kind
+            .operands()
+            .iter()
+            .copied()
+            .any(|operand| self.value_feeds_affine_address(func, ctx, needle, operand, depth + 1))
+    }
+
+    fn inst_result(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
+        func.values.iter_enumerated().find_map(|(value, kind)| {
+            matches!(kind, Value::Inst(inst) if *inst == inst_id).then_some(value)
+        })
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {

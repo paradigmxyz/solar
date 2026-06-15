@@ -1,6 +1,6 @@
 //! MIR values.
 
-use super::{BlockId, InstId, MirType, ValueId};
+use super::{InstId, MirType};
 use alloy_primitives::U256;
 use std::fmt;
 
@@ -18,13 +18,6 @@ pub enum Value {
     },
     /// Immediate constant.
     Immediate(Immediate),
-    /// Phi node (SSA join point).
-    Phi {
-        /// Type of the phi node.
-        ty: MirType,
-        /// Incoming values from predecessor blocks.
-        incoming: Vec<(BlockId, ValueId)>,
-    },
     /// Undefined value (used for uninitialized variables).
     Undef(MirType),
 }
@@ -35,7 +28,7 @@ impl Value {
     pub fn ty(&self) -> MirType {
         match self {
             Self::Inst(_) => MirType::uint256(),
-            Self::Arg { ty, .. } | Self::Phi { ty, .. } | Self::Undef(ty) => *ty,
+            Self::Arg { ty, .. } | Self::Undef(ty) => *ty,
             Self::Immediate(imm) => imm.ty(),
         }
     }
@@ -44,12 +37,6 @@ impl Value {
     #[must_use]
     pub const fn is_immediate(&self) -> bool {
         matches!(self, Self::Immediate(_))
-    }
-
-    /// Returns true if this is a phi node.
-    #[must_use]
-    pub const fn is_phi(&self) -> bool {
-        matches!(self, Self::Phi { .. })
     }
 
     /// Returns this value as an immediate, if it is one.

@@ -6,8 +6,12 @@
 //!
 //! Safety contract:
 //! - promote only exact storage aliases that are loop-invariant
+//! - promote multiple slots only when they are pairwise provably disjoint
 //! - reject loops with calls, unknown storage writes, or non-isolated exits
 //! - flush dirty promoted values before any clean observable exit
+//! - skip the flush on revert exits: `revert`/`invalid` roll back every storage write of the frame,
+//!   so the unflushed slot is unobservable there; reads of the promoted slot on those paths are
+//!   rewritten to the memory temp so revert data still sees the current value
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::{
@@ -96,16 +100,32 @@ impl StorageScalarPromoter {
 
         self.annotate_storage_aliases(func);
 
-        let mut analyzer = LoopAnalyzer::new();
-        let loop_info = analyzer.analyze(func);
-        let mut loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
-        loops.sort_by_key(|loop_data| loop_data.header.index());
+        // Promoting a loop can split its exit blocks and relocate the final
+        // stores into new blocks, which invalidates the block sets of every
+        // enclosing loop. Recompute loop info after each successful promotion
+        // so later promotions reason about an accurate CFG. This terminates:
+        // each promotion rewrites all of its loop's storage stores to memory
+        // stores and only inserts new storage stores outside that loop.
+        loop {
+            let mut analyzer = LoopAnalyzer::new();
+            let loop_info = analyzer.analyze(func);
+            let mut loops: Vec<Loop> = loop_info.all_loops().cloned().collect();
+            loops.sort_by_key(|loop_data| loop_data.header.index());
 
-        for loop_data in loops {
-            if let Some(candidates) = self.find_initialized_candidates(func, &loop_data) {
-                self.promote_initialized_candidates(func, &loop_data, &candidates);
-            } else if let Some(candidate) = self.find_candidate(func, &loop_data) {
-                self.promote_loop(func, &loop_data, &candidate);
+            let mut promoted = false;
+            for loop_data in loops {
+                if let Some(candidates) = self.find_initialized_candidates(func, &loop_data) {
+                    self.promote_initialized_candidates(func, &loop_data, &candidates);
+                } else if let Some(candidate) = self.find_candidate(func, &loop_data) {
+                    self.promote_loop(func, &loop_data, &candidate);
+                } else {
+                    continue;
+                }
+                promoted = true;
+                break;
+            }
+            if !promoted {
+                break;
             }
         }
 
@@ -114,7 +134,8 @@ impl StorageScalarPromoter {
 
     fn find_candidate(&self, func: &Function, loop_data: &Loop) -> Option<Candidate> {
         let preheader = loop_data.preheader?;
-        if loop_data.exit_blocks.is_empty() || !self.has_isolated_clean_exits(func, loop_data) {
+        if loop_data.exit_blocks.is_empty() || !self.has_isolated_promotable_exits(func, loop_data)
+        {
             return None;
         }
         if !self.loop_has_no_unpromotable_side_effects(func, loop_data) {
@@ -148,10 +169,11 @@ impl StorageScalarPromoter {
         }
 
         let (slot, slot_value) = (slot?, slot_value?);
-        if !self.loop_storage_accesses_are_safe(func, loop_data, &slot) {
+        let rewrite_blocks = self.promotion_block_ids(func, loop_data);
+        if !self.loop_storage_accesses_are_safe(func, &rewrite_blocks, &slot) {
             return None;
         }
-        let saw_loop_load = loop_data.blocks.iter().any(|&block_id| {
+        let saw_loop_load = rewrite_blocks.iter().any(|&block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
                     &func.instructions[inst_id].kind,
@@ -183,7 +205,8 @@ impl StorageScalarPromoter {
         loop_data: &Loop,
     ) -> Option<Vec<Candidate>> {
         let preheader = loop_data.preheader?;
-        if loop_data.exit_blocks.is_empty() || !self.has_isolated_clean_exits(func, loop_data) {
+        if loop_data.exit_blocks.is_empty() || !self.has_isolated_promotable_exits(func, loop_data)
+        {
             return None;
         }
         if !self.loop_has_no_unpromotable_side_effects(func, loop_data) {
@@ -205,6 +228,15 @@ impl StorageScalarPromoter {
             return None;
         }
 
+        // Distinct alias keys can still name the same runtime slot (for
+        // example two symbolic mapping slots whose keys happen to be equal).
+        // Promoting them to separate memory temps would desynchronize loads
+        // and stores, so require every pair to be provably disjoint.
+        let keys: Vec<StorageAlias> = stores.keys().copied().collect();
+        if keys.iter().enumerate().any(|(i, a)| keys[i + 1..].iter().any(|b| a.may_alias(*b))) {
+            return None;
+        }
+
         let mut candidates = Vec::with_capacity(stores.len());
         for (slot, _) in stores {
             let init_store = self.find_preheader_init_store(func, preheader, &slot)?;
@@ -219,7 +251,8 @@ impl StorageScalarPromoter {
         }
         candidates.sort_by_key(|candidate| candidate.init_store.map(|inst| inst.index()));
 
-        if !self.loop_storage_accesses_are_safe_for_candidates(func, loop_data, &candidates) {
+        let rewrite_blocks = self.promotion_block_ids(func, loop_data);
+        if !self.loop_storage_accesses_are_safe_for_candidates(func, &rewrite_blocks, &candidates) {
             return None;
         }
         if !self.preheader_tail_is_safe_for_candidates(func, preheader, &candidates) {
@@ -229,16 +262,53 @@ impl StorageScalarPromoter {
         Some(candidates)
     }
 
-    fn has_isolated_clean_exits(&self, func: &Function, loop_data: &Loop) -> bool {
+    fn has_isolated_promotable_exits(&self, func: &Function, loop_data: &Loop) -> bool {
         loop_data.exit_blocks.iter().all(|&exit| {
             func.blocks[exit].predecessors.iter().all(|pred| loop_data.blocks.contains(pred))
-                && !matches!(
-                    func.blocks[exit].terminator,
-                    Some(Terminator::Revert { .. })
-                        | Some(Terminator::SelfDestruct { .. })
-                        | Some(Terminator::Invalid)
-                )
+                && if self.exit_rolls_back(func, exit) {
+                    self.rollback_exit_has_no_observable_effects(func, exit)
+                } else {
+                    !matches!(func.blocks[exit].terminator, Some(Terminator::SelfDestruct { .. }))
+                }
         })
+    }
+
+    /// Returns true if the exit block ends by rolling back all storage writes
+    /// of the frame, which makes skipping the promoted-value flush sound.
+    fn exit_rolls_back(&self, func: &Function, exit: BlockId) -> bool {
+        matches!(
+            func.blocks[exit].terminator,
+            Some(Terminator::Revert { .. } | Terminator::Invalid)
+        )
+    }
+
+    /// A rollback exit must not contain calls (a callee could observe the
+    /// unflushed slot and leak that observation into the revert data) or
+    /// other instructions whose results escape the rolled-back frame.
+    fn rollback_exit_has_no_observable_effects(&self, func: &Function, exit: BlockId) -> bool {
+        func.blocks[exit].instructions.iter().all(|&inst_id| {
+            !matches!(
+                &func.instructions[inst_id].kind,
+                InstKind::Call { .. }
+                    | InstKind::StaticCall { .. }
+                    | InstKind::DelegateCall { .. }
+                    | InstKind::InternalCall { .. }
+                    | InstKind::Create(_, _, _)
+                    | InstKind::Create2(_, _, _, _)
+                    | InstKind::Gas
+            )
+        })
+    }
+
+    /// Blocks whose storage accesses are checked and rewritten by promotion:
+    /// the loop body plus rollback exits, whose reads of the promoted slot
+    /// must observe the memory temp instead of the stale storage value.
+    fn promotion_block_ids(&self, func: &Function, loop_data: &Loop) -> Vec<BlockId> {
+        let mut blocks: Vec<BlockId> = loop_data.blocks.iter().copied().collect();
+        blocks.extend(
+            loop_data.exit_blocks.iter().copied().filter(|&exit| self.exit_rolls_back(func, exit)),
+        );
+        blocks
     }
 
     fn loop_has_no_unpromotable_side_effects(&self, func: &Function, loop_data: &Loop) -> bool {
@@ -279,10 +349,10 @@ impl StorageScalarPromoter {
     fn loop_storage_accesses_are_safe(
         &self,
         func: &Function,
-        loop_data: &Loop,
+        blocks: &[BlockId],
         candidate: &StorageAlias,
     ) -> bool {
-        for &block_id in &loop_data.blocks {
+        for &block_id in blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match &func.instructions[inst_id].kind {
                     InstKind::SLoad(slot) => {
@@ -308,10 +378,10 @@ impl StorageScalarPromoter {
     fn loop_storage_accesses_are_safe_for_candidates(
         &self,
         func: &Function,
-        loop_data: &Loop,
+        blocks: &[BlockId],
         candidates: &[Candidate],
     ) -> bool {
-        for &block_id in &loop_data.blocks {
+        for &block_id in blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match &func.instructions[inst_id].kind {
                     InstKind::SLoad(slot) => {
@@ -448,10 +518,14 @@ impl StorageScalarPromoter {
             })
             .collect();
 
+        let rewrite_blocks = self.promotion_block_ids(func, loop_data);
         self.rewrite_preheader_multi(func, &promoted);
-        self.rewrite_loop_body_multi(func, loop_data, &promoted);
+        self.rewrite_loop_body_multi(func, &rewrite_blocks, &promoted);
 
         for &exit in &loop_data.exit_blocks {
+            if self.exit_rolls_back(func, exit) {
+                continue;
+            }
             for promoted in &promoted {
                 self.insert_final_store(
                     func,
@@ -506,13 +580,13 @@ impl StorageScalarPromoter {
     fn rewrite_loop_body_multi(
         &mut self,
         func: &mut Function,
-        loop_data: &Loop,
+        blocks: &[BlockId],
         promoted: &[PromotedCandidate],
     ) {
         let temps: FxHashMap<StorageAlias, ValueId> =
             promoted.iter().map(|promoted| (promoted.candidate.slot, promoted.temp_addr)).collect();
 
-        for &block_id in &loop_data.blocks {
+        for &block_id in blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 let replacement = match &func.instructions[inst_id].kind {
                     InstKind::SLoad(slot) => {
@@ -548,7 +622,10 @@ impl StorageScalarPromoter {
 
         self.rewrite_preheader(func, &promoted);
 
-        for &block_id in &loop_data.blocks {
+        for block_id in self.promotion_block_ids(func, loop_data) {
+            // Rollback exits never flush, so their rewritten stores do not
+            // need to update the dirty flag.
+            let track_dirty = loop_data.blocks.contains(&block_id);
             let mut index = 0;
             while index < func.blocks[block_id].instructions.len() {
                 let inst_id = func.blocks[block_id].instructions[index];
@@ -574,8 +651,9 @@ impl StorageScalarPromoter {
                     }
                     func.instructions[inst_id].kind = new_kind;
                     func.instructions[inst_id].metadata.storage_alias = None;
-                    if let (Some(dirty_addr), Some(dirty_value)) =
-                        (promoted.dirty_addr, promoted.dirty_value)
+                    if track_dirty
+                        && let (Some(dirty_addr), Some(dirty_value)) =
+                            (promoted.dirty_addr, promoted.dirty_value)
                         && matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _))
                     {
                         let (dirty_store, _) = self.alloc_inst_value(
@@ -592,6 +670,9 @@ impl StorageScalarPromoter {
         }
 
         for &exit in &loop_data.exit_blocks {
+            if self.exit_rolls_back(func, exit) {
+                continue;
+            }
             if let Some(dirty_addr) = promoted.dirty_addr {
                 self.insert_conditional_final_store(
                     func,
@@ -847,7 +928,7 @@ impl StorageScalarPromoter {
                 .blocks
                 .iter()
                 .any(|&block_id| func.blocks[block_id].instructions.contains(inst_id)),
-            Value::Phi { .. } | Value::Undef(_) => true,
+            Value::Undef(_) => true,
             Value::Arg { .. } | Value::Immediate(_) => false,
         }
     }

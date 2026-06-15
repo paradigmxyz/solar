@@ -5,12 +5,21 @@
 //! - Two-pass assembly for resolving jump targets
 //! - Variable-width PUSH sizing based on offset magnitudes
 
+use crate::mir::IMMUTABLE_WORD_SIZE;
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
 /// A label identifier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Label(pub u32);
+
+/// A deferred constant identifier.
+///
+/// Deferred constants are immediates whose final value is only known after
+/// bytecode emission has observed lazy backend state, such as exact spill slot
+/// allocation. They must be resolved before assembly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DeferredConst(pub u32);
 
 /// An instruction in the assembler.
 #[derive(Clone, Debug)]
@@ -21,8 +30,30 @@ pub enum AsmInst {
     Push(U256),
     /// Push a label reference (will be resolved to offset).
     PushLabel(Label),
+    /// Push a deferred constant (will be resolved before assembly).
+    PushDeferred(DeferredConst),
+    /// `PUSH32` zero placeholder for the immutable identified by this byte
+    /// offset. The constructor patches the placeholder with the immutable's
+    /// value before returning the runtime code.
+    ///
+    /// TODO: Generalize this to `PUSH<N>` once immutable byte widths are part
+    /// of MIR and constructor patching can update only the placeholder bytes.
+    PushImmutable(u64),
     /// Define a label at this position.
     Label(Label),
+}
+
+/// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
+///
+/// TODO: Track placeholder byte width here when smaller immutable references
+/// are supported.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ImmutableRef {
+    /// The immutable's byte offset identifier.
+    pub id: u64,
+    /// Byte offset of the `PUSH32` opcode in the assembled bytecode.
+    /// The 32 placeholder bytes start one byte later.
+    pub code_offset: usize,
 }
 
 /// Result of assembly.
@@ -32,6 +63,8 @@ pub struct AssembledCode {
     pub bytecode: Vec<u8>,
     /// Map from label to its final offset.
     pub label_offsets: FxHashMap<Label, usize>,
+    /// All immutable placeholders, in emission order.
+    pub immutable_refs: Vec<ImmutableRef>,
 }
 
 /// Two-pass assembler for EVM bytecode.
@@ -41,13 +74,22 @@ pub struct Assembler {
     instructions: Vec<AsmInst>,
     /// Next label ID.
     next_label: u32,
+    /// Next deferred constant ID.
+    next_deferred: u32,
+    /// Resolved values for deferred constants.
+    deferred_values: FxHashMap<DeferredConst, U256>,
 }
 
 impl Assembler {
     /// Creates a new assembler.
     #[must_use]
     pub fn new() -> Self {
-        Self { instructions: Vec::new(), next_label: 0 }
+        Self {
+            instructions: Vec::new(),
+            next_label: 0,
+            next_deferred: 0,
+            deferred_values: FxHashMap::default(),
+        }
     }
 
     /// Creates a new label.
@@ -55,6 +97,13 @@ impl Assembler {
         let label = Label(self.next_label);
         self.next_label += 1;
         label
+    }
+
+    /// Creates a new deferred constant.
+    pub fn new_deferred_const(&mut self) -> DeferredConst {
+        let id = DeferredConst(self.next_deferred);
+        self.next_deferred += 1;
+        id
     }
 
     /// Emits a raw opcode.
@@ -72,15 +121,44 @@ impl Assembler {
         self.instructions.push(AsmInst::PushLabel(label));
     }
 
+    /// Emits a push instruction for a deferred constant.
+    pub fn emit_push_deferred(&mut self, id: DeferredConst) {
+        self.instructions.push(AsmInst::PushDeferred(id));
+    }
+
+    /// Sets the value of a deferred constant.
+    pub fn set_deferred_const(&mut self, id: DeferredConst, value: U256) {
+        self.deferred_values.insert(id, value);
+    }
+
+    /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
+    pub fn emit_push_immutable(&mut self, id: u64) {
+        self.instructions.push(AsmInst::PushImmutable(id));
+    }
+
     /// Defines a label at the current position.
     pub fn define_label(&mut self, label: Label) {
         self.instructions.push(AsmInst::Label(label));
+    }
+
+    fn resolve_deferred_consts(&mut self) {
+        for inst in &mut self.instructions {
+            if let AsmInst::PushDeferred(id) = inst {
+                let value = self
+                    .deferred_values
+                    .get(id)
+                    .copied()
+                    .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
+                *inst = AsmInst::Push(value);
+            }
+        }
     }
 
     /// Assembles the instructions into bytecode.
     /// Uses an iterative two-pass algorithm that handles PUSH width changes.
     #[must_use]
     pub fn assemble(mut self) -> AssembledCode {
+        self.resolve_deferred_consts();
         self.optimize_instructions();
 
         // We need to iterate until PUSH widths stabilize
@@ -142,6 +220,13 @@ impl Assembler {
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     offset += 1 + width as usize;
                 }
+                AsmInst::PushDeferred(_) => {
+                    unreachable!("deferred constants must be resolved before assembly");
+                }
+                AsmInst::PushImmutable(_) => {
+                    // PUSH32 opcode plus 32 placeholder bytes.
+                    offset += 33;
+                }
                 AsmInst::Label(label) => {
                     label_offsets.insert(*label, offset);
                 }
@@ -168,6 +253,7 @@ impl Assembler {
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
         let mut bytecode = Vec::new();
+        let mut immutable_refs = Vec::new();
 
         for (idx, inst) in self.instructions.iter().enumerate() {
             match inst {
@@ -178,9 +264,20 @@ impl Assembler {
                     emit_push_value(&mut bytecode, *value);
                 }
                 AsmInst::PushLabel(label) => {
-                    let target_offset = label_offsets.get(label).copied().unwrap_or(0);
+                    let target_offset = label_offsets
+                        .get(label)
+                        .copied()
+                        .unwrap_or_else(|| panic!("label {label:?} was never defined"));
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
                     emit_push_fixed_width(&mut bytecode, U256::from(target_offset), width);
+                }
+                AsmInst::PushDeferred(_) => {
+                    unreachable!("deferred constants must be resolved before assembly");
+                }
+                AsmInst::PushImmutable(id) => {
+                    immutable_refs.push(ImmutableRef { id: *id, code_offset: bytecode.len() });
+                    bytecode.push(0x7f); // PUSH32
+                    bytecode.extend(std::iter::repeat_n(0, IMMUTABLE_WORD_SIZE));
                 }
                 AsmInst::Label(_) => {
                     // Labels don't emit anything - they just mark positions
@@ -189,7 +286,7 @@ impl Assembler {
             }
         }
 
-        AssembledCode { bytecode, label_offsets: label_offsets.clone() }
+        AssembledCode { bytecode, label_offsets: label_offsets.clone(), immutable_refs }
     }
 
     /// Runs local peephole optimizations over assembler instructions.
@@ -221,7 +318,98 @@ impl Assembler {
             self.instructions = optimized;
             total += changed;
         }
+        total += self.deduplicate_terminal_blocks();
         total
+    }
+
+    fn deduplicate_terminal_blocks(&mut self) -> usize {
+        let candidates = self.terminal_block_candidates();
+        if candidates.is_empty() {
+            return 0;
+        }
+
+        let mut canonical: FxHashMap<Vec<AsmInstKey>, TerminalBlock> = FxHashMap::default();
+        let mut replacements: FxHashMap<usize, Label> = FxHashMap::default();
+
+        for block in candidates {
+            if let Some(target) = canonical.get(&block.key) {
+                let replacement_size = 1 + 3 + 1; // JUMPDEST + PUSH2(label) + JUMP.
+                if block.estimated_size > replacement_size {
+                    replacements.insert(block.label_index, target.label);
+                }
+            } else {
+                canonical.insert(block.key.clone(), block);
+            }
+        }
+
+        if replacements.is_empty() {
+            return 0;
+        }
+
+        let mut optimized = Vec::with_capacity(self.instructions.len());
+        let mut removed = 0;
+        let mut i = 0;
+        while i < self.instructions.len() {
+            if let Some(&target) = replacements.get(&i)
+                && let AsmInst::Label(label) = self.instructions[i]
+                && matches!(self.instructions.get(i + 1), Some(AsmInst::Op(opcodes::JUMPDEST)))
+                && let Some(end) = self.terminal_block_end(i + 1)
+            {
+                optimized.push(AsmInst::Label(label));
+                optimized.push(AsmInst::Op(opcodes::JUMPDEST));
+                optimized.push(AsmInst::PushLabel(target));
+                optimized.push(AsmInst::Op(opcodes::JUMP));
+                removed += 1;
+                i = end + 1;
+                continue;
+            }
+            optimized.push(self.instructions[i].clone());
+            i += 1;
+        }
+
+        self.instructions = optimized;
+        removed
+    }
+
+    fn terminal_block_candidates(&self) -> Vec<TerminalBlock> {
+        let mut candidates = Vec::new();
+        for i in 0..self.instructions.len().saturating_sub(1) {
+            let AsmInst::Label(label) = self.instructions[i] else {
+                continue;
+            };
+            if !matches!(self.instructions[i + 1], AsmInst::Op(opcodes::JUMPDEST)) {
+                continue;
+            }
+            let Some(end) = self.terminal_block_end(i + 1) else {
+                continue;
+            };
+            let body = &self.instructions[i + 1..=end];
+            let key = body
+                .iter()
+                .filter(|inst| !matches!(inst, AsmInst::Label(_)))
+                .map(AsmInstKey::from_inst)
+                .collect();
+            let estimated_size = body.iter().map(estimated_inst_size).sum();
+            candidates.push(TerminalBlock { label, label_index: i, key, estimated_size });
+        }
+        candidates
+    }
+
+    fn terminal_block_end(&self, start: usize) -> Option<usize> {
+        for i in start..self.instructions.len() {
+            if i != start && matches!(self.instructions[i], AsmInst::Label(_)) {
+                if matches!(self.instructions.get(i + 1), Some(AsmInst::Op(opcodes::JUMPDEST))) {
+                    return None;
+                }
+                continue;
+            }
+            if let AsmInst::Op(op) = self.instructions[i]
+                && is_terminal_op(op)
+            {
+                return Some(i);
+            }
+        }
+        None
     }
 
     fn try_peephole(instructions: &[AsmInst], pos: usize) -> Option<(usize, Vec<AsmInst>)> {
@@ -265,7 +453,10 @@ impl Assembler {
         }
 
         if remaining.len() >= 2
-            && matches!(remaining[0], AsmInst::Push(_) | AsmInst::PushLabel(_))
+            && matches!(
+                remaining[0],
+                AsmInst::Push(_) | AsmInst::PushLabel(_) | AsmInst::PushImmutable(_)
+            )
             && matches!(remaining[1], AsmInst::Op(opcodes::POP))
         {
             return Some((2, Vec::new()));
@@ -304,6 +495,62 @@ impl Default for Assembler {
     fn default() -> Self {
         Self::new()
     }
+}
+
+#[derive(Clone, Debug)]
+struct TerminalBlock {
+    label: Label,
+    label_index: usize,
+    key: Vec<AsmInstKey>,
+    estimated_size: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum AsmInstKey {
+    Op(u8),
+    Push(U256),
+    PushLabel(Label),
+    PushDeferred(DeferredConst),
+    PushImmutable(u64),
+    Label(Label),
+}
+
+impl AsmInstKey {
+    fn from_inst(inst: &AsmInst) -> Self {
+        match *inst {
+            AsmInst::Op(op) => Self::Op(op),
+            AsmInst::Push(value) => Self::Push(value),
+            AsmInst::PushLabel(label) => Self::PushLabel(label),
+            AsmInst::PushDeferred(id) => Self::PushDeferred(id),
+            AsmInst::PushImmutable(id) => Self::PushImmutable(id),
+            AsmInst::Label(label) => Self::Label(label),
+        }
+    }
+}
+
+fn estimated_inst_size(inst: &AsmInst) -> usize {
+    match *inst {
+        AsmInst::Op(_) => 1,
+        AsmInst::Push(value) => encoded_push_len(value),
+        AsmInst::PushLabel(_) => 3,
+        AsmInst::PushDeferred(_) => {
+            unreachable!("deferred constants must be resolved before assembly")
+        }
+        AsmInst::PushImmutable(_) => 33,
+        AsmInst::Label(_) => 0,
+    }
+}
+
+fn is_terminal_op(op: u8) -> bool {
+    matches!(
+        op,
+        opcodes::STOP
+            | opcodes::JUMP
+            | opcodes::RETURN
+            | opcodes::REVERT
+            | opcodes::INVALID
+            | opcodes::SELFDESTRUCT
+    )
 }
 
 /// Returns the number of bytes needed to push a value.

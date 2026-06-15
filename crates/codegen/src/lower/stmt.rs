@@ -3,9 +3,11 @@
 use super::{LoopContext, Lowerer};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
+use solar_interface::Span;
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ExprKind, StmtKind},
+    ty::{Ty, TyKind},
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -126,8 +128,10 @@ impl<'gcx> Lowerer<'gcx> {
 
             StmtKind::Revert(expr) => {
                 let _ = self.lower_expr(builder, expr);
-                let zero = builder.imm_u64(0);
-                builder.revert(zero, zero);
+                if builder.func().block(builder.current_block()).terminator.is_none() {
+                    let zero = builder.imm_u64(0);
+                    builder.revert(zero, zero);
+                }
             }
 
             StmtKind::Emit(expr) => {
@@ -152,9 +156,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             StmtKind::Placeholder => {}
 
-            StmtKind::UncheckedBlock(block) => {
-                self.lower_block(builder, block);
-            }
+            StmtKind::UncheckedBlock(block) => self.lower_unchecked_block(builder, block),
 
             StmtKind::AssemblyBlock(block) => {
                 self.lower_block(builder, block);
@@ -162,6 +164,13 @@ impl<'gcx> Lowerer<'gcx> {
 
             StmtKind::Err(_) => {}
         }
+    }
+
+    fn lower_unchecked_block(&mut self, builder: &mut FunctionBuilder<'_>, block: &hir::Block<'_>) {
+        let prev = self.in_unchecked_block;
+        self.in_unchecked_block = true;
+        self.lower_block(builder, block);
+        self.in_unchecked_block = prev;
     }
     /// Lowers a single variable declaration.
     /// Variables that are never assigned after declaration and don't involve external calls
@@ -173,7 +182,7 @@ impl<'gcx> Lowerer<'gcx> {
         var_id: hir::VariableId,
     ) {
         let var = self.gcx.hir.variable(var_id);
-        let _ty = self.lower_type_from_var(var);
+        let var_ty = self.gcx.type_of_hir_ty(&var.ty);
 
         // Storage reference: `T storage r = <lvalue>`. Bind the storage *slot*
         // (not the dereferenced value) so `r.field` reads/writes `sload`/`sstore`
@@ -206,16 +215,23 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Check if this is a struct type - struct returns from external calls are already
         // allocated in proper memory, so they don't need extra local memory storage
-        let is_struct_type = matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Struct(_)));
+        let is_struct_type = matches!(var_ty.peel_refs().kind, TyKind::Struct(_));
 
         let initial_value = if let Some(init) = var.initializer {
-            self.lower_expr(builder, init)
-        } else if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &var.ty.kind {
+            if self.var_expects_memory_bytes_value(var) {
+                self.lower_expr_as_memory_bytes(builder, init)
+            } else {
+                self.lower_expr(builder, init)
+            }
+        } else if is_struct_type {
             // Struct without initializer: allocate memory and zero-initialize
             let struct_size = self.memory_struct_size(&var.ty);
             let struct_ptr = self.allocate_memory(builder, struct_size);
             self.zero_initialize_memory_value(builder, &var.ty, struct_ptr);
             struct_ptr
+        } else if self.is_fixed_memory_array_type(&var.ty, var.data_location) {
+            self.allocate_zeroed_fixed_memory_array(builder, &var.ty)
+                .unwrap_or_else(|| builder.imm_u256(U256::ZERO))
         } else {
             builder.imm_u256(U256::ZERO)
         };
@@ -238,8 +254,9 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn memory_struct_size(&self, ty: &hir::Type<'_>) -> u64 {
-        if matches!(ty.kind, hir::TypeKind::Custom(hir::ItemId::Struct(_))) {
-            self.calculate_memory_words_for_type(ty) * 32
+        let ty = self.gcx.type_of_hir_ty(ty);
+        if matches!(ty.peel_refs().kind, TyKind::Struct(_)) {
+            self.calculate_memory_words_for_ty(ty) * 32
         } else {
             32
         }
@@ -251,16 +268,134 @@ impl<'gcx> Lowerer<'gcx> {
         ty: &hir::Type<'_>,
         ptr: ValueId,
     ) {
-        let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &ty.kind else {
+        self.zero_initialize_memory_ty(builder, self.gcx.type_of_hir_ty(ty), ptr, ty.span);
+    }
+
+    pub(super) fn zero_memory_field_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+    ) -> ValueId {
+        self.zero_memory_field_value_ty(builder, self.gcx.type_of_hir_ty(ty), ty.span)
+    }
+
+    pub(super) fn is_fixed_memory_array_type(
+        &self,
+        ty: &hir::Type<'_>,
+        loc: Option<solar_ast::DataLocation>,
+    ) -> bool {
+        matches!(loc, None | Some(solar_ast::DataLocation::Memory))
+            && matches!(self.gcx.type_of_hir_ty(ty).peel_refs().kind, TyKind::Array(_, _))
+    }
+
+    pub(super) fn fixed_memory_array_len(&self, ty: &hir::Type<'_>) -> Option<u64> {
+        let TyKind::Array(_, len) = self.gcx.type_of_hir_ty(ty).peel_refs().kind else {
+            return None;
+        };
+        u64::try_from(len).ok()
+    }
+
+    pub(super) fn allocate_zeroed_fixed_memory_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+    ) -> Option<ValueId> {
+        let array_ty = self.gcx.type_of_hir_ty(ty);
+        let TyKind::Array(elem_ty, _) = array_ty.peel_refs().kind else {
+            return None;
+        };
+        let len = self.fixed_memory_array_len(ty)?;
+        let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
+            self.gcx
+                .dcx()
+                .err("fixed-size memory array is too large for codegen")
+                .span(ty.span)
+                .emit();
+            0
+        });
+        let ptr = self.allocate_memory(builder, alloc_size);
+        for i in 0..len {
+            let value = self.zero_memory_field_value_ty(builder, elem_ty, ty.span);
+            if i == 0 {
+                builder.mstore(ptr, value);
+            } else {
+                let offset = builder.imm_u64(i * 32);
+                let addr = builder.add(ptr, offset);
+                builder.mstore(addr, value);
+            }
+        }
+        Some(ptr)
+    }
+
+    fn zero_memory_field_value_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        span: Span,
+    ) -> ValueId {
+        match ty.peel_refs().kind {
+            TyKind::Array(elem_ty, len) => {
+                let Some(len) = u64::try_from(len).ok() else {
+                    self.gcx
+                        .dcx()
+                        .err("fixed-size memory array is too large for codegen")
+                        .span(span)
+                        .emit();
+                    return builder.imm_u256(U256::ZERO);
+                };
+                let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
+                    self.gcx
+                        .dcx()
+                        .err("fixed-size memory array is too large for codegen")
+                        .span(span)
+                        .emit();
+                    0
+                });
+                let ptr = self.allocate_memory(builder, alloc_size);
+                for i in 0..len {
+                    let value = self.zero_memory_field_value_ty(builder, elem_ty, span);
+                    if i == 0 {
+                        builder.mstore(ptr, value);
+                    } else {
+                        let offset = builder.imm_u64(i * 32);
+                        let addr = builder.add(ptr, offset);
+                        builder.mstore(addr, value);
+                    }
+                }
+                ptr
+            }
+            TyKind::DynArray(_) => {
+                let ptr = self.allocate_memory(builder, 32);
+                let zero = builder.imm_u256(U256::ZERO);
+                builder.mstore(ptr, zero);
+                ptr
+            }
+            TyKind::Struct(_) => {
+                let ptr =
+                    self.allocate_memory(builder, self.calculate_memory_words_for_ty(ty) * 32);
+                self.zero_initialize_memory_ty(builder, ty, ptr, span);
+                ptr
+            }
+            _ => builder.imm_u256(U256::ZERO),
+        }
+    }
+
+    fn zero_initialize_memory_ty(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: Ty<'gcx>,
+        ptr: ValueId,
+        span: Span,
+    ) {
+        let TyKind::Struct(struct_id) = ty.peel_refs().kind else {
             let zero = builder.imm_u256(U256::ZERO);
             builder.mstore(ptr, zero);
             return;
         };
 
-        let strukt = self.gcx.hir.strukt(*struct_id);
-        for (i, &field_id) in strukt.fields.iter().enumerate() {
-            let field = self.gcx.hir.variable(field_id);
-            let value = self.zero_memory_field_value(builder, &field.ty);
+        let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        for (i, field_ty) in field_tys.into_iter().enumerate() {
+            let value = self.zero_memory_field_value_ty(builder, field_ty, span);
             let field_offset = (i as u64) * 32;
             if field_offset == 0 {
                 builder.mstore(ptr, value);
@@ -269,27 +404,6 @@ impl<'gcx> Lowerer<'gcx> {
                 let field_addr = builder.add(ptr, offset_val);
                 builder.mstore(field_addr, value);
             }
-        }
-    }
-
-    fn zero_memory_field_value(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: &hir::Type<'_>,
-    ) -> ValueId {
-        match &ty.kind {
-            hir::TypeKind::Array(array) if array.size.is_none() => {
-                let ptr = self.allocate_memory(builder, 32);
-                let zero = builder.imm_u256(U256::ZERO);
-                builder.mstore(ptr, zero);
-                ptr
-            }
-            hir::TypeKind::Custom(hir::ItemId::Struct(_)) => {
-                let ptr = self.allocate_memory(builder, self.memory_struct_size(ty));
-                self.zero_initialize_memory_value(builder, ty, ptr);
-                ptr
-            }
-            _ => builder.imm_u256(U256::ZERO),
         }
     }
 
@@ -302,8 +416,20 @@ impl<'gcx> Lowerer<'gcx> {
         var_ids: &[Option<hir::VariableId>],
         init: &hir::Expr<'_>,
     ) {
-        if self.is_low_level_call_expr(init) && var_ids.iter().skip(1).any(Option::is_some) {
-            panic!("codegen does not support low-level call returndata bytes yet");
+        if self.is_low_level_call_expr(init) {
+            // `(bool success, bytes memory data) = addr.call(...)`: the call
+            // lowering returns the success flag, and the full returndata is
+            // copied into a fresh `bytes memory` allocation right after the
+            // call (nothing can clobber the return buffer in between).
+            let success = self.lower_expr(builder, init);
+            for (i, var_id_opt) in var_ids.iter().enumerate() {
+                let Some(var_id) = var_id_opt else { continue };
+                let val = if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
+                let offset = self.alloc_local_memory(*var_id);
+                let offset_val = self.local_memory_addr(builder, offset);
+                builder.mstore(offset_val, val);
+            }
+            return;
         }
 
         // lower_expr for an external call returns the first value (from memory offset 0)
@@ -608,33 +734,45 @@ impl<'gcx> Lowerer<'gcx> {
         let sig_hash = alloy_primitives::keccak256(sig.as_bytes());
         let topic0 = builder.imm_u256(alloy_primitives::U256::from_be_bytes(sig_hash.0));
 
-        // Collect indexed parameters (additional topics) and non-indexed (data)
+        // Collect indexed parameters (additional topics) and non-indexed (data).
         let mut topics = vec![topic0];
-        let mut data_values = Vec::new();
+        let mut data_items = Vec::new();
 
-        for (i, param_id) in event.parameters.iter().enumerate() {
+        let mut arg_exprs = args.exprs();
+        for param_id in event.parameters {
             let param = self.gcx.hir.variable(*param_id);
-            let arg_expr = args.exprs().nth(i);
+            let Some(arg) = arg_exprs.next() else { continue };
 
-            if let Some(arg) = arg_expr {
-                let arg_val = self.lower_expr(builder, arg);
+            let ty = self.gcx.type_of_hir_ty(&param.ty);
 
-                if param.indexed {
-                    topics.push(arg_val);
+            if param.indexed {
+                // An indexed dynamic `bytes`/`string` is topic'd by the
+                // keccak256 of its contents, not by its (pointer) value.
+                if let Some(topic) = self.keccak_dynamic_bytes(builder, arg) {
+                    topics.push(topic);
                 } else {
-                    data_values.push(arg_val);
+                    let arg_val = self.lower_return_value_for_ty(builder, arg, ty);
+                    topics.push(arg_val);
                 }
+            } else {
+                let arg_val = self.lower_return_value_for_ty(builder, arg, ty);
+                data_items.push((arg_val, ty));
             }
         }
 
         // ABI-encode non-indexed data to memory
-        let data_size = data_values.len() * 32;
-        let mem_offset = builder.imm_u64(0);
-        for (i, val) in data_values.iter().enumerate() {
-            let offset = builder.imm_u64(i as u64 * 32);
-            builder.mstore(offset, *val);
-        }
-        let size = builder.imm_u64(data_size as u64);
+        let has_dynamic_data = data_items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty));
+        let (mem_offset, size) = if has_dynamic_data {
+            self.abi_encode_items_to_memory(builder, &data_items)
+        } else {
+            let mem_offset = builder.imm_u64(0);
+            for (i, (val, _)) in data_items.iter().enumerate() {
+                let offset = builder.imm_u64(i as u64 * 32);
+                builder.mstore(offset, *val);
+            }
+            let size = builder.imm_u64((data_items.len() * 32) as u64);
+            (mem_offset, size)
+        };
 
         // Emit the appropriate LOG instruction based on number of topics
         match topics.len() {

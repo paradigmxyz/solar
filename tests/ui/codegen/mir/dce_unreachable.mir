@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass dce
 // bb1 is unreachable (entry jumps straight to bb2).
 // DCE should clear bb1's instructions and mark it invalid.

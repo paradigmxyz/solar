@@ -1,0 +1,29 @@
+//@compile-flags: --pass cse
+// Keccak reads with non-constant sizes key the canonical size operand: reads with the
+// same dynamic size still unify, reads with different dynamic sizes must not, and a
+// memory write with a dynamic size still invalidates them conservatively.
+; module @CseKeccakDynamicSize
+fn @keep_different_dynamic_sizes(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = keccak256 0, arg0
+    v3 = keccak256 0, arg1
+    v4 = add v2, v3
+    ret v4
+}
+
+fn @reuse_same_dynamic_size(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = keccak256 0, arg0
+    v2 = keccak256 0, arg0
+    v3 = add v1, v2
+    ret v3
+}
+
+fn @invalidate_after_dynamic_size_write(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = keccak256 0, arg0
+    calldatacopy 0, 0, arg1
+    v4 = keccak256 0, arg0
+    v5 = add v2, v4
+    ret v5
+}

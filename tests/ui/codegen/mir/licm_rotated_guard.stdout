@@ -1,0 +1,67 @@
+// === ROOT/tests/ui/codegen/mir/licm_rotated_guard.mir (after licm) ===
+; module @LicmRotatedGuard
+fn @rotated_guard_overlap() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
+    v4 = mul v2, 32
+    mstore v4, 1
+    v7 = mload 320
+    v9 = lt v2, 10
+    br v9, bb2, bb3
+  bb2:
+    v1 = add v2, 1
+    jump bb1
+  bb3:
+    ret v7
+}
+
+fn @dowhile_latch_guard_overlap() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb1: v1]
+    v4 = mul v2, 32
+    mstore v4, 1
+    v7 = mload 320
+    v1 = add v2, 1
+    v10 = lt v2, 10
+    br v10, bb1, bb2
+  bb2:
+    ret v7
+}
+
+fn @top_tested_control() -> u256 {
+  bb0 (entry):
+    v9 = mload 320
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
+    v4 = lt v2, 10
+    br v4, bb2, bb3
+  bb2:
+    v6 = mul v2, 32
+    mstore v6, 1
+    v1 = add v2, 1
+    jump bb1
+  bb3:
+    ret v9
+}
+
+fn @disjoint_past_widened_range() -> u256 {
+  bb0 (entry):
+    v7 = mload 384
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
+    v4 = mul v2, 32
+    mstore v4, 1
+    v9 = lt v2, 10
+    br v9, bb2, bb3
+  bb2:
+    v1 = add v2, 1
+    jump bb1
+  bb3:
+    ret v7
+}

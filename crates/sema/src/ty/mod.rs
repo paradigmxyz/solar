@@ -71,6 +71,85 @@ pub struct InterfaceFunctions<'gcx> {
     pub inheritance_start: usize,
 }
 
+/// Sparse results produced by semantic type checking for later compiler stages.
+#[derive(Clone, Debug, Default)]
+pub struct TypeckResults<'gcx> {
+    pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
+    pub(crate) resolved_members: FxHashMap<hir::ExprId, ResolvedMember>,
+    pub(crate) unsupported_udvt_operators: FxHashSet<hir::ExprId>,
+}
+
+/// The target selected for a call callee expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ResolvedCallee {
+    pub res: hir::Res,
+    /// Whether this member call was attached to the receiver through `using for`.
+    pub attached: bool,
+}
+
+impl ResolvedCallee {
+    #[inline]
+    pub fn new(res: hir::Res, attached: bool) -> Self {
+        Self { res, attached }
+    }
+}
+
+/// The target selected for a non-call member access expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ResolvedMember {
+    /// A member with a regular item or builtin resolution.
+    Res(hir::Res),
+    /// A struct field selected from the receiver type.
+    StructField { struct_id: hir::StructId, field_index: usize },
+    /// An enum variant selected from `Enum.Variant`.
+    EnumVariant { enum_id: hir::EnumId, variant_index: usize },
+}
+
+impl<'gcx> TypeckResults<'gcx> {
+    /// Returns the type inferred for the given expression, if available.
+    #[inline]
+    pub fn type_of_expr(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.expr_types.get(&id).copied()
+    }
+
+    /// Returns the overload/member target selected for a call callee expression, if available.
+    #[inline]
+    pub fn resolved_callee(&self, id: hir::ExprId) -> Option<ResolvedCallee> {
+        self.resolved_callees.get(&id).copied()
+    }
+
+    /// Returns the target selected for a non-call member access expression, if available.
+    #[inline]
+    pub fn resolved_member(&self, id: hir::ExprId) -> Option<ResolvedMember> {
+        self.resolved_members.get(&id).copied()
+    }
+
+    /// Returns the selected builtin target for a non-call member access expression, if available.
+    #[inline]
+    pub fn builtin_member(&self, id: hir::ExprId) -> Option<Builtin> {
+        match self.resolved_member(id)? {
+            ResolvedMember::Res(hir::Res::Builtin(builtin)) => Some(builtin),
+            _ => None,
+        }
+    }
+
+    /// Returns the selected builtin target for a call callee expression, if available.
+    #[inline]
+    pub fn builtin_callee(&self, id: hir::ExprId) -> Option<Builtin> {
+        match self.resolved_callee(id)?.res {
+            hir::Res::Builtin(builtin) => Some(builtin),
+            _ => None,
+        }
+    }
+
+    /// Returns whether codegen cannot lower the user-defined operator used by this expression.
+    #[inline]
+    pub fn unsupported_udvt_operator(&self, id: hir::ExprId) -> bool {
+        self.unsupported_udvt_operators.contains(&id)
+    }
+}
+
 impl<'gcx> InterfaceFunctions<'gcx> {
     /// Returns all the functions.
     pub fn all(&self) -> &'gcx [InterfaceFunction<'gcx>] {
@@ -225,7 +304,7 @@ pub struct GlobalCtxt<'gcx> {
     stage: AtomicCompilerStage,
 
     pub types: CommonTypes<'gcx>,
-    expr_types: OnceLock<FxHashMap<hir::ExprId, Ty<'gcx>>>,
+    typeck_results: OnceLock<TypeckResults<'gcx>>,
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
@@ -259,7 +338,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
                 &interner,
                 unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump(),
             ),
-            expr_types: Default::default(),
+            typeck_results: Default::default(),
 
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
@@ -395,15 +474,51 @@ impl<'gcx> Gcx<'gcx> {
     /// Returns the type inferred for the given expression, if available.
     ///
     /// Expression types are populated by the experimental type checker, which runs when `-Ztypeck`
-    /// is enabled or a codegen output was requested.
+    /// or `-Zcodegen` is enabled, or when a codegen output was requested.
     #[inline]
     pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
-        self.expr_types.get()?.get(&id).copied()
+        self.typeck_results.get()?.type_of_expr(id)
     }
 
-    pub(crate) fn set_expr_types(self, types: FxHashMap<hir::ExprId, Ty<'gcx>>) {
-        if self.expr_types.set(types).is_err() {
-            self.dcx().bug("expression types are already initialized").emit();
+    /// Returns the overload/member target selected for a call callee expression, if available.
+    #[inline]
+    pub fn resolved_callee(self, id: hir::ExprId) -> Option<ResolvedCallee> {
+        self.typeck_results.get()?.resolved_callee(id)
+    }
+
+    /// Returns the target selected for a non-call member access expression, if available.
+    #[inline]
+    pub fn resolved_member(self, id: hir::ExprId) -> Option<ResolvedMember> {
+        self.typeck_results.get()?.resolved_member(id)
+    }
+
+    /// Returns the selected builtin target for a non-call member access expression, if available.
+    #[inline]
+    pub fn builtin_member(self, id: hir::ExprId) -> Option<Builtin> {
+        self.typeck_results.get()?.builtin_member(id)
+    }
+
+    /// Returns the selected builtin target for a call callee expression, if available.
+    #[inline]
+    pub fn builtin_callee(self, id: hir::ExprId) -> Option<Builtin> {
+        self.typeck_results.get()?.builtin_callee(id)
+    }
+
+    /// Returns whether codegen cannot lower the user-defined operator used by this expression.
+    #[inline]
+    pub fn unsupported_udvt_operator(self, id: hir::ExprId) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
+    }
+
+    /// Returns whether sparse type-checker results are available for codegen queries.
+    #[inline]
+    pub fn has_typeck_results(self) -> bool {
+        self.typeck_results.get().is_some()
+    }
+
+    pub(crate) fn set_typeck_results(self, results: TypeckResults<'gcx>) {
+        if self.typeck_results.set(results).is_err() {
+            self.dcx().bug("typeck results are already initialized").emit();
         }
     }
 

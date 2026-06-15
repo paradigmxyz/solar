@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract FunctionCall {
     function double(uint256 x) internal pure returns (uint256) {

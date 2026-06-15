@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract YulLowLevelBuiltins {
     function safeCall(address token, bytes4 selector) public returns (bool success) {

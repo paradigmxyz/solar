@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 // `.length`/`.offset` on a calldata array in inline assembly. The array
 // parameter's value is the ABI head, so `.length` reads the length word at

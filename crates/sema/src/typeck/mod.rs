@@ -1,7 +1,7 @@
 use crate::{
     ast_lowering::resolve::{Declaration, Declarations},
     hir::{self, Item, ItemId, Res, Visit},
-    ty::{Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind},
+    ty::{Gcx, SameSourceFileLevelUserTypeError, Ty, TyKind, TypeckResults},
 };
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
@@ -19,10 +19,13 @@ mod override_checker;
 mod udvt;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
-    let mut expr_types = None;
+    let mut typeck_results = None;
     parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {
-        if gcx.sess.opts.unstable.typeck || gcx.sess.opts.emit.iter().any(|e| e.is_codegen()) {
-            expr_types = Some(
+        if gcx.sess.opts.unstable.typeck
+            || gcx.sess.opts.unstable.codegen
+            || gcx.sess.opts.emit.iter().any(|e| e.is_codegen())
+        {
+            typeck_results = Some(
                 gcx.hir
                     .par_source_ids()
                     .map(|id| {
@@ -30,8 +33,8 @@ pub(crate) fn check(gcx: Gcx<'_>) {
                         // TODO: Parallelize more.
                         checker::check(gcx, id)
                     })
-                    .reduce(FxHashMap::default, |mut a, b| {
-                        merge_expr_types(gcx, &mut a, b);
+                    .reduce(TypeckResults::default, |mut a, b| {
+                        merge_typeck_results(gcx, &mut a, b);
                         a
                     }),
             );
@@ -39,8 +42,8 @@ pub(crate) fn check(gcx: Gcx<'_>) {
             gcx.hir.par_source_ids().for_each(|id| check_source(gcx, id));
         }
     },);
-    if let Some(expr_types) = expr_types {
-        gcx.set_expr_types(expr_types);
+    if let Some(typeck_results) = typeck_results {
+        gcx.set_typeck_results(typeck_results);
     }
 }
 
@@ -65,13 +68,13 @@ fn check_source(gcx: Gcx<'_>, id: hir::SourceId) {
     }
 }
 
-fn merge_expr_types<'gcx>(
+fn merge_typeck_results<'gcx>(
     gcx: Gcx<'gcx>,
-    expr_types: &mut FxHashMap<hir::ExprId, Ty<'gcx>>,
-    new_expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    results: &mut TypeckResults<'gcx>,
+    new_results: TypeckResults<'gcx>,
 ) {
-    for (id, ty) in new_expr_types {
-        if let Some(prev_ty) = expr_types.insert(id, ty) {
+    for (id, ty) in new_results.expr_types {
+        if let Some(prev_ty) = results.expr_types.insert(id, ty) {
             gcx.dcx()
                 .bug(format!(
                     "expression {id:?} already has type {}; tried to register {}",
@@ -81,6 +84,28 @@ fn merge_expr_types<'gcx>(
                 .emit();
         }
     }
+
+    for (id, res) in new_results.resolved_callees {
+        if let Some(prev_res) = results.resolved_callees.insert(id, res) {
+            gcx.dcx()
+                .bug(format!(
+                    "expression {id:?} already has resolved callee {prev_res:?}; tried to register {res:?}",
+                ))
+                .emit();
+        }
+    }
+
+    for (id, member) in new_results.resolved_members {
+        if let Some(prev_member) = results.resolved_members.insert(id, member) {
+            gcx.dcx()
+                .bug(format!(
+                    "expression {id:?} already has resolved member {prev_member:?}; tried to register {member:?}",
+                ))
+                .emit();
+        }
+    }
+
+    results.unsupported_udvt_operators.extend(new_results.unsupported_udvt_operators);
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {

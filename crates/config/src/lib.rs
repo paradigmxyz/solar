@@ -137,6 +137,9 @@ impl EvmVersion {
     pub fn has_push0(self) -> bool {
         self >= Self::Shanghai
     }
+    pub fn has_mcopy(self) -> bool {
+        self >= Self::Cancun
+    }
 }
 
 str_enum! {

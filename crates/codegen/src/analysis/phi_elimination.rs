@@ -57,49 +57,62 @@ pub struct PhiEliminationResult {
     pub phis_to_remove: Vec<(BlockId, usize)>,
 }
 
+/// Phi elimination query.
+pub struct PhiEliminator;
+
+impl PhiEliminator {
+    /// Analyzes phi nodes and returns parallel copies to insert at predecessor exits.
+    ///
+    /// The caller is responsible for modifying the function.
+    #[must_use]
+    pub fn analyze(func: &Function) -> PhiEliminationResult {
+        let mut block_copies: FxHashMap<BlockId, BlockCopies> = FxHashMap::default();
+        let mut phis_to_remove = Vec::new();
+
+        // Process each block looking for phi instructions
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
+                let inst = func.instruction(inst_id);
+
+                if let InstKind::Phi(incoming) = &inst.kind {
+                    // Find the value defined by this phi
+                    let phi_dst = find_phi_dst(func, inst_id);
+
+                    if let Some(dst) = phi_dst {
+                        let ty = func.value(dst).ty();
+
+                        // For each predecessor, insert a copy
+                        for &(pred_block, src_val) in incoming {
+                            block_copies.entry(pred_block).or_default().copies.push(ParallelCopy {
+                                src: CopySource::Value(src_val),
+                                dst: CopyDest::Value(dst),
+                                ty,
+                            });
+                        }
+
+                        phis_to_remove.push((block_id, inst_idx));
+                    }
+                }
+            }
+        }
+
+        // Sequentialize parallel copies to handle cycles
+        let mut temp_counter = 0u32;
+        for copies in block_copies.values_mut() {
+            sequentialize_copies(&mut copies.copies, &mut temp_counter);
+        }
+
+        PhiEliminationResult { block_copies, phis_to_remove }
+    }
+}
+
 /// Eliminates phi nodes by inserting parallel copies at predecessor block exits.
 ///
 /// Returns the copies to insert and phis to remove. The caller is responsible
 /// for actually modifying the function.
 #[must_use]
 pub fn eliminate_phis(func: &Function) -> PhiEliminationResult {
-    let mut block_copies: FxHashMap<BlockId, BlockCopies> = FxHashMap::default();
-    let mut phis_to_remove = Vec::new();
-
-    // Process each block looking for phi instructions
-    for (block_id, block) in func.blocks.iter_enumerated() {
-        for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
-            let inst = func.instruction(inst_id);
-
-            if let InstKind::Phi(incoming) = &inst.kind {
-                // Find the value defined by this phi
-                let phi_dst = find_phi_dst(func, inst_id);
-
-                if let Some(dst) = phi_dst {
-                    let ty = func.value(dst).ty();
-
-                    // For each predecessor, insert a copy
-                    for &(pred_block, src_val) in incoming {
-                        block_copies.entry(pred_block).or_default().copies.push(ParallelCopy {
-                            src: CopySource::Value(src_val),
-                            dst: CopyDest::Value(dst),
-                            ty,
-                        });
-                    }
-
-                    phis_to_remove.push((block_id, inst_idx));
-                }
-            }
-        }
-    }
-
-    // Sequentialize parallel copies to handle cycles
-    let mut temp_counter = 0u32;
-    for copies in block_copies.values_mut() {
-        sequentialize_copies(&mut copies.copies, &mut temp_counter);
-    }
-
-    PhiEliminationResult { block_copies, phis_to_remove }
+    PhiEliminator::analyze(func)
 }
 
 /// Finds the ValueId that is defined by a phi instruction.

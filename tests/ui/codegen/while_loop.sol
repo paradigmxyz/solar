@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: --emit=mir
+//@compile-flags: -Zcodegen --emit=mir
 
 contract WhileLoop {
     function count_down(uint256 n) public pure returns (uint256) {

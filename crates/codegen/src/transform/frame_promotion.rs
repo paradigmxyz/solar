@@ -13,12 +13,12 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::{
+    analysis::CfgInfo,
     mir::{BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::repair_reachability_phis,
+    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use std::collections::VecDeque;
 
 const LOW_MEMORY_START: u64 = 0x80;
 
@@ -107,19 +107,19 @@ impl FrameSlotPromoter {
     pub fn run(&mut self, func: &mut Function) -> FramePromotionStats {
         self.stats = FramePromotionStats::default();
 
-        if Self::has_promotion_barrier(func) {
+        if Self::has_global_observation_barrier(func) {
             return self.stats;
         }
 
-        let reachable = Self::reachable_blocks(func);
-        let inst_results = Self::inst_results(func);
-        let Some(slots) = Self::collect_promotable_slots(func, &reachable, &inst_results) else {
+        let cfg = CfgInfo::new(func);
+        let reachable = cfg.reachable();
+        let Some(slots) = Self::collect_promotable_slots(func, reachable) else {
             return self.stats;
         };
 
         for slot in slots {
             let inst_results = Self::inst_results(func);
-            let mut builder = SlotSsaBuilder::new(slot, &reachable, &inst_results);
+            let mut builder = SlotSsaBuilder::new(slot, reachable, &inst_results);
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -132,52 +132,20 @@ impl FrameSlotPromoter {
         self.stats
     }
 
-    fn has_promotion_barrier(func: &Function) -> bool {
+    fn has_global_observation_barrier(func: &Function) -> bool {
         func.blocks.iter().any(|block| {
             block.instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.instructions[inst_id].kind,
-                    InstKind::Gas
-                        | InstKind::MSize
-                        | InstKind::Call { .. }
-                        | InstKind::StaticCall { .. }
-                        | InstKind::DelegateCall { .. }
-                        | InstKind::Create(_, _, _)
-                        | InstKind::Create2(_, _, _, _)
-                )
+                matches!(func.instructions[inst_id].kind, InstKind::Gas | InstKind::MSize)
             })
         })
-    }
-
-    fn reachable_blocks(func: &Function) -> FxHashSet<BlockId> {
-        let mut reachable = FxHashSet::default();
-        let mut worklist = VecDeque::new();
-
-        reachable.insert(func.entry_block);
-        worklist.push_back(func.entry_block);
-
-        while let Some(block) = worklist.pop_front() {
-            let Some(term) = &func.blocks[block].terminator else {
-                continue;
-            };
-            for succ in term.successors() {
-                if reachable.insert(succ) {
-                    worklist.push_back(succ);
-                }
-            }
-        }
-
-        reachable
     }
 
     fn collect_promotable_slots(
         func: &Function,
         reachable: &FxHashSet<BlockId>,
-        inst_results: &FxHashMap<InstId, ValueId>,
     ) -> Option<Vec<PromotableSlot>> {
         let mut loads: FxHashMap<PromotableSlot, usize> = FxHashMap::default();
         let mut stores: FxHashMap<PromotableSlot, usize> = FxHashMap::default();
-        let mut internal_frame_escaped = false;
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             if !reachable.contains(&block_id) {
@@ -192,43 +160,13 @@ impl FrameSlotPromoter {
                             *loads.entry(slot).or_default() += 1;
                         }
                     }
-                    InstKind::MStore(addr, value) => {
+                    InstKind::MStore(addr, _) => {
                         if let Some(slot) = Self::promotable_slot(func, addr) {
-                            if Self::internal_frame_offset(func, value).is_some() {
-                                internal_frame_escaped = true;
-                            }
                             *stores.entry(slot).or_default() += 1;
-                        } else if Self::internal_frame_offset(func, value).is_some() {
-                            internal_frame_escaped = true;
                         }
                     }
-                    _ => {
-                        if matches!(kind, InstKind::Add(_, _))
-                            && inst_results
-                                .get(&inst_id)
-                                .and_then(|&value| Self::internal_frame_offset(func, value))
-                                .is_some()
-                        {
-                            continue;
-                        }
-                        if kind
-                            .operands()
-                            .iter()
-                            .any(|&value| Self::internal_frame_offset(func, value).is_some())
-                        {
-                            internal_frame_escaped = true;
-                        }
-                    }
+                    _ => {}
                 }
-            }
-
-            if let Some(term) = &block.terminator
-                && term
-                    .operands()
-                    .iter()
-                    .any(|&value| Self::internal_frame_offset(func, value).is_some())
-            {
-                internal_frame_escaped = true;
             }
         }
 
@@ -239,7 +177,9 @@ impl FrameSlotPromoter {
                 (load_count > 0 && has_store).then_some(slot)
             })
             .filter(|slot| match *slot {
-                PromotableSlot::InternalFrame(_) => !internal_frame_escaped,
+                PromotableSlot::InternalFrame(offset) => {
+                    Self::internal_frame_slot_safe(func, offset)
+                }
                 PromotableSlot::ExternalLocal(addr) => Self::external_local_slot_safe(func, addr),
             })
             .collect();
@@ -335,6 +275,124 @@ impl FrameSlotPromoter {
         true
     }
 
+    fn internal_frame_slot_safe(func: &Function, slot_offset: u64) -> bool {
+        for block in func.blocks.iter() {
+            for &inst_id in &block.instructions {
+                if Self::inst_may_observe_internal_slot(
+                    func,
+                    &func.instructions[inst_id].kind,
+                    slot_offset,
+                ) {
+                    return false;
+                }
+            }
+            if let Some(term) = &block.terminator
+                && Self::terminator_may_observe_internal_slot(func, term, slot_offset)
+            {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn inst_may_observe_internal_slot(func: &Function, kind: &InstKind, slot_offset: u64) -> bool {
+        match *kind {
+            InstKind::MLoad(addr) => {
+                !Self::is_exact_internal_slot_access(func, addr, slot_offset)
+                    && Self::internal_frame_range_may_overlap(func, addr, Some(32), slot_offset)
+            }
+            InstKind::MStore(addr, value) => {
+                (!Self::is_exact_internal_slot_access(func, addr, slot_offset)
+                    && Self::internal_frame_range_may_overlap(func, addr, Some(32), slot_offset))
+                    || Self::internal_frame_offset(func, value) == Some(slot_offset)
+            }
+            InstKind::MStore8(addr, _) => {
+                Self::internal_frame_range_may_overlap(func, addr, Some(1), slot_offset)
+            }
+            InstKind::Keccak256(addr, size)
+            | InstKind::Log0(addr, size)
+            | InstKind::ReturnDataCopy(addr, _, size)
+            | InstKind::CodeCopy(addr, _, size)
+            | InstKind::CalldataCopy(addr, _, size) => Self::internal_frame_range_may_overlap(
+                func,
+                addr,
+                Self::as_u64(func, size),
+                slot_offset,
+            ),
+            InstKind::MCopy(dest, src, size) => {
+                let size = Self::as_u64(func, size);
+                Self::internal_frame_range_may_overlap(func, dest, size, slot_offset)
+                    || Self::internal_frame_range_may_overlap(func, src, size, slot_offset)
+            }
+            InstKind::ExtCodeCopy(_, dest, _, size) => Self::internal_frame_range_may_overlap(
+                func,
+                dest,
+                Self::as_u64(func, size),
+                slot_offset,
+            ),
+            InstKind::Log1(addr, size, _)
+            | InstKind::Log2(addr, size, _, _)
+            | InstKind::Log3(addr, size, _, _, _)
+            | InstKind::Log4(addr, size, _, _, _, _) => Self::internal_frame_range_may_overlap(
+                func,
+                addr,
+                Self::as_u64(func, size),
+                slot_offset,
+            ),
+            InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::StaticCall { args_offset, args_size, ret_offset, ret_size, .. }
+            | InstKind::DelegateCall { args_offset, args_size, ret_offset, ret_size, .. } => {
+                Self::internal_frame_range_may_overlap(
+                    func,
+                    args_offset,
+                    Self::as_u64(func, args_size),
+                    slot_offset,
+                ) || Self::internal_frame_range_may_overlap(
+                    func,
+                    ret_offset,
+                    Self::as_u64(func, ret_size),
+                    slot_offset,
+                )
+            }
+            InstKind::Add(a, b) => {
+                let exact_frame_addr = Self::internal_frame_add_offset(func, a, b, 0)
+                    .or_else(|| Self::internal_frame_add_offset(func, b, a, 0))
+                    .is_some();
+                !exact_frame_addr
+                    && kind
+                        .operands()
+                        .iter()
+                        .any(|&value| Self::internal_frame_offset(func, value) == Some(slot_offset))
+            }
+            _ => kind
+                .operands()
+                .iter()
+                .any(|&value| Self::internal_frame_offset(func, value) == Some(slot_offset)),
+        }
+    }
+
+    fn terminator_may_observe_internal_slot(
+        func: &Function,
+        term: &Terminator,
+        slot_offset: u64,
+    ) -> bool {
+        match term {
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+                Self::internal_frame_range_may_overlap(
+                    func,
+                    *offset,
+                    Self::as_u64(func, *size),
+                    slot_offset,
+                )
+            }
+            _ => term
+                .operands()
+                .iter()
+                .any(|&value| Self::internal_frame_offset(func, value) == Some(slot_offset)),
+        }
+    }
+
     fn inst_may_observe_external_slot(func: &Function, kind: &InstKind, slot_addr: u64) -> bool {
         match *kind {
             InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
@@ -399,6 +457,24 @@ impl FrameSlotPromoter {
         Self::external_local_addr(func, addr) == Some(slot_addr)
     }
 
+    fn is_exact_internal_slot_access(func: &Function, addr: ValueId, slot_offset: u64) -> bool {
+        Self::internal_frame_offset(func, addr) == Some(slot_offset)
+    }
+
+    fn internal_frame_range_may_overlap(
+        func: &Function,
+        addr: ValueId,
+        size: Option<u64>,
+        slot_offset: u64,
+    ) -> bool {
+        let Some(offset) = Self::internal_frame_offset(func, addr) else { return false };
+        let Some(size) = size else { return true };
+        if size == 0 {
+            return false;
+        }
+        Self::ranges_overlap(offset, size, slot_offset, 32)
+    }
+
     fn memory_range_may_overlap(
         func: &Function,
         addr: ValueId,
@@ -436,15 +512,6 @@ impl FrameSlotPromoter {
 
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
-        }
-        for value in func.values.iter_mut() {
-            if let Value::Phi { incoming, .. } = value {
-                for (_, value) in incoming {
-                    if replacements.contains_key(value) {
-                        *value = Self::resolve_replacement(replacements, *value);
-                    }
-                }
-            }
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {

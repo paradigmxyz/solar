@@ -1,0 +1,23 @@
+//@compile-flags: --pass memory-dse
+; module @MemoryDseEqualStore
+
+; A memory observer can read the first store but does not mutate memory, so the
+; second equal store is redundant.
+fn @remove_equal_store_after_keccak(arg0: u256) -> u256 {
+  bb0 (entry):
+    mstore 128, arg0
+    v2 = keccak256 128, 32
+    mstore 128, arg0
+    ret v2
+}
+
+; A memory mutator can change the address, so the equal-looking store after it
+; must be kept.
+fn @keep_equal_store_after_copy(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    mstore 128, arg0
+    calldatacopy 128, arg1, 32
+    mstore 128, arg0
+    v4 = mload 128
+    ret v4
+}

@@ -6,7 +6,7 @@
 use crate::{
     analysis::Liveness,
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId},
-    pass::FunctionPass,
+    pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -41,7 +41,8 @@ impl StorageLoadCse {
         self.eliminated_count = 0;
         self.annotate_storage_aliases(func);
 
-        let liveness = Liveness::compute(func);
+        let mut analyses = AnalysisManager::new();
+        let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
         let inst_results = Self::inst_results(func);
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
@@ -51,7 +52,7 @@ impl StorageLoadCse {
             self.process_block(
                 func,
                 block_id,
-                &liveness,
+                liveness,
                 &inst_results,
                 &mut replacements,
                 &mut dead,

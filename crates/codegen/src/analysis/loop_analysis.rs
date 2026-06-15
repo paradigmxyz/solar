@@ -6,7 +6,10 @@
 //! - Loop-invariant computation detection
 //! - Loop bound analysis
 
-use crate::mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId};
+use crate::{
+    analysis::CfgInfo,
+    mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
+};
 use smallvec::SmallVec;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -29,6 +32,13 @@ pub struct Loop {
     pub invariant_insts: FxHashSet<InstId>,
     /// Optional: constant trip count if statically known.
     pub trip_count: Option<u64>,
+    /// Whether the guard that produced [`Self::trip_count`] is the header's
+    /// terminator. Control enters every iteration at the header, so when this
+    /// holds, non-header blocks only execute after that iteration's bound
+    /// check passed and observe the induction variable strictly below the
+    /// bound; header instructions (and any guard placed deeper in the body)
+    /// still run once more in the exiting partial iteration.
+    pub trip_guard_is_header: bool,
 }
 
 /// An induction variable in a loop.
@@ -38,8 +48,10 @@ pub struct InductionVariable {
     pub value: ValueId,
     /// Initial value before loop entry.
     pub init: ValueId,
-    /// Step/stride per iteration.
+    /// Step/stride per iteration. The magnitude only; see [`Self::descending`] for the sign.
     pub step: ValueId,
+    /// Whether the variable decreases by `step` each iteration (`i = i - step`).
+    pub descending: bool,
     /// The instruction that computes the next value.
     pub update_inst: Option<InstId>,
 }
@@ -75,8 +87,7 @@ impl LoopInfo {
 /// Loop analyzer that detects and analyzes loops in MIR functions.
 #[derive(Debug, Default)]
 pub struct LoopAnalyzer {
-    /// Dominators: for each block, the set of blocks that dominate it.
-    dominators: FxHashMap<BlockId, FxHashSet<BlockId>>,
+    cfg: Option<CfgInfo>,
 }
 
 impl LoopAnalyzer {
@@ -85,11 +96,17 @@ impl LoopAnalyzer {
         Self::default()
     }
 
+    /// Returns true if `dominator` dominates `block` in the last analyzed function.
+    #[must_use]
+    pub fn dominates(&self, dominator: BlockId, block: BlockId) -> bool {
+        self.cfg.as_ref().is_some_and(|cfg| cfg.dominators().dominates(dominator, block))
+    }
+
     /// Analyzes loops in a function.
     pub fn analyze(&mut self, func: &Function) -> LoopInfo {
         let mut info = LoopInfo::default();
 
-        self.compute_dominators(func);
+        self.cfg = Some(CfgInfo::new(func));
         let loops = self.find_natural_loops(func);
 
         for mut loop_info in loops {
@@ -108,58 +125,15 @@ impl LoopAnalyzer {
         info
     }
 
-    fn compute_dominators(&mut self, func: &Function) {
-        self.dominators.clear();
-        let all_blocks: FxHashSet<BlockId> = func.blocks.indices().collect();
-
-        for (block_id, _) in func.blocks.iter_enumerated() {
-            if block_id == func.entry_block {
-                let mut doms = FxHashSet::default();
-                doms.insert(block_id);
-                self.dominators.insert(block_id, doms);
-            } else {
-                self.dominators.insert(block_id, all_blocks.clone());
-            }
-        }
-
-        let mut changed = true;
-        while changed {
-            changed = false;
-            for (block_id, block) in func.blocks.iter_enumerated() {
-                if block_id == func.entry_block {
-                    continue;
-                }
-
-                let mut new_doms: Option<FxHashSet<BlockId>> = None;
-                for &pred in &block.predecessors {
-                    if let Some(pred_doms) = self.dominators.get(&pred) {
-                        match &mut new_doms {
-                            Some(doms) => doms.retain(|b| pred_doms.contains(b)),
-                            None => new_doms = Some(pred_doms.clone()),
-                        }
-                    }
-                }
-
-                let mut new_doms = new_doms.unwrap_or_default();
-                new_doms.insert(block_id);
-
-                if self.dominators.get(&block_id) != Some(&new_doms) {
-                    self.dominators.insert(block_id, new_doms);
-                    changed = true;
-                }
-            }
-        }
-    }
-
     fn find_natural_loops(&self, func: &Function) -> Vec<Loop> {
         let mut loops: FxHashMap<BlockId, Loop> = FxHashMap::default();
+        let Some(cfg) = &self.cfg else { return Vec::new() };
 
-        for (block_id, block) in func.blocks.iter_enumerated() {
+        for &block_id in cfg.rpo() {
+            let block = &func.blocks[block_id];
             if let Some(term) = &block.terminator {
                 for succ in term.successors() {
-                    if let Some(doms) = self.dominators.get(&block_id)
-                        && doms.contains(&succ)
-                    {
+                    if cfg.dominators().dominates(succ, block_id) {
                         let loop_info = loops.entry(succ).or_insert_with(|| Loop {
                             header: succ,
                             blocks: FxHashSet::default(),
@@ -169,6 +143,7 @@ impl LoopAnalyzer {
                             induction_vars: Vec::new(),
                             invariant_insts: FxHashSet::default(),
                             trip_count: None,
+                            trip_guard_is_header: false,
                         });
                         loop_info.back_edges.push(block_id);
                         self.collect_loop_blocks(func, succ, block_id, &mut loop_info.blocks);
@@ -238,13 +213,28 @@ impl LoopAnalyzer {
             if let InstKind::Phi(incoming) = &inst.kind {
                 let mut init_value: Option<ValueId> = None;
                 let mut step_value: Option<ValueId> = None;
+                let mut conflicting = false;
 
                 for &(block, value) in incoming {
-                    if loop_info.blocks.contains(&block) {
-                        step_value = Some(value);
+                    let slot = if loop_info.blocks.contains(&block) {
+                        &mut step_value
                     } else {
-                        init_value = Some(value);
+                        &mut init_value
+                    };
+                    match slot {
+                        None => *slot = Some(value),
+                        Some(existing) if *existing == value => {}
+                        // Distinct updates from different latches (or distinct
+                        // entry values) put the variable off the single-stride
+                        // lattice that trip counts and affine ranges assume.
+                        Some(_) => {
+                            conflicting = true;
+                            break;
+                        }
                     }
+                }
+                if conflicting {
+                    continue;
                 }
 
                 if let (Some(init), Some(step_val)) = (init_value, step_value) {
@@ -252,12 +242,14 @@ impl LoopAnalyzer {
                     if let Some(phi_val) = phi_value
                         && let Some(update_inst) =
                             self.find_update_instruction(func, phi_val, step_val)
-                        && let Some(step_amount) = self.get_step_amount(func, update_inst, phi_val)
+                        && let Some((step_amount, descending)) =
+                            self.get_step_amount(func, update_inst, phi_val)
                     {
                         loop_info.induction_vars.push(InductionVariable {
                             value: phi_val,
                             init,
                             step: step_amount,
+                            descending,
                             update_inst: Some(update_inst),
                         });
                     }
@@ -283,16 +275,27 @@ impl LoopAnalyzer {
         None
     }
 
+    /// Returns the step magnitude and whether the induction variable is descending.
     fn get_step_amount(
         &self,
         func: &Function,
         inst_id: InstId,
         phi_val: ValueId,
-    ) -> Option<ValueId> {
+    ) -> Option<(ValueId, bool)> {
         let inst = &func.instructions[inst_id];
         match &inst.kind {
-            InstKind::Add(a, b) => Some(if *a == phi_val { *b } else { *a }),
-            InstKind::Sub(_, b) => Some(*b),
+            InstKind::Add(a, b) => {
+                let step = if *a == phi_val { *b } else { *a };
+                // A wrapping decrement can be encoded as an addition of a huge
+                // constant (two's-complement negative); classify it as
+                // descending so trip-count and range reasoning bail out.
+                let descending = matches!(
+                    &func.values[step],
+                    Value::Immediate(imm) if imm.as_u256().is_some_and(|v| v.bit(255))
+                );
+                Some((step, descending))
+            }
+            InstKind::Sub(_, b) => Some((*b, true)),
             _ => None,
         }
     }
@@ -314,7 +317,7 @@ impl LoopAnalyzer {
                         invariant_values.insert(value_id);
                     }
                 }
-                Value::Phi { .. } | Value::Undef(_) => {}
+                Value::Undef(_) => {}
             }
         }
 
@@ -371,7 +374,13 @@ impl LoopAnalyzer {
             return;
         }
 
-        if let Some(bound) = self.find_loop_bound(func, loop_info, iv.value)
+        // `find_loop_bound` only recognizes `iv < bound` exit guards, which terminate
+        // ascending loops; a descending variable only leaves them by wrapping around.
+        if iv.descending {
+            return;
+        }
+
+        if let Some((bound, guard_block)) = self.find_loop_bound(func, loop_info, iv.value)
             && bound >= init
         {
             let diff = bound - init;
@@ -381,36 +390,63 @@ impl LoopAnalyzer {
                 ((diff - alloy_primitives::U256::from(1)) / step) + alloy_primitives::U256::from(1)
             };
             loop_info.trip_count = trip.try_into().ok();
+            loop_info.trip_guard_is_header =
+                loop_info.trip_count.is_some() && guard_block == loop_info.header;
         }
     }
 
+    /// Finds the upper bound of an `iv < bound` exit guard and the block whose
+    /// terminator checks it.
+    ///
+    /// Only branches that leave the loop bound the induction variable: the comparison must
+    /// hold on the in-loop (`then`) side and fail on the exit (`else`) side. In-body branches
+    /// with both successors inside the loop say nothing about the iteration space. Returns
+    /// `None` when multiple exiting guards disagree on the bound; when several guards agree,
+    /// the header guard is preferred since it bounds non-header blocks tightly.
     fn find_loop_bound(
         &self,
         func: &Function,
         loop_info: &Loop,
         iv_value: ValueId,
-    ) -> Option<alloy_primitives::U256> {
-        for &block_id in &loop_info.blocks {
-            if let Some(Terminator::Branch { condition, .. }) = &func.blocks[block_id].terminator
-                && let Value::Inst(cond_inst) = &func.values[*condition]
-            {
-                let inst = &func.instructions[*cond_inst];
-                match &inst.kind {
-                    InstKind::Lt(a, b) if *a == iv_value => {
-                        if let Value::Immediate(imm) = &func.values[*b] {
-                            return imm.as_u256();
-                        }
+    ) -> Option<(alloy_primitives::U256, BlockId)> {
+        let mut blocks: Vec<BlockId> = loop_info.blocks.iter().copied().collect();
+        blocks.sort_by_key(|block| block.index());
+
+        let mut bound: Option<(alloy_primitives::U256, BlockId)> = None;
+        for block_id in blocks {
+            let Some(Terminator::Branch { condition, then_block, else_block }) =
+                &func.blocks[block_id].terminator
+            else {
+                continue;
+            };
+            if !loop_info.blocks.contains(then_block) || loop_info.blocks.contains(else_block) {
+                continue;
+            }
+            // The bound only limits the induction variable if every completed
+            // iteration passes this guard; a guard that a back edge can bypass
+            // says nothing about the values other blocks observe.
+            if !loop_info.back_edges.iter().all(|&latch| self.dominates(block_id, latch)) {
+                continue;
+            }
+            let Value::Inst(cond_inst) = &func.values[*condition] else { continue };
+            let imm = match &func.instructions[*cond_inst].kind {
+                InstKind::Lt(a, b) if *a == iv_value => *b,
+                InstKind::Gt(a, b) if *b == iv_value => *a,
+                _ => continue,
+            };
+            let Value::Immediate(imm) = &func.values[imm] else { continue };
+            let Some(this_bound) = imm.as_u256() else { continue };
+            match bound {
+                None => bound = Some((this_bound, block_id)),
+                Some((existing, _)) if existing == this_bound => {
+                    if block_id == loop_info.header {
+                        bound = Some((this_bound, block_id));
                     }
-                    InstKind::Gt(a, b) if *b == iv_value => {
-                        if let Value::Immediate(imm) = &func.values[*a] {
-                            return imm.as_u256();
-                        }
-                    }
-                    _ => {}
                 }
+                Some(_) => return None,
             }
         }
-        None
+        bound
     }
 
     fn find_result_value(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {

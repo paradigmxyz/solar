@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass jump-threading
 // A conditional branch whose two targets are empty forwarder blocks.
 // Jump threading should rewrite the branch to point past the forwarders.

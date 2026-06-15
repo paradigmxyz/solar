@@ -24,8 +24,8 @@
 //! # Usage
 //!
 //! ```ignore
-//! use solar_codegen::analysis::validate_function;
-//! let errors = validate_function(&func);
+//! use solar_codegen::analysis::Validator;
+//! let errors = Validator::validate_function(&func);
 //! assert!(errors.is_empty(), "{:#?}", errors);
 //! ```
 //!
@@ -44,6 +44,9 @@ use crate::{
 };
 use solar_data_structures::map::FxHashMap;
 use std::fmt;
+
+/// MIR validation query.
+pub struct Validator;
 
 /// One validation finding.
 #[derive(Clone, Debug)]
@@ -82,206 +85,242 @@ impl fmt::Display for ValidationError {
     }
 }
 
-/// Validates a single function. Returns the empty vec on success.
-#[must_use]
-pub fn validate_function(func: &Function) -> Vec<ValidationError> {
-    let mut errors = Vec::new();
-    let num_values = func.values.len();
-    let num_blocks = func.blocks.len();
-    let num_insts = func.instructions.len();
+impl Validator {
+    /// Validates a single function. Returns the empty vec on success.
+    #[must_use]
+    pub fn validate_function(func: &Function) -> Vec<ValidationError> {
+        let mut errors = Vec::new();
+        let num_values = func.values.len();
+        let num_blocks = func.blocks.len();
+        let num_insts = func.instructions.len();
 
-    if num_blocks == 0 {
-        return errors;
-    }
-
-    // ----- Single-definition check -----
-    // Count how many Value entries claim to be the result of each InstId.
-    let mut inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
-    for v in func.values.iter() {
-        if let Value::Inst(inst_id) = v {
-            *inst_def_count.entry(*inst_id).or_default() += 1;
+        if num_blocks == 0 {
+            return errors;
         }
-    }
-    for (inst_id, count) in inst_def_count.iter() {
-        if *count > 1 {
-            errors.push(ValidationError::new(format!(
-                "instruction inst{} is defined by {count} Value entries (must be 1)",
-                inst_id.index()
-            )));
+
+        // ----- Single-definition check -----
+        // Count how many Value entries claim to be the result of each InstId.
+        let mut inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
+        for v in func.values.iter() {
+            if let Value::Inst(inst_id) = v {
+                *inst_def_count.entry(*inst_id).or_default() += 1;
+            }
         }
-    }
-
-    // ----- Walk every block -----
-    for (block_id, block) in func.blocks.iter_enumerated() {
-        // Check terminator presence.
-        let term = match &block.terminator {
-            Some(t) => t,
-            None => {
-                errors.push(ValidationError::at_block("block has no terminator", block_id));
-                continue;
-            }
-        };
-
-        let term_succs = term.successors();
-
-        // Check successor blocks exist and back-link.
-        for &succ in &term_succs {
-            if succ.index() >= num_blocks {
-                errors.push(ValidationError::at_block(
-                    format!("terminator references nonexistent block bb{}", succ.index()),
-                    block_id,
-                ));
-                continue;
-            }
-            if !func.blocks[succ].predecessors.contains(&block_id) {
-                errors.push(ValidationError::at_block(
-                    format!(
-                        "successor bb{} does not list bb{} as a predecessor",
-                        succ.index(),
-                        block_id.index()
-                    ),
-                    block_id,
-                ));
+        for (inst_id, count) in inst_def_count.iter() {
+            if *count > 1 {
+                errors.push(ValidationError::new(format!(
+                    "instruction inst{} is defined by {count} Value entries (must be 1)",
+                    inst_id.index()
+                )));
             }
         }
 
-        // Check stored predecessor blocks exist and branch to this block.
-        for &pred in &block.predecessors {
-            if pred.index() >= num_blocks {
-                errors.push(ValidationError::at_block(
-                    format!("stored predecessor references nonexistent block bb{}", pred.index()),
-                    block_id,
-                ));
-                continue;
-            }
-            let Some(pred_term) = &func.blocks[pred].terminator else {
-                errors.push(ValidationError::at_block(
-                    format!("stored predecessor bb{} has no terminator", pred.index()),
-                    block_id,
-                ));
-                continue;
+        // ----- Walk every block -----
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            // Check terminator presence.
+            let term = match &block.terminator {
+                Some(t) => t,
+                None => {
+                    errors.push(ValidationError::at_block("block has no terminator", block_id));
+                    continue;
+                }
             };
-            if !pred_term.successors().contains(&block_id) {
-                errors.push(ValidationError::at_block(
-                    format!(
-                        "stored predecessor bb{} does not branch to bb{}",
-                        pred.index(),
-                        block_id.index()
-                    ),
-                    block_id,
-                ));
-            }
-        }
 
-        // Check terminator operands are in range.
-        for op in term.operands() {
-            if op.index() >= num_values {
-                errors.push(ValidationError::at_block(
-                    format!(
-                        "terminator references undefined value v{} (only {} values exist)",
-                        op.index(),
-                        num_values
-                    ),
-                    block_id,
-                ));
-            }
-        }
+            let term_succs = term.successors();
 
-        // ----- Walk instructions in this block -----
-        let block_preds: Vec<BlockId> = block.predecessors.iter().copied().collect();
-        for &inst_id in &block.instructions {
-            if inst_id.index() >= num_insts {
-                errors.push(ValidationError::at_block(
-                    format!("block contains nonexistent inst{}", inst_id.index()),
-                    block_id,
-                ));
-                continue;
-            }
-            let inst = func.instruction(inst_id);
-
-            // Operand range check.
-            for op in inst.kind.operands() {
-                if op.index() >= num_values {
-                    errors.push(ValidationError::at_inst(
+            // Check successor blocks exist and back-link.
+            for &succ in &term_succs {
+                if succ.index() >= num_blocks {
+                    errors.push(ValidationError::at_block(
+                        format!("terminator references nonexistent block bb{}", succ.index()),
+                        block_id,
+                    ));
+                    continue;
+                }
+                if !func.blocks[succ].predecessors.contains(&block_id) {
+                    errors.push(ValidationError::at_block(
                         format!(
-                            "instruction references undefined value v{} (only {} values exist)",
-                            op.index(),
-                            num_values
+                            "successor bb{} does not list bb{} as a predecessor",
+                            succ.index(),
+                            block_id.index()
                         ),
                         block_id,
-                        inst_id,
                     ));
                 }
             }
 
-            // Phi-specific checks.
-            if let InstKind::Phi(incoming) = &inst.kind {
-                // Every incoming block must be a predecessor.
-                for (pred_block, _) in incoming {
-                    if pred_block.index() >= num_blocks {
+            // Check stored predecessor blocks exist and branch to this block.
+            for &pred in &block.predecessors {
+                if pred.index() >= num_blocks {
+                    errors.push(ValidationError::at_block(
+                        format!(
+                            "stored predecessor references nonexistent block bb{}",
+                            pred.index()
+                        ),
+                        block_id,
+                    ));
+                    continue;
+                }
+                let Some(pred_term) = &func.blocks[pred].terminator else {
+                    errors.push(ValidationError::at_block(
+                        format!("stored predecessor bb{} has no terminator", pred.index()),
+                        block_id,
+                    ));
+                    continue;
+                };
+                if !pred_term.successors().contains(&block_id) {
+                    errors.push(ValidationError::at_block(
+                        format!(
+                            "stored predecessor bb{} does not branch to bb{}",
+                            pred.index(),
+                            block_id.index()
+                        ),
+                        block_id,
+                    ));
+                }
+            }
+
+            // Check terminator operands are in range.
+            for op in term.operands() {
+                if op.index() >= num_values {
+                    errors.push(ValidationError::at_block(
+                        format!(
+                            "terminator references undefined value v{} (only {} values exist)",
+                            op.index(),
+                            num_values
+                        ),
+                        block_id,
+                    ));
+                }
+            }
+
+            // ----- Walk instructions in this block -----
+            let block_preds: Vec<BlockId> = block.predecessors.iter().copied().collect();
+            for &inst_id in &block.instructions {
+                if inst_id.index() >= num_insts {
+                    errors.push(ValidationError::at_block(
+                        format!("block contains nonexistent inst{}", inst_id.index()),
+                        block_id,
+                    ));
+                    continue;
+                }
+                let inst = func.instruction(inst_id);
+
+                // Operand range check.
+                for op in inst.kind.operands() {
+                    if op.index() >= num_values {
                         errors.push(ValidationError::at_inst(
                             format!(
-                                "phi incoming references nonexistent block bb{}",
-                                pred_block.index()
-                            ),
-                            block_id,
-                            inst_id,
-                        ));
-                        continue;
-                    }
-                    if !block_preds.contains(pred_block) {
-                        errors.push(ValidationError::at_inst(
-                            format!(
-                                "phi incoming from bb{} but bb{} is not a predecessor",
-                                pred_block.index(),
-                                pred_block.index()
+                                "instruction references undefined value v{} (only {} values exist)",
+                                op.index(),
+                                num_values
                             ),
                             block_id,
                             inst_id,
                         ));
                     }
                 }
-                // Every predecessor must appear in the incoming list.
-                for pred in &block_preds {
-                    if !incoming.iter().any(|(b, _)| b == pred) {
-                        errors.push(ValidationError::at_inst(
-                            format!(
-                                "phi missing incoming entry for predecessor bb{}",
-                                pred.index()
-                            ),
-                            block_id,
-                            inst_id,
-                        ));
+
+                // Phi-specific checks.
+                if let InstKind::Phi(incoming) = &inst.kind {
+                    // Every incoming block must be a predecessor.
+                    for (pred_block, _) in incoming {
+                        if pred_block.index() >= num_blocks {
+                            errors.push(ValidationError::at_inst(
+                                format!(
+                                    "phi incoming references nonexistent block bb{}",
+                                    pred_block.index()
+                                ),
+                                block_id,
+                                inst_id,
+                            ));
+                            continue;
+                        }
+                        if !block_preds.contains(pred_block) {
+                            errors.push(ValidationError::at_inst(
+                                format!(
+                                    "phi incoming from bb{} but bb{} is not a predecessor",
+                                    pred_block.index(),
+                                    pred_block.index()
+                                ),
+                                block_id,
+                                inst_id,
+                            ));
+                        }
+                    }
+                    // Every predecessor must appear in the incoming list.
+                    for pred in &block_preds {
+                        if !incoming.iter().any(|(b, _)| b == pred) {
+                            errors.push(ValidationError::at_inst(
+                                format!(
+                                    "phi missing incoming entry for predecessor bb{}",
+                                    pred.index()
+                                ),
+                                block_id,
+                                inst_id,
+                            ));
+                        }
+                    }
+                    // Incoming lists are keyed per predecessor block, so duplicate
+                    // entries for one block must agree on the value; conflicting
+                    // duplicates make the chosen value depend on consumer order.
+                    for (index, (pred_block, value)) in incoming.iter().enumerate() {
+                        if incoming
+                            .iter()
+                            .take(index)
+                            .any(|(other, other_value)| other == pred_block && other_value != value)
+                        {
+                            errors.push(ValidationError::at_inst(
+                                format!(
+                                    "phi has conflicting incoming values for predecessor bb{}",
+                                    pred_block.index()
+                                ),
+                                block_id,
+                                inst_id,
+                            ));
+                        }
                     }
                 }
             }
         }
+
+        // ----- Entry block must have no predecessors -----
+        if !func.blocks[func.entry_block].predecessors.is_empty() {
+            errors.push(ValidationError::at_block(
+                "entry block must have no predecessors",
+                func.entry_block,
+            ));
+        }
+
+        errors
     }
 
-    // ----- Entry block must have no predecessors -----
-    if !func.blocks[func.entry_block].predecessors.is_empty() {
-        errors.push(ValidationError::at_block(
-            "entry block must have no predecessors",
-            func.entry_block,
-        ));
+    /// Validates every function in a module. Errors from each function are
+    /// prefixed with the function index in the message so they can be
+    /// distinguished in mixed reports.
+    #[must_use]
+    pub fn validate_module(module: &Module) -> Vec<ValidationError> {
+        let mut all = Vec::new();
+        for (id, func) in module.iter_functions() {
+            for mut err in Self::validate_function(func) {
+                err.message = format!("[fn{}] {}", id.index(), err.message);
+                all.push(err);
+            }
+        }
+        all
     }
-
-    errors
 }
 
-/// Validates every function in a module. Errors from each function are
-/// prefixed with the function index in the message so they can be
-/// distinguished in mixed reports.
+/// Validates a single function. Returns the empty vec on success.
+#[must_use]
+pub fn validate_function(func: &Function) -> Vec<ValidationError> {
+    Validator::validate_function(func)
+}
+
+/// Validates every function in a module.
 #[must_use]
 pub fn validate_module(module: &Module) -> Vec<ValidationError> {
-    let mut all = Vec::new();
-    for (id, func) in module.iter_functions() {
-        for mut err in validate_function(func) {
-            err.message = format!("[fn{}] {}", id.index(), err.message);
-            all.push(err);
-        }
-    }
-    all
+    Validator::validate_module(module)
 }
 
 // =============================================================================
@@ -300,7 +339,7 @@ impl AnalysisPass for ValidatorAnalysis {
     }
 
     fn run(&self, func: &Function) -> Vec<ValidationError> {
-        validate_function(func)
+        Validator::validate_function(func)
     }
 }
 

@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass sccp
 // Can't fold: arg0 is overdefined (runtime value).
 // SCCP should leave these instructions as-is.

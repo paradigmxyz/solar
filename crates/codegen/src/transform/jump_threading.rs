@@ -15,8 +15,9 @@
 //!    updating all references to point to the final target.
 
 use crate::{
-    mir::{BlockId, Function, InstKind, Terminator},
+    mir::{BlockId, Function, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
+    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -72,24 +73,31 @@ impl JumpThreader {
     /// Returns the number of threading operations performed.
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.stats = JumpThreadingStats::default();
+        let mut changed = 0;
 
         // Build a map of blocks that are "forwarders" - blocks that only jump unconditionally
         let forwarders = self.find_forwarder_blocks(func);
 
-        if forwarders.is_empty() {
+        if !forwarders.is_empty() {
+            // Resolve the final target for each forwarder (following chains)
+            let final_targets = self.resolve_final_targets(&forwarders);
+
+            // Update all terminators to use final targets
+            self.thread_jumps(func, &final_targets);
+            changed += self.stats.total_threaded();
+        }
+
+        changed += self.thread_phi_constant_edges(func);
+
+        if changed == 0 {
             return 0;
         }
 
-        // Resolve the final target for each forwarder (following chains)
-        let final_targets = self.resolve_final_targets(&forwarders);
-
-        // Update all terminators to use final targets
-        self.thread_jumps(func, &final_targets);
-
         // Update predecessor/successor information
         self.update_cfg_edges(func);
+        repair_reachability_phis(func);
 
-        self.stats.total_threaded()
+        changed
     }
 
     /// Runs jump threading iteratively until no more changes.
@@ -118,12 +126,9 @@ impl JumpThreader {
                 continue;
             }
 
-            // Check if block has no real instructions (phi nodes don't count)
-            let has_real_instructions = block.instructions.iter().any(|&inst_id| {
-                !matches!(func.instructions[inst_id].kind, crate::mir::InstKind::Phi(_))
-            });
-
-            if has_real_instructions {
+            // Only fully empty blocks are forwarders: bypassing a block that
+            // contains a phi would sever the phi's incoming edges.
+            if !block.instructions.is_empty() {
                 continue;
             }
 
@@ -259,6 +264,227 @@ impl JumpThreader {
             .instructions
             .iter()
             .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+    }
+
+    fn block_has_only_phis(func: &Function, block_id: BlockId) -> bool {
+        func.blocks[block_id]
+            .instructions
+            .iter()
+            .all(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+    }
+
+    fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
+        let phi_results = Self::block_phi_results(func, block_id);
+        if phi_results.is_empty() {
+            return false;
+        }
+
+        for (other_block, block) in func.blocks.iter_enumerated() {
+            if other_block != block_id {
+                for &inst_id in &block.instructions {
+                    if func.instructions[inst_id]
+                        .kind
+                        .operands()
+                        .iter()
+                        .any(|operand| phi_results.contains(operand))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            if other_block == block_id {
+                continue;
+            }
+            if let Some(term) = &block.terminator
+                && term.operands().iter().any(|operand| phi_results.contains(operand))
+            {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn block_phi_results(func: &Function, block_id: BlockId) -> FxHashSet<ValueId> {
+        let phi_insts: FxHashSet<_> = func.blocks[block_id]
+            .instructions
+            .iter()
+            .copied()
+            .filter(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .collect();
+        func.values
+            .iter_enumerated()
+            .filter_map(|(value_id, value)| match value {
+                Value::Inst(inst_id) if phi_insts.contains(inst_id) => Some(value_id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
+        let mut rewrites = Vec::new();
+        let block_ids: Vec<_> = func.blocks.indices().collect();
+
+        for block_id in block_ids {
+            if !Self::block_has_only_phis(func, block_id) {
+                continue;
+            }
+            if Self::block_phi_results_have_external_uses(func, block_id) {
+                continue;
+            }
+
+            let Some(term) = &func.blocks[block_id].terminator else {
+                continue;
+            };
+            let predecessors = func.blocks[block_id].predecessors.clone();
+            if predecessors.is_empty() {
+                continue;
+            }
+
+            for pred in predecessors {
+                if pred == block_id || Self::successor_count(func, pred, block_id) != 1 {
+                    continue;
+                }
+                let Some(target) = self.phi_constant_target_for_pred(func, block_id, term, pred)
+                else {
+                    continue;
+                };
+                if target == block_id || Self::block_has_phi(func, target) {
+                    continue;
+                }
+                rewrites.push((pred, block_id, target));
+            }
+        }
+
+        let mut threaded = 0;
+        for (pred, old_target, new_target) in rewrites {
+            if Self::replace_successor(func, pred, old_target, new_target) {
+                threaded += 1;
+            }
+        }
+
+        if threaded != 0 {
+            self.stats.branches_threaded += threaded;
+            self.stats.gas_saved += threaded * 8;
+        }
+
+        threaded
+    }
+
+    fn phi_constant_target_for_pred(
+        &self,
+        func: &Function,
+        block_id: BlockId,
+        term: &Terminator,
+        pred: BlockId,
+    ) -> Option<BlockId> {
+        match term {
+            Terminator::Branch { condition, then_block, else_block } => {
+                let incoming = Self::incoming_value_for_pred(func, block_id, *condition, pred)?;
+                let condition = Self::const_u256(func, incoming)?;
+                Some(if condition.is_zero() { *else_block } else { *then_block })
+            }
+            Terminator::Switch { value, default, cases } => {
+                let incoming = Self::incoming_value_for_pred(func, block_id, *value, pred)?;
+                let value = Self::const_u256(func, incoming)?;
+                for (case, target) in cases {
+                    if Self::const_u256(func, *case)? == value {
+                        return Some(*target);
+                    }
+                }
+                Some(*default)
+            }
+            _ => None,
+        }
+    }
+
+    fn incoming_value_for_pred(
+        func: &Function,
+        block_id: BlockId,
+        value: ValueId,
+        pred: BlockId,
+    ) -> Option<ValueId> {
+        let Value::Inst(inst_id) = func.value(value) else {
+            return Some(value);
+        };
+        if !func.blocks[block_id].instructions.contains(inst_id) {
+            return None;
+        }
+        let InstKind::Phi(incoming) = &func.instructions[*inst_id].kind else {
+            return None;
+        };
+        incoming.iter().find_map(|(incoming_block, incoming_value)| {
+            (*incoming_block == pred).then_some(*incoming_value)
+        })
+    }
+
+    fn const_u256(func: &Function, value: ValueId) -> Option<alloy_primitives::U256> {
+        match func.value(value) {
+            Value::Immediate(imm) => imm.as_u256(),
+            _ => None,
+        }
+    }
+
+    fn successor_count(func: &Function, pred: BlockId, target: BlockId) -> usize {
+        func.blocks[pred]
+            .terminator
+            .as_ref()
+            .map(|term| term.successors().into_iter().filter(|&succ| succ == target).count())
+            .unwrap_or_default()
+    }
+
+    fn replace_successor(
+        func: &mut Function,
+        pred: BlockId,
+        old_target: BlockId,
+        new_target: BlockId,
+    ) -> bool {
+        let Some(term) = &mut func.blocks[pred].terminator else {
+            return false;
+        };
+        match term {
+            Terminator::Jump(target) => {
+                if *target == old_target {
+                    *target = new_target;
+                    true
+                } else {
+                    false
+                }
+            }
+            Terminator::Branch { then_block, else_block, .. } => {
+                let mut changed = false;
+                if *then_block == old_target {
+                    *then_block = new_target;
+                    changed = true;
+                }
+                if *else_block == old_target {
+                    *else_block = new_target;
+                    changed = true;
+                }
+                changed
+            }
+            Terminator::Switch { default, cases, .. } => {
+                let mut changed = false;
+                if *default == old_target {
+                    *default = new_target;
+                    changed = true;
+                }
+                for (_, target) in cases {
+                    if *target == old_target {
+                        *target = new_target;
+                        changed = true;
+                    }
+                }
+                changed
+            }
+            Terminator::Return { .. }
+            | Terminator::Revert { .. }
+            | Terminator::ReturnData { .. }
+            | Terminator::Stop
+            | Terminator::SelfDestruct { .. }
+            | Terminator::Invalid => false,
+        }
     }
 
     /// Updates CFG edges after threading.

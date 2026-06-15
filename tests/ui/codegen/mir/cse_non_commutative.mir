@@ -1,4 +1,3 @@
-//@ignore-host: windows
 //@compile-flags: --pass cse
 // sub is NOT commutative: sub(a,b) != sub(b,a).
 // CSE must NOT merge them.

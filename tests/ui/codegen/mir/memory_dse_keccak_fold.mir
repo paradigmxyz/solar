@@ -1,0 +1,26 @@
+//@compile-flags: --pass memory-dse
+; module @MemoryDseKeccakFold
+fn @fold_constant_scratch_keccak() -> bytes32 {
+  bb0 (entry):
+    mstore 0, 7
+    mstore 32, 5
+    v2 = keccak256 0, 64
+    ret v2
+}
+
+fn @keep_dynamic_word(arg0: u256) -> bytes32 {
+  bb0 (entry):
+    mstore 0, arg0
+    mstore 32, 5
+    v2 = keccak256 0, 64
+    ret v2
+}
+
+fn @keep_after_memory_clobber() -> bytes32 {
+  bb0 (entry):
+    mstore 0, 7
+    mstore 32, 5
+    calldatacopy 0, 0, 32
+    v3 = keccak256 0, 64
+    ret v3
+}

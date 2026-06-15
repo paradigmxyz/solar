@@ -2,79 +2,121 @@
 ; module @WhileLoop
 fn @count_down(arg0: u256) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
     mstore 160, arg0
-    jump bb1
-  bb1:
-    v7 = mload 160
-    v9 = gt v7, 0
-    br v9, bb3, bb5
-  bb2:
-    v17 = mload 160
-    mstore 128, v17
-    returndata 128, 32
+    jump bb3
   bb3:
-    v11 = mload 160
-    v13 = sub v11, 1
-    mstore 160, v13
-    jump bb4
+    v13 = mload 160
+    v15 = gt v13, 0
+    br v15, bb5, bb7
   bb4:
-    jump bb1
+    v31 = mload 160
+    mstore 128, v31
+    returndata 128, 32
   bb5:
-    jump bb2
+    v17 = mload 160
+    v19 = sub v17, 1
+    v20 = lt v17, 1
+    br v20, bb8, bb9
+  bb6:
+    jump bb3
+  bb7:
+    jump bb4
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 160, v19
+    jump bb6
 }
 
 fn @do_at_least_once(arg0: u256) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
     mstore 160, 0
-    jump bb1
-  bb1:
-    v8 = mload 160
-    v10 = add v8, 1
-    mstore 160, v10
-    v14 = mload 160
-    v15 = lt v14, arg0
-    br v15, bb3, bb5
-  bb2:
-    v17 = mload 160
-    mstore 128, v17
-    returndata 128, 32
+    jump bb3
   bb3:
-    jump bb1
+    v14 = mload 160
+    v16 = add v14, 1
+    v17 = lt v16, v14
+    br v17, bb5, bb6
   bb4:
-    jump bb1
+    v31 = mload 160
+    mstore 128, v31
+    returndata 128, 32
   bb5:
-    jump bb2
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 160, v16
+    v28 = mload 160
+    v29 = lt v28, arg0
+    br v29, bb7, bb9
+  bb7:
+    jump bb3
+  bb8:
+    jump bb3
+  bb9:
+    jump bb4
 }
 
 fn @break_when_found(arg0: u256, arg1: u256) {
   bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
     mstore 128, 0
     mstore 160, 0
-    jump bb1
-  bb1:
-    v9 = mload 160
-    v10 = lt v9, arg0
-    br v10, bb3, bb5
-  bb2:
-    v21 = mload 160
-    mstore 128, v21
-    returndata 128, 32
+    jump bb3
   bb3:
-    v12 = mload 160
-    v13 = eq v12, arg1
-    br v13, bb6, bb7
-  bb4:
-    jump bb1
-  bb5:
-    jump bb2
-  bb6:
-    jump bb2
-  bb7:
     v15 = mload 160
-    v17 = add v15, 1
-    mstore 160, v17
+    v16 = lt v15, arg0
+    br v16, bb5, bb7
+  bb4:
+    v35 = mload 160
+    mstore 128, v35
+    returndata 128, 32
+  bb5:
+    v18 = mload 160
+    v19 = eq v18, arg1
+    br v19, bb8, bb9
+  bb6:
+    jump bb3
+  bb7:
     jump bb4
+  bb8:
+    jump bb4
+  bb9:
+    v21 = mload 160
+    v23 = add v21, 1
+    v24 = lt v23, v21
+    br v24, bb10, bb11
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 160, v23
+    jump bb6
 }
 

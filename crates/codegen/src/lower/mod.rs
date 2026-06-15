@@ -3,14 +3,24 @@
 //! This module transforms the high-level IR from solar-sema into MIR.
 
 mod abi_encode;
+mod abi_packed;
+mod bytes;
+mod call;
+mod checked_arith;
 mod expr;
+mod index;
 mod stmt;
+mod storage;
+mod type_query;
+
+pub(super) const ARRAY_METHOD_PUSH: &str = "push";
+pub(super) const ARRAY_METHOD_POP: &str = "pop";
 
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
     mir::{
-        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, ImmutableSlot, MirType,
-        Module, StorageSlot, ValueId,
+        BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
+        ImmutableSlot, MirType, Module, StorageSlot, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -18,12 +28,14 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::Ident;
+use solar_interface::{Ident, Span};
 use solar_sema::{
-    hir::{self, ContractId, FunctionId as HirFunctionId, VariableId, Visit},
-    ty::{Gcx, Ty},
+    hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
+    ty::{Gcx, Ty, TyKind},
 };
 use std::ops::ControlFlow;
+
+use self::storage::StorageLocation;
 
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
@@ -32,6 +44,12 @@ pub struct LoopContext {
     pub break_target: BlockId,
     /// Block to jump to on `continue`.
     pub continue_target: BlockId,
+}
+
+#[derive(Clone, Copy)]
+enum AbiParamSource {
+    ExternalCalldata,
+    ConstructorMemory,
 }
 
 /// Lowering context for converting HIR to MIR.
@@ -44,8 +62,12 @@ pub struct Lowerer<'gcx> {
     current_contract_id: Option<ContractId>,
     /// Mapping from HIR variable IDs to storage slots.
     storage_slots: FxHashMap<VariableId, u64>,
+    /// Mapping from HIR variable IDs to full storage locations.
+    storage_locations: FxHashMap<VariableId, StorageLocation>,
     /// Next available storage slot.
     next_storage_slot: u64,
+    /// Next available byte offset in `next_storage_slot` for packed variables.
+    next_storage_offset: u8,
     /// Mapping from HIR immutable variable IDs to runtime immutable byte offsets.
     immutable_slots: FxHashMap<VariableId, u64>,
     /// Next available immutable byte offset.
@@ -86,6 +108,8 @@ pub struct Lowerer<'gcx> {
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
     lowering_internal_function: bool,
+    /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
+    in_unchecked_block: bool,
     /// Sema return types of the function currently being lowered (one per declared
     /// return), used to ABI-encode external returns.
     current_return_tys: Vec<Ty<'gcx>>,
@@ -105,7 +129,9 @@ impl<'gcx> Lowerer<'gcx> {
             module: Module::new(name),
             current_contract_id: None,
             storage_slots: FxHashMap::default(),
+            storage_locations: FxHashMap::default(),
             next_storage_slot: 0,
+            next_storage_offset: 0,
             immutable_slots: FxHashMap::default(),
             next_immutable_offset: 0,
             locals: FxHashMap::default(),
@@ -122,6 +148,7 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_functions: FxHashSet::default(),
             lowering_constructor: false,
             lowering_internal_function: false,
+            in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
             struct_field_offsets: FxHashMap::default(),
@@ -211,17 +238,19 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(addr, value);
     }
 
-    /// Loads an immutable word from the runtime data area.
+    /// Loads an immutable word.
+    ///
+    /// Runtime code reads a `PUSH32` placeholder that the constructor patches
+    /// with the staged value before returning the runtime code. The running
+    /// constructor's own placeholders are never patched, so constructor-context
+    /// reads load the staged scratch word instead.
     pub fn load_immutable_value(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
-        let code_size = builder.codesize();
-        let immutable_len = builder.imm_u64(self.next_immutable_offset);
-        let immutable_base = builder.sub(code_size, immutable_len);
-        let offset = builder.imm_u64(offset);
-        let src = builder.add(immutable_base, offset);
-        let dest = builder.imm_u64(0);
-        let size = builder.imm_u64(32);
-        builder.codecopy(dest, src, size);
-        builder.mload(dest)
+        if self.lowering_constructor {
+            let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
+            builder.mload(addr)
+        } else {
+            builder.load_immutable(offset)
+        }
     }
 
     /// Registers a contract's bytecode for use in `new` expressions.
@@ -254,13 +283,9 @@ impl<'gcx> Lowerer<'gcx> {
         // with the same selector already exists, we skip the base version.
         let functions = self.collect_inherited_functions(contract_id);
 
-        // Check if contract has an explicit constructor
-        let has_constructor = functions
-            .iter()
-            .any(|&f| self.gcx.hir.function(f).kind == hir::FunctionKind::Constructor);
-
-        // Generate synthetic constructor for state variable initialization if needed
-        if !has_constructor {
+        // Generate a constructor for inherited construction/state-variable
+        // initialization when the current contract does not declare one.
+        if contract.ctor.is_none() {
             self.generate_synthetic_constructor(contract_id);
         }
 
@@ -297,8 +322,10 @@ impl<'gcx> Lowerer<'gcx> {
                 // Handle special functions by kind
                 match func.kind {
                     hir::FunctionKind::Constructor => {
-                        // Only include constructor from the most-derived contract
-                        if !has_constructor {
+                        // Constructors are not inherited. Base constructors
+                        // are called from the current contract's constructor
+                        // prelude instead.
+                        if base_id == contract_id && !has_constructor {
                             has_constructor = true;
                             functions.push(func_id);
                         }
@@ -328,7 +355,7 @@ impl<'gcx> Lowerer<'gcx> {
                             hir::Visibility::External | hir::Visibility::Public
                         );
                         if is_external_abi {
-                            let selector = self.compute_selector(func);
+                            let selector = self.function_selector(func_id);
                             if seen_selectors.insert(selector) {
                                 functions.push(func_id);
                             }
@@ -346,29 +373,23 @@ impl<'gcx> Lowerer<'gcx> {
         functions
     }
 
-    /// Generates a synthetic constructor to initialize state variables with initializers.
-    ///
-    /// For inheritance, this initializes state variables from all base contracts in the
-    /// correct order (most base first, most derived last).
+    /// Generates a synthetic constructor to initialize state variables and run
+    /// inherited constructors when the current contract does not declare one.
     fn generate_synthetic_constructor(&mut self, contract_id: ContractId) {
         let contract = self.gcx.hir.contract(contract_id);
         let linearized_bases = contract.linearized_bases;
 
-        // Collect state variables with initializers from all base contracts
-        // in reverse order (most base first) for proper initialization order.
-        let mut vars_with_init: Vec<VariableId> = Vec::new();
-        for &base_id in linearized_bases.iter().rev() {
-            let base_contract = self.gcx.hir.contract(base_id);
-            for var_id in base_contract.variables() {
+        let has_state_initializers = linearized_bases.iter().any(|&base_id| {
+            self.gcx.hir.contract(base_id).variables().any(|var_id| {
                 let var = self.gcx.hir.variable(var_id);
-                // Skip constant variables - they don't have storage/immutable slots
-                if var.is_state_variable() && !var.is_constant() && var.initializer.is_some() {
-                    vars_with_init.push(var_id);
-                }
-            }
-        }
+                var.is_state_variable() && !var.is_constant() && var.initializer.is_some()
+            })
+        });
+        let has_base_constructors = linearized_bases.iter().any(|&base_id| {
+            base_id != contract_id && self.gcx.hir.contract(base_id).ctor.is_some()
+        });
 
-        if vars_with_init.is_empty() {
+        if !has_state_initializers && !has_base_constructors {
             return;
         }
 
@@ -390,27 +411,17 @@ impl<'gcx> Lowerer<'gcx> {
             let mut builder = FunctionBuilder::new(&mut mir_func);
             let saved_lowering_constructor = self.lowering_constructor;
             let saved_lowering_internal_function = self.lowering_internal_function;
+            let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
             self.lowering_constructor = true;
             self.lowering_internal_function = false;
+            self.in_unchecked_block = false;
 
-            // Initialize each state variable
-            for var_id in vars_with_init {
-                let var = self.gcx.hir.variable(var_id);
-                if let Some(init) = var.initializer {
-                    let init_val = self.lower_expr(&mut builder, init);
-                    if let Some(&offset) = self.immutable_slots.get(&var_id) {
-                        self.store_immutable_value(&mut builder, offset, init_val);
-                    } else if let Some(&slot) = self.storage_slots.get(&var_id) {
-                        let slot_val = builder.imm_u64(slot);
-                        builder.sstore(slot_val, init_val);
-                    }
-                }
-            }
-
+            self.lower_constructor_prelude(&mut builder, contract_id);
             builder.stop();
             self.lowering_constructor = saved_lowering_constructor;
             self.lowering_internal_function = saved_lowering_internal_function;
+            self.in_unchecked_block = saved_in_unchecked_block;
             self.current_return_tys = saved_current_return_tys;
         }
 
@@ -437,11 +448,11 @@ impl<'gcx> Lowerer<'gcx> {
                 }
 
                 let var = self.gcx.hir.variable(var_id);
-                // Constants are inlined. Immutables are appended to runtime
-                // bytecode and loaded with CODECOPY at runtime.
+                // Constants are inlined. Immutables are patched into the
+                // runtime code's `PUSH32` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
                     let offset = self.next_immutable_offset;
-                    self.next_immutable_offset += 32;
+                    self.next_immutable_offset += IMMUTABLE_WORD_SIZE as u64;
                     self.immutable_slots.insert(var_id, offset);
 
                     let mir_ty = self.lower_type_from_var(var);
@@ -451,23 +462,22 @@ impl<'gcx> Lowerer<'gcx> {
                         name: var.name,
                     });
                 } else if var.is_state_variable() && !var.is_constant() {
-                    let base_slot = self.next_storage_slot;
-
-                    // Calculate how many slots this variable needs
-                    let num_slots = self.calculate_storage_slots_for_type(&var.ty);
-                    self.next_storage_slot += num_slots;
+                    let var_ty = self.gcx.type_of_hir_ty(&var.ty);
+                    let location = self.allocate_storage_location(var_ty, var.ty.span);
+                    let base_slot = location.slot;
 
                     // Track struct base slots for field access
-                    if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &var.ty.kind {
+                    if matches!(var_ty.peel_refs().kind, TyKind::Struct(_)) {
                         self.struct_storage_base_slots.insert(var_id, base_slot);
                     }
 
                     self.storage_slots.insert(var_id, base_slot);
+                    self.storage_locations.insert(var_id, location);
 
                     let mir_ty = self.lower_type_from_var(var);
                     self.module.add_storage_slot(StorageSlot {
                         slot: base_slot,
-                        offset: 0,
+                        offset: location.offset,
                         ty: mir_ty,
                         name: var.name,
                     });
@@ -476,177 +486,25 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Calculates the number of storage slots needed for a type.
-    fn calculate_storage_slots_for_type(&self, ty: &hir::Type<'_>) -> u64 {
-        match &ty.kind {
-            hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) => {
-                let strukt = self.gcx.hir.strukt(*struct_id);
-                let mut total = 0u64;
-                for &field_id in strukt.fields {
-                    let field = self.gcx.hir.variable(field_id);
-                    total += self.calculate_storage_slots_for_type(&field.ty);
-                }
-                total.max(1)
-            }
-            _ => 1,
-        }
+    /// Returns the constant length of a fixed-size array parameter whose elements are single
+    /// ABI words, for prologue decoding. Other parameter shapes return `None`.
+    fn fixed_word_array_param_len(&self, param: &hir::Variable<'_>) -> Option<u64> {
+        let TyKind::Array(elem, len) = self.gcx.type_of_hir_ty(&param.ty).peel_refs().kind else {
+            return None;
+        };
+        (self.abi_is_word_element(elem) && len <= U256::from(u16::MAX)).then(|| len.to::<u64>())
     }
 
-    /// Gets the storage slot offset for a struct field.
-    pub fn get_struct_field_slot_offset(
-        &mut self,
-        struct_id: hir::StructId,
-        field_index: usize,
-    ) -> u64 {
-        if let Some(&offset) = self.struct_field_offsets.get(&(struct_id, field_index)) {
-            return offset;
+    /// Whether a parameter is a memory-located dynamic array of single-word elements, which
+    /// the prologue decodes from calldata into Solidity's `[length][data...]` memory layout.
+    fn is_dyn_word_array_memory_param(&self, param: &hir::Variable<'_>) -> bool {
+        if param.data_location != Some(solar_ast::DataLocation::Memory) {
+            return false;
         }
-
-        let strukt = self.gcx.hir.strukt(struct_id);
-        let mut offset = 0u64;
-        for (i, &field_id) in strukt.fields.iter().enumerate() {
-            if i == field_index {
-                break;
-            }
-            let field = self.gcx.hir.variable(field_id);
-            offset += self.calculate_storage_slots_for_type(&field.ty);
+        match self.gcx.type_of_hir_ty(&param.ty).peel_refs().kind {
+            TyKind::DynArray(elem) => self.abi_is_word_element(elem),
+            _ => false,
         }
-
-        self.struct_field_offsets.insert((struct_id, field_index), offset);
-        offset
-    }
-
-    /// Calculates the number of 32-byte memory words needed for a type (flattened for structs).
-    pub fn calculate_memory_words_for_type(&self, ty: &hir::Type<'_>) -> u64 {
-        match &ty.kind {
-            hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) => {
-                let strukt = self.gcx.hir.strukt(*struct_id);
-                let mut total = 0u64;
-                for &field_id in strukt.fields {
-                    let field = self.gcx.hir.variable(field_id);
-                    total += self.calculate_memory_words_for_type(&field.ty);
-                }
-                total.max(1)
-            }
-            _ => 1,
-        }
-    }
-
-    /// Gets the memory byte offset for a struct field.
-    pub fn get_struct_field_memory_offset(
-        &mut self,
-        struct_id: hir::StructId,
-        field_index: usize,
-    ) -> u64 {
-        if let Some(&offset) = self.struct_field_memory_offsets.get(&(struct_id, field_index)) {
-            return offset;
-        }
-
-        let offset = (field_index as u64) * 32;
-
-        self.struct_field_memory_offsets.insert((struct_id, field_index), offset);
-        offset
-    }
-
-    /// Recursively copies a struct from storage to memory.
-    /// Handles nested structs by flattening them into contiguous memory.
-    /// Returns the next memory offset after all fields are copied.
-    pub fn copy_storage_to_memory(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: u64,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let strukt = self.gcx.hir.strukt(struct_id);
-        let mut current_slot_offset = 0u64;
-        let mut current_mem_offset = mem_offset;
-
-        for &field_id in strukt.fields {
-            let field = self.gcx.hir.variable(field_id);
-
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
-                // Recursively copy nested struct
-                current_mem_offset = self.copy_storage_to_memory(
-                    builder,
-                    *inner_struct_id,
-                    base_slot + current_slot_offset,
-                    mem_ptr,
-                    current_mem_offset,
-                );
-                current_slot_offset += self.calculate_storage_slots_for_type(&field.ty);
-            } else {
-                // Copy scalar field: SLOAD from storage, MSTORE to memory
-                let slot = base_slot + current_slot_offset;
-                let slot_val = builder.imm_u64(slot);
-                let field_val = builder.sload(slot_val);
-
-                if current_mem_offset == 0 {
-                    builder.mstore(mem_ptr, field_val);
-                } else {
-                    let offset_val = builder.imm_u64(current_mem_offset);
-                    let field_addr = builder.add(mem_ptr, offset_val);
-                    builder.mstore(field_addr, field_val);
-                }
-
-                current_slot_offset += 1;
-                current_mem_offset += 32;
-            }
-        }
-
-        current_mem_offset
-    }
-
-    /// Recursively copies a struct from memory to storage.
-    /// Handles nested structs by reading from flattened memory layout.
-    /// Returns the next memory offset after all fields are read.
-    pub fn copy_memory_to_storage(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        struct_id: hir::StructId,
-        base_slot: u64,
-        mem_ptr: ValueId,
-        mem_offset: u64,
-    ) -> u64 {
-        let strukt = self.gcx.hir.strukt(struct_id);
-        let mut current_slot_offset = 0u64;
-        let mut current_mem_offset = mem_offset;
-
-        for &field_id in strukt.fields {
-            let field = self.gcx.hir.variable(field_id);
-
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) = &field.ty.kind {
-                // Recursively copy nested struct
-                current_mem_offset = self.copy_memory_to_storage(
-                    builder,
-                    *inner_struct_id,
-                    base_slot + current_slot_offset,
-                    mem_ptr,
-                    current_mem_offset,
-                );
-                current_slot_offset += self.calculate_storage_slots_for_type(&field.ty);
-            } else {
-                // Copy scalar field: MLOAD from memory, SSTORE to storage
-                let slot = base_slot + current_slot_offset;
-                let slot_val = builder.imm_u64(slot);
-
-                let field_val = if current_mem_offset == 0 {
-                    builder.mload(mem_ptr)
-                } else {
-                    let offset_val = builder.imm_u64(current_mem_offset);
-                    let field_addr = builder.add(mem_ptr, offset_val);
-                    builder.mload(field_addr)
-                };
-
-                builder.sstore(slot_val, field_val);
-
-                current_slot_offset += 1;
-                current_mem_offset += 32;
-            }
-        }
-
-        current_mem_offset
     }
 
     /// Lowers a function to MIR.
@@ -669,10 +527,12 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
         let saved_lowering_internal_function = self.lowering_internal_function;
+        let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
 
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
+        self.in_unchecked_block = false;
         let mir_id = self.lower_function(func_id, false);
         self.lowering_functions.remove(&func_id);
 
@@ -683,6 +543,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
         self.lowering_internal_function = saved_lowering_internal_function;
+        self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
 
         mir_id
@@ -704,9 +565,11 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_current_contract_id = self.current_contract_id;
         let saved_lowering_constructor = self.lowering_constructor;
         let saved_lowering_internal_function = self.lowering_internal_function;
+        let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
 
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
+        self.in_unchecked_block = false;
         let mir_id = self.lower_function(func_id, true);
 
         self.locals = saved_locals;
@@ -716,6 +579,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_contract_id = saved_current_contract_id;
         self.lowering_constructor = saved_lowering_constructor;
         self.lowering_internal_function = saved_lowering_internal_function;
+        self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
 
         mir_id
@@ -757,8 +621,9 @@ impl<'gcx> Lowerer<'gcx> {
             || mir_func.attributes.is_receive
             || mir_func.attributes.is_fallback;
         let uses_external_abi = mir_func.is_public() && !is_special && !force_internal;
+        let decodes_abi_params = uses_external_abi || mir_func.attributes.is_constructor;
         if uses_external_abi {
-            mir_func.selector = Some(self.compute_selector(hir_func));
+            mir_func.selector = Some(self.function_selector(func_id));
         }
         let uses_internal_frame = !uses_external_abi && !is_special;
 
@@ -768,6 +633,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
         self.lowering_internal_function = uses_internal_frame;
+        self.in_unchecked_block = false;
         self.current_return_tys = hir_func
             .returns
             .iter()
@@ -780,29 +646,61 @@ impl<'gcx> Lowerer<'gcx> {
             self.collect_assigned_vars_block(body);
         }
 
+        let external_arg_head_size = if uses_external_abi {
+            hir_func
+                .parameters
+                .iter()
+                .map(|&id| {
+                    let param = self.gcx.hir.variable(id);
+                    let ty = self.gcx.type_of_hir_ty(&param.ty);
+                    self.abi_head_size(ty)
+                })
+                .sum()
+        } else {
+            0
+        };
+
         {
             let mut builder = FunctionBuilder::new(&mut mir_func);
 
+            if uses_external_abi {
+                Self::emit_external_calldata_head_size_check(&mut builder, external_arg_head_size);
+            }
+
             for &param_id in hir_func.parameters {
                 let param = self.gcx.hir.variable(param_id);
+                let param_ty = self.gcx.type_of_hir_ty(&param.ty);
                 let ty = self.lower_type_from_var(param);
 
                 // Check if this is a struct parameter that needs special handling
-                if uses_external_abi
-                    && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &param.ty.kind
-                {
+                let abi_param_source = if self.lowering_constructor {
+                    AbiParamSource::ConstructorMemory
+                } else {
+                    AbiParamSource::ExternalCalldata
+                };
+
+                if decodes_abi_params && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind {
                     // Struct parameters: copy fields from calldata to memory
-                    let strukt = self.gcx.hir.strukt(*struct_id);
-                    let num_fields = strukt.fields.len();
+                    let strukt = self.gcx.hir.strukt(struct_id);
+                    let field_ids = strukt.fields;
+                    let num_fields = field_ids.len();
 
                     // Allocate memory for the struct
                     let struct_size = (num_fields as u64) * 32;
                     let struct_ptr = self.allocate_memory(&mut builder, struct_size);
 
                     // Add MIR params for each struct field (they come from calldata)
-                    for field_idx in 0..num_fields {
+                    for (field_idx, &field_id) in field_ids.iter().enumerate() {
+                        let arg_index = builder.func().params.len() as u64;
                         let field_ty = MirType::uint256();
                         let field_val = builder.add_param(field_ty);
+                        let field_var = self.gcx.hir.variable(field_id);
+                        self.emit_abi_param_validation(
+                            &mut builder,
+                            arg_index,
+                            &field_var.ty,
+                            abi_param_source,
+                        );
 
                         // Store the field value into the struct memory
                         let field_offset = (field_idx as u64) * 32;
@@ -817,25 +715,141 @@ impl<'gcx> Lowerer<'gcx> {
 
                     // Store the memory pointer as the local (not the Arg value)
                     self.locals.insert(param_id, struct_ptr);
+                } else if decodes_abi_params
+                    && let Some(len) = self.fixed_word_array_param_len(param)
+                {
+                    // Fixed-size array of word elements (memory or calldata):
+                    // the ABI head is `len` inline words. Add one MIR param per
+                    // element and copy them to memory, like struct params.
+                    let array_ptr = self.allocate_memory(&mut builder, len * 32);
+                    let elem_hir_ty = match &param.ty.kind {
+                        hir::TypeKind::Array(array) => &array.element,
+                        _ => &param.ty,
+                    };
+                    for elem_idx in 0..len {
+                        let arg_index = builder.func().params.len() as u64;
+                        let elem_val = builder.add_param(MirType::uint256());
+                        self.emit_abi_param_validation(
+                            &mut builder,
+                            arg_index,
+                            elem_hir_ty,
+                            abi_param_source,
+                        );
+                        if elem_idx == 0 {
+                            builder.mstore(array_ptr, elem_val);
+                        } else {
+                            let offset_val = builder.imm_u64(elem_idx * 32);
+                            let elem_addr = builder.add(array_ptr, offset_val);
+                            builder.mstore(elem_addr, elem_val);
+                        }
+                    }
+                    self.locals.insert(param_id, array_ptr);
+                } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param) {
+                    // Dynamic array of word elements in memory: the ABI head is
+                    // an offset to `[length][elements...]` in the ABI argument
+                    // blob. Runtime calls read it from calldata after the
+                    // selector; constructors read it from the copied argument
+                    // blob at memory 0x80.
+                    let head = builder.add_param(ty);
+                    let abi_base =
+                        builder.imm_u64(if self.lowering_constructor { 0x80 } else { 4 });
+                    let len_pos = builder.add(abi_base, head);
+                    let len = if self.lowering_constructor {
+                        builder.mload(len_pos)
+                    } else {
+                        builder.calldataload(len_pos)
+                    };
+                    let word = builder.imm_u64(32);
+                    let data_bytes = builder.mul(len, word);
+                    let total_bytes = builder.add(data_bytes, word);
+                    let free_ptr_addr = builder.imm_u64(0x40);
+                    let array_ptr = builder.mload(free_ptr_addr);
+                    let new_free_ptr = builder.add(array_ptr, total_bytes);
+                    let free_ptr_addr = builder.imm_u64(0x40);
+                    builder.mstore(free_ptr_addr, new_free_ptr);
+                    builder.mstore(array_ptr, len);
+                    let dst = builder.add(array_ptr, word);
+                    let src = builder.add(len_pos, word);
+                    if self.lowering_constructor {
+                        self.mcopy(&mut builder, dst, src, data_bytes, None);
+                    } else {
+                        builder.calldatacopy(dst, src, data_bytes);
+                    }
+                    self.locals.insert(param_id, array_ptr);
+                } else if decodes_abi_params
+                    && param.data_location == Some(solar_ast::DataLocation::Memory)
+                    && matches!(
+                        param_ty.peel_refs().kind,
+                        TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+                    )
+                {
+                    // `bytes`/`string` memory parameter: the ABI head word is
+                    // the payload's offset relative to the start of the ABI
+                    // arguments. Runtime calls read it from calldata after the
+                    // selector; constructors read it from the copied argument
+                    // blob at memory 0x80.
+                    let head = builder.add_param(ty);
+                    let abi_base =
+                        builder.imm_u64(if self.lowering_constructor { 0x80 } else { 4 });
+                    let len_pos = builder.add(abi_base, head);
+                    let len = if self.lowering_constructor {
+                        builder.mload(len_pos)
+                    } else {
+                        builder.calldataload(len_pos)
+                    };
+                    let thirty_one = builder.imm_u64(31);
+                    let rounded = builder.add(len, thirty_one);
+                    let mask = builder.not(thirty_one);
+                    let padded = builder.and(rounded, mask);
+                    let word = builder.imm_u64(32);
+                    let total = builder.add(padded, word);
+                    let ptr = self.allocate_memory_dynamic(&mut builder, total);
+                    builder.mstore(ptr, len);
+                    let data_ptr = builder.add(ptr, word);
+                    let src = builder.add(len_pos, word);
+                    if self.lowering_constructor {
+                        self.mcopy(&mut builder, data_ptr, src, len, None);
+                    } else {
+                        builder.calldatacopy(data_ptr, src, len);
+                    }
+                    self.locals.insert(param_id, ptr);
                 } else {
                     // Non-struct parameters: use normal Arg handling
+                    let arg_index = builder.func().params.len() as u64;
                     let val = builder.add_param(ty);
+                    if decodes_abi_params {
+                        self.emit_abi_param_validation(
+                            &mut builder,
+                            arg_index,
+                            &param.ty,
+                            abi_param_source,
+                        );
+                    }
                     self.locals.insert(param_id, val);
                 }
             }
 
             for &ret_id in hir_func.returns {
                 let ret_var = self.gcx.hir.variable(ret_id);
+                let ret_ty = self.gcx.type_of_hir_ty(&ret_var.ty);
                 let ty = self.lower_type_from_var(ret_var);
                 builder.add_return(ty);
                 // Allocate memory for return variables so they can be assigned to
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
                 let offset = self.alloc_local_memory(ret_id);
                 let offset_val = self.local_memory_addr(&mut builder, offset);
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(_)) = &ret_var.ty.kind {
-                    let struct_size = self.calculate_memory_words_for_type(&ret_var.ty) * 32;
+                if matches!(ret_ty.peel_refs().kind, TyKind::Struct(_)) {
+                    let struct_size = self.calculate_memory_words_for_ty(ret_ty) * 32;
                     let struct_ptr = self.allocate_memory(&mut builder, struct_size);
                     builder.mstore(offset_val, struct_ptr);
+                } else if self.is_fixed_memory_array_type(&ret_var.ty, ret_var.data_location)
+                    && let Some(array_ptr) =
+                        self.allocate_zeroed_fixed_memory_array(&mut builder, &ret_var.ty)
+                {
+                    // A named fixed-array return must point at real zeroed
+                    // memory like a local declaration; a zero pointer aliases
+                    // the scratch space.
+                    builder.mstore(offset_val, array_ptr);
                 } else {
                     let zero = builder.imm_u256(U256::ZERO);
                     builder.mstore(offset_val, zero);
@@ -887,6 +901,163 @@ impl<'gcx> Lowerer<'gcx> {
         mir_id
     }
 
+    /// Reverts when calldata does not contain the complete ABI head.
+    ///
+    /// `calldataload` returns zero for missing bytes, so this guard must run
+    /// before parameter validation or short calldata can be accepted as a
+    /// canonical zero argument.
+    fn emit_external_calldata_head_size_check(builder: &mut FunctionBuilder<'_>, head_size: u64) {
+        if head_size == 0 {
+            return;
+        }
+        let calldatasize = builder.calldatasize();
+        let selector_size = builder.imm_u64(4);
+        let payload_size = builder.sub(calldatasize, selector_size);
+        let required_size = builder.imm_u64(head_size);
+        let is_short = builder.slt(payload_size, required_size);
+        Self::emit_revert_if(builder, is_short);
+    }
+
+    /// Validates the ABI encoding of a value-type external parameter.
+    ///
+    /// Solc via-ir reverts with empty revert data when the calldata word of a
+    /// value-type parameter is not its canonical encoding, and downstream code
+    /// (including our checked-arithmetic shapes) relies on arguments being
+    /// canonical. We mirror solc's `validator_revert_t_*` semantics:
+    /// - `uintN` (N < 256): high bits must be zero
+    /// - `intN` (N < 256): the word must equal its sign extension
+    /// - `address` / contract types: top 96 bits must be zero
+    /// - `bool`: the word must be 0 or 1
+    /// - `bytesN` (N < 32): low `32 - N` bytes must be zero
+    /// - enums: the value must be less than the member count
+    ///
+    /// Reference and dynamic types are not validated here.
+    ///
+    /// The check reads the raw word with an explicit `calldataload` instead of
+    /// reusing the `Arg` value: optimization passes are allowed to assume that
+    /// `Arg` values of external functions are canonical (this validation is
+    /// what establishes that invariant), so the validator itself must read the
+    /// unvalidated word opaquely or it would be folded away.
+    fn emit_abi_param_validation(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arg_index: u64,
+        hir_ty: &hir::Type<'_>,
+        source: AbiParamSource,
+    ) {
+        enum Validator {
+            /// The word must equal itself masked with the given mask.
+            Mask(U256),
+            /// The word must equal `signextend(byte_index, word)`.
+            SignExtend(u64),
+            /// The word must equal `iszero(iszero(word))`.
+            Bool,
+            /// The word must be less than the member count.
+            EnumRange(u64),
+        }
+
+        let mut ty = self.gcx.type_of_hir_ty(hir_ty);
+        if let TyKind::Udvt(underlying, _) = ty.kind {
+            ty = underlying;
+        }
+        let validator = match ty.kind {
+            TyKind::Elementary(elem) => match elem {
+                ElementaryType::UInt(size) => {
+                    let bits = size.bits();
+                    if bits >= 256 {
+                        return;
+                    }
+                    Validator::Mask(U256::MAX >> (256 - usize::from(bits)))
+                }
+                ElementaryType::Int(size) => {
+                    let bits = size.bits();
+                    if bits >= 256 {
+                        return;
+                    }
+                    Validator::SignExtend(u64::from(bits / 8) - 1)
+                }
+                ElementaryType::Address(_) => Validator::Mask(U256::MAX >> 96),
+                ElementaryType::Bool => Validator::Bool,
+                ElementaryType::FixedBytes(size) => {
+                    let bytes = size.bytes();
+                    if bytes >= 32 {
+                        return;
+                    }
+                    Validator::Mask(U256::MAX << (256 - 8 * usize::from(bytes)))
+                }
+                _ => return,
+            },
+            TyKind::Contract(_) => Validator::Mask(U256::MAX >> 96),
+            TyKind::Enum(enum_id) => {
+                Validator::EnumRange(self.gcx.hir.enumm(enum_id).variants.len() as u64)
+            }
+            _ => return,
+        };
+
+        let word = match source {
+            AbiParamSource::ExternalCalldata => {
+                // Runtime ABI encoding: selector (4 bytes) + one head word per parameter.
+                let offset = builder.imm_u64(4 + arg_index * 32);
+                builder.calldataload(offset)
+            }
+            AbiParamSource::ConstructorMemory => {
+                // Constructor ABI arguments are copied to memory at 0x80 by the backend.
+                let offset = builder.imm_u64(0x80 + arg_index * 32);
+                builder.mload(offset)
+            }
+        };
+        let ok = match validator {
+            Validator::Mask(mask) => {
+                let mask = builder.imm_u256(mask);
+                let canonical = builder.and(word, mask);
+                builder.eq(word, canonical)
+            }
+            Validator::SignExtend(byte_index) => {
+                let byte_index = builder.imm_u64(byte_index);
+                let canonical = builder.signextend(byte_index, word);
+                builder.eq(word, canonical)
+            }
+            Validator::Bool => {
+                let is_zero = builder.iszero(word);
+                let canonical = builder.iszero(is_zero);
+                builder.eq(word, canonical)
+            }
+            Validator::EnumRange(count) => {
+                let count = builder.imm_u64(count);
+                builder.lt(word, count)
+            }
+        };
+        Self::emit_revert_unless(builder, ok);
+    }
+
+    /// Branches to a plain `revert(0, 0)` when `cond` is zero, then continues
+    /// lowering in the fallthrough block.
+    fn emit_revert_unless(builder: &mut FunctionBuilder<'_>, cond: ValueId) {
+        let revert_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(cond, continue_block, revert_block);
+
+        builder.switch_to_block(revert_block);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+
+        builder.switch_to_block(continue_block);
+    }
+
+    /// Reverts with empty data when `cond` is true, continuing otherwise.
+    /// Branching directly on the condition avoids an `iszero` polarity flip.
+    fn emit_revert_if(builder: &mut FunctionBuilder<'_>, cond: ValueId) {
+        let revert_block = builder.create_block();
+        let continue_block = builder.create_block();
+        builder.branch(cond, revert_block, continue_block);
+
+        builder.switch_to_block(revert_block);
+        let zero = builder.imm_u64(0);
+        builder.revert(zero, zero);
+
+        builder.switch_to_block(continue_block);
+    }
+
     /// Lowers state-variable initializers and base constructors for an explicit constructor.
     fn lower_constructor_prelude(
         &mut self,
@@ -921,9 +1092,8 @@ impl<'gcx> Lowerer<'gcx> {
                     let init_val = self.lower_expr(builder, init);
                     if let Some(&offset) = self.immutable_slots.get(&var_id) {
                         self.store_immutable_value(builder, offset, init_val);
-                    } else if let Some(&slot) = self.storage_slots.get(&var_id) {
-                        let slot_val = builder.imm_u64(slot);
-                        builder.sstore(slot_val, init_val);
+                    } else if let Some(&location) = self.storage_locations.get(&var_id) {
+                        self.store_storage_location(builder, location, init_val);
                     }
                 }
             }
@@ -936,97 +1106,58 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Computes the 4-byte function selector.
-    fn compute_selector(&self, func: &hir::Function<'_>) -> [u8; 4] {
-        use alloy_primitives::keccak256;
-
-        let name = func.name.map(|n| n.to_string()).unwrap_or_default();
-        let mut sig = name;
-        sig.push('(');
-        for (i, &param_id) in func.parameters.iter().enumerate() {
-            if i > 0 {
-                sig.push(',');
-            }
-            let param = self.gcx.hir.variable(param_id);
-            sig.push_str(&self.type_canonical_name(param));
-        }
-        sig.push(')');
-
-        let hash = keccak256(sig.as_bytes());
-        [hash[0], hash[1], hash[2], hash[3]]
+    fn function_selector(&self, func_id: HirFunctionId) -> [u8; 4] {
+        self.gcx.function_selector(func_id).0
     }
 
-    /// Gets the canonical name of a type for selector computation.
-    fn type_canonical_name(&self, var: &hir::Variable<'_>) -> String {
-        let ty = &var.ty;
-        self.type_kind_canonical_name(&ty.kind)
-    }
-
-    /// Gets the canonical name from a TypeKind.
-    fn type_kind_canonical_name(&self, kind: &hir::TypeKind<'_>) -> String {
-        match kind {
-            hir::TypeKind::Elementary(elem) => elem.to_abi_str().into_owned(),
-            hir::TypeKind::Array(arr) => {
-                let elem_name = self.type_kind_canonical_name(&arr.element.kind);
-                format!("{elem_name}[]")
-            }
-            hir::TypeKind::Mapping(_) => "mapping".to_string(),
-            hir::TypeKind::Function(_) => "function".to_string(),
-            hir::TypeKind::Custom(item_id) => match item_id {
-                hir::ItemId::Struct(struct_id) => {
-                    // Structs are encoded as tuples in ABI signatures
-                    let s = self.gcx.hir.strukt(*struct_id);
-                    let mut tuple = String::from("(");
-                    for (i, &field_id) in s.fields.iter().enumerate() {
-                        if i > 0 {
-                            tuple.push(',');
-                        }
-                        let field = self.gcx.hir.variable(field_id);
-                        tuple.push_str(&self.type_kind_canonical_name(&field.ty.kind));
-                    }
-                    tuple.push(')');
-                    tuple
-                }
-                hir::ItemId::Enum(_) => {
-                    // Enums are represented as uint8 in ABI encoding
-                    "uint8".to_string()
-                }
-                hir::ItemId::Contract(_) => "address".to_string(),
-                _ => "unknown".to_string(),
-            },
-            hir::TypeKind::Err(_) => "error".to_string(),
+    pub(super) fn mcopy(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        dest: ValueId,
+        src: ValueId,
+        len: ValueId,
+        span: Option<Span>,
+    ) {
+        if self.gcx.sess.opts.evm_version.has_mcopy() {
+            builder.mcopy(dest, src, len);
+        } else {
+            let err = self.gcx.dcx().err("codegen requires Cancun-compatible EVM for memory copy");
+            let err = if let Some(span) = span { err.span(span) } else { err };
+            err.help("compile with `--evm-version cancun` or newer").emit();
         }
     }
 
     /// Lowers a type from a variable declaration.
     fn lower_type_from_var(&self, var: &hir::Variable<'_>) -> MirType {
-        self.lower_type_kind(&var.ty.kind)
+        self.lower_type_from_ty(self.gcx.type_of_hir_ty(&var.ty))
     }
 
-    /// Lowers a TypeKind to MirType.
-    fn lower_type_kind(&self, kind: &hir::TypeKind<'_>) -> MirType {
-        match kind {
-            hir::TypeKind::Elementary(elem) => match elem {
-                hir::ElementaryType::Bool => MirType::Bool,
-                hir::ElementaryType::Address(_) => MirType::Address,
-                hir::ElementaryType::Int(bits) => MirType::Int(bits.bits()),
-                hir::ElementaryType::UInt(bits) => MirType::UInt(bits.bits()),
-                hir::ElementaryType::Fixed(_, _) => MirType::Int(256),
-                hir::ElementaryType::UFixed(_, _) => MirType::UInt(256),
-                hir::ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
-                hir::ElementaryType::String => MirType::MemPtr,
-                hir::ElementaryType::Bytes => MirType::MemPtr,
+    /// Lowers a type-checked Solidity type to MIR's coarse value type.
+    fn lower_type_from_ty(&self, ty: Ty<'gcx>) -> MirType {
+        match ty.peel_refs().kind {
+            TyKind::Elementary(elem) => match elem {
+                ElementaryType::Bool => MirType::Bool,
+                ElementaryType::Address(_) => MirType::Address,
+                ElementaryType::Int(bits) => MirType::Int(bits.bits()),
+                ElementaryType::UInt(bits) => MirType::UInt(bits.bits()),
+                ElementaryType::Fixed(_, _) => MirType::Int(256),
+                ElementaryType::UFixed(_, _) => MirType::UInt(256),
+                ElementaryType::FixedBytes(n) => MirType::FixedBytes(n.bytes()),
+                ElementaryType::String | ElementaryType::Bytes => MirType::MemPtr,
             },
-            hir::TypeKind::Mapping(_) => MirType::StoragePtr,
-            hir::TypeKind::Array(_) => MirType::MemPtr,
-            hir::TypeKind::Function(_) => MirType::Function,
-            hir::TypeKind::Custom(item_id) => match item_id {
-                hir::ItemId::Struct(_) => MirType::MemPtr,
-                hir::ItemId::Enum(_) => MirType::UInt(8),
-                hir::ItemId::Contract(_) => MirType::Address,
-                _ => MirType::uint256(),
-            },
-            hir::TypeKind::Err(_) => MirType::uint256(),
+            TyKind::Mapping(_, _) => MirType::StoragePtr,
+            TyKind::DynArray(_) | TyKind::Array(_, _) | TyKind::Slice(_) => MirType::MemPtr,
+            TyKind::Fn(_) => MirType::Function,
+            TyKind::Struct(_) => MirType::MemPtr,
+            TyKind::Enum(_) => MirType::UInt(8),
+            TyKind::Contract(_) | TyKind::Super(_) => MirType::Address,
+            TyKind::StringLiteral(_, _)
+            | TyKind::IntLiteral(_, _, _)
+            | TyKind::Tuple(_)
+            | TyKind::Variadic
+            | TyKind::Error(_, _)
+            | TyKind::Event(_, _)
+            | _ => MirType::uint256(),
         }
     }
 

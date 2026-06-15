@@ -1,0 +1,76 @@
+//@compile-flags: --pass licm
+; module @LicmEnvReads
+
+; The value-transferring call can change the queried balance between iterations,
+; so neither the balance nor the mul depending on it may be hoisted.
+fn @keep_balance_with_call() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = balance 0xbeef
+    v1 = mul v0, 3
+    v2 = call 1000, 0xbeef, 1, 0, 0, 0, 0
+    jump bb1
+  bb3:
+    ret v1
+}
+
+; Without any call or create in the loop the balance is loop-invariant for real.
+fn @hoist_balance_without_calls() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = balance 0xbeef
+    v1 = mul v0, 3
+    jump bb1
+  bb3:
+    ret v1
+}
+
+; The created contract's constructor can run arbitrary code.
+fn @keep_extcodesize_with_create() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = extcodesize 0xbeef
+    v1 = mul v0, 3
+    v2 = create 0, 0, 32
+    jump bb1
+  bb3:
+    ret v1
+}
+
+; Every external call, including staticcall, rewrites the return-data buffer.
+fn @keep_returndatasize_with_staticcall() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = returndatasize
+    v1 = mul v0, 3
+    v2 = staticcall 1000, 0xbeef, 0, 0, 0, 0
+    jump bb1
+  bb3:
+    ret v1
+}
+
+; msize observes memory expansion and must never move.
+fn @keep_msize() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    br true, bb2, bb3
+  bb2:
+    v0 = msize
+    v1 = mul v0, 3
+    jump bb1
+  bb3:
+    ret v1
+}
