@@ -33,8 +33,6 @@ struct TestConfig {
     contract_filter: Option<String>,
     /// If true, only run with Solar (no solc comparison).
     solar_only: bool,
-    /// If true, require Solar gas <= solc gas for all tests.
-    require_gas_parity: bool,
 }
 
 impl TestConfig {
@@ -46,7 +44,6 @@ impl TestConfig {
             test_filter: None,
             contract_filter: None,
             solar_only: false,
-            require_gas_parity: false,
         }
     }
 
@@ -67,13 +64,6 @@ impl TestConfig {
     /// Sets whether to run Solar-only (no solc comparison).
     fn solar_only(mut self, value: bool) -> Self {
         self.solar_only = value;
-        self
-    }
-
-    /// Sets whether to require gas parity (Solar <= solc).
-    #[allow(dead_code)]
-    fn require_gas_parity(mut self, value: bool) -> Self {
-        self.require_gas_parity = value;
         self
     }
 
@@ -666,53 +656,6 @@ fn run_test_with_comparison(config: &TestConfig) {
             config.name,
             solc_run.total_passed - solar_run.total_passed
         );
-    }
-
-    // Assert Solar MUST beat solc in gas usage for all matching tests (if enabled)
-    if config.require_gas_parity {
-        let solar_map: HashMap<&str, &TestResult> =
-            solar_run.tests.iter().map(|t| (t.name.as_str(), t)).collect();
-        let solc_map: HashMap<&str, &TestResult> =
-            solc_run.tests.iter().map(|t| (t.name.as_str(), t)).collect();
-
-        let mut gas_regressions = Vec::new();
-        for (name, solar_test) in &solar_map {
-            if let Some(solc_test) = solc_map.get(name) {
-                // Only compare passing tests with non-zero gas
-                if solar_test.passed && solc_test.passed && solc_test.gas > 0 && solar_test.gas > 0
-                {
-                    if solar_test.gas > solc_test.gas {
-                        let diff_pct =
-                            ((solar_test.gas as f64 / solc_test.gas as f64) - 1.0) * 100.0;
-                        gas_regressions.push((
-                            name.to_string(),
-                            solar_test.gas,
-                            solc_test.gas,
-                            diff_pct,
-                        ));
-                    }
-                }
-            }
-        }
-
-        if !gas_regressions.is_empty() {
-            eprintln!(
-                "\n❌ [{}] GAS REGRESSIONS: Solar uses MORE gas than solc in {} tests:",
-                config.name,
-                gas_regressions.len()
-            );
-            for (name, solar_gas, solc_gas, diff_pct) in &gas_regressions {
-                eprintln!(
-                    "   - {:40} Solar: {:>8} | solc: {:>8} | {:>+6.1}%",
-                    name, solar_gas, solc_gas, diff_pct
-                );
-            }
-            panic!(
-                "[{}] Solar MUST beat solc in gas usage, but {} tests regressed",
-                config.name,
-                gas_regressions.len()
-            );
-        }
     }
 
     println!("\n✓ [{}] {} tests passed with Solar", config.name, solar_run.total_passed);
