@@ -198,7 +198,7 @@ jobs:
       - name: Build the benchmark target(s)
         run: cargo codspeed build --profile profiling -p solar-bench --bench criterion
       - name: Run the benchmarks
-        continue-on-error: true
+        if: github.event_name != 'pull_request'
         uses: CodSpeedHQ/action@v4
         with:
           run: cargo codspeed run -p solar-bench criterion
