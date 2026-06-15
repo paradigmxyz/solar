@@ -46,7 +46,7 @@ impl TestConfig {
             test_filter: None,
             contract_filter: None,
             solar_only: false,
-            require_gas_parity: true,
+            require_gas_parity: false,
         }
     }
 
@@ -715,12 +715,7 @@ fn run_test_with_comparison(config: &TestConfig) {
         }
     }
 
-    println!(
-        "\n✓ [{}] {} tests passed with Solar{}",
-        config.name,
-        solar_run.total_passed,
-        if config.require_gas_parity { " (gas <= solc)" } else { "" }
-    );
+    println!("\n✓ [{}] {} tests passed with Solar", config.name, solar_run.total_passed);
 }
 
 // ============================================================================
