@@ -69,8 +69,25 @@ jobs:
           name: codegen-runtime-baseline
           path: target/codegen-bench/baseline
 
+      - name: Run micro codegen benchmark
+        id: micro-bench
+        continue-on-error: true
+        working-directory: ${{ env.BENCHMARK_PATH }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
+          python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --suite micro \
+            --gas \
+            --gas-profile hot \
+            --start-anvil \
+            --allow-failures \
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/micro.json"
+
       - name: Run repository codegen benchmark
-        id: runtime-bench
+        id: repo-bench
         continue-on-error: true
         working-directory: ${{ env.BENCHMARK_PATH }}
         run: |
@@ -84,7 +101,7 @@ jobs:
             --gas-profile hot \
             --start-anvil \
             --allow-failures \
-            --output "$GITHUB_WORKSPACE/target/codegen-bench/results.json"
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/repo.json"
 
       - name: Generate runtime benchmark report
         id: runtime-report
@@ -92,9 +109,15 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench
-          args=(--repo target/codegen-bench/results.json)
-          if [[ -f target/codegen-bench/baseline/results.json ]]; then
-            args+=(--baseline-repo target/codegen-bench/baseline/results.json)
+          args=(
+            --micro target/codegen-bench/micro.json
+            --repo target/codegen-bench/repo.json
+          )
+          if [[ -f target/codegen-bench/baseline/micro.json ]]; then
+            args+=(--baseline-micro target/codegen-bench/baseline/micro.json)
+          fi
+          if [[ -f target/codegen-bench/baseline/repo.json ]]; then
+            args+=(--baseline-repo target/codegen-bench/baseline/repo.json)
           fi
           python3 .github/scripts/check_codegen_benchmark.py "${args[@]}" \
             | tee target/codegen-bench/report.md
@@ -125,7 +148,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: codegen-runtime-baseline
-          path: target/codegen-bench/results.json
+          path: |
+            target/codegen-bench/micro.json
+            target/codegen-bench/repo.json
           retention-days: 90
           if-no-files-found: ignore
 

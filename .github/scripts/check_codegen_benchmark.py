@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -85,7 +86,7 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
 
 def warning(message: str) -> None:
     escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-    print(f"::warning::{escaped}")
+    print(f"::warning::{escaped}", file=sys.stderr)
 
 
 def markdown_cell(value: Any) -> str:
