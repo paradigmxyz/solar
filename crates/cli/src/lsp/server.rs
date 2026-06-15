@@ -4,76 +4,61 @@ use std::io::{self, BufReader, Read, Write};
 use super::transport;
 
 pub(super) fn run(input: impl Read, output: impl Write) -> io::Result<()> {
-    Server::new(input, output).run()
-}
+    let mut input = BufReader::new(input);
+    let mut output = output;
 
-struct Server<R, W> {
-    input: BufReader<R>,
-    output: W,
-}
+    while let Some(message) = transport::read_message(&mut input)? {
+        let Some(method) = message.get("method").and_then(Value::as_str) else {
+            continue;
+        };
 
-impl<R: Read, W: Write> Server<R, W> {
-    fn new(input: R, output: W) -> Self {
-        Self { input: BufReader::new(input), output }
-    }
-
-    fn run(&mut self) -> io::Result<()> {
-        while let Some(message) = transport::read_message(&mut self.input)? {
-            let Some(method) = message.get("method").and_then(Value::as_str) else {
-                continue;
-            };
-
-            match method {
-                "initialize" => self.initialize(request_id(&message))?,
-                "shutdown" => self.respond(request_id(&message), Value::Null)?,
-                "exit" => break,
-                _ if message.get("id").is_some() => {
-                    self.respond_error(request_id(&message), -32601, "method not found")?;
-                }
-                _ => {}
+        match method {
+            "initialize" => respond(&mut output, request_id(&message), initialize_result())?,
+            "shutdown" => respond(&mut output, request_id(&message), Value::Null)?,
+            "exit" => break,
+            _ if message.get("id").is_some() => {
+                respond_error(&mut output, request_id(&message), -32601, "method not found")?;
             }
+            _ => {}
         }
-
-        Ok(())
     }
 
-    fn initialize(&mut self, id: Value) -> io::Result<()> {
-        self.respond(
-            id,
-            json!({
-                "capabilities": {},
-                "serverInfo": {
-                    "name": "solar",
-                    "version": solar_config::version::short_version(),
-                },
-            }),
-        )
-    }
+    Ok(())
+}
 
-    fn respond(&mut self, id: Value, result: Value) -> io::Result<()> {
-        transport::write_message(
-            &mut self.output,
-            &json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "result": result,
-            }),
-        )
-    }
+fn initialize_result() -> Value {
+    json!({
+        "capabilities": {},
+        "serverInfo": {
+            "name": "solar",
+            "version": solar_config::version::short_version(),
+        },
+    })
+}
 
-    fn respond_error(&mut self, id: Value, code: i64, message: &str) -> io::Result<()> {
-        transport::write_message(
-            &mut self.output,
-            &json!({
-                "jsonrpc": "2.0",
-                "id": id,
-                "error": {
-                    "code": code,
-                    "message": message,
-                },
-            }),
-        )
-    }
+fn respond(output: &mut impl Write, id: Value, result: Value) -> io::Result<()> {
+    transport::write_message(
+        output,
+        &json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": result,
+        }),
+    )
+}
+
+fn respond_error(output: &mut impl Write, id: Value, code: i64, message: &str) -> io::Result<()> {
+    transport::write_message(
+        output,
+        &json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": {
+                "code": code,
+                "message": message,
+            },
+        }),
+    )
 }
 
 fn request_id(message: &Value) -> Value {
@@ -122,11 +107,23 @@ mod tests {
         run(input.as_slice(), &mut output).unwrap();
 
         let responses = read_all_messages(&output);
-        assert_eq!(responses.len(), 2);
-        assert_eq!(responses[0]["id"], json!(1));
-        assert_eq!(responses[0]["result"]["serverInfo"]["name"], json!("solar"));
-        assert_eq!(responses[0]["result"]["capabilities"], json!({}));
-        assert_eq!(responses[1], json!({"jsonrpc": "2.0", "id": 2, "result": null}));
+        assert_eq!(
+            responses,
+            [
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {
+                        "capabilities": {},
+                        "serverInfo": {
+                            "name": "solar",
+                            "version": solar_config::version::short_version(),
+                        },
+                    },
+                }),
+                json!({"jsonrpc": "2.0", "id": 2, "result": null}),
+            ]
+        );
     }
 
     #[test]
@@ -162,11 +159,7 @@ mod tests {
     }
 
     fn read_all_messages(bytes: &[u8]) -> Vec<Value> {
-        let mut messages = Vec::new();
         let mut input = BufReader::new(bytes);
-        while let Some(message) = transport::read_message(&mut input).unwrap() {
-            messages.push(message);
-        }
-        messages
+        std::iter::from_fn(|| transport::read_message(&mut input).unwrap()).collect()
     }
 }

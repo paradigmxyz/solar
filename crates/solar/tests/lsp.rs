@@ -20,38 +20,36 @@ fn lsp_lifecycle_over_stdio() {
 
     {
         let mut stdin = child.stdin.take().unwrap();
-        stdin
-            .write_all(
-                &[
-                    frame(&json!({
-                        "jsonrpc": "2.0",
-                        "id": 1,
-                        "method": "initialize",
-                        "params": {
-                            "processId": null,
-                            "rootUri": null,
-                            "capabilities": {},
-                        },
-                    })),
-                    frame(&json!({
-                        "jsonrpc": "2.0",
-                        "method": "initialized",
-                        "params": {},
-                    })),
-                    frame(&json!({
-                        "jsonrpc": "2.0",
-                        "id": 2,
-                        "method": "shutdown",
-                        "params": null,
-                    })),
-                    frame(&json!({
-                        "jsonrpc": "2.0",
-                        "method": "exit",
-                    })),
-                ]
-                .concat(),
-            )
-            .unwrap();
+        write_messages(
+            &mut stdin,
+            [
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "processId": null,
+                        "rootUri": null,
+                        "capabilities": {},
+                    },
+                }),
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "initialized",
+                    "params": {},
+                }),
+                json!({
+                    "jsonrpc": "2.0",
+                    "id": 2,
+                    "method": "shutdown",
+                    "params": null,
+                }),
+                json!({
+                    "jsonrpc": "2.0",
+                    "method": "exit",
+                }),
+            ],
+        );
     }
 
     let output = child.wait_with_output().unwrap();
@@ -59,27 +57,36 @@ fn lsp_lifecycle_over_stdio() {
     assert!(output.stderr.is_empty(), "{}", String::from_utf8_lossy(&output.stderr));
 
     let responses = read_all_messages(&output.stdout);
-    assert_eq!(responses.len(), 2);
-    assert_eq!(responses[0]["id"], json!(1));
-    assert_eq!(responses[0]["result"]["serverInfo"]["name"], json!("solar"));
-    assert_eq!(responses[0]["result"]["capabilities"], json!({}));
-    assert_eq!(responses[1], json!({"jsonrpc": "2.0", "id": 2, "result": null}));
+    assert_eq!(
+        responses,
+        [
+            json!({
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "capabilities": {},
+                    "serverInfo": {
+                        "name": "solar",
+                        "version": solar::config::version::short_version(),
+                    },
+                },
+            }),
+            json!({"jsonrpc": "2.0", "id": 2, "result": null}),
+        ]
+    );
 }
 
-fn frame(value: &Value) -> Vec<u8> {
-    let body = serde_json::to_vec(value).unwrap();
-    let mut frame = format!("Content-Length: {}\r\n\r\n", body.len()).into_bytes();
-    frame.extend(body);
-    frame
+fn write_messages(output: &mut impl Write, messages: impl IntoIterator<Item = Value>) {
+    for value in messages {
+        let body = serde_json::to_vec(&value).unwrap();
+        write!(output, "Content-Length: {}\r\n\r\n", body.len()).unwrap();
+        output.write_all(&body).unwrap();
+    }
 }
 
 fn read_all_messages(bytes: &[u8]) -> Vec<Value> {
     let mut input = BufReader::new(bytes);
-    let mut messages = Vec::new();
-    while let Some(message) = read_message(&mut input).unwrap() {
-        messages.push(message);
-    }
-    messages
+    std::iter::from_fn(|| read_message(&mut input).unwrap()).collect()
 }
 
 fn read_message(input: &mut impl BufRead) -> std::io::Result<Option<Value>> {

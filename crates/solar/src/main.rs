@@ -17,16 +17,17 @@ fn main() -> ExitCode {
         Err(e) => e.exit(),
     };
     let solar_cli::Args { command, compile, .. } = args;
-    if matches!(command, Some(Subcommands::Lsp)) {
-        let _guard = utils::init_logger(utils::LogDestination::Stderr);
-        return match run_lsp_stdio() {
-            Ok(()) => ExitCode::SUCCESS,
-            Err(_) => ExitCode::FAILURE,
-        };
-    }
-
-    let _guard = utils::init_logger(Default::default());
-    match run_compiler_args(compile) {
+    let result = match command {
+        Some(Subcommands::Lsp) => {
+            let _guard = utils::init_logger(utils::LogDestination::Stderr);
+            run_lsp_stdio()
+        }
+        None => {
+            let _guard = utils::init_logger(Default::default());
+            run_compiler_args(compile)
+        }
+    };
+    match result {
         Ok(()) => ExitCode::SUCCESS,
         Err(_) => ExitCode::FAILURE,
     }
