@@ -2,7 +2,9 @@
 
 #![allow(unused_crate_dependencies)]
 
-use solar_cli::{Subcommands, parse_args, run_compiler_args, run_lsp_stdio, signal_handler, utils};
+use solar_cli::{
+    Subcommands, parse_cli_args, run_compiler_args, run_lsp_stdio, signal_handler, utils,
+};
 use solar_interface::panic_hook;
 use std::process::ExitCode;
 
@@ -12,7 +14,7 @@ static ALLOC: utils::Allocator = utils::new_allocator();
 fn main() -> ExitCode {
     signal_handler::install();
     panic_hook::install();
-    let solar_cli::Args { command, compile } = match parse_args(std::env::args_os()) {
+    let solar_cli::Args { command, compile } = match parse_cli_args(std::env::args_os()) {
         Ok(args) => args,
         Err(e) => e.exit(),
     };

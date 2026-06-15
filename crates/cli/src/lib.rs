@@ -14,8 +14,9 @@ pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
 mod args;
 mod lsp;
-pub mod standard_json;
 pub use args::{Args, Subcommands};
+
+pub mod standard_json;
 pub mod utils;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
@@ -38,7 +39,7 @@ use alloy_primitives as _;
 
 use tracing as _;
 
-pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
+pub fn parse_cli_args<I, T>(itr: I) -> Result<Args, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
@@ -46,6 +47,16 @@ where
     let mut args = Args::try_parse_from(itr)?;
     args.compile.finish()?;
     Ok(args)
+}
+
+pub fn parse_args<I, T>(itr: I) -> Result<Opts, clap::Error>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<std::ffi::OsString> + Clone,
+{
+    let mut opts = Opts::try_parse_from(itr)?;
+    opts.finish()?;
+    Ok(opts)
 }
 
 pub fn run_compiler_args(opts: Opts) -> Result {

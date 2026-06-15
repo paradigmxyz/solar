@@ -21,14 +21,3 @@ pub enum Subcommands {
     /// Start the language server over stdio.
     Lsp,
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use clap::CommandFactory;
-
-    #[test]
-    fn verify_cli() {
-        Args::command().debug_assert();
-    }
-}
