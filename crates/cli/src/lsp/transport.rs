@@ -1,6 +1,7 @@
 use serde_json::Value;
 use std::io::{self, BufRead, Write};
 
+/// Reads one Content-Length framed LSP message, returning `None` at EOF.
 pub(super) fn read_message(input: &mut impl BufRead) -> io::Result<Option<Value>> {
     let Some(content_length) = read_content_length(input)? else {
         return Ok(None);
@@ -20,6 +21,7 @@ pub(super) fn write_message(output: &mut impl Write, value: &Value) -> io::Resul
     output.flush()
 }
 
+/// Reads LSP headers and returns the message body length, or `None` at EOF.
 fn read_content_length(input: &mut impl BufRead) -> io::Result<Option<usize>> {
     let mut content_length = None;
     let mut line = String::new();

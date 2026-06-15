@@ -56,6 +56,7 @@ pub(super) fn run(input: impl Read, output: impl Write) -> io::Result<()> {
     Ok(())
 }
 
+/// Writes a JSON-RPC success response for a request id.
 fn respond(output: &mut impl Write, id: Value, result: Value) -> io::Result<()> {
     transport::write_message(
         output,
@@ -67,6 +68,7 @@ fn respond(output: &mut impl Write, id: Value, result: Value) -> io::Result<()> 
     )
 }
 
+/// Writes a JSON-RPC error response for a request id.
 fn respond_error(output: &mut impl Write, id: Value, code: i64, message: &str) -> io::Result<()> {
     transport::write_message(
         output,

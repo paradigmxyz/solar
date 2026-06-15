@@ -39,6 +39,7 @@ use alloy_primitives as _;
 
 use tracing as _;
 
+/// Parses the top-level CLI, including subcommands, and finalizes embedded compiler options.
 pub fn parse_cli_args<I, T>(itr: I) -> Result<Args, clap::Error>
 where
     I: IntoIterator<Item = T>,
@@ -69,6 +70,7 @@ pub fn run_compiler_args(opts: Opts) -> Result {
     run_compiler_with(opts, run_default)
 }
 
+/// Runs the LSP server over stdio and reports transport failures as diagnostics.
 pub fn run_lsp_stdio() -> Result {
     lsp::run_stdio().map_err(|e| {
         solar_interface::diagnostics::DiagCtxt::new_early()
