@@ -28,7 +28,6 @@ mod builder;
 pub use builder::FunctionBuilder;
 
 mod display;
-pub use display::{function_to_dot, function_to_text, module_to_dot, module_to_text};
 
 mod parser;
 pub use parser::{ParseError, parse_function, parse_module};
@@ -71,7 +70,7 @@ newtype_index! {
 /// a *second* round-trip is stable.
 #[cfg(test)]
 mod round_trip {
-    use super::{Module, module_to_text, parse_module};
+    use super::{Module, parse_module};
     use crate::{analysis::validate_module, lower};
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
@@ -286,7 +285,7 @@ mod round_trip {
                     return;
                 }
             };
-            let print1 = module_to_text(&parsed1);
+            let print1 = parsed1.to_text().to_string();
             let parsed2 = match parse_module(&print1) {
                 Ok(m) => m,
                 Err(e) => {
@@ -294,7 +293,7 @@ mod round_trip {
                     return;
                 }
             };
-            let print2 = module_to_text(&parsed2);
+            let print2 = parsed2.to_text().to_string();
             if print1 != print2 {
                 let diff = first_diff(&print1, &print2)
                     .map(|(i, a, b)| format!("line {i}: `{a}` vs `{b}`"))
@@ -308,14 +307,14 @@ mod round_trip {
     /// Common idempotency check: print → parse → print → parse → print, last two
     /// must match. Caller must already be inside an active `Session::enter`.
     fn check_round_trip_module(module: &Module) -> Result<(), String> {
-        let print1 = module_to_text(module);
+        let print1 = module.to_text().to_string();
         let parsed1 = parse_module(&print1)
             .map_err(|e| format!("first parse: {e}\n--- print1 ---\n{print1}"))?;
-        let print2 = module_to_text(&parsed1);
+        let print2 = parsed1.to_text().to_string();
         let parsed2 = parse_module(&print2).map_err(|e| {
             format!("second parse: {e}\n--- print1 ---\n{print1}\n--- print2 ---\n{print2}")
         })?;
-        let print3 = module_to_text(&parsed2);
+        let print3 = parsed2.to_text().to_string();
 
         if print2 != print3 {
             let diff = first_diff(&print2, &print3)

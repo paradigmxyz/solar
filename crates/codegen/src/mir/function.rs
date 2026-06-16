@@ -1,10 +1,12 @@
 //! MIR functions.
 
 use super::{BasicBlock, BlockId, InstId, Instruction, MirType, Value, ValueId};
-use solar_data_structures::index::IndexVec;
+use solar_data_structures::{
+    fmt::{self, FmtIteratorExt},
+    index::IndexVec,
+};
 use solar_interface::Ident;
 use solar_sema::hir::{StateMutability, Visibility};
-use std::fmt;
 
 /// A function in the MIR.
 #[derive(Clone, Debug)]
@@ -113,6 +115,16 @@ impl Function {
     pub fn selector_hex(&self) -> Option<String> {
         self.selector.map(alloy_primitives::hex::encode)
     }
+
+    /// Returns the human-readable textual MIR representation of this function.
+    pub fn to_text(&self) -> impl fmt::Display + '_ {
+        super::display::display_function_text(self)
+    }
+
+    /// Returns this function's DOT-format CFG.
+    pub fn to_dot(&self) -> impl fmt::Display + '_ {
+        super::display::display_function_dot(self)
+    }
 }
 
 /// Function attributes.
@@ -144,24 +156,10 @@ impl Default for FunctionAttributes {
 
 impl fmt::Display for Function {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "fn {}(", self.name)?;
-        for (i, param) in self.params.iter().enumerate() {
-            if i > 0 {
-                write!(f, ", ")?;
-            }
-            write!(f, "{param}")?;
-        }
-        write!(f, ")")?;
+        write!(f, "fn {}({})", self.name, self.params.iter().format(", "))?;
 
         if !self.returns.is_empty() {
-            write!(f, " -> (")?;
-            for (i, ret) in self.returns.iter().enumerate() {
-                if i > 0 {
-                    write!(f, ", ")?;
-                }
-                write!(f, "{ret}")?;
-            }
-            write!(f, ")")?;
+            write!(f, " -> ({})", self.returns.iter().format(", "))?;
         }
 
         Ok(())

@@ -1,4 +1,4 @@
-//! Parser for the textual MIR format produced by [`function_to_text`] and [`module_to_text`].
+//! Parser for the textual MIR format produced by [`Function::to_text`] and [`Module::to_text`].
 //!
 //! # Format
 //!
@@ -23,14 +23,11 @@
 //!
 //! - This parser produces a *semantically* equivalent [`Function`]; the actual `ValueId` numbers in
 //!   the result may differ from the labels in the source text. Round-tripping `parse →
-//!   function_to_text → parse` is supported, but the textual form may shift on the second print
+//!   Function::to_text → parse` is supported, but the textual form may shift on the second print
 //!   (different v-numbers).
 //! - Address and fixed-bytes immediate literals are not currently parsed — they're allocated as
 //!   `Immediate::uint256(0)`. If you need them, extend `parse_value`.
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
-//!
-//! [`function_to_text`]: super::function_to_text
-//! [`module_to_text`]: super::module_to_text
 
 use super::{
     BasicBlock, BlockId, EffectKind, Function, FunctionId, InstKind, Instruction,
@@ -51,7 +48,7 @@ use std::fmt;
 /// # Errors
 ///
 /// Returns a [`ParseError`] if the input does not conform to the MIR
-/// textual format produced by [`module_to_text`](super::module_to_text).
+/// textual format produced by [`Module::to_text`](super::Module::to_text).
 ///
 /// # Session
 ///
@@ -1647,7 +1644,6 @@ const _BLOCK_TYPE_REFERENCE: Option<BasicBlock> = None;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::mir::{function_to_text, module_to_text};
     use solar_interface::{ColorChoice, Session};
 
     fn with_session<F: FnOnce() + Send>(f: F) {
@@ -1670,7 +1666,7 @@ fn @add(arg0: u256, arg1: u256) -> u256 {
             assert_eq!(func.params.len(), 2);
             assert_eq!(func.returns.len(), 1);
             // Round-trip: print and re-parse should not error.
-            let printed = function_to_text(&func);
+            let printed = func.to_text().to_string();
             let _func2 = parse_function(&printed).unwrap();
         });
     }
@@ -1792,7 +1788,7 @@ fn @set(arg0: u256) {
             let module = parse_module(src).unwrap();
             assert_eq!(module.functions.len(), 2);
             // Round-trip the printed form.
-            let printed = module_to_text(&module);
+            let printed = module.to_text().to_string();
             let module2 = parse_module(&printed).unwrap();
             assert_eq!(module2.functions.len(), 2);
         });
@@ -1981,7 +1977,7 @@ fn @diamond(arg0: bool) -> u256 {
 }
 ";
             let func = parse_function(src).unwrap();
-            let printed = function_to_text(&func);
+            let printed = func.to_text().to_string();
             // The printer's exact format: `[bbN: <val>]`.
             assert!(
                 printed.contains("phi [bb1:") && printed.contains("], [bb2:"),

@@ -147,6 +147,20 @@ pub enum MemoryRegion {
     Unknown,
 }
 
+impl MemoryRegion {
+    /// Returns the stable textual name used in MIR metadata.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Scratch => "scratch",
+            Self::AbiReturn => "abi_return",
+            Self::Heap => "heap",
+            Self::InternalFrame => "internal_frame",
+            Self::Unknown => "unknown",
+        }
+    }
+}
+
 /// Conservative side-effect class for an instruction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EffectKind {
@@ -174,6 +188,27 @@ pub enum EffectKind {
     Create,
     /// Event emission.
     Log,
+}
+
+impl EffectKind {
+    /// Returns the stable textual name used in MIR metadata.
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
+        match self {
+            Self::Pure => "pure",
+            Self::MemoryRead => "memory_read",
+            Self::MemoryWrite => "memory_write",
+            Self::StorageRead => "storage_read",
+            Self::StorageWrite => "storage_write",
+            Self::TransientRead => "transient_read",
+            Self::TransientWrite => "transient_write",
+            Self::EnvironmentRead => "environment_read",
+            Self::ExternalCall => "external_call",
+            Self::InternalCall => "internal_call",
+            Self::Create => "create",
+            Self::Log => "log",
+        }
+    }
 }
 
 /// An instruction in the MIR.

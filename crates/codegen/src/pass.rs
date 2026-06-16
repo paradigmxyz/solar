@@ -21,7 +21,7 @@
 
 use crate::{
     analysis::Validator,
-    mir::{Function, Module, module_to_text},
+    mir::{Function, Module},
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
@@ -55,104 +55,89 @@ impl PassInfo {
     }
 }
 
-macro_rules! declare_pass {
-    ($const_name:ident, $name:literal, $description:literal, $pass:expr) => {
-        pub const $const_name: PassInfo = PassInfo::new($name, $description, || Box::new($pass));
+macro_rules! declare_passes {
+    ($(
+        $(#[doc = $description:literal])+
+        $vis:vis const $const_name:ident -> $name:literal = $pass:expr;
+    )+) => {
+        $(
+            $(#[doc = $description])+
+            $vis const $const_name: PassInfo = PassInfo::new(
+                $name,
+                concat!($($description, "\n"),+).trim_ascii(),
+                || Box::new($pass),
+            );
+        )+
     };
 }
 
-declare_pass!(INLINE_PASS, "inline", "Internal MIR function inlining", InlinePass);
-declare_pass!(
-    FUNCTION_DCE_PASS,
-    "function-dce",
-    "Dead internal function elimination",
-    FunctionDcePass
-);
-declare_pass!(SCCP_PASS, "sccp", "Sparse Conditional Constant Propagation", SccpTransformPass);
-declare_pass!(
-    PURE_EVAL_PASS,
-    "pure-eval",
-    "Bounded evaluator for closed pure MIR loops/functions",
-    PureEvalPass
-);
-declare_pass!(
-    INST_SIMPLIFY_PASS,
-    "inst-simplify",
-    "Local MIR instruction simplification",
-    InstSimplifyPass
-);
-declare_pass!(CSE_PASS, "cse", "Common Subexpression Elimination (fixed-point)", CsePass);
-declare_pass!(PRE_PASS, "pre", "Partial redundancy elimination for pure expressions", PrePass);
-declare_pass!(GVN_PASS, "gvn", "Congruence-class global value numbering", GvnPass);
-declare_pass!(
-    STORAGE_LOAD_CSE_PASS,
-    "storage-load-cse",
-    "Reuse storage loads across definitely-disjoint stores",
-    StorageLoadCsePass
-);
-declare_pass!(
-    STORAGE_DSE_PASS,
-    "storage-dse",
-    "Eliminate overwritten or repeated storage stores",
-    StorageDsePass
-);
-declare_pass!(
-    LOAD_PRE_PASS,
-    "load-pre",
-    "Availability-dataflow redundancy elimination and PRE for memory-dependent reads",
-    LoadPrePass
-);
-declare_pass!(
-    LOOP_CANONICALIZE_PASS,
-    "loop-canonicalize",
-    "Canonicalize natural loops with explicit preheaders",
-    LoopCanonicalizePass
-);
-declare_pass!(
-    INDVAR_SIMPLIFY_PASS,
-    "indvar-simplify",
-    "Strength-reduce affine induction-variable address expressions",
-    IndVarSimplifyPass
-);
-declare_pass!(
-    STORAGE_PROMOTION_PASS,
-    "storage-promotion",
-    "Promote simple loop-carried storage updates to memory",
-    StorageScalarPromotionPass
-);
-declare_pass!(LICM_PASS, "licm", "Loop-Invariant Code Motion", LicmPass);
-declare_pass!(
-    CHECK_ELIM_PASS,
-    "check-elim",
-    "Range-based elimination of provably dead overflow-check branches",
-    CheckElimPass
-);
-declare_pass!(
-    JUMP_THREADING_PASS,
-    "jump-threading",
-    "Jump Threading (fixed-point)",
-    JumpThreadingPass
-);
-declare_pass!(
-    CFG_SIMPLIFY_PASS,
-    "cfg-simplify",
-    "CFG Simplification (fixed-point)",
-    CfgSimplifyPass
-);
-declare_pass!(
-    FRAME_SLOT_PROMOTION_PASS,
-    "frame-slot-promotion",
-    "Promote non-escaping compiler-local slots to SSA values",
-    FrameSlotPromotionPass
-);
-declare_pass!(MEMORY_DSE_PASS, "memory-dse", "Local dead memory-store elimination", MemoryDsePass);
-declare_pass!(DCE_PASS, "dce", "Dead Code Elimination (fixed-point)", DcePass);
-declare_pass!(
-    ADCE_PASS,
-    "adce",
-    "Aggressive dead-code elimination for dead control regions",
-    AdcePass
-);
+declare_passes! {
+    /// Internal MIR function inlining.
+    pub const INLINE_PASS -> "inline" = InlinePass;
+
+    /// Dead internal function elimination.
+    pub const FUNCTION_DCE_PASS -> "function-dce" = FunctionDcePass;
+
+    /// Sparse Conditional Constant Propagation.
+    pub const SCCP_PASS -> "sccp" = SccpTransformPass;
+
+    /// Bounded evaluator for closed pure MIR loops/functions.
+    pub const PURE_EVAL_PASS -> "pure-eval" = PureEvalPass;
+
+    /// Local MIR instruction simplification.
+    pub const INST_SIMPLIFY_PASS -> "inst-simplify" = InstSimplifyPass;
+
+    /// Common Subexpression Elimination (fixed-point).
+    pub const CSE_PASS -> "cse" = CsePass;
+
+    /// Partial redundancy elimination for pure expressions.
+    pub const PRE_PASS -> "pre" = PrePass;
+
+    /// Congruence-class global value numbering.
+    pub const GVN_PASS -> "gvn" = GvnPass;
+
+    /// Reuse storage loads across definitely-disjoint stores.
+    pub const STORAGE_LOAD_CSE_PASS -> "storage-load-cse" = StorageLoadCsePass;
+
+    /// Eliminate overwritten or repeated storage stores.
+    pub const STORAGE_DSE_PASS -> "storage-dse" = StorageDsePass;
+
+    /// Availability-dataflow redundancy elimination and PRE for memory-dependent reads.
+    pub const LOAD_PRE_PASS -> "load-pre" = LoadPrePass;
+
+    /// Canonicalize natural loops with explicit preheaders.
+    pub const LOOP_CANONICALIZE_PASS -> "loop-canonicalize" = LoopCanonicalizePass;
+
+    /// Strength-reduce affine induction-variable address expressions.
+    pub const INDVAR_SIMPLIFY_PASS -> "indvar-simplify" = IndVarSimplifyPass;
+
+    /// Promote simple loop-carried storage updates to memory.
+    pub const STORAGE_PROMOTION_PASS -> "storage-promotion" = StorageScalarPromotionPass;
+
+    /// Loop-Invariant Code Motion.
+    pub const LICM_PASS -> "licm" = LicmPass;
+
+    /// Range-based elimination of provably dead overflow-check branches.
+    pub const CHECK_ELIM_PASS -> "check-elim" = CheckElimPass;
+
+    /// Jump Threading (fixed-point).
+    pub const JUMP_THREADING_PASS -> "jump-threading" = JumpThreadingPass;
+
+    /// CFG Simplification (fixed-point).
+    pub const CFG_SIMPLIFY_PASS -> "cfg-simplify" = CfgSimplifyPass;
+
+    /// Promote non-escaping compiler-local slots to SSA values.
+    pub const FRAME_SLOT_PROMOTION_PASS -> "frame-slot-promotion" = FrameSlotPromotionPass;
+
+    /// Local dead memory-store elimination.
+    pub const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
+
+    /// Dead Code Elimination (fixed-point).
+    pub const DCE_PASS -> "dce" = DcePass;
+
+    /// Aggressive dead-code elimination for dead control regions.
+    pub const ADCE_PASS -> "adce" = AdcePass;
+}
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub const PASS_REGISTRY: &[PassInfo] = &[
@@ -285,7 +270,7 @@ pub fn run_pipeline_with_options(
         changed |= run_pass_with_options(module, pass, options);
         if options.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name);
-            print!("{}", module_to_text(module));
+            print!("{}", module.to_text());
         }
     }
     changed
@@ -318,7 +303,7 @@ fn run_cleanup_pipeline_to_fixpoint(
             round_changed |= pass_changed;
             if options.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);
-                print!("{}", module_to_text(module));
+                print!("{}", module.to_text());
             }
         }
         if !round_changed {

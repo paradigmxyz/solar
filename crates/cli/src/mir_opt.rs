@@ -10,34 +10,54 @@
 //! of the stable CLI surface.
 
 use clap::{Parser, ValueHint};
-use itertools::Itertools;
 use solar_codegen::{
     lower,
-    mir::{Module, module_to_text, parse_module},
+    mir::{Module, parse_module},
     pass::{
         DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, PASS_REGISTRY, PassInfo, PipelineOptions,
         lookup_pass, run_default_pipeline_with_options, run_pass as run_codegen_pass,
     },
 };
+use solar_data_structures::fmt::{self, FmtIteratorExt};
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
-use std::{ffi::OsString, iter::from_fn, ops::ControlFlow, path::Path, process::ExitCode};
+use std::{ffi::OsString, ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
-    let mut passes = PASS_REGISTRY.iter();
-    let pass_lines =
-        from_fn(|| passes.next().map(|pass| format!("  {:<20} {}", pass.name, pass.description)))
-            .chain(std::iter::once(format!(
-                "  {:<20} No transform; just lower/parse and print",
-                "none"
-            )))
-            .join("\n");
+    fn display_pass_help(pass: &PassInfo) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| write!(f, "  {:<20} {}", pass.name, pass.description))
+    }
 
-    format!(
-        "Passes:\n{pass_lines}\n\nDefault pipeline:\n  {}\n\nDefault cleanup fixpoint:\n  {}\n\nInput formats:\n  *.sol  Solidity contract — lowered through the normal compiler pipeline\n  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module",
-        pass_list_label(DEFAULT_PIPELINE, " → "),
-        pass_list_label(DEFAULT_CLEANUP_PIPELINE, " → ")
-    )
+    fn display_pass_list<'a>(passes: &'a [PassInfo], separator: &'a str) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |f| {
+            write!(f, "{}", passes.iter().map(|pass| pass.name).format(separator))
+        })
+    }
+
+    fmt::from_fn(|f| {
+        write!(
+            f,
+            "\
+Passes:
+{}
+  {:<20} No transform; just lower/parse and print
+
+Default pipeline:
+  {}
+
+Default cleanup fixpoint:
+  {}
+
+Input formats:
+  *.sol  Solidity contract — lowered through the normal compiler pipeline
+  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module",
+            PASS_REGISTRY.iter().map(display_pass_help).format("\n"),
+            "none",
+            display_pass_list(DEFAULT_PIPELINE, " → "),
+            display_pass_list(DEFAULT_CLEANUP_PIPELINE, " → ")
+        )
+    })
+    .to_string()
 }
 
 #[derive(Parser)]
@@ -98,32 +118,14 @@ fn pass_label(pass: Option<&PassInfo>) -> &'static str {
     }
 }
 
-fn pass_list_label(passes: &[PassInfo], separator: &str) -> String {
-    let mut label = String::new();
-    for (i, pass) in passes.iter().enumerate() {
-        if i != 0 {
-            label.push_str(separator);
-        }
-        label.push_str(pass.name);
-    }
-    label
-}
-
 fn selected_pass_list_label(passes: &[Option<&PassInfo>], separator: &str) -> String {
-    let mut label = String::new();
-    for (i, pass) in passes.iter().copied().enumerate() {
-        if i != 0 {
-            label.push_str(separator);
-        }
-        label.push_str(pass_label(pass));
-    }
-    label
+    passes.iter().copied().map(pass_label).format(separator).to_string()
 }
 
 /// Prints a module with a header indicating which pass(es) produced it.
 fn print_module(module: &Module, name: &str, after: &str) {
     println!("// === {name} (after {after}) ===");
-    print!("{}", module_to_text(module));
+    print!("{}", module.to_text());
 }
 
 /// Runs the pass pipeline on a single module and emits output.

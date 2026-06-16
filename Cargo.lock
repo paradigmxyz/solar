@@ -3008,7 +3008,6 @@ dependencies = [
  "cfg-if",
  "clap",
  "indexmap",
- "itertools 0.10.5",
  "libc",
  "mimalloc",
  "serde",

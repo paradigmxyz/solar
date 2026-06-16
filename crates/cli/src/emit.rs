@@ -1,4 +1,4 @@
-use solar_codegen::{Backend, EvmCodegen, lower, mir::module_to_text};
+use solar_codegen::{Backend, EvmCodegen, lower};
 use solar_config::CompilerOutput;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::Result;
@@ -154,10 +154,14 @@ fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
 }
 
 fn emit_mir(gcx: Gcx<'_>) -> Result {
-    if !gcx.sess.opts.emit.contains(&CompilerOutput::Mir) {
+    let sess = gcx.sess;
+    if !sess.opts.emit.contains(&CompilerOutput::Mir) {
         return Ok(());
     }
 
+    let out_path = sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.mir"));
+    let mut writer = out_writer(out_path.as_deref())
+        .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     for id in gcx.hir.contract_ids() {
         let contract = gcx.hir.contract(id);
         if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
@@ -166,9 +170,12 @@ fn emit_mir(gcx: Gcx<'_>) -> Result {
         let module = lower::lower_contract(gcx, id);
         gcx.dcx().has_errors()?;
         let name = gcx.contract_fully_qualified_name(id);
-        println!("// === {name} ===");
-        println!("{}", module_to_text(&module));
+        writeln!(writer, "// === {name} ===")
+            .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        writeln!(writer, "{}", module.to_text())
+            .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     }
+    writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
 
     Ok(())
 }

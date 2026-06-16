@@ -26,7 +26,6 @@ alloy-primitives.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
-itertools.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 

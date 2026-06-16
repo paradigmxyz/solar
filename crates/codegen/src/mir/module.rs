@@ -1,9 +1,11 @@
 //! MIR module (top-level container).
 
 use super::{Function, FunctionId, MirType};
-use solar_data_structures::index::IndexVec;
+use solar_data_structures::{
+    fmt::{self, FmtIteratorExt},
+    index::IndexVec,
+};
 use solar_interface::Ident;
-use std::fmt;
 
 /// Current immutable staging and placeholder width.
 ///
@@ -93,6 +95,29 @@ impl Module {
     /// Returns an iterator over all functions.
     pub fn iter_functions(&self) -> impl Iterator<Item = (FunctionId, &Function)> {
         self.functions.iter_enumerated()
+    }
+
+    /// Returns the human-readable textual MIR representation of this module.
+    pub fn to_text(&self) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| {
+            writeln!(f, "; module @{}", self.name)?;
+            write!(
+                f,
+                "{}",
+                self.functions.iter().map(super::display::display_function_text).format("\n")
+            )
+        })
+    }
+
+    /// Returns this module's DOT-format CFGs.
+    pub fn to_dot(&self) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| {
+            write!(
+                f,
+                "{}",
+                self.functions.iter().map(super::display::display_function_dot).format("\n\n")
+            )
+        })
     }
 }
 

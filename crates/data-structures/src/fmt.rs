@@ -1,6 +1,76 @@
-use std::{cell::Cell, fmt};
+use std::{
+    cell::{Cell, RefCell},
+    fmt,
+};
 
 pub use fmt::*;
+
+/// Iterator formatting helpers.
+pub trait FmtIteratorExt: Iterator + Sized {
+    /// Formats each item separated by `separator`.
+    fn format<'a>(self, separator: &'a str) -> Format<'a, Self>
+    where
+        Self::Item: fmt::Display,
+    {
+        Format { iter: Cell::new(Some(self)), separator }
+    }
+
+    /// Formats each item separated by `separator`, using `format` for each item.
+    fn format_with<'a, F>(self, separator: &'a str, format: F) -> FormatWith<'a, Self, F>
+    where
+        F: FnMut(&mut fmt::Formatter<'_>, Self::Item) -> fmt::Result,
+    {
+        FormatWith { inner: RefCell::new(Some((self, format))), separator }
+    }
+}
+
+impl<I: Iterator> FmtIteratorExt for I {}
+
+/// Display adapter returned by [`FmtIteratorExt::format`].
+pub struct Format<'a, I> {
+    iter: Cell<Option<I>>,
+    separator: &'a str,
+}
+
+impl<I> fmt::Display for Format<'_, I>
+where
+    I: Iterator,
+    I::Item: fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let iter = self.iter.take().expect("format called twice");
+        for (i, item) in iter.enumerate() {
+            if i != 0 {
+                f.write_str(self.separator)?;
+            }
+            write!(f, "{item}")?;
+        }
+        Ok(())
+    }
+}
+
+/// Display adapter returned by [`FmtIteratorExt::format_with`].
+pub struct FormatWith<'a, I, F> {
+    inner: RefCell<Option<(I, F)>>,
+    separator: &'a str,
+}
+
+impl<I, F> fmt::Display for FormatWith<'_, I, F>
+where
+    I: Iterator,
+    F: FnMut(&mut fmt::Formatter<'_>, I::Item) -> fmt::Result,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let (iter, mut format) = self.inner.borrow_mut().take().expect("format_with called twice");
+        for (i, item) in iter.enumerate() {
+            if i != 0 {
+                f.write_str(self.separator)?;
+            }
+            format(f, item)?;
+        }
+        Ok(())
+    }
+}
 
 /// Returns `list` formatted as a comma-separated list with "or" before the last item.
 pub fn or_list<I>(list: I) -> impl fmt::Display
@@ -44,5 +114,17 @@ mod tests {
         for &(tokens, expected) in tests {
             assert_eq!(or_list(tokens).to_string(), expected, "{tokens:?}");
         }
+    }
+
+    #[test]
+    fn test_format() {
+        assert_eq!([1, 2, 3].iter().format(", ").to_string(), "1, 2, 3");
+    }
+
+    #[test]
+    fn test_format_with() {
+        let values = [1, 2, 3];
+        let formatted = values.iter().format_with(" | ", |f, value| write!(f, "#{value}"));
+        assert_eq!(formatted.to_string(), "#1 | #2 | #3");
     }
 }
