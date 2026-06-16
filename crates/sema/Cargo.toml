@@ -38,8 +38,6 @@ thread_local.workspace = true
 tracing.workspace = true
 
 alloy-json-abi.workspace = true
-serde.workspace = true
-serde_json.workspace = true
 
 [dev-dependencies]
 snapbox.workspace = true
