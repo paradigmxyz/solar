@@ -12,51 +12,96 @@ use std::{
 type Hashes = BTreeMap<String, String>;
 
 #[derive(Default, serde::Serialize)]
-struct CombinedJson {
+struct SemaCombinedJson<Abi> {
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    contracts: BTreeMap<String, CombinedJsonContract>,
+    contracts: BTreeMap<String, SemaCombinedJsonContract<Abi>>,
     version: &'static str,
 }
 
 #[derive(Default, serde::Serialize)]
-struct CombinedJsonContract {
+struct SemaCombinedJsonContract<Abi> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    abi: Option<serde_json::Value>,
+    abi: Option<Abi>,
     #[serde(skip_serializing_if = "Option::is_none")]
     hashes: Option<Hashes>,
+}
+
+#[derive(Default, serde::Serialize)]
+struct CodegenCombinedJson {
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    contracts: BTreeMap<String, CodegenCombinedJsonContract>,
+    version: &'static str,
+}
+
+#[derive(Default, serde::Serialize)]
+struct CodegenCombinedJsonContract {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    abi: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bin: Option<String>,
     #[serde(rename = "bin-runtime", skip_serializing_if = "Option::is_none")]
     bin_runtime: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    hashes: Option<Hashes>,
 }
 
 pub(crate) fn emit_requested(compiler: &mut CompilerRef<'_>) -> Result {
     let gcx = compiler.gcx();
-    emit_combined_json(gcx)?;
-    emit_mir(gcx)
+    emit_sema_json(gcx)?;
+    emit_mir(gcx)?;
+    emit_codegen_json(gcx)
 }
 
-fn emit_combined_json(gcx: Gcx<'_>) -> Result {
+fn emit_sema_json(gcx: Gcx<'_>) -> Result {
+    let sess = gcx.sess;
+    let emit_abi = sess.opts.emit.contains(&CompilerOutput::Abi);
+    let emit_hashes = sess.opts.emit.contains(&CompilerOutput::Hashes);
+
+    if !emit_abi && !emit_hashes {
+        return Ok(());
+    }
+
+    let mut output = SemaCombinedJson {
+        contracts: BTreeMap::default(),
+        version: solar_config::version::SEMVER_VERSION,
+    };
+
+    for id in gcx.hir.contract_ids() {
+        let name = contract_output_name(gcx, id);
+        let contract_output = output.contracts.entry(name).or_default();
+
+        if emit_abi {
+            contract_output.abi = Some(gcx.contract_abi(id));
+        }
+        if emit_hashes {
+            contract_output.hashes = Some(contract_hashes(gcx, id));
+        }
+    }
+
+    write_output_json(gcx, &output, false)
+}
+
+fn emit_codegen_json(gcx: Gcx<'_>) -> Result {
     let sess = gcx.sess;
     let emit_abi = sess.opts.emit.contains(&CompilerOutput::Abi);
     let emit_hashes = sess.opts.emit.contains(&CompilerOutput::Hashes);
     let emit_bin = sess.opts.emit.contains(&CompilerOutput::Bin);
     let emit_bin_runtime = sess.opts.emit.contains(&CompilerOutput::BinRuntime);
 
-    if !emit_abi && !emit_hashes && !emit_bin && !emit_bin_runtime {
+    if !emit_bin && !emit_bin_runtime {
         return Ok(());
     }
 
     let bytecodes =
         if emit_bin || emit_bin_runtime { Some(generate_contract_bytecodes(gcx)?) } else { None };
 
-    let mut output = CombinedJson {
+    let mut output = CodegenCombinedJson {
         contracts: BTreeMap::default(),
         version: solar_config::version::SEMVER_VERSION,
     };
 
     for id in gcx.hir.contract_ids() {
-        let name = gcx.contract_fully_qualified_name(id).to_string();
+        let name = contract_output_name(gcx, id);
         let contract_output = output.contracts.entry(name).or_default();
 
         if emit_abi {
@@ -78,14 +123,34 @@ fn emit_combined_json(gcx: Gcx<'_>) -> Result {
         }
     }
 
+    write_output_json(gcx, &output, true)
+}
+
+fn write_output_json<T: serde::Serialize>(
+    gcx: Gcx<'_>,
+    output: &T,
+    trailing_newline: bool,
+) -> Result {
+    let sess = gcx.sess;
     let out_path = sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.json"));
     let mut writer = out_writer(out_path.as_deref())
         .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     to_json(&mut writer, &output, sess.opts.pretty_json)
         .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    if trailing_newline {
+        writer
+            .write_all(b"\n")
+            .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    }
     writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
 
     Ok(())
+}
+
+fn contract_output_name(gcx: Gcx<'_>, id: ContractId) -> String {
+    let contract = gcx.hir.contract(id);
+    let source = gcx.hir.source(contract.source);
+    format!("{}:{}", source.file.name.display().to_string().replace('\\', "/"), contract.name)
 }
 
 fn emit_mir(gcx: Gcx<'_>) -> Result {
