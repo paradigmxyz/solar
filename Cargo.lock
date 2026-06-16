@@ -3051,6 +3051,7 @@ dependencies = [
  "serde_json",
  "solar-ast",
  "solar-cli",
+ "solar-codegen",
  "solar-config",
  "solar-data-structures",
  "solar-interface",
@@ -3058,6 +3059,7 @@ dependencies = [
  "solar-parse",
  "solar-sema",
  "solar-tester",
+ "tempfile",
 ]
 
 [[package]]

@@ -124,6 +124,12 @@ pub struct Lowerer<'gcx> {
 impl<'gcx> Lowerer<'gcx> {
     /// Creates a new lowerer.
     pub fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
+        if !gcx.has_typeck_results() {
+            gcx.dcx().emit_err(
+                name.span,
+                "tried to lower contract without typeck results; likely missing -Zcodegen",
+            );
+        }
         Self {
             gcx,
             module: Module::new(name),

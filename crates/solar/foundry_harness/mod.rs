@@ -13,7 +13,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
-    time::{Duration, Instant, SystemTime},
+    time::{Duration, Instant},
 };
 
 // ============================================================================
@@ -179,24 +179,6 @@ fn forge_available() -> bool {
     Command::new("forge").arg("--version").output().is_ok()
 }
 
-/// Generates a timestamp string for file naming.
-fn timestamp_suffix() -> String {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .map(|d| d.as_secs().to_string())
-        .unwrap_or_else(|_| "unknown".to_string())
-}
-
-/// Saves JSON output to a file for debugging.
-fn save_json_output(project_dir: &Path, filename: &str, content: &str) -> PathBuf {
-    let timestamp = timestamp_suffix();
-    let json_path = project_dir.join(format!("{}-{}.json", filename, timestamp));
-    if let Err(e) = std::fs::write(&json_path, content) {
-        eprintln!("⚠️  Failed to save JSON to {:?}: {}", json_path, e);
-    }
-    json_path
-}
-
 /// Filters tests based on config.
 fn filter_tests(tests: Vec<TestResult>, config: &TestConfig) -> Vec<TestResult> {
     tests
@@ -316,11 +298,13 @@ fn run_forge_test_solar(
     label: &str,
     config: &TestConfig,
 ) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
-    let out_dir = "out-solar";
     let cache_dir = "cache-solar";
-    fs::create_dir_all(project_dir.join(out_dir)).expect("failed to create Solar output directory");
     fs::create_dir_all(project_dir.join(cache_dir))
         .expect("failed to create Solar cache directory");
+    let out_dir = tempfile::Builder::new()
+        .prefix("solar-foundry-out-")
+        .tempdir()
+        .expect("failed to create Solar output directory");
 
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir)
@@ -330,7 +314,7 @@ fn run_forge_test_solar(
         .arg("-vvvvv")
         .arg("--decode-internal")
         .arg("--out")
-        .arg(out_dir)
+        .arg(out_dir.path())
         .arg("--cache-path")
         .arg(cache_dir)
         // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
@@ -351,19 +335,15 @@ fn run_forge_test_solar(
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Save JSON output for debugging
-    let json_path = save_json_output(project_dir, "solar-test-output", &stdout);
-
-    // Print info when there are failures
     if !output.status.success() || stdout.contains("\"status\":\"Failure\"") {
-        eprintln!("\n🔍 [{}] Full JSON saved to: {:?}", label, json_path);
+        eprintln!("\n[{}] forge test reported failures", label);
         if !output.stderr.is_empty() {
             eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         }
     }
 
     let tests = parse_test_results(&stdout);
-    let sizes = extract_bytecode_sizes(&project_dir.join(out_dir));
+    let sizes = extract_bytecode_sizes(out_dir.path());
 
     (test_time, tests, sizes)
 }
@@ -373,10 +353,12 @@ fn run_forge_test_solc(
     project_dir: &PathBuf,
     config: &TestConfig,
 ) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
-    let out_dir = "out-solc";
     let cache_dir = "cache-solc";
-    fs::create_dir_all(project_dir.join(out_dir)).expect("failed to create solc output directory");
     fs::create_dir_all(project_dir.join(cache_dir)).expect("failed to create solc cache directory");
+    let out_dir = tempfile::Builder::new()
+        .prefix("solc-foundry-out-")
+        .tempdir()
+        .expect("failed to create solc output directory");
 
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir)
@@ -386,7 +368,7 @@ fn run_forge_test_solc(
         .arg("-vvvvv")
         .arg("--decode-internal")
         .arg("--out")
-        .arg(out_dir)
+        .arg(out_dir.path())
         .arg("--cache-path")
         .arg(cache_dir);
 
@@ -404,11 +386,8 @@ fn run_forge_test_solc(
 
     let stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Save JSON output for debugging
-    let _json_path = save_json_output(project_dir, "solc-test-output", &stdout);
-
     let tests = parse_test_results(&stdout);
-    let sizes = extract_bytecode_sizes(&project_dir.join(out_dir));
+    let sizes = extract_bytecode_sizes(out_dir.path());
 
     (test_time, tests, sizes)
 }

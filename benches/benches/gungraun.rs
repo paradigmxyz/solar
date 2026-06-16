@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 
 use gungraun::{library_benchmark, library_benchmark_group};
-use solar_bench::{Parser, Slang, Solang, Solar, Source, get_src};
+use solar_bench::{Compiler, Slang, Solang, Solar, Source, get_src};
 use std::hint::black_box;
 
 #[library_benchmark]
@@ -37,8 +37,8 @@ macro_rules! mk_groups {
                 ($name, &Solang),
             )*
         )]
-        fn lex(name: &str, parser: &dyn Parser) {
-            run_lex(name, parser);
+        fn lex(name: &str, compiler: &dyn Compiler) {
+            run_lex(name, compiler);
         }
 
         #[library_benchmark]
@@ -49,8 +49,8 @@ macro_rules! mk_groups {
                 ($name, &Slang),
             )*
         )]
-        fn parse(name: &str, parser: &dyn Parser) {
-            run_parse(name, parser);
+        fn parse(name: &str, compiler: &dyn Compiler) {
+            run_parse(name, compiler);
         }
 
         /*
@@ -60,8 +60,8 @@ macro_rules! mk_groups {
             $(
                 #[library_benchmark]
                 #[benches::$name(Solar, Solang)]
-                fn $name(parser: impl Parser) {
-                    run_lex(stringify!($name), parser);
+                fn $name(compiler: impl Compiler) {
+                    run_lex(stringify!($name), compiler);
                 }
             )*
 
@@ -77,8 +77,8 @@ macro_rules! mk_groups {
             $(
                 #[library_benchmark]
                 #[benches::$name(Solar, Solang, Slang)]
-                fn $name(parser: impl Parser) {
-                    run_parse(stringify!($name), parser);
+                fn $name(compiler: impl Compiler) {
+                    run_parse(stringify!($name), compiler);
                 }
             )*
 
@@ -107,18 +107,18 @@ mk_groups!(
 );
 
 #[inline]
-fn run_lex(name: &str, parser: &dyn Parser) {
-    assert!(parser.capabilities().can_lex(), "{} can't lex", parser.name());
-    let Source { name: _, path: _, src, capabilities: _ } = get_src(name);
-    let setup = &mut *parser.setup(src);
-    parser.lex(black_box(src), setup)
+fn run_lex(name: &str, compiler: &dyn Compiler) {
+    assert!(compiler.capabilities().can_lex(), "{} can't lex", compiler.name());
+    let source = get_src(name);
+    let setup = &mut *compiler.setup(source);
+    compiler.lex(black_box(source), setup)
 }
 
 #[inline]
-fn run_parse(name: &str, parser: &dyn Parser) {
-    let Source { name: _, path: _, src, capabilities: _ } = get_src(name);
-    let setup = &mut *parser.setup(src);
-    parser.parse(black_box(src), setup)
+fn run_parse(name: &str, compiler: &dyn Compiler) {
+    let source = get_src(name);
+    let setup = &mut *compiler.setup(source);
+    compiler.parse(black_box(source), setup)
 }
 
 // use lex_::lex;

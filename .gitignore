@@ -5,10 +5,5 @@
 /*.yul
 /tmp
 .DS_Store
-solc-test-output*
-solar-test-output*
 **/cache/
 **/cache-*/
-**/out/
-**/out-*/
-**/out-solar/
