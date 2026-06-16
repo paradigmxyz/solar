@@ -118,6 +118,29 @@ def baseline_regression_details(
     return details
 
 
+def has_baseline_changes(
+    results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
+) -> bool:
+    baseline = by_test_id(baseline_results)
+    for result in results:
+        test_id = str(result.get("test_id", "<unknown>"))
+        base = baseline.get(test_id)
+        if base is None:
+            continue
+
+        solar_gas = total_gas(result, "solar")
+        base_solar_gas = total_gas(base, "solar")
+        if solar_gas is not None and base_solar_gas is not None and solar_gas != base_solar_gas:
+            return True
+
+        solar_size = runtime_size(result, "solar")
+        base_solar_size = runtime_size(base, "solar")
+        if solar_size is not None and base_solar_size is not None and solar_size != base_solar_size:
+            return True
+
+    return False
+
+
 def warning(message: str) -> None:
     escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
     print(f"::warning::{escaped}", file=sys.stderr)
@@ -149,11 +172,38 @@ def fmt_int(value: int | None, suffix: str = "") -> str:
     return f"{value:,}{suffix}"
 
 
-def pct_delta(current: int | None, baseline: int | None) -> str:
+def pct_improvement(current: int | None, baseline: int | None) -> float | None:
     if current is None or baseline in (None, 0):
+        return None
+    return (baseline - current) / baseline * 100
+
+
+def fmt_pct_improvement(current: int | None, baseline: int | None) -> str:
+    delta = pct_improvement(current, baseline)
+    if delta is None:
         return "n/a"
-    delta = (baseline - current) / baseline * 100
-    return f"{delta:+.2f}%"
+    return fmt_pct(delta)
+
+
+def pct_vs_current(current: int | None, comparison: int | None) -> float | None:
+    if current in (None, 0) or comparison is None:
+        return None
+    return (comparison - current) / current * 100
+
+
+def fmt_pct_vs_current(current: int | None, comparison: int | None) -> str:
+    delta = pct_vs_current(current, comparison)
+    if delta is None:
+        return "n/a"
+    return fmt_pct(delta)
+
+
+def fmt_pct(delta: float) -> str:
+    rounded = round(delta, 2)
+    if rounded == 0:
+        return "~0%"
+    emoji = "✅" if rounded > 0 else "❌"
+    return f"{emoji} {rounded:+.2f}%"
 
 
 def pct_increase(current: int, baseline: int) -> str:
@@ -170,26 +220,16 @@ def absolute_delta(current: int | None, baseline: int | None) -> str:
     return f"{delta:+,}"
 
 
-def runtime_summary(result: dict[str, Any]) -> str:
-    status = result.get("runtime_status")
-    if status in (None, "skipped", "ok"):
-        return str(status or "not run")
+def fmt_value_with_delta(
+    value: int | None, current: int | None, baseline: int | None, suffix: str = ""
+) -> str:
+    return f"{fmt_int(value, suffix)} ({fmt_pct_improvement(current, baseline)})"
 
-    parts = []
-    for mismatch in result.get("runtime_mismatches") or []:
-        label = mismatch.get("label", "<unknown>")
-        values = mismatch.get("values") or {}
-        parts.append(f"{label}: {format_values(values)}")
 
-    for compiler_id, data in (result.get("compilers") or {}).items():
-        for check in data.get("runtime_results") or []:
-            if check.get("status") == "ok":
-                continue
-            label = check.get("label", "<unknown>")
-            error = check.get("error") or check.get("status")
-            parts.append(f"{compiler_id} {label}: {shorten(error)}")
-
-    return "<br>".join(markdown_cell(part) for part in parts) or str(status)
+def fmt_value_with_delta_vs_current(
+    value: int | None, current: int | None, comparison: int | None, suffix: str = ""
+) -> str:
+    return f"{fmt_int(value, suffix)} ({fmt_pct_vs_current(current, comparison)})"
 
 
 def benchmark_rows(
@@ -211,15 +251,10 @@ def benchmark_rows(
             + " | ".join(
                 [
                     markdown_cell(test_id),
-                    markdown_cell(runtime_summary(result)),
-                    fmt_int(solar_gas),
-                    pct_delta(solar_gas, solc_gas),
-                    absolute_delta(solar_gas, base_solar_gas),
-                    pct_delta(solar_gas, base_solar_gas),
-                    fmt_int(solar_size, "B"),
-                    pct_delta(solar_size, solc_size),
-                    absolute_delta(solar_size, base_solar_size),
-                    pct_delta(solar_size, base_solar_size),
+                    fmt_value_with_delta(solar_gas, solar_gas, base_solar_gas),
+                    fmt_value_with_delta_vs_current(solc_gas, solar_gas, solc_gas),
+                    fmt_value_with_delta(solar_size, solar_size, base_solar_size, "B"),
+                    fmt_value_with_delta_vs_current(solc_size, solar_size, solc_size, "B"),
                 ]
             )
             + " |"
@@ -238,21 +273,13 @@ def report_section(
         return "\n".join(lines)
 
     baseline = by_test_id(baseline_results)
-    if baseline:
-        lines.extend(
-            [
-                "Gas and size deltas are informational. Positive percentages mean "
-                "Solar used less gas or smaller runtime bytecode.",
-                "",
-            ]
-        )
-    else:
+    if not baseline:
         lines.extend(["No `main` baseline artifact was available for comparison.", ""])
 
     lines.extend(
         [
-            "| Test | Runtime | Solar gas | Solar vs solc gas | Gas Δ vs main | Gas % vs main | Solar size | Solar vs solc size | Size Δ vs main | Size % vs main |",
-            "| ---- | ------- | --------- | ----------------- | ------------- | ------------- | ---------- | ------------------ | -------------- | -------------- |",
+            "| bench | gas (vs main) | solc | size (vs main) | solc |",
+            "| ----- | ------------- | ---- | -------------- | ---- |",
             *benchmark_rows(results, baseline),
             "",
         ]
@@ -280,6 +307,14 @@ def append_step_summary(markdown: str) -> None:
         f.write("\n")
 
 
+def append_github_output(name: str, value: str) -> None:
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if not output_path:
+        return
+    with open(output_path, "a") as f:
+        f.write(f"{name}={value}\n")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--micro", type=Path)
@@ -299,18 +334,22 @@ def main() -> int:
     sections = []
     if args.micro is not None:
         sections.append(
-            report_section("Solar micro codegen benchmark", micro_results, baseline_micro)
+            report_section("Micro codegen benchmark", micro_results, baseline_micro)
         )
     if args.repo is not None:
         sections.append(
-            report_section("Solar repository codegen benchmark", repo_results, baseline_repo)
+            report_section("Repository codegen benchmark", repo_results, baseline_repo)
         )
     if not sections:
-        sections.append("## Solar codegen benchmark\n\nNo benchmark inputs were configured.\n")
+        sections.append("## Codegen benchmark\n\nNo benchmark inputs were configured.\n")
 
     markdown = "\n".join(sections)
     print(markdown)
     append_step_summary(markdown)
+    should_comment = has_baseline_changes(
+        micro_results, baseline_micro
+    ) or has_baseline_changes(repo_results, baseline_repo)
+    append_github_output("should_comment", "true" if should_comment else "false")
     return 0
 
 
