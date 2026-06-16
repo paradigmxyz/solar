@@ -36,9 +36,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         args.format = ui_test::Format::Terse;
     }
 
-    let default_modes =
-        if get_host().contains("windows") { DEFAULT_MODES_WINDOWS } else { DEFAULT_MODES };
-    let mut modes = default_modes.to_vec();
+    let mut modes = DEFAULT_MODES.to_vec();
     modes.insert(1, Mode::Mir);
 
     // TESTER_MODE can be a single mode or a comma-separated list.
@@ -352,7 +350,6 @@ enum Mode {
 }
 
 const DEFAULT_MODES: &[Mode] = &[Mode::Ui, Mode::StandardJson, Mode::SolcSolidity, Mode::SolcYul];
-const DEFAULT_MODES_WINDOWS: &[Mode] = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul];
 
 impl Mode {
     fn parse(s: &str) -> Option<Self> {
