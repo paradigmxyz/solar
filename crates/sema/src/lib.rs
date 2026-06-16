@@ -40,8 +40,6 @@ pub use ty::{Gcx, Ty};
 
 mod typeck;
 
-mod emit;
-
 pub mod stats;
 
 mod span_visitor;
@@ -121,10 +119,6 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     });
 
     typeck::check(gcx);
-
-    if !gcx.sess.opts.emit.is_empty() {
-        emit::emit(gcx);
-    }
 
     Ok(ControlFlow::Continue(()))
 }

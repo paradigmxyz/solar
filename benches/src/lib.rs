@@ -55,6 +55,76 @@ pub fn get_src(name: &str) -> &'static Source {
     get_srcs().iter().find(|s| s.name == name).unwrap()
 }
 
+/// Synthetic "repro" sources used by the compile-time benchmarks.
+///
+/// Each entry is a `testdata/repros/{pattern}_{size}.sol` fixture, named
+/// `{pattern}/{size}`. Missing fixtures are skipped so the benchmark still runs
+/// on a partial checkout.
+pub fn get_repros() -> &'static [Source] {
+    const PATTERNS: &[&str] = &[
+        "many_symbols",
+        "many_functions",
+        "deep_nesting",
+        "many_types",
+        "large_literals",
+        "many_storage",
+        "many_events",
+        "complex_inheritance",
+        "many_mappings",
+        "many_modifiers",
+    ];
+    const SIZES: &[&str] = &["small", "medium", "large"];
+
+    static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| {
+        let mut sources = Vec::new();
+        for pattern in PATTERNS {
+            for size in SIZES {
+                let rel = format!("../testdata/repros/{pattern}_{size}.sol");
+                let Ok(src) =
+                    std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(&rel))
+                else {
+                    continue;
+                };
+                sources.push(Source {
+                    name: format!("{pattern}/{size}").leak(),
+                    path: rel.leak(),
+                    src: src.leak(),
+                    capabilities: Capabilities::all(),
+                });
+            }
+        }
+        sources
+    })
+}
+
+/// Returns whether `src` parses and lowers without errors.
+///
+/// The compile-time benchmarks use this to skip inputs that don't compile —
+/// e.g. fixtures that intentionally exceed parser limits — instead of
+/// panicking inside the timed routine.
+pub fn compiles(src: &str) -> bool {
+    // Capture diagnostics instead of printing them: a failing probe (e.g. the
+    // recursion-limit error on `deep_nesting_large`) shouldn't spam bench output.
+    let sess = Session::builder()
+        .with_buffer_emitter(solar::parse::interface::ColorChoice::Never)
+        .single_threaded()
+        .build();
+    let mut compiler = Compiler::new(sess);
+    compiler.enter_mut(|compiler| {
+        let mut parsing = compiler.parse();
+        let Ok(file) = compiler.sess().source_map().new_source_file(PathBuf::from("test.sol"), src)
+        else {
+            return false;
+        };
+        parsing.add_file(file);
+        parsing.parse();
+        // Short-circuit so we never lower (which would panic) after a parse error
+        // such as exceeding the recursion limit.
+        compiler.dcx().has_errors().is_ok() && compiler.lower_asts().is_ok()
+    })
+}
+
 /// `include!` at runtime, since the submodule may not be initialized.
 fn include_source(path: &'static str, capabilities: Capabilities) -> Source {
     let source = match std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)) {
