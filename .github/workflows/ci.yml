@@ -12,7 +12,7 @@ env:
 
 jobs:
   test:
-    name: test ${{ matrix.os }} ${{ matrix.rust }} foundry=${{ matrix.foundry }}
+    name: test ${{ matrix.os }} ${{ matrix.rust }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     permissions:
@@ -23,19 +23,14 @@ jobs:
         include:
           - os: "ubuntu-latest"
             rust: "stable"
-            foundry: true
           - os: "macos-latest"
             rust: "stable"
-            foundry: true
           - os: "windows-latest"
             rust: "stable"
-            foundry: false
           - os: "ubuntu-latest"
             rust: "1.95" # MSRV
-            foundry: true
           - os: "ubuntu-latest"
             rust: "nightly"
-            foundry: true
     steps:
       - uses: actions/checkout@v6
         with:
@@ -69,7 +64,6 @@ jobs:
           toolchain: ${{ matrix.rust }}
       - uses: taiki-e/install-action@nextest
       - name: Install Foundry
-        if: matrix.foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: stable
