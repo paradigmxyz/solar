@@ -139,7 +139,7 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
 
-        let shift_bits = u64::from(location.offset) * 8;
+        let shift_bits = usize::from(location.offset) * 8;
         let field_mask = Self::packed_storage_mask(location.size);
         let shifted_mask = field_mask << shift_bits;
         let keep_mask = builder.imm_u256(!shifted_mask);
@@ -151,7 +151,7 @@ impl<'gcx> Lowerer<'gcx> {
         let shifted = if location.offset == 0 {
             masked
         } else {
-            let shift = builder.imm_u64(shift_bits);
+            let shift = builder.imm_u64(shift_bits as u64);
             builder.shl(shift, masked)
         };
         let updated = builder.or(cleared, shifted);

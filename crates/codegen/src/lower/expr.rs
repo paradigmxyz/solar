@@ -1385,7 +1385,7 @@ impl<'gcx> Lowerer<'gcx> {
         if bytes >= 32 {
             return value;
         }
-        let low_bits = u64::from(32 - bytes) * 8;
+        let low_bits = usize::from(32 - bytes) * 8;
         let mask = U256::MAX << low_bits;
         let mask = builder.imm_u256(mask);
         builder.and(value, mask)
