@@ -40,8 +40,3 @@ harness = false
 name = "gungraun"
 path = "benches/gungraun.rs"
 harness = false
-
-[[bench]]
-name = "compile_time"
-path = "benches/compile_time.rs"
-harness = false

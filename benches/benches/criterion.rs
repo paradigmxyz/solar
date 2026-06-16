@@ -1,6 +1,6 @@
-use criterion::{Criterion, criterion_group, criterion_main};
-use solar_bench::{PARSERS, Source, get_src, get_srcs};
-use std::{hint::black_box, time::Duration};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
+use solar_bench::{PARSERS, Parser, Solar, Source, compiles, get_repros, get_src, get_srcs};
+use std::{hint::black_box, sync::OnceLock, time::Duration};
 
 fn micro_benches(c: &mut Criterion) {
     let mut g = make_group(c, "micro");
@@ -123,6 +123,86 @@ fn parser_benches(c: &mut Criterion) {
     g.finish();
 }
 
+fn compile_time_benches(c: &mut Criterion) {
+    bench_compile_parse(c);
+    bench_compile_full(c);
+    bench_compile_scaling(c);
+}
+
+fn benchable_repros() -> &'static [&'static Source] {
+    static CACHE: OnceLock<Vec<&'static Source>> = OnceLock::new();
+    CACHE.get_or_init(|| {
+        get_repros()
+            .iter()
+            .filter(|s| {
+                let ok = compiles(s.src);
+                if !ok {
+                    eprintln!("skipping repro `{}`: does not compile", s.name);
+                }
+                ok
+            })
+            .collect()
+    })
+}
+
+fn bench_compile_parse(c: &mut Criterion) {
+    let mut g = make_compile_group(c, "compile/parse");
+    for repro in benchable_repros() {
+        let src = repro.src;
+        g.throughput(Throughput::Bytes(src.len() as u64));
+        g.bench_with_input(BenchmarkId::from_parameter(repro.name), &src, |b, &s| {
+            b.iter_batched(
+                || Solar.setup(s),
+                |mut setup| {
+                    Solar.parse(s, &mut *setup);
+                    setup
+                },
+                criterion::BatchSize::SmallInput,
+            )
+        });
+    }
+    g.finish();
+}
+
+fn bench_compile_full(c: &mut Criterion) {
+    let mut g = make_compile_group(c, "compile/full");
+    for repro in benchable_repros() {
+        let src = repro.src;
+        g.throughput(Throughput::Bytes(src.len() as u64));
+        g.bench_with_input(BenchmarkId::from_parameter(repro.name), &src, |b, &s| {
+            b.iter_batched(
+                || Solar.setup(s),
+                |mut setup| {
+                    Solar.lower(s, &mut *setup);
+                    setup
+                },
+                criterion::BatchSize::SmallInput,
+            )
+        });
+    }
+    g.finish();
+}
+
+fn bench_compile_scaling(c: &mut Criterion) {
+    let mut g = make_compile_group(c, "compile/scaling");
+    for repro in benchable_repros() {
+        let src = repro.src;
+        let lines = src.lines().count();
+        g.throughput(Throughput::Elements(lines as u64));
+        g.bench_with_input(BenchmarkId::new(repro.name, lines), &src, |b, &s| {
+            b.iter_batched(
+                || Solar.setup(s),
+                |mut setup| {
+                    Solar.lower(s, &mut *setup);
+                    setup
+                },
+                criterion::BatchSize::SmallInput,
+            )
+        });
+    }
+    g.finish();
+}
+
 fn make_group<'a>(
     c: &'a mut Criterion,
     name: &str,
@@ -135,5 +215,16 @@ fn make_group<'a>(
     g
 }
 
-criterion_group!(benches, micro_benches, parser_benches);
+fn make_compile_group<'a>(
+    c: &'a mut Criterion,
+    name: &str,
+) -> criterion::BenchmarkGroup<'a, criterion::measurement::WallTime> {
+    let mut g = c.benchmark_group(name);
+    g.warm_up_time(Duration::from_secs(2));
+    g.measurement_time(Duration::from_secs(5));
+    g.sample_size(10);
+    g
+}
+
+criterion_group!(benches, micro_benches, parser_benches, compile_time_benches);
 criterion_main!(benches);
