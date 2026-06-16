@@ -7,8 +7,6 @@
 .DS_Store
 solc-test-output*
 solar-test-output*
-/cache/
-/out/
 **/cache/
 **/cache-*/
 **/out/
