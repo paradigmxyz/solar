@@ -20,31 +20,25 @@ mod udvt;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
     let mut expr_types = None;
-    parallel!(
-        gcx.sess,
-        gcx.hir.par_contract_ids().for_each(|id| {
-            check_contract(gcx, id);
-        }),
-        {
-            if gcx.sess.opts.unstable.typeck {
-                expr_types = Some(
-                    gcx.hir
-                        .par_source_ids()
-                        .map(|id| {
-                            check_source(gcx, id);
-                            // TODO: Parallelize more.
-                            checker::check(gcx, id)
-                        })
-                        .reduce(FxHashMap::default, |mut a, b| {
-                            merge_expr_types(gcx, &mut a, b);
-                            a
-                        }),
-                );
-            } else {
-                gcx.hir.par_source_ids().for_each(|id| check_source(gcx, id));
-            }
-        },
-    );
+    parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {
+        if gcx.sess.opts.unstable.typeck {
+            expr_types = Some(
+                gcx.hir
+                    .par_source_ids()
+                    .map(|id| {
+                        check_source(gcx, id);
+                        // TODO: Parallelize more.
+                        checker::check(gcx, id)
+                    })
+                    .reduce(FxHashMap::default, |mut a, b| {
+                        merge_expr_types(gcx, &mut a, b);
+                        a
+                    }),
+            );
+        } else {
+            gcx.hir.par_source_ids().for_each(|id| check_source(gcx, id));
+        }
+    },);
     if let Some(expr_types) = expr_types {
         gcx.set_expr_types(expr_types);
     }
