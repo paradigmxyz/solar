@@ -1,0 +1,71 @@
+error[5424]: functions without implementation must be marked virtual
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │     function f() external override(UnimplementedA, UnimplementedB);
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4593]: cannot override implemented function with unimplemented function
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │     function f() external override(UnimplementedA, UnimplementedB);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │     function f() external virtual {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: provide an implementation for the overriding function
+
+error[4593]: cannot override implemented function with unimplemented function
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │     function f() external override(UnimplementedA, UnimplementedB);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │     function f() external virtual {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: provide an implementation for the overriding function
+
+error[9456]: overriding function is missing `override` specifier
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │     function foo() public view {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │     function foo() public virtual view {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: add `override` to the function signature
+
+error[4327]: Function needs to specify overridden contracts `IBaseChoice` and `BaseChoice`
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │     function foo() public view {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6480]: derived contract must override function `f`
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │ contract NoCommonC is NoCommonA, NoCommonB {}
+   │          ━━━━━━━━━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ╰ note: defined in: `NoCommonA`, `NoCommonB`
+
+error[6480]: derived contract must override function `g`
+   ╭▸ ROOT/tests/ui/overrides/intermediate_bases.sol:LL:CC
+   │
+LL │ contract NoCommonC is NoCommonA, NoCommonB {}
+   │          ━━━━━━━━━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ╰ note: defined in: `NoCommonA`, `NoCommonB`
+
+error: aborting due to 7 previous errors
+
