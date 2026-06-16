@@ -79,9 +79,9 @@ fn extend_repro_sources(sources: &mut Vec<Source>) {
     ];
     const SIZES: &[&str] = &[
         // TODO: too many benches
-        // "small",
+        "small",
         // "medium",
-        "large",
+        // "large",
     ];
 
     for &pattern in PATTERNS {
