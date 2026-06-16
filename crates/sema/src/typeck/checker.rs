@@ -109,7 +109,10 @@ impl<'gcx> TypeChecker<'gcx> {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
-            Ok(ConstValue::Bool(_)) => {}
+            Ok(ConstValue::Bool(_)) => {
+                self.dcx()
+                    .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
+            }
             Err(err) => {
                 evaluator.emit_eval_error(slot, err);
             }
@@ -2481,6 +2484,14 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
+    /// Returns whether `expr` uses a user-defined value type operator that the
+    /// EVM code generator cannot lower yet.
+    ///
+    /// This is a temporary restriction: we flag such expressions during type
+    /// checking so codegen can reject them with a diagnostic (see
+    /// `emit_unsupported_udvt_operator` in `solar-codegen`). Remove this check,
+    /// its call in `register_ty`, and `TypeckResults::unsupported_udvt_operators`
+    /// once codegen supports user-defined operators on UDVTs.
     fn unsupported_codegen_udvt_operator(&self, expr: &'gcx hir::Expr<'gcx>, ty: Ty<'gcx>) -> bool {
         match &expr.kind {
             hir::ExprKind::Assign(lhs, Some(_), rhs) => {

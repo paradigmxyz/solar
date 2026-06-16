@@ -5,7 +5,7 @@ use serde::{
 };
 use serde_json::{Map, Value, json};
 use solar_codegen::{EvmCodegen, lower};
-use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
+use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode, Opts};
 use solar_data_structures::map::{FxBuildHasher, FxHashMap, FxHashSet};
 use solar_interface::{
     Result, SourceMap,
@@ -49,6 +49,12 @@ struct SourceInput<'a> {
     urls: Vec<CowStr<'a>>,
 }
 
+/// A subset of the solc Standard JSON `settings` object.
+///
+/// Every field here is handled explicitly in [`compile`] — fields we don't act
+/// on yet are still parsed and bound (with a note) rather than silently dropped,
+/// so the set of recognized keys stays visible and intentional. Unknown keys are
+/// ignored by serde, matching solc.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Settings<'a> {
@@ -62,6 +68,35 @@ struct Settings<'a> {
     stop_after: Option<CowStr<'a>>,
     #[serde(borrow)]
     evm_version: Option<CowStr<'a>>,
+    /// Optimizer settings. Only `enabled` is currently honored.
+    #[serde(default)]
+    optimizer: Option<Optimizer>,
+    /// Output metadata settings; bytecode metadata is not emitted yet.
+    #[serde(default)]
+    metadata: Option<Value>,
+    /// Library addresses for linking; linking is not supported yet.
+    #[serde(default)]
+    libraries: Option<Value>,
+    /// Whether to compile via the Yul IR pipeline. We have a single pipeline, so
+    /// there is nothing to switch.
+    #[serde(default, rename = "viaIR")]
+    via_ir: Option<bool>,
+}
+
+/// The solc Standard JSON `settings.optimizer` object.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Optimizer {
+    /// Whether the optimizer is enabled. Mapped onto [`OptimizationMode::None`]
+    /// when disabled.
+    #[serde(default)]
+    enabled: bool,
+    /// Number of optimizer runs. The MIR optimizer has no runs parameter yet.
+    #[serde(default)]
+    runs: Option<u64>,
+    /// Fine-grained optimizer toggles. Not used yet.
+    #[serde(default)]
+    details: Option<Value>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -189,10 +224,26 @@ fn compile(
     dcx: DiagCtxt,
     output: &mut CompilerOutput<'_>,
 ) {
-    let mut remappings = Vec::with_capacity(input.settings.remappings.len());
-    for remapping in &input.settings.remappings {
+    let CompilerInput { language, sources, settings } = input;
+    // Destructure `Settings` so every recognized field is handled explicitly;
+    // fields we don't act on yet are bound with a leading underscore and a note.
+    // Adding a field to `Settings` then forces a decision here instead of it
+    // being silently ignored.
+    let Settings {
+        remappings,
+        output_selection,
+        stop_after,
+        evm_version,
+        optimizer,
+        metadata: _metadata,
+        libraries: _libraries,
+        via_ir: _via_ir,
+    } = settings;
+
+    let mut parsed_remappings = Vec::with_capacity(remappings.len());
+    for remapping in &remappings {
         match remapping.parse::<ImportRemapping>() {
-            Ok(remapping) => remappings.push(remapping),
+            Ok(remapping) => parsed_remappings.push(remapping),
             Err(e) => {
                 dcx.err(format!("invalid remapping `{remapping}`: {e}")).emit();
             }
@@ -202,14 +253,12 @@ fn compile(
         return;
     }
 
-    opts.import_remappings = remappings;
-    opts.evm_version = input
-        .settings
-        .evm_version
+    opts.import_remappings = parsed_remappings;
+    opts.evm_version = evm_version
         .as_deref()
         .and_then(|version| EvmVersion::from_str(version).ok())
         .unwrap_or(opts.evm_version);
-    opts.language = match input.language.as_ref() {
+    opts.language = match language.as_ref() {
         "Solidity" | "solidity" => Language::Solidity,
         "Yul" | "yul" => Language::Yul,
         language => {
@@ -217,9 +266,17 @@ fn compile(
             return;
         }
     };
-    opts.stop_after =
-        input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
-    opts.input = input.sources.keys().map(ToString::to_string).collect();
+    opts.stop_after = stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
+
+    // Map the solc optimizer toggle onto our MIR optimization objective. We only
+    // override when the input explicitly disables the optimizer, leaving the
+    // CLI-driven default otherwise. `runs` and `details` have no analogue in the
+    // MIR optimizer yet, so they're parsed but unused.
+    if let Some(Optimizer { enabled: false, runs: _runs, details: _details }) = optimizer {
+        opts.optimization = OptimizationMode::None;
+    }
+
+    opts.input = sources.keys().map(ToString::to_string).collect();
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -227,8 +284,6 @@ fn compile(
         .opts(opts.clone())
         .build();
 
-    let output_selection = input.settings.output_selection;
-    let sources = input.sources;
     let _ = crate::run_compiler_session_with(
         sess,
         |compiler| {
@@ -757,6 +812,14 @@ fn make_contract_output(
             );
         }
     }
+    // In solc's output selection `evm.bytecode` is the full bytecode object
+    // (`object`, `opcodes`, `sourceMap`, `linkReferences`, ...) and
+    // `evm.bytecode.object` selects only the `object` hex sub-field. We match
+    // either selector and emit a `BytecodeOutput`; since we only populate
+    // `object` for now (the other sub-fields are left empty and skipped during
+    // serialization), the two selectors currently produce identical output.
+    // Honoring the finer-grained `.object`/`.opcodes`/`.sourceMap` selectors is
+    // part of the larger effort to match solc's input->output key mapping.
     if output_selection.selects(
         source_name,
         contract_name,

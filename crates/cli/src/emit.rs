@@ -47,11 +47,8 @@ fn emit_combined_json(gcx: Gcx<'_>) -> Result {
         return Ok(());
     }
 
-    let bytecodes = if emit_bin || emit_bin_runtime {
-        Some(generate_contract_bytecodes(gcx)?)
-    } else {
-        None
-    };
+    let bytecodes =
+        if emit_bin || emit_bin_runtime { Some(generate_contract_bytecodes(gcx)?) } else { None };
 
     let mut output = CombinedJson {
         contracts: BTreeMap::default(),
@@ -86,9 +83,7 @@ fn emit_combined_json(gcx: Gcx<'_>) -> Result {
         .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
     to_json(&mut writer, &output, sess.opts.pretty_json)
         .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
-    writer
-        .flush()
-        .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
 
     Ok(())
 }
