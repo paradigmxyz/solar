@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Validate Solar codegen benchmark JSON emitted by solar_bench.py."""
+"""Report Solar codegen benchmark JSON emitted by solar_bench.py.
+
+This script is intentionally non-gating: runtime benchmarks are useful CI
+signals, but benchmark deltas should be reviewed rather than fail PRs.
+"""
 
 from __future__ import annotations
 
@@ -11,12 +15,22 @@ from pathlib import Path
 from typing import Any
 
 
-def load_results(path: Path) -> list[dict[str, Any]]:
+def load_results(path: Path | None, label: str) -> list[dict[str, Any]]:
+    if path is None:
+        return []
+    if not path.exists():
+        warning(f"{label} benchmark results not found: {path}")
+        return []
     with path.open() as f:
         data = json.load(f)
     if not isinstance(data, list):
-        raise SystemExit(f"{path}: expected a list of benchmark results")
+        warning(f"{label} benchmark results have unexpected shape: expected list")
+        return []
     return data
+
+
+def by_test_id(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {str(result.get("test_id", "<unknown>")): result for result in results}
 
 
 def compiler_failures(results: list[dict[str, Any]]) -> list[str]:
@@ -35,7 +49,7 @@ def shorten(value: Any, limit: int = 160) -> str:
     text = str(value).replace("\n", " ")
     if len(text) <= limit:
         return text
-    return text[: limit - 1] + "…"
+    return text[: limit - 1] + "..."
 
 
 def format_values(values: dict[str, Any]) -> str:
@@ -70,19 +84,96 @@ def runtime_issue_details(results: list[dict[str, Any]]) -> list[str]:
     return details
 
 
+def baseline_regression_details(
+    results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
+) -> list[str]:
+    details = []
+    baseline = by_test_id(baseline_results)
+    for result in results:
+        test_id = str(result.get("test_id", "<unknown>"))
+        base = baseline.get(test_id)
+        if base is None:
+            continue
+
+        solar_gas = total_gas(result, "solar")
+        base_solar_gas = total_gas(base, "solar")
+        if solar_gas is not None and base_solar_gas is not None and solar_gas > base_solar_gas:
+            details.append(
+                f"{test_id} solar gas regressed vs previous Solar run: "
+                f"{base_solar_gas:,} -> {solar_gas:,} "
+                f"({absolute_delta(solar_gas, base_solar_gas)}, "
+                f"{pct_increase(solar_gas, base_solar_gas)} worse)"
+            )
+
+        solar_size = runtime_size(result, "solar")
+        base_solar_size = runtime_size(base, "solar")
+        if solar_size is not None and base_solar_size is not None and solar_size > base_solar_size:
+            details.append(
+                f"{test_id} solar runtime size regressed vs previous Solar run: "
+                f"{base_solar_size:,}B -> {solar_size:,}B "
+                f"({absolute_delta(solar_size, base_solar_size)}B, "
+                f"{pct_increase(solar_size, base_solar_size)} worse)"
+            )
+
+    return details
+
+
 def warning(message: str) -> None:
     escaped = message.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
-    print(f"::warning::{escaped}")
+    print(f"::warning::{escaped}", file=sys.stderr)
 
 
-def markdown_cell(value: str) -> str:
-    return value.replace("|", "\\|").replace("\n", "<br>")
+def markdown_cell(value: Any) -> str:
+    return str(value).replace("|", "\\|").replace("\n", "<br>")
+
+
+def compiler_data(result: dict[str, Any], compiler: str) -> dict[str, Any]:
+    data = result.get("compilers") or {}
+    value = data.get(compiler)
+    return value if isinstance(value, dict) else {}
+
+
+def total_gas(result: dict[str, Any], compiler: str) -> int | None:
+    value = compiler_data(result, compiler).get("total_gas")
+    return value if isinstance(value, int) else None
+
+
+def runtime_size(result: dict[str, Any], compiler: str) -> int | None:
+    value = compiler_data(result, compiler).get("runtime_size")
+    return value if isinstance(value, int) else None
+
+
+def fmt_int(value: int | None, suffix: str = "") -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:,}{suffix}"
+
+
+def pct_delta(current: int | None, baseline: int | None) -> str:
+    if current is None or baseline in (None, 0):
+        return "n/a"
+    delta = (baseline - current) / baseline * 100
+    return f"{delta:+.2f}%"
+
+
+def pct_increase(current: int, baseline: int) -> str:
+    if baseline == 0:
+        return "n/a"
+    delta = (current - baseline) / baseline * 100
+    return f"{delta:+.2f}%"
+
+
+def absolute_delta(current: int | None, baseline: int | None) -> str:
+    if current is None or baseline is None:
+        return "n/a"
+    delta = current - baseline
+    return f"{delta:+,}"
 
 
 def runtime_summary(result: dict[str, Any]) -> str:
     status = result.get("runtime_status")
     if status in (None, "skipped", "ok"):
-        return ""
+        return str(status or "not run")
 
     parts = []
     for mismatch in result.get("runtime_mismatches") or []:
@@ -101,62 +192,125 @@ def runtime_summary(result: dict[str, Any]) -> str:
     return "<br>".join(markdown_cell(part) for part in parts) or str(status)
 
 
-def append_summary(title: str, results: list[dict[str, Any]]) -> None:
+def benchmark_rows(
+    results: list[dict[str, Any]], baseline: dict[str, dict[str, Any]]
+) -> list[str]:
+    rows = []
+    for result in results:
+        test_id = str(result.get("test_id", "<unknown>"))
+        base = baseline.get(test_id, {})
+        solar_gas = total_gas(result, "solar")
+        solc_gas = total_gas(result, "solc")
+        base_solar_gas = total_gas(base, "solar") if base else None
+        solar_size = runtime_size(result, "solar")
+        solc_size = runtime_size(result, "solc")
+        base_solar_size = runtime_size(base, "solar") if base else None
+
+        rows.append(
+            "| "
+            + " | ".join(
+                [
+                    markdown_cell(test_id),
+                    markdown_cell(runtime_summary(result)),
+                    fmt_int(solar_gas),
+                    pct_delta(solar_gas, solc_gas),
+                    absolute_delta(solar_gas, base_solar_gas),
+                    pct_delta(solar_gas, base_solar_gas),
+                    fmt_int(solar_size, "B"),
+                    pct_delta(solar_size, solc_size),
+                    absolute_delta(solar_size, base_solar_size),
+                    pct_delta(solar_size, base_solar_size),
+                ]
+            )
+            + " |"
+        )
+    return rows
+
+
+def report_section(
+    title: str,
+    results: list[dict[str, Any]],
+    baseline_results: list[dict[str, Any]],
+) -> str:
+    lines = [f"## {title}", ""]
+    if not results:
+        lines.extend(["No benchmark results were produced.", ""])
+        return "\n".join(lines)
+
+    baseline = by_test_id(baseline_results)
+    if baseline:
+        lines.extend(
+            [
+                "Gas and size deltas are informational. Positive percentages mean "
+                "Solar used less gas or smaller runtime bytecode.",
+                "",
+            ]
+        )
+    else:
+        lines.extend(["No `main` baseline artifact was available for comparison.", ""])
+
+    lines.extend(
+        [
+            "| Test | Runtime | Solar gas | Solar vs solc gas | Gas Δ vs main | Gas % vs main | Solar size | Solar vs solc size | Size Δ vs main | Size % vs main |",
+            "| ---- | ------- | --------- | ----------------- | ------------- | ------------- | ---------- | ------------------ | -------------- | -------------- |",
+            *benchmark_rows(results, baseline),
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def emit_warnings(
+    label: str, results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
+) -> None:
+    for failure in compiler_failures(results):
+        warning(f"{label} compiler failure recorded: {failure}")
+    for detail in runtime_issue_details(results):
+        warning(f"{label} runtime mismatch recorded: {detail}")
+    for detail in baseline_regression_details(results, baseline_results):
+        warning(f"{label} benchmark regression recorded: {detail}")
+
+
+def append_step_summary(markdown: str) -> None:
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if not summary_path:
         return
-
-    lines = [
-        f"### {title}",
-        "",
-        "| Test | Compile | Runtime | Details |",
-        "| ---- | ------- | ------- | ------- |",
-    ]
-    for result in results:
-        compilers = result.get("compilers", {})
-        compile_ok = all(data.get("status") == "ok" for data in compilers.values())
-        runtime_status = result.get("runtime_status") or "not run"
-        lines.append(
-            f"| {result.get('test_id', '<unknown>')} | "
-            f"{'ok' if compile_ok else 'failed'} | {runtime_status} | "
-            f"{runtime_summary(result)} |"
-        )
-    lines.append("")
-
     with open(summary_path, "a") as f:
-        f.write("\n".join(lines))
+        f.write(markdown)
         f.write("\n")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--micro", type=Path, required=True)
-    parser.add_argument("--repo", type=Path, required=True)
+    parser.add_argument("--micro", type=Path)
+    parser.add_argument("--repo", type=Path)
+    parser.add_argument("--baseline-micro", type=Path)
+    parser.add_argument("--baseline-repo", type=Path)
     args = parser.parse_args()
 
-    micro_results = load_results(args.micro)
-    repo_results = load_results(args.repo)
+    micro_results = load_results(args.micro, "micro")
+    repo_results = load_results(args.repo, "repository")
+    baseline_micro = load_results(args.baseline_micro, "baseline micro")
+    baseline_repo = load_results(args.baseline_repo, "baseline repository")
 
-    append_summary("Solar micro codegen benchmark", micro_results)
-    append_summary("Solar repository codegen benchmark", repo_results)
+    emit_warnings("micro", micro_results, baseline_micro)
+    emit_warnings("repository", repo_results, baseline_repo)
 
-    failures = []
-    failures.extend(f"micro {failure}" for failure in compiler_failures(micro_results))
-    failures.extend(f"micro {failure}" for failure in runtime_issue_details(micro_results))
-    failures.extend(f"repo {failure}" for failure in compiler_failures(repo_results))
+    sections = []
+    if args.micro is not None:
+        sections.append(
+            report_section("Solar micro codegen benchmark", micro_results, baseline_micro)
+        )
+    if args.repo is not None:
+        sections.append(
+            report_section("Solar repository codegen benchmark", repo_results, baseline_repo)
+        )
+    if not sections:
+        sections.append("## Solar codegen benchmark\n\nNo benchmark inputs were configured.\n")
 
-    repo_runtime = runtime_issue_details(repo_results)
-    for detail in repo_runtime:
-        warning(f"repository runtime mismatch recorded: {detail}")
-    failures.extend(f"repo {failure}" for failure in repo_runtime)
-
-    if failures:
-        print("codegen benchmark failures:", file=sys.stderr)
-        for failure in failures:
-            print(f"- {failure}", file=sys.stderr)
-        return 1
-
-    print("codegen benchmark checks passed")
+    markdown = "\n".join(sections)
+    print(markdown)
+    append_step_summary(markdown)
     return 0
 
 

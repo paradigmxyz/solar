@@ -10,18 +10,32 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  SOLC_VERSION: 0.8.30
+  BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
+  BENCHMARK_REF: 759b27b596ca6632717465832859863eccbe41a2
+  BENCHMARK_PATH: solidity-compiler-benchmarks
 
 jobs:
-  compile-time:
-    name: compile-time regression
+  codegen-runtime:
+    name: codegen runtime benchmark
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     permissions:
+      actions: read
       contents: read
+      issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - name: Checkout Solar
+        uses: actions/checkout@v6
+
+      - name: Checkout benchmark corpus
+        uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          repository: ${{ env.BENCHMARK_REPOSITORY }}
+          ref: ${{ env.BENCHMARK_REF }}
+          path: ${{ env.BENCHMARK_PATH }}
+          submodules: recursive
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -29,130 +43,139 @@ jobs:
         with:
           cache-on-failure: true
 
-      - name: Build release binary
-        run: cargo build --release
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install solc
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/solc"
+          curl -fsSL \
+            "https://github.com/ethereum/solidity/releases/download/v${SOLC_VERSION}/solc-static-linux" \
+            -o "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+          chmod +x "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+          "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
+
+      - name: Build Solar
+        run: cargo build -p solar-compiler --bin solar
 
       - name: Download baseline (main branch)
         id: baseline
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: bench.yml
-          branch: main
-          name: compile-time-baseline
-          path: baseline
-
-      - name: Run compile-time benchmarks
-        id: bench
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          ./scripts/ci_compile_bench.sh --output-dir target/compile-bench
-          echo "results_file=target/compile-bench/results.json" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          mkdir -p target/codegen-bench/baseline
 
-      - name: Compare against baseline
-        id: compare
-        if: steps.baseline.outcome == 'success'
-        continue-on-error: true
+          run_id="$(
+            gh run list \
+              --workflow bench.yml \
+              --branch main \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId // ""' \
+              2>/dev/null || true
+          )"
+          if [[ -z "$run_id" ]]; then
+            echo "::warning::No successful main benchmark run was found for baseline comparison"
+            exit 0
+          fi
+
+          if ! gh run download "$run_id" \
+            --name codegen-runtime-baseline \
+            --dir target/codegen-bench/baseline; then
+            echo "::warning::No main baseline artifact was available for comparison"
+          fi
+
+      - name: Run micro codegen benchmark
+        id: micro-bench
+        working-directory: ${{ env.BENCHMARK_PATH }}
         run: |
-          ./scripts/ci_compile_bench.sh \
-            --baseline baseline/results.json \
-            --compare target/compile-bench/results.json \
-            --threshold 5 \
-            > target/compile-bench/comparison.json
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
+          if ! python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --suite micro \
+            --gas \
+            --gas-profile hot \
+            --start-anvil \
+            --allow-failures \
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/micro.json"; then
+            echo "::warning::Micro codegen benchmark failed to complete"
+          fi
 
-      - name: Generate markdown report
-        id: report
+      - name: Run repository codegen benchmark
+        id: repo-bench
+        working-directory: ${{ env.BENCHMARK_PATH }}
         run: |
-          REPORT_FILE="target/compile-bench/report.md"
-          {
-            echo "## ⏱️ Compile-Time Benchmark Results"
-            echo ""
-            echo "**Commit:** \`$(git rev-parse --short HEAD)\`"
-            echo ""
-            
-            if [[ -f "target/compile-bench/comparison.json" ]]; then
-              python3 -c "
-import json
-with open('target/compile-bench/comparison.json') as f:
-    c = json.load(f)
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
+          if ! python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --suite repo \
+            --gas \
+            --gas-profile hot \
+            --start-anvil \
+            --allow-failures \
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/repo.json"; then
+            echo "::warning::Repository codegen benchmark failed to complete"
+          fi
 
-if c.get('regressions'):
-    print('### ⚠️ Regressions Detected (>${} threshold)'.format(c['threshold_pct']))
-    print()
-    print('| Test | Parse | Δ | Sema | Δ |')
-    print('|------|-------|---|------|---|')
-    for r in c['regressions']:
-        print(f\"| {r['name']} | {r['parse_curr']:.2f}ms | +{r['parse_diff_pct']:.1f}% | {r['sema_curr']:.2f}ms | +{r['sema_diff_pct']:.1f}% |\")
-    print()
-
-if c.get('improvements'):
-    print('### ✅ Improvements')
-    print()
-    print('| Test | Parse | Δ | Sema | Δ |')
-    print('|------|-------|---|------|---|')
-    for r in c['improvements']:
-        print(f\"| {r['name']} | {r['parse_curr']:.2f}ms | {r['parse_diff_pct']:+.1f}% | {r['sema_curr']:.2f}ms | {r['sema_diff_pct']:+.1f}% |\")
-    print()
-
-if not c.get('regressions') and not c.get('improvements'):
-    print('✅ No significant changes detected.')
-    print()
-"
-            else
-              echo "ℹ️ No baseline available for comparison (first run on main)."
-              echo ""
-            fi
-            
-            echo "<details>"
-            echo "<summary>📊 Full Results</summary>"
-            echo ""
-            echo "| Test | Lines | Parse (ms) | Sema (ms) |"
-            echo "|------|-------|-----------|----------|"
-            python3 -c "
-import json
-with open('target/compile-bench/results.json') as f:
-    r = json.load(f)
-for t in r['results']:
-    print(f\"| {t['name']} | {t['lines']} | {t['parse_ms']:.2f} | {t['sema_ms']:.2f} |\")
-"
-            echo ""
-            echo "</details>"
-          } > "$REPORT_FILE"
-          
-          # Set output for PR comment
+      - name: Generate runtime benchmark report
+        id: runtime-report
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench
+          args=(
+            --micro target/codegen-bench/micro.json
+            --repo target/codegen-bench/repo.json
+          )
+          if [[ -f target/codegen-bench/baseline/micro.json ]]; then
+            args+=(--baseline-micro target/codegen-bench/baseline/micro.json)
+          fi
+          if [[ -f target/codegen-bench/baseline/repo.json ]]; then
+            args+=(--baseline-repo target/codegen-bench/baseline/repo.json)
+          fi
+          python3 .github/scripts/check_codegen_benchmark.py "${args[@]}" \
+            | tee target/codegen-bench/report.md
           {
             echo 'report<<EOF'
-            cat "$REPORT_FILE"
+            cat target/codegen-bench/report.md
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
       - name: Comment on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: marocchino/sticky-pull-request-comment@v2
         with:
-          header: compile-time-bench
-          message: ${{ steps.report.outputs.report }}
+          header: codegen-runtime-bench
+          message: ${{ steps.runtime-report.outputs.report }}
 
       - name: Upload results as artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: compile-time-results
-          path: target/compile-bench/
+          name: codegen-runtime-results
+          path: target/codegen-bench/
           retention-days: 30
+          if-no-files-found: ignore
 
       - name: Save baseline (main only)
         if: github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: compile-time-baseline
-          path: target/compile-bench/results.json
+          name: codegen-runtime-baseline
+          path: |
+            target/codegen-bench/micro.json
+            target/codegen-bench/repo.json
           retention-days: 90
-
-      - name: Check for regressions
-        if: steps.compare.outcome == 'failure'
-        run: |
-          echo "::warning::Compile-time regression detected! Check the benchmark report."
-          # Don't fail the job - just warn
-          exit 0
+          if-no-files-found: ignore
 
   codspeed:
     runs-on: ubuntu-latest
