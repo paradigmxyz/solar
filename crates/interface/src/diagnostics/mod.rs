@@ -1046,9 +1046,7 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 mod tests {
     use super::*;
     use crate::{BytePos, ColorChoice, Span, source_map};
-    #[allow(unused_imports)]
-    use snapbox::IntoData;
-    use snapbox::{assert_data_eq, str};
+    use snapbox::{IntoData as _, assert_data_eq, str};
 
     #[test]
     fn test_styled_messages() {
@@ -1333,7 +1331,7 @@ help: consider changing visibility and mutability
     }
   ]
 }
-"#]].is(snapbox::data::DataFormat::Json)
+"#]].is_json()
         );
     }
 
@@ -1453,7 +1451,7 @@ help: consider changing visibility and mutability
     }
   ]
 }
-"#]].is(snapbox::data::DataFormat::Json)
+"#]].is_json()
         );
     }
 

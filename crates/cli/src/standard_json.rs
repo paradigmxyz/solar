@@ -17,6 +17,7 @@ use std::{
     borrow::{Borrow, Cow},
     collections::BTreeMap,
     fmt,
+    fs::File,
     io::{self, Read, Write},
     ops::Deref,
     path::{Path, PathBuf},
@@ -78,35 +79,54 @@ struct CompilerOutput<'a> {
     contracts: BTreeMap<String, BTreeMap<String, ContractOutput>>,
 }
 
-pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
+/// Result returned by a Standard JSON read callback.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ReadCallbackResult {
+    /// The requested data was found.
+    Success(String),
+    /// The callback handled the request and returned an error.
+    Error(String),
+    /// The callback does not support this request kind.
+    Unsupported,
+}
+
+/// Callback used by Standard JSON compilation to retrieve extra input.
+pub trait StandardJsonReadCallback: Send + Sync + 'static {
+    /// Reads data for `kind`.
+    ///
+    /// The modern soljson API currently uses `source` for import resolution.
+    fn read(&self, kind: &str, data: &str) -> ReadCallbackResult;
+}
+
+/// Compiles Standard JSON input and returns Standard JSON output.
+pub fn compile_standard_json(
+    input: &str,
+    mut opts: Opts,
+    read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+    out: &mut dyn Write,
+) {
     let source_map = Arc::new(SourceMap::empty());
-    source_map.set_file_loader(StandardJsonFileLoader);
+    source_map.set_file_loader(StandardJsonFileLoader { read_callback });
     let (emitter, diagnostics) = InMemoryEmitter::new();
     let dcx = DiagCtxt::new(Box::new(emitter))
         .with_flags(|flags| flags.update_from_opts(&opts))
         .with_allowed_diagnostic_codes(opts.allow.iter().cloned());
 
     let mut output = CompilerOutput::default();
-    let mut input = String::new();
-    match io::stdin().read_to_string(&mut input) {
-        Ok(_) => {
-            if opts.unstable.ui_testing {
-                input = strip_json_comments(&input);
+    let input = if opts.unstable.ui_testing {
+        Cow::Owned(strip_json_comments(input))
+    } else {
+        Cow::Borrowed(input)
+    };
+    match serde_json::from_str::<CompilerInput<'_>>(&input) {
+        Ok(compiler_input) => {
+            if opts.unstable.standard_json_stats {
+                print_standard_json_stats(&input, &compiler_input);
             }
-            match serde_json::from_str::<CompilerInput<'_>>(&input) {
-                Ok(compiler_input) => {
-                    if opts.unstable.standard_json_stats {
-                        print_standard_json_stats(&input, &compiler_input);
-                    }
-                    compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
-                }
-                Err(e) => {
-                    dcx.err(format!("JSON parse error: {e}")).emit();
-                }
-            }
+            compile(compiler_input, &mut opts, Arc::clone(&source_map), dcx, &mut output);
         }
         Err(e) => {
-            dcx.err(format!("failed to read standard JSON input: {e}")).emit();
+            dcx.err(format!("JSON parse error: {e}")).emit();
         }
     }
 
@@ -122,15 +142,44 @@ pub(crate) fn run(mut opts: Opts) -> io::Result<()> {
         output.contracts.clear();
     }
 
+    let result = if opts.pretty_json {
+        serde_json::to_writer_pretty(out, &output)
+    } else {
+        serde_json::to_writer(out, &output)
+    };
+    let _ = result;
+}
+
+pub(crate) fn run(opts: Opts) -> io::Result<()> {
     let stdout = io::stdout();
     let mut stdout = io::BufWriter::new(stdout.lock());
-    if opts.pretty_json {
-        serde_json::to_writer_pretty(&mut stdout, &output)?;
-    } else {
-        serde_json::to_writer(&mut stdout, &output)?;
+    let mut input = String::new();
+    let result = match opts.input.as_slice() {
+        [] => io::stdin().read_to_string(&mut input),
+        [arg] if arg == "-" => io::stdin().read_to_string(&mut input),
+        [path] => File::open(path).and_then(|mut file| file.read_to_string(&mut input)),
+        _ => unreachable!("standard JSON input count is validated during argument parsing"),
+    };
+    match result {
+        Ok(_) => compile_standard_json(&input, opts, None, &mut stdout),
+        Err(e) => standard_json_error_output(
+            format!("failed to read standard JSON input: {e}"),
+            &mut stdout,
+        )?,
     }
     stdout.write_all(b"\n")?;
     stdout.flush()
+}
+
+fn standard_json_error_output(message: String, out: &mut dyn Write) -> io::Result<()> {
+    let output = json!({
+        "errors": [{
+            "severity": "error",
+            "type": "IOError",
+            "message": message,
+        }],
+    });
+    serde_json::to_writer(out, &output).map_err(io::Error::other)
 }
 
 fn compile(
@@ -217,7 +266,7 @@ fn compile(
 
                 for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                     let source = gcx.hir.source(contract.source);
-                    let source_name = source.file.name.display().to_string();
+                    let source_name = standard_json_source_name(&source.file.name);
                     let contract_name = contract.name.to_string();
                     let contract_output = make_contract_output(
                         gcx,
@@ -433,24 +482,73 @@ fn default_language<'a>() -> CowStr<'a> {
     CowStr(Cow::Borrowed("Solidity"))
 }
 
-struct StandardJsonFileLoader;
+struct StandardJsonFileLoader {
+    read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
+}
 
 impl FileLoader for StandardJsonFileLoader {
     fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
-        Err(disallowed_io(path))
+        if path.is_absolute()
+            && let Ok(cwd) = std::env::current_dir()
+            && let Ok(path) = path.strip_prefix(cwd)
+        {
+            Ok(path.to_path_buf())
+        } else {
+            Ok(path.to_path_buf())
+        }
     }
 
     fn load_stdin(&self) -> io::Result<String> {
-        Err(disallowed_io(Path::new("stdin")))
+        self.read_source(Path::new("stdin"))
     }
 
     fn load_file(&self, path: &Path) -> io::Result<String> {
-        Err(disallowed_io(path))
+        self.read_source(path)
     }
 
     fn load_binary_file(&self, path: &Path) -> io::Result<Vec<u8>> {
         Err(disallowed_io(path))
     }
+}
+
+impl StandardJsonFileLoader {
+    fn read_source(&self, path: &Path) -> io::Result<String> {
+        let Some(read_callback) = &self.read_callback else {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                "File import callback not supported",
+            ));
+        };
+        let data = callback_path(path);
+        match read_callback.read("source", &data) {
+            ReadCallbackResult::Success(contents) => Ok(contents),
+            ReadCallbackResult::Error(error) => Err(io::Error::other(error)),
+            ReadCallbackResult::Unsupported => {
+                Err(io::Error::new(io::ErrorKind::Unsupported, unsupported_callback_kind("source")))
+            }
+        }
+    }
+}
+
+/// Returns the diagnostic message for an unsupported Standard JSON callback kind.
+pub(crate) fn unsupported_callback_kind(kind: &str) -> String {
+    format!("Callback kind `{kind}` is not supported")
+}
+
+fn callback_path(path: &Path) -> Cow<'_, str> {
+    let path = if path.is_absolute()
+        && let Ok(cwd) = std::env::current_dir()
+        && let Ok(path) = path.strip_prefix(cwd)
+    {
+        path
+    } else {
+        path
+    };
+    path.to_string_lossy()
+}
+
+fn standard_json_source_name(name: &solar_interface::source_map::FileName) -> String {
+    name.display().to_string().replace('\\', "/")
 }
 
 fn disallowed_io(path: &Path) -> io::Error {
@@ -622,7 +720,7 @@ fn source_outputs_from_compiler(
         .sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (source.file.name.display().to_string(), SourceOutput { id: id.index() as u32 })
+            (standard_json_source_name(&source.file.name), SourceOutput { id: id.index() as u32 })
         })
         .collect()
 }
@@ -853,4 +951,310 @@ fn strip_json_comments(input: &str) -> String {
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use snapbox::{IntoData as _, assert_data_eq, str};
+    use std::collections::BTreeMap;
+
+    struct Sources(BTreeMap<String, String>);
+
+    impl StandardJsonReadCallback for Sources {
+        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
+            if kind != "source" {
+                return ReadCallbackResult::Unsupported;
+            }
+            self.0.get(data).cloned().map_or_else(
+                || ReadCallbackResult::Error(format!("source `{data}` not found")),
+                ReadCallbackResult::Success,
+            )
+        }
+    }
+
+    fn compile(input: &str, callback: Option<Arc<dyn StandardJsonReadCallback>>) -> String {
+        compile_with(input, callback, false)
+    }
+
+    fn compile_with_typeck(
+        input: &str,
+        callback: Option<Arc<dyn StandardJsonReadCallback>>,
+    ) -> String {
+        compile_with(input, callback, true)
+    }
+
+    fn compile_with(
+        input: &str,
+        callback: Option<Arc<dyn StandardJsonReadCallback>>,
+        typeck: bool,
+    ) -> String {
+        let mut output = Vec::new();
+        let opts = Opts { unstable: test_unstable_opts(typeck), ..test_opts() };
+        compile_standard_json(input, opts, callback, &mut output);
+        normalize_manifest_dir(String::from_utf8(output).unwrap())
+    }
+
+    fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
+        let actual = normalize_manifest_dir(actual.to_owned());
+        assert_data_eq!(actual.into_data().is_json(), expected.into_data().is_json());
+    }
+
+    fn test_opts() -> Opts {
+        Opts { pretty_json: true, ..Opts::default() }
+    }
+
+    fn test_unstable_opts(typeck: bool) -> solar_config::UnstableOpts {
+        solar_config::UnstableOpts { ui_testing: true, typeck, ..Default::default() }
+    }
+
+    fn normalize_manifest_dir(mut output: String) -> String {
+        output = output.replace("\\\\", "/");
+        output = output.replace("\\/", "/");
+        let native = env!("CARGO_MANIFEST_DIR");
+        let slash = native.replace('\\', "/");
+        let stripped = slash.strip_prefix("//?/").unwrap_or(&slash).to_string();
+        let mut prefixes = vec![native.to_string(), slash, stripped.clone()];
+        if let Some((drive, rest)) = stripped.split_once(':') {
+            prefixes.push(format!("{}:{rest}", drive.to_ascii_uppercase()));
+            prefixes.push(format!("{}:{rest}", drive.to_ascii_lowercase()));
+        }
+        prefixes.dedup();
+        for prefix in prefixes {
+            output = output.replace(&prefix, "ROOT");
+        }
+        while let Some(end) = output.find("/crates/cli") {
+            let end = end + "/crates/cli".len();
+            let start = output[..end].rfind('"').map_or(0, |i| i + 1);
+            output.replace_range(start..end, "ROOT");
+        }
+        output
+    }
+
+    #[test]
+    fn normalize_manifest_dir_rewrites_windows_paths() {
+        assert_eq!(
+            normalize_manifest_dir(r#"{"D:/a/solar/solar/crates/cli/B.sol":{}}"#.to_string()),
+            r#"{"ROOT/B.sol":{}}"#,
+        );
+        assert_eq!(
+            normalize_manifest_dir(r#"{"D:\\a\\solar\\solar\\crates\\cli\\B.sol":{}}"#.to_string()),
+            r#"{"ROOT/B.sol":{}}"#,
+        );
+    }
+
+    #[test]
+    fn compile_without_imports() {
+        assert_json(
+            &compile(
+                r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "contract A { function f() public pure returns (uint) { return 1; } }"
+                    }
+                },
+                "settings": {
+                    "outputSelection": { "*": { "*": ["abi"] } }
+                }
+            }"#,
+                None,
+            ),
+            str![[r#"
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "abi": [
+          {
+            "inputs": [],
+            "name": "f",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "pure",
+            "type": "function"
+          }
+        ]
+      }
+    }
+  }
+}
+"#]],
+        );
+    }
+
+    #[test]
+    fn type_errors_are_reported() {
+        assert_json(
+            &compile_with_typeck(
+                r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "contract A { function f() public pure { uint x = true; } }"
+                    }
+                },
+                "settings": {
+                    "outputSelection": { "*": { "*": ["abi"] } }
+                }
+            }"#,
+                None,
+            ),
+            str![[r#"
+{
+  "errors": [
+    {
+      "component": "general",
+      "errorCode": null,
+      "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:1:50\n   │\nLL │ contract A { function f() public pure { uint x = true; } }\n   ╰╴                                                 ━━━━ expected `uint256`, found `bool`\n\n",
+      "message": "mismatched types",
+      "secondarySourceLocations": [],
+      "severity": "error",
+      "sourceLocation": {
+        "end": 53,
+        "file": "A.sol",
+        "start": 49
+      },
+      "type": "Exception"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}
+"#]],
+        );
+    }
+
+    #[test]
+    fn import_callback_resolves_source() {
+        let mut sources = BTreeMap::new();
+        sources.insert(
+            "B.sol".to_string(),
+            "contract B { function g() public pure returns (uint) { return 2; } }".to_string(),
+        );
+
+        assert_json(
+            &compile(
+                r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "import \"B.sol\"; contract A is B {}"
+                    }
+                },
+                "settings": {
+                    "outputSelection": { "*": { "*": ["abi"] } }
+                }
+            }"#,
+                Some(Arc::new(Sources(sources))),
+            ),
+            str![[r#"
+{
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "abi": [
+          {
+            "inputs": [],
+            "name": "g",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "pure",
+            "type": "function"
+          }
+        ]
+      }
+    },
+    "ROOT/B.sol": {
+      "B": {
+        "abi": [
+          {
+            "inputs": [],
+            "name": "g",
+            "outputs": [
+              {
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+              }
+            ],
+            "stateMutability": "pure",
+            "type": "function"
+          }
+        ]
+      }
+    }
+  },
+  "sources": {
+    "A.sol": {
+      "id": 1
+    },
+    "ROOT/B.sol": {
+      "id": 0
+    }
+  }
+}
+"#]],
+        );
+    }
+
+    #[test]
+    fn missing_import_callback_is_reported() {
+        assert_json(
+            &compile(
+                r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "import \"Missing.sol\"; contract A {}"
+                    }
+                }
+            }"#,
+                None,
+            ),
+            str![[r#"
+{
+  "errors": [
+    {
+      "component": "general",
+      "errorCode": null,
+      "formattedMessage": "error: couldn't read Missing.sol: File import callback not supported\n   ╭▸ A.sol:1:8\n   │\nLL │ import \"Missing.sol\"; contract A {}\n   ╰╴       ━━━━━━━━━━━━━\n\n",
+      "message": "couldn't read Missing.sol: File import callback not supported",
+      "secondarySourceLocations": [],
+      "severity": "error",
+      "sourceLocation": {
+        "end": 20,
+        "file": "A.sol",
+        "start": 7
+      },
+      "type": "Exception"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}
+"#]],
+        );
+    }
 }

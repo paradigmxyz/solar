@@ -8,6 +8,8 @@ Arguments:
           
           `-` specifies standard input.
           
+          In Standard JSON mode, no input or `-` reads from standard input; otherwise, exactly one input file may be specified.
+          
           Import remappings are specified as `[context:]prefix=path`. See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
 
 Options:

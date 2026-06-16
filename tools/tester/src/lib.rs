@@ -98,16 +98,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
          you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
-    let standard_json_script = r#"out=$(mktemp "${TMPDIR:-/tmp}/solar-standard-json.XXXXXX") || exit 1
-trap 'rm -f "$out"' EXIT
-"$1" --standard-json --pretty-json -Zui-testing < "$2" > "$out"
-status=$?
-cat "$out"
-if [ "$status" -ne 0 ]; then
-    exit "$status"
-fi
-FileCheck "$2" < "$out"
-"#;
+    let standard_json_script = root.join("scripts/standard-json-filecheck.py");
 
     let mut config = ui_test::Config {
         // `host` and `target` are used for `//@ ignore-...` comments.
@@ -115,15 +106,18 @@ FileCheck "$2" < "$out"
         target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
-            program: if matches!(mode, Mode::StandardJson) { "sh".into() } else { cmd.into() },
+            program: if matches!(mode, Mode::StandardJson) {
+                if cfg!(windows) { "python".into() } else { "python3".into() }
+            } else {
+                cmd.into()
+            },
             args: {
                 let mut args: Vec<OsString> = match mode {
                     // `Mir` mode runs `solar mir-opt …`, which doesn't accept
                     // the normal compiler flags.
                     Mode::Mir => vec!["mir-opt".into()],
                     Mode::StandardJson => vec![
-                        "-c".into(),
-                        standard_json_script.into(),
+                        standard_json_script.into_os_string(),
                         "solar-standard-json".into(),
                         cmd.as_os_str().to_os_string(),
                     ],
@@ -195,9 +189,12 @@ FileCheck "$2" < "$out"
         config.filter(pattern, replacement);
     }
     let stdout_filters: &[(&str, &str)] = &[
+        (r"\\\\", "/"),
+        (r"\\/", "/"),
         //
         (&env!("CARGO_PKG_VERSION").replace(".", r"\."), "VERSION"),
     ];
+    add_root_stdout_filters(&mut config, root);
     for &(pattern, replacement) in stdout_filters {
         config.stdout_filter(pattern, replacement);
     }
@@ -219,6 +216,22 @@ FileCheck "$2" < "$out"
     config
 }
 
+fn add_root_stdout_filters(config: &mut ui_test::Config, root: &Path) {
+    let native = root.to_string_lossy();
+    let slash = native.replace('\\', "/");
+    let escaped = native.replace('\\', r"\\");
+    let mut roots = vec![native.into_owned(), slash.clone(), escaped];
+    if let Some((drive, rest)) = slash.split_once(':') {
+        roots.push(format!("{}:{rest}", drive.to_ascii_uppercase()));
+        roots.push(format!("{}:{rest}", drive.to_ascii_lowercase()));
+    }
+    roots.sort();
+    roots.dedup();
+    for root in roots {
+        config.stdout_filter(&regex::escape(&root), "ROOT");
+    }
+}
+
 fn get_host() -> &'static str {
     static CACHE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
@@ -230,7 +243,7 @@ fn get_host() -> &'static str {
 }
 
 fn mode_from_config(config: &ui_test::Config) -> Mode {
-    if config.program.program == Path::new("sh") {
+    if config.program.args.get(1).is_some_and(|arg| arg == "solar-standard-json") {
         Mode::StandardJson
     } else if config.root_dir.ends_with("tests/ui/codegen/mir") {
         Mode::Mir

@@ -115,7 +115,7 @@ macro_rules! indexvec_methods {
             pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + Clone + use<> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                (0..self.$plural.len()).map(|id| $id::from_usize_unchecked(id))
+                (0..self.$plural.len()).map(|id| unsafe { $id::from_usize_unchecked(id) })
             }
 
             #[doc = "Returns a parallel iterator over all of the " $singular " IDs."]
@@ -123,7 +123,7 @@ macro_rules! indexvec_methods {
             pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> + use<> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                (0..self.$plural.len()).into_par_iter().map(|id| $id::from_usize_unchecked(id))
+                (0..self.$plural.len()).into_par_iter().map(|id| unsafe { $id::from_usize_unchecked(id) })
             }
 
             #[doc = "Returns an iterator over all of the " $singular " values."]
@@ -143,7 +143,7 @@ macro_rules! indexvec_methods {
             pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + Clone {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                self.$plural().enumerate().map(|(i, v)| ($id::from_usize_unchecked(i), v))
+                self.$plural().enumerate().map(|(i, v)| (unsafe { $id::from_usize_unchecked(i) }, v))
             }
 
             #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
@@ -151,7 +151,7 @@ macro_rules! indexvec_methods {
             pub fn [<par_ $plural _enumerated>](&self) -> impl IndexedParallelIterator<Item = ($id, &$type)> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                self.[<par_ $plural>]().enumerate().map(|(i, v)| ($id::from_usize_unchecked(i), v))
+                self.[<par_ $plural>]().enumerate().map(|(i, v)| (unsafe { $id::from_usize_unchecked(i) }, v))
             }
         )*
 
@@ -453,7 +453,7 @@ impl DocId {
     /// The empty documentation id.
     ///
     /// This is reserved as index 0 and represents items with no documentation.
-    pub const EMPTY: Self = Self::from_usize_unchecked(0);
+    pub const EMPTY: Self = Self::new(0);
 
     /// Whether a documentation id is empty or not.
     pub fn is_empty(&self) -> bool {
