@@ -133,30 +133,42 @@ fn workspace_root() -> PathBuf {
 ///
 /// Code generation is gated behind `-Zcodegen`, but Forge invokes
 /// `FOUNDRY_SOLC` with solc-style arguments and cannot pass that flag itself.
-/// On Unix we therefore point it at a tiny wrapper script that forwards every
-/// call to Solar with `-Zcodegen` prepended; otherwise Forge would receive
-/// empty bytecode.
+/// We therefore point it at a tiny wrapper script that forwards every call to
+/// Solar with `-Zcodegen` prepended; otherwise Forge would receive empty
+/// bytecode.
 fn foundry_solc() -> PathBuf {
     use std::sync::OnceLock;
     static WRAPPER: OnceLock<PathBuf> = OnceLock::new();
     WRAPPER
         .get_or_init(|| {
             let solar = get_solar_binary();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let path =
-                    std::env::temp_dir().join(format!("solar-zcodegen-{}.sh", std::process::id()));
-                let script = format!("#!/bin/sh\nexec \"{}\" -Zcodegen \"$@\"\n", solar.display());
-                fs::write(&path, script).expect("failed to write solar codegen wrapper");
-                let mut perms = fs::metadata(&path).unwrap().permissions();
-                perms.set_mode(0o755);
-                fs::set_permissions(&path, perms).unwrap();
-                path
-            }
-            #[cfg(not(unix))]
-            {
-                solar
+            cfg_if::cfg_if! {
+                if #[cfg(unix)] {
+                    use std::os::unix::fs::PermissionsExt;
+
+                    let path = std::env::temp_dir()
+                        .join(format!("solar-zcodegen-{}.sh", std::process::id()));
+                    let script = format!(
+                        "#!/bin/sh\nexec \"{}\" -Zcodegen \"$@\"\n",
+                        solar.display()
+                    );
+                    fs::write(&path, script).expect("failed to write solar codegen wrapper");
+                    let mut perms = fs::metadata(&path).unwrap().permissions();
+                    perms.set_mode(0o755);
+                    fs::set_permissions(&path, perms).unwrap();
+                    path
+                } else if #[cfg(windows)] {
+                    let path = std::env::temp_dir()
+                        .join(format!("solar-zcodegen-{}.cmd", std::process::id()));
+                    let script = format!(
+                        "@echo off\r\n\"{}\" -Zcodegen %*\r\nexit /b %ERRORLEVEL%\r\n",
+                        solar.display()
+                    );
+                    fs::write(&path, script).expect("failed to write Solar codegen wrapper");
+                    path
+                } else {
+                    solar
+                }
             }
         })
         .clone()
