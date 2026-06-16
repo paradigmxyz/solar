@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
+      actions: read
       contents: read
       issues: write
       pull-requests: write
@@ -62,22 +63,40 @@ jobs:
 
       - name: Download baseline (main branch)
         id: baseline
-        continue-on-error: true
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          workflow: bench.yml
-          branch: main
-          name: codegen-runtime-baseline
-          path: target/codegen-bench/baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench/baseline
+
+          run_id="$(
+            gh run list \
+              --workflow bench.yml \
+              --branch main \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId // ""' \
+              2>/dev/null || true
+          )"
+          if [[ -z "$run_id" ]]; then
+            echo "::warning::No successful main benchmark run was found for baseline comparison"
+            exit 0
+          fi
+
+          if ! gh run download "$run_id" \
+            --name codegen-runtime-baseline \
+            --dir target/codegen-bench/baseline; then
+            echo "::warning::No main baseline artifact was available for comparison"
+          fi
 
       - name: Run micro codegen benchmark
         id: micro-bench
-        continue-on-error: true
         working-directory: ${{ env.BENCHMARK_PATH }}
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
-          python3 ./solar_bench.py --verbose \
+          if ! python3 ./solar_bench.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar "$GITHUB_WORKSPACE/target/debug/solar" \
             --suite micro \
@@ -85,16 +104,17 @@ jobs:
             --gas-profile hot \
             --start-anvil \
             --allow-failures \
-            --output "$GITHUB_WORKSPACE/target/codegen-bench/micro.json"
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/micro.json"; then
+            echo "::warning::Micro codegen benchmark failed to complete"
+          fi
 
       - name: Run repository codegen benchmark
         id: repo-bench
-        continue-on-error: true
         working-directory: ${{ env.BENCHMARK_PATH }}
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
-          python3 ./solar_bench.py --verbose \
+          if ! python3 ./solar_bench.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar "$GITHUB_WORKSPACE/target/debug/solar" \
             --suite repo \
@@ -102,7 +122,9 @@ jobs:
             --gas-profile hot \
             --start-anvil \
             --allow-failures \
-            --output "$GITHUB_WORKSPACE/target/codegen-bench/repo.json"
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/repo.json"; then
+            echo "::warning::Repository codegen benchmark failed to complete"
+          fi
 
       - name: Generate runtime benchmark report
         id: runtime-report
