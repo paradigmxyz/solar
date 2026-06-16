@@ -1,73 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-
-contract ManyModifiers {
-    address public owner;
-    uint256 public nonce;
-
-    modifier mod0(uint256 val) {
-        require(val > 0, "mod0");
-        _;
-    }
-
-    modifier mod1(uint256 val) {
-        require(val > 1, "mod1");
-        _;
-    }
-
-    modifier mod2(uint256 val) {
-        require(val > 2, "mod2");
-        _;
-    }
-
-    modifier mod3(uint256 val) {
-        require(val > 3, "mod3");
-        _;
-    }
-
-    modifier mod4(uint256 val) {
-        require(val > 4, "mod4");
-        _;
-    }
-
-    modifier mod5(uint256 val) {
-        require(val > 5, "mod5");
-        _;
-    }
-
-    modifier mod6(uint256 val) {
-        require(val > 6, "mod6");
-        _;
-    }
-
-    modifier mod7(uint256 val) {
-        require(val > 7, "mod7");
-        _;
-    }
-
-    modifier mod8(uint256 val) {
-        require(val > 8, "mod8");
-        _;
-    }
-
-    modifier mod9(uint256 val) {
-        require(val > 9, "mod9");
-        _;
-    }
-
-    function multiModified(uint256 x) public
-        mod0(x)
-        mod1(x)
-        mod2(x)
-        mod3(x)
-        mod4(x)
-        mod5(x)
-        mod6(x)
-        mod7(x)
-        mod8(x)
-        mod9(x)
-        returns (uint256)
-    {
-        return x;
-    }
+contract C{
+address public o;
+uint public n;
+modifier m0(uint v){require(v>0,"m0");_;}
+modifier m1(uint v){require(v>1,"m1");_;}
+modifier m2(uint v){require(v>2,"m2");_;}
+modifier m3(uint v){require(v>3,"m3");_;}
+modifier m4(uint v){require(v>4,"m4");_;}
+modifier m5(uint v){require(v>5,"m5");_;}
+modifier m6(uint v){require(v>6,"m6");_;}
+modifier m7(uint v){require(v>7,"m7");_;}
+modifier m8(uint v){require(v>8,"m8");_;}
+modifier m9(uint v){require(v>9,"m9");_;}
+function f(uint x)public m0(x) m1(x) m2(x) m3(x) m4(x) m5(x) m6(x) m7(x) m8(x) m9(x) returns(uint r){r=x;}
 }

@@ -27,7 +27,7 @@ INPUT_FILE="${1:-testdata/repros/many_functions_medium.sol}"
 
 if [[ ! -f "$INPUT_FILE" ]]; then
     echo "Error: Input file not found: $INPUT_FILE"
-    echo "Generate repros first with: cargo +nightly -Zscript scripts/gen_compile_repros.rs"
+    echo "Generate repros first with: ./scripts/gen_compile_repros.py"
     exit 1
 fi
 

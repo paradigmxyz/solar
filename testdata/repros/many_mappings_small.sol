@@ -1,28 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-
-contract ManyMappings {
-    mapping(address => uint256) public map0;
-    mapping(uint256 => mapping(address => uint256)) public nestedMap1;
-    mapping(bytes32 => address) public hashMap2;
-    mapping(address => mapping(uint256 => bool)) public doubleMap3;
-    mapping(address => uint256) public map4;
-    mapping(uint256 => mapping(address => uint256)) public nestedMap5;
-    mapping(bytes32 => address) public hashMap6;
-    mapping(address => mapping(uint256 => bool)) public doubleMap7;
-    mapping(address => uint256) public map8;
-    mapping(uint256 => mapping(address => uint256)) public nestedMap9;
-
-    function setAll(address addr, uint256 val) public {
-        map0[addr] = val;
-        nestedMap1[val][addr] = val;
-        hashMap2[keccak256(abi.encode(val))] = addr;
-        doubleMap3[addr][val] = true;
-        map4[addr] = val;
-        nestedMap5[val][addr] = val;
-        hashMap6[keccak256(abi.encode(val))] = addr;
-        doubleMap7[addr][val] = true;
-        map8[addr] = val;
-        nestedMap9[val][addr] = val;
-    }
+contract C{
+mapping(address=>uint) public m0;
+mapping(uint=>mapping(address=>uint)) public n1;
+mapping(bytes32=>address) public h2;
+mapping(address=>mapping(uint=>bool)) public d3;
+mapping(address=>uint) public m4;
+mapping(uint=>mapping(address=>uint)) public n5;
+mapping(bytes32=>address) public h6;
+mapping(address=>mapping(uint=>bool)) public d7;
+mapping(address=>uint) public m8;
+mapping(uint=>mapping(address=>uint)) public n9;
+function f(address a,uint v)public{
+m0[a]=v;
+n1[v][a]=v;
+h2[keccak256(abi.encode(v))]=a;
+d3[a][v]=true;
+m4[a]=v;
+n5[v][a]=v;
+h6[keccak256(abi.encode(v))]=a;
+d7[a][v]=true;
+m8[a]=v;
+n9[v][a]=v;
+}
 }

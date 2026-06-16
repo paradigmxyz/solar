@@ -1,607 +1,304 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-
-struct Struct0 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct1 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct2 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct3 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct4 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct5 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct6 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct7 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct8 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct9 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct10 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct11 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct12 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct13 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct14 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct15 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct16 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct17 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct18 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct19 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct20 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct21 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct22 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct23 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct24 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct25 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct26 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct27 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct28 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct29 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct30 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct31 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct32 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct33 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct34 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct35 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct36 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct37 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct38 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct39 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct40 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct41 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct42 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct43 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct44 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct45 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct46 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct47 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct48 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-struct Struct49 {
-    uint256 field1;
-    address field2;
-    bytes32 field3;
-}
-
-enum Enum0 { Value0, Value1, Value2, Value3 }
-
-enum Enum1 { Value0, Value1, Value2, Value3 }
-
-enum Enum2 { Value0, Value1, Value2, Value3 }
-
-enum Enum3 { Value0, Value1, Value2, Value3 }
-
-enum Enum4 { Value0, Value1, Value2, Value3 }
-
-enum Enum5 { Value0, Value1, Value2, Value3 }
-
-enum Enum6 { Value0, Value1, Value2, Value3 }
-
-enum Enum7 { Value0, Value1, Value2, Value3 }
-
-enum Enum8 { Value0, Value1, Value2, Value3 }
-
-enum Enum9 { Value0, Value1, Value2, Value3 }
-
-enum Enum10 { Value0, Value1, Value2, Value3 }
-
-enum Enum11 { Value0, Value1, Value2, Value3 }
-
-enum Enum12 { Value0, Value1, Value2, Value3 }
-
-enum Enum13 { Value0, Value1, Value2, Value3 }
-
-enum Enum14 { Value0, Value1, Value2, Value3 }
-
-enum Enum15 { Value0, Value1, Value2, Value3 }
-
-enum Enum16 { Value0, Value1, Value2, Value3 }
-
-enum Enum17 { Value0, Value1, Value2, Value3 }
-
-enum Enum18 { Value0, Value1, Value2, Value3 }
-
-enum Enum19 { Value0, Value1, Value2, Value3 }
-
-enum Enum20 { Value0, Value1, Value2, Value3 }
-
-enum Enum21 { Value0, Value1, Value2, Value3 }
-
-enum Enum22 { Value0, Value1, Value2, Value3 }
-
-enum Enum23 { Value0, Value1, Value2, Value3 }
-
-enum Enum24 { Value0, Value1, Value2, Value3 }
-
-enum Enum25 { Value0, Value1, Value2, Value3 }
-
-enum Enum26 { Value0, Value1, Value2, Value3 }
-
-enum Enum27 { Value0, Value1, Value2, Value3 }
-
-enum Enum28 { Value0, Value1, Value2, Value3 }
-
-enum Enum29 { Value0, Value1, Value2, Value3 }
-
-enum Enum30 { Value0, Value1, Value2, Value3 }
-
-enum Enum31 { Value0, Value1, Value2, Value3 }
-
-enum Enum32 { Value0, Value1, Value2, Value3 }
-
-enum Enum33 { Value0, Value1, Value2, Value3 }
-
-enum Enum34 { Value0, Value1, Value2, Value3 }
-
-enum Enum35 { Value0, Value1, Value2, Value3 }
-
-enum Enum36 { Value0, Value1, Value2, Value3 }
-
-enum Enum37 { Value0, Value1, Value2, Value3 }
-
-enum Enum38 { Value0, Value1, Value2, Value3 }
-
-enum Enum39 { Value0, Value1, Value2, Value3 }
-
-enum Enum40 { Value0, Value1, Value2, Value3 }
-
-enum Enum41 { Value0, Value1, Value2, Value3 }
-
-enum Enum42 { Value0, Value1, Value2, Value3 }
-
-enum Enum43 { Value0, Value1, Value2, Value3 }
-
-enum Enum44 { Value0, Value1, Value2, Value3 }
-
-enum Enum45 { Value0, Value1, Value2, Value3 }
-
-enum Enum46 { Value0, Value1, Value2, Value3 }
-
-enum Enum47 { Value0, Value1, Value2, Value3 }
-
-enum Enum48 { Value0, Value1, Value2, Value3 }
-
-enum Enum49 { Value0, Value1, Value2, Value3 }
-
-type CustomUint0 is uint256;
-type CustomUint1 is uint256;
-type CustomUint2 is uint256;
-type CustomUint3 is uint256;
-type CustomUint4 is uint256;
-type CustomUint5 is uint256;
-type CustomUint6 is uint256;
-type CustomUint7 is uint256;
-type CustomUint8 is uint256;
-type CustomUint9 is uint256;
-type CustomUint10 is uint256;
-type CustomUint11 is uint256;
-type CustomUint12 is uint256;
-type CustomUint13 is uint256;
-type CustomUint14 is uint256;
-type CustomUint15 is uint256;
-type CustomUint16 is uint256;
-type CustomUint17 is uint256;
-type CustomUint18 is uint256;
-type CustomUint19 is uint256;
-type CustomUint20 is uint256;
-type CustomUint21 is uint256;
-type CustomUint22 is uint256;
-type CustomUint23 is uint256;
-type CustomUint24 is uint256;
-type CustomUint25 is uint256;
-type CustomUint26 is uint256;
-type CustomUint27 is uint256;
-type CustomUint28 is uint256;
-type CustomUint29 is uint256;
-type CustomUint30 is uint256;
-type CustomUint31 is uint256;
-type CustomUint32 is uint256;
-type CustomUint33 is uint256;
-type CustomUint34 is uint256;
-type CustomUint35 is uint256;
-type CustomUint36 is uint256;
-type CustomUint37 is uint256;
-type CustomUint38 is uint256;
-type CustomUint39 is uint256;
-type CustomUint40 is uint256;
-type CustomUint41 is uint256;
-type CustomUint42 is uint256;
-type CustomUint43 is uint256;
-type CustomUint44 is uint256;
-type CustomUint45 is uint256;
-type CustomUint46 is uint256;
-type CustomUint47 is uint256;
-type CustomUint48 is uint256;
-type CustomUint49 is uint256;
-
-error Error0(uint256 code);
-error Error1(uint256 code);
-error Error2(uint256 code);
-error Error3(uint256 code);
-error Error4(uint256 code);
-error Error5(uint256 code);
-error Error6(uint256 code);
-error Error7(uint256 code);
-error Error8(uint256 code);
-error Error9(uint256 code);
-error Error10(uint256 code);
-error Error11(uint256 code);
-error Error12(uint256 code);
-error Error13(uint256 code);
-error Error14(uint256 code);
-error Error15(uint256 code);
-error Error16(uint256 code);
-error Error17(uint256 code);
-error Error18(uint256 code);
-error Error19(uint256 code);
-error Error20(uint256 code);
-error Error21(uint256 code);
-error Error22(uint256 code);
-error Error23(uint256 code);
-error Error24(uint256 code);
-error Error25(uint256 code);
-error Error26(uint256 code);
-error Error27(uint256 code);
-error Error28(uint256 code);
-error Error29(uint256 code);
-error Error30(uint256 code);
-error Error31(uint256 code);
-error Error32(uint256 code);
-error Error33(uint256 code);
-error Error34(uint256 code);
-error Error35(uint256 code);
-error Error36(uint256 code);
-error Error37(uint256 code);
-error Error38(uint256 code);
-error Error39(uint256 code);
-error Error40(uint256 code);
-error Error41(uint256 code);
-error Error42(uint256 code);
-error Error43(uint256 code);
-error Error44(uint256 code);
-error Error45(uint256 code);
-error Error46(uint256 code);
-error Error47(uint256 code);
-error Error48(uint256 code);
-error Error49(uint256 code);
-
-contract ManyTypes {
-    Struct0 public struct0;
-    Enum0 public enum0;
-    Struct1 public struct1;
-    Enum1 public enum1;
-    Struct2 public struct2;
-    Enum2 public enum2;
-    Struct3 public struct3;
-    Enum3 public enum3;
-    Struct4 public struct4;
-    Enum4 public enum4;
-    Struct5 public struct5;
-    Enum5 public enum5;
-    Struct6 public struct6;
-    Enum6 public enum6;
-    Struct7 public struct7;
-    Enum7 public enum7;
-    Struct8 public struct8;
-    Enum8 public enum8;
-    Struct9 public struct9;
-    Enum9 public enum9;
-    Struct10 public struct10;
-    Enum10 public enum10;
-    Struct11 public struct11;
-    Enum11 public enum11;
-    Struct12 public struct12;
-    Enum12 public enum12;
-    Struct13 public struct13;
-    Enum13 public enum13;
-    Struct14 public struct14;
-    Enum14 public enum14;
-    Struct15 public struct15;
-    Enum15 public enum15;
-    Struct16 public struct16;
-    Enum16 public enum16;
-    Struct17 public struct17;
-    Enum17 public enum17;
-    Struct18 public struct18;
-    Enum18 public enum18;
-    Struct19 public struct19;
-    Enum19 public enum19;
-    Struct20 public struct20;
-    Enum20 public enum20;
-    Struct21 public struct21;
-    Enum21 public enum21;
-    Struct22 public struct22;
-    Enum22 public enum22;
-    Struct23 public struct23;
-    Enum23 public enum23;
-    Struct24 public struct24;
-    Enum24 public enum24;
-    Struct25 public struct25;
-    Enum25 public enum25;
-    Struct26 public struct26;
-    Enum26 public enum26;
-    Struct27 public struct27;
-    Enum27 public enum27;
-    Struct28 public struct28;
-    Enum28 public enum28;
-    Struct29 public struct29;
-    Enum29 public enum29;
-    Struct30 public struct30;
-    Enum30 public enum30;
-    Struct31 public struct31;
-    Enum31 public enum31;
-    Struct32 public struct32;
-    Enum32 public enum32;
-    Struct33 public struct33;
-    Enum33 public enum33;
-    Struct34 public struct34;
-    Enum34 public enum34;
-    Struct35 public struct35;
-    Enum35 public enum35;
-    Struct36 public struct36;
-    Enum36 public enum36;
-    Struct37 public struct37;
-    Enum37 public enum37;
-    Struct38 public struct38;
-    Enum38 public enum38;
-    Struct39 public struct39;
-    Enum39 public enum39;
-    Struct40 public struct40;
-    Enum40 public enum40;
-    Struct41 public struct41;
-    Enum41 public enum41;
-    Struct42 public struct42;
-    Enum42 public enum42;
-    Struct43 public struct43;
-    Enum43 public enum43;
-    Struct44 public struct44;
-    Enum44 public enum44;
-    Struct45 public struct45;
-    Enum45 public enum45;
-    Struct46 public struct46;
-    Enum46 public enum46;
-    Struct47 public struct47;
-    Enum47 public enum47;
-    Struct48 public struct48;
-    Enum48 public enum48;
-    Struct49 public struct49;
-    Enum49 public enum49;
+struct S0{uint a;address b;bytes32 c;}
+struct S1{uint a;address b;bytes32 c;}
+struct S2{uint a;address b;bytes32 c;}
+struct S3{uint a;address b;bytes32 c;}
+struct S4{uint a;address b;bytes32 c;}
+struct S5{uint a;address b;bytes32 c;}
+struct S6{uint a;address b;bytes32 c;}
+struct S7{uint a;address b;bytes32 c;}
+struct S8{uint a;address b;bytes32 c;}
+struct S9{uint a;address b;bytes32 c;}
+struct S10{uint a;address b;bytes32 c;}
+struct S11{uint a;address b;bytes32 c;}
+struct S12{uint a;address b;bytes32 c;}
+struct S13{uint a;address b;bytes32 c;}
+struct S14{uint a;address b;bytes32 c;}
+struct S15{uint a;address b;bytes32 c;}
+struct S16{uint a;address b;bytes32 c;}
+struct S17{uint a;address b;bytes32 c;}
+struct S18{uint a;address b;bytes32 c;}
+struct S19{uint a;address b;bytes32 c;}
+struct S20{uint a;address b;bytes32 c;}
+struct S21{uint a;address b;bytes32 c;}
+struct S22{uint a;address b;bytes32 c;}
+struct S23{uint a;address b;bytes32 c;}
+struct S24{uint a;address b;bytes32 c;}
+struct S25{uint a;address b;bytes32 c;}
+struct S26{uint a;address b;bytes32 c;}
+struct S27{uint a;address b;bytes32 c;}
+struct S28{uint a;address b;bytes32 c;}
+struct S29{uint a;address b;bytes32 c;}
+struct S30{uint a;address b;bytes32 c;}
+struct S31{uint a;address b;bytes32 c;}
+struct S32{uint a;address b;bytes32 c;}
+struct S33{uint a;address b;bytes32 c;}
+struct S34{uint a;address b;bytes32 c;}
+struct S35{uint a;address b;bytes32 c;}
+struct S36{uint a;address b;bytes32 c;}
+struct S37{uint a;address b;bytes32 c;}
+struct S38{uint a;address b;bytes32 c;}
+struct S39{uint a;address b;bytes32 c;}
+struct S40{uint a;address b;bytes32 c;}
+struct S41{uint a;address b;bytes32 c;}
+struct S42{uint a;address b;bytes32 c;}
+struct S43{uint a;address b;bytes32 c;}
+struct S44{uint a;address b;bytes32 c;}
+struct S45{uint a;address b;bytes32 c;}
+struct S46{uint a;address b;bytes32 c;}
+struct S47{uint a;address b;bytes32 c;}
+struct S48{uint a;address b;bytes32 c;}
+struct S49{uint a;address b;bytes32 c;}
+enum E0{A,B,C,D}
+enum E1{A,B,C,D}
+enum E2{A,B,C,D}
+enum E3{A,B,C,D}
+enum E4{A,B,C,D}
+enum E5{A,B,C,D}
+enum E6{A,B,C,D}
+enum E7{A,B,C,D}
+enum E8{A,B,C,D}
+enum E9{A,B,C,D}
+enum E10{A,B,C,D}
+enum E11{A,B,C,D}
+enum E12{A,B,C,D}
+enum E13{A,B,C,D}
+enum E14{A,B,C,D}
+enum E15{A,B,C,D}
+enum E16{A,B,C,D}
+enum E17{A,B,C,D}
+enum E18{A,B,C,D}
+enum E19{A,B,C,D}
+enum E20{A,B,C,D}
+enum E21{A,B,C,D}
+enum E22{A,B,C,D}
+enum E23{A,B,C,D}
+enum E24{A,B,C,D}
+enum E25{A,B,C,D}
+enum E26{A,B,C,D}
+enum E27{A,B,C,D}
+enum E28{A,B,C,D}
+enum E29{A,B,C,D}
+enum E30{A,B,C,D}
+enum E31{A,B,C,D}
+enum E32{A,B,C,D}
+enum E33{A,B,C,D}
+enum E34{A,B,C,D}
+enum E35{A,B,C,D}
+enum E36{A,B,C,D}
+enum E37{A,B,C,D}
+enum E38{A,B,C,D}
+enum E39{A,B,C,D}
+enum E40{A,B,C,D}
+enum E41{A,B,C,D}
+enum E42{A,B,C,D}
+enum E43{A,B,C,D}
+enum E44{A,B,C,D}
+enum E45{A,B,C,D}
+enum E46{A,B,C,D}
+enum E47{A,B,C,D}
+enum E48{A,B,C,D}
+enum E49{A,B,C,D}
+type T0 is uint;
+type T1 is uint;
+type T2 is uint;
+type T3 is uint;
+type T4 is uint;
+type T5 is uint;
+type T6 is uint;
+type T7 is uint;
+type T8 is uint;
+type T9 is uint;
+type T10 is uint;
+type T11 is uint;
+type T12 is uint;
+type T13 is uint;
+type T14 is uint;
+type T15 is uint;
+type T16 is uint;
+type T17 is uint;
+type T18 is uint;
+type T19 is uint;
+type T20 is uint;
+type T21 is uint;
+type T22 is uint;
+type T23 is uint;
+type T24 is uint;
+type T25 is uint;
+type T26 is uint;
+type T27 is uint;
+type T28 is uint;
+type T29 is uint;
+type T30 is uint;
+type T31 is uint;
+type T32 is uint;
+type T33 is uint;
+type T34 is uint;
+type T35 is uint;
+type T36 is uint;
+type T37 is uint;
+type T38 is uint;
+type T39 is uint;
+type T40 is uint;
+type T41 is uint;
+type T42 is uint;
+type T43 is uint;
+type T44 is uint;
+type T45 is uint;
+type T46 is uint;
+type T47 is uint;
+type T48 is uint;
+type T49 is uint;
+error X0(uint c);
+error X1(uint c);
+error X2(uint c);
+error X3(uint c);
+error X4(uint c);
+error X5(uint c);
+error X6(uint c);
+error X7(uint c);
+error X8(uint c);
+error X9(uint c);
+error X10(uint c);
+error X11(uint c);
+error X12(uint c);
+error X13(uint c);
+error X14(uint c);
+error X15(uint c);
+error X16(uint c);
+error X17(uint c);
+error X18(uint c);
+error X19(uint c);
+error X20(uint c);
+error X21(uint c);
+error X22(uint c);
+error X23(uint c);
+error X24(uint c);
+error X25(uint c);
+error X26(uint c);
+error X27(uint c);
+error X28(uint c);
+error X29(uint c);
+error X30(uint c);
+error X31(uint c);
+error X32(uint c);
+error X33(uint c);
+error X34(uint c);
+error X35(uint c);
+error X36(uint c);
+error X37(uint c);
+error X38(uint c);
+error X39(uint c);
+error X40(uint c);
+error X41(uint c);
+error X42(uint c);
+error X43(uint c);
+error X44(uint c);
+error X45(uint c);
+error X46(uint c);
+error X47(uint c);
+error X48(uint c);
+error X49(uint c);
+contract C{
+S0 public s0;
+E0 public e0;
+S1 public s1;
+E1 public e1;
+S2 public s2;
+E2 public e2;
+S3 public s3;
+E3 public e3;
+S4 public s4;
+E4 public e4;
+S5 public s5;
+E5 public e5;
+S6 public s6;
+E6 public e6;
+S7 public s7;
+E7 public e7;
+S8 public s8;
+E8 public e8;
+S9 public s9;
+E9 public e9;
+S10 public s10;
+E10 public e10;
+S11 public s11;
+E11 public e11;
+S12 public s12;
+E12 public e12;
+S13 public s13;
+E13 public e13;
+S14 public s14;
+E14 public e14;
+S15 public s15;
+E15 public e15;
+S16 public s16;
+E16 public e16;
+S17 public s17;
+E17 public e17;
+S18 public s18;
+E18 public e18;
+S19 public s19;
+E19 public e19;
+S20 public s20;
+E20 public e20;
+S21 public s21;
+E21 public e21;
+S22 public s22;
+E22 public e22;
+S23 public s23;
+E23 public e23;
+S24 public s24;
+E24 public e24;
+S25 public s25;
+E25 public e25;
+S26 public s26;
+E26 public e26;
+S27 public s27;
+E27 public e27;
+S28 public s28;
+E28 public e28;
+S29 public s29;
+E29 public e29;
+S30 public s30;
+E30 public e30;
+S31 public s31;
+E31 public e31;
+S32 public s32;
+E32 public e32;
+S33 public s33;
+E33 public e33;
+S34 public s34;
+E34 public e34;
+S35 public s35;
+E35 public e35;
+S36 public s36;
+E36 public e36;
+S37 public s37;
+E37 public e37;
+S38 public s38;
+E38 public e38;
+S39 public s39;
+E39 public e39;
+S40 public s40;
+E40 public e40;
+S41 public s41;
+E41 public e41;
+S42 public s42;
+E42 public e42;
+S43 public s43;
+E43 public e43;
+S44 public s44;
+E44 public e44;
+S45 public s45;
+E45 public e45;
+S46 public s46;
+E46 public e46;
+S47 public s47;
+E47 public e47;
+S48 public s48;
+E48 public e48;
+S49 public s49;
+E49 public e49;
 }

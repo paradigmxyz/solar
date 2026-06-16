@@ -1,125 +1,101 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-
-contract Base {
-    uint256 public baseValue;
-    function baseFunc() public virtual returns (uint256) { return 0; }
+contract B{
+uint public v;
+function f()public virtual returns(uint r){r=0;}
 }
-
-contract Left0 is Base {
-    uint256 public leftValue0;
-    function leftFunc0() public pure returns (uint256) { return 0; }
+contract L0 is B{
+uint public l0;
+function g0()public pure returns(uint r){r=0;}
 }
-
-contract Left1 is Left0 {
-    uint256 public leftValue1;
-    function leftFunc1() public pure returns (uint256) { return 1; }
+contract L1 is L0{
+uint public l1;
+function g1()public pure returns(uint r){r=1;}
 }
-
-contract Left2 is Left1 {
-    uint256 public leftValue2;
-    function leftFunc2() public pure returns (uint256) { return 2; }
+contract L2 is L1{
+uint public l2;
+function g2()public pure returns(uint r){r=2;}
 }
-
-contract Left3 is Left2 {
-    uint256 public leftValue3;
-    function leftFunc3() public pure returns (uint256) { return 3; }
+contract L3 is L2{
+uint public l3;
+function g3()public pure returns(uint r){r=3;}
 }
-
-contract Left4 is Left3 {
-    uint256 public leftValue4;
-    function leftFunc4() public pure returns (uint256) { return 4; }
+contract L4 is L3{
+uint public l4;
+function g4()public pure returns(uint r){r=4;}
 }
-
-contract Left5 is Left4 {
-    uint256 public leftValue5;
-    function leftFunc5() public pure returns (uint256) { return 5; }
+contract L5 is L4{
+uint public l5;
+function g5()public pure returns(uint r){r=5;}
 }
-
-contract Left6 is Left5 {
-    uint256 public leftValue6;
-    function leftFunc6() public pure returns (uint256) { return 6; }
+contract L6 is L5{
+uint public l6;
+function g6()public pure returns(uint r){r=6;}
 }
-
-contract Left7 is Left6 {
-    uint256 public leftValue7;
-    function leftFunc7() public pure returns (uint256) { return 7; }
+contract L7 is L6{
+uint public l7;
+function g7()public pure returns(uint r){r=7;}
 }
-
-contract Left8 is Left7 {
-    uint256 public leftValue8;
-    function leftFunc8() public pure returns (uint256) { return 8; }
+contract L8 is L7{
+uint public l8;
+function g8()public pure returns(uint r){r=8;}
 }
-
-contract Left9 is Left8 {
-    uint256 public leftValue9;
-    function leftFunc9() public pure returns (uint256) { return 9; }
+contract L9 is L8{
+uint public l9;
+function g9()public pure returns(uint r){r=9;}
 }
-
-contract Right0 is Base {
-    uint256 public rightValue0;
-    function rightFunc0() public pure returns (uint256) { return 0; }
+contract R0 is B{
+uint public r0;
+function h0()public pure returns(uint r){r=0;}
 }
-
-contract Right1 is Right0 {
-    uint256 public rightValue1;
-    function rightFunc1() public pure returns (uint256) { return 1; }
+contract R1 is R0{
+uint public r1;
+function h1()public pure returns(uint r){r=1;}
 }
-
-contract Right2 is Right1 {
-    uint256 public rightValue2;
-    function rightFunc2() public pure returns (uint256) { return 2; }
+contract R2 is R1{
+uint public r2;
+function h2()public pure returns(uint r){r=2;}
 }
-
-contract Right3 is Right2 {
-    uint256 public rightValue3;
-    function rightFunc3() public pure returns (uint256) { return 3; }
+contract R3 is R2{
+uint public r3;
+function h3()public pure returns(uint r){r=3;}
 }
-
-contract Right4 is Right3 {
-    uint256 public rightValue4;
-    function rightFunc4() public pure returns (uint256) { return 4; }
+contract R4 is R3{
+uint public r4;
+function h4()public pure returns(uint r){r=4;}
 }
-
-contract Right5 is Right4 {
-    uint256 public rightValue5;
-    function rightFunc5() public pure returns (uint256) { return 5; }
+contract R5 is R4{
+uint public r5;
+function h5()public pure returns(uint r){r=5;}
 }
-
-contract Right6 is Right5 {
-    uint256 public rightValue6;
-    function rightFunc6() public pure returns (uint256) { return 6; }
+contract R6 is R5{
+uint public r6;
+function h6()public pure returns(uint r){r=6;}
 }
-
-contract Right7 is Right6 {
-    uint256 public rightValue7;
-    function rightFunc7() public pure returns (uint256) { return 7; }
+contract R7 is R6{
+uint public r7;
+function h7()public pure returns(uint r){r=7;}
 }
-
-contract Right8 is Right7 {
-    uint256 public rightValue8;
-    function rightFunc8() public pure returns (uint256) { return 8; }
+contract R8 is R7{
+uint public r8;
+function h8()public pure returns(uint r){r=8;}
 }
-
-contract Right9 is Right8 {
-    uint256 public rightValue9;
-    function rightFunc9() public pure returns (uint256) { return 9; }
+contract R9 is R8{
+uint public r9;
+function h9()public pure returns(uint r){r=9;}
 }
-
-contract Diamond is Left9, Right9 {
-    function baseFunc() public pure override returns (uint256) { return 42; }
-    function diamondFunc() public pure returns (uint256) {
-        uint256 sum = 0;
-        sum += leftFunc0() + rightFunc0();
-        sum += leftFunc1() + rightFunc1();
-        sum += leftFunc2() + rightFunc2();
-        sum += leftFunc3() + rightFunc3();
-        sum += leftFunc4() + rightFunc4();
-        sum += leftFunc5() + rightFunc5();
-        sum += leftFunc6() + rightFunc6();
-        sum += leftFunc7() + rightFunc7();
-        sum += leftFunc8() + rightFunc8();
-        sum += leftFunc9() + rightFunc9();
-        return sum;
-    }
+contract D is L9,R9{
+function f()public pure override returns(uint r){r=42;}
+function d()public pure returns(uint r){
+r+=g0()+h0();
+r+=g1()+h1();
+r+=g2()+h2();
+r+=g3()+h3();
+r+=g4()+h4();
+r+=g5()+h5();
+r+=g6()+h6();
+r+=g7()+h7();
+r+=g8()+h8();
+r+=g9()+h9();
+}
 }

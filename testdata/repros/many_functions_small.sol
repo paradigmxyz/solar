@@ -1,405 +1,104 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-
-contract ManyFunctions {
-    function func_0(uint256 x) public pure returns (uint256) {
-        return x + 0;
-    }
-
-    function func_1(uint256 x) public pure returns (uint256) {
-        return x + 1;
-    }
-
-    function func_2(uint256 x) public pure returns (uint256) {
-        return x + 2;
-    }
-
-    function func_3(uint256 x) public pure returns (uint256) {
-        return x + 3;
-    }
-
-    function func_4(uint256 x) public pure returns (uint256) {
-        return x + 4;
-    }
-
-    function func_5(uint256 x) public pure returns (uint256) {
-        return x + 5;
-    }
-
-    function func_6(uint256 x) public pure returns (uint256) {
-        return x + 6;
-    }
-
-    function func_7(uint256 x) public pure returns (uint256) {
-        return x + 7;
-    }
-
-    function func_8(uint256 x) public pure returns (uint256) {
-        return x + 8;
-    }
-
-    function func_9(uint256 x) public pure returns (uint256) {
-        return x + 9;
-    }
-
-    function func_10(uint256 x) public pure returns (uint256) {
-        return x + 10;
-    }
-
-    function func_11(uint256 x) public pure returns (uint256) {
-        return x + 11;
-    }
-
-    function func_12(uint256 x) public pure returns (uint256) {
-        return x + 12;
-    }
-
-    function func_13(uint256 x) public pure returns (uint256) {
-        return x + 13;
-    }
-
-    function func_14(uint256 x) public pure returns (uint256) {
-        return x + 14;
-    }
-
-    function func_15(uint256 x) public pure returns (uint256) {
-        return x + 15;
-    }
-
-    function func_16(uint256 x) public pure returns (uint256) {
-        return x + 16;
-    }
-
-    function func_17(uint256 x) public pure returns (uint256) {
-        return x + 17;
-    }
-
-    function func_18(uint256 x) public pure returns (uint256) {
-        return x + 18;
-    }
-
-    function func_19(uint256 x) public pure returns (uint256) {
-        return x + 19;
-    }
-
-    function func_20(uint256 x) public pure returns (uint256) {
-        return x + 20;
-    }
-
-    function func_21(uint256 x) public pure returns (uint256) {
-        return x + 21;
-    }
-
-    function func_22(uint256 x) public pure returns (uint256) {
-        return x + 22;
-    }
-
-    function func_23(uint256 x) public pure returns (uint256) {
-        return x + 23;
-    }
-
-    function func_24(uint256 x) public pure returns (uint256) {
-        return x + 24;
-    }
-
-    function func_25(uint256 x) public pure returns (uint256) {
-        return x + 25;
-    }
-
-    function func_26(uint256 x) public pure returns (uint256) {
-        return x + 26;
-    }
-
-    function func_27(uint256 x) public pure returns (uint256) {
-        return x + 27;
-    }
-
-    function func_28(uint256 x) public pure returns (uint256) {
-        return x + 28;
-    }
-
-    function func_29(uint256 x) public pure returns (uint256) {
-        return x + 29;
-    }
-
-    function func_30(uint256 x) public pure returns (uint256) {
-        return x + 30;
-    }
-
-    function func_31(uint256 x) public pure returns (uint256) {
-        return x + 31;
-    }
-
-    function func_32(uint256 x) public pure returns (uint256) {
-        return x + 32;
-    }
-
-    function func_33(uint256 x) public pure returns (uint256) {
-        return x + 33;
-    }
-
-    function func_34(uint256 x) public pure returns (uint256) {
-        return x + 34;
-    }
-
-    function func_35(uint256 x) public pure returns (uint256) {
-        return x + 35;
-    }
-
-    function func_36(uint256 x) public pure returns (uint256) {
-        return x + 36;
-    }
-
-    function func_37(uint256 x) public pure returns (uint256) {
-        return x + 37;
-    }
-
-    function func_38(uint256 x) public pure returns (uint256) {
-        return x + 38;
-    }
-
-    function func_39(uint256 x) public pure returns (uint256) {
-        return x + 39;
-    }
-
-    function func_40(uint256 x) public pure returns (uint256) {
-        return x + 40;
-    }
-
-    function func_41(uint256 x) public pure returns (uint256) {
-        return x + 41;
-    }
-
-    function func_42(uint256 x) public pure returns (uint256) {
-        return x + 42;
-    }
-
-    function func_43(uint256 x) public pure returns (uint256) {
-        return x + 43;
-    }
-
-    function func_44(uint256 x) public pure returns (uint256) {
-        return x + 44;
-    }
-
-    function func_45(uint256 x) public pure returns (uint256) {
-        return x + 45;
-    }
-
-    function func_46(uint256 x) public pure returns (uint256) {
-        return x + 46;
-    }
-
-    function func_47(uint256 x) public pure returns (uint256) {
-        return x + 47;
-    }
-
-    function func_48(uint256 x) public pure returns (uint256) {
-        return x + 48;
-    }
-
-    function func_49(uint256 x) public pure returns (uint256) {
-        return x + 49;
-    }
-
-    function func_50(uint256 x) public pure returns (uint256) {
-        return x + 50;
-    }
-
-    function func_51(uint256 x) public pure returns (uint256) {
-        return x + 51;
-    }
-
-    function func_52(uint256 x) public pure returns (uint256) {
-        return x + 52;
-    }
-
-    function func_53(uint256 x) public pure returns (uint256) {
-        return x + 53;
-    }
-
-    function func_54(uint256 x) public pure returns (uint256) {
-        return x + 54;
-    }
-
-    function func_55(uint256 x) public pure returns (uint256) {
-        return x + 55;
-    }
-
-    function func_56(uint256 x) public pure returns (uint256) {
-        return x + 56;
-    }
-
-    function func_57(uint256 x) public pure returns (uint256) {
-        return x + 57;
-    }
-
-    function func_58(uint256 x) public pure returns (uint256) {
-        return x + 58;
-    }
-
-    function func_59(uint256 x) public pure returns (uint256) {
-        return x + 59;
-    }
-
-    function func_60(uint256 x) public pure returns (uint256) {
-        return x + 60;
-    }
-
-    function func_61(uint256 x) public pure returns (uint256) {
-        return x + 61;
-    }
-
-    function func_62(uint256 x) public pure returns (uint256) {
-        return x + 62;
-    }
-
-    function func_63(uint256 x) public pure returns (uint256) {
-        return x + 63;
-    }
-
-    function func_64(uint256 x) public pure returns (uint256) {
-        return x + 64;
-    }
-
-    function func_65(uint256 x) public pure returns (uint256) {
-        return x + 65;
-    }
-
-    function func_66(uint256 x) public pure returns (uint256) {
-        return x + 66;
-    }
-
-    function func_67(uint256 x) public pure returns (uint256) {
-        return x + 67;
-    }
-
-    function func_68(uint256 x) public pure returns (uint256) {
-        return x + 68;
-    }
-
-    function func_69(uint256 x) public pure returns (uint256) {
-        return x + 69;
-    }
-
-    function func_70(uint256 x) public pure returns (uint256) {
-        return x + 70;
-    }
-
-    function func_71(uint256 x) public pure returns (uint256) {
-        return x + 71;
-    }
-
-    function func_72(uint256 x) public pure returns (uint256) {
-        return x + 72;
-    }
-
-    function func_73(uint256 x) public pure returns (uint256) {
-        return x + 73;
-    }
-
-    function func_74(uint256 x) public pure returns (uint256) {
-        return x + 74;
-    }
-
-    function func_75(uint256 x) public pure returns (uint256) {
-        return x + 75;
-    }
-
-    function func_76(uint256 x) public pure returns (uint256) {
-        return x + 76;
-    }
-
-    function func_77(uint256 x) public pure returns (uint256) {
-        return x + 77;
-    }
-
-    function func_78(uint256 x) public pure returns (uint256) {
-        return x + 78;
-    }
-
-    function func_79(uint256 x) public pure returns (uint256) {
-        return x + 79;
-    }
-
-    function func_80(uint256 x) public pure returns (uint256) {
-        return x + 80;
-    }
-
-    function func_81(uint256 x) public pure returns (uint256) {
-        return x + 81;
-    }
-
-    function func_82(uint256 x) public pure returns (uint256) {
-        return x + 82;
-    }
-
-    function func_83(uint256 x) public pure returns (uint256) {
-        return x + 83;
-    }
-
-    function func_84(uint256 x) public pure returns (uint256) {
-        return x + 84;
-    }
-
-    function func_85(uint256 x) public pure returns (uint256) {
-        return x + 85;
-    }
-
-    function func_86(uint256 x) public pure returns (uint256) {
-        return x + 86;
-    }
-
-    function func_87(uint256 x) public pure returns (uint256) {
-        return x + 87;
-    }
-
-    function func_88(uint256 x) public pure returns (uint256) {
-        return x + 88;
-    }
-
-    function func_89(uint256 x) public pure returns (uint256) {
-        return x + 89;
-    }
-
-    function func_90(uint256 x) public pure returns (uint256) {
-        return x + 90;
-    }
-
-    function func_91(uint256 x) public pure returns (uint256) {
-        return x + 91;
-    }
-
-    function func_92(uint256 x) public pure returns (uint256) {
-        return x + 92;
-    }
-
-    function func_93(uint256 x) public pure returns (uint256) {
-        return x + 93;
-    }
-
-    function func_94(uint256 x) public pure returns (uint256) {
-        return x + 94;
-    }
-
-    function func_95(uint256 x) public pure returns (uint256) {
-        return x + 95;
-    }
-
-    function func_96(uint256 x) public pure returns (uint256) {
-        return x + 96;
-    }
-
-    function func_97(uint256 x) public pure returns (uint256) {
-        return x + 97;
-    }
-
-    function func_98(uint256 x) public pure returns (uint256) {
-        return x + 98;
-    }
-
-    function func_99(uint256 x) public pure returns (uint256) {
-        return x + 99;
-    }
-
+contract C{
+function f0(uint x)public pure returns(uint r){r=x+0;}
+function f1(uint x)public pure returns(uint r){r=x+1;}
+function f2(uint x)public pure returns(uint r){r=x+2;}
+function f3(uint x)public pure returns(uint r){r=x+3;}
+function f4(uint x)public pure returns(uint r){r=x+4;}
+function f5(uint x)public pure returns(uint r){r=x+5;}
+function f6(uint x)public pure returns(uint r){r=x+6;}
+function f7(uint x)public pure returns(uint r){r=x+7;}
+function f8(uint x)public pure returns(uint r){r=x+8;}
+function f9(uint x)public pure returns(uint r){r=x+9;}
+function f10(uint x)public pure returns(uint r){r=x+10;}
+function f11(uint x)public pure returns(uint r){r=x+11;}
+function f12(uint x)public pure returns(uint r){r=x+12;}
+function f13(uint x)public pure returns(uint r){r=x+13;}
+function f14(uint x)public pure returns(uint r){r=x+14;}
+function f15(uint x)public pure returns(uint r){r=x+15;}
+function f16(uint x)public pure returns(uint r){r=x+16;}
+function f17(uint x)public pure returns(uint r){r=x+17;}
+function f18(uint x)public pure returns(uint r){r=x+18;}
+function f19(uint x)public pure returns(uint r){r=x+19;}
+function f20(uint x)public pure returns(uint r){r=x+20;}
+function f21(uint x)public pure returns(uint r){r=x+21;}
+function f22(uint x)public pure returns(uint r){r=x+22;}
+function f23(uint x)public pure returns(uint r){r=x+23;}
+function f24(uint x)public pure returns(uint r){r=x+24;}
+function f25(uint x)public pure returns(uint r){r=x+25;}
+function f26(uint x)public pure returns(uint r){r=x+26;}
+function f27(uint x)public pure returns(uint r){r=x+27;}
+function f28(uint x)public pure returns(uint r){r=x+28;}
+function f29(uint x)public pure returns(uint r){r=x+29;}
+function f30(uint x)public pure returns(uint r){r=x+30;}
+function f31(uint x)public pure returns(uint r){r=x+31;}
+function f32(uint x)public pure returns(uint r){r=x+32;}
+function f33(uint x)public pure returns(uint r){r=x+33;}
+function f34(uint x)public pure returns(uint r){r=x+34;}
+function f35(uint x)public pure returns(uint r){r=x+35;}
+function f36(uint x)public pure returns(uint r){r=x+36;}
+function f37(uint x)public pure returns(uint r){r=x+37;}
+function f38(uint x)public pure returns(uint r){r=x+38;}
+function f39(uint x)public pure returns(uint r){r=x+39;}
+function f40(uint x)public pure returns(uint r){r=x+40;}
+function f41(uint x)public pure returns(uint r){r=x+41;}
+function f42(uint x)public pure returns(uint r){r=x+42;}
+function f43(uint x)public pure returns(uint r){r=x+43;}
+function f44(uint x)public pure returns(uint r){r=x+44;}
+function f45(uint x)public pure returns(uint r){r=x+45;}
+function f46(uint x)public pure returns(uint r){r=x+46;}
+function f47(uint x)public pure returns(uint r){r=x+47;}
+function f48(uint x)public pure returns(uint r){r=x+48;}
+function f49(uint x)public pure returns(uint r){r=x+49;}
+function f50(uint x)public pure returns(uint r){r=x+50;}
+function f51(uint x)public pure returns(uint r){r=x+51;}
+function f52(uint x)public pure returns(uint r){r=x+52;}
+function f53(uint x)public pure returns(uint r){r=x+53;}
+function f54(uint x)public pure returns(uint r){r=x+54;}
+function f55(uint x)public pure returns(uint r){r=x+55;}
+function f56(uint x)public pure returns(uint r){r=x+56;}
+function f57(uint x)public pure returns(uint r){r=x+57;}
+function f58(uint x)public pure returns(uint r){r=x+58;}
+function f59(uint x)public pure returns(uint r){r=x+59;}
+function f60(uint x)public pure returns(uint r){r=x+60;}
+function f61(uint x)public pure returns(uint r){r=x+61;}
+function f62(uint x)public pure returns(uint r){r=x+62;}
+function f63(uint x)public pure returns(uint r){r=x+63;}
+function f64(uint x)public pure returns(uint r){r=x+64;}
+function f65(uint x)public pure returns(uint r){r=x+65;}
+function f66(uint x)public pure returns(uint r){r=x+66;}
+function f67(uint x)public pure returns(uint r){r=x+67;}
+function f68(uint x)public pure returns(uint r){r=x+68;}
+function f69(uint x)public pure returns(uint r){r=x+69;}
+function f70(uint x)public pure returns(uint r){r=x+70;}
+function f71(uint x)public pure returns(uint r){r=x+71;}
+function f72(uint x)public pure returns(uint r){r=x+72;}
+function f73(uint x)public pure returns(uint r){r=x+73;}
+function f74(uint x)public pure returns(uint r){r=x+74;}
+function f75(uint x)public pure returns(uint r){r=x+75;}
+function f76(uint x)public pure returns(uint r){r=x+76;}
+function f77(uint x)public pure returns(uint r){r=x+77;}
+function f78(uint x)public pure returns(uint r){r=x+78;}
+function f79(uint x)public pure returns(uint r){r=x+79;}
+function f80(uint x)public pure returns(uint r){r=x+80;}
+function f81(uint x)public pure returns(uint r){r=x+81;}
+function f82(uint x)public pure returns(uint r){r=x+82;}
+function f83(uint x)public pure returns(uint r){r=x+83;}
+function f84(uint x)public pure returns(uint r){r=x+84;}
+function f85(uint x)public pure returns(uint r){r=x+85;}
+function f86(uint x)public pure returns(uint r){r=x+86;}
+function f87(uint x)public pure returns(uint r){r=x+87;}
+function f88(uint x)public pure returns(uint r){r=x+88;}
+function f89(uint x)public pure returns(uint r){r=x+89;}
+function f90(uint x)public pure returns(uint r){r=x+90;}
+function f91(uint x)public pure returns(uint r){r=x+91;}
+function f92(uint x)public pure returns(uint r){r=x+92;}
+function f93(uint x)public pure returns(uint r){r=x+93;}
+function f94(uint x)public pure returns(uint r){r=x+94;}
+function f95(uint x)public pure returns(uint r){r=x+95;}
+function f96(uint x)public pure returns(uint r){r=x+96;}
+function f97(uint x)public pure returns(uint r){r=x+97;}
+function f98(uint x)public pure returns(uint r){r=x+98;}
+function f99(uint x)public pure returns(uint r){r=x+99;}
 }

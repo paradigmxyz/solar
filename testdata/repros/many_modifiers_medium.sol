@@ -1,533 +1,107 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-
-contract ManyModifiers {
-    address public owner;
-    uint256 public nonce;
-
-    modifier mod0(uint256 val) {
-        require(val > 0, "mod0");
-        _;
-    }
-
-    modifier mod1(uint256 val) {
-        require(val > 1, "mod1");
-        _;
-    }
-
-    modifier mod2(uint256 val) {
-        require(val > 2, "mod2");
-        _;
-    }
-
-    modifier mod3(uint256 val) {
-        require(val > 3, "mod3");
-        _;
-    }
-
-    modifier mod4(uint256 val) {
-        require(val > 4, "mod4");
-        _;
-    }
-
-    modifier mod5(uint256 val) {
-        require(val > 5, "mod5");
-        _;
-    }
-
-    modifier mod6(uint256 val) {
-        require(val > 6, "mod6");
-        _;
-    }
-
-    modifier mod7(uint256 val) {
-        require(val > 7, "mod7");
-        _;
-    }
-
-    modifier mod8(uint256 val) {
-        require(val > 8, "mod8");
-        _;
-    }
-
-    modifier mod9(uint256 val) {
-        require(val > 9, "mod9");
-        _;
-    }
-
-    modifier mod10(uint256 val) {
-        require(val > 10, "mod10");
-        _;
-    }
-
-    modifier mod11(uint256 val) {
-        require(val > 11, "mod11");
-        _;
-    }
-
-    modifier mod12(uint256 val) {
-        require(val > 12, "mod12");
-        _;
-    }
-
-    modifier mod13(uint256 val) {
-        require(val > 13, "mod13");
-        _;
-    }
-
-    modifier mod14(uint256 val) {
-        require(val > 14, "mod14");
-        _;
-    }
-
-    modifier mod15(uint256 val) {
-        require(val > 15, "mod15");
-        _;
-    }
-
-    modifier mod16(uint256 val) {
-        require(val > 16, "mod16");
-        _;
-    }
-
-    modifier mod17(uint256 val) {
-        require(val > 17, "mod17");
-        _;
-    }
-
-    modifier mod18(uint256 val) {
-        require(val > 18, "mod18");
-        _;
-    }
-
-    modifier mod19(uint256 val) {
-        require(val > 19, "mod19");
-        _;
-    }
-
-    modifier mod20(uint256 val) {
-        require(val > 20, "mod20");
-        _;
-    }
-
-    modifier mod21(uint256 val) {
-        require(val > 21, "mod21");
-        _;
-    }
-
-    modifier mod22(uint256 val) {
-        require(val > 22, "mod22");
-        _;
-    }
-
-    modifier mod23(uint256 val) {
-        require(val > 23, "mod23");
-        _;
-    }
-
-    modifier mod24(uint256 val) {
-        require(val > 24, "mod24");
-        _;
-    }
-
-    modifier mod25(uint256 val) {
-        require(val > 25, "mod25");
-        _;
-    }
-
-    modifier mod26(uint256 val) {
-        require(val > 26, "mod26");
-        _;
-    }
-
-    modifier mod27(uint256 val) {
-        require(val > 27, "mod27");
-        _;
-    }
-
-    modifier mod28(uint256 val) {
-        require(val > 28, "mod28");
-        _;
-    }
-
-    modifier mod29(uint256 val) {
-        require(val > 29, "mod29");
-        _;
-    }
-
-    modifier mod30(uint256 val) {
-        require(val > 30, "mod30");
-        _;
-    }
-
-    modifier mod31(uint256 val) {
-        require(val > 31, "mod31");
-        _;
-    }
-
-    modifier mod32(uint256 val) {
-        require(val > 32, "mod32");
-        _;
-    }
-
-    modifier mod33(uint256 val) {
-        require(val > 33, "mod33");
-        _;
-    }
-
-    modifier mod34(uint256 val) {
-        require(val > 34, "mod34");
-        _;
-    }
-
-    modifier mod35(uint256 val) {
-        require(val > 35, "mod35");
-        _;
-    }
-
-    modifier mod36(uint256 val) {
-        require(val > 36, "mod36");
-        _;
-    }
-
-    modifier mod37(uint256 val) {
-        require(val > 37, "mod37");
-        _;
-    }
-
-    modifier mod38(uint256 val) {
-        require(val > 38, "mod38");
-        _;
-    }
-
-    modifier mod39(uint256 val) {
-        require(val > 39, "mod39");
-        _;
-    }
-
-    modifier mod40(uint256 val) {
-        require(val > 40, "mod40");
-        _;
-    }
-
-    modifier mod41(uint256 val) {
-        require(val > 41, "mod41");
-        _;
-    }
-
-    modifier mod42(uint256 val) {
-        require(val > 42, "mod42");
-        _;
-    }
-
-    modifier mod43(uint256 val) {
-        require(val > 43, "mod43");
-        _;
-    }
-
-    modifier mod44(uint256 val) {
-        require(val > 44, "mod44");
-        _;
-    }
-
-    modifier mod45(uint256 val) {
-        require(val > 45, "mod45");
-        _;
-    }
-
-    modifier mod46(uint256 val) {
-        require(val > 46, "mod46");
-        _;
-    }
-
-    modifier mod47(uint256 val) {
-        require(val > 47, "mod47");
-        _;
-    }
-
-    modifier mod48(uint256 val) {
-        require(val > 48, "mod48");
-        _;
-    }
-
-    modifier mod49(uint256 val) {
-        require(val > 49, "mod49");
-        _;
-    }
-
-    modifier mod50(uint256 val) {
-        require(val > 50, "mod50");
-        _;
-    }
-
-    modifier mod51(uint256 val) {
-        require(val > 51, "mod51");
-        _;
-    }
-
-    modifier mod52(uint256 val) {
-        require(val > 52, "mod52");
-        _;
-    }
-
-    modifier mod53(uint256 val) {
-        require(val > 53, "mod53");
-        _;
-    }
-
-    modifier mod54(uint256 val) {
-        require(val > 54, "mod54");
-        _;
-    }
-
-    modifier mod55(uint256 val) {
-        require(val > 55, "mod55");
-        _;
-    }
-
-    modifier mod56(uint256 val) {
-        require(val > 56, "mod56");
-        _;
-    }
-
-    modifier mod57(uint256 val) {
-        require(val > 57, "mod57");
-        _;
-    }
-
-    modifier mod58(uint256 val) {
-        require(val > 58, "mod58");
-        _;
-    }
-
-    modifier mod59(uint256 val) {
-        require(val > 59, "mod59");
-        _;
-    }
-
-    modifier mod60(uint256 val) {
-        require(val > 60, "mod60");
-        _;
-    }
-
-    modifier mod61(uint256 val) {
-        require(val > 61, "mod61");
-        _;
-    }
-
-    modifier mod62(uint256 val) {
-        require(val > 62, "mod62");
-        _;
-    }
-
-    modifier mod63(uint256 val) {
-        require(val > 63, "mod63");
-        _;
-    }
-
-    modifier mod64(uint256 val) {
-        require(val > 64, "mod64");
-        _;
-    }
-
-    modifier mod65(uint256 val) {
-        require(val > 65, "mod65");
-        _;
-    }
-
-    modifier mod66(uint256 val) {
-        require(val > 66, "mod66");
-        _;
-    }
-
-    modifier mod67(uint256 val) {
-        require(val > 67, "mod67");
-        _;
-    }
-
-    modifier mod68(uint256 val) {
-        require(val > 68, "mod68");
-        _;
-    }
-
-    modifier mod69(uint256 val) {
-        require(val > 69, "mod69");
-        _;
-    }
-
-    modifier mod70(uint256 val) {
-        require(val > 70, "mod70");
-        _;
-    }
-
-    modifier mod71(uint256 val) {
-        require(val > 71, "mod71");
-        _;
-    }
-
-    modifier mod72(uint256 val) {
-        require(val > 72, "mod72");
-        _;
-    }
-
-    modifier mod73(uint256 val) {
-        require(val > 73, "mod73");
-        _;
-    }
-
-    modifier mod74(uint256 val) {
-        require(val > 74, "mod74");
-        _;
-    }
-
-    modifier mod75(uint256 val) {
-        require(val > 75, "mod75");
-        _;
-    }
-
-    modifier mod76(uint256 val) {
-        require(val > 76, "mod76");
-        _;
-    }
-
-    modifier mod77(uint256 val) {
-        require(val > 77, "mod77");
-        _;
-    }
-
-    modifier mod78(uint256 val) {
-        require(val > 78, "mod78");
-        _;
-    }
-
-    modifier mod79(uint256 val) {
-        require(val > 79, "mod79");
-        _;
-    }
-
-    modifier mod80(uint256 val) {
-        require(val > 80, "mod80");
-        _;
-    }
-
-    modifier mod81(uint256 val) {
-        require(val > 81, "mod81");
-        _;
-    }
-
-    modifier mod82(uint256 val) {
-        require(val > 82, "mod82");
-        _;
-    }
-
-    modifier mod83(uint256 val) {
-        require(val > 83, "mod83");
-        _;
-    }
-
-    modifier mod84(uint256 val) {
-        require(val > 84, "mod84");
-        _;
-    }
-
-    modifier mod85(uint256 val) {
-        require(val > 85, "mod85");
-        _;
-    }
-
-    modifier mod86(uint256 val) {
-        require(val > 86, "mod86");
-        _;
-    }
-
-    modifier mod87(uint256 val) {
-        require(val > 87, "mod87");
-        _;
-    }
-
-    modifier mod88(uint256 val) {
-        require(val > 88, "mod88");
-        _;
-    }
-
-    modifier mod89(uint256 val) {
-        require(val > 89, "mod89");
-        _;
-    }
-
-    modifier mod90(uint256 val) {
-        require(val > 90, "mod90");
-        _;
-    }
-
-    modifier mod91(uint256 val) {
-        require(val > 91, "mod91");
-        _;
-    }
-
-    modifier mod92(uint256 val) {
-        require(val > 92, "mod92");
-        _;
-    }
-
-    modifier mod93(uint256 val) {
-        require(val > 93, "mod93");
-        _;
-    }
-
-    modifier mod94(uint256 val) {
-        require(val > 94, "mod94");
-        _;
-    }
-
-    modifier mod95(uint256 val) {
-        require(val > 95, "mod95");
-        _;
-    }
-
-    modifier mod96(uint256 val) {
-        require(val > 96, "mod96");
-        _;
-    }
-
-    modifier mod97(uint256 val) {
-        require(val > 97, "mod97");
-        _;
-    }
-
-    modifier mod98(uint256 val) {
-        require(val > 98, "mod98");
-        _;
-    }
-
-    modifier mod99(uint256 val) {
-        require(val > 99, "mod99");
-        _;
-    }
-
-    function multiModified(uint256 x) public
-        mod0(x)
-        mod1(x)
-        mod2(x)
-        mod3(x)
-        mod4(x)
-        mod5(x)
-        mod6(x)
-        mod7(x)
-        mod8(x)
-        mod9(x)
-        mod10(x)
-        mod11(x)
-        mod12(x)
-        mod13(x)
-        mod14(x)
-        mod15(x)
-        mod16(x)
-        mod17(x)
-        mod18(x)
-        mod19(x)
-        returns (uint256)
-    {
-        return x;
-    }
+contract C{
+address public o;
+uint public n;
+modifier m0(uint v){require(v>0,"m0");_;}
+modifier m1(uint v){require(v>1,"m1");_;}
+modifier m2(uint v){require(v>2,"m2");_;}
+modifier m3(uint v){require(v>3,"m3");_;}
+modifier m4(uint v){require(v>4,"m4");_;}
+modifier m5(uint v){require(v>5,"m5");_;}
+modifier m6(uint v){require(v>6,"m6");_;}
+modifier m7(uint v){require(v>7,"m7");_;}
+modifier m8(uint v){require(v>8,"m8");_;}
+modifier m9(uint v){require(v>9,"m9");_;}
+modifier m10(uint v){require(v>10,"m10");_;}
+modifier m11(uint v){require(v>11,"m11");_;}
+modifier m12(uint v){require(v>12,"m12");_;}
+modifier m13(uint v){require(v>13,"m13");_;}
+modifier m14(uint v){require(v>14,"m14");_;}
+modifier m15(uint v){require(v>15,"m15");_;}
+modifier m16(uint v){require(v>16,"m16");_;}
+modifier m17(uint v){require(v>17,"m17");_;}
+modifier m18(uint v){require(v>18,"m18");_;}
+modifier m19(uint v){require(v>19,"m19");_;}
+modifier m20(uint v){require(v>20,"m20");_;}
+modifier m21(uint v){require(v>21,"m21");_;}
+modifier m22(uint v){require(v>22,"m22");_;}
+modifier m23(uint v){require(v>23,"m23");_;}
+modifier m24(uint v){require(v>24,"m24");_;}
+modifier m25(uint v){require(v>25,"m25");_;}
+modifier m26(uint v){require(v>26,"m26");_;}
+modifier m27(uint v){require(v>27,"m27");_;}
+modifier m28(uint v){require(v>28,"m28");_;}
+modifier m29(uint v){require(v>29,"m29");_;}
+modifier m30(uint v){require(v>30,"m30");_;}
+modifier m31(uint v){require(v>31,"m31");_;}
+modifier m32(uint v){require(v>32,"m32");_;}
+modifier m33(uint v){require(v>33,"m33");_;}
+modifier m34(uint v){require(v>34,"m34");_;}
+modifier m35(uint v){require(v>35,"m35");_;}
+modifier m36(uint v){require(v>36,"m36");_;}
+modifier m37(uint v){require(v>37,"m37");_;}
+modifier m38(uint v){require(v>38,"m38");_;}
+modifier m39(uint v){require(v>39,"m39");_;}
+modifier m40(uint v){require(v>40,"m40");_;}
+modifier m41(uint v){require(v>41,"m41");_;}
+modifier m42(uint v){require(v>42,"m42");_;}
+modifier m43(uint v){require(v>43,"m43");_;}
+modifier m44(uint v){require(v>44,"m44");_;}
+modifier m45(uint v){require(v>45,"m45");_;}
+modifier m46(uint v){require(v>46,"m46");_;}
+modifier m47(uint v){require(v>47,"m47");_;}
+modifier m48(uint v){require(v>48,"m48");_;}
+modifier m49(uint v){require(v>49,"m49");_;}
+modifier m50(uint v){require(v>50,"m50");_;}
+modifier m51(uint v){require(v>51,"m51");_;}
+modifier m52(uint v){require(v>52,"m52");_;}
+modifier m53(uint v){require(v>53,"m53");_;}
+modifier m54(uint v){require(v>54,"m54");_;}
+modifier m55(uint v){require(v>55,"m55");_;}
+modifier m56(uint v){require(v>56,"m56");_;}
+modifier m57(uint v){require(v>57,"m57");_;}
+modifier m58(uint v){require(v>58,"m58");_;}
+modifier m59(uint v){require(v>59,"m59");_;}
+modifier m60(uint v){require(v>60,"m60");_;}
+modifier m61(uint v){require(v>61,"m61");_;}
+modifier m62(uint v){require(v>62,"m62");_;}
+modifier m63(uint v){require(v>63,"m63");_;}
+modifier m64(uint v){require(v>64,"m64");_;}
+modifier m65(uint v){require(v>65,"m65");_;}
+modifier m66(uint v){require(v>66,"m66");_;}
+modifier m67(uint v){require(v>67,"m67");_;}
+modifier m68(uint v){require(v>68,"m68");_;}
+modifier m69(uint v){require(v>69,"m69");_;}
+modifier m70(uint v){require(v>70,"m70");_;}
+modifier m71(uint v){require(v>71,"m71");_;}
+modifier m72(uint v){require(v>72,"m72");_;}
+modifier m73(uint v){require(v>73,"m73");_;}
+modifier m74(uint v){require(v>74,"m74");_;}
+modifier m75(uint v){require(v>75,"m75");_;}
+modifier m76(uint v){require(v>76,"m76");_;}
+modifier m77(uint v){require(v>77,"m77");_;}
+modifier m78(uint v){require(v>78,"m78");_;}
+modifier m79(uint v){require(v>79,"m79");_;}
+modifier m80(uint v){require(v>80,"m80");_;}
+modifier m81(uint v){require(v>81,"m81");_;}
+modifier m82(uint v){require(v>82,"m82");_;}
+modifier m83(uint v){require(v>83,"m83");_;}
+modifier m84(uint v){require(v>84,"m84");_;}
+modifier m85(uint v){require(v>85,"m85");_;}
+modifier m86(uint v){require(v>86,"m86");_;}
+modifier m87(uint v){require(v>87,"m87");_;}
+modifier m88(uint v){require(v>88,"m88");_;}
+modifier m89(uint v){require(v>89,"m89");_;}
+modifier m90(uint v){require(v>90,"m90");_;}
+modifier m91(uint v){require(v>91,"m91");_;}
+modifier m92(uint v){require(v>92,"m92");_;}
+modifier m93(uint v){require(v>93,"m93");_;}
+modifier m94(uint v){require(v>94,"m94");_;}
+modifier m95(uint v){require(v>95,"m95");_;}
+modifier m96(uint v){require(v>96,"m96");_;}
+modifier m97(uint v){require(v>97,"m97");_;}
+modifier m98(uint v){require(v>98,"m98");_;}
+modifier m99(uint v){require(v>99,"m99");_;}
+function f(uint x)public m0(x) m1(x) m2(x) m3(x) m4(x) m5(x) m6(x) m7(x) m8(x) m9(x) m10(x) m11(x) m12(x) m13(x) m14(x) m15(x) m16(x) m17(x) m18(x) m19(x) returns(uint r){r=x;}
 }

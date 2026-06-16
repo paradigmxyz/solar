@@ -23,7 +23,7 @@ REPROS_DIR="testdata/repros"
 
 if [[ ! -d "$REPROS_DIR" ]]; then
     echo "Repros not found. Generating..."
-    cargo +nightly -Zscript scripts/gen_compile_repros.rs --sizes "$SIZE"
+    ./scripts/gen_compile_repros.py --sizes "$SIZE"
 fi
 
 echo "=== Solar Compile-Time Benchmarks (size: $SIZE) ==="
