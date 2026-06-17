@@ -12,12 +12,12 @@ fn @nested(arg0: u256, arg1: u256) -> u256 {
     jump bb3
   bb3:
     v32 = phi [bb2: v31], [bb4: v17]
-    v35 = phi [bb2: 0], [bb4: v22]
-    v13 = lt v35, arg1
+    v34 = phi [bb2: 0], [bb4: v22]
+    v13 = lt v34, arg1
     br v13, bb4, bb5
   bb4:
     v17 = add v32, 1
-    v22 = add v35, 1
+    v22 = add v34, 1
     jump bb3
   bb5:
     v27 = add v33, 1

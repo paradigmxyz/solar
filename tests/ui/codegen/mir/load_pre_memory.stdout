@@ -73,6 +73,20 @@ fn @mload_partial_two_available(arg0: u256) -> u256 {
     ret v8
 }
 
+fn @mload_loop_header(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = mload 128
+    jump bb1
+  bb1:
+    v6 = phi [bb0: v2], [bb2: v6]
+    v5 = lt v6, arg0
+    br v5, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    ret v6
+}
+
 fn @staticcall_kills_memory(arg0: bool, arg1: address) -> u256 {
   bb0 (entry):
     v3 = mload 128

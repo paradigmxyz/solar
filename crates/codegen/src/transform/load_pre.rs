@@ -574,14 +574,6 @@ impl LoadRedundancyEliminator {
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
 
-        // The backend lowers phis through memory spill slots (one store per
-        // predecessor plus a load at the use), which costs more than the
-        // 3-gas MLOAD a rewrite would save. SLOAD/TLOAD (100) and KECCAK256
-        // (30+) remain clear wins. Measured on the gas benchmark suite.
-        if matches!(key, LoadKey::Memory(_)) {
-            return None;
-        }
-
         let mut incoming = Vec::with_capacity(predecessors.len());
         let mut insertions = Vec::new();
         for &pred in predecessors {
@@ -607,6 +599,17 @@ impl LoadRedundancyEliminator {
             insertions.push(pred);
         }
 
+        let loop_carried =
+            Self::is_loop_carried_rewrite(&cx.analysis.dominators, target, &incoming, &insertions);
+        // Memory reads are only 3 gas, so a diamond phi is still not worth
+        // the extra block-edge work. Loop-carried memory PRE is different:
+        // the entry load runs once while the eliminated header reload would
+        // run on every iteration, and the backend can now keep canonical loop
+        // phis stack-resident.
+        if matches!(key, LoadKey::Memory(_)) && !loop_carried {
+            return None;
+        }
+
         if !insertions.is_empty() {
             // The backend lowers phis through spill slots, so an insertion
             // always lengthens its own path by the phi copies while the
@@ -616,11 +619,11 @@ impl LoadRedundancyEliminator {
             // join dominates) and the compensating loads sit on the entry
             // edges, running once per loop entry while every iteration drops
             // a full load.
-            let loop_carried = incoming
+            let insertion_profitable = incoming
                 .iter()
                 .all(|&(pred, _)| cx.analysis.dominators.dominates(target, pred))
                 && insertions.iter().all(|&pred| !cx.analysis.dominators.dominates(target, pred));
-            if !loop_carried || insertions.len() > incoming.len() {
+            if !insertion_profitable || insertions.len() > incoming.len() {
                 return None;
             }
         }
@@ -636,6 +639,21 @@ impl LoadRedundancyEliminator {
             incoming,
             insertions,
         })
+    }
+
+    fn is_loop_carried_rewrite(
+        dominators: &DominatorTree,
+        target: BlockId,
+        incoming: &[(BlockId, ValueId)],
+        insertions: &[BlockId],
+    ) -> bool {
+        let has_backedge_incoming =
+            incoming.iter().any(|&(pred, _)| dominators.dominates(target, pred));
+        let has_entry_edge = incoming.iter().any(|&(pred, _)| !dominators.dominates(target, pred))
+            || !insertions.is_empty();
+        has_backedge_incoming
+            && has_entry_edge
+            && insertions.iter().all(|&pred| !dominators.dominates(target, pred))
     }
 
     /// Locates the concrete value of `key` at the end of `block`, walking the

@@ -15,7 +15,7 @@
 //! (public/external functions, constructor, fallback, receive).
 
 use crate::{
-    analysis::CallGraphInfo,
+    analysis::{CallGraphInfo, CfgInfo},
     mir::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
         Terminator, Value, ValueId,
@@ -566,6 +566,7 @@ impl CfgSimplifier {
                 }
 
                 if self.is_empty_forwarder(func, block_id)
+                    && !self.is_loop_preheader_forwarder(func, block_id)
                     && self.forwarder_elimination_preserves_phis(func, block_id)
                 {
                     self.eliminate_forwarder(func, block_id);
@@ -587,6 +588,25 @@ impl CfgSimplifier {
         }
 
         matches!(&block.terminator, Some(Terminator::Jump(target)) if *target != block_id)
+    }
+
+    fn is_loop_preheader_forwarder(&self, func: &Function, block_id: BlockId) -> bool {
+        let Some(Terminator::Jump(target)) = func.blocks[block_id].terminator else {
+            return false;
+        };
+        if !matches!(
+            func.blocks[target].instructions.first(),
+            Some(&inst) if matches!(func.instructions[inst].kind, InstKind::Phi(_))
+        ) {
+            return false;
+        }
+
+        let cfg = CfgInfo::new(func);
+        func.blocks[target]
+            .predecessors
+            .iter()
+            .copied()
+            .any(|pred| pred != block_id && cfg.dominators().dominates(target, pred))
     }
 
     /// Checks that redirecting the forwarder's predecessors into its target

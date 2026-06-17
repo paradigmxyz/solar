@@ -30,7 +30,10 @@ pub use cfg_simplify::{
 pub use check_elim::{CheckElimPass, CheckElimStats, CheckEliminator};
 pub use cse::{CommonSubexprEliminator, CsePass};
 pub use dce::{DcePass, DceStats, DeadCodeEliminator};
-pub use frame_promotion::{FramePromotionStats, FrameSlotPromoter, FrameSlotPromotionPass};
+pub use frame_promotion::{
+    FramePromotionStats, FrameSlotPromoter, FrameSlotPromotionPass, PromotedSlot,
+    PromotedSlotSummary,
+};
 pub use gvn::{GlobalValueNumberer, GvnPass};
 pub use indvar_simplify::{IndVarSimplifier, IndVarSimplifyPass, IndVarSimplifyStats};
 pub use inline::{
