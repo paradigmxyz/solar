@@ -628,8 +628,10 @@ impl BytecodeAssembler {
             CompactPush::Literal { width } => self.fixed_push_len(width),
             CompactPush::FullWord => self.zero_push_len() + 1,
             CompactPush::LowerAllOnesMask { .. } => self.zero_push_len() + 4,
-            CompactPush::Not { value } => self.fixed_push_len(self.push_width(value)) + 1,
-            CompactPush::Shl { value, .. } => self.fixed_push_len(self.push_width(value)) + 3,
+            CompactPush::Not => self.fixed_push_len(self.push_width(!value)) + 1,
+            CompactPush::Shl { shift } => {
+                self.fixed_push_len(self.push_width(value >> usize::from(shift))) + 3
+            }
         }
     }
 
@@ -677,7 +679,7 @@ impl BytecodeAssembler {
             let inverted = !value;
             let inverted_width = self.push_width(inverted);
             let inverted_len = self.fixed_push_len(inverted_width) + 1;
-            consider(inverted_len, CompactPush::Not { value: inverted });
+            consider(inverted_len, CompactPush::Not);
         }
 
         // A left shift can avoid embedding right-aligned zero bytes. The
@@ -690,7 +692,7 @@ impl BytecodeAssembler {
             let shifted = value >> shift;
             let shifted_width = self.push_width(shifted);
             let shifted_len = self.fixed_push_len(shifted_width) + 3;
-            consider(shifted_len, CompactPush::Shl { value: shifted, shift: shift as u8 });
+            consider(shifted_len, CompactPush::Shl { shift: shift as u8 });
         }
 
         best.1
@@ -713,12 +715,14 @@ impl BytecodeAssembler {
                 self.bytecode.push(shift);
                 self.bytecode.push(op::SHR);
             }
-            CompactPush::Not { value } => {
-                self.emit_push_fixed_width(value, self.push_width(value));
+            CompactPush::Not => {
+                let inverted = !value;
+                self.emit_push_fixed_width(inverted, self.push_width(inverted));
                 self.bytecode.push(op::NOT);
             }
-            CompactPush::Shl { value, shift } => {
-                self.emit_push_fixed_width(value, self.push_width(value));
+            CompactPush::Shl { shift } => {
+                let shifted = value >> usize::from(shift);
+                self.emit_push_fixed_width(shifted, self.push_width(shifted));
                 self.bytecode.push(op::PUSH1);
                 self.bytecode.push(shift);
                 self.bytecode.push(op::SHL);
@@ -836,9 +840,9 @@ enum CompactPush {
     /// Emit a lower-bit all-ones mask as `PUSH0 NOT PUSH1 <shift> SHR`.
     LowerAllOnesMask { shift: u8 },
     /// Emit a value with many leading one bits as `PUSH<!value> NOT`.
-    Not { value: U256 },
+    Not,
     /// Emit a value with trailing zero bytes as `PUSH<value >> shift> PUSH1 <shift> SHL`.
-    Shl { value: U256, shift: u8 },
+    Shl { shift: u8 },
 }
 
 /// Common EVM op.
