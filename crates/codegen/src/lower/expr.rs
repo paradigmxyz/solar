@@ -2480,10 +2480,7 @@ impl<'gcx> Lowerer<'gcx> {
 
                 builder.imm_u64(0)
             }
-            _ => {
-                // Unknown method, fall back to dummy
-                builder.imm_u64(0)
-            }
+            s => unreachable!("{s}"),
         }
     }
 
