@@ -1,0 +1,20 @@
+{
+  "contracts": {
+    "ROOT/tests/ui/codegen/udvt_selector.sol:UdvtSelector": {
+      "hashes": {
+        "unwrapAndAdd(uint256,uint256)": "8d2f9995"
+      }
+    }
+  },
+  "version": "VERSION"
+}{
+  "contracts": {
+    "ROOT/tests/ui/codegen/udvt_selector.sol:UdvtSelector": {
+      "bin-runtime": "3460785736600b576078565b5f3560e01c80638d2f999514601e576078565b5060c06040523660048103905060408112905015603a575b5f80fd5b5f608052602435600435018060a0528060a052600435811015606b575b634e487b7160e01b5f52601160045260245ffd5b8060a05260805260206080f35b5f5ffd",
+      "hashes": {
+        "unwrapAndAdd(uint256,uint256)": "8d2f9995"
+      }
+    }
+  },
+  "version": "VERSION"
+}

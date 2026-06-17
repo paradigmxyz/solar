@@ -30,18 +30,17 @@ pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorG
     }
 }
 
-/// Evaluates simple constants.
+/// Evaluates Solidity constant expressions.
 ///
-/// This only supports basic arithmetic and logical operations, and does not support more complex
-/// operations like function calls or memory allocation.
-///
-/// This is only supposed to be used for array sizes and other simple constants.
+/// This supports the source-level constants needed by semantic analysis and
+/// codegen's HIR lowering pre-folds. It does not evaluate runtime-dependent
+/// expressions such as function calls or memory allocation.
 pub struct ConstantEvaluator<'gcx> {
     pub gcx: Gcx<'gcx>,
     depth: usize,
 }
 
-type EvalResult<'gcx> = Result<IntScalar, EvalError>;
+type EvalResult = Result<ConstValue, EvalError>;
 
 impl<'gcx> ConstantEvaluator<'gcx> {
     /// Creates a new constant evaluator.
@@ -55,7 +54,19 @@ impl<'gcx> ConstantEvaluator<'gcx> {
     }
 
     /// Evaluates the given expression, returning an error if it fails.
-    pub fn try_eval(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
+    pub fn try_eval(&mut self, expr: &hir::Expr<'_>) -> Result<IntScalar, EvalError> {
+        self.try_eval_value(expr).and_then(ConstValue::into_integer)
+    }
+
+    /// Evaluates the given expression to a typed constant value, emitting an
+    /// error diagnostic if it fails.
+    pub fn eval_value(&mut self, expr: &hir::Expr<'_>) -> Result<ConstValue, ErrorGuaranteed> {
+        self.try_eval_value(expr).map_err(|err| self.emit_eval_error(expr, err))
+    }
+
+    /// Evaluates the given expression to a typed constant value, returning an
+    /// error if it fails.
+    pub fn try_eval_value(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
         self.depth += 1;
         if self.depth > RECURSION_LIMIT {
             return Err(EE::RecursionLimitReached.spanned(expr.span));
@@ -82,14 +93,14 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
     }
 
-    fn eval_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult<'gcx> {
+    fn eval_expr(&mut self, expr: &hir::Expr<'_>) -> EvalResult {
         let expr = expr.peel_parens();
         match expr.kind {
             // hir::ExprKind::Array(_) => unimplemented!(),
             // hir::ExprKind::Assign(_, _, _) => unimplemented!(),
             hir::ExprKind::Binary(l, bin_op, r) => {
-                let l = self.try_eval(l)?;
-                let r = self.try_eval(r)?;
+                let l = self.try_eval_value(l)?;
+                let r = self.try_eval_value(r)?;
                 l.binop(r, bin_op.kind).map_err(Into::into)
             }
             // hir::ExprKind::Call(_, _) => unimplemented!(),
@@ -105,7 +116,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                self.try_eval(v.initializer.expect("constant variable has no initializer"))
+                self.try_eval_value(v.initializer.expect("constant variable has no initializer"))
             }
             // hir::ExprKind::Index(_, _) => unimplemented!(),
             // hir::ExprKind::Slice(_, _, _) => unimplemented!(),
@@ -113,15 +124,17 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
-            // hir::ExprKind::Ternary(cond, t, f) => {
-            //     let cond = self.try_eval(cond)?;
-            //     Ok(if cond.to_bool() { self.try_eval(t)? } else { self.try_eval(f)? })
-            // }
+            hir::ExprKind::Ternary(cond, t, f) => {
+                let ConstValue::Bool(cond) = self.try_eval_value(cond)? else {
+                    return Err(EE::UnsupportedExpr.into());
+                };
+                if cond { self.try_eval_value(t) } else { self.try_eval_value(f) }
+            }
             // hir::ExprKind::Tuple(_) => unimplemented!(),
             // hir::ExprKind::TypeCall(_) => unimplemented!(),
             // hir::ExprKind::Type(_) => unimplemented!(),
             hir::ExprKind::Unary(un_op, v) => {
-                let v = self.try_eval(v)?;
+                let v = self.try_eval_value(v)?;
                 v.unop(un_op.kind).map_err(Into::into)
             }
             hir::ExprKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
@@ -129,20 +142,81 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
     }
 
-    fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult<'gcx> {
+    fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult {
         match lit.kind {
             // LitKind::Str(str_kind, arc) => todo!(),
-            LitKind::Number(n) => Ok(IntScalar::new(n)),
+            LitKind::Number(n) => Ok(ConstValue::Integer(IntScalar::new(n))),
             // LitKind::Rational(ratio) => todo!(),
-            LitKind::Address(address) => Ok(IntScalar::from_be_bytes(address.as_slice())),
-            LitKind::Bool(bool) => Ok(IntScalar::from_be_bytes(&[bool as u8])),
+            LitKind::Address(address) => {
+                Ok(ConstValue::Integer(IntScalar::from_be_bytes(address.as_slice())))
+            }
+            LitKind::Bool(bool) => Ok(ConstValue::Bool(bool)),
             LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
             _ => Err(EE::UnsupportedLiteral.into()),
         }
     }
 }
 
+/// A typed Solidity constant value.
+#[derive(Debug)]
+pub enum ConstValue {
+    /// Integer-like constant value.
+    Integer(IntScalar),
+    /// Boolean constant value.
+    Bool(bool),
+}
+
+impl ConstValue {
+    /// Converts this value into an integer constant.
+    pub fn into_integer(self) -> Result<IntScalar, EvalError> {
+        match self {
+            Self::Integer(value) => Ok(value),
+            Self::Bool(_) => Err(EE::UnsupportedExpr.into()),
+        }
+    }
+
+    /// Applies the given unary operation to this value.
+    pub fn unop(self, op: hir::UnOpKind) -> Result<Self, EE> {
+        Ok(match (self, op) {
+            (Self::Integer(value), op) => Self::Integer(value.unop(op)?),
+            (Self::Bool(value), hir::UnOpKind::Not) => Self::Bool(!value),
+            (Self::Bool(_), _) => return Err(EE::UnsupportedUnaryOp),
+        })
+    }
+
+    /// Applies the given binary operation to this value.
+    pub fn binop(self, rhs: Self, op: hir::BinOpKind) -> Result<Self, EE> {
+        use hir::BinOpKind::*;
+        Ok(match (self, rhs) {
+            (Self::Integer(lhs), Self::Integer(rhs)) => match op {
+                Lt => Self::Bool(lhs.data < rhs.data),
+                Le => Self::Bool(lhs.data <= rhs.data),
+                Gt => Self::Bool(lhs.data > rhs.data),
+                Ge => Self::Bool(lhs.data >= rhs.data),
+                Eq => Self::Bool(lhs.data == rhs.data),
+                Ne => Self::Bool(lhs.data != rhs.data),
+                Add | Sub | Mul | Div | Rem | Pow | BitOr | BitAnd | BitXor | Shr | Shl | Sar => {
+                    Self::Integer(lhs.binop(rhs, op)?)
+                }
+                Or | And => return Err(EE::UnsupportedBinaryOp),
+            },
+            (Self::Bool(lhs), Self::Bool(rhs)) => match op {
+                And => Self::Bool(lhs && rhs),
+                Or => Self::Bool(lhs || rhs),
+                Eq => Self::Bool(lhs == rhs),
+                Ne => Self::Bool(lhs != rhs),
+                BitAnd => Self::Bool(lhs & rhs),
+                BitOr => Self::Bool(lhs | rhs),
+                BitXor => Self::Bool(lhs ^ rhs),
+                _ => return Err(EE::UnsupportedBinaryOp),
+            },
+            _ => return Err(EE::UnsupportedBinaryOp),
+        })
+    }
+}
+
 /// Represents an integer value for constant evaluation.
+#[derive(Debug)]
 pub struct IntScalar {
     data: BigInt,
 }
@@ -193,6 +267,16 @@ impl IntScalar {
     pub fn as_u256(&self) -> Option<U256> {
         let data = self.data.to_biguint()?;
         U256::try_from_le_slice(&data.to_bytes_le())
+    }
+
+    /// Returns the 256-bit two's-complement EVM word for this integer value.
+    pub fn as_evm_word(&self) -> U256 {
+        if let Some(value) = self.as_u256() {
+            return value;
+        }
+        let magnitude = U256::try_from_le_slice(&self.data.magnitude().to_bytes_le())
+            .expect("constant evaluator keeps integers within 256 bits");
+        U256::ZERO.wrapping_sub(magnitude)
     }
 
     /// Converts the integer value to a boolean.

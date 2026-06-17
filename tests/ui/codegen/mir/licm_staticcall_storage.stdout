@@ -1,0 +1,49 @@
+// === ROOT/tests/ui/codegen/mir/licm_staticcall_storage.mir (after licm) ===
+; module @LicmStaticcallStorage
+fn @hoist_sload_with_staticcall() -> u256 {
+  bb0 (entry):
+    v6 = sload 5 !metadata(storage=slot(5))
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
+    v4 = lt v2, 10
+    br v4, bb2, bb3
+  bb2:
+    v13 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0
+    v1 = add v2, 1
+    jump bb1
+  bb3:
+    ret v6
+}
+
+fn @hoist_tload_with_staticcall() -> u256 {
+  bb0 (entry):
+    v6 = tload 5 !metadata(storage=slot(5))
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
+    v4 = lt v2, 10
+    br v4, bb2, bb3
+  bb2:
+    v13 = staticcall 0x3e8, 0xbeef, 0, 0, 0, 0
+    v1 = add v2, 1
+    jump bb1
+  bb3:
+    ret v6
+}
+
+fn @keep_sload_with_call() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 0], [bb2: v1]
+    v4 = lt v2, 10
+    br v4, bb2, bb3
+  bb2:
+    v6 = sload 5 !metadata(storage=slot(5))
+    v14 = call 0x3e8, 0xbeef, 0, 0, 0, 0, 0
+    v1 = add v2, 1
+    jump bb1
+  bb3:
+    ret v6
+}

@@ -10,6 +10,8 @@
 #[doc(inline)]
 pub use solar_ast as ast;
 #[doc(inline)]
+pub use solar_codegen as codegen;
+#[doc(inline)]
 pub use solar_config as config;
 #[doc(inline)]
 pub use solar_data_structures as data_structures;

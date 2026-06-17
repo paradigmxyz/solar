@@ -1,0 +1,7 @@
+out/
+out-solar/
+out-solc/
+cache/
+cache-solar/
+cache-solc/
+*.json

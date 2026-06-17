@@ -51,8 +51,23 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 - **UI tests**: In `tests/ui/`, verify compiler output
 - Prefer UI tests over unit tests for end-to-end Solidity behavior, especially
   diagnostics, semantic analysis, and compiler-output checks.
+- For Rust tests that assert formatted output, use `snapbox` snapshots instead
+  of scattered `text.contains(...)` assertions.
 - Auxiliary files go in an `auxiliary/` subdirectory next to the UI test that needs
   imports or secondary source files. Do not use `aux/`: Windows rejects it.
+
+### Codegen / MIR Pass Tests
+
+- Prefer UI tests for MIR/codegen behavior. Put MIR pass tests under
+  `tests/ui/codegen/mir/` and codegen lowering tests under `tests/ui/codegen/`.
+- Do not add Rust unit tests that execute whole optimization passes; they make
+  pass APIs harder to refactor. Use unit tests only for small pure helpers.
+- Validate pass output with MIR snapshots or FileCheck-style UI expectations,
+  then add runtime or differential tests when behavior can affect bytecode
+  execution.
+- Keep pass adapters small and colocated with the transform implementation. The
+  central pass manager should only coordinate pass names, pipelines, and
+  `dyn ModulePass` execution.
 
 ### UI Test Annotations
 

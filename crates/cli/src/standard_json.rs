@@ -1,16 +1,18 @@
 use indexmap::IndexMap;
-use rustc_hash::FxBuildHasher;
 use serde::{
     Deserialize, Serialize,
     de::{self, Visitor},
 };
 use serde_json::{Map, Value, json};
-use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, Opts};
+use solar_codegen::{EvmCodegen, lower};
+use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode, Opts};
+use solar_data_structures::map::{FxBuildHasher, FxHashMap, FxHashSet};
 use solar_interface::{
-    SourceMap,
+    Result, SourceMap,
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::FileLoader,
 };
+use solar_sema::hir::ContractId;
 use std::{
     borrow::{Borrow, Cow},
     collections::BTreeMap,
@@ -47,6 +49,12 @@ struct SourceInput<'a> {
     urls: Vec<CowStr<'a>>,
 }
 
+/// A subset of the solc Standard JSON `settings` object.
+///
+/// Every field here is handled explicitly in [`compile`] — fields we don't act
+/// on yet are still parsed and bound (with a note) rather than silently dropped,
+/// so the set of recognized keys stays visible and intentional. Unknown keys are
+/// ignored by serde, matching solc.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Settings<'a> {
@@ -60,6 +68,35 @@ struct Settings<'a> {
     stop_after: Option<CowStr<'a>>,
     #[serde(borrow)]
     evm_version: Option<CowStr<'a>>,
+    /// Optimizer settings. Only `enabled` is currently honored.
+    #[serde(default)]
+    optimizer: Option<Optimizer>,
+    /// Output metadata settings; bytecode metadata is not emitted yet.
+    #[serde(default)]
+    metadata: Option<Value>,
+    /// Library addresses for linking; linking is not supported yet.
+    #[serde(default)]
+    libraries: Option<Value>,
+    /// Whether to compile via the Yul IR pipeline. We have a single pipeline, so
+    /// there is nothing to switch.
+    #[serde(default, rename = "viaIR")]
+    via_ir: Option<bool>,
+}
+
+/// The solc Standard JSON `settings.optimizer` object.
+#[derive(Debug, Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Optimizer {
+    /// Whether the optimizer is enabled. Mapped onto [`OptimizationMode::None`]
+    /// when disabled.
+    #[serde(default)]
+    enabled: bool,
+    /// Number of optimizer runs. The MIR optimizer has no runs parameter yet.
+    #[serde(default)]
+    runs: Option<u64>,
+    /// Fine-grained optimizer toggles. Not used yet.
+    #[serde(default)]
+    details: Option<Value>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -187,10 +224,26 @@ fn compile(
     dcx: DiagCtxt,
     output: &mut CompilerOutput<'_>,
 ) {
-    let mut remappings = Vec::with_capacity(input.settings.remappings.len());
-    for remapping in &input.settings.remappings {
+    let CompilerInput { language, sources, settings } = input;
+    // Destructure `Settings` so every recognized field is handled explicitly;
+    // fields we don't act on yet are bound with a leading underscore and a note.
+    // Adding a field to `Settings` then forces a decision here instead of it
+    // being silently ignored.
+    let Settings {
+        remappings,
+        output_selection,
+        stop_after,
+        evm_version,
+        optimizer,
+        metadata: _metadata,
+        libraries: _libraries,
+        via_ir: _via_ir,
+    } = settings;
+
+    let mut parsed_remappings = Vec::with_capacity(remappings.len());
+    for remapping in &remappings {
         match remapping.parse::<ImportRemapping>() {
-            Ok(remapping) => remappings.push(remapping),
+            Ok(remapping) => parsed_remappings.push(remapping),
             Err(e) => {
                 dcx.err(format!("invalid remapping `{remapping}`: {e}")).emit();
             }
@@ -200,14 +253,12 @@ fn compile(
         return;
     }
 
-    opts.import_remappings = remappings;
-    opts.evm_version = input
-        .settings
-        .evm_version
+    opts.import_remappings = parsed_remappings;
+    opts.evm_version = evm_version
         .as_deref()
         .and_then(|version| EvmVersion::from_str(version).ok())
         .unwrap_or(opts.evm_version);
-    opts.language = match input.language.as_ref() {
+    opts.language = match language.as_ref() {
         "Solidity" | "solidity" => Language::Solidity,
         "Yul" | "yul" => Language::Yul,
         language => {
@@ -215,9 +266,17 @@ fn compile(
             return;
         }
     };
-    opts.stop_after =
-        input.settings.stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
-    opts.input = input.sources.keys().map(ToString::to_string).collect();
+    opts.stop_after = stop_after.as_deref().and_then(|stage| CompilerStage::from_str(stage).ok());
+
+    // Map the solc optimizer toggle onto our MIR optimization objective. We only
+    // override when the input explicitly disables the optimizer, leaving the
+    // CLI-driven default otherwise. `runs` and `details` have no analogue in the
+    // MIR optimizer yet, so they're parsed but unused.
+    if let Some(Optimizer { enabled: false, runs: _runs, details: _details }) = optimizer {
+        opts.optimization = OptimizationMode::None;
+    }
+
+    opts.input = sources.keys().map(ToString::to_string).collect();
 
     let sess = solar_interface::Session::builder()
         .source_map(Arc::clone(&source_map))
@@ -225,8 +284,6 @@ fn compile(
         .opts(opts.clone())
         .build();
 
-    let output_selection = input.settings.output_selection;
-    let sources = input.sources;
     let _ = crate::run_compiler_session_with(
         sess,
         |compiler| {
@@ -252,6 +309,16 @@ fn compile(
 
             if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
                 let gcx = compiler.gcx();
+                // Code generation is experimental and gated behind `-Zcodegen`;
+                // without it, no bytecode is produced even when requested.
+                let bytecodes = if gcx.sess.opts.unstable.codegen
+                    && needs_bytecode_output(gcx, &output_selection)
+                {
+                    Some(generate_contract_bytecodes(gcx)?)
+                } else {
+                    None
+                };
+
                 for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                     let source = gcx.hir.source(contract.source);
                     let source_name = standard_json_source_name(&source.file.name);
@@ -262,6 +329,7 @@ fn compile(
                         &output_selection,
                         &source_name,
                         &contract_name,
+                        bytecodes.as_ref(),
                     );
                     if !contract_output.is_empty() {
                         output
@@ -418,9 +486,18 @@ struct BytecodeOutput {
     immutable_references: BTreeMap<String, Value>,
 }
 
+struct GeneratedBytecodes {
+    deployment: String,
+    runtime: String,
+}
+
 impl BytecodeOutput {
     fn empty() -> Self {
         Self::default()
+    }
+
+    fn new(object: String) -> Self {
+        Self { object, ..Self::default() }
     }
 }
 
@@ -709,6 +786,7 @@ fn make_contract_output(
     output_selection: &OutputSelection<'_>,
     source_name: &str,
     contract_name: &str,
+    bytecodes: Option<&FxHashMap<ContractId, GeneratedBytecodes>>,
 ) -> ContractOutput {
     let mut output = ContractOutput::default();
 
@@ -734,25 +812,136 @@ fn make_contract_output(
             );
         }
     }
+    // In solc's output selection `evm.bytecode` is the full bytecode object
+    // (`object`, `opcodes`, `sourceMap`, `linkReferences`, ...) and
+    // `evm.bytecode.object` selects only the `object` hex sub-field. We match
+    // either selector and emit a `BytecodeOutput`; since we only populate
+    // `object` for now (the other sub-fields are left empty and skipped during
+    // serialization), the two selectors currently produce identical output.
+    // Honoring the finer-grained `.object`/`.opcodes`/`.sourceMap` selectors is
+    // part of the larger effort to match solc's input->output key mapping.
     if output_selection.selects(
         source_name,
         contract_name,
         &["evm.bytecode", "evm.bytecode.object"],
     ) {
-        evm.bytecode = Some(BytecodeOutput::empty());
+        evm.bytecode = Some(
+            bytecodes
+                .and_then(|bytecodes| bytecodes.get(&contract_id))
+                .map(|bytecodes| BytecodeOutput::new(bytecodes.deployment.clone()))
+                .unwrap_or_else(BytecodeOutput::empty),
+        );
     }
     if output_selection.selects(
         source_name,
         contract_name,
         &["evm.deployedBytecode", "evm.deployedBytecode.object"],
     ) {
-        evm.deployed_bytecode = Some(BytecodeOutput::empty());
+        evm.deployed_bytecode = Some(
+            bytecodes
+                .and_then(|bytecodes| bytecodes.get(&contract_id))
+                .map(|bytecodes| BytecodeOutput::new(bytecodes.runtime.clone()))
+                .unwrap_or_else(BytecodeOutput::empty),
+        );
     }
     if !evm.is_empty() {
         output.evm = Some(evm);
     }
 
     output
+}
+
+fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSelection<'_>) -> bool {
+    gcx.hir.contracts_enumerated().any(|(_, contract)| {
+        let source = gcx.hir.source(contract.source);
+        let source_name = source.file.name.display().to_string();
+        let contract_name = contract.name.to_string();
+        output_selection.selects(
+            &source_name,
+            &contract_name,
+            &[
+                "evm.bytecode",
+                "evm.bytecode.object",
+                "evm.deployedBytecode",
+                "evm.deployedBytecode.object",
+            ],
+        )
+    })
+}
+
+fn generate_contract_bytecodes(
+    gcx: solar_sema::Gcx<'_>,
+) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
+    let mut all_bytecodes = FxHashMap::default();
+    let mut visiting = FxHashSet::default();
+    for contract_id in gcx.hir.contract_ids() {
+        let contract = gcx.hir.contract(contract_id);
+        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
+            ensure_contract_bytecode(gcx, contract_id, &mut all_bytecodes, &mut visiting)?;
+        }
+    }
+
+    let mut bytecodes = FxHashMap::default();
+    for contract_id in gcx.hir.contract_ids() {
+        let contract = gcx.hir.contract(contract_id);
+        if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
+            let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, &all_bytecodes);
+            gcx.dcx().has_errors()?;
+            let mut codegen = EvmCodegen::new(gcx);
+            let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
+            bytecodes.insert(
+                contract_id,
+                GeneratedBytecodes {
+                    deployment: alloy_primitives::hex::encode(deployment),
+                    runtime: alloy_primitives::hex::encode(runtime),
+                },
+            );
+        }
+    }
+
+    Ok(bytecodes)
+}
+
+fn ensure_contract_bytecode(
+    gcx: solar_sema::Gcx<'_>,
+    contract_id: ContractId,
+    all_bytecodes: &mut FxHashMap<ContractId, Vec<u8>>,
+    visiting: &mut FxHashSet<ContractId>,
+) -> Result {
+    let contract = gcx.hir.contract(contract_id);
+
+    if all_bytecodes.contains_key(&contract_id) {
+        return Ok(());
+    }
+
+    if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+        return Err(gcx
+            .dcx()
+            .err("cannot generate creation bytecode for non-deployable contract")
+            .span(contract.span)
+            .emit());
+    }
+
+    if !visiting.insert(contract_id) {
+        return Err(gcx
+            .dcx()
+            .err("recursive contract creation bytecode dependency")
+            .span(contract.span)
+            .emit());
+    }
+
+    for dep in lower::contract_bytecode_dependencies(gcx, contract_id) {
+        ensure_contract_bytecode(gcx, dep, all_bytecodes, visiting)?;
+    }
+
+    let mut module = lower::lower_contract_with_bytecodes(gcx, contract_id, all_bytecodes);
+    gcx.dcx().has_errors()?;
+    let mut codegen = EvmCodegen::new(gcx);
+    let (deployment, _) = codegen.generate_deployment_bytecode(&mut module);
+    all_bytecodes.insert(contract_id, deployment);
+    visiting.remove(&contract_id);
+
+    Ok(())
 }
 
 impl ContractOutput {

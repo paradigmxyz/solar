@@ -1,0 +1,109 @@
+// === ROOT/tests/ui/codegen/memory_allocation_panic.sol:MemoryAllocationPanic ===
+; module @MemoryAllocationPanic
+fn @makeBytes(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = mload 64 !metadata(memory=scratch)
+    mstore v11, arg0
+    v15 = add arg0, 31
+    v16 = lt v15, arg0
+    br v16, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v24 = not 31
+    v25 = and v15, v24
+    v26 = add v25, 32
+    v27 = lt v26, v25
+    br v27, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v35 = add v11, v26
+    v36 = lt v35, v11
+    br v36, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v45 = gt v35, 0xffffffffffffffff
+    br v45, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    mstore 64, v35 !metadata(memory=scratch)
+    v55 = add v11, 32
+    v56 = calldatasize
+    calldatacopy v55, v56, v25
+    v58 = mload v11
+    mstore 128, v58
+    returndata 128, 32
+}
+
+fn @makeArray(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = mload 64 !metadata(memory=scratch)
+    mstore v11, arg0
+    v14 = mul arg0, 32
+    v15 = div v14, 32
+    v16 = eq v15, arg0
+    br v16, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v24 = add v14, 32
+    v25 = lt v24, v14
+    br v25, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v33 = add v11, v24
+    v34 = lt v33, v11
+    br v34, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v43 = gt v33, 0xffffffffffffffff
+    br v43, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    mstore 64, v33 !metadata(memory=scratch)
+    v53 = add v11, 32
+    v54 = calldatasize
+    calldatacopy v53, v54, v14
+    v56 = mload v11
+    mstore 128, v56
+    returndata 128, 32
+}
+

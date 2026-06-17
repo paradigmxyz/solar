@@ -1,0 +1,27 @@
+// === ROOT/tests/ui/codegen/yul_local_phi.sol:YulLocalPhi ===
+; module @YulLocalPhi
+fn @branchLocal(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 160, 1
+    v14 = eq arg0, 0
+    v15 = iszero v14
+    br v15, bb3, bb4
+  bb3:
+    mstore 160, 2
+    jump bb4
+  bb4:
+    v20 = mload 160
+    mstore 128, v20
+    v24 = mload 128
+    mstore 128, v24
+    returndata 128, 32
+}
+

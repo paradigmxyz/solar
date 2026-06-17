@@ -1,0 +1,36 @@
+// === ROOT/tests/ui/codegen/mapping_struct_getter.sol:C ===
+; module @C
+fn @constructor() {
+  bb0 (entry):
+    sstore 0, 1 !metadata(storage=slot(0))
+    stop
+}
+
+fn @items(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 160, 0
+    mstore 192, 0
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, 1 !metadata(memory=scratch)
+    v22 = keccak256 0, 64 !metadata(memory=scratch)
+    v23 = sload v22 !metadata(storage=symbolic(v22))
+    v25 = add v22, 1
+    v26 = sload v25 !metadata(storage=offset(v22, 1))
+    v28 = add v22, 2
+    v29 = sload v28 !metadata(storage=offset(v22, 2))
+    mstore 128, v23
+    v33 = add 128, 32
+    mstore v33, v26
+    v36 = add 128, 64
+    mstore v36, v29
+    returndata 128, 96
+}
+

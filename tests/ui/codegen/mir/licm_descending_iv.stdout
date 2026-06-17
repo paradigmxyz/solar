@@ -1,0 +1,35 @@
+// === ROOT/tests/ui/codegen/mir/licm_descending_iv.mir (after licm) ===
+; module @LicmDescendingIv
+fn @keep_mload_descending_iv() -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 64], [bb2: v1]
+    v4 = lt v2, 100
+    br v4, bb2, bb3
+  bb2:
+    v6 = mload 0
+    sstore v2, v6 !metadata(storage=symbolic(v2))
+    mstore v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v1 = sub v2, 1
+    jump bb1
+  bb3:
+    ret v6
+}
+
+fn @hoist_mload_ascending_iv() -> u256 {
+  bb0 (entry):
+    v6 = mload 0
+    jump bb1
+  bb1:
+    v2 = phi [bb0: 64], [bb2: v1]
+    v4 = lt v2, 100
+    br v4, bb2, bb3
+  bb2:
+    sstore v2, v6 !metadata(storage=symbolic(v2))
+    mstore v2, 7
+    v1 = add v2, 1
+    jump bb1
+  bb3:
+    ret v6
+}

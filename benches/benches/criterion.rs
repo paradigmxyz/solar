@@ -1,6 +1,13 @@
-use criterion::{Criterion, criterion_group, criterion_main};
-use solar_bench::{PARSERS, Source, get_src, get_srcs};
-use std::{hint::black_box, time::Duration};
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
+use solar_bench::{COMPILERS, Compiler, Source, get_src, get_srcs};
+use std::{any::Any, hint::black_box, time::Duration};
+
+type CompilerBench = (
+    &'static str,
+    fn(&dyn Compiler, &Source) -> bool,
+    fn(&Source) -> Throughput,
+    fn(&dyn Compiler, &Source, &mut dyn Any),
+);
 
 fn micro_benches(c: &mut Criterion) {
     let mut g = make_group(c, "micro");
@@ -63,64 +70,89 @@ fn micro_benches(c: &mut Criterion) {
     });
 }
 
-fn parser_benches(c: &mut Criterion) {
+fn compiler_benches(c: &mut Criterion) {
     for s in get_srcs() {
         eprintln!("{}: {} LoC, {} bytes", s.name, s.src.lines().count(), s.src.len());
     }
     eprintln!();
 
     let mut g = make_group(c, "parser");
+    let benches: [CompilerBench; 4] = [
+        ("lex", can_lex, bytes, run_lex),
+        ("parse", can_parse, bytes, run_parse),
+        ("lower", can_lower, bytes, run_lower),
+        ("codegen", can_codegen, bytes, run_codegen),
+    ];
 
-    for &Source { name: sname, path: _, src, capabilities: ref scaps } in get_srcs() {
-        for &parser in PARSERS {
-            let pname = parser.name();
+    for source in get_srcs() {
+        for &compiler in COMPILERS {
+            let cname = compiler.name();
 
             let mk_id = |id: &str| {
-                if PARSERS.len() == 1 {
-                    format!("{sname}/{id}")
+                if COMPILERS.len() == 1 {
+                    format!("{}/{id}", source.name)
                 } else {
-                    format!("{sname}/{pname}/{id}")
+                    format!("{}/{cname}/{id}", source.name)
                 }
             };
-            if parser.capabilities().can_lex() {
-                g.bench_function(mk_id("lex"), |b| {
-                    b.iter_batched(
-                        || parser.setup(src),
-                        |mut setup| {
-                            parser.lex(src, &mut *setup);
-                            setup
-                        },
-                        criterion::BatchSize::SmallInput,
-                    )
-                });
-            }
-            g.bench_function(mk_id("parse"), |b| {
-                b.iter_batched(
-                    || parser.setup(src),
-                    |mut setup| {
-                        parser.parse(src, &mut *setup);
-                        setup
-                    },
-                    criterion::BatchSize::SmallInput,
-                )
-            });
-            if parser.capabilities().can_lower() && scaps.can_lower() {
-                g.bench_function(mk_id("lower"), |b| {
-                    b.iter_batched(
-                        || parser.setup(src),
-                        |mut setup| {
-                            parser.lower(src, &mut *setup);
-                            setup
-                        },
-                        criterion::BatchSize::SmallInput,
-                    )
-                });
+            for (name, should_run, throughput, run) in benches {
+                if should_run(compiler, source) {
+                    g.throughput(throughput(source));
+                    g.bench_function(mk_id(name), |b| {
+                        b.iter_batched(
+                            || compiler.setup(source),
+                            |mut setup| {
+                                run(compiler, source, &mut *setup);
+                                setup
+                            },
+                            criterion::BatchSize::SmallInput,
+                        )
+                    });
+                }
             }
         }
         eprintln!();
     }
 
     g.finish();
+}
+
+fn bytes(source: &Source) -> Throughput {
+    Throughput::Bytes(source.src.len() as u64)
+}
+
+fn can_lex(compiler: &dyn Compiler, source: &Source) -> bool {
+    compiler.capabilities().can_lex() && source.capabilities.can_lex()
+}
+
+fn can_parse(compiler: &dyn Compiler, source: &Source) -> bool {
+    let _ = (compiler, source);
+    // compiler.capabilities().can_parse() && source.capabilities.can_parse()
+    true
+}
+
+fn can_lower(compiler: &dyn Compiler, source: &Source) -> bool {
+    compiler.capabilities().can_lower() && source.capabilities.can_lower()
+}
+
+fn can_codegen(compiler: &dyn Compiler, source: &Source) -> bool {
+    compiler.capabilities().can_codegen() && source.capabilities.can_codegen()
+}
+
+fn run_lex(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {
+    compiler.lex(source, setup);
+}
+
+fn run_parse(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {
+    compiler.parse(source, setup);
+}
+
+fn run_lower(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {
+    compiler.lower(source, setup);
+}
+
+fn run_codegen(compiler: &dyn Compiler, source: &Source, setup: &mut dyn Any) {
+    compiler.codegen(source, setup);
 }
 
 fn make_group<'a>(
@@ -135,5 +167,5 @@ fn make_group<'a>(
     g
 }
 
-criterion_group!(benches, micro_benches, parser_benches);
+criterion_group!(benches, micro_benches, compiler_benches);
 criterion_main!(benches);

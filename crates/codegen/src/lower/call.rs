@@ -1,0 +1,2031 @@
+//! Call and member-call lowering.
+
+use super::{ARRAY_METHOD_POP, ARRAY_METHOD_PUSH, Lowerer, checked_arith::PanicCode};
+use crate::mir::{FunctionBuilder, ValueId};
+use alloy_primitives::{U256, keccak256};
+use solar_ast::{LitKind, Span};
+use solar_data_structures::map::FxHashSet;
+use solar_interface::Ident;
+use solar_sema::{
+    builtins::Builtin,
+    hir::{self, CallArgs, ElementaryType, ExprKind},
+    ty::TyKind,
+};
+
+impl<'gcx> Lowerer<'gcx> {
+    /// Lowers a function call.
+    pub(super) fn lower_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+    ) -> ValueId {
+        if let Some(builtin) = self.gcx.builtin_callee(callee.id) {
+            // `T.wrap(x)` / `T.unwrap(v)` for a user-defined value type are identity
+            // operations at the EVM level: a UDVT value is represented exactly as its
+            // underlying type, so no wrapper is added or removed.
+            if matches!(builtin, Builtin::UdvtWrap | Builtin::UdvtUnwrap)
+                && let Some(arg) = args.exprs().next()
+            {
+                return self.lower_expr(builder, arg);
+            }
+
+            if Self::builtin_uses_direct_call_lowering(builtin) {
+                return self.lower_builtin_call(builder, builtin, args);
+            }
+        }
+
+        if let Some(error_id) = self.custom_error_id_from_callee(callee) {
+            self.emit_custom_error_revert(builder, error_id, args);
+            return builder.imm_u64(0);
+        }
+
+        if let ExprKind::Member(base, member) = &callee.kind {
+            return self
+                .lower_member_call_with_opts(builder, callee, base, *member, args, call_opts);
+        }
+
+        // Handle `new Contract(args)` - contract creation
+        if let ExprKind::New(ty) = &callee.kind {
+            if self.is_memory_array_new_type(ty) {
+                return self.lower_new_array(builder, ty, args);
+            }
+            return self.lower_new_contract(builder, ty, args, call_opts);
+        }
+
+        // Handle internal function calls: func(args) where func is a function in the same contract
+        if let ExprKind::Ident(_) = &callee.kind
+            && let Some(resolved) = self.gcx.resolved_callee(callee.id)
+            && let hir::Res::Item(item_id) = resolved.res
+        {
+            match item_id {
+                hir::ItemId::Function(func_id) => {
+                    return self.lower_internal_call(builder, func_id, args);
+                }
+                hir::ItemId::Contract(_) | hir::ItemId::Enum(_) => {
+                    if let Some(first_arg) = args.exprs().next() {
+                        return self.lower_expr(builder, first_arg);
+                    }
+                }
+                hir::ItemId::Struct(struct_id) => {
+                    return self.lower_struct_constructor(builder, struct_id, args);
+                }
+                _ => {}
+            }
+        }
+
+        // Handle Type(expr) where callee is an explicit Type expression
+        // e.g., uint256(x), address(y), bytes32(z)
+        if let ExprKind::Type(ty) = &callee.kind
+            && let Some(first_arg) = args.exprs().next()
+        {
+            let value = self.lower_expr(builder, first_arg);
+            return self.lower_type_conversion(builder, ty, first_arg, value);
+        }
+
+        builder.imm_u64(0)
+    }
+
+    fn builtin_uses_direct_call_lowering(builtin: Builtin) -> bool {
+        !matches!(
+            builtin,
+            Builtin::AddressCall
+                | Builtin::AddressDelegatecall
+                | Builtin::AddressStaticcall
+                | Builtin::AddressPayableTransfer
+                | Builtin::AddressPayableSend
+                | Builtin::ArrayLength
+                | Builtin::ArrayPush0
+                | Builtin::ArrayPush
+                | Builtin::ArrayPop
+                | Builtin::UdvtWrap
+                | Builtin::UdvtUnwrap
+        )
+    }
+
+    fn custom_error_id_from_callee(&self, callee: &hir::Expr<'_>) -> Option<hir::ErrorId> {
+        if let Some(resolved) = self.gcx.resolved_callee(callee.id)
+            && let hir::Res::Item(hir::ItemId::Error(error_id)) = resolved.res
+        {
+            return Some(error_id);
+        }
+
+        if let Some(ty) = self.get_expr_type(callee)
+            && let TyKind::Error(_, error_id) = ty.kind
+        {
+            panic!("typeck did not record resolved custom-error callee {error_id:?}");
+        }
+
+        None
+    }
+
+    fn emit_revert_payload_from_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> bool {
+        if self.emit_custom_error_revert_from_expr(builder, expr) {
+            return true;
+        }
+        self.emit_revert_error_string_from_expr(builder, expr)
+    }
+
+    fn emit_custom_error_revert_from_expr(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> bool {
+        let ExprKind::Call(callee, args, _) = &expr.kind else { return false };
+        let Some(error_id) = self.custom_error_id_from_callee(callee) else {
+            return false;
+        };
+        self.emit_custom_error_revert(builder, error_id, args);
+        true
+    }
+
+    fn emit_custom_error_revert(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        error_id: hir::ErrorId,
+        args: &CallArgs<'_>,
+    ) {
+        let param_tys = self.gcx.item_parameter_types(hir::ItemId::Error(error_id));
+        let arg_exprs = self.ordered_custom_error_args(error_id, args);
+        let mut items = Vec::with_capacity(param_tys.len());
+        for (&ty, arg) in param_tys.iter().zip(arg_exprs) {
+            let value = self.lower_return_value_for_ty(builder, arg, ty);
+            items.push((value, ty));
+        }
+
+        let selector = self.custom_error_selector(error_id);
+        self.emit_abi_error_revert(builder, selector, &items);
+    }
+
+    fn ordered_custom_error_args<'a>(
+        &self,
+        error_id: hir::ErrorId,
+        args: &'a CallArgs<'a>,
+    ) -> Vec<&'a hir::Expr<'a>> {
+        match args.kind {
+            hir::CallArgsKind::Unnamed(exprs) => exprs.iter().collect(),
+            hir::CallArgsKind::Named(named_args) => {
+                let error = self.gcx.hir.error(error_id);
+                let mut ordered = Vec::with_capacity(error.parameters.len());
+                for &param_id in error.parameters {
+                    let Some(param_name) =
+                        self.gcx.hir.variable(param_id).name.map(|name| name.name)
+                    else {
+                        continue;
+                    };
+                    if let Some(arg) = named_args.iter().find(|arg| arg.name.name == param_name) {
+                        ordered.push(&arg.value);
+                    }
+                }
+                ordered
+            }
+        }
+    }
+
+    fn custom_error_selector(&self, error_id: hir::ErrorId) -> [u8; 4] {
+        let signature = self.gcx.item_signature(hir::ItemId::Error(error_id));
+        let hash = keccak256(signature.as_bytes());
+        [hash[0], hash[1], hash[2], hash[3]]
+    }
+
+    /// Lowers a `new T[](len)` memory array expression.
+    fn lower_new_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        if !self.is_memory_array_new_type(ty) {
+            return builder.imm_u64(0);
+        }
+
+        let len = args
+            .exprs()
+            .next()
+            .map(|arg| self.lower_expr(builder, arg))
+            .unwrap_or_else(|| builder.imm_u64(0));
+
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let ptr = builder.mload(free_ptr_addr);
+        builder.mstore(ptr, len);
+
+        let word_size = builder.imm_u64(32);
+        let data_size = if matches!(
+            &ty.kind,
+            hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+        ) {
+            // `bytes`/`string`: the length counts bytes; the data area is the
+            // length padded up to a word.
+            let thirty_one = builder.imm_u64(31);
+            let rounded = builder.add(len, thirty_one);
+            let rounded_overflow = builder.lt(rounded, len);
+            self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
+            let mask = builder.not(thirty_one);
+            builder.and(rounded, mask)
+        } else {
+            // Arrays: one word per element.
+            let data_size = builder.mul(len, word_size);
+            let checked_len = builder.div(data_size, word_size);
+            let overflow = builder.eq(checked_len, len);
+            self.emit_panic_if_zero(builder, overflow, PanicCode::MemoryAllocationOverflow);
+            data_size
+        };
+        let total_size = builder.add(data_size, word_size);
+        let total_overflow = builder.lt(total_size, data_size);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+        let new_free_ptr = builder.add(ptr, total_size);
+        let bump_overflow = builder.lt(new_free_ptr, ptr);
+        self.emit_panic_if(builder, bump_overflow, PanicCode::MemoryAllocationOverflow);
+        // Solidity caps memory at 2^64 bytes: an allocation past that limit
+        // panics (0x41) rather than running the VM out of gas on a huge size.
+        let mem_limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
+        let over_limit = builder.gt(new_free_ptr, mem_limit);
+        self.emit_panic_if(builder, over_limit, PanicCode::MemoryAllocationOverflow);
+        let free_ptr_addr = builder.imm_u64(0x40);
+        builder.mstore(free_ptr_addr, new_free_ptr);
+
+        // Zero-initialize the data area: memory past the free pointer can be
+        // dirty (keccak staging fast paths write there without bumping it).
+        // `calldatacopy` from the end of calldata writes zeroes.
+        let data_ptr = builder.add(ptr, word_size);
+        let cds = builder.calldatasize();
+        builder.calldatacopy(data_ptr, cds, data_size);
+
+        ptr
+    }
+
+    fn is_memory_array_new_type(&self, ty: &hir::Type<'_>) -> bool {
+        match &ty.kind {
+            hir::TypeKind::Array(array) => array.size.is_none(),
+            hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => true,
+            _ => false,
+        }
+    }
+
+    /// Lowers a `new Contract(args)` expression.
+    /// Supports call options like `new Contract{salt: s, value: v}(args)`.
+    fn lower_new_contract(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ty: &hir::Type<'_>,
+        args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+    ) -> ValueId {
+        // Extract ContractId from the type
+        let contract_id = match &ty.kind {
+            hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
+            _ => {
+                self.gcx
+                    .dcx()
+                    .err("codegen expected a contract type for `new` expression")
+                    .span(ty.span)
+                    .emit();
+                return builder.imm_u64(0);
+            }
+        };
+
+        // Look up pre-compiled bytecode
+        let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
+            Some(bc) => bc.clone(),
+            None => {
+                self.gcx
+                    .dcx()
+                    .err(format!(
+                        "codegen is missing creation bytecode for `new {}`",
+                        self.gcx.hir.contract(contract_id).name
+                    ))
+                    .span(ty.span)
+                    .note("the deployed contract did not compile or was not lowered first")
+                    .emit();
+                return builder.imm_u64(0);
+            }
+        };
+
+        let bytecode_len = bytecode.len();
+
+        // Extract call options (salt, value)
+        let mut salt_opt: Option<ValueId> = None;
+        let mut value_opt: Option<ValueId> = None;
+
+        if let Some(opts) = call_opts {
+            for opt in opts {
+                let name = opt.name.name.as_str();
+                match name {
+                    "salt" => {
+                        salt_opt = Some(self.lower_expr(builder, &opt.value));
+                    }
+                    "value" => {
+                        value_opt = Some(self.lower_expr(builder, &opt.value));
+                    }
+                    _ => {
+                        // gas option is not supported for contract creation
+                    }
+                }
+            }
+        }
+
+        // Allocate memory for bytecode + constructor args from free memory pointer
+        let free_mem_ptr_slot = builder.imm_u64(0x40);
+        let mem_offset = builder.mload(free_mem_ptr_slot);
+
+        // Copy bytecode to memory using MSTORE
+        // For each 32-byte chunk of bytecode, emit an MSTORE at (mem_offset + offset)
+        for (i, chunk) in bytecode.chunks(32).enumerate() {
+            let mut padded = [0u8; 32];
+            padded[..chunk.len()].copy_from_slice(chunk);
+            let value = U256::from_be_bytes(padded);
+            let val_id = builder.imm_u256(value);
+            let chunk_offset = builder.imm_u64((i as u64) * 32);
+            let dest = builder.add(mem_offset, chunk_offset);
+            builder.mstore(dest, val_id);
+        }
+
+        // Append constructor arguments after bytecode
+        let mut args_offset = bytecode_len as u64;
+        for arg in args.exprs() {
+            let arg_val = self.lower_expr(builder, arg);
+            let arg_offset_imm = builder.imm_u64(args_offset);
+            let arg_dest = builder.add(mem_offset, arg_offset_imm);
+            builder.mstore(arg_dest, arg_val);
+            args_offset += 32; // Each arg is 32 bytes ABI encoded
+        }
+
+        // Total size = bytecode + args
+        let total_size = builder.imm_u64(args_offset);
+
+        // Update free memory pointer: new_free = mem_offset + ((total_size + 31) & ~31)
+        let thirty_one = builder.imm_u64(31);
+        let aligned_size = builder.add(total_size, thirty_one);
+        let mask = builder.imm_u256(U256::from(!31u64));
+        let aligned_size = builder.and(aligned_size, mask);
+        let new_free = builder.add(mem_offset, aligned_size);
+        builder.mstore(free_mem_ptr_slot, new_free);
+
+        // Value to send with CREATE/CREATE2 (0 for non-payable, or from value option)
+        let value = value_opt.unwrap_or_else(|| builder.imm_u64(0));
+
+        // Emit CREATE2 if salt is provided, otherwise CREATE
+        if let Some(salt) = salt_opt {
+            builder.create2(value, mem_offset, total_size, salt)
+        } else {
+            builder.create(value, mem_offset, total_size)
+        }
+    }
+
+    /// Lowers a builtin function call.
+    fn lower_builtin_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        builtin: Builtin,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        match builtin {
+            Builtin::Keccak256 => {
+                let mut exprs = args.exprs();
+                if let Some(first) = exprs.next() {
+                    if let ExprKind::Lit(lit) = &first.kind
+                        && let LitKind::Str(_, bytes, _) = &lit.kind
+                    {
+                        let hash = keccak256(bytes.as_byte_str());
+                        return builder.imm_u256(U256::from_be_bytes(hash.0));
+                    }
+
+                    if let Some(packed_args) = self.abi_encode_packed_call_args(first) {
+                        return self.lower_keccak_abi_encode_packed(builder, packed_args);
+                    }
+                    if let Some(encode_args) = self.abi_encode_call_args(first) {
+                        let arg_exprs: Vec<_> = encode_args.exprs().collect();
+                        if let Some(hash) = self.lower_keccak_abi_encode(builder, &arg_exprs) {
+                            return hash;
+                        }
+                    }
+
+                    // Dynamic `bytes`/`string` (incl. `bytes(s)` of a calldata
+                    // value): hash the raw data after materializing it to memory.
+                    if let Some(hash) = self.keccak_dynamic_bytes(builder, first) {
+                        return hash;
+                    }
+                    let arg_val = self.lower_expr(builder, first);
+                    let ptr = builder.imm_u64(0);
+                    builder.mstore(ptr, arg_val);
+                    let size = builder.imm_u64(32);
+                    return builder.keccak256(ptr, size);
+                }
+                builder.imm_u64(0)
+            }
+            Builtin::Require | Builtin::Assert => {
+                let mut exprs = args.exprs();
+                if let Some(first) = exprs.next() {
+                    let cond = self.lower_expr(builder, first);
+                    let is_false = builder.iszero(cond);
+
+                    let revert_block = builder.create_block();
+                    let continue_block = builder.create_block();
+
+                    builder.branch(is_false, revert_block, continue_block);
+
+                    builder.switch_to_block(revert_block);
+                    if matches!(builtin, Builtin::Assert) {
+                        self.emit_panic_revert(builder, PanicCode::Assert);
+                    } else if let Some(message) = exprs.next() {
+                        if !self.emit_revert_payload_from_expr(builder, message) {
+                            let zero = builder.imm_u64(0);
+                            builder.revert(zero, zero);
+                        }
+                    } else {
+                        let zero = builder.imm_u64(0);
+                        builder.revert(zero, zero);
+                    }
+
+                    builder.switch_to_block(continue_block);
+                }
+                builder.imm_u64(0)
+            }
+            Builtin::Revert => {
+                let zero = builder.imm_u64(0);
+                builder.revert(zero, zero);
+                zero
+            }
+            Builtin::RevertMsg => {
+                let mut exprs = args.exprs();
+                let emitted = exprs.next().is_some_and(|message| {
+                    self.emit_revert_error_string_from_expr(builder, message)
+                });
+                let zero = builder.imm_u64(0);
+                if !emitted {
+                    builder.revert(zero, zero);
+                }
+                zero
+            }
+            Builtin::AddressBalance => {
+                let mut exprs = args.exprs();
+                if let Some(first) = exprs.next() {
+                    let addr = self.lower_expr(builder, first);
+                    return builder.balance(addr);
+                }
+                builder.imm_u64(0)
+            }
+            Builtin::AddMod | Builtin::MulMod => {
+                let mut exprs = args.exprs();
+                let Some(a) = exprs.next() else { return builder.imm_u64(0) };
+                let Some(b) = exprs.next() else { return builder.imm_u64(0) };
+                let Some(n) = exprs.next() else { return builder.imm_u64(0) };
+                let a = self.lower_expr(builder, a);
+                let b = self.lower_expr(builder, b);
+                let n = self.lower_expr(builder, n);
+                if matches!(builtin, Builtin::AddMod) {
+                    builder.addmod(a, b, n)
+                } else {
+                    builder.mulmod(a, b, n)
+                }
+            }
+            Builtin::AbiEncode => {
+                // abi.encode: a fresh `bytes memory` allocation holding the
+                // padded ABI tuple encoding of the arguments.
+                let arg_exprs: Vec<_> = args.exprs().collect();
+                if let Some(ptr) = self.lower_abi_encode_to_bytes(builder, &arg_exprs) {
+                    return ptr;
+                }
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support these `abi.encode` arguments yet")
+                    .span(args.span)
+                    .emit();
+                builder.imm_u64(0)
+            }
+            Builtin::AbiEncodePacked => {
+                // abi.encodePacked: pack values tightly based on their types
+                // Returns bytes memory (length + data)
+                self.lower_abi_encode_packed(builder, args)
+            }
+            Builtin::AbiDecode => self.lower_abi_decode(builder, args),
+            Builtin::YulAdd
+            | Builtin::YulSub
+            | Builtin::YulMul
+            | Builtin::YulDiv
+            | Builtin::YulMod
+            | Builtin::YulExp
+            | Builtin::YulNot
+            | Builtin::YulAnd
+            | Builtin::YulOr
+            | Builtin::YulXor
+            | Builtin::YulShl
+            | Builtin::YulShr
+            | Builtin::YulSar
+            | Builtin::YulStop
+            | Builtin::YulSdiv
+            | Builtin::YulSmod
+            | Builtin::YulLt
+            | Builtin::YulGt
+            | Builtin::YulSlt
+            | Builtin::YulSgt
+            | Builtin::YulEq
+            | Builtin::YulIszero
+            | Builtin::YulByte
+            | Builtin::YulClz
+            | Builtin::YulAddmod
+            | Builtin::YulMulmod
+            | Builtin::YulSignextend
+            | Builtin::YulKeccak256
+            | Builtin::YulAddress
+            | Builtin::YulBalance
+            | Builtin::YulSelfbalance
+            | Builtin::YulCaller
+            | Builtin::YulCallvalue
+            | Builtin::YulCalldataload
+            | Builtin::YulCalldatasize
+            | Builtin::YulCalldatacopy
+            | Builtin::YulCodesize
+            | Builtin::YulCodecopy
+            | Builtin::YulExtcodesize
+            | Builtin::YulExtcodecopy
+            | Builtin::YulReturndatasize
+            | Builtin::YulReturndatacopy
+            | Builtin::YulExtcodehash
+            | Builtin::YulMload
+            | Builtin::YulMstore
+            | Builtin::YulMstore8
+            | Builtin::YulSload
+            | Builtin::YulSstore
+            | Builtin::YulTload
+            | Builtin::YulTstore
+            | Builtin::YulMsize
+            | Builtin::YulGas
+            | Builtin::YulLog0
+            | Builtin::YulLog1
+            | Builtin::YulLog2
+            | Builtin::YulLog3
+            | Builtin::YulLog4
+            | Builtin::YulCreate
+            | Builtin::YulCreate2
+            | Builtin::YulCall
+            | Builtin::YulCallcode
+            | Builtin::YulDelegatecall
+            | Builtin::YulStaticcall
+            | Builtin::YulExtcall
+            | Builtin::YulExtdelegatecall
+            | Builtin::YulExtstaticcall
+            | Builtin::YulReturn
+            | Builtin::YulRevert
+            | Builtin::YulSelfdestruct
+            | Builtin::YulInvalid
+            | Builtin::YulChainid
+            | Builtin::YulBasefee
+            | Builtin::YulBlobbasefee
+            | Builtin::YulBlobhash
+            | Builtin::YulCoinbase
+            | Builtin::YulDifficulty
+            | Builtin::YulPrevrandao
+            | Builtin::YulGaslimit
+            | Builtin::YulNumber
+            | Builtin::YulTimestamp
+            | Builtin::YulGasprice
+            | Builtin::YulOrigin
+            | Builtin::YulBlockhash
+            | Builtin::YulPop
+            | Builtin::YulMcopy => self.lower_yul_builtin_call(builder, builtin, args),
+            _ => builder.imm_u64(0),
+        }
+    }
+
+    fn lower_yul_builtin_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        builtin: Builtin,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let arg_vals: Vec<ValueId> =
+            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+        if let Some(expected) = Self::yul_builtin_arity(builtin)
+            && arg_vals.len() != expected
+        {
+            self.gcx
+                .dcx()
+                .err(format!(
+                    "wrong number of arguments for Yul builtin `{}`: expected {}, found {}",
+                    builtin.name(),
+                    expected,
+                    arg_vals.len()
+                ))
+                .span(args.span)
+                .emit();
+            return builder.imm_u64(0);
+        }
+
+        match builtin {
+            Builtin::YulAdd => builder.add(arg_vals[0], arg_vals[1]),
+            Builtin::YulSub => builder.sub(arg_vals[0], arg_vals[1]),
+            Builtin::YulMul => builder.mul(arg_vals[0], arg_vals[1]),
+            Builtin::YulDiv => builder.div(arg_vals[0], arg_vals[1]),
+            Builtin::YulSdiv => builder.sdiv(arg_vals[0], arg_vals[1]),
+            Builtin::YulMod => builder.mod_(arg_vals[0], arg_vals[1]),
+            Builtin::YulSmod => builder.smod(arg_vals[0], arg_vals[1]),
+            Builtin::YulAddmod => builder.addmod(arg_vals[0], arg_vals[1], arg_vals[2]),
+            Builtin::YulMulmod => builder.mulmod(arg_vals[0], arg_vals[1], arg_vals[2]),
+            Builtin::YulExp => builder.exp(arg_vals[0], arg_vals[1]),
+            Builtin::YulSignextend => builder.signextend(arg_vals[0], arg_vals[1]),
+            Builtin::YulAnd => builder.and(arg_vals[0], arg_vals[1]),
+            Builtin::YulOr => builder.or(arg_vals[0], arg_vals[1]),
+            Builtin::YulXor => builder.xor(arg_vals[0], arg_vals[1]),
+            Builtin::YulNot => builder.not(arg_vals[0]),
+            Builtin::YulByte => builder.byte(arg_vals[0], arg_vals[1]),
+            Builtin::YulShl => builder.shl(arg_vals[0], arg_vals[1]),
+            Builtin::YulShr => builder.shr(arg_vals[0], arg_vals[1]),
+            Builtin::YulSar => builder.sar(arg_vals[0], arg_vals[1]),
+            Builtin::YulLt => builder.lt(arg_vals[0], arg_vals[1]),
+            Builtin::YulGt => builder.gt(arg_vals[0], arg_vals[1]),
+            Builtin::YulSlt => builder.slt(arg_vals[0], arg_vals[1]),
+            Builtin::YulSgt => builder.sgt(arg_vals[0], arg_vals[1]),
+            Builtin::YulEq => builder.eq(arg_vals[0], arg_vals[1]),
+            Builtin::YulIszero => builder.iszero(arg_vals[0]),
+            Builtin::YulMload => builder.mload(arg_vals[0]),
+            Builtin::YulMstore => {
+                builder.mstore(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulMstore8 => {
+                builder.mstore8(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulMsize => builder.msize(),
+            Builtin::YulMcopy => {
+                self.mcopy(builder, arg_vals[0], arg_vals[1], arg_vals[2], Some(args.span));
+                builder.imm_u64(0)
+            }
+            Builtin::YulSload => builder.sload(arg_vals[0]),
+            Builtin::YulSstore => {
+                builder.sstore(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulTload => builder.tload(arg_vals[0]),
+            Builtin::YulTstore => {
+                builder.tstore(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulCalldataload => builder.calldataload(arg_vals[0]),
+            Builtin::YulCalldatasize => builder.calldatasize(),
+            Builtin::YulCalldatacopy => {
+                builder.calldatacopy(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulCodesize => builder.codesize(),
+            Builtin::YulCodecopy => {
+                builder.codecopy(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulExtcodesize => builder.extcodesize(arg_vals[0]),
+            Builtin::YulExtcodecopy => {
+                builder.extcodecopy(arg_vals[0], arg_vals[1], arg_vals[2], arg_vals[3]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulExtcodehash => builder.extcodehash(arg_vals[0]),
+            Builtin::YulReturndatasize => builder.returndatasize(),
+            Builtin::YulReturndatacopy => {
+                builder.returndatacopy(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulAddress => builder.address(),
+            Builtin::YulBalance => builder.balance(arg_vals[0]),
+            Builtin::YulSelfbalance => builder.selfbalance(),
+            Builtin::YulCaller => builder.caller(),
+            Builtin::YulCallvalue => builder.callvalue(),
+            Builtin::YulOrigin => builder.origin(),
+            Builtin::YulGasprice => builder.gasprice(),
+            Builtin::YulBlockhash => builder.blockhash(arg_vals[0]),
+            Builtin::YulCoinbase => builder.coinbase(),
+            Builtin::YulTimestamp => builder.timestamp(),
+            Builtin::YulNumber => builder.number(),
+            Builtin::YulDifficulty | Builtin::YulPrevrandao => builder.prevrandao(),
+            Builtin::YulGaslimit => builder.gaslimit(),
+            Builtin::YulChainid => builder.chainid(),
+            Builtin::YulGas => builder.gas(),
+            Builtin::YulBasefee => builder.basefee(),
+            Builtin::YulBlobbasefee => builder.blobbasefee(),
+            Builtin::YulBlobhash => builder.blobhash(arg_vals[0]),
+            Builtin::YulKeccak256 => builder.keccak256(arg_vals[0], arg_vals[1]),
+            Builtin::YulCall => builder.call(
+                arg_vals[0],
+                arg_vals[1],
+                arg_vals[2],
+                arg_vals[3],
+                arg_vals[4],
+                arg_vals[5],
+                arg_vals[6],
+            ),
+            Builtin::YulStaticcall => builder.staticcall(
+                arg_vals[0],
+                arg_vals[1],
+                arg_vals[2],
+                arg_vals[3],
+                arg_vals[4],
+                arg_vals[5],
+            ),
+            Builtin::YulDelegatecall => builder.delegatecall(
+                arg_vals[0],
+                arg_vals[1],
+                arg_vals[2],
+                arg_vals[3],
+                arg_vals[4],
+                arg_vals[5],
+            ),
+            Builtin::YulCreate => builder.create(arg_vals[0], arg_vals[1], arg_vals[2]),
+            Builtin::YulCreate2 => {
+                builder.create2(arg_vals[0], arg_vals[1], arg_vals[2], arg_vals[3])
+            }
+            Builtin::YulLog0 => {
+                builder.log0(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulLog1 => {
+                builder.log1(arg_vals[0], arg_vals[1], arg_vals[2]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulLog2 => {
+                builder.log2(arg_vals[0], arg_vals[1], arg_vals[2], arg_vals[3]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulLog3 => {
+                builder.log3(arg_vals[0], arg_vals[1], arg_vals[2], arg_vals[3], arg_vals[4]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulLog4 => {
+                builder.log4(
+                    arg_vals[0],
+                    arg_vals[1],
+                    arg_vals[2],
+                    arg_vals[3],
+                    arg_vals[4],
+                    arg_vals[5],
+                );
+                builder.imm_u64(0)
+            }
+            Builtin::YulRevert => {
+                builder.revert(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulStop => {
+                builder.stop();
+                builder.imm_u64(0)
+            }
+            Builtin::YulInvalid => {
+                builder.invalid();
+                builder.imm_u64(0)
+            }
+            Builtin::YulSelfdestruct => {
+                builder.selfdestruct(arg_vals[0]);
+                builder.imm_u64(0)
+            }
+            Builtin::YulPop => builder.imm_u64(0),
+            Builtin::YulClz
+            | Builtin::YulCallcode
+            | Builtin::YulExtcall
+            | Builtin::YulExtdelegatecall
+            | Builtin::YulExtstaticcall
+            | Builtin::YulReturn => self.unsupported_yul_builtin(builder, builtin, args.span),
+            _ => unreachable!("non-Yul builtin passed to Yul lowering"),
+        }
+    }
+
+    fn yul_builtin_arity(builtin: Builtin) -> Option<usize> {
+        Some(match builtin {
+            Builtin::YulStop
+            | Builtin::YulAddress
+            | Builtin::YulSelfbalance
+            | Builtin::YulCaller
+            | Builtin::YulCallvalue
+            | Builtin::YulCalldatasize
+            | Builtin::YulCodesize
+            | Builtin::YulReturndatasize
+            | Builtin::YulMsize
+            | Builtin::YulGas
+            | Builtin::YulInvalid
+            | Builtin::YulChainid
+            | Builtin::YulBasefee
+            | Builtin::YulBlobbasefee
+            | Builtin::YulCoinbase
+            | Builtin::YulDifficulty
+            | Builtin::YulPrevrandao
+            | Builtin::YulGaslimit
+            | Builtin::YulNumber
+            | Builtin::YulTimestamp
+            | Builtin::YulGasprice
+            | Builtin::YulOrigin => 0,
+            Builtin::YulNot
+            | Builtin::YulIszero
+            | Builtin::YulClz
+            | Builtin::YulBalance
+            | Builtin::YulCalldataload
+            | Builtin::YulExtcodesize
+            | Builtin::YulExtcodehash
+            | Builtin::YulMload
+            | Builtin::YulSload
+            | Builtin::YulTload
+            | Builtin::YulBlobhash
+            | Builtin::YulBlockhash
+            | Builtin::YulPop
+            | Builtin::YulSelfdestruct => 1,
+            Builtin::YulAdd
+            | Builtin::YulSub
+            | Builtin::YulMul
+            | Builtin::YulDiv
+            | Builtin::YulMod
+            | Builtin::YulExp
+            | Builtin::YulAnd
+            | Builtin::YulOr
+            | Builtin::YulXor
+            | Builtin::YulShl
+            | Builtin::YulShr
+            | Builtin::YulSar
+            | Builtin::YulSdiv
+            | Builtin::YulSmod
+            | Builtin::YulLt
+            | Builtin::YulGt
+            | Builtin::YulSlt
+            | Builtin::YulSgt
+            | Builtin::YulEq
+            | Builtin::YulByte
+            | Builtin::YulSignextend
+            | Builtin::YulKeccak256
+            | Builtin::YulMstore
+            | Builtin::YulMstore8
+            | Builtin::YulSstore
+            | Builtin::YulTstore
+            | Builtin::YulLog0
+            | Builtin::YulReturn
+            | Builtin::YulRevert => 2,
+            Builtin::YulAddmod
+            | Builtin::YulMulmod
+            | Builtin::YulCalldatacopy
+            | Builtin::YulCodecopy
+            | Builtin::YulReturndatacopy
+            | Builtin::YulMcopy
+            | Builtin::YulLog1
+            | Builtin::YulCreate
+            | Builtin::YulExtdelegatecall
+            | Builtin::YulExtstaticcall => 3,
+            Builtin::YulExtcodecopy
+            | Builtin::YulLog2
+            | Builtin::YulCreate2
+            | Builtin::YulExtcall => 4,
+            Builtin::YulLog3 => 5,
+            Builtin::YulDelegatecall | Builtin::YulStaticcall | Builtin::YulLog4 => 6,
+            Builtin::YulCall | Builtin::YulCallcode => 7,
+            _ => return None,
+        })
+    }
+
+    fn unsupported_yul_builtin(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        builtin: Builtin,
+        span: Span,
+    ) -> ValueId {
+        self.gcx
+            .dcx()
+            .err(format!("unsupported Yul builtin `{}`", builtin.name()))
+            .span(span)
+            .emit();
+        builder.imm_u64(0)
+    }
+
+    /// Lowers a member function call (e.g., counter.increment()).
+    fn lower_member_call_with_opts(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        callee: &hir::Expr<'_>,
+        base: &hir::Expr<'_>,
+        member: Ident,
+        args: &CallArgs<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+    ) -> ValueId {
+        let resolved = self.gcx.resolved_callee(callee.id);
+        let builtin = self.gcx.builtin_callee(callee.id);
+
+        if let Some(builtin) = builtin
+            && Self::builtin_uses_direct_call_lowering(builtin)
+        {
+            return self.lower_builtin_call(builder, builtin, args);
+        }
+
+        // Handle `Contract.StructType(args)`.
+        if let Some(resolved) = resolved
+            && let hir::Res::Item(hir::ItemId::Struct(struct_id)) = resolved.res
+        {
+            return self.lower_struct_constructor(builder, struct_id, args);
+        }
+
+        // Handle library function calls: Library.func(args).
+        if self.is_library_type_expr(base)
+            && let Some(func_id) = self.resolved_function_callee(callee)
+        {
+            return self.lower_library_call(builder, func_id, args, None);
+        }
+
+        // Handle address payable transfer/send builtins
+        if matches!(builtin, Some(Builtin::AddressPayableTransfer | Builtin::AddressPayableSend)) {
+            // payable(addr).transfer(amount) or payable(addr).send(amount)
+            // CALL(2300, addr, amount, 0, 0, 0, 0)
+            let addr = self.lower_expr(builder, base);
+            let mut exprs = args.exprs();
+            let amount = if let Some(first) = exprs.next() {
+                self.lower_expr(builder, first)
+            } else {
+                builder.imm_u64(0)
+            };
+
+            // transfer/send uses 2300 gas stipend
+            let gas_stipend = builder.imm_u64(2300);
+            // Create fresh zero values for each CALL argument to avoid stack issues
+            let zero_args_offset = builder.imm_u64(0);
+            let zero_args_size = builder.imm_u64(0);
+            let zero_ret_offset = builder.imm_u64(0);
+            let zero_ret_size = builder.imm_u64(0);
+
+            // CALL(gas, addr, value, argsOffset, argsSize, retOffset, retSize)
+            let success = builder.call(
+                gas_stipend,
+                addr,
+                amount,
+                zero_args_offset,
+                zero_args_size,
+                zero_ret_offset,
+                zero_ret_size,
+            );
+
+            if builtin == Some(Builtin::AddressPayableTransfer) {
+                // transfer reverts on failure
+                let is_failure = builder.iszero(success);
+                let revert_block = builder.create_block();
+                let continue_block = builder.create_block();
+                builder.branch(is_failure, revert_block, continue_block);
+                builder.switch_to_block(revert_block);
+                let revert_offset = builder.imm_u64(0);
+                let revert_size = builder.imm_u64(0);
+                builder.revert(revert_offset, revert_size);
+                builder.switch_to_block(continue_block);
+                return builder.imm_u64(0);
+            }
+            // send returns success bool
+            return success;
+        }
+
+        // Handle low-level call/staticcall/delegatecall
+        // addr.call{value: X}(data) returns (bool success, bytes memory returndata)
+        // addr.staticcall(data) returns (bool success, bytes memory returndata)
+        // addr.delegatecall(data) returns (bool success, bytes memory returndata)
+        if matches!(
+            builtin,
+            Some(Builtin::AddressCall | Builtin::AddressStaticcall | Builtin::AddressDelegatecall)
+        ) {
+            let addr = self.lower_expr(builder, base);
+
+            // Get the calldata bytes argument.
+            let mut exprs = args.exprs();
+            let (calldata_offset, calldata_size) = if let Some(data_arg) = exprs.next() {
+                // Supported inputs are literals and ABI encode calls. Other
+                // bytes expressions panic in `lower_bytes_arg_to_memory`.
+                self.lower_bytes_arg_to_memory(builder, data_arg)
+            } else {
+                // No argument means empty calldata
+                (builder.imm_u64(0), builder.imm_u64(0))
+            };
+
+            // Gas: use all available gas
+            let gas = builder.gas();
+
+            // Value: extract from call options {value: X} or default to 0
+            let value = if builtin == Some(Builtin::AddressCall) {
+                self.extract_call_value(builder, call_opts)
+            } else {
+                // staticcall and delegatecall don't transfer value
+                builder.imm_u64(0)
+            };
+
+            // This lowering models only the success flag. Solidity's second
+            // `bytes` result is rejected by `lower_multi_var_decl` until the
+            // compiler materializes returndata bytes.
+            let ret_offset = builder.imm_u64(0);
+            let ret_size = builder.imm_u64(0);
+
+            // Emit the appropriate CALL/STATICCALL/DELEGATECALL instruction
+            let success = match builtin {
+                Some(Builtin::AddressCall) => builder.call(
+                    gas,
+                    addr,
+                    value,
+                    calldata_offset,
+                    calldata_size,
+                    ret_offset,
+                    ret_size,
+                ),
+                Some(Builtin::AddressStaticcall) => builder.staticcall(
+                    gas,
+                    addr,
+                    calldata_offset,
+                    calldata_size,
+                    ret_offset,
+                    ret_size,
+                ),
+                Some(Builtin::AddressDelegatecall) => builder.delegatecall(
+                    gas,
+                    addr,
+                    calldata_offset,
+                    calldata_size,
+                    ret_offset,
+                    ret_size,
+                ),
+                _ => unreachable!(),
+            };
+
+            // Low-level calls return `(bool, bytes)`, but this expression path
+            // exposes only the first value. `lower_multi_var_decl` copies the
+            // returndata bytes out of the return buffer when they are bound.
+            return success;
+        }
+
+        let array_method = builtin.and_then(Self::array_builtin_method_name);
+
+        // Handle storage `bytes`/`string` methods before the generic member
+        // call path. Their storage layout is Solidity's packed short/long
+        // bytes form, not the generic dynamic-array layout.
+        if self.is_storage_bytes_expr(base)
+            && let Some(method) = array_method
+            && let Some(slot) = self.lower_lvalue_slot(builder, base)
+        {
+            return self.lower_storage_bytes_method_call(builder, slot, method, args);
+        }
+
+        // Handle dynamic array methods (push, pop)
+        if let Some(method) = array_method
+            && let Some((var_id, slot)) = self.get_dyn_array_base_slot(base)
+        {
+            return self.lower_array_method_call(builder, var_id, slot, method, args);
+        }
+
+        // Handle `using X for Y` library calls: x.method(args) -> Library.method(x, args)
+        if let Some(resolved) = resolved
+            && resolved.attached
+            && let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res
+        {
+            let bound_arg = self.lower_expr(builder, base);
+            return self.lower_library_call(builder, func_id, args, Some(bound_arg));
+        }
+
+        // Look up the function being called to get its selector and return count.
+        let resolved_func = self.resolved_function_callee(callee);
+        if resolved_func.is_none() && self.gcx.has_typeck_results() {
+            panic!("typeck did not record resolved member-function callee `{member}`");
+        }
+        let (selector, num_returns, struct_return_info) = if let Some(func_id) = resolved_func {
+            (
+                u32::from_be_bytes(self.gcx.function_selector(func_id).0),
+                self.function_return_slot_count(func_id),
+                self.function_struct_return(func_id),
+            )
+        } else {
+            (
+                self.compute_member_selector(base, member),
+                self.get_member_function_return_count(base, member),
+                None,
+            )
+        };
+
+        // Collect argument info: for structs we need the field count, for scalars just 1 slot
+        let arg_infos: Vec<_> = args
+            .exprs()
+            .map(|arg| {
+                let struct_info = self.get_expr_struct_info(arg);
+                (arg, struct_info)
+            })
+            .collect();
+
+        // Calculate calldata size: 4 bytes selector + sum of all argument slots
+        let total_arg_slots: usize =
+            arg_infos.iter().map(|(_, info)| info.map(|(_, n)| n).unwrap_or(1)).sum();
+        let calldata_size_bytes = 4 + total_arg_slots * 32;
+
+        // IMPORTANT: Evaluate all arguments FIRST before writing to memory.
+        // For structs, lower_expr returns the memory pointer.
+        let arg_vals: Vec<ValueId> =
+            arg_infos.iter().map(|(arg, _)| self.lower_expr(builder, arg)).collect();
+
+        // Evaluate the address and spill it to scratch memory at 0x00.
+        // This ensures it survives all the MSTORE operations for calldata setup.
+        // We reload it right before the CALL.
+        let addr_expr = self.lower_expr(builder, base);
+        let scratch_addr = builder.imm_u64(0x00);
+        builder.mstore(scratch_addr, addr_expr);
+
+        // Allocate calldata from the free memory pointer (like solc does).
+        // This avoids clobbering the free memory pointer at 0x40 when encoding
+        // calldata with 2+ arguments (which would span 0x04-0x43+).
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let calldata_start = builder.mload(free_ptr_addr);
+
+        // Store calldata_start to scratch memory at 0x20.
+        // We need to reload it right before the CALL because:
+        // 1. The scheduler may lose track of this value after many MSTOREs
+        // 2. For struct returns, we update the free memory pointer, so reading 0x40 again would be
+        //    wrong
+        let scratch_calldata = builder.imm_u64(0x20);
+        builder.mstore(scratch_calldata, calldata_start);
+
+        // Write the selector at calldata_start (left-aligned in 32-byte word)
+        let selector_word = U256::from(selector) << 224;
+        let selector_val = builder.imm_u256(selector_word);
+        builder.mstore(calldata_start, selector_val);
+
+        // Write arguments after selector
+        // For struct arguments, we need to load each field from memory and write them
+        let mut arg_offset = 4u64;
+        for (i, arg_val) in arg_vals.iter().enumerate() {
+            let struct_info = &arg_infos[i].1;
+
+            if let Some((_, field_count)) = struct_info {
+                // Struct argument: load each field from memory and write to calldata
+                for field_idx in 0..*field_count {
+                    let field_mem_offset = (field_idx as u64) * 32;
+                    let field_val = if field_mem_offset == 0 {
+                        builder.mload(*arg_val)
+                    } else {
+                        let field_offset_val = builder.imm_u64(field_mem_offset);
+                        let field_addr = builder.add(*arg_val, field_offset_val);
+                        builder.mload(field_addr)
+                    };
+
+                    let offset_val = builder.imm_u64(arg_offset);
+                    let write_addr = builder.add(calldata_start, offset_val);
+                    builder.mstore(write_addr, field_val);
+                    arg_offset += 32;
+                }
+            } else {
+                // Scalar argument: write directly
+                let offset_val = builder.imm_u64(arg_offset);
+                let write_addr = builder.add(calldata_start, offset_val);
+                builder.mstore(write_addr, *arg_val);
+                arg_offset += 32;
+            }
+        }
+
+        // Determine where to store return data and whether it's a struct
+        let (ret_offset, ret_size, struct_ptr_opt) =
+            if let Some((_struct_id, field_count)) = struct_return_info {
+                // For struct returns: allocate space after calldata for the return value
+                let struct_size = (field_count as u64) * 32;
+                let calldata_end_offset = builder.imm_u64(calldata_size_bytes as u64);
+                let struct_ptr = builder.add(calldata_start, calldata_end_offset);
+
+                // Update free memory pointer past the struct
+                let struct_size_val = builder.imm_u64(struct_size);
+                let new_free_ptr = builder.add(struct_ptr, struct_size_val);
+                builder.mstore(free_ptr_addr, new_free_ptr);
+
+                let ret_size = builder.imm_u64(struct_size);
+                (struct_ptr, ret_size, Some(struct_ptr))
+            } else {
+                // For non-struct returns: use scratch space at offset 0
+                // (safe because we're done with calldata after the CALL)
+                let ret_offset = builder.imm_u64(0);
+                let ret_size = builder.imm_u64((num_returns * 32) as u64);
+                (ret_offset, ret_size, None)
+            };
+
+        // Total calldata size = 4 (selector) + 32 * num_args
+        let calldata_size = builder.imm_u64(calldata_size_bytes as u64);
+
+        // Value: extract from call options {value: X} or default to 0
+        let value = self.extract_call_value(builder, call_opts);
+
+        // Reload the address from scratch memory (0x00) where we stored it earlier.
+        // This avoids stack depth issues after all the MSTORE operations.
+        let scratch_addr_reload = builder.imm_u64(0x00);
+        let addr = builder.mload(scratch_addr_reload);
+
+        // Gas: use all available gas (must be right before CALL to be on top of stack)
+        let gas = builder.gas();
+
+        // Reload calldata_start from scratch memory at 0x20.
+        // Cannot re-read from 0x40 because struct return handling may have updated it.
+        let scratch_calldata_reload = builder.imm_u64(0x20);
+        let calldata_start_reload = builder.mload(scratch_calldata_reload);
+
+        // Emit the CALL instruction
+        let _success = builder.call(
+            gas,
+            addr,
+            value,
+            calldata_start_reload,
+            calldata_size,
+            ret_offset,
+            ret_size,
+        );
+
+        // For struct returns, the data is already in the right place (at struct_ptr).
+        // Just return the pointer.
+        if let Some(struct_ptr) = struct_ptr_opt {
+            return struct_ptr;
+        }
+
+        // Load first return value from memory
+        // Note: for multi-return calls, lower_multi_var_decl will read additional values
+        // from memory at offsets 32, 64, etc.
+        builder.mload(ret_offset)
+    }
+
+    fn resolved_function_callee(&self, callee: &hir::Expr<'_>) -> Option<hir::FunctionId> {
+        let resolved = self.gcx.resolved_callee(callee.id)?;
+        let hir::Res::Item(hir::ItemId::Function(func_id)) = resolved.res else { return None };
+        Some(func_id)
+    }
+
+    fn is_library_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        let Some(ty) = self.get_expr_type(expr) else { return false };
+        let TyKind::Type(ty) = ty.kind else { return false };
+        let TyKind::Contract(contract_id) = ty.kind else { return false };
+        self.gcx.hir.contract(contract_id).kind.is_library()
+    }
+
+    fn array_builtin_method_name(builtin: Builtin) -> Option<&'static str> {
+        match builtin {
+            Builtin::ArrayPush0 | Builtin::ArrayPush => Some(ARRAY_METHOD_PUSH),
+            Builtin::ArrayPop => Some(ARRAY_METHOD_POP),
+            _ => None,
+        }
+    }
+
+    fn function_return_slot_count(&self, func_id: hir::FunctionId) -> usize {
+        self.return_slot_count(self.gcx.hir.function(func_id).returns)
+    }
+
+    fn return_slot_count(&self, returns: &[hir::VariableId]) -> usize {
+        let mut total = 0;
+        for &var_id in returns {
+            let var = self.gcx.hir.variable(var_id);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                total += self.gcx.hir.strukt(*struct_id).fields.len();
+            } else {
+                total += 1;
+            }
+        }
+        total.max(1)
+    }
+
+    fn function_struct_return(&self, func_id: hir::FunctionId) -> Option<(hir::StructId, usize)> {
+        self.struct_return(self.gcx.hir.function(func_id).returns)
+    }
+
+    fn struct_return(&self, returns: &[hir::VariableId]) -> Option<(hir::StructId, usize)> {
+        if returns.len() == 1 {
+            let var = self.gcx.hir.variable(returns[0]);
+            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                return Some((*struct_id, self.gcx.hir.strukt(*struct_id).fields.len()));
+            }
+        }
+        None
+    }
+
+    /// Extracts the `value` from call options `{value: X}`, or returns 0 if not present.
+    pub(super) fn extract_call_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        call_opts: Option<&[hir::NamedArg<'_>]>,
+    ) -> ValueId {
+        if let Some(opts) = call_opts {
+            for opt in opts {
+                if opt.name.name.as_str() == "value" {
+                    return self.lower_expr(builder, &opt.value);
+                }
+            }
+        }
+        builder.imm_u64(0)
+    }
+
+    /// Computes the function selector for a member call.
+    pub(super) fn compute_member_selector(&self, base: &hir::Expr<'_>, member: Ident) -> u32 {
+        // Try to get the type of the base expression and find the function
+        // For contract types, we look up the function in the contract's interface
+
+        // Helper to look up selector from a contract, including inherited functions.
+        // Searches through the linearized inheritance chain.
+        let lookup_in_contract = |contract_id: hir::ContractId| -> Option<u32> {
+            let contract = self.gcx.hir.contract(contract_id);
+            // Search through the inheritance chain (linearized_bases includes self at index 0)
+            for &base_id in contract.linearized_bases.iter() {
+                let base_contract = self.gcx.hir.contract(base_id);
+                for func_id in base_contract.all_functions() {
+                    let func = self.gcx.hir.function(func_id);
+                    if func.name.is_some_and(|n| n.name == member.name) {
+                        let selector = self.gcx.function_selector(func_id);
+                        return Some(u32::from_be_bytes(selector.0));
+                    }
+                }
+            }
+            None
+        };
+
+        // Case 1: base is an identifier (variable with contract type)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
+                && let Some(sel) = lookup_in_contract(contract_id)
+            {
+                return sel;
+            }
+        }
+
+        // Case 2: base is a type conversion call like ICallee(addr)
+        // The call's callee is an Ident resolving to a Contract/Interface
+        if let ExprKind::Call(callee, _args, _named) = &base.kind
+            && let ExprKind::Ident(res_slice) = &callee.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+            && let Some(sel) = lookup_in_contract(*contract_id)
+        {
+            return sel;
+        }
+
+        // Case 2b: base is the contract/interface name itself, e.g.
+        // `IERC20Minimal.transfer.selector`.
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+            && let Some(sel) = lookup_in_contract(*contract_id)
+        {
+            return sel;
+        }
+
+        // Case 3: base is `this` (Builtin::This)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Builtin(Builtin::This)) = res_slice.first()
+            && let Some(contract_id) = self.current_contract_id
+            && let Some(sel) = lookup_in_contract(contract_id)
+        {
+            return sel;
+        }
+
+        // Fallback: compute selector from member name
+        // This is a simplified version - proper implementation would use full signature
+        let sig = format!("{}()", member.name);
+        let hash = alloy_primitives::keccak256(sig.as_bytes());
+        u32::from_be_bytes(hash[..4].try_into().unwrap())
+    }
+
+    /// Gets the number of return values for a member function call.
+    pub(super) fn get_member_function_return_count(
+        &self,
+        base: &hir::Expr<'_>,
+        member: Ident,
+    ) -> usize {
+        // Helper to count the number of 32-byte slots a return type occupies.
+        // Structs are expanded to their number of fields.
+        let count_return_slots = |returns: &[hir::VariableId]| -> usize {
+            let mut total = 0;
+            for &var_id in returns {
+                let var = self.gcx.hir.variable(var_id);
+                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
+                    // Struct: count its fields
+                    let strukt = self.gcx.hir.strukt(*struct_id);
+                    total += strukt.fields.len();
+                } else {
+                    // Non-struct: 1 slot
+                    total += 1;
+                }
+            }
+            total.max(1)
+        };
+
+        // Helper to look up return count from a contract, including inherited functions.
+        // Searches through the linearized inheritance chain.
+        let lookup_in_contract = |contract_id: hir::ContractId| -> Option<usize> {
+            let contract = self.gcx.hir.contract(contract_id);
+            // Search through the inheritance chain (linearized_bases includes self at index 0)
+            for &base_id in contract.linearized_bases.iter() {
+                let base_contract = self.gcx.hir.contract(base_id);
+                for func_id in base_contract.all_functions() {
+                    let func = self.gcx.hir.function(func_id);
+                    if func.name.is_some_and(|n| n.name == member.name) {
+                        return Some(count_return_slots(func.returns));
+                    }
+                }
+            }
+            None
+        };
+
+        // Case 1: base is an identifier (variable with contract type)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+        {
+            let var = self.gcx.hir.variable(*var_id);
+            let ty = self.gcx.type_of_hir_ty(&var.ty);
+            if let solar_sema::ty::TyKind::Contract(contract_id) = ty.kind
+                && let Some(count) = lookup_in_contract(contract_id)
+            {
+                return count;
+            }
+        }
+
+        // Case 2: base is a type conversion call like ICallee(addr)
+        if let ExprKind::Call(callee, _args, _named) = &base.kind
+            && let ExprKind::Ident(res_slice) = &callee.kind
+            && let Some(hir::Res::Item(hir::ItemId::Contract(contract_id))) = res_slice.first()
+            && let Some(count) = lookup_in_contract(*contract_id)
+        {
+            return count;
+        }
+
+        // Case 3: base is `this` (Builtin::This)
+        if let ExprKind::Ident(res_slice) = &base.kind
+            && let Some(hir::Res::Builtin(Builtin::This)) = res_slice.first()
+        {
+            // Look up the function in the current contract
+            // We need to find it through the module's functions
+            // Search all known contracts because `this` carries the current
+            // contract value rather than a specific function declaration.
+            for contract_id in self.gcx.hir.contract_ids() {
+                if let Some(count) = lookup_in_contract(contract_id) {
+                    return count;
+                }
+            }
+        }
+
+        // Unknown member calls are treated as single-value calls.
+        1
+    }
+
+    /// Lowers an internal function call by inlining it.
+    /// This handles calls like `add(a, b)` where `add` is a function in the same contract.
+    fn lower_internal_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+
+        // Collect argument values FIRST (before entering inline tracking)
+        // This allows nested calls to the same function (e.g., add(add(x, 1), 2))
+        // because we evaluate arguments before marking ourselves as "in progress"
+        let arg_vals: Vec<ValueId> =
+            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+
+        if func.returns.is_empty() {
+            if self.function_is_recursive(func_id) {
+                return self.lower_internal_call_fallback(builder, func_id, arg_vals);
+            }
+            return self.lower_inline_void_call(builder, func_id, arg_vals);
+        }
+
+        // The SSA inline path (`lower_library_body_simple`) only models a
+        // straight-line body that ends in a `return`. Anything else — a loop, an
+        // `if`, a multi-statement control flow — is lowered as a real
+        // `internal_call` instead, where the memory-backed internal frame handles
+        // reassigned locals, loops, and recursion correctly. Recursive functions
+        // with a simple ternary body (which `is_simple_return_function` accepts)
+        // are caught separately so inlining does not hit a recursive cycle.
+        // Simple, non-recursive functions still inline. Internal/private callees
+        // use the internal-frame convention directly; a public callee is compiled
+        // for the external ABI, so it needs an internal-frame copy
+        // (`ensure_internal_mir_function`) for `internal_call` to target.
+        let needs_call =
+            !Self::is_simple_return_function(func) || self.function_is_recursive(func_id);
+        if needs_call {
+            return self.lower_internal_call_fallback(builder, func_id, arg_vals);
+        }
+
+        // Check for recursive inlining cycle AFTER evaluating arguments.
+        if !self.try_enter_inline(func_id) {
+            return self.lower_internal_call_fallback(builder, func_id, arg_vals);
+        }
+
+        // Save current locals
+        let saved_locals = std::mem::take(&mut self.locals);
+
+        // Bind parameters to argument values directly (SSA style)
+        for (i, &param_id) in func.parameters.iter().enumerate() {
+            if let Some(&arg_val) = arg_vals.get(i) {
+                self.locals.insert(param_id, arg_val);
+            }
+        }
+
+        // For simple functions with a single return statement, extract and evaluate directly
+        let result = if let Some(body) = &func.body {
+            self.lower_library_body_simple(builder, body, func)
+        } else {
+            builder.imm_u64(0)
+        };
+
+        // Restore locals
+        self.locals = saved_locals;
+
+        // Exit inline tracking
+        self.exit_inline();
+
+        result
+    }
+
+    fn lower_internal_call_fallback(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+        let result_ty = func
+            .returns
+            .first()
+            .map(|&ret_id| self.lower_type_from_var(self.gcx.hir.variable(ret_id)));
+        let is_internal =
+            matches!(func.visibility, hir::Visibility::Internal | hir::Visibility::Private);
+        let mir_id = if is_internal {
+            self.ensure_function_lowered(func_id)
+        } else {
+            self.ensure_internal_mir_function(func_id)
+        };
+        builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len())
+    }
+
+    /// Lowers a base constructor call using already-resolved constructor arguments.
+    pub(super) fn lower_base_constructor_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        ctor_id: hir::FunctionId,
+        modifier: Option<&hir::Modifier<'_>>,
+    ) -> ValueId {
+        let ctor = self.gcx.hir.function(ctor_id);
+        let arg_exprs: Vec<_> = modifier.map(|m| m.args.exprs().collect()).unwrap_or_default();
+        let arg_vals: Vec<ValueId> = ctor
+            .parameters
+            .iter()
+            .enumerate()
+            .map(|(i, &param_id)| {
+                let param = self.gcx.hir.variable(param_id);
+                if let Some(arg) = arg_exprs.get(i) {
+                    self.lower_constructor_arg(builder, arg, &param.ty)
+                } else {
+                    builder.imm_u64(0)
+                }
+            })
+            .collect();
+
+        self.lower_inline_void_call(builder, ctor_id, arg_vals)
+    }
+
+    /// Lowers a void internal function by inlining its full statement body.
+    fn lower_inline_void_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+        let parameters: Vec<_> = func.parameters.to_vec();
+        let body = func.body;
+
+        if !self.try_enter_inline(func_id) {
+            panic!("codegen hit unsupported void-call inline recursion");
+        }
+
+        let saved_locals = std::mem::take(&mut self.locals);
+        let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+        let saved_next_local_memory_offset = self.next_local_memory_offset;
+        let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+
+        if let Some(body) = body {
+            self.collect_assigned_vars_block(&body);
+        }
+
+        for (i, param_id) in parameters.into_iter().enumerate() {
+            if let Some(&arg_val) = arg_vals.get(i) {
+                self.locals.insert(param_id, arg_val);
+            }
+        }
+
+        if let Some(body) = body {
+            let saved_in_unchecked_block = self.in_unchecked_block;
+            self.in_unchecked_block = false;
+            self.lower_block(builder, &body);
+            self.in_unchecked_block = saved_in_unchecked_block;
+        }
+
+        self.locals = saved_locals;
+        self.local_memory_slots = saved_local_memory_slots;
+        self.next_local_memory_offset = saved_next_local_memory_offset;
+        self.assigned_vars = saved_assigned_vars;
+        self.exit_inline();
+
+        builder.imm_u64(0)
+    }
+
+    /// Lowers constructor arguments into the representation expected by the
+    /// callee body. Memory `bytes`/`string` parameters receive Solidity's
+    /// `[length][data...]` memory pointer, including literal base-constructor
+    /// arguments such as `ERC20("Name", "SYM")`.
+    fn lower_constructor_arg(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        arg: &hir::Expr<'_>,
+        param_ty: &hir::Type<'_>,
+    ) -> ValueId {
+        if matches!(
+            param_ty.kind,
+            hir::TypeKind::Elementary(hir::ElementaryType::String | hir::ElementaryType::Bytes)
+        ) {
+            return self.lower_expr_as_memory_bytes(builder, arg);
+        }
+
+        self.lower_expr(builder, arg)
+    }
+
+    /// Lowers an internal library function call by inlining it.
+    /// For internal library functions, we inline the function body.
+    fn lower_library_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'_>,
+        bound_arg: Option<ValueId>,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+
+        // For internal library functions, inline the function body
+        if func.visibility == hir::Visibility::Internal
+            || func.visibility == hir::Visibility::Private
+        {
+            // Collect argument values FIRST (before entering inline tracking)
+            // This allows nested calls to the same function (e.g., add(add(x, 1), 2))
+            // because we evaluate arguments before marking ourselves as "in progress"
+            let mut arg_vals: Vec<ValueId> = Vec::new();
+
+            // If there's a bound argument (from `using X for T`), it's the first argument
+            if let Some(bound_val) = bound_arg {
+                arg_vals.push(bound_val);
+            }
+
+            // Lower all explicit arguments
+            for arg in args.exprs() {
+                arg_vals.push(self.lower_expr(builder, arg));
+            }
+
+            if func.returns.is_empty() {
+                if self.function_is_recursive(func_id) {
+                    return self.lower_internal_call_fallback(builder, func_id, arg_vals);
+                }
+                return self.lower_inline_void_call(builder, func_id, arg_vals);
+            }
+
+            if !Self::is_simple_return_function(func) || self.function_is_recursive(func_id) {
+                return self.lower_internal_call_fallback(builder, func_id, arg_vals);
+            }
+
+            // Check for recursive inlining cycle AFTER evaluating arguments.
+            if !self.try_enter_inline(func_id) {
+                return self.lower_internal_call_fallback(builder, func_id, arg_vals);
+            }
+
+            // Simple inlining: bind parameters directly as SSA values
+            // This works for pure functions that don't mutate parameters
+            // Save current locals
+            let saved_locals = std::mem::take(&mut self.locals);
+            let saved_local_memory_slots = std::mem::take(&mut self.local_memory_slots);
+            let saved_next_local_memory_offset = self.next_local_memory_offset;
+            let saved_assigned_vars = std::mem::take(&mut self.assigned_vars);
+
+            if let Some(body) = &func.body {
+                self.collect_assigned_vars_block(body);
+            }
+
+            // Bind parameters to argument values directly (SSA style)
+            for (i, &param_id) in func.parameters.iter().enumerate() {
+                if let Some(&arg_val) = arg_vals.get(i) {
+                    self.locals.insert(param_id, arg_val);
+                }
+            }
+
+            // For simple functions with a single return statement, extract and evaluate directly
+            let result = if let Some(body) = &func.body {
+                self.lower_library_body_simple(builder, body, func)
+            } else {
+                builder.imm_u64(0)
+            };
+
+            // Restore locals
+            self.locals = saved_locals;
+            self.local_memory_slots = saved_local_memory_slots;
+            self.next_local_memory_offset = saved_next_local_memory_offset;
+            self.assigned_vars = saved_assigned_vars;
+
+            // Exit inline tracking
+            self.exit_inline();
+
+            result
+        } else {
+            panic!("codegen does not support external library calls yet")
+        }
+    }
+
+    fn is_simple_return_function(func: &hir::Function<'_>) -> bool {
+        if func.returns.len() != 1 {
+            return false;
+        }
+        let Some(body) = func.body else {
+            return false;
+        };
+        body.stmts.iter().any(|stmt| matches!(stmt.kind, hir::StmtKind::Return(Some(_))))
+            && body.stmts.iter().all(|stmt| {
+                matches!(
+                    stmt.kind,
+                    hir::StmtKind::DeclSingle(_)
+                        | hir::StmtKind::Expr(_)
+                        | hir::StmtKind::Return(Some(_))
+                )
+            })
+    }
+
+    /// Whether `func_id` directly or indirectly calls itself (cached). A recursive function
+    /// must be lowered as a real `internal_call` instead of being inlined.
+    fn function_is_recursive(&mut self, func_id: hir::FunctionId) -> bool {
+        if let Some(&cached) = self.recursive_functions.get(&func_id) {
+            return cached;
+        }
+        let mut visiting = FxHashSet::default();
+        let result = self.function_reaches(func_id, func_id, &mut visiting);
+        self.recursive_functions.insert(func_id, result);
+        result
+    }
+
+    fn function_reaches(
+        &self,
+        current: hir::FunctionId,
+        target: hir::FunctionId,
+        visiting: &mut FxHashSet<hir::FunctionId>,
+    ) -> bool {
+        if !visiting.insert(current) {
+            return false;
+        }
+
+        for callee in self.function_callees(current) {
+            if callee == target || self.function_reaches(callee, target, visiting) {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    fn function_callees(&self, func_id: hir::FunctionId) -> Vec<hir::FunctionId> {
+        let mut callees = Vec::new();
+        let func = self.gcx.hir.function(func_id);
+        if let Some(body) = func.body {
+            for stmt in body.stmts {
+                self.stmt_collect_callees(stmt, &mut callees);
+            }
+        }
+        callees
+    }
+
+    /// Collects calls contained recursively in a statement.
+    fn stmt_collect_callees(&self, stmt: &hir::Stmt<'_>, callees: &mut Vec<hir::FunctionId>) {
+        use hir::StmtKind;
+        match &stmt.kind {
+            StmtKind::Expr(e)
+            | StmtKind::Return(Some(e))
+            | StmtKind::Revert(e)
+            | StmtKind::Emit(e) => self.expr_collect_callees(e, callees),
+            StmtKind::Block(b) | StmtKind::UncheckedBlock(b) | StmtKind::AssemblyBlock(b) => {
+                for stmt in b.stmts {
+                    self.stmt_collect_callees(stmt, callees);
+                }
+            }
+            StmtKind::If(c, t, e) => {
+                self.expr_collect_callees(c, callees);
+                self.stmt_collect_callees(t, callees);
+                if let Some(e) = e {
+                    self.stmt_collect_callees(e, callees);
+                }
+            }
+            StmtKind::Loop(b, _) => {
+                for stmt in b.stmts {
+                    self.stmt_collect_callees(stmt, callees);
+                }
+            }
+            StmtKind::Switch(sw) => {
+                self.expr_collect_callees(sw.selector, callees);
+                for case in sw.cases {
+                    for stmt in case.body.stmts {
+                        self.stmt_collect_callees(stmt, callees);
+                    }
+                }
+            }
+            StmtKind::Try(t) => {
+                self.expr_collect_callees(&t.expr, callees);
+                for clause in t.clauses {
+                    for stmt in clause.block.stmts {
+                        self.stmt_collect_callees(stmt, callees);
+                    }
+                }
+            }
+            StmtKind::DeclSingle(var_id) => {
+                if let Some(init) = self.gcx.hir.variable(*var_id).initializer {
+                    self.expr_collect_callees(init, callees);
+                }
+            }
+            StmtKind::DeclMulti(_, init) => self.expr_collect_callees(init, callees),
+            StmtKind::Return(None)
+            | StmtKind::Continue
+            | StmtKind::Break
+            | StmtKind::Placeholder
+            | StmtKind::Err(_) => {}
+        }
+    }
+
+    /// Collects calls contained recursively in an expression.
+    fn expr_collect_callees(&self, expr: &hir::Expr<'_>, callees: &mut Vec<hir::FunctionId>) {
+        match &expr.kind {
+            ExprKind::Call(callee, args, _) => {
+                if let Some(func_id) = self.resolved_function_callee(callee) {
+                    callees.push(func_id);
+                }
+                self.expr_collect_callees(callee, callees);
+                for arg in args.exprs() {
+                    self.expr_collect_callees(arg, callees);
+                }
+            }
+            ExprKind::Binary(l, _, r) | ExprKind::Assign(l, _, r) => {
+                self.expr_collect_callees(l, callees);
+                self.expr_collect_callees(r, callees);
+            }
+            ExprKind::Unary(_, e)
+            | ExprKind::Member(e, _)
+            | ExprKind::YulMember(e, _)
+            | ExprKind::Payable(e)
+            | ExprKind::Delete(e) => self.expr_collect_callees(e, callees),
+            ExprKind::Ternary(c, t, f) => {
+                self.expr_collect_callees(c, callees);
+                self.expr_collect_callees(t, callees);
+                self.expr_collect_callees(f, callees);
+            }
+            ExprKind::Index(b, i) => {
+                self.expr_collect_callees(b, callees);
+                if let Some(i) = i {
+                    self.expr_collect_callees(i, callees);
+                }
+            }
+            ExprKind::Slice(b, s, e) => {
+                self.expr_collect_callees(b, callees);
+                if let Some(s) = s {
+                    self.expr_collect_callees(s, callees);
+                }
+                if let Some(e) = e {
+                    self.expr_collect_callees(e, callees);
+                }
+            }
+            ExprKind::Array(es) => {
+                for e in *es {
+                    self.expr_collect_callees(e, callees);
+                }
+            }
+            ExprKind::Tuple(es) => {
+                for e in es.iter().flatten() {
+                    self.expr_collect_callees(e, callees);
+                }
+            }
+            ExprKind::New(_)
+            | ExprKind::TypeCall(_)
+            | ExprKind::Lit(_)
+            | ExprKind::Ident(_)
+            | ExprKind::Type(_)
+            | ExprKind::Err(_) => {}
+        }
+    }
+
+    /// Lowers a simple library function body.
+    /// For functions with a single return statement, directly evaluate the return expression.
+    fn lower_library_body_simple(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        body: &hir::Block<'_>,
+        func: &hir::Function<'_>,
+    ) -> ValueId {
+        let saved_in_unchecked_block = self.in_unchecked_block;
+        self.in_unchecked_block = false;
+
+        for &return_id in func.returns {
+            let zero = builder.imm_u64(0);
+            self.locals.insert(return_id, zero);
+        }
+
+        let result = if let Some(value) = self.lower_library_block_return(builder, body) {
+            value
+        } else {
+            // Implicit named returns: the body assigned the named return variables
+            // (e.g. `success = ...; result = ...;` with no explicit `return`). Write
+            // returns 1..N to scratch memory at offset `i * 32` so the caller's
+            // `lower_multi_var_decl` (which reads `mload(i * 32)`) recovers them; the
+            // first return flows back as the MIR value below.
+            if func.returns.len() > 1 {
+                for (i, &return_id) in func.returns.iter().enumerate().skip(1) {
+                    if let Some(&value) = self.locals.get(&return_id) {
+                        let offset = builder.imm_u64((i * 32) as u64);
+                        builder.mstore(offset, value);
+                    }
+                }
+            }
+
+            if let Some(&return_id) = func.returns.first()
+                && let Some(&value) = self.locals.get(&return_id)
+            {
+                value
+            } else {
+                builder.imm_u64(0)
+            }
+        };
+
+        self.in_unchecked_block = saved_in_unchecked_block;
+        result
+    }
+
+    fn lower_library_block_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        block: &hir::Block<'_>,
+    ) -> Option<ValueId> {
+        for stmt in block.stmts {
+            if let Some(value) = self.lower_library_stmt_return(builder, stmt) {
+                return Some(value);
+            }
+        }
+        None
+    }
+
+    /// Extract return value from a statement after lowering prior side effects in that statement.
+    fn lower_library_stmt_return(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        stmt: &hir::Stmt<'_>,
+    ) -> Option<ValueId> {
+        match &stmt.kind {
+            hir::StmtKind::Return(Some(expr)) => Some(self.lower_expr(builder, expr)),
+            hir::StmtKind::Return(None) => Some(builder.imm_u64(0)),
+            hir::StmtKind::DeclSingle(var_id) => {
+                let var = self.gcx.hir.variable(*var_id);
+                let init_val = if let Some(init) = var.initializer {
+                    self.lower_expr(builder, init)
+                } else {
+                    builder.imm_u64(0)
+                };
+                self.locals.insert(*var_id, init_val);
+                None
+            }
+            hir::StmtKind::Expr(expr) => {
+                self.lower_expr(builder, expr);
+                None
+            }
+            hir::StmtKind::Block(block) => self.lower_library_block_return(builder, block),
+            hir::StmtKind::UncheckedBlock(block) => self.lower_library_block_return(builder, block),
+            hir::StmtKind::If(cond, then_stmt, else_stmt) => {
+                let cond_val = self.lower_expr(builder, cond);
+                let then_return = self.lower_library_stmt_return(builder, then_stmt);
+                let else_return =
+                    else_stmt.map(|else_stmt| self.lower_library_stmt_return(builder, else_stmt));
+
+                match (then_return, else_return.flatten()) {
+                    (Some(then_val), Some(else_val)) => {
+                        Some(builder.select(cond_val, then_val, else_val))
+                    }
+                    // A one-sided return is an early-return control-flow shape. This helper
+                    // returns expression values only, so let later statements provide the
+                    // fallthrough value instead of treating the branch as unconditional.
+                    _ => None,
+                }
+            }
+            hir::StmtKind::DeclMulti(vars, rhs) => {
+                self.lower_multi_var_decl(builder, vars, rhs);
+                None
+            }
+            hir::StmtKind::Loop(..)
+            | hir::StmtKind::AssemblyBlock(_)
+            | hir::StmtKind::Switch(_)
+            | hir::StmtKind::Emit(_)
+            | hir::StmtKind::Revert(_)
+            | hir::StmtKind::Break
+            | hir::StmtKind::Continue
+            | hir::StmtKind::Try(_)
+            | hir::StmtKind::Placeholder
+            | hir::StmtKind::Err(_) => {
+                self.lower_stmt(builder, stmt);
+                None
+            }
+        }
+    }
+
+    /// Checks if an expression has a contract value type.
+    pub(super) fn is_contract_type_expr(&self, expr: &hir::Expr<'_>) -> bool {
+        self.get_expr_type(expr).is_some_and(|ty| matches!(ty.kind, TyKind::Contract(_)))
+    }
+}

@@ -6,14 +6,17 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 use clap::Parser as _;
+use solar_config::CompilerOutput;
 use solar_interface::{Result, Session};
 use solar_sema::{CompilerRef, ParsingContext};
 use std::ops::ControlFlow;
 
 pub use solar_config::{self as config, Opts, UnstableOpts, version};
 
+mod emit;
 pub mod standard_json;
 
+pub mod mir_opt;
 pub mod utils;
 
 #[cfg(all(unix, any(target_env = "gnu", target_os = "macos")))]
@@ -119,6 +122,21 @@ pub(crate) fn run_pipeline(
     let ControlFlow::Continue(()) = compiler.analysis()? else {
         return Ok(ControlFlow::Break(()));
     };
+
+    // Code generation (MIR and bytecode) is experimental and not part of the
+    // stable, solc-compatible pipeline yet, so it is gated behind `-Zcodegen`.
+    let needs_codegen = sess.opts.emit.iter().any(|e| {
+        matches!(e, CompilerOutput::Mir | CompilerOutput::Bin | CompilerOutput::BinRuntime)
+    });
+    if needs_codegen && !sess.opts.unstable.codegen {
+        return Err(sess
+            .dcx
+            .err("code generation is experimental")
+            .help("pass `-Zcodegen` to emit MIR or bytecode")
+            .emit());
+    }
+
+    emit::emit_requested(compiler)?;
 
     Ok(ControlFlow::Continue(()))
 }

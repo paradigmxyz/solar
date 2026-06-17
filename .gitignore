@@ -5,3 +5,5 @@
 /*.yul
 /tmp
 .DS_Store
+**/cache/
+**/cache-*/

@@ -1,0 +1,51 @@
+//@compile-flags: --pass load-pre
+// Loop-load PRE: with a clobber-free body, the backedge carries the previous
+// iteration's value, so the in-loop reload becomes a phi over the preheader
+// load and the loop-carried value. A clobbering latch blocks the rewrite in
+// either shape: a compensating latch reload would keep one sload per
+// iteration and add the phi spill copies on top, a strict per-iteration
+// loss.
+; module @LoadPreLoop
+fn @loop_header_reload(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = sload 5
+    jump bb1
+  bb1:
+    v2 = sload 5
+    v3 = lt v2, arg0
+    br v3, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    ret v2
+}
+
+fn @loop_clobbered_keeps_reload(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v1 = sload 5
+    jump bb1
+  bb1:
+    v2 = sload 5
+    v3 = lt v2, arg0
+    br v3, bb2, bb3
+  bb2:
+    sstore arg1, 9
+    jump bb1
+  bb3:
+    ret v2
+}
+
+fn @loop_clobbered_no_insert(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v1 = sload 5
+    jump bb1
+  bb1:
+    v2 = sload 5
+    v3 = lt v2, arg0
+    br v3, bb2, bb3
+  bb2:
+    sstore arg1, 9
+    br v3, bb1, bb3
+  bb3:
+    ret v2
+}

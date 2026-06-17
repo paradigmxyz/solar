@@ -39,6 +39,14 @@ Options:
       -Ztypeck
           Type check the program. WIP
 
+      -Zmir-print-after-each
+          Print MIR after every MIR optimization pass during codegen
+
+      -Zcodegen
+          Enable the experimental EVM code generator (MIR lowering and backend).
+          
+          Off by default: MIR and bytecode output is only produced when this is set. Codegen is a work in progress and not yet part of the compiler's stable, solc-compatible behavior.
+
       -Zhelp
           Print help
 

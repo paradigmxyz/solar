@@ -1,16 +1,21 @@
 #![allow(clippy::disallowed_methods)]
 
-use solar::{parse::interface::Session, sema::Compiler};
+use solar::{
+    codegen::{self, Backend, EvmCodegen},
+    parse::interface::{Result, Session},
+    sema::{Compiler as SemaCompiler, CompilerRef},
+};
 use std::{
     any::Any,
     hint::black_box,
     io::Write,
+    ops::ControlFlow,
     path::{Path, PathBuf},
     process::Stdio,
 };
 
 #[allow(unexpected_cfgs)]
-pub const PARSERS: &[&dyn Parser] = if cfg!(codspeed) {
+pub const COMPILERS: &[&dyn Compiler] = if cfg!(codspeed) {
     // Only benchmark our own code in CI.
     &[&Solar]
 } else {
@@ -28,7 +33,7 @@ pub fn get_srcs() -> &'static [Source] {
     // Please do not modify the order of the sources and only add new sources at the end.
     static CACHE: std::sync::OnceLock<Vec<Source>> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
-        vec![
+        let mut sources = vec![
             Source { name: "empty", path: "", src: "", capabilities: Capabilities::all() },
             include_source("../testdata/Counter.sol", Capabilities::all()),
             include_source(
@@ -39,15 +44,17 @@ pub fn get_srcs() -> &'static [Source] {
                 "../testdata/solidity/test/benchmarks/OptimizorClub.sol",
                 Capabilities::all(),
             ),
-            include_source("../testdata/UniswapV3.sol", Capabilities::all()),
+            include_source("../testdata/UniswapV3.sol", Capabilities::no_codegen()), // TODO: old 0.8 semantics
             include_source("../testdata/Solarray.sol", Capabilities::all()),
             include_source("../testdata/console.sol", Capabilities::all()),
             include_source("../testdata/Vm.sol", Capabilities::all()),
             include_source("../testdata/safeconsole.sol", Capabilities::all()),
-            include_source("../testdata/Seaport.sol", Capabilities::all()),
-            include_source("../testdata/Solady.sol", Capabilities::all()),
+            include_source("../testdata/Seaport.sol", Capabilities::no_codegen()), // TODO: unsupported yul `return`
+            include_source("../testdata/Solady.sol", Capabilities::no_codegen()), // TODO: unsupported yul `return`
             include_source("../testdata/Optimism.sol", Capabilities::lex_and_parse()),
-        ]
+        ];
+        extend_repro_sources(&mut sources);
+        sources
     })
 }
 
@@ -55,8 +62,70 @@ pub fn get_src(name: &str) -> &'static Source {
     get_srcs().iter().find(|s| s.name == name).unwrap()
 }
 
+fn extend_repro_sources(sources: &mut Vec<Source>) {
+    const PATTERNS: &[&str] = &[
+        "many_symbols",
+        "many_functions",
+        // TODO: hits recursion limit in parser
+        // "deep_nesting",
+        "many_types",
+        "large_literals",
+        "many_storage",
+        "many_events",
+        // TODO: super slow in `find_matching_in_contract` recursion
+        // "complex_inheritance",
+        "many_mappings",
+        "many_modifiers",
+    ];
+    const SIZES: &[&str] = &[
+        // TODO: too many benches
+        "small",
+        // "medium",
+        // "large",
+    ];
+
+    for &pattern in PATTERNS {
+        for &size in SIZES {
+            let rel = format!("../testdata/repros/{pattern}_{size}.sol");
+            sources.push(include_source(&rel, Capabilities::all()));
+        }
+    }
+}
+
+fn parse_source(compiler: &mut CompilerRef<'_>, source: &Source) -> Result {
+    let mut pcx = compiler.parse();
+    let file = compiler
+        .sess()
+        .source_map()
+        .new_source_file(PathBuf::from(source.path), source.src)
+        .unwrap();
+    pcx.add_file(file);
+    pcx.parse();
+    compiler.dcx().has_errors()
+}
+
+fn codegen_source(compiler: &mut CompilerRef<'_>, source: &Source) -> Result {
+    parse_source(compiler, source)?;
+    let ControlFlow::Continue(()) = compiler.lower_asts()? else { return Ok(()) };
+    let ControlFlow::Continue(()) = compiler.analysis()? else { return Ok(()) };
+
+    let gcx = compiler.gcx();
+    for contract_id in gcx.hir.contract_ids() {
+        if !gcx.hir.contract(contract_id).can_be_deployed() {
+            continue;
+        }
+
+        let mut module = codegen::lower::lower_contract(gcx, contract_id);
+        gcx.dcx().has_errors()?;
+        let artifact = EvmCodegen::new(gcx).lower_module(&mut module);
+        black_box(artifact);
+    }
+
+    Ok(())
+}
+
 /// `include!` at runtime, since the submodule may not be initialized.
-fn include_source(path: &'static str, capabilities: Capabilities) -> Source {
+fn include_source(path: &str, capabilities: Capabilities) -> Source {
     let source = match std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path)) {
         Ok(source) => source,
         Err(e) => panic!(
@@ -67,7 +136,8 @@ fn include_source(path: &'static str, capabilities: Capabilities) -> Source {
     source_from_path(path, source.leak(), capabilities)
 }
 
-fn source_from_path(path: &'static str, src: &'static str, capabilities: Capabilities) -> Source {
+fn source_from_path(path: &str, src: &'static str, capabilities: Capabilities) -> Source {
+    let path = Path::new(path).canonicalize().unwrap().to_string_lossy().into_owned().leak();
     Source { name: Path::new(path).file_stem().unwrap().to_str().unwrap(), path, src, capabilities }
 }
 
@@ -83,19 +153,24 @@ pub struct Source {
 pub struct Capabilities {
     lex: bool,
     lower: bool,
+    codegen: bool,
 }
 
 impl Capabilities {
     pub fn all() -> Self {
-        Self { lex: true, lower: true }
+        Self { lex: true, lower: true, codegen: true }
     }
 
     pub fn parse_only() -> Self {
-        Self { lex: false, lower: false }
+        Self { lex: false, lower: false, codegen: false }
     }
 
     pub fn lex_and_parse() -> Self {
-        Self { lex: true, lower: false }
+        Self { lex: true, lower: false, codegen: false }
+    }
+
+    pub fn no_codegen() -> Self {
+        Self { lex: true, lower: true, codegen: false }
     }
 
     pub fn can_lex(&self) -> bool {
@@ -105,21 +180,26 @@ impl Capabilities {
     pub fn can_lower(&self) -> bool {
         self.lower
     }
+
+    pub fn can_codegen(&self) -> bool {
+        self.codegen
+    }
 }
 
-pub trait Parser {
+pub trait Compiler {
     fn name(&self) -> &'static str;
     fn capabilities(&self) -> Capabilities;
-    fn setup(&self, _src: &str) -> Box<dyn Any> {
+    fn setup(&self, _source: &Source) -> Box<dyn Any> {
         Box::new(())
     }
-    fn lex(&self, _src: &str, _setup: &mut dyn Any) {}
-    fn parse(&self, src: &str, setup: &mut dyn Any);
-    fn lower(&self, _src: &str, _setup: &mut dyn Any) {}
+    fn lex(&self, _source: &Source, _setup: &mut dyn Any) {}
+    fn parse(&self, source: &Source, setup: &mut dyn Any);
+    fn lower(&self, _source: &Source, _setup: &mut dyn Any) {}
+    fn codegen(&self, _source: &Source, _setup: &mut dyn Any) {}
 }
 
 pub struct Solc;
-impl Parser for Solc {
+impl Compiler for Solc {
     fn name(&self) -> &'static str {
         "solc"
     }
@@ -128,7 +208,7 @@ impl Parser for Solc {
         Capabilities::parse_only()
     }
 
-    fn parse(&self, src: &str, _: &mut dyn Any) {
+    fn parse(&self, source: &Source, _: &mut dyn Any) {
         let solc = std::env::var_os("SOLC");
         let solc = solc.as_deref().unwrap_or_else(|| "solc".as_ref());
         let mut cmd = std::process::Command::new(solc);
@@ -139,7 +219,12 @@ impl Parser for Solc {
         cmd.stderr(Stdio::piped());
         cmd.stdin(Stdio::piped());
         let mut child = cmd.spawn().expect("failed to spawn child");
-        child.stdin.as_mut().unwrap().write_all(src.as_bytes()).expect("failed to write to stdin");
+        child
+            .stdin
+            .as_mut()
+            .unwrap()
+            .write_all(source.src.as_bytes())
+            .expect("failed to write to stdin");
         let output = child.wait_with_output().expect("failed to wait for child");
         if !output.status.success() {
             panic!("solc failed.\ncmd: {cmd:?}\nout: {output:#?}");
@@ -149,7 +234,7 @@ impl Parser for Solc {
 }
 
 pub struct Solar;
-impl Parser for Solar {
+impl Compiler for Solar {
     fn name(&self) -> &'static str {
         "solar"
     }
@@ -158,31 +243,31 @@ impl Parser for Solar {
         Capabilities::all()
     }
 
-    fn setup(&self, _src: &str) -> Box<dyn Any> {
-        Box::new(Compiler::new(session()))
+    fn setup(&self, _source: &Source) -> Box<dyn Any> {
+        Box::new(SemaCompiler::new(session()))
     }
 
-    fn lex(&self, src: &str, compiler_any: &mut dyn Any) {
-        let compiler = compiler_any.downcast_ref::<Compiler>().unwrap();
+    fn lex(&self, source: &Source, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_ref::<SemaCompiler>().unwrap();
         compiler.enter(|compiler| {
-            for token in solar::parse::Lexer::new(compiler.sess(), src) {
+            for token in solar::parse::Lexer::new(compiler.sess(), source.src) {
                 black_box(token);
             }
             compiler.dcx().has_errors().unwrap();
         });
     }
 
-    fn parse(&self, src: &str, compiler_any: &mut dyn Any) {
-        let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
+    fn parse(&self, source: &Source, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<SemaCompiler>().unwrap();
         compiler
             .enter_mut(|compiler| -> solar::parse::interface::Result {
                 let arena = solar::parse::ast::Arena::new();
-                let filename = PathBuf::from("test.sol");
+                let filename = PathBuf::from(source.path);
                 let mut parser = solar::parse::Parser::from_source_code(
                     compiler.sess(),
                     &arena,
                     filename.into(),
-                    src,
+                    source.src,
                 )?;
                 let result = parser.parse_file().map_err(|e| e.emit())?;
                 compiler.dcx().has_errors()?;
@@ -192,21 +277,17 @@ impl Parser for Solar {
             .unwrap();
     }
 
-    fn lower(&self, src: &str, compiler_any: &mut dyn Any) {
-        let compiler = compiler_any.downcast_mut::<Compiler>().unwrap();
+    fn lower(&self, source: &Source, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<SemaCompiler>().unwrap();
         compiler.enter_mut(|compiler| {
-            let mut parsing_context = compiler.parse();
-            parsing_context.add_file(
-                compiler
-                    .sess()
-                    .source_map()
-                    .new_source_file(PathBuf::from("test.sol"), src)
-                    .unwrap(),
-            );
-            // load file
-            parsing_context.parse();
+            parse_source(compiler, source).unwrap();
             let _ = compiler.lower_asts().unwrap();
         })
+    }
+
+    fn codegen(&self, source: &Source, compiler_any: &mut dyn Any) {
+        let compiler = compiler_any.downcast_mut::<SemaCompiler>().unwrap();
+        compiler.enter_mut(|compiler| codegen_source(compiler, source).unwrap())
     }
 }
 
@@ -214,11 +295,19 @@ fn session() -> Session {
     Session::builder()
         .with_stderr_emitter_and_color(solar::parse::interface::ColorChoice::Always)
         .single_threaded()
+        .opts(solar::config::Opts {
+            unstable: solar::config::UnstableOpts {
+                typeck: true,
+                codegen: true,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
         .build()
 }
 
 pub struct Solang;
-impl Parser for Solang {
+impl Compiler for Solang {
     fn name(&self) -> &'static str {
         "solang"
     }
@@ -227,10 +316,10 @@ impl Parser for Solang {
         Capabilities::lex_and_parse()
     }
 
-    fn lex(&self, src: &str, _: &mut dyn Any) {
+    fn lex(&self, source: &Source, _: &mut dyn Any) {
         let mut comments = vec![];
         let mut errors = vec![];
-        for token in solang_parser::lexer::Lexer::new(src, 0, &mut comments, &mut errors) {
+        for token in solang_parser::lexer::Lexer::new(source.src, 0, &mut comments, &mut errors) {
             black_box(token);
         }
 
@@ -245,8 +334,8 @@ impl Parser for Solang {
         black_box(errors);
     }
 
-    fn parse(&self, src: &str, _: &mut dyn Any) {
-        match solang_parser::parse(src, 0) {
+    fn parse(&self, source: &Source, _: &mut dyn Any) {
+        match solang_parser::parse(source.src, 0) {
             Ok(result) => {
                 black_box(result);
             }
@@ -263,7 +352,7 @@ impl Parser for Solang {
 }
 
 pub struct Slang;
-impl Parser for Slang {
+impl Compiler for Slang {
     fn name(&self) -> &'static str {
         "slang"
     }
@@ -272,17 +361,18 @@ impl Parser for Slang {
         Capabilities::parse_only()
     }
 
-    fn parse(&self, src: &str, _: &mut dyn Any) {
+    fn parse(&self, source: &Source, _: &mut dyn Any) {
         let version = semver::Version::new(0, 8, 22);
         let parser = slang_solidity::parser::Parser::create(version).unwrap();
         let rule = slang_solidity::cst::NonterminalKind::SourceUnit;
-        let output = parser.parse(rule, src);
+        let output = parser.parse(rule, source.src);
 
         let errors = output.errors();
         if !errors.is_empty() {
             for err in errors {
                 let range = err.text_range();
-                let slice = src.get(range.start.utf8..range.end.utf8).unwrap_or("<invalid range>");
+                let slice =
+                    source.src.get(range.start.utf8..range.end.utf8).unwrap_or("<invalid range>");
                 let line_col =
                     |i: &slang_solidity::cst::TextIndex| format!("{}:{}", i.line + 1, i.column + 1);
                 eprintln!(
@@ -300,7 +390,7 @@ impl Parser for Slang {
 }
 
 pub struct TreeSitter;
-impl Parser for TreeSitter {
+impl Compiler for TreeSitter {
     fn name(&self) -> &'static str {
         "tree-sitter"
     }
@@ -309,7 +399,7 @@ impl Parser for TreeSitter {
         Capabilities::parse_only()
     }
 
-    fn parse(&self, src: &str, _: &mut dyn Any) {
+    fn parse(&self, source: &Source, _: &mut dyn Any) {
         #[cold]
         #[inline(never)]
         fn on_error(src: &str, tree: &tree_sitter::Tree) -> ! {
@@ -333,9 +423,9 @@ impl Parser for TreeSitter {
         let mut parser = tree_sitter::Parser::new();
         let language = tree_sitter_solidity::LANGUAGE;
         parser.set_language(&language.into()).expect("Error loading Solidity parser");
-        let tree = parser.parse(src, None).unwrap();
+        let tree = parser.parse(source.src, None).unwrap();
         if tree.root_node().has_error() {
-            on_error(src, &tree);
+            on_error(source.src, &tree);
         }
     }
 }
