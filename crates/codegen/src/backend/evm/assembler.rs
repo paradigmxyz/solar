@@ -620,45 +620,54 @@ impl BytecodeAssembler {
     }
 
     fn encoded_push_len(&self, value: U256) -> usize {
-        self.compact_push(value).map_or_else(
-            || self.fixed_push_len(self.push_width(value)),
-            |compact| match compact {
-                CompactPush::FullWord => self.zero_push_len() + 1,
-                CompactPush::LowerAllOnesMask { .. } => self.zero_push_len() + 4,
-                CompactPush::Not { value } => self.fixed_push_len(self.push_width(value)) + 1,
-                CompactPush::Shl { value, .. } => self.fixed_push_len(self.push_width(value)) + 3,
-            },
-        )
+        match self.compact_push(value) {
+            CompactPush::Literal { width } => self.fixed_push_len(width),
+            CompactPush::FullWord => self.zero_push_len() + 1,
+            CompactPush::LowerAllOnesMask { .. } => self.zero_push_len() + 4,
+            CompactPush::Not { value } => self.fixed_push_len(self.push_width(value)) + 1,
+            CompactPush::Shl { value, .. } => self.fixed_push_len(self.push_width(value)) + 3,
+        }
     }
 
-    fn compact_push(&self, value: U256) -> Option<CompactPush> {
-        if self.config.optimization == OptimizationMode::None {
-            return None;
-        }
-
+    fn compact_push(&self, value: U256) -> CompactPush {
         let width = self.push_width(value);
         let normal_len = self.fixed_push_len(width);
-        let mut best: Option<(usize, CompactPush)> = None;
+        let mut best = (normal_len, CompactPush::Literal { width });
+
+        if self.config.optimization == OptimizationMode::None {
+            return best.1;
+        }
 
         let mut consider = |len: usize, compact: CompactPush| {
-            if len < normal_len && best.is_none_or(|(best_len, _)| len < best_len) {
-                best = Some((len, compact));
+            if len < best.0 {
+                best = (len, compact);
             }
         };
 
         if value == U256::MAX {
-            consider(2, CompactPush::FullWord);
+            consider(self.zero_push_len() + 1, CompactPush::FullWord);
         }
 
+        // `PUSH0 NOT PUSH1 <shift> SHR` is fixed-size apart from PUSH0
+        // availability: 5 bytes on Shanghai+, 6 bytes before Shanghai. Keep
+        // this shape for wide masks only: small masks are common immediates,
+        // while wide masks are where the bytecode-size win is substantial.
         if width >= 16 {
             let bytes = value.to_be_bytes::<32>();
             let start = 32 - width as usize;
             if bytes[start..].iter().all(|&byte| byte == 0xff) {
                 let shift = 256 - u16::from(width) * 8;
-                consider(5, CompactPush::LowerAllOnesMask { shift: shift as u8 });
+                consider(
+                    self.zero_push_len() + 4,
+                    CompactPush::LowerAllOnesMask { shift: shift as u8 },
+                );
             }
         }
 
+        // `PUSH<!value> NOT` costs one extra opcode but can be much smaller
+        // for values with many leading one bits. It only has a chance to win
+        // for wide values: narrower values have zero high bytes, so inversion
+        // turns those into leading `0xff` bytes and needs a full-width PUSH.
         if width >= 16 {
             let inverted = !value;
             let inverted_width = self.push_width(inverted);
@@ -668,6 +677,10 @@ impl BytecodeAssembler {
 
         let trailing_zero_bytes = (0..32).take_while(|&i| value.byte(i) == 0).count();
         if trailing_zero_bytes > 0 && trailing_zero_bytes < 32 {
+            // A left shift can avoid embedding right-aligned zero bytes. The
+            // sequence pays three bytes over the shifted literal (`PUSH1
+            // <shift> SHL`), so `consider` keeps it only when that actually
+            // beats the normal literal.
             let shift = trailing_zero_bytes * 8;
             let shifted = value >> shift;
             let shifted_width = self.push_width(shifted);
@@ -675,41 +688,37 @@ impl BytecodeAssembler {
             consider(shifted_len, CompactPush::Shl { value: shifted, shift: shift as u8 });
         }
 
-        best.map(|(_, compact)| compact)
+        best.1
     }
 
     /// Emits a PUSH instruction with automatically sized width.
     fn emit_push_value(&mut self, value: U256) {
         match self.compact_push(value) {
-            Some(CompactPush::FullWord) => {
+            CompactPush::Literal { width } => {
+                self.emit_push_fixed_width(value, width);
+            }
+            CompactPush::FullWord => {
                 self.emit_push_zero();
                 self.bytecode.push(op::NOT);
-                return;
             }
-            Some(CompactPush::LowerAllOnesMask { shift }) => {
+            CompactPush::LowerAllOnesMask { shift } => {
                 self.emit_push_zero();
                 self.bytecode.push(op::NOT);
                 self.bytecode.push(op::PUSH1);
                 self.bytecode.push(shift);
                 self.bytecode.push(op::SHR);
-                return;
             }
-            Some(CompactPush::Not { value }) => {
+            CompactPush::Not { value } => {
                 self.emit_push_fixed_width(value, self.push_width(value));
                 self.bytecode.push(op::NOT);
-                return;
             }
-            Some(CompactPush::Shl { value, shift }) => {
+            CompactPush::Shl { value, shift } => {
                 self.emit_push_fixed_width(value, self.push_width(value));
                 self.bytecode.push(op::PUSH1);
                 self.bytecode.push(shift);
                 self.bytecode.push(op::SHL);
-                return;
             }
-            None => {}
         }
-
-        self.emit_push_fixed_width(value, self.push_width(value));
     }
 
     /// Emits a PUSH instruction with a specific width.
@@ -815,9 +824,15 @@ impl Peephole {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum CompactPush {
+    /// Emit the value as the shortest literal PUSH for the active EVM version.
+    Literal { width: u8 },
+    /// Emit all ones as `PUSH0 NOT`.
     FullWord,
+    /// Emit a lower-bit all-ones mask as `PUSH0 NOT PUSH1 <shift> SHR`.
     LowerAllOnesMask { shift: u8 },
+    /// Emit a value with many leading one bits as `PUSH<!value> NOT`.
     Not { value: U256 },
+    /// Emit a value with trailing zero bytes as `PUSH<value >> shift> PUSH1 <shift> SHL`.
     Shl { value: U256, shift: u8 },
 }
 
@@ -1004,6 +1019,13 @@ pub mod op {
     pub const INVALID: u8 = 0xfe;
     pub const SELFDESTRUCT: u8 = 0xff;
 
+    /// Returns the PUSH opcode for the given width (1-32).
+    #[must_use]
+    pub const fn push(width: u8) -> u8 {
+        debug_assert!(width >= 1 && width <= 32);
+        PUSH1 + width - 1
+    }
+
     /// Returns the DUP opcode for the given depth (1-16).
     #[must_use]
     pub const fn dup(n: u8) -> u8 {
@@ -1016,13 +1038,6 @@ pub mod op {
     pub const fn swap(n: u8) -> u8 {
         debug_assert!(n >= 1 && n <= 16);
         SWAP1 + n - 1
-    }
-
-    /// Returns the PUSH opcode for the given width (1-32).
-    #[must_use]
-    pub const fn push(width: u8) -> u8 {
-        debug_assert!(width >= 1 && width <= 32);
-        PUSH1 + width - 1
     }
 
     /// Returns whether an opcode halts or unconditionally transfers control.
