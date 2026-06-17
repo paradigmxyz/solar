@@ -10,6 +10,10 @@ use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
 
+const EVM_WORD_BYTES: usize = 32;
+const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
+const MIN_COMPACT_MASK_WIDTH: u8 = EVM_WORD_BYTES as u8 / 2;
+
 mod id_counter;
 use id_counter::IdCounter;
 
@@ -650,13 +654,14 @@ impl BytecodeAssembler {
 
         // `PUSH0 NOT PUSH1 <shift> SHR` is fixed-size apart from PUSH0
         // availability: 5 bytes on Shanghai+, 6 bytes before Shanghai. Keep
-        // this shape for wide masks only: small masks are common immediates,
-        // while wide masks are where the bytecode-size win is substantial.
-        if width >= 16 {
-            let bytes = value.to_be_bytes::<32>();
-            let start = 32 - width as usize;
+        // this shape for half-word-or-wider masks only: small masks are common
+        // immediates, while wide masks are where the bytecode-size win is
+        // substantial.
+        if width >= MIN_COMPACT_MASK_WIDTH {
+            let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
+            let start = EVM_WORD_BYTES - width as usize;
             if bytes[start..].iter().all(|&byte| byte == 0xff) {
-                let shift = 256 - u16::from(width) * 8;
+                let shift = EVM_WORD_BITS - usize::from(width) * 8;
                 consider(
                     self.zero_push_len() + 4,
                     CompactPush::LowerAllOnesMask { shift: shift as u8 },
@@ -666,17 +671,17 @@ impl BytecodeAssembler {
 
         // `PUSH<!value> NOT` costs one extra opcode but can be much smaller
         // for values with many leading one bits. It only has a chance to win
-        // for wide values: narrower values have zero high bytes, so inversion
-        // turns those into leading `0xff` bytes and needs a full-width PUSH.
-        if width >= 16 {
+        // for full-width values: narrower values have zero high bytes, so
+        // inversion turns those into leading `0xff` bytes and needs PUSH32.
+        if width as usize == EVM_WORD_BYTES {
             let inverted = !value;
             let inverted_width = self.push_width(inverted);
             let inverted_len = self.fixed_push_len(inverted_width) + 1;
             consider(inverted_len, CompactPush::Not { value: inverted });
         }
 
-        let trailing_zero_bytes = (0..32).take_while(|&i| value.byte(i) == 0).count();
-        if trailing_zero_bytes > 0 && trailing_zero_bytes < 32 {
+        let trailing_zero_bytes = (0..EVM_WORD_BYTES).take_while(|&i| value.byte(i) == 0).count();
+        if trailing_zero_bytes > 0 && trailing_zero_bytes < EVM_WORD_BYTES {
             // A left shift can avoid embedding right-aligned zero bytes. The
             // sequence pays three bytes over the shifted literal (`PUSH1
             // <shift> SHL`), so `consider` keeps it only when that actually
@@ -730,8 +735,8 @@ impl BytecodeAssembler {
 
         self.bytecode.push(op::push(width));
 
-        let bytes = value.to_be_bytes::<32>();
-        let start = 32 - width as usize;
+        let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
+        let start = EVM_WORD_BYTES - width as usize;
         self.bytecode.extend_from_slice(&bytes[start..]);
     }
 
