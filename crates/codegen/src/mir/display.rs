@@ -8,6 +8,7 @@ use super::{
 };
 use smallvec::SmallVec;
 use solar_data_structures::fmt::{self, FmtIteratorExt};
+use solar_sema::hir;
 
 /// Displays a DOT format CFG for a function.
 pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
@@ -324,7 +325,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
     enum MetadataField<'a> {
         Storage(StorageAlias, &'a Function),
         Memory(MemoryRegion),
-        Hir(usize),
+        Hir(hir::ExprId),
         Span { lo: u32, hi: u32 },
         Unchecked,
         LoopDepth(u16),
@@ -337,7 +338,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
                 write!(f, "storage={}", display_storage_alias(storage, func))
             }
             MetadataField::Memory(memory) => write!(f, "memory={}", memory.name()),
-            MetadataField::Hir(hir_expr) => write!(f, "hir={hir_expr}"),
+            MetadataField::Hir(hir_expr) => write!(f, "hir={}", hir_expr.index()),
             MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
@@ -368,7 +369,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
             fields.push(MetadataField::Memory(memory));
         }
         if let Some(hir_expr) = metadata.hir_expr() {
-            fields.push(MetadataField::Hir(hir_expr.index()));
+            fields.push(MetadataField::Hir(hir_expr));
         }
         if let Some(span) = metadata.source_span() {
             fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });

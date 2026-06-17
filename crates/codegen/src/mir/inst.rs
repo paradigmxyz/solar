@@ -5,7 +5,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
 use solar_sema::hir;
-use std::{fmt, num::NonZeroU32};
+use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -15,7 +15,7 @@ pub struct InstructionMetadata {
     /// Source span that produced this instruction, when the lowerer can preserve it.
     source_span: Span,
     /// HIR expression that produced this instruction, when the lowerer can preserve it.
-    hir_expr: Option<NonZeroU32>,
+    hir_expr: Option<hir::ExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
     /// Packed optional memory region, effect kind, and unchecked flag.
@@ -46,16 +46,12 @@ impl InstructionMetadata {
     /// Returns the HIR expression that produced this instruction.
     #[must_use]
     pub fn hir_expr(&self) -> Option<hir::ExprId> {
-        self.hir_expr.map(|expr| hir::ExprId::from_usize((expr.get() - 1) as usize))
+        self.hir_expr
     }
 
     /// Sets the HIR expression that produced this instruction.
     pub fn set_hir_expr(&mut self, expr: Option<hir::ExprId>) {
-        self.hir_expr = expr.map(|expr| {
-            let expr = u32::try_from(expr.index()).expect("HIR expression index overflow");
-            NonZeroU32::new(expr.checked_add(1).expect("HIR expression index overflow"))
-                .expect("incremented HIR expression index is non-zero")
-        });
+        self.hir_expr = expr;
     }
 
     /// Returns the source span that produced this instruction.
@@ -1199,8 +1195,20 @@ mod tests {
     #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
     #[cfg_attr(feature = "nightly", ignore = "stable only")]
     fn instruction_layout_sizes() {
-        assert_eq!(std::mem::size_of::<InstKind>(), 32);
-        assert_eq!(std::mem::size_of::<InstructionMetadata>(), 24);
-        assert_eq!(std::mem::size_of::<Instruction>(), 64);
+        use snapbox::{assert_data_eq, str};
+
+        #[track_caller]
+        fn assert_size<T>(size: impl snapbox::IntoData) {
+            assert_size_(std::mem::size_of::<T>(), size.into_data());
+        }
+
+        #[track_caller]
+        fn assert_size_(actual: usize, expected: snapbox::Data) {
+            assert_data_eq!(actual.to_string(), expected);
+        }
+
+        assert_size::<InstKind>(str!["32"]);
+        assert_size::<InstructionMetadata>(str!["24"]);
+        assert_size::<Instruction>(str!["64"]);
     }
 }
