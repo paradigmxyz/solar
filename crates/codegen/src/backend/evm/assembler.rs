@@ -638,7 +638,7 @@ impl BytecodeAssembler {
         let normal_len = self.fixed_push_len(width);
         let mut best = (normal_len, CompactPush::Literal { width });
 
-        if self.config.optimization == OptimizationMode::None {
+        if self.config.optimization != OptimizationMode::Size {
             return best.1;
         }
 
@@ -680,12 +680,12 @@ impl BytecodeAssembler {
             consider(inverted_len, CompactPush::Not { value: inverted });
         }
 
+        // A left shift can avoid embedding right-aligned zero bytes. The
+        // sequence pays three bytes over the shifted literal (`PUSH1
+        // <shift> SHL`), so `consider` keeps it only when that actually beats
+        // the normal literal.
         let trailing_zero_bytes = (0..EVM_WORD_BYTES).take_while(|&i| value.byte(i) == 0).count();
         if trailing_zero_bytes > 0 && trailing_zero_bytes < EVM_WORD_BYTES {
-            // A left shift can avoid embedding right-aligned zero bytes. The
-            // sequence pays three bytes over the shifted literal (`PUSH1
-            // <shift> SHL`), so `consider` keeps it only when that actually
-            // beats the normal literal.
             let shift = trailing_zero_bytes * 8;
             let shifted = value >> shift;
             let shifted_width = self.push_width(shifted);
@@ -1056,6 +1056,13 @@ pub mod op {
 mod tests {
     use super::*;
 
+    fn size_optimized_assembler() -> Assembler {
+        Assembler::with_config(AssemblerConfig {
+            evm_version: EvmVersion::Shanghai,
+            optimization: OptimizationMode::Size,
+        })
+    }
+
     #[test]
     fn test_push_width() {
         assert_eq!(Assembler::push_width(U256::ZERO), 0);
@@ -1137,11 +1144,17 @@ mod tests {
 
     #[test]
     fn compact_push_respects_optimization_mode() {
-        let mut optimized = Assembler::with_config(AssemblerConfig {
+        let mut size_optimized = Assembler::with_config(AssemblerConfig {
+            evm_version: EvmVersion::Shanghai,
+            optimization: OptimizationMode::Size,
+        });
+        size_optimized.emit_push(U256::MAX);
+
+        let mut gas_optimized = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::Gas,
         });
-        optimized.emit_push(U256::MAX);
+        gas_optimized.emit_push(U256::MAX);
 
         let mut unoptimized = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
@@ -1149,10 +1162,11 @@ mod tests {
         });
         unoptimized.emit_push(U256::MAX);
 
-        assert_eq!(optimized.assemble().bytecode, vec![op::PUSH0, op::NOT]);
+        assert_eq!(size_optimized.assemble().bytecode, vec![op::PUSH0, op::NOT]);
 
         let mut expected = vec![op::PUSH32];
         expected.extend(std::iter::repeat_n(0xff, 32));
+        assert_eq!(gas_optimized.assemble().bytecode, expected);
         assert_eq!(unoptimized.assemble().bytecode, expected);
     }
 
@@ -1160,7 +1174,7 @@ mod tests {
     fn compact_push_uses_push1_zero_before_shanghai() {
         let mut asm = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Berlin,
-            optimization: OptimizationMode::Gas,
+            optimization: OptimizationMode::Size,
         });
 
         asm.emit_push(U256::MAX);
@@ -1313,7 +1327,7 @@ mod tests {
 
     #[test]
     fn compact_full_word_all_ones_push() {
-        let mut asm = Assembler::new();
+        let mut asm = size_optimized_assembler();
 
         asm.emit_push(U256::MAX);
         asm.emit_op(op::STOP);
@@ -1325,7 +1339,7 @@ mod tests {
 
     #[test]
     fn compact_lower_all_ones_mask_push() {
-        let mut asm = Assembler::new();
+        let mut asm = size_optimized_assembler();
         let mask = (U256::from(1) << 160) - U256::from(1);
 
         asm.emit_push(mask);
@@ -1338,7 +1352,7 @@ mod tests {
 
     #[test]
     fn compact_not_small_push() {
-        let mut asm = Assembler::new();
+        let mut asm = size_optimized_assembler();
 
         asm.emit_push(!U256::from(31));
         asm.emit_op(op::STOP);
@@ -1350,7 +1364,7 @@ mod tests {
 
     #[test]
     fn compact_not_byte_push() {
-        let mut asm = Assembler::new();
+        let mut asm = size_optimized_assembler();
 
         asm.emit_push(!U256::from(255));
         asm.emit_op(op::STOP);
@@ -1362,7 +1376,7 @@ mod tests {
 
     #[test]
     fn compact_left_aligned_selector_push() {
-        let mut asm = Assembler::new();
+        let mut asm = size_optimized_assembler();
         let selector = U256::from(0x35ea6a75u64) << 224;
 
         asm.emit_push(selector);
@@ -1378,7 +1392,7 @@ mod tests {
 
     #[test]
     fn compact_right_padded_text_push() {
-        let mut asm = Assembler::new();
+        let mut asm = size_optimized_assembler();
         let text = U256::from_be_slice(b"Machine finished:");
         let value = text << ((32 - "Machine finished:".len()) * 8);
 
