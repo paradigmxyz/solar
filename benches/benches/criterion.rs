@@ -76,7 +76,7 @@ fn compiler_benches(c: &mut Criterion) {
     }
     eprintln!();
 
-    let mut g = make_group(c, "parser");
+    let mut g = make_group(c, "compiler");
     let benches: [CompilerBench; 4] = [
         ("lex", can_lex, bytes, run_lex),
         ("parse", can_parse, bytes, run_parse),
