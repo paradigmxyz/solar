@@ -271,7 +271,7 @@ impl EvmCodegen {
         let mut constructor_arg_offset = runtime_len;
         let mut constructor_code = self.generate_constructor_code(module, Some(runtime_len));
         for _ in 0..8 {
-            let postlude = Self::build_deployment_postlude(
+            let postlude = self.build_deployment_postlude(
                 deploy_code_len,
                 runtime_len,
                 copy_base,
@@ -298,7 +298,7 @@ impl EvmCodegen {
         // [immutable patches]   ; patch staged words into the PUSH32 placeholders
         // PUSH<n> copy_base     ; memory offset
         // RETURN                ; return the runtime code
-        let postlude = Self::build_deployment_postlude(
+        let postlude = self.build_deployment_postlude(
             deploy_code_len,
             runtime_len,
             copy_base,
@@ -321,33 +321,34 @@ impl EvmCodegen {
     }
 
     fn build_deployment_postlude(
+        &mut self,
         deploy_code_len: usize,
         runtime_len: usize,
         copy_base: u64,
         immutable_refs: &[ImmutableRef],
     ) -> Vec<u8> {
-        let mut bytecode = Vec::new();
+        self.asm.clear();
 
         // Copy runtime code from creation code to memory at `copy_base`.
-        Self::emit_push_raw(&mut bytecode, runtime_len as u64);
-        bytecode.push(opcodes::dup(1));
-        Self::emit_push_raw(&mut bytecode, deploy_code_len as u64);
-        Self::emit_push_raw(&mut bytecode, copy_base);
-        bytecode.push(opcodes::CODECOPY);
+        self.asm.emit_push(U256::from(runtime_len as u64));
+        self.asm.emit_op(opcodes::dup(1));
+        self.asm.emit_push(U256::from(deploy_code_len as u64));
+        self.asm.emit_push(U256::from(copy_base));
+        self.asm.emit_op(opcodes::CODECOPY);
 
         // Patch each `PUSH32` placeholder with its staged immutable word.
         // The placeholder data starts one byte after the PUSH32 opcode.
         for r in immutable_refs {
-            Self::emit_push_raw(&mut bytecode, IMMUTABLE_SCRATCH_BASE + r.id);
-            bytecode.push(opcodes::MLOAD);
-            Self::emit_push_raw(&mut bytecode, copy_base + r.code_offset as u64 + 1);
-            bytecode.push(opcodes::MSTORE);
+            self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(r.id)));
+            self.asm.emit_op(opcodes::MLOAD);
+            self.asm.emit_push(U256::from(copy_base + r.code_offset as u64 + 1));
+            self.asm.emit_op(opcodes::MSTORE);
         }
 
         // Return the patched runtime code; the DUP'd length is still on the stack.
-        Self::emit_push_raw(&mut bytecode, copy_base);
-        bytecode.push(opcodes::RETURN);
-        bytecode
+        self.asm.emit_push(U256::from(copy_base));
+        self.asm.emit_op(opcodes::RETURN);
+        self.asm.assemble().bytecode
     }
 
     /// Generates constructor code that runs during deployment.
@@ -366,8 +367,7 @@ impl EvmCodegen {
 
         if let Some((ctor_id, ctor)) = constructor {
             // Generate constructor bytecode
-            let mut asm = Assembler::new();
-            std::mem::swap(&mut self.asm, &mut asm);
+            self.asm.clear();
 
             // Clear state and generate function body
             self.block_labels.clear();
@@ -429,7 +429,6 @@ impl EvmCodegen {
                     }
                     let label = self.function_labels[&func_id];
                     self.asm.define_label(label);
-                    self.asm.emit_op(opcodes::JUMPDEST);
                     self.in_internal_function = true;
                     self.generate_function_body(func);
                     self.in_internal_function = false;
@@ -437,7 +436,6 @@ impl EvmCodegen {
                 }
 
                 self.asm.define_label(constructor_entry);
-                self.asm.emit_op(opcodes::JUMPDEST);
             }
 
             // Generate the constructor body (which includes SSTORE for initializers)
@@ -454,8 +452,7 @@ impl EvmCodegen {
             self.in_constructor = false;
             self.constructor_param_count = 0;
 
-            std::mem::swap(&mut self.asm, &mut asm);
-            let mut bytecode = asm.assemble().bytecode;
+            let mut bytecode = self.asm.assemble().bytecode;
 
             // Remove trailing STOP (0x00) if present - we want to fall through to CODECOPY/RETURN
             if bytecode.last() == Some(&opcodes::STOP) {
@@ -465,33 +462,6 @@ impl EvmCodegen {
             bytecode
         } else {
             Vec::new()
-        }
-    }
-
-    /// Emit a PUSH instruction with the optimal size for the value.
-    fn emit_push_raw(bytecode: &mut Vec<u8>, value: u64) {
-        // PUSH0 = 0x5f, PUSH1 = 0x60, PUSH2 = 0x61, etc.
-        if value == 0 {
-            bytecode.push(0x5f); // PUSH0
-        } else if value <= 0xFF {
-            bytecode.push(0x60); // PUSH1
-            bytecode.push(value as u8);
-        } else if value <= 0xFFFF {
-            bytecode.push(0x61); // PUSH2
-            bytecode.push((value >> 8) as u8);
-            bytecode.push(value as u8);
-        } else if value <= 0xFFFFFF {
-            bytecode.push(0x62); // PUSH3
-            bytecode.push((value >> 16) as u8);
-            bytecode.push((value >> 8) as u8);
-            bytecode.push(value as u8);
-        } else {
-            // For larger values, use the minimum bytes needed
-            let bytes = value.to_be_bytes();
-            let first_non_zero = bytes.iter().position(|&b| b != 0).unwrap_or(7);
-            let num_bytes = 8 - first_non_zero;
-            bytecode.push(0x5f + num_bytes as u8); // PUSH1 = 0x60, PUSH2 = 0x61, etc.
-            bytecode.extend_from_slice(&bytes[first_non_zero..]);
         }
     }
 
@@ -511,7 +481,7 @@ impl EvmCodegen {
 
     /// Generates runtime bytecode for a module.
     fn generate_runtime_code(&mut self, module: &Module) -> Vec<u8> {
-        self.asm = Assembler::new();
+        self.asm.clear();
         self.block_labels.clear();
         self.function_labels.clear();
         self.function_static_frame_sizes.clear();
@@ -525,7 +495,7 @@ impl EvmCodegen {
             self.generate_dispatcher(module);
         }
 
-        let result = std::mem::take(&mut self.asm).assemble();
+        let result = self.asm.assemble();
         self.runtime_immutable_refs = result.immutable_refs;
         result.bytecode
     }
@@ -613,7 +583,6 @@ impl EvmCodegen {
 
         // calldatasize > 0: Load selector and match
         self.asm.define_label(has_calldata_label);
-        self.asm.emit_op(opcodes::JUMPDEST);
 
         // Load selector from calldata
         self.asm.emit_push(U256::ZERO);
@@ -649,7 +618,6 @@ impl EvmCodegen {
             }
             let Some(label) = func_labels[func_id.index()] else { continue };
             self.asm.define_label(label);
-            self.asm.emit_op(opcodes::JUMPDEST);
 
             // Pop the selector for regular functions (receive/fallback don't have it on stack)
             if func.selector.is_some() {
@@ -681,7 +649,6 @@ impl EvmCodegen {
             }
             let Some(label) = func_labels[func_id.index()] else { continue };
             self.asm.define_label(label);
-            self.asm.emit_op(opcodes::JUMPDEST);
             self.in_internal_function = true;
             self.generate_function_body(func);
             self.in_internal_function = false;
@@ -690,7 +657,6 @@ impl EvmCodegen {
 
         // Revert label
         self.asm.define_label(revert_label);
-        self.asm.emit_op(opcodes::JUMPDEST);
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_op(opcodes::REVERT);
@@ -781,7 +747,6 @@ impl EvmCodegen {
         self.emit_binary_selector_dispatch(&selectors[mid..], fallback_label, revert_label);
 
         self.asm.define_label(left_label);
-        self.asm.emit_op(opcodes::JUMPDEST);
         self.emit_binary_selector_dispatch(&selectors[..mid], fallback_label, revert_label);
     }
 
@@ -873,12 +838,13 @@ impl EvmCodegen {
             let entered_by_preserved_fallthrough = preserved_fallthrough == Some(block_id);
             preserved_fallthrough = None;
 
-            // Define block label
-            self.asm.define_label(self.block_labels[&block_id]);
-            if !entered_by_preserved_fallthrough
-                && (block_id != func.entry_block || !block.predecessors.is_empty())
+            let label = self.block_labels[&block_id];
+            if entered_by_preserved_fallthrough
+                || (block_id == func.entry_block && block.predecessors.is_empty())
             {
-                self.asm.emit_op(opcodes::JUMPDEST);
+                self.asm.mark_label(label);
+            } else {
+                self.asm.define_label(label);
             }
 
             // Reset stack at block entry unless the block is reached with a
@@ -1843,7 +1809,7 @@ impl EvmCodegen {
                 if self.in_constructor {
                     // The running constructor's own placeholders are never
                     // patched; read the staged scratch word instead.
-                    self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + *offset));
+                    self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(*offset)));
                     self.asm.emit_op(opcodes::MLOAD);
                 } else {
                     self.asm.emit_push_immutable(*offset);
@@ -2001,7 +1967,7 @@ impl EvmCodegen {
                     func,
                     *function,
                     args,
-                    *returns,
+                    *returns as usize,
                     result_value,
                     liveness,
                     block,
@@ -2309,7 +2275,6 @@ impl EvmCodegen {
         self.asm.emit_op(opcodes::JUMP);
 
         self.asm.define_label(return_label);
-        self.asm.emit_op(opcodes::JUMPDEST);
         self.scheduler.clear_stack();
 
         if let Some(result) = result
@@ -3053,7 +3018,7 @@ impl crate::backend::Backend for EvmCodegen {
 mod tests {
     use super::*;
     use crate::lower;
-    use solar_interface::Session;
+    use solar_interface::{Session, sym};
     use solar_sema::Compiler;
     use std::{ops::ControlFlow, path::PathBuf};
 
@@ -3089,7 +3054,7 @@ mod tests {
 
             let gcx = c.gcx();
             for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-                if contract.name.as_str() == "Test" {
+                if contract.name.name == sym::Test {
                     let mut module = lower::lower_contract(gcx, contract_id);
                     let mut codegen = EvmCodegen::new(gcx);
                     let bytecode = codegen.generate_module(&mut module);
