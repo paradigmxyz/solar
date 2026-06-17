@@ -216,7 +216,7 @@ impl Assembler {
 
             if !changed {
                 // Stable - emit final bytecode
-                let result = self.emit_bytecode(&label_offsets, &push_widths);
+                let result = self.emit_bytecode(label_offsets, &push_widths);
                 self.clear();
                 return result;
             }
@@ -228,7 +228,7 @@ impl Assembler {
 
         // Fallback - just emit with current widths
         let (label_offsets, _) = self.compute_offsets(&push_widths);
-        let result = self.emit_bytecode(&label_offsets, &push_widths);
+        let result = self.emit_bytecode(label_offsets, &push_widths);
         self.clear();
         result
     }
@@ -292,7 +292,7 @@ impl Assembler {
     /// Emits the final bytecode.
     fn emit_bytecode(
         &self,
-        label_offsets: &FxHashMap<Label, usize>,
+        label_offsets: FxHashMap<Label, usize>,
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
         let mut out = BytecodeAssembler::new(self.config);
@@ -331,7 +331,7 @@ impl Assembler {
             }
         }
 
-        out.finish(label_offsets.clone())
+        out.finish(label_offsets)
     }
 
     /// Runs local peephole optimizations over assembler instructions.
@@ -379,17 +379,17 @@ impl Assembler {
             return 0;
         }
 
-        let mut canonical: FxHashMap<Vec<AsmInst>, TerminalBlock> = FxHashMap::default();
+        let mut canonical: FxHashMap<Vec<AsmInst>, Label> = FxHashMap::default();
         let mut replacements: FxHashMap<usize, Label> = FxHashMap::default();
 
         for block in candidates {
-            if let Some(target) = canonical.get(&block.key) {
+            if let Some(&target) = canonical.get(&block.key) {
                 let replacement_size = 1 + 3 + 1; // JUMPDEST + PUSH2(label) + JUMP.
                 if block.estimated_size > replacement_size {
-                    replacements.insert(block.label_index, target.label);
+                    replacements.insert(block.label_index, target);
                 }
             } else {
-                canonical.insert(block.key.clone(), block);
+                canonical.insert(block.key, block.label);
             }
         }
 
@@ -472,12 +472,12 @@ impl Assembler {
             };
         }
 
-        let stack = &self.instructions[..write];
+        let stack = InstStack::new(&self.instructions[..write]);
 
         if stack.len() >= 3
-            && Self::is_removable_push(stack[stack.len() - 3])
+            && Self::is_removable_push(stack[2])
             && let (Some(value), AsmInstKind::Op(op)) =
-                (self.inst_push_value(stack[stack.len() - 2]), stack[stack.len() - 1].kind())
+                (self.inst_push_value(stack[1]), stack[0].kind())
         {
             // `PUSH<N> PUSH0 MUL -> PUSH0`.
             if value.is_zero()
@@ -497,7 +497,7 @@ impl Assembler {
 
         if stack.len() >= 2
             && let (Some(value), AsmInstKind::Op(op)) =
-                (self.inst_push_value(stack[stack.len() - 2]), stack[stack.len() - 1].kind())
+                (self.inst_push_value(stack[1]), stack[0].kind())
         {
             if value.is_zero() {
                 return match op {
@@ -532,15 +532,14 @@ impl Assembler {
 
         // `PUSH POP -> []`.
         if stack.len() >= 2
-            && Self::is_removable_push(stack[stack.len() - 2])
-            && matches!(stack[stack.len() - 1].kind(), AsmInstKind::Op(op::POP))
+            && Self::is_removable_push(stack[1])
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::POP))
         {
             return peephole!(2 => []);
         }
 
         if stack.len() >= 2
-            && let (AsmInstKind::Op(a), AsmInstKind::Op(b)) =
-                (stack[stack.len() - 2].kind(), stack[stack.len() - 1].kind())
+            && let (AsmInstKind::Op(a), AsmInstKind::Op(b)) = (stack[1].kind(), stack[0].kind())
         {
             match (a, b) {
                 // `NOT NOT -> []`.
@@ -561,9 +560,9 @@ impl Assembler {
 
         // `ISZERO ISZERO ISZERO -> ISZERO`.
         if stack.len() >= 3
-            && matches!(stack[stack.len() - 3].kind(), AsmInstKind::Op(op::ISZERO))
-            && matches!(stack[stack.len() - 2].kind(), AsmInstKind::Op(op::ISZERO))
-            && matches!(stack[stack.len() - 1].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[1].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::ISZERO))
         {
             return peephole!(3 => [AsmInst::op(op::ISZERO)]);
         }
@@ -783,6 +782,29 @@ struct TerminalBlock {
     label_index: usize,
     key: Vec<AsmInst>,
     estimated_size: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct InstStack<'a> {
+    instructions: &'a [AsmInst],
+}
+
+impl<'a> InstStack<'a> {
+    fn new(instructions: &'a [AsmInst]) -> Self {
+        Self { instructions }
+    }
+
+    fn len(self) -> usize {
+        self.instructions.len()
+    }
+}
+
+impl std::ops::Index<usize> for InstStack<'_> {
+    type Output = AsmInst;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.instructions[self.instructions.len() - 1 - index]
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
