@@ -7,7 +7,7 @@
 //! - Two-pass assembly for label resolution
 
 use super::{
-    assembler::{Assembler, DeferredConst, ImmutableRef, Label, op},
+    assembler::{Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, op},
     stack::{MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler},
 };
 use crate::{
@@ -19,6 +19,7 @@ use crate::{
     pass::{AnalysisManager, LivenessAnalysis, PipelineOptions, run_default_pipeline_with_options},
 };
 use alloy_primitives::U256;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::Session;
 
@@ -32,18 +33,14 @@ const CONSTRUCTOR_SPILL_BASE: u64 = 0x1000;
 const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
 
 /// Configuration for the EVM backend.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct EvmCodegenConfig {
-    /// Whether to run the MIR optimization pipeline before bytecode generation.
-    pub optimize: bool,
+    /// EVM version to target when selecting hardfork-gated opcodes.
+    pub evm_version: EvmVersion,
+    /// Optimization mode for MIR passes and bytecode assembly.
+    pub optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     pub mir_print_after_each: bool,
-}
-
-impl Default for EvmCodegenConfig {
-    fn default() -> Self {
-        Self { optimize: true, mir_print_after_each: false }
-    }
 }
 
 impl EvmCodegenConfig {
@@ -51,9 +48,14 @@ impl EvmCodegenConfig {
     #[must_use]
     pub fn from_session(sess: &Session) -> Self {
         Self {
-            optimize: sess.opts.optimize_mir(),
+            evm_version: sess.opts.evm_version,
+            optimization: sess.opts.optimization,
             mir_print_after_each: sess.opts.unstable.mir_print_after_each,
         }
+    }
+
+    fn assembler_config(self) -> AssemblerConfig {
+        AssemblerConfig { evm_version: self.evm_version, optimization: self.optimization }
     }
 }
 
@@ -129,8 +131,8 @@ pub struct EvmCodegen {
     constructor_param_count: u32,
     /// Whether we're emitting an internal function body.
     in_internal_function: bool,
-    /// Whether to run the MIR optimization pipeline before bytecode generation.
-    optimize: bool,
+    /// Optimization mode for MIR passes and bytecode assembly.
+    optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     mir_print_after_each: bool,
 }
@@ -141,7 +143,7 @@ impl EvmCodegen {
     pub fn new(config: impl Into<EvmCodegenConfig>) -> Self {
         let config = config.into();
         Self {
-            asm: Assembler::new(),
+            asm: Assembler::with_config(config.assembler_config()),
             scheduler: StackScheduler::new(),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
@@ -154,7 +156,7 @@ impl EvmCodegen {
             in_constructor: false,
             constructor_param_count: 0,
             in_internal_function: false,
-            optimize: config.optimize,
+            optimization: config.optimization,
             mir_print_after_each: config.mir_print_after_each,
         }
     }
@@ -467,7 +469,7 @@ impl EvmCodegen {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        if !self.optimize {
+        if self.optimization == OptimizationMode::None {
             return;
         }
         run_default_pipeline_with_options(

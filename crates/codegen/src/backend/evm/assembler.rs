@@ -7,6 +7,7 @@
 
 use crate::mir::IMMUTABLE_WORD_SIZE;
 use alloy_primitives::U256;
+use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
 
 mod id_counter;
@@ -43,9 +44,20 @@ pub struct AssembledCode {
     pub immutable_refs: Vec<ImmutableRef>,
 }
 
+/// Configuration for EVM bytecode assembly.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct AssemblerConfig {
+    /// EVM version to target when selecting hardfork-gated opcodes.
+    pub evm_version: EvmVersion,
+    /// Optimization mode for alternate byte encodings.
+    pub optimization: OptimizationMode,
+}
+
 /// Two-pass assembler for EVM bytecode.
 #[derive(Debug)]
 pub struct Assembler {
+    /// Bytecode assembly configuration.
+    config: AssemblerConfig,
     /// Instructions to assemble.
     instructions: Vec<AsmInst>,
     /// Interned push immediates too large for inline storage.
@@ -62,7 +74,14 @@ impl Assembler {
     /// Creates a new assembler.
     #[must_use]
     pub fn new() -> Self {
+        Self::with_config(AssemblerConfig::default())
+    }
+
+    /// Creates a new assembler with the given configuration.
+    #[must_use]
+    pub fn with_config(config: AssemblerConfig) -> Self {
         Self {
+            config,
             instructions: Vec::new(),
             push_values: LocalInterner::new(),
             next_label: IdCounter::new(),
@@ -222,6 +241,7 @@ impl Assembler {
         let mut offset = 0usize;
         let mut label_offsets = FxHashMap::default();
         let mut new_widths = FxHashMap::default();
+        let out = BytecodeAssembler::new(self.config);
 
         for (idx, inst) in self.instructions.iter().enumerate() {
             match inst.kind() {
@@ -229,15 +249,15 @@ impl Assembler {
                     offset += 1;
                 }
                 AsmInstKind::PushInline(value) => {
-                    offset += self.encoded_push_len(U256::from(value));
+                    offset += out.encoded_push_len(U256::from(value));
                 }
                 AsmInstKind::Push(index) => {
-                    offset += self.encoded_push_len(self.push_value(index));
+                    offset += out.encoded_push_len(self.push_value(index));
                 }
                 AsmInstKind::PushLabel(_) => {
                     // Use current estimated width
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
-                    offset += 1 + width as usize;
+                    offset += out.fixed_push_len(width);
                 }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred constants must be resolved before assembly");
@@ -261,7 +281,7 @@ impl Assembler {
             if let AsmInstKind::PushLabel(label) = inst.kind()
                 && let Some(&target_offset) = label_offsets.get(&label)
             {
-                let width = Self::push_width(U256::from(target_offset));
+                let width = out.push_width(U256::from(target_offset));
                 new_widths.insert(idx, width);
             }
         }
@@ -275,19 +295,18 @@ impl Assembler {
         label_offsets: &FxHashMap<Label, usize>,
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
-        let mut bytecode = Vec::new();
-        let mut immutable_refs = Vec::new();
+        let mut out = BytecodeAssembler::new(self.config);
 
         for (idx, inst) in self.instructions.iter().enumerate() {
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {
-                    bytecode.push(opcode);
+                    out.emit_op(opcode);
                 }
                 AsmInstKind::PushInline(value) => {
-                    self.emit_push_value(&mut bytecode, U256::from(value));
+                    out.emit_push_value(U256::from(value));
                 }
                 AsmInstKind::Push(index) => {
-                    self.emit_push_value(&mut bytecode, self.push_value(index));
+                    out.emit_push_value(self.push_value(index));
                 }
                 AsmInstKind::PushLabel(label) => {
                     let target_offset = label_offsets
@@ -295,18 +314,16 @@ impl Assembler {
                         .copied()
                         .unwrap_or_else(|| panic!("label {label:?} was never defined"));
                     let width = push_widths.get(&idx).copied().unwrap_or(2);
-                    self.emit_push_fixed_width(&mut bytecode, U256::from(target_offset), width);
+                    out.emit_push_fixed_width(U256::from(target_offset), width);
                 }
                 AsmInstKind::PushDeferred(_) => {
                     unreachable!("deferred constants must be resolved before assembly");
                 }
                 AsmInstKind::PushImmutable(id) => {
-                    immutable_refs.push(ImmutableRef { id, code_offset: bytecode.len() });
-                    bytecode.push(op::PUSH32);
-                    bytecode.extend(std::iter::repeat_n(0, IMMUTABLE_WORD_SIZE));
+                    out.emit_push_immutable(id);
                 }
                 AsmInstKind::Label(_) => {
-                    bytecode.push(op::JUMPDEST);
+                    out.emit_op(op::JUMPDEST);
                 }
                 AsmInstKind::Mark(_) => {
                     // Position markers do not emit anything.
@@ -314,7 +331,7 @@ impl Assembler {
             }
         }
 
-        AssembledCode { bytecode, label_offsets: label_offsets.clone(), immutable_refs }
+        out.finish(label_offsets.clone())
     }
 
     /// Runs local peephole optimizations over assembler instructions.
@@ -567,8 +584,12 @@ impl Assembler {
     fn estimated_inst_size(&self, inst: AsmInst) -> usize {
         match inst.kind() {
             AsmInstKind::Op(_) => 1,
-            AsmInstKind::PushInline(value) => self.encoded_push_len(U256::from(value)),
-            AsmInstKind::Push(index) => self.encoded_push_len(self.push_value(index)),
+            AsmInstKind::PushInline(value) => {
+                BytecodeAssembler::new(self.config).encoded_push_len(U256::from(value))
+            }
+            AsmInstKind::Push(index) => {
+                BytecodeAssembler::new(self.config).encoded_push_len(self.push_value(index))
+            }
             AsmInstKind::PushLabel(_) => 3,
             AsmInstKind::PushDeferred(_) => {
                 unreachable!("deferred constants must be resolved before assembly")
@@ -579,26 +600,60 @@ impl Assembler {
         }
     }
 
-    /// Returns the number of bytes needed to push a value.
+    /// Returns the minimum number of non-zero bytes needed to push a value.
+    #[cfg(test)]
     fn push_width(value: U256) -> u8 {
         value.byte_len() as u8
     }
+}
+
+impl Default for Assembler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug)]
+struct BytecodeAssembler {
+    config: AssemblerConfig,
+    bytecode: Vec<u8>,
+    immutable_refs: Vec<ImmutableRef>,
+}
+
+impl BytecodeAssembler {
+    fn new(config: AssemblerConfig) -> Self {
+        Self { config, bytecode: Vec::new(), immutable_refs: Vec::new() }
+    }
+
+    fn emit_op(&mut self, opcode: u8) {
+        self.bytecode.push(opcode);
+    }
+
+    fn emit_push_immutable(&mut self, id: u32) {
+        self.immutable_refs.push(ImmutableRef { id, code_offset: self.bytecode.len() });
+        self.bytecode.push(op::PUSH32);
+        self.bytecode.extend(std::iter::repeat_n(0, IMMUTABLE_WORD_SIZE));
+    }
 
     fn encoded_push_len(&self, value: U256) -> usize {
-        Self::compact_push(value).map_or_else(
-            || 1 + Self::push_width(value) as usize,
+        self.compact_push(value).map_or_else(
+            || self.fixed_push_len(self.push_width(value)),
             |compact| match compact {
-                CompactPush::FullWord => 2,
-                CompactPush::LowerAllOnesMask { .. } => 5,
-                CompactPush::Not { value } => 2 + Self::push_width(value) as usize,
-                CompactPush::Shl { value, .. } => 4 + Self::push_width(value) as usize,
+                CompactPush::FullWord => self.zero_push_len() + 1,
+                CompactPush::LowerAllOnesMask { .. } => self.zero_push_len() + 4,
+                CompactPush::Not { value } => self.fixed_push_len(self.push_width(value)) + 1,
+                CompactPush::Shl { value, .. } => self.fixed_push_len(self.push_width(value)) + 3,
             },
         )
     }
 
-    fn compact_push(value: U256) -> Option<CompactPush> {
-        let width = Self::push_width(value);
-        let normal_len = 1 + width as usize;
+    fn compact_push(&self, value: U256) -> Option<CompactPush> {
+        if self.config.optimization == OptimizationMode::None {
+            return None;
+        }
+
+        let width = self.push_width(value);
+        let normal_len = self.fixed_push_len(width);
         let mut best: Option<(usize, CompactPush)> = None;
 
         let mut consider = |len: usize, compact: CompactPush| {
@@ -622,8 +677,8 @@ impl Assembler {
 
         if width >= 16 {
             let inverted = !value;
-            let inverted_width = Self::push_width(inverted);
-            let inverted_len = 2 + inverted_width as usize;
+            let inverted_width = self.push_width(inverted);
+            let inverted_len = self.fixed_push_len(inverted_width) + 1;
             consider(inverted_len, CompactPush::Not { value: inverted });
         }
 
@@ -631,8 +686,8 @@ impl Assembler {
         if trailing_zero_bytes > 0 && trailing_zero_bytes < 32 {
             let shift = trailing_zero_bytes * 8;
             let shifted = value >> shift;
-            let shifted_width = Self::push_width(shifted);
-            let shifted_len = 4 + shifted_width as usize;
+            let shifted_width = self.push_width(shifted);
+            let shifted_len = self.fixed_push_len(shifted_width) + 3;
             consider(shifted_len, CompactPush::Shl { value: shifted, shift: shift as u8 });
         }
 
@@ -640,62 +695,85 @@ impl Assembler {
     }
 
     /// Emits a PUSH instruction with automatically sized width.
-    fn emit_push_value(&self, bytecode: &mut Vec<u8>, value: U256) {
-        match Self::compact_push(value) {
+    fn emit_push_value(&mut self, value: U256) {
+        match self.compact_push(value) {
             Some(CompactPush::FullWord) => {
-                bytecode.push(op::PUSH0);
-                bytecode.push(op::NOT);
+                self.emit_push_zero();
+                self.bytecode.push(op::NOT);
                 return;
             }
             Some(CompactPush::LowerAllOnesMask { shift }) => {
-                bytecode.push(op::PUSH0);
-                bytecode.push(op::NOT);
-                bytecode.push(op::PUSH1);
-                bytecode.push(shift);
-                bytecode.push(op::SHR);
+                self.emit_push_zero();
+                self.bytecode.push(op::NOT);
+                self.bytecode.push(op::PUSH1);
+                self.bytecode.push(shift);
+                self.bytecode.push(op::SHR);
                 return;
             }
             Some(CompactPush::Not { value }) => {
-                self.emit_push_fixed_width(bytecode, value, Self::push_width(value));
-                bytecode.push(op::NOT);
+                self.emit_push_fixed_width(value, self.push_width(value));
+                self.bytecode.push(op::NOT);
                 return;
             }
             Some(CompactPush::Shl { value, shift }) => {
-                self.emit_push_fixed_width(bytecode, value, Self::push_width(value));
-                bytecode.push(op::PUSH1);
-                bytecode.push(shift);
-                bytecode.push(op::SHL);
+                self.emit_push_fixed_width(value, self.push_width(value));
+                self.bytecode.push(op::PUSH1);
+                self.bytecode.push(shift);
+                self.bytecode.push(op::SHL);
                 return;
             }
             None => {}
         }
 
-        if value.is_zero() {
-            bytecode.push(op::PUSH0);
-            return;
-        }
-
-        self.emit_push_fixed_width(bytecode, value, Self::push_width(value));
+        self.emit_push_fixed_width(value, self.push_width(value));
     }
 
     /// Emits a PUSH instruction with a specific width.
-    fn emit_push_fixed_width(&self, bytecode: &mut Vec<u8>, value: U256, width: u8) {
+    fn emit_push_fixed_width(&mut self, value: U256, width: u8) {
         if width == 0 {
-            bytecode.push(op::PUSH0);
+            self.emit_push_zero();
             return;
         }
 
-        bytecode.push(op::push(width));
+        self.bytecode.push(op::push(width));
 
         let bytes = value.to_be_bytes::<32>();
         let start = 32 - width as usize;
-        bytecode.extend_from_slice(&bytes[start..]);
+        self.bytecode.extend_from_slice(&bytes[start..]);
     }
-}
 
-impl Default for Assembler {
-    fn default() -> Self {
-        Self::new()
+    fn emit_push_zero(&mut self) {
+        if self.config.evm_version.has_push0() {
+            self.bytecode.push(op::PUSH0);
+        } else {
+            self.bytecode.push(op::PUSH1);
+            self.bytecode.push(0);
+        }
+    }
+
+    fn fixed_push_len(&self, width: u8) -> usize {
+        if width == 0 { self.zero_push_len() } else { 1 + width as usize }
+    }
+
+    fn zero_push_len(&self) -> usize {
+        if self.config.evm_version.has_push0() { 1 } else { 2 }
+    }
+
+    /// Returns the minimum immediate width needed to push a value for this EVM version.
+    fn push_width(&self, value: U256) -> u8 {
+        if value.is_zero() && !self.config.evm_version.has_push0() {
+            1
+        } else {
+            value.byte_len() as u8
+        }
+    }
+
+    fn finish(self, label_offsets: FxHashMap<Label, usize>) -> AssembledCode {
+        AssembledCode {
+            bytecode: self.bytecode,
+            label_offsets,
+            immutable_refs: self.immutable_refs,
+        }
     }
 }
 
@@ -765,6 +843,7 @@ pub mod op {
     pub const SHL: u8 = 0x1b;
     pub const SHR: u8 = 0x1c;
     pub const SAR: u8 = 0x1d;
+    pub const CLZ: u8 = 0x1e;
 
     pub const KECCAK256: u8 = 0x20;
 
@@ -886,13 +965,34 @@ pub mod op {
     pub const LOG3: u8 = 0xa3;
     pub const LOG4: u8 = 0xa4;
 
+    pub const DATALOAD: u8 = 0xd0;
+    pub const DATALOADN: u8 = 0xd1;
+    pub const DATASIZE: u8 = 0xd2;
+    pub const DATACOPY: u8 = 0xd3;
+
+    pub const RJUMP: u8 = 0xe0;
+    pub const RJUMPI: u8 = 0xe1;
+    pub const RJUMPV: u8 = 0xe2;
+    pub const CALLF: u8 = 0xe3;
+    pub const RETF: u8 = 0xe4;
+    pub const JUMPF: u8 = 0xe5;
+    pub const DUPN: u8 = 0xe6;
+    pub const SWAPN: u8 = 0xe7;
+    pub const EXCHANGE: u8 = 0xe8;
+    pub const EOFCREATE: u8 = 0xec;
+    pub const RETURNCONTRACT: u8 = 0xee;
+
     pub const CREATE: u8 = 0xf0;
     pub const CALL: u8 = 0xf1;
     pub const CALLCODE: u8 = 0xf2;
     pub const RETURN: u8 = 0xf3;
     pub const DELEGATECALL: u8 = 0xf4;
     pub const CREATE2: u8 = 0xf5;
+    pub const RETURNDATALOAD: u8 = 0xf7;
+    pub const EXTCALL: u8 = 0xf8;
+    pub const EXTDELEGATECALL: u8 = 0xf9;
     pub const STATICCALL: u8 = 0xfa;
+    pub const EXTSTATICCALL: u8 = 0xfb;
     pub const REVERT: u8 = 0xfd;
     pub const INVALID: u8 = 0xfe;
     pub const SELFDESTRUCT: u8 = 0xff;
@@ -980,6 +1080,66 @@ mod tests {
         let second = asm.assemble();
 
         assert_eq!(second.bytecode, vec![0x60, 2]);
+    }
+
+    #[test]
+    fn push_zero_uses_push0_when_available() {
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_version: EvmVersion::Shanghai,
+            optimization: OptimizationMode::None,
+        });
+
+        asm.emit_push(U256::ZERO);
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![op::PUSH0]);
+    }
+
+    #[test]
+    fn push_zero_uses_push1_before_shanghai() {
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_version: EvmVersion::Berlin,
+            optimization: OptimizationMode::Gas,
+        });
+
+        asm.emit_push(U256::ZERO);
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![op::PUSH1, 0]);
+    }
+
+    #[test]
+    fn compact_push_respects_optimization_mode() {
+        let mut optimized = Assembler::with_config(AssemblerConfig {
+            evm_version: EvmVersion::Shanghai,
+            optimization: OptimizationMode::Gas,
+        });
+        optimized.emit_push(U256::MAX);
+
+        let mut unoptimized = Assembler::with_config(AssemblerConfig {
+            evm_version: EvmVersion::Shanghai,
+            optimization: OptimizationMode::None,
+        });
+        unoptimized.emit_push(U256::MAX);
+
+        assert_eq!(optimized.assemble().bytecode, vec![op::PUSH0, op::NOT]);
+
+        let mut expected = vec![op::PUSH32];
+        expected.extend(std::iter::repeat_n(0xff, 32));
+        assert_eq!(unoptimized.assemble().bytecode, expected);
+    }
+
+    #[test]
+    fn compact_push_uses_push1_zero_before_shanghai() {
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_version: EvmVersion::Berlin,
+            optimization: OptimizationMode::Gas,
+        });
+
+        asm.emit_push(U256::MAX);
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![op::PUSH1, 0, op::NOT]);
     }
 
     #[test]
