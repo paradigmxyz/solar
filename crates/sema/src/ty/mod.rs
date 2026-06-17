@@ -310,6 +310,8 @@ pub struct GlobalCtxt<'gcx> {
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
+    pub(crate) inherited_override_functions:
+        FxOnceMap<hir::ContractId, &'gcx crate::typeck::override_checker::InheritedFunctions<'gcx>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -344,6 +346,7 @@ impl<'gcx> GlobalCtxt<'gcx> {
             hir_arenas,
             interner,
             cache: Cache::default(),
+            inherited_override_functions: FxOnceMap::default(),
         }
     }
 }
@@ -1210,6 +1213,13 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     trace!("{}.interfaceFunctions.len() = {}", gcx.contract_fully_qualified_name(id), functions.len());
     let inheritance_start = inheritance_start.expect("linearized_bases did not contain self ID");
     InterfaceFunctions { functions, inheritance_start }
+}
+
+pub(crate) fn base_override_functions(
+    gcx: _,
+    proxy: crate::typeck::override_checker::OverrideProxy
+) -> &'gcx [crate::typeck::override_checker::OverrideProxy] {
+    crate::typeck::override_checker::base_override_functions(gcx, proxy)
 }
 
 /// Returns the resolved NatSpec doc comments for the given doc ID.
