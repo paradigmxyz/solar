@@ -397,7 +397,7 @@ impl BytecodeAssembler {
         let normal_len = self.fixed_push_len(width);
         let mut best = (normal_len, CompactPush::Literal { width });
 
-        if self.config.optimization != OptimizationMode::Size {
+        if self.config.optimization == OptimizationMode::None {
             return best.1;
         }
 
