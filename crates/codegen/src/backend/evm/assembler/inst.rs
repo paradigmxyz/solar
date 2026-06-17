@@ -12,7 +12,7 @@ newtype_index! {
     pub struct DeferredConst;
 
     /// An interned push immediate identifier.
-    pub(super) struct PushValueId;
+    pub(in crate::backend::evm) struct PushValueId;
 }
 
 pub(super) trait AsmIndex: Idx {
@@ -44,11 +44,11 @@ impl AsmIndex for PushValueId {
 
 /// An instruction in the assembler.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub(super) struct AsmInst(u32);
+pub(in crate::backend::evm) struct AsmInst(u32);
 
 impl AsmInst {
-    pub(super) const PLACEHOLDER: Self = Self(0);
-    pub(super) const PAYLOAD_MASK: u32 = 0x0fff_ffff;
+    pub(in crate::backend::evm) const PLACEHOLDER: Self = Self(0);
+    pub(in crate::backend::evm) const PAYLOAD_MASK: u32 = 0x0fff_ffff;
     const INLINE_PUSH_MAX: u32 = 0x7fff_ffff;
     const TAG_MASK: u32 = 0xf000_0000;
     const TAG_OP: u32 = 0x8000_0000;
@@ -58,31 +58,31 @@ impl AsmInst {
     const TAG_PUSH_IMMUTABLE: u32 = 0xc000_0000;
     const TAG_LABEL: u32 = 0xd000_0000;
 
-    pub(super) fn op(opcode: u8) -> Self {
+    pub(in crate::backend::evm) fn op(opcode: u8) -> Self {
         Self(Self::TAG_OP | u32::from(opcode))
     }
 
-    pub(super) fn push_inline(value: u32) -> Option<Self> {
+    pub(in crate::backend::evm) fn push_inline(value: u32) -> Option<Self> {
         (value <= Self::INLINE_PUSH_MAX).then_some(Self(value))
     }
 
-    pub(super) fn push(index: PushValueId) -> Self {
+    pub(in crate::backend::evm) fn push(index: PushValueId) -> Self {
         Self::tagged(Self::TAG_PUSH, index.inst_payload())
     }
 
-    pub(super) fn push_label(label: Label) -> Self {
+    pub(in crate::backend::evm) fn push_label(label: Label) -> Self {
         Self::tagged(Self::TAG_PUSH_LABEL, label.inst_payload())
     }
 
-    pub(super) fn push_deferred(id: DeferredConst) -> Self {
+    pub(in crate::backend::evm) fn push_deferred(id: DeferredConst) -> Self {
         Self::tagged(Self::TAG_PUSH_DEFERRED, id.inst_payload())
     }
 
-    pub(super) fn push_immutable(id: u32) -> Self {
+    pub(in crate::backend::evm) fn push_immutable(id: u32) -> Self {
         Self::tagged(Self::TAG_PUSH_IMMUTABLE, id)
     }
 
-    pub(super) fn label(label: Label) -> Self {
+    pub(in crate::backend::evm) fn label(label: Label) -> Self {
         Self::tagged(Self::TAG_LABEL, label.inst_payload())
     }
 
@@ -91,7 +91,7 @@ impl AsmInst {
         Self(tag | payload)
     }
 
-    pub(super) fn kind(self) -> AsmInstKind {
+    pub(in crate::backend::evm) fn kind(self) -> AsmInstKind {
         if self.0 <= Self::INLINE_PUSH_MAX {
             return AsmInstKind::PushInline(self.0);
         }
@@ -112,7 +112,7 @@ impl AsmInst {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(super) enum AsmInstKind {
+pub(in crate::backend::evm) enum AsmInstKind {
     Op(u8),
     PushInline(u32),
     Push(PushValueId),

@@ -31,7 +31,7 @@ pub use backend::{
     Backend,
     evm::{
         AssembledCode, Assembler, AssemblerConfig, EvmArtifact, EvmCodegen, EvmCodegenConfig,
-        Label, PeepholeOptimizer, SpillManager, SpillSlot, StackModel, StackScheduler,
+        Label, SpillManager, SpillSlot, StackModel, StackScheduler,
     },
 };
 
