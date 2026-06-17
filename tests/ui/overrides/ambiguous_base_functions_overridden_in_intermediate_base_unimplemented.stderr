@@ -1,0 +1,34 @@
+error[5424]: functions without implementation must be marked virtual
+   ╭▸ ROOT/tests/ui/overrides/ambiguous_base_functions_overridden_in_intermediate_base_unimplemented.sol:LL:CC
+   │
+LL │     function f() external override(A, B);
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[4593]: cannot override implemented function with unimplemented function
+   ╭▸ ROOT/tests/ui/overrides/ambiguous_base_functions_overridden_in_intermediate_base_unimplemented.sol:LL:CC
+   │
+LL │     function f() external override(A, B);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/ambiguous_base_functions_overridden_in_intermediate_base_unimplemented.sol:LL:CC
+   │
+LL │     function f() external virtual {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: provide an implementation for the overriding function
+
+error[4593]: cannot override implemented function with unimplemented function
+   ╭▸ ROOT/tests/ui/overrides/ambiguous_base_functions_overridden_in_intermediate_base_unimplemented.sol:LL:CC
+   │
+LL │     function f() external override(A, B);
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/ambiguous_base_functions_overridden_in_intermediate_base_unimplemented.sol:LL:CC
+   │
+LL │     function f() external virtual {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: provide an implementation for the overriding function
+
+error: aborting due to 3 previous errors
+

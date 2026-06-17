@@ -15,7 +15,7 @@ use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code};
 use std::ops::ControlFlow;
 
 mod checker;
-mod override_checker;
+pub(crate) mod override_checker;
 mod udvt;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
