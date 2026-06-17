@@ -302,11 +302,11 @@ impl Assembler {
                 }
                 AsmInstKind::PushImmutable(id) => {
                     immutable_refs.push(ImmutableRef { id, code_offset: bytecode.len() });
-                    bytecode.push(0x7f); // PUSH32
+                    bytecode.push(op::PUSH32);
                     bytecode.extend(std::iter::repeat_n(0, IMMUTABLE_WORD_SIZE));
                 }
                 AsmInstKind::Label(_) => {
-                    bytecode.push(opcodes::JUMPDEST);
+                    bytecode.push(op::JUMPDEST);
                 }
                 AsmInstKind::Mark(_) => {
                     // Position markers do not emit anything.
@@ -390,7 +390,7 @@ impl Assembler {
             {
                 optimized.push(AsmInst::label(label));
                 optimized.push(AsmInst::push_label(target));
-                optimized.push(AsmInst::op(opcodes::JUMP));
+                optimized.push(AsmInst::op(op::JUMP));
                 removed += 1;
                 i = end + 1;
                 continue;
@@ -433,7 +433,7 @@ impl Assembler {
                 continue;
             }
             if let AsmInstKind::Op(op) = self.instructions[i].kind()
-                && opcodes::is_terminal(op)
+                && op::is_terminal(op)
             {
                 return Some(i);
             }
@@ -466,20 +466,14 @@ impl Assembler {
             if value.is_zero()
                 && matches!(
                     op,
-                    opcodes::MUL
-                        | opcodes::DIV
-                        | opcodes::SDIV
-                        | opcodes::MOD
-                        | opcodes::SMOD
-                        | opcodes::AND
-                        | opcodes::GT
+                    op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT
                 )
             {
                 return peephole!(3 => [AsmInst::push_inline(0).unwrap()]);
             }
 
             // `PUSH<N> PUSH1 EXP -> PUSH1`.
-            if value == U256::ONE && op == opcodes::EXP {
+            if value == U256::ONE && op == op::EXP {
                 return peephole!(3 => [AsmInst::push_inline(1).unwrap()]);
             }
         }
@@ -491,25 +485,16 @@ impl Assembler {
             if value.is_zero() {
                 return match op {
                     // `PUSH0 ADD -> []`.
-                    opcodes::ADD
-                    | opcodes::OR
-                    | opcodes::XOR
-                    | opcodes::SHL
-                    | opcodes::SHR
-                    | opcodes::SAR => peephole!(2 => []),
+                    op::ADD | op::OR | op::XOR | op::SHL | op::SHR | op::SAR => peephole!(2 => []),
                     // `PUSH0 EQ -> ISZERO`.
-                    opcodes::EQ => peephole!(2 => [AsmInst::op(opcodes::ISZERO)]),
+                    op::EQ => peephole!(2 => [AsmInst::op(op::ISZERO)]),
                     // `PUSH0 MUL -> POP PUSH0`.
-                    opcodes::MUL
-                    | opcodes::DIV
-                    | opcodes::SDIV
-                    | opcodes::MOD
-                    | opcodes::SMOD
-                    | opcodes::AND
-                    | opcodes::GT => peephole!(2 => [
-                        AsmInst::op(opcodes::POP),
-                        AsmInst::push_inline(0).unwrap()
-                    ]),
+                    op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT => {
+                        peephole!(2 => [
+                            AsmInst::op(op::POP),
+                            AsmInst::push_inline(0).unwrap()
+                        ])
+                    }
                     _ => None,
                 };
             }
@@ -517,10 +502,10 @@ impl Assembler {
             if value == U256::ONE {
                 return match op {
                     // `PUSH1 MUL -> []`.
-                    opcodes::MUL => peephole!(2 => []),
+                    op::MUL => peephole!(2 => []),
                     // `PUSH1 EXP -> POP PUSH1`.
-                    opcodes::EXP => peephole!(2 => [
-                        AsmInst::op(opcodes::POP),
+                    op::EXP => peephole!(2 => [
+                        AsmInst::op(op::POP),
                         AsmInst::push_inline(1).unwrap()
                     ]),
                     _ => None,
@@ -531,7 +516,7 @@ impl Assembler {
         // `PUSH POP -> []`.
         if stack.len() >= 2
             && Self::is_removable_push(stack[stack.len() - 2])
-            && matches!(stack[stack.len() - 1].kind(), AsmInstKind::Op(opcodes::POP))
+            && matches!(stack[stack.len() - 1].kind(), AsmInstKind::Op(op::POP))
         {
             return peephole!(2 => []);
         }
@@ -542,15 +527,15 @@ impl Assembler {
         {
             match (a, b) {
                 // `NOT NOT -> []`.
-                (opcodes::NOT, opcodes::NOT) => {
+                (op::NOT, op::NOT) => {
                     return peephole!(2 => []);
                 }
                 // `DUP<N> POP -> []`.
-                (op, opcodes::POP) if (opcodes::DUP1..=opcodes::DUP1 + 15).contains(&op) => {
+                (op, op::POP) if (op::DUP1..=op::DUP1 + 15).contains(&op) => {
                     return peephole!(2 => []);
                 }
                 // `SWAP<N> SWAP<N> -> []`.
-                (a, b) if a == b && (opcodes::SWAP1..=opcodes::SWAP1 + 15).contains(&a) => {
+                (a, b) if a == b && (op::SWAP1..=op::SWAP1 + 15).contains(&a) => {
                     return peephole!(2 => []);
                 }
                 _ => {}
@@ -559,11 +544,11 @@ impl Assembler {
 
         // `ISZERO ISZERO ISZERO -> ISZERO`.
         if stack.len() >= 3
-            && matches!(stack[stack.len() - 3].kind(), AsmInstKind::Op(opcodes::ISZERO))
-            && matches!(stack[stack.len() - 2].kind(), AsmInstKind::Op(opcodes::ISZERO))
-            && matches!(stack[stack.len() - 1].kind(), AsmInstKind::Op(opcodes::ISZERO))
+            && matches!(stack[stack.len() - 3].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[stack.len() - 2].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[stack.len() - 1].kind(), AsmInstKind::Op(op::ISZERO))
         {
-            return peephole!(3 => [AsmInst::op(opcodes::ISZERO)]);
+            return peephole!(3 => [AsmInst::op(op::ISZERO)]);
         }
 
         None
@@ -622,11 +607,6 @@ impl Assembler {
             }
         };
 
-        // PUSH0, PUSH1
-        if width <= 1 {
-            return Some(CompactPush::FullWord);
-        }
-
         if value == U256::MAX {
             consider(2, CompactPush::FullWord);
         }
@@ -663,35 +643,35 @@ impl Assembler {
     fn emit_push_value(&self, bytecode: &mut Vec<u8>, value: U256) {
         match Self::compact_push(value) {
             Some(CompactPush::FullWord) => {
-                bytecode.push(opcodes::PUSH0);
-                bytecode.push(opcodes::NOT);
+                bytecode.push(op::PUSH0);
+                bytecode.push(op::NOT);
                 return;
             }
             Some(CompactPush::LowerAllOnesMask { shift }) => {
-                bytecode.push(opcodes::PUSH0);
-                bytecode.push(opcodes::NOT);
-                bytecode.push(0x60);
+                bytecode.push(op::PUSH0);
+                bytecode.push(op::NOT);
+                bytecode.push(op::PUSH1);
                 bytecode.push(shift);
-                bytecode.push(opcodes::SHR);
+                bytecode.push(op::SHR);
                 return;
             }
             Some(CompactPush::Not { value }) => {
                 self.emit_push_fixed_width(bytecode, value, Self::push_width(value));
-                bytecode.push(opcodes::NOT);
+                bytecode.push(op::NOT);
                 return;
             }
             Some(CompactPush::Shl { value, shift }) => {
                 self.emit_push_fixed_width(bytecode, value, Self::push_width(value));
-                bytecode.push(0x60);
+                bytecode.push(op::PUSH1);
                 bytecode.push(shift);
-                bytecode.push(opcodes::SHL);
+                bytecode.push(op::SHL);
                 return;
             }
             None => {}
         }
 
         if value.is_zero() {
-            bytecode.push(opcodes::PUSH0);
+            bytecode.push(op::PUSH0);
             return;
         }
 
@@ -701,12 +681,11 @@ impl Assembler {
     /// Emits a PUSH instruction with a specific width.
     fn emit_push_fixed_width(&self, bytecode: &mut Vec<u8>, value: U256, width: u8) {
         if width == 0 {
-            bytecode.push(opcodes::PUSH0);
+            bytecode.push(op::PUSH0);
             return;
         }
 
-        // PUSH1 = 0x60, PUSH2 = 0x61, ..., PUSH32 = 0x7f
-        bytecode.push(0x5f + width);
+        bytecode.push(op::push(width));
 
         let bytes = value.to_be_bytes::<32>();
         let start = 32 - width as usize;
@@ -757,8 +736,8 @@ enum CompactPush {
     Shl { value: U256, shift: u8 },
 }
 
-/// Common EVM opcodes.
-pub mod opcodes {
+/// Common EVM op.
+pub mod op {
     pub const STOP: u8 = 0x00;
     pub const ADD: u8 = 0x01;
     pub const MUL: u8 = 0x02;
@@ -834,9 +813,72 @@ pub mod opcodes {
     pub const TSTORE: u8 = 0x5d;
     pub const MCOPY: u8 = 0x5e;
     pub const PUSH0: u8 = 0x5f;
+    pub const PUSH1: u8 = 0x60;
+    pub const PUSH2: u8 = 0x61;
+    pub const PUSH3: u8 = 0x62;
+    pub const PUSH4: u8 = 0x63;
+    pub const PUSH5: u8 = 0x64;
+    pub const PUSH6: u8 = 0x65;
+    pub const PUSH7: u8 = 0x66;
+    pub const PUSH8: u8 = 0x67;
+    pub const PUSH9: u8 = 0x68;
+    pub const PUSH10: u8 = 0x69;
+    pub const PUSH11: u8 = 0x6a;
+    pub const PUSH12: u8 = 0x6b;
+    pub const PUSH13: u8 = 0x6c;
+    pub const PUSH14: u8 = 0x6d;
+    pub const PUSH15: u8 = 0x6e;
+    pub const PUSH16: u8 = 0x6f;
+    pub const PUSH17: u8 = 0x70;
+    pub const PUSH18: u8 = 0x71;
+    pub const PUSH19: u8 = 0x72;
+    pub const PUSH20: u8 = 0x73;
+    pub const PUSH21: u8 = 0x74;
+    pub const PUSH22: u8 = 0x75;
+    pub const PUSH23: u8 = 0x76;
+    pub const PUSH24: u8 = 0x77;
+    pub const PUSH25: u8 = 0x78;
+    pub const PUSH26: u8 = 0x79;
+    pub const PUSH27: u8 = 0x7a;
+    pub const PUSH28: u8 = 0x7b;
+    pub const PUSH29: u8 = 0x7c;
+    pub const PUSH30: u8 = 0x7d;
+    pub const PUSH31: u8 = 0x7e;
+    pub const PUSH32: u8 = 0x7f;
 
     pub const DUP1: u8 = 0x80;
+    pub const DUP2: u8 = 0x81;
+    pub const DUP3: u8 = 0x82;
+    pub const DUP4: u8 = 0x83;
+    pub const DUP5: u8 = 0x84;
+    pub const DUP6: u8 = 0x85;
+    pub const DUP7: u8 = 0x86;
+    pub const DUP8: u8 = 0x87;
+    pub const DUP9: u8 = 0x88;
+    pub const DUP10: u8 = 0x89;
+    pub const DUP11: u8 = 0x8a;
+    pub const DUP12: u8 = 0x8b;
+    pub const DUP13: u8 = 0x8c;
+    pub const DUP14: u8 = 0x8d;
+    pub const DUP15: u8 = 0x8e;
+    pub const DUP16: u8 = 0x8f;
+
     pub const SWAP1: u8 = 0x90;
+    pub const SWAP2: u8 = 0x91;
+    pub const SWAP3: u8 = 0x92;
+    pub const SWAP4: u8 = 0x93;
+    pub const SWAP5: u8 = 0x94;
+    pub const SWAP6: u8 = 0x95;
+    pub const SWAP7: u8 = 0x96;
+    pub const SWAP8: u8 = 0x97;
+    pub const SWAP9: u8 = 0x98;
+    pub const SWAP10: u8 = 0x99;
+    pub const SWAP11: u8 = 0x9a;
+    pub const SWAP12: u8 = 0x9b;
+    pub const SWAP13: u8 = 0x9c;
+    pub const SWAP14: u8 = 0x9d;
+    pub const SWAP15: u8 = 0x9e;
+    pub const SWAP16: u8 = 0x9f;
 
     pub const LOG0: u8 = 0xa0;
     pub const LOG1: u8 = 0xa1;
@@ -867,6 +909,13 @@ pub mod opcodes {
     pub const fn swap(n: u8) -> u8 {
         debug_assert!(n >= 1 && n <= 16);
         SWAP1 + n - 1
+    }
+
+    /// Returns the PUSH opcode for the given width (1-32).
+    #[must_use]
+    pub const fn push(width: u8) -> u8 {
+        debug_assert!(width >= 1 && width <= 32);
+        PUSH1 + width - 1
     }
 
     /// Returns whether an opcode halts or unconditionally transfers control.
@@ -939,8 +988,8 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.emit_push(U256::from(10));
-        asm.emit_op(opcodes::ADD);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::ADD);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
@@ -958,12 +1007,12 @@ mod tests {
         asm.define_label(loop_label);
         asm.emit_push(U256::from(1));
         asm.emit_push_label(end_label);
-        asm.emit_op(opcodes::JUMPI);
+        asm.emit_op(op::JUMPI);
         asm.emit_push_label(loop_label);
-        asm.emit_op(opcodes::JUMP);
+        asm.emit_op(op::JUMP);
 
         asm.define_label(end_label);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
@@ -979,12 +1028,12 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.emit_push(U256::ZERO);
-        asm.emit_op(opcodes::ADD);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::ADD);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![0x60, 42, op::STOP]);
     }
 
     #[test]
@@ -993,8 +1042,8 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.emit_push(U256::ZERO);
-        asm.emit_op(opcodes::ADD);
-        asm.emit_op(opcodes::POP);
+        asm.emit_op(op::ADD);
+        asm.emit_op(op::POP);
 
         let result = asm.assemble();
 
@@ -1008,15 +1057,15 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.emit_push(U256::ZERO);
-        asm.emit_op(opcodes::ADD);
+        asm.emit_op(op::ADD);
         asm.define_label(label);
         asm.emit_push_label(label);
-        asm.emit_op(opcodes::JUMP);
+        asm.emit_op(op::JUMP);
 
         let result = asm.assemble();
 
         assert_eq!(result.label_offsets[&label], 2);
-        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::JUMPDEST, 0x60, 2, opcodes::JUMP]);
+        assert_eq!(result.bytecode, vec![0x60, 42, op::JUMPDEST, 0x60, 2, op::JUMP]);
     }
 
     #[test]
@@ -1026,12 +1075,12 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.mark_label(label);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
         assert_eq!(result.label_offsets[&label], 2);
-        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![0x60, 42, op::STOP]);
     }
 
     #[test]
@@ -1040,12 +1089,12 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.emit_push(U256::ZERO);
-        asm.emit_op(opcodes::MUL);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::MUL);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![opcodes::PUSH0, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![op::PUSH0, op::STOP]);
     }
 
     #[test]
@@ -1054,12 +1103,12 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.emit_push(U256::ZERO);
-        asm.emit_op(opcodes::SUB);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::SUB);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::PUSH0, opcodes::SUB, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![0x60, 42, op::PUSH0, op::SUB, op::STOP]);
     }
 
     #[test]
@@ -1068,12 +1117,12 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.emit_push(U256::ZERO);
-        asm.emit_op(opcodes::EQ);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::EQ);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, opcodes::ISZERO, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![0x60, 42, op::ISZERO, op::STOP]);
     }
 
     #[test]
@@ -1082,12 +1131,12 @@ mod tests {
 
         asm.emit_push(U256::from(42));
         asm.emit_push(U256::from(1));
-        asm.emit_op(opcodes::DIV);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::DIV);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 1, opcodes::DIV, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 1, op::DIV, op::STOP]);
     }
 
     #[test]
@@ -1095,11 +1144,11 @@ mod tests {
         let mut asm = Assembler::new();
 
         asm.emit_push(U256::MAX);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![opcodes::PUSH0, opcodes::NOT, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![op::PUSH0, op::NOT, op::STOP]);
     }
 
     #[test]
@@ -1108,14 +1157,11 @@ mod tests {
         let mask = (U256::from(1) << 160) - U256::from(1);
 
         asm.emit_push(mask);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(
-            result.bytecode,
-            vec![opcodes::PUSH0, opcodes::NOT, 0x60, 96, opcodes::SHR, opcodes::STOP]
-        );
+        assert_eq!(result.bytecode, vec![op::PUSH0, op::NOT, 0x60, 96, op::SHR, op::STOP]);
     }
 
     #[test]
@@ -1123,11 +1169,11 @@ mod tests {
         let mut asm = Assembler::new();
 
         asm.emit_push(!U256::from(31));
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 31, opcodes::NOT, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![0x60, 31, op::NOT, op::STOP]);
     }
 
     #[test]
@@ -1135,11 +1181,11 @@ mod tests {
         let mut asm = Assembler::new();
 
         asm.emit_push(!U256::from(255));
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
-        assert_eq!(result.bytecode, vec![0x60, 255, opcodes::NOT, opcodes::STOP]);
+        assert_eq!(result.bytecode, vec![0x60, 255, op::NOT, op::STOP]);
     }
 
     #[test]
@@ -1148,13 +1194,13 @@ mod tests {
         let selector = U256::from(0x35ea6a75u64) << 224;
 
         asm.emit_push(selector);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
         assert_eq!(
             result.bytecode,
-            vec![0x63, 0x35, 0xea, 0x6a, 0x75, 0x60, 224, opcodes::SHL, opcodes::STOP]
+            vec![0x63, 0x35, 0xea, 0x6a, 0x75, 0x60, 224, op::SHL, op::STOP]
         );
     }
 
@@ -1165,13 +1211,13 @@ mod tests {
         let value = text << ((32 - "Machine finished:".len()) * 8);
 
         asm.emit_push(value);
-        asm.emit_op(opcodes::STOP);
+        asm.emit_op(op::STOP);
 
         let result = asm.assemble();
 
         let mut expected = vec![0x70];
         expected.extend_from_slice(b"Machine finished:");
-        expected.extend_from_slice(&[0x60, 120, opcodes::SHL, opcodes::STOP]);
+        expected.extend_from_slice(&[0x60, 120, op::SHL, op::STOP]);
         assert_eq!(result.bytecode, expected);
     }
 }

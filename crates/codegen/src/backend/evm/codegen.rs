@@ -7,7 +7,7 @@
 //! - Two-pass assembly for label resolution
 
 use super::{
-    assembler::{Assembler, DeferredConst, ImmutableRef, Label, opcodes},
+    assembler::{Assembler, DeferredConst, ImmutableRef, Label, op},
     stack::{MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler},
 };
 use crate::{
@@ -331,23 +331,23 @@ impl EvmCodegen {
 
         // Copy runtime code from creation code to memory at `copy_base`.
         self.asm.emit_push(U256::from(runtime_len as u64));
-        self.asm.emit_op(opcodes::dup(1));
+        self.asm.emit_op(op::dup(1));
         self.asm.emit_push(U256::from(deploy_code_len as u64));
         self.asm.emit_push(U256::from(copy_base));
-        self.asm.emit_op(opcodes::CODECOPY);
+        self.asm.emit_op(op::CODECOPY);
 
         // Patch each `PUSH32` placeholder with its staged immutable word.
         // The placeholder data starts one byte after the PUSH32 opcode.
         for r in immutable_refs {
             self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(r.id)));
-            self.asm.emit_op(opcodes::MLOAD);
+            self.asm.emit_op(op::MLOAD);
             self.asm.emit_push(U256::from(copy_base + r.code_offset as u64 + 1));
-            self.asm.emit_op(opcodes::MSTORE);
+            self.asm.emit_op(op::MSTORE);
         }
 
         // Return the patched runtime code; the DUP'd length is still on the stack.
         self.asm.emit_push(U256::from(copy_base));
-        self.asm.emit_op(opcodes::RETURN);
+        self.asm.emit_op(op::RETURN);
         self.asm.assemble().bytecode
     }
 
@@ -399,7 +399,7 @@ impl EvmCodegen {
             let constructor_free_memory_start = self.asm.new_deferred_const();
             self.asm.emit_push_deferred(constructor_free_memory_start);
             self.asm.emit_push(U256::from(0x40));
-            self.asm.emit_op(opcodes::MSTORE);
+            self.asm.emit_op(op::MSTORE);
 
             // Set constructor context for LoadArg handling
             self.in_constructor = true;
@@ -411,17 +411,17 @@ impl EvmCodegen {
             if !ctor.params.is_empty() {
                 let arg_offset = constructor_arg_offset.unwrap_or(0);
                 self.asm.emit_push(U256::from(arg_offset));
-                self.asm.emit_op(opcodes::CODESIZE);
-                self.asm.emit_op(opcodes::SUB); // size = CODESIZE - arg_offset
+                self.asm.emit_op(op::CODESIZE);
+                self.asm.emit_op(op::SUB); // size = CODESIZE - arg_offset
                 self.asm.emit_push(U256::from(arg_offset)); // code offset
                 self.asm.emit_push(U256::from(0x80)); // destOffset in memory
-                self.asm.emit_op(opcodes::CODECOPY);
+                self.asm.emit_op(op::CODECOPY);
             }
 
             if !internal_targets.is_empty() {
                 let constructor_entry = self.asm.new_label();
                 self.asm.emit_push_label(constructor_entry);
-                self.asm.emit_op(opcodes::JUMP);
+                self.asm.emit_op(op::JUMP);
 
                 for (func_id, func) in module.functions.iter_enumerated() {
                     if !internal_targets.contains(&func_id) {
@@ -455,7 +455,7 @@ impl EvmCodegen {
             let mut bytecode = self.asm.assemble().bytecode;
 
             // Remove trailing STOP (0x00) if present - we want to fall through to CODECOPY/RETURN
-            if bytecode.last() == Some(&opcodes::STOP) {
+            if bytecode.last() == Some(&op::STOP) {
                 bytecode.pop();
             }
 
@@ -563,22 +563,22 @@ impl EvmCodegen {
         }
 
         // Check if calldatasize == 0
-        self.asm.emit_op(opcodes::CALLDATASIZE);
+        self.asm.emit_op(op::CALLDATASIZE);
         self.asm.emit_push_label(has_calldata_label);
-        self.asm.emit_op(opcodes::JUMPI);
+        self.asm.emit_op(op::JUMPI);
 
         // calldatasize == 0: Handle receive/fallback
         // Solidity semantics: if receive exists, call it; else if fallback exists, call it; else
         // revert
         if let Some(recv_idx) = receive_idx {
             self.asm.emit_push_label(func_labels[recv_idx].expect("receive label missing"));
-            self.asm.emit_op(opcodes::JUMP);
+            self.asm.emit_op(op::JUMP);
         } else if let Some(fb_idx) = fallback_idx {
             self.asm.emit_push_label(func_labels[fb_idx].expect("fallback label missing"));
-            self.asm.emit_op(opcodes::JUMP);
+            self.asm.emit_op(op::JUMP);
         } else {
             self.asm.emit_push_label(revert_label);
-            self.asm.emit_op(opcodes::JUMP);
+            self.asm.emit_op(op::JUMP);
         }
 
         // calldatasize > 0: Load selector and match
@@ -586,9 +586,9 @@ impl EvmCodegen {
 
         // Load selector from calldata
         self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(opcodes::CALLDATALOAD);
+        self.asm.emit_op(op::CALLDATALOAD);
         self.asm.emit_push(U256::from(0xe0));
-        self.asm.emit_op(opcodes::SHR);
+        self.asm.emit_op(op::SHR);
 
         let mut selectors: Vec<_> = module
             .functions
@@ -621,7 +621,7 @@ impl EvmCodegen {
 
             // Pop the selector for regular functions (receive/fallback don't have it on stack)
             if func.selector.is_some() {
-                self.asm.emit_op(opcodes::POP);
+                self.asm.emit_op(op::POP);
             }
 
             if !all_external_entries_reject_value {
@@ -659,7 +659,7 @@ impl EvmCodegen {
         self.asm.define_label(revert_label);
         self.asm.emit_push(U256::ZERO);
         self.asm.emit_push(U256::ZERO);
-        self.asm.emit_op(opcodes::REVERT);
+        self.asm.emit_op(op::REVERT);
 
         self.resolve_pending_frame_size_consts(module);
     }
@@ -738,11 +738,11 @@ impl EvmCodegen {
 
         // Stack has the selector. With the pivot pushed on top, GT checks
         // `pivot > selector`, so jump left when selector < pivot.
-        self.asm.emit_op(opcodes::dup(1));
+        self.asm.emit_op(op::dup(1));
         self.asm.emit_push(U256::from(selectors[mid].selector));
-        self.asm.emit_op(opcodes::GT);
+        self.asm.emit_op(op::GT);
         self.asm.emit_push_label(left_label);
-        self.asm.emit_op(opcodes::JUMPI);
+        self.asm.emit_op(op::JUMPI);
 
         self.emit_binary_selector_dispatch(&selectors[mid..], fallback_label, revert_label);
 
@@ -751,21 +751,21 @@ impl EvmCodegen {
     }
 
     fn emit_selector_eq_jump(&mut self, entry: SelectorDispatchEntry) {
-        self.asm.emit_op(opcodes::dup(1));
+        self.asm.emit_op(op::dup(1));
         self.asm.emit_push(U256::from(entry.selector));
-        self.asm.emit_op(opcodes::EQ);
+        self.asm.emit_op(op::EQ);
         self.asm.emit_push_label(entry.label);
-        self.asm.emit_op(opcodes::JUMPI);
+        self.asm.emit_op(op::JUMPI);
     }
 
     fn emit_selector_dispatch_miss(&mut self, fallback_label: Option<Label>, revert_label: Label) {
         if let Some(fallback_label) = fallback_label {
-            self.asm.emit_op(opcodes::POP);
+            self.asm.emit_op(op::POP);
             self.asm.emit_push_label(fallback_label);
-            self.asm.emit_op(opcodes::JUMP);
+            self.asm.emit_op(op::JUMP);
         } else {
             self.asm.emit_push_label(revert_label);
-            self.asm.emit_op(opcodes::JUMP);
+            self.asm.emit_op(op::JUMP);
         }
     }
 
@@ -787,9 +787,9 @@ impl EvmCodegen {
     }
 
     fn emit_callvalue_check(&mut self, revert_label: Label) {
-        self.asm.emit_op(opcodes::CALLVALUE);
+        self.asm.emit_op(op::CALLVALUE);
         self.asm.emit_push_label(revert_label);
-        self.asm.emit_op(opcodes::JUMPI);
+        self.asm.emit_op(op::JUMPI);
     }
 
     /// Generates bytecode for a function.
@@ -1245,7 +1245,7 @@ impl EvmCodegen {
         // 1. If value is on top, ensure_on_top does nothing but we need a copy
         // 2. MSTORE will consume the value, and we want to preserve the original
         let dup_n = (depth + 1) as u8;
-        self.asm.emit_op(opcodes::dup(dup_n));
+        self.asm.emit_op(op::dup(dup_n));
         self.scheduler.stack.dup(dup_n);
 
         self.store_stack_top_to_spill(func, val, slot);
@@ -1281,7 +1281,7 @@ impl EvmCodegen {
 
         for (saved, saved_slot) in saved_above.into_iter().rev() {
             self.emit_spill_slot_addr(func, saved_slot);
-            self.asm.emit_op(opcodes::MLOAD);
+            self.asm.emit_op(op::MLOAD);
             self.scheduler.stack.push(saved);
         }
     }
@@ -1292,7 +1292,7 @@ impl EvmCodegen {
         self.emit_spill_slot_addr(func, slot);
         self.scheduler.stack.push_unknown();
 
-        self.asm.emit_op(opcodes::MSTORE);
+        self.asm.emit_op(op::MSTORE);
         // MSTORE consumes 2 values: the untracked offset and the value being spilled.
         self.scheduler.stack.pop();
         self.scheduler.stack.pop();
@@ -1375,7 +1375,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::ADD,
+                op::ADD,
                 result_value,
                 liveness,
                 block,
@@ -1385,7 +1385,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::SUB,
+                op::SUB,
                 result_value,
                 liveness,
                 block,
@@ -1395,7 +1395,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::MUL,
+                op::MUL,
                 result_value,
                 liveness,
                 block,
@@ -1405,7 +1405,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::DIV,
+                op::DIV,
                 result_value,
                 liveness,
                 block,
@@ -1415,7 +1415,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::SDIV,
+                op::SDIV,
                 result_value,
                 liveness,
                 block,
@@ -1425,7 +1425,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::MOD,
+                op::MOD,
                 result_value,
                 liveness,
                 block,
@@ -1435,7 +1435,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::SMOD,
+                op::SMOD,
                 result_value,
                 liveness,
                 block,
@@ -1445,7 +1445,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::EXP,
+                op::EXP,
                 result_value,
                 liveness,
                 block,
@@ -1457,7 +1457,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::AND,
+                op::AND,
                 result_value,
                 liveness,
                 block,
@@ -1467,7 +1467,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::OR,
+                op::OR,
                 result_value,
                 liveness,
                 block,
@@ -1477,7 +1477,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::XOR,
+                op::XOR,
                 result_value,
                 liveness,
                 block,
@@ -1486,7 +1486,7 @@ impl EvmCodegen {
             InstKind::Not(a) => self.emit_unary_op_with_result(
                 func,
                 *a,
-                opcodes::NOT,
+                op::NOT,
                 result_value,
                 liveness,
                 block,
@@ -1496,7 +1496,7 @@ impl EvmCodegen {
                 func,
                 *shift,
                 *val,
-                opcodes::SHL,
+                op::SHL,
                 result_value,
                 liveness,
                 block,
@@ -1506,7 +1506,7 @@ impl EvmCodegen {
                 func,
                 *shift,
                 *val,
-                opcodes::SHR,
+                op::SHR,
                 result_value,
                 liveness,
                 block,
@@ -1516,7 +1516,7 @@ impl EvmCodegen {
                 func,
                 *shift,
                 *val,
-                opcodes::SAR,
+                op::SAR,
                 result_value,
                 liveness,
                 block,
@@ -1526,7 +1526,7 @@ impl EvmCodegen {
                 func,
                 *i,
                 *x,
-                opcodes::BYTE,
+                op::BYTE,
                 result_value,
                 liveness,
                 block,
@@ -1538,7 +1538,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::LT,
+                op::LT,
                 result_value,
                 liveness,
                 block,
@@ -1548,7 +1548,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::GT,
+                op::GT,
                 result_value,
                 liveness,
                 block,
@@ -1558,7 +1558,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::SLT,
+                op::SLT,
                 result_value,
                 liveness,
                 block,
@@ -1568,7 +1568,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::SGT,
+                op::SGT,
                 result_value,
                 liveness,
                 block,
@@ -1578,7 +1578,7 @@ impl EvmCodegen {
                 func,
                 *a,
                 *b,
-                opcodes::EQ,
+                op::EQ,
                 result_value,
                 liveness,
                 block,
@@ -1587,7 +1587,7 @@ impl EvmCodegen {
             InstKind::IsZero(a) => self.emit_unary_op_with_result(
                 func,
                 *a,
-                opcodes::ISZERO,
+                op::ISZERO,
                 result_value,
                 liveness,
                 block,
@@ -1601,7 +1601,7 @@ impl EvmCodegen {
             InstKind::MLoad(addr) => self.emit_unary_op_with_result(
                 func,
                 *addr,
-                opcodes::MLOAD,
+                op::MLOAD,
                 result_value,
                 liveness,
                 block,
@@ -1611,7 +1611,7 @@ impl EvmCodegen {
                 func,
                 *addr,
                 *val,
-                opcodes::MSTORE,
+                op::MSTORE,
                 liveness,
                 block,
                 inst_idx,
@@ -1620,13 +1620,13 @@ impl EvmCodegen {
                 func,
                 *addr,
                 *val,
-                opcodes::MSTORE8,
+                op::MSTORE8,
                 liveness,
                 block,
                 inst_idx,
             ),
             InstKind::MSize => {
-                self.asm.emit_op(opcodes::MSIZE);
+                self.asm.emit_op(op::MSIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
 
@@ -1634,7 +1634,7 @@ impl EvmCodegen {
             InstKind::SLoad(slot) => self.emit_unary_op_with_result(
                 func,
                 *slot,
-                opcodes::SLOAD,
+                op::SLOAD,
                 result_value,
                 liveness,
                 block,
@@ -1644,7 +1644,7 @@ impl EvmCodegen {
                 func,
                 *slot,
                 *val,
-                opcodes::SSTORE,
+                op::SSTORE,
                 liveness,
                 block,
                 inst_idx,
@@ -1652,7 +1652,7 @@ impl EvmCodegen {
             InstKind::TLoad(slot) => self.emit_unary_op_with_result(
                 func,
                 *slot,
-                opcodes::TLOAD,
+                op::TLOAD,
                 result_value,
                 liveness,
                 block,
@@ -1662,7 +1662,7 @@ impl EvmCodegen {
                 func,
                 *slot,
                 *val,
-                opcodes::TSTORE,
+                op::TSTORE,
                 liveness,
                 block,
                 inst_idx,
@@ -1672,14 +1672,14 @@ impl EvmCodegen {
             InstKind::CalldataLoad(off) => self.emit_unary_op_with_result(
                 func,
                 *off,
-                opcodes::CALLDATALOAD,
+                op::CALLDATALOAD,
                 result_value,
                 liveness,
                 block,
                 inst_idx,
             ),
             InstKind::CalldataSize => {
-                self.asm.emit_op(opcodes::CALLDATASIZE);
+                self.asm.emit_op(op::CALLDATASIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
 
@@ -1688,7 +1688,7 @@ impl EvmCodegen {
                 func,
                 *off,
                 *len,
-                opcodes::KECCAK256,
+                op::KECCAK256,
                 result_value,
                 liveness,
                 block,
@@ -1697,69 +1697,69 @@ impl EvmCodegen {
 
             // Environment operations
             InstKind::Caller => {
-                self.asm.emit_op(opcodes::CALLER);
+                self.asm.emit_op(op::CALLER);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::CallValue => {
-                self.asm.emit_op(opcodes::CALLVALUE);
+                self.asm.emit_op(op::CALLVALUE);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Address => {
-                self.asm.emit_op(opcodes::ADDRESS);
+                self.asm.emit_op(op::ADDRESS);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Origin => {
-                self.asm.emit_op(opcodes::ORIGIN);
+                self.asm.emit_op(op::ORIGIN);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::GasPrice => {
-                self.asm.emit_op(opcodes::GASPRICE);
+                self.asm.emit_op(op::GASPRICE);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Gas => {
-                self.asm.emit_op(opcodes::GAS);
+                self.asm.emit_op(op::GAS);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Timestamp => {
-                self.asm.emit_op(opcodes::TIMESTAMP);
+                self.asm.emit_op(op::TIMESTAMP);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::BlockNumber => {
-                self.asm.emit_op(opcodes::NUMBER);
+                self.asm.emit_op(op::NUMBER);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Coinbase => {
-                self.asm.emit_op(opcodes::COINBASE);
+                self.asm.emit_op(op::COINBASE);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::ChainId => {
-                self.asm.emit_op(opcodes::CHAINID);
+                self.asm.emit_op(op::CHAINID);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::SelfBalance => {
-                self.asm.emit_op(opcodes::SELFBALANCE);
+                self.asm.emit_op(op::SELFBALANCE);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::BaseFee => {
-                self.asm.emit_op(opcodes::BASEFEE);
+                self.asm.emit_op(op::BASEFEE);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::BlobBaseFee => {
-                self.asm.emit_op(opcodes::BLOBBASEFEE);
+                self.asm.emit_op(op::BLOBBASEFEE);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::GasLimit => {
-                self.asm.emit_op(opcodes::GASLIMIT);
+                self.asm.emit_op(op::GASLIMIT);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::PrevRandao => {
-                self.asm.emit_op(opcodes::PREVRANDAO);
+                self.asm.emit_op(op::PREVRANDAO);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::Balance(addr) => self.emit_unary_op_with_result(
                 func,
                 *addr,
-                opcodes::BALANCE,
+                op::BALANCE,
                 result_value,
                 liveness,
                 block,
@@ -1768,7 +1768,7 @@ impl EvmCodegen {
             InstKind::BlockHash(num) => self.emit_unary_op_with_result(
                 func,
                 *num,
-                opcodes::BLOCKHASH,
+                op::BLOCKHASH,
                 result_value,
                 liveness,
                 block,
@@ -1777,7 +1777,7 @@ impl EvmCodegen {
             InstKind::BlobHash(idx) => self.emit_unary_op_with_result(
                 func,
                 *idx,
-                opcodes::BLOBHASH,
+                op::BLOBHASH,
                 result_value,
                 liveness,
                 block,
@@ -1786,7 +1786,7 @@ impl EvmCodegen {
             InstKind::ExtCodeSize(addr) => self.emit_unary_op_with_result(
                 func,
                 *addr,
-                opcodes::EXTCODESIZE,
+                op::EXTCODESIZE,
                 result_value,
                 liveness,
                 block,
@@ -1795,14 +1795,14 @@ impl EvmCodegen {
             InstKind::ExtCodeHash(addr) => self.emit_unary_op_with_result(
                 func,
                 *addr,
-                opcodes::EXTCODEHASH,
+                op::EXTCODEHASH,
                 result_value,
                 liveness,
                 block,
                 inst_idx,
             ),
             InstKind::CodeSize => {
-                self.asm.emit_op(opcodes::CODESIZE);
+                self.asm.emit_op(op::CODESIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::LoadImmutable(offset) => {
@@ -1810,23 +1810,23 @@ impl EvmCodegen {
                     // The running constructor's own placeholders are never
                     // patched; read the staged scratch word instead.
                     self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(*offset)));
-                    self.asm.emit_op(opcodes::MLOAD);
+                    self.asm.emit_op(op::MLOAD);
                 } else {
                     self.asm.emit_push_immutable(*offset);
                 }
                 self.scheduler.instruction_executed(0, result_value);
             }
             InstKind::ReturnDataSize => {
-                self.asm.emit_op(opcodes::RETURNDATASIZE);
+                self.asm.emit_op(op::RETURNDATASIZE);
                 self.scheduler.instruction_executed(0, result_value);
             }
 
             // Ternary operations
             InstKind::AddMod(a, b, n) => {
-                self.emit_ternary_op(func, *a, *b, *n, opcodes::ADDMOD, result_value)
+                self.emit_ternary_op(func, *a, *b, *n, op::ADDMOD, result_value)
             }
             InstKind::MulMod(a, b, n) => {
-                self.emit_ternary_op(func, *a, *b, *n, opcodes::MULMOD, result_value)
+                self.emit_ternary_op(func, *a, *b, *n, op::MULMOD, result_value)
             }
 
             // Select is like a ternary conditional
@@ -1850,13 +1850,13 @@ impl EvmCodegen {
                 self.emit_stack_op(StackOp::Dup(3));
                 // Step 3: SUB (top - second = t - f) -> [f, t, cond, t-f]
                 self.emit_op_with_effect(
-                    opcodes::SUB,
+                    op::SUB,
                     StackEffect { pops: 2, pushes: 1 },
                     StackPush::Unknown,
                 );
                 // Step 4: MUL (cond * (t-f)) -> [f, t, cond*(t-f)]
                 self.emit_op_with_effect(
-                    opcodes::MUL,
+                    op::MUL,
                     StackEffect { pops: 2, pushes: 1 },
                     StackPush::Unknown,
                 );
@@ -1866,7 +1866,7 @@ impl EvmCodegen {
                 self.emit_stack_op(StackOp::Pop);
                 // Step 7: ADD (cond*(t-f) + f = f + cond*(t-f)) -> [result]
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
-                self.emit_op_with_effect(opcodes::ADD, StackEffect { pops: 2, pushes: 1 }, push);
+                self.emit_op_with_effect(op::ADD, StackEffect { pops: 2, pushes: 1 }, push);
             }
 
             // Sign extend
@@ -1874,7 +1874,7 @@ impl EvmCodegen {
                 func,
                 *b,
                 *x,
-                opcodes::SIGNEXTEND,
+                op::SIGNEXTEND,
                 result_value,
                 liveness,
                 block,
@@ -1889,7 +1889,7 @@ impl EvmCodegen {
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
                 self.emit_operand(func, *value);
-                self.asm.emit_op(opcodes::CREATE);
+                self.asm.emit_op(op::CREATE);
                 // CREATE consumes 3 values and produces 1 (new contract address)
                 self.scheduler.instruction_executed(3, result_value);
             }
@@ -1901,7 +1901,7 @@ impl EvmCodegen {
                 self.emit_operand(func, *offset);
                 self.emit_operand(func, *size);
                 self.emit_operand(func, *salt);
-                self.asm.emit_op(opcodes::CREATE2);
+                self.asm.emit_op(op::CREATE2);
                 // CREATE2 consumes 4 values and produces 1 (new contract address)
                 self.scheduler.instruction_executed(4, result_value);
             }
@@ -1925,7 +1925,7 @@ impl EvmCodegen {
 
                 // CALL consumes 7 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
-                self.emit_op_with_effect(opcodes::CALL, StackEffect { pops: 7, pushes: 1 }, push);
+                self.emit_op_with_effect(op::CALL, StackEffect { pops: 7, pushes: 1 }, push);
             }
 
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
@@ -1938,11 +1938,7 @@ impl EvmCodegen {
                 self.emit_value_fresh(func, *gas);
                 // STATICCALL consumes 6 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
-                self.emit_op_with_effect(
-                    opcodes::STATICCALL,
-                    StackEffect { pops: 6, pushes: 1 },
-                    push,
-                );
+                self.emit_op_with_effect(op::STATICCALL, StackEffect { pops: 6, pushes: 1 }, push);
             }
 
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
@@ -1956,7 +1952,7 @@ impl EvmCodegen {
                 // DELEGATECALL consumes 6 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(
-                    opcodes::DELEGATECALL,
+                    op::DELEGATECALL,
                     StackEffect { pops: 6, pushes: 1 },
                     push,
                 );
@@ -1987,7 +1983,7 @@ impl EvmCodegen {
                 // LOG0(offset, size) - stack order: offset on top, then size
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
-                self.asm.emit_op(opcodes::LOG0);
+                self.asm.emit_op(op::LOG0);
                 self.scheduler.instruction_executed(2, None);
             }
             InstKind::Log1(offset, size, topic1) => {
@@ -1995,7 +1991,7 @@ impl EvmCodegen {
                 self.emit_value(func, *topic1);
                 self.emit_operand(func, *size);
                 self.emit_operand(func, *offset);
-                self.asm.emit_op(opcodes::LOG1);
+                self.asm.emit_op(op::LOG1);
                 self.scheduler.instruction_executed(3, None);
             }
             InstKind::Log2(offset, size, topic1, topic2) => {
@@ -2004,7 +2000,7 @@ impl EvmCodegen {
                 self.emit_operand(func, *topic1);
                 self.emit_operand(func, *size);
                 self.emit_operand(func, *offset);
-                self.asm.emit_op(opcodes::LOG2);
+                self.asm.emit_op(op::LOG2);
                 self.scheduler.instruction_executed(4, None);
             }
             InstKind::Log3(offset, size, topic1, topic2, topic3) => {
@@ -2014,7 +2010,7 @@ impl EvmCodegen {
                 self.emit_operand(func, *topic1);
                 self.emit_operand(func, *size);
                 self.emit_operand(func, *offset);
-                self.asm.emit_op(opcodes::LOG3);
+                self.asm.emit_op(op::LOG3);
                 self.scheduler.instruction_executed(5, None);
             }
             InstKind::Log4(offset, size, topic1, topic2, topic3, topic4) => {
@@ -2025,7 +2021,7 @@ impl EvmCodegen {
                 self.emit_operand(func, *topic1);
                 self.emit_operand(func, *size);
                 self.emit_operand(func, *offset);
-                self.asm.emit_op(opcodes::LOG4);
+                self.asm.emit_op(op::LOG4);
                 self.scheduler.instruction_executed(6, None);
             }
 
@@ -2035,7 +2031,7 @@ impl EvmCodegen {
                 self.emit_copy_op_live_aware(
                     func,
                     &[*size, *offset, *dest],
-                    opcodes::CALLDATACOPY,
+                    op::CALLDATACOPY,
                     liveness,
                     block,
                     inst_idx,
@@ -2047,7 +2043,7 @@ impl EvmCodegen {
                 self.emit_copy_op_live_aware(
                     func,
                     &[*size, *offset, *dest],
-                    opcodes::CODECOPY,
+                    op::CODECOPY,
                     liveness,
                     block,
                     inst_idx,
@@ -2059,7 +2055,7 @@ impl EvmCodegen {
                 self.emit_copy_op_live_aware(
                     func,
                     &[*size, *offset, *dest],
-                    opcodes::RETURNDATACOPY,
+                    op::RETURNDATACOPY,
                     liveness,
                     block,
                     inst_idx,
@@ -2071,7 +2067,7 @@ impl EvmCodegen {
                 self.emit_copy_op_live_aware(
                     func,
                     &[*size, *src, *dest],
-                    opcodes::MCOPY,
+                    op::MCOPY,
                     liveness,
                     block,
                     inst_idx,
@@ -2083,7 +2079,7 @@ impl EvmCodegen {
                 self.emit_copy_op_live_aware(
                     func,
                     &[*size, *offset, *dest, *addr],
-                    opcodes::EXTCODECOPY,
+                    op::EXTCODECOPY,
                     liveness,
                     block,
                     inst_idx,
@@ -2110,7 +2106,7 @@ impl EvmCodegen {
 
     fn emit_new_internal_frame_base_tracked(&mut self) {
         self.asm.emit_push(U256::from(0x40));
-        self.asm.emit_op(opcodes::MLOAD);
+        self.asm.emit_op(op::MLOAD);
         self.scheduler.stack.push_unknown();
     }
 
@@ -2120,12 +2116,12 @@ impl EvmCodegen {
             self.asm.emit_push(U256::from(offset));
             self.scheduler.stack.push_unknown();
             self.emit_op_with_effect(
-                opcodes::ADD,
+                op::ADD,
                 StackEffect { pops: 2, pushes: 1 },
                 StackPush::Unknown,
             );
         }
-        self.asm.emit_op(opcodes::MSTORE);
+        self.asm.emit_op(op::MSTORE);
         self.scheduler.instruction_executed(2, None);
     }
 
@@ -2133,30 +2129,26 @@ impl EvmCodegen {
         self.emit_stack_op(StackOp::Dup(1));
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
         self.scheduler.stack.push_unknown();
-        self.asm.emit_op(opcodes::MSTORE);
+        self.asm.emit_op(op::MSTORE);
         self.scheduler.instruction_executed(2, None);
     }
 
     fn emit_store_new_free_pointer_from_frame_base(&mut self, frame_size: DeferredConst) {
         self.asm.emit_push_deferred(frame_size);
         self.scheduler.stack.push_unknown();
-        self.emit_op_with_effect(
-            opcodes::ADD,
-            StackEffect { pops: 2, pushes: 1 },
-            StackPush::Unknown,
-        );
+        self.emit_op_with_effect(op::ADD, StackEffect { pops: 2, pushes: 1 }, StackPush::Unknown);
         self.asm.emit_push(U256::from(0x40));
         self.scheduler.stack.push_unknown();
-        self.asm.emit_op(opcodes::MSTORE);
+        self.asm.emit_op(op::MSTORE);
         self.scheduler.instruction_executed(2, None);
     }
 
     fn emit_current_internal_frame_addr(&mut self, offset: u64) {
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
-        self.asm.emit_op(opcodes::MLOAD);
+        self.asm.emit_op(op::MLOAD);
         if offset != 0 {
             self.asm.emit_push(U256::from(offset));
-            self.asm.emit_op(opcodes::ADD);
+            self.asm.emit_op(op::ADD);
         }
     }
 
@@ -2188,7 +2180,7 @@ impl EvmCodegen {
         let id = self.asm.new_deferred_const();
         self.asm.emit_push_deferred(id);
         self.asm.emit_push(U256::from(0x40));
-        self.asm.emit_op(opcodes::MSTORE);
+        self.asm.emit_op(op::MSTORE);
         id
     }
 
@@ -2210,7 +2202,7 @@ impl EvmCodegen {
 
     fn emit_internal_arg_load(&mut self, index: u32) {
         self.emit_current_internal_frame_addr(64 + u64::from(index) * 32);
-        self.asm.emit_op(opcodes::MLOAD);
+        self.asm.emit_op(op::MLOAD);
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -2253,7 +2245,7 @@ impl EvmCodegen {
 
         // frame[32] = previous frame pointer
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
-        self.asm.emit_op(opcodes::MLOAD);
+        self.asm.emit_op(op::MLOAD);
         self.scheduler.stack.push_unknown();
         self.emit_internal_frame_store_from_top_preserving_base(32);
 
@@ -2272,7 +2264,7 @@ impl EvmCodegen {
         self.scheduler.clear_stack();
 
         self.asm.emit_push_label(callee_label);
-        self.asm.emit_op(opcodes::JUMP);
+        self.asm.emit_op(op::JUMP);
 
         self.asm.define_label(return_label);
         self.scheduler.clear_stack();
@@ -2281,7 +2273,7 @@ impl EvmCodegen {
             && returns > 0
         {
             self.emit_current_internal_frame_addr(64 + (args.len() as u64) * 32);
-            self.asm.emit_op(opcodes::MLOAD);
+            self.asm.emit_op(op::MLOAD);
             self.scheduler.stack.push(result);
         }
 
@@ -2293,9 +2285,9 @@ impl EvmCodegen {
         // net-zero stack effect so they leave it untouched.
         for i in 1..returns {
             self.emit_current_internal_frame_addr(64 + (args.len() as u64) * 32 + (i as u64) * 32);
-            self.asm.emit_op(opcodes::MLOAD);
+            self.asm.emit_op(op::MLOAD);
             self.asm.emit_push(U256::from((i as u64) * 32));
-            self.asm.emit_op(opcodes::MSTORE);
+            self.asm.emit_op(op::MSTORE);
         }
 
         // Deallocate the callee frame in strict LIFO order by restoring the
@@ -2310,14 +2302,14 @@ impl EvmCodegen {
         if self.restorable_internal_frames.contains(&callee) {
             self.emit_current_internal_frame_addr(0);
             self.asm.emit_push(U256::from(0x40));
-            self.asm.emit_op(opcodes::MSTORE);
+            self.asm.emit_op(op::MSTORE);
         }
 
         // Restore the caller frame pointer. If a result is on the stack, this leaves it there.
         self.emit_current_internal_frame_addr(32);
-        self.asm.emit_op(opcodes::MLOAD);
+        self.asm.emit_op(op::MLOAD);
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
-        self.asm.emit_op(opcodes::MSTORE);
+        self.asm.emit_op(op::MSTORE);
     }
 
     fn spill_live_stack_values(
@@ -2384,33 +2376,33 @@ impl EvmCodegen {
                 ScheduledOp::LoadSpill(slot) => {
                     // PUSH slot_offset, MLOAD
                     self.emit_spill_slot_addr(func, slot);
-                    self.asm.emit_op(opcodes::MLOAD);
+                    self.asm.emit_op(op::MLOAD);
                 }
                 ScheduledOp::SaveSpill(slot) => {
                     // PUSH slot_offset, MSTORE
                     self.emit_spill_slot_addr(func, slot);
-                    self.asm.emit_op(opcodes::MSTORE);
+                    self.asm.emit_op(op::MSTORE);
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
                         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
-                        self.asm.emit_op(opcodes::MLOAD);
+                        self.asm.emit_op(op::MLOAD);
                         self.asm.emit_push(U256::from(64 + u64::from(index) * 32));
-                        self.asm.emit_op(opcodes::ADD);
-                        self.asm.emit_op(opcodes::MLOAD);
+                        self.asm.emit_op(op::ADD);
+                        self.asm.emit_op(op::MLOAD);
                     } else if self.in_constructor {
                         // Constructor args were copied to memory at 0x80
                         // Load from memory: 0x80 + index * 32
                         let offset = 0x80 + (index as u64) * 32;
                         self.asm.emit_push(U256::from(offset));
-                        self.asm.emit_op(opcodes::MLOAD);
+                        self.asm.emit_op(op::MLOAD);
                     } else {
                         // Runtime function: load from calldata
                         // ABI encoding: selector (4 bytes) + args (32 bytes each)
                         // Offset = 4 + index * 32
                         let offset = 4 + (index as u64) * 32;
                         self.asm.emit_push(U256::from(offset));
-                        self.asm.emit_op(opcodes::CALLDATALOAD);
+                        self.asm.emit_op(op::CALLDATALOAD);
                     }
                 }
             }
@@ -2434,11 +2426,11 @@ impl EvmCodegen {
                 } else if self.in_constructor {
                     let offset = 0x80 + (*index as u64) * 32;
                     self.asm.emit_push(U256::from(offset));
-                    self.asm.emit_op(opcodes::MLOAD);
+                    self.asm.emit_op(op::MLOAD);
                 } else {
                     let offset = 4 + (*index as u64) * 32;
                     self.asm.emit_push(U256::from(offset));
-                    self.asm.emit_op(opcodes::CALLDATALOAD);
+                    self.asm.emit_op(op::CALLDATALOAD);
                 }
                 self.scheduler.stack.push(val);
             }
@@ -2450,7 +2442,7 @@ impl EvmCodegen {
                 {
                     // Load from spill slot
                     self.emit_spill_slot_addr(func, slot);
-                    self.asm.emit_op(opcodes::MLOAD);
+                    self.asm.emit_op(op::MLOAD);
                     self.scheduler.stack.push(val);
                 } else {
                     // Check if the instruction is one that we can "re-execute" to get a fresh value
@@ -2459,23 +2451,23 @@ impl EvmCodegen {
                     let inst_kind = &func.instruction(*inst_id).kind;
                     match inst_kind {
                         crate::mir::InstKind::Gas => {
-                            self.asm.emit_op(opcodes::GAS);
+                            self.asm.emit_op(op::GAS);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::CallValue => {
-                            self.asm.emit_op(opcodes::CALLVALUE);
+                            self.asm.emit_op(op::CALLVALUE);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Caller => {
-                            self.asm.emit_op(opcodes::CALLER);
+                            self.asm.emit_op(op::CALLER);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Origin => {
-                            self.asm.emit_op(opcodes::ORIGIN);
+                            self.asm.emit_op(op::ORIGIN);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::CalldataSize => {
-                            self.asm.emit_op(opcodes::CALLDATASIZE);
+                            self.asm.emit_op(op::CALLDATASIZE);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::InternalFrameAddr(offset) => {
@@ -2483,11 +2475,11 @@ impl EvmCodegen {
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Timestamp => {
-                            self.asm.emit_op(opcodes::TIMESTAMP);
+                            self.asm.emit_op(op::TIMESTAMP);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::BlockNumber => {
-                            self.asm.emit_op(opcodes::NUMBER);
+                            self.asm.emit_op(op::NUMBER);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::MLoad(offset) => {
@@ -2500,7 +2492,7 @@ impl EvmCodegen {
                             // For other MLOAD addresses (reading from constant locations),
                             // re-emit is safe.
                             self.emit_value_fresh(func, *offset);
-                            self.asm.emit_op(opcodes::MLOAD);
+                            self.asm.emit_op(op::MLOAD);
                             // Pop offset, push result
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
@@ -2511,7 +2503,7 @@ impl EvmCodegen {
                             // offset last so it ends up on top.
                             self.emit_value_fresh(func, *size);
                             self.emit_value_fresh(func, *offset);
-                            self.asm.emit_op(opcodes::KECCAK256);
+                            self.asm.emit_op(op::KECCAK256);
                             // Pop offset and size, push result
                             self.scheduler.stack.pop();
                             self.scheduler.stack.pop();
@@ -2521,7 +2513,7 @@ impl EvmCodegen {
                             // Re-emit ADD
                             self.emit_value_fresh(func, *a);
                             self.emit_value_fresh(func, *b);
-                            self.asm.emit_op(opcodes::ADD);
+                            self.asm.emit_op(op::ADD);
                             self.scheduler.stack.pop();
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
@@ -2531,7 +2523,7 @@ impl EvmCodegen {
                             // must be emitted last (on top).
                             self.emit_value_fresh(func, *b);
                             self.emit_value_fresh(func, *a);
-                            self.asm.emit_op(opcodes::SUB);
+                            self.asm.emit_op(op::SUB);
                             self.scheduler.stack.pop();
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
@@ -2540,7 +2532,7 @@ impl EvmCodegen {
                             // Re-emit MUL
                             self.emit_value_fresh(func, *a);
                             self.emit_value_fresh(func, *b);
-                            self.asm.emit_op(opcodes::MUL);
+                            self.asm.emit_op(op::MUL);
                             self.scheduler.stack.pop();
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
@@ -2551,7 +2543,7 @@ impl EvmCodegen {
                             // storage slot reads the same value as the original
                             // load (same recompute contract as MLOAD above).
                             self.emit_value_fresh(func, *slot);
-                            self.asm.emit_op(opcodes::SLOAD);
+                            self.asm.emit_op(op::SLOAD);
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
                         }
@@ -2600,7 +2592,7 @@ impl EvmCodegen {
             self.emit_value(func, a);
             self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
             // DUP for the second operand
-            self.asm.emit_op(opcodes::DUP1);
+            self.asm.emit_op(op::DUP1);
             self.scheduler.stack.dup(1);
             self.asm.emit_op(opcode);
             self.scheduler.instruction_executed(2, result);
@@ -2617,7 +2609,7 @@ impl EvmCodegen {
             // a is an untracked value on top of stack, emit b, then SWAP
             self.emit_value(func, b);
             self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
-            self.asm.emit_op(opcodes::SWAP1);
+            self.asm.emit_op(op::SWAP1);
             self.scheduler.stack_swapped();
         } else if a_can_emit && !b_can_emit && has_untracked {
             // b is an untracked value on top of stack, emit a on top
@@ -2629,7 +2621,7 @@ impl EvmCodegen {
         } else if !a_can_emit && b_can_emit && has_untracked_at_1 {
             // a is an untracked value at depth 1, b is tracked on top
             // Stack is [b, a_untracked], need [a, b]
-            self.asm.emit_op(opcodes::SWAP1);
+            self.asm.emit_op(op::SWAP1);
             self.scheduler.stack_swapped();
         } else {
             // Normal case: emit b first (bottom), then a (top)
@@ -2764,7 +2756,7 @@ impl EvmCodegen {
                     // DUP the temp value to top of stack
                     if let Some(depth) = self.scheduler.stack.find(temp_val) {
                         let dup_n = (depth + 1) as u8;
-                        self.asm.emit_op(opcodes::dup(dup_n));
+                        self.asm.emit_op(op::dup(dup_n));
                         self.scheduler.stack.dup(dup_n);
                     }
                 }
@@ -2779,7 +2771,7 @@ impl EvmCodegen {
                 let slot = self.scheduler.spills.allocate(*dst_val);
                 self.emit_spill_slot_addr(func, slot);
                 self.scheduler.stack.push_unknown();
-                self.asm.emit_op(opcodes::MSTORE);
+                self.asm.emit_op(op::MSTORE);
                 self.scheduler.stack.pop(); // pop the untracked offset
                 self.scheduler.stack.pop(); // pop the value
                 self.scheduler.spills.mark_stored(*dst_val);
@@ -2798,7 +2790,7 @@ impl EvmCodegen {
     /// This ensures the stack is empty before control flow transfer to another block.
     fn pop_all_stack_values(&mut self) {
         while self.scheduler.stack_depth() > 0 {
-            self.asm.emit_op(opcodes::POP);
+            self.asm.emit_op(op::POP);
             self.scheduler.stack.pop();
         }
     }
@@ -2808,14 +2800,14 @@ impl EvmCodegen {
         for (i, &value) in values.iter().enumerate() {
             self.emit_operand(func, value);
             self.emit_current_internal_frame_addr(return_base + (i as u64) * 32);
-            self.asm.emit_op(opcodes::MSTORE);
+            self.asm.emit_op(op::MSTORE);
             self.scheduler.stack.pop();
         }
 
         self.pop_all_stack_values();
         self.emit_current_internal_frame_addr(0);
-        self.asm.emit_op(opcodes::MLOAD);
-        self.asm.emit_op(opcodes::JUMP);
+        self.asm.emit_op(op::MLOAD);
+        self.asm.emit_op(op::JUMP);
     }
 
     /// Generates bytecode for a terminator.
@@ -2842,7 +2834,7 @@ impl EvmCodegen {
                     self.pop_all_stack_values();
                 }
                 self.asm.emit_push_label(self.block_labels[target]);
-                self.asm.emit_op(opcodes::JUMP);
+                self.asm.emit_op(op::JUMP);
             }
 
             Terminator::Branch { condition, then_block, else_block } => {
@@ -2856,9 +2848,9 @@ impl EvmCodegen {
                 if !preserve_stack {
                     while self.scheduler.depth() > 1 {
                         // SWAP to get unwanted value to top, then POP
-                        self.asm.emit_op(opcodes::SWAP1);
+                        self.asm.emit_op(op::SWAP1);
                         self.scheduler.stack_swapped();
-                        self.asm.emit_op(opcodes::POP);
+                        self.asm.emit_op(op::POP);
                         self.scheduler.stack.pop();
                     }
                 }
@@ -2867,15 +2859,15 @@ impl EvmCodegen {
                     Some(next) if *else_block == next => {
                         // JUMPI consumes the condition; false falls through to `else_block`.
                         self.asm.emit_push_label(self.block_labels[then_block]);
-                        self.asm.emit_op(opcodes::JUMPI);
+                        self.asm.emit_op(op::JUMPI);
                         self.scheduler.stack.pop(); // condition consumed by JUMPI
                     }
                     Some(next) if *then_block == next => {
                         // Invert the condition so true falls through to `then_block`.
-                        self.asm.emit_op(opcodes::ISZERO);
+                        self.asm.emit_op(op::ISZERO);
                         self.scheduler.instruction_executed_untracked(1);
                         self.asm.emit_push_label(self.block_labels[else_block]);
-                        self.asm.emit_op(opcodes::JUMPI);
+                        self.asm.emit_op(op::JUMPI);
                         self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
                     }
                     _ => {
@@ -2887,22 +2879,22 @@ impl EvmCodegen {
                         if Self::block_is_cold(func, *then_block)
                             && !Self::block_is_cold(func, *else_block)
                         {
-                            self.asm.emit_op(opcodes::ISZERO);
+                            self.asm.emit_op(op::ISZERO);
                             self.scheduler.instruction_executed_untracked(1);
                             self.asm.emit_push_label(self.block_labels[else_block]);
-                            self.asm.emit_op(opcodes::JUMPI);
+                            self.asm.emit_op(op::JUMPI);
                             self.scheduler.stack.pop(); // inverted condition consumed by JUMPI
 
                             self.asm.emit_push_label(self.block_labels[then_block]);
-                            self.asm.emit_op(opcodes::JUMP);
+                            self.asm.emit_op(op::JUMP);
                         } else {
                             // JUMPI consumes the condition
                             self.asm.emit_push_label(self.block_labels[then_block]);
-                            self.asm.emit_op(opcodes::JUMPI);
+                            self.asm.emit_op(op::JUMPI);
                             self.scheduler.stack.pop(); // condition consumed by JUMPI
 
                             self.asm.emit_push_label(self.block_labels[else_block]);
-                            self.asm.emit_op(opcodes::JUMP);
+                            self.asm.emit_op(op::JUMP);
                         }
                     }
                 }
@@ -2922,22 +2914,22 @@ impl EvmCodegen {
 
                 for (case_val, target) in cases {
                     // DUP the value, compare, jump if equal
-                    self.asm.emit_op(opcodes::DUP1);
+                    self.asm.emit_op(op::DUP1);
                     self.scheduler.stack.dup(1);
                     self.emit_operand(func, *case_val);
-                    self.asm.emit_op(opcodes::EQ);
+                    self.asm.emit_op(op::EQ);
                     self.scheduler.instruction_executed_untracked(2);
                     self.asm.emit_push_label(self.block_labels[target]);
-                    self.asm.emit_op(opcodes::JUMPI);
+                    self.asm.emit_op(op::JUMPI);
                     self.scheduler.instruction_executed(1, None); // JUMPI consumes condition
                 }
 
                 // Pop the value and jump to default
-                self.asm.emit_op(opcodes::POP);
+                self.asm.emit_op(op::POP);
                 self.scheduler.stack.pop();
                 if Some(*default) != fallthrough {
                     self.asm.emit_push_label(self.block_labels[default]);
-                    self.asm.emit_op(opcodes::JUMP);
+                    self.asm.emit_op(op::JUMP);
                 }
             }
 
@@ -2950,37 +2942,37 @@ impl EvmCodegen {
                 assert!(values.is_empty(), "external ABI returns with values must use ReturnData");
                 self.asm.emit_push(U256::ZERO);
                 self.asm.emit_push(U256::ZERO);
-                self.asm.emit_op(opcodes::RETURN);
+                self.asm.emit_op(op::RETURN);
             }
 
             Terminator::Revert { offset, size } => {
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
-                self.asm.emit_op(opcodes::REVERT);
+                self.asm.emit_op(op::REVERT);
             }
 
             Terminator::ReturnData { offset, size } => {
                 debug_assert!(!self.in_internal_function);
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
-                self.asm.emit_op(opcodes::RETURN);
+                self.asm.emit_op(op::RETURN);
             }
 
             Terminator::Stop => {
                 if self.in_internal_function {
                     self.emit_internal_return(func, &[]);
                 } else {
-                    self.asm.emit_op(opcodes::STOP);
+                    self.asm.emit_op(op::STOP);
                 }
             }
 
             Terminator::SelfDestruct { recipient } => {
                 self.emit_value(func, *recipient);
-                self.asm.emit_op(opcodes::SELFDESTRUCT);
+                self.asm.emit_op(op::SELFDESTRUCT);
             }
 
             Terminator::Invalid => {
-                self.asm.emit_op(opcodes::INVALID);
+                self.asm.emit_op(op::INVALID);
             }
         }
     }
