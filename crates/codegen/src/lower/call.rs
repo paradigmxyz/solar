@@ -1,11 +1,11 @@
 //! Call and member-call lowering.
 
-use super::{ARRAY_METHOD_POP, ARRAY_METHOD_PUSH, Lowerer, checked_arith::PanicCode};
+use super::{Lowerer, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, Span};
 use solar_data_structures::map::FxHashSet;
-use solar_interface::Ident;
+use solar_interface::{Ident, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -314,12 +314,11 @@ impl<'gcx> Lowerer<'gcx> {
 
         if let Some(opts) = call_opts {
             for opt in opts {
-                let name = opt.name.name.as_str();
-                match name {
-                    "salt" => {
+                match opt.name.name {
+                    sym::salt => {
                         salt_opt = Some(self.lower_expr(builder, &opt.value));
                     }
-                    "value" => {
+                    sym::value => {
                         value_opt = Some(self.lower_expr(builder, &opt.value));
                     }
                     _ => {
@@ -1250,10 +1249,10 @@ impl<'gcx> Lowerer<'gcx> {
         self.gcx.hir.contract(contract_id).kind.is_library()
     }
 
-    fn array_builtin_method_name(builtin: Builtin) -> Option<&'static str> {
+    fn array_builtin_method_name(builtin: Builtin) -> Option<Symbol> {
         match builtin {
-            Builtin::ArrayPush0 | Builtin::ArrayPush => Some(ARRAY_METHOD_PUSH),
-            Builtin::ArrayPop => Some(ARRAY_METHOD_POP),
+            Builtin::ArrayPush0 | Builtin::ArrayPush => Some(sym::push),
+            Builtin::ArrayPop => Some(kw::Pop),
             _ => None,
         }
     }
@@ -1297,7 +1296,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         if let Some(opts) = call_opts {
             for opt in opts {
-                if opt.name.name.as_str() == "value" {
+                if opt.name.name == sym::value {
                     return self.lower_expr(builder, &opt.value);
                 }
             }

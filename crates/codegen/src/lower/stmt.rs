@@ -3,7 +3,7 @@
 use super::{LoopContext, Lowerer};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::U256;
-use solar_interface::Span;
+use solar_interface::{Span, kw};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ExprKind, StmtKind},
@@ -456,7 +456,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
         let ExprKind::Call(callee, ..) = &expr.kind else { return false };
         let ExprKind::Member(base, member) = &callee.kind else { return false };
-        matches!(member.name.as_str(), "call" | "staticcall" | "delegatecall")
+        matches!(member.name, kw::Call | kw::Staticcall | kw::Delegatecall)
             && !self.is_contract_type_expr(base)
     }
 

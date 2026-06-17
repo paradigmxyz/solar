@@ -109,7 +109,7 @@ enum ExprKey {
     Balance(OperandKey),
     SelfBalance,
     BlobHash(OperandKey),
-    LoadImmutable(u64),
+    LoadImmutable(u32),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -867,7 +867,7 @@ impl CommonSubexprEliminator {
         if slot == original_slot {
             func.instructions[inst_id]
                 .metadata
-                .storage_alias
+                .storage_alias()
                 .unwrap_or_else(|| StorageAlias::for_value(func, slot))
         } else {
             StorageAlias::for_value(func, slot)
@@ -883,7 +883,7 @@ impl CommonSubexprEliminator {
     ) -> Option<MemRangeKey> {
         let region = func.instructions[inst_id]
             .metadata
-            .memory_region
+            .memory_region()
             .unwrap_or_else(|| Self::memory_region_for_addr(func, addr));
         let (base, offset) = Self::memory_addr_base_offset(func, addr);
         Some(MemRangeKey { region, base, offset, size, dyn_size: None })
@@ -1170,7 +1170,7 @@ impl CommonSubexprEliminator {
             let inst = &mut func.instructions[inst_id];
             if Self::replace_operands(&mut inst.kind, replacements) {
                 if Self::is_memory_inst(&inst.kind) {
-                    inst.metadata.memory_region = None;
+                    inst.metadata.set_memory_region(None);
                 }
                 if matches!(
                     inst.kind,
@@ -1179,7 +1179,7 @@ impl CommonSubexprEliminator {
                         | InstKind::TLoad(_)
                         | InstKind::TStore(_, _)
                 ) {
-                    inst.metadata.storage_alias = None;
+                    inst.metadata.set_storage_alias(None);
                 }
             }
         }

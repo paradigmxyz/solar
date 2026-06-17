@@ -72,9 +72,9 @@ impl<'a> FunctionBuilder<'a> {
 
     fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         let mut inst = Instruction::new(kind, result_ty);
-        inst.metadata.effect = Some(inst.kind.effect_kind());
-        inst.metadata.memory_region = self.memory_region_for_inst(&inst.kind);
-        inst.metadata.storage_alias = self.storage_alias_for_inst(&inst.kind);
+        inst.metadata.set_effect(Some(inst.kind.effect_kind()));
+        inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
+        inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
 
         let inst_id = self.func.alloc_inst(inst);
         self.func.blocks[self.current_block].instructions.push(inst_id);
@@ -344,7 +344,7 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a loadimmutable instruction for the immutable at `offset`.
-    pub fn load_immutable(&mut self, offset: u64) -> ValueId {
+    pub fn load_immutable(&mut self, offset: u32) -> ValueId {
         self.emit_inst(InstKind::LoadImmutable(offset), Some(MirType::uint256()))
     }
 
@@ -382,7 +382,8 @@ impl<'a> FunctionBuilder<'a> {
         result_ty: Option<MirType>,
         returns: usize,
     ) -> ValueId {
-        self.emit_inst(InstKind::InternalCall { function, args, returns }, result_ty)
+        let returns = u32::try_from(returns).expect("too many internal call return values");
+        self.emit_inst(InstKind::InternalCall { function, args: args.into(), returns }, result_ty)
     }
 
     /// Emits an address inside the current internal-call frame.

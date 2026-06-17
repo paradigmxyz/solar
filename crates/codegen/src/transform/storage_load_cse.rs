@@ -139,8 +139,8 @@ impl StorageLoadCse {
                 InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
                 _ => None,
             };
-            func.instructions[inst_id].metadata.storage_alias =
-                slot.map(|slot| StorageAlias::for_value(func, slot));
+            let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
+            func.instructions[inst_id].metadata.set_storage_alias(alias);
         }
     }
 
@@ -156,7 +156,7 @@ impl StorageLoadCse {
         if slot == original_slot {
             func.instructions[inst_id]
                 .metadata
-                .storage_alias
+                .storage_alias()
                 .unwrap_or_else(|| StorageAlias::for_value(func, slot))
         } else {
             StorageAlias::for_value(func, slot)
@@ -196,7 +196,7 @@ impl StorageLoadCse {
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
             if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
-                inst.metadata.storage_alias = None;
+                inst.metadata.set_storage_alias(None);
             }
         }
 

@@ -140,15 +140,15 @@ impl StorageStoreEliminator {
                 InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
                 _ => None,
             };
-            func.instructions[inst_id].metadata.storage_alias =
-                slot.map(|slot| StorageAlias::for_value(func, slot));
+            let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
+            func.instructions[inst_id].metadata.set_storage_alias(alias);
         }
     }
 
     fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
         func.instructions[inst_id]
             .metadata
-            .storage_alias
+            .storage_alias()
             .unwrap_or_else(|| StorageAlias::for_value(func, slot))
     }
 

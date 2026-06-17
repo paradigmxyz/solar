@@ -557,7 +557,7 @@ impl StorageScalarPromoter {
                     .expect("candidate init store should be in the preheader");
                 temps.insert(candidate.candidate.slot, (candidate.temp_addr, init_pos));
                 func.instructions[init_store].kind = InstKind::MStore(candidate.temp_addr, *init);
-                func.instructions[init_store].metadata.storage_alias = None;
+                func.instructions[init_store].metadata.set_storage_alias(None);
                 self.stats.stores_promoted += 1;
             }
         }
@@ -570,7 +570,7 @@ impl StorageScalarPromoter {
                     && pos > init_pos
                 {
                     func.instructions[inst_id].kind = InstKind::MLoad(temp_addr);
-                    func.instructions[inst_id].metadata.storage_alias = None;
+                    func.instructions[inst_id].metadata.set_storage_alias(None);
                     self.stats.loads_promoted += 1;
                 }
             }
@@ -607,7 +607,7 @@ impl StorageScalarPromoter {
                         _ => {}
                     }
                     func.instructions[inst_id].kind = new_kind;
-                    func.instructions[inst_id].metadata.storage_alias = None;
+                    func.instructions[inst_id].metadata.set_storage_alias(None);
                 }
             }
         }
@@ -650,7 +650,7 @@ impl StorageScalarPromoter {
                         _ => {}
                     }
                     func.instructions[inst_id].kind = new_kind;
-                    func.instructions[inst_id].metadata.storage_alias = None;
+                    func.instructions[inst_id].metadata.set_storage_alias(None);
                     if track_dirty
                         && let (Some(dirty_addr), Some(dirty_value)) =
                             (promoted.dirty_addr, promoted.dirty_value)
@@ -696,7 +696,7 @@ impl StorageScalarPromoter {
                 if let InstKind::SStore(_, init) = &func.instructions[init_store].kind {
                     func.instructions[init_store].kind =
                         InstKind::MStore(promoted.temp_addr, *init);
-                    func.instructions[init_store].metadata.storage_alias = None;
+                    func.instructions[init_store].metadata.set_storage_alias(None);
                     self.stats.stores_promoted += 1;
                 }
 
@@ -714,7 +714,7 @@ impl StorageScalarPromoter {
                         && self.storage_alias(func, inst_id, *load_slot) == candidate.slot
                     {
                         func.instructions[inst_id].kind = InstKind::MLoad(promoted.temp_addr);
-                        func.instructions[inst_id].metadata.storage_alias = None;
+                        func.instructions[inst_id].metadata.set_storage_alias(None);
                         self.stats.loads_promoted += 1;
                     }
                 }
@@ -895,15 +895,15 @@ impl StorageScalarPromoter {
                 InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
                 _ => None,
             };
-            func.instructions[inst_id].metadata.storage_alias =
-                slot.map(|slot| StorageAlias::for_value(func, slot));
+            let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
+            func.instructions[inst_id].metadata.set_storage_alias(alias);
         }
     }
 
     fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
         func.instructions[inst_id]
             .metadata
-            .storage_alias
+            .storage_alias()
             .unwrap_or_else(|| StorageAlias::for_value(func, slot))
     }
 

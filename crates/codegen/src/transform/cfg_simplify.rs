@@ -231,13 +231,13 @@ impl CfgSimplifier {
                 InstKind::Phi(_) => return None,
                 InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
                 InstKind::InternalCall { function, returns, .. } => {
-                    CanonPayload::Call(*function, *returns)
+                    CanonPayload::Call(*function, *returns as usize)
                 }
                 _ => CanonPayload::None,
             };
             let mut metadata = inst.metadata.clone();
-            metadata.hir_expr = None;
-            metadata.source_span = None;
+            metadata.set_hir_expr(None);
+            metadata.set_source_span(None);
             metadata.loop_depth = 0;
             insts.push(CanonInst {
                 mnemonic: inst.kind.mnemonic(),

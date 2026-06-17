@@ -857,7 +857,7 @@ impl LoadRedundancyEliminator {
 
         let write_region = func.instructions[inst_id]
             .metadata
-            .memory_region
+            .memory_region()
             .unwrap_or_else(|| Self::memory_region_for_addr(func, dest));
         if read.region != MemoryRegion::Unknown
             && write_region != MemoryRegion::Unknown
@@ -880,14 +880,14 @@ impl LoadRedundancyEliminator {
     fn storage_alias(func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
         func.instructions[inst_id]
             .metadata
-            .storage_alias
+            .storage_alias()
             .unwrap_or_else(|| StorageAlias::for_value(func, slot))
     }
 
     fn mem_addr(func: &Function, inst_id: InstId, addr: ValueId) -> Option<MemAddr> {
         let region = func.instructions[inst_id]
             .metadata
-            .memory_region
+            .memory_region()
             .unwrap_or_else(|| Self::memory_region_for_addr(func, addr));
         let (base, offset) = Self::memory_addr_base_offset(func, addr);
         Some(MemAddr { region, base, offset: offset? })
@@ -1034,7 +1034,7 @@ impl LoadRedundancyEliminator {
             }
             // Operand-derived metadata is stale once the operand changes.
             if Self::is_memory_inst(&inst.kind) {
-                inst.metadata.memory_region = None;
+                inst.metadata.set_memory_region(None);
             }
             if matches!(
                 inst.kind,
@@ -1043,7 +1043,7 @@ impl LoadRedundancyEliminator {
                     | InstKind::TLoad(_)
                     | InstKind::TStore(_, _)
             ) {
-                inst.metadata.storage_alias = None;
+                inst.metadata.set_storage_alias(None);
             }
         }
 

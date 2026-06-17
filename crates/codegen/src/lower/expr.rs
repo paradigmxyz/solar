@@ -1,7 +1,7 @@
 //! Expression lowering.
 
 use super::{
-    ARRAY_METHOD_POP, ARRAY_METHOD_PUSH, Lowerer,
+    Lowerer,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
 use crate::{
@@ -10,7 +10,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
-use solar_interface::{Ident, Span, sym};
+use solar_interface::{Ident, Span, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -2410,13 +2410,13 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         _var_id: hir::VariableId,
         slot: u64,
-        method: &str,
+        method: Symbol,
         args: &CallArgs<'_>,
     ) -> ValueId {
         let slot_val = builder.imm_u64(slot);
 
         match method {
-            ARRAY_METHOD_PUSH => {
+            sym::push => {
                 // 1. Load current length from slot
                 let length = builder.sload(slot_val);
 
@@ -2447,7 +2447,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // push returns void, return dummy
                 builder.imm_u64(0)
             }
-            ARRAY_METHOD_POP => {
+            kw::Pop => {
                 // pop() decrements length and clears the last element
                 // Storage layout:
                 // - Length at slot
