@@ -145,11 +145,6 @@ impl Assembler {
         self.instructions.push(AsmInst::label(label));
     }
 
-    /// Marks the current position with a label without emitting a `JUMPDEST`.
-    pub fn mark_label(&mut self, label: Label) {
-        self.instructions.push(AsmInst::mark(label));
-    }
-
     fn resolve_deferred_consts(&mut self) {
         for i in 0..self.instructions.len() {
             if let AsmInstKind::PushDeferred(id) = self.instructions[i].kind() {
@@ -270,9 +265,6 @@ impl Assembler {
                     label_offsets.insert(label, offset);
                     offset += 1;
                 }
-                AsmInstKind::Mark(label) => {
-                    label_offsets.insert(label, offset);
-                }
             }
         }
 
@@ -324,9 +316,6 @@ impl Assembler {
                 }
                 AsmInstKind::Label(_) => {
                     out.emit_op(op::JUMPDEST);
-                }
-                AsmInstKind::Mark(_) => {
-                    // Position markers do not emit anything.
                 }
             }
         }
@@ -433,7 +422,7 @@ impl Assembler {
             let key = body
                 .iter()
                 .copied()
-                .filter(|inst| !matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::Mark(_)))
+                .filter(|inst| !matches!(inst.kind(), AsmInstKind::Label(_)))
                 .collect();
             let estimated_size = body.iter().map(|&inst| self.estimated_inst_size(inst)).sum();
             candidates.push(TerminalBlock { label, label_index: i, key, estimated_size });
@@ -445,9 +434,6 @@ impl Assembler {
         for i in start..self.instructions.len() {
             if i != start && matches!(self.instructions[i].kind(), AsmInstKind::Label(_)) {
                 return None;
-            }
-            if matches!(self.instructions[i].kind(), AsmInstKind::Mark(_)) {
-                continue;
             }
             if let AsmInstKind::Op(op) = self.instructions[i].kind()
                 && op::is_terminal(op)
@@ -595,7 +581,6 @@ impl Assembler {
             }
             AsmInstKind::PushImmutable(_) => 33,
             AsmInstKind::Label(_) => 1,
-            AsmInstKind::Mark(_) => 0,
         }
     }
 
@@ -1248,21 +1233,6 @@ mod tests {
 
         assert_eq!(result.label_offsets[&label], 2);
         assert_eq!(result.bytecode, vec![0x60, 42, op::JUMPDEST, 0x60, 2, op::JUMP]);
-    }
-
-    #[test]
-    fn mark_label_does_not_emit_jumpdest() {
-        let mut asm = Assembler::new();
-        let label = asm.new_label();
-
-        asm.emit_push(U256::from(42));
-        asm.mark_label(label);
-        asm.emit_op(op::STOP);
-
-        let result = asm.assemble();
-
-        assert_eq!(result.label_offsets[&label], 2);
-        assert_eq!(result.bytecode, vec![0x60, 42, op::STOP]);
     }
 
     #[test]

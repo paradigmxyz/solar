@@ -841,11 +841,9 @@ impl EvmCodegen {
             preserved_fallthrough = None;
 
             let label = self.block_labels[&block_id];
-            if entered_by_preserved_fallthrough
-                || (block_id == func.entry_block && block.predecessors.is_empty())
+            if !entered_by_preserved_fallthrough
+                && (block_id != func.entry_block || !block.predecessors.is_empty())
             {
-                self.asm.mark_label(label);
-            } else {
                 self.asm.define_label(label);
             }
 
@@ -3166,11 +3164,11 @@ mod tests {
                 uint256 public totalSupply;
                 uint256 public reserve0;
                 uint256 public reserve1;
-                
+
                 function mint() external returns (uint256 liquidity) {
                     uint256 amount0 = 100;
                     uint256 amount1 = 200;
-                    
+
                     if (totalSupply == 0) {
                         liquidity = amount0 * amount1;
                     } else {
@@ -3178,7 +3176,7 @@ mod tests {
                         uint256 l2 = (amount1 * totalSupply) / reserve1;
                         liquidity = l1 < l2 ? l1 : l2;
                     }
-                    
+
                     totalSupply += liquidity;
                 }
             }

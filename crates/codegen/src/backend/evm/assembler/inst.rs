@@ -57,7 +57,6 @@ impl AsmInst {
     const TAG_PUSH_DEFERRED: u32 = 0xb000_0000;
     const TAG_PUSH_IMMUTABLE: u32 = 0xc000_0000;
     const TAG_LABEL: u32 = 0xd000_0000;
-    const TAG_MARK: u32 = 0xe000_0000;
 
     pub(super) fn op(opcode: u8) -> Self {
         Self(Self::TAG_OP | u32::from(opcode))
@@ -87,10 +86,6 @@ impl AsmInst {
         Self::tagged(Self::TAG_LABEL, label.inst_payload())
     }
 
-    pub(super) fn mark(label: Label) -> Self {
-        Self::tagged(Self::TAG_MARK, label.inst_payload())
-    }
-
     fn tagged(tag: u32, payload: u32) -> Self {
         assert!(payload <= Self::PAYLOAD_MASK, "assembler instruction payload overflow");
         Self(tag | payload)
@@ -111,7 +106,6 @@ impl AsmInst {
             }
             Self::TAG_PUSH_IMMUTABLE => AsmInstKind::PushImmutable(payload),
             Self::TAG_LABEL => AsmInstKind::Label(Label::from_inst_payload(payload)),
-            Self::TAG_MARK => AsmInstKind::Mark(Label::from_inst_payload(payload)),
             _ => unreachable!("invalid assembler instruction tag"),
         }
     }
@@ -126,5 +120,4 @@ pub(super) enum AsmInstKind {
     PushDeferred(DeferredConst),
     PushImmutable(u32),
     Label(Label),
-    Mark(Label),
 }
