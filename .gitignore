@@ -7,3 +7,6 @@
 .DS_Store
 **/cache/
 **/cache-*/
+tests/foundry/**/out-solar/
+tests/foundry/**/out-solc/
+tests/foundry/**/*-test-output-*.json
