@@ -42,6 +42,7 @@ use crate::{
         StorageAlias, Value, ValueId,
     },
     pass::FunctionPass,
+    transform::inst_results,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -189,7 +190,7 @@ impl CommonSubexprEliminator {
         self.sink_redundant_phi_expressions(func);
 
         // Neither the global nor the local pass allocates values, so the map stays valid.
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         self.process_global_pure(func, &inst_results);
 
         // Process each block independently (local CSE)
@@ -252,7 +253,7 @@ impl CommonSubexprEliminator {
 
     fn sink_redundant_phi_expressions(&mut self, func: &mut Function) {
         let cfg = CfgInfo::new(func);
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         let inst_blocks = Self::inst_blocks(func);
         let use_counts = Self::value_use_counts(func);
         let replacements = FxHashMap::default();
@@ -1077,15 +1078,6 @@ impl CommonSubexprEliminator {
             }
             _ => Ordering::Equal,
         })
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
     }
 
     fn inst_blocks(func: &Function) -> FxHashMap<InstId, BlockId> {

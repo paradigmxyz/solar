@@ -1,5 +1,8 @@
 //! Optimization and transformation passes for the Solar compiler.
 
+use crate::mir::{Function, InstId, Value, ValueId};
+use solar_data_structures::map::FxHashMap;
+
 mod adce;
 mod cfg_simplify;
 mod check_elim;
@@ -54,3 +57,14 @@ pub use storage_load_cse::{StorageLoadCse, StorageLoadCsePass};
 pub use storage_promotion::{
     StoragePromotionStats, StorageScalarPromoter, StorageScalarPromotionPass,
 };
+
+fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
+    let mut results = FxHashMap::default();
+    results.reserve(func.instructions.len());
+    for (value_id, value) in func.values.iter_enumerated() {
+        if let Value::Inst(inst_id) = value {
+            results.insert(*inst_id, value_id);
+        }
+    }
+    results
+}

@@ -47,6 +47,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
+    transform::inst_results,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -152,7 +153,7 @@ impl GlobalValueNumberer {
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = CfgInfo::new(func);
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
             return false;
         };
@@ -392,15 +393,6 @@ impl GlobalValueNumberer {
     }
 
     // ----- CFG helpers -----
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
-    }
 
     // ----- replacement application -----
 

@@ -5,8 +5,9 @@
 
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, ValueId},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
+    transform::inst_results,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -43,7 +44,7 @@ impl StorageLoadCse {
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
         let mut dead = FxHashSet::default();
@@ -176,16 +177,6 @@ impl StorageLoadCse {
             value = replacement;
         }
         value
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        let mut results = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value {
-                results.insert(*inst_id, value_id);
-            }
-        }
-        results
     }
 
     fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {

@@ -10,6 +10,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
+    transform::inst_results,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -89,7 +90,7 @@ impl MemoryStoreEliminator {
     }
 
     fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         let cfg = CfgInfo::new(func);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
@@ -317,7 +318,7 @@ impl MemoryStoreEliminator {
 
     fn fold_constant_keccak(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         let mut stored_words: FxHashMap<MemAddrKey, U256> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
@@ -405,7 +406,7 @@ impl MemoryStoreEliminator {
 
     fn forward_loads(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         let mut stored_values: FxHashMap<MemAddrKey, ValueId> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
@@ -487,15 +488,6 @@ impl MemoryStoreEliminator {
         Self::replace_uses(func, &replacements);
         self.eliminated_count += dead.len();
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
     }
 
     fn resolve_replacement(

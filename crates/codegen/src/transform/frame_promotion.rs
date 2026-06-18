@@ -16,6 +16,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
+    transform::inst_results,
     utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -228,7 +229,7 @@ impl FrameSlotPromoter {
         };
 
         for info in slots {
-            let inst_results = Self::inst_results(func);
+            let inst_results = inst_results(func);
             let mut builder = SlotSsaBuilder::new(&info, &cfg, &inst_results);
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
@@ -295,15 +296,6 @@ impl FrameSlotPromoter {
             .collect();
         slots.sort_by_key(|info| info.slot);
         slots
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
     }
 
     fn promotable_slot(func: &Function, value: ValueId) -> Option<PromotableSlot> {

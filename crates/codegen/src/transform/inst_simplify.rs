@@ -13,6 +13,7 @@
 use crate::{
     mir::{Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
+    transform::inst_results,
     utils::evm_word,
 };
 use alloy_primitives::U256;
@@ -48,7 +49,7 @@ impl InstSimplifier {
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.simplified_count = 0;
 
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         let block_ids: Vec<_> = func.blocks.indices().collect();
@@ -747,15 +748,6 @@ impl InstSimplifier {
             return None;
         }
         Some(U256::from(value.trailing_zeros()))
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
     }
 
     fn resolve_replacement(

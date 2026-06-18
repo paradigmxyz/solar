@@ -6,9 +6,9 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, Terminator, ValueId},
     pass::FunctionPass,
-    transform::DeadCodeEliminator,
+    transform::{DeadCodeEliminator, inst_results},
     utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -241,18 +241,9 @@ impl AggressiveDeadCodeEliminator {
 
 impl AdceContext {
     fn new(func: &Function) -> Self {
-        let inst_results = Self::inst_results(func);
+        let inst_results = inst_results(func);
         let value_uses = Self::value_uses(func);
         Self { inst_results, value_uses }
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
     }
 
     fn value_uses(func: &Function) -> FxHashMap<ValueId, FxHashSet<BlockId>> {

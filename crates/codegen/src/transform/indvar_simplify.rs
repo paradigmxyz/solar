@@ -26,6 +26,7 @@ use crate::{
         ValueId,
     },
     pass::FunctionPass,
+    transform::inst_results,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -112,7 +113,7 @@ impl IndVarSimplifier {
         };
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let inst_results = self.inst_results(func);
+        let inst_results = inst_results(func);
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
 
         let mut blocks: Vec<_> = loop_data.blocks.iter().copied().collect();
@@ -298,16 +299,6 @@ impl IndVarSimplifier {
             _ => return None,
         };
         if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
-    }
-
-    fn inst_results(&self, func: &Function) -> FxHashMap<InstId, ValueId> {
-        let mut results = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value {
-                results.insert(*inst_id, value_id);
-            }
-        }
-        results
     }
 
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {

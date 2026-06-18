@@ -36,6 +36,7 @@ use crate::{
         Terminator, Value, ValueId,
     },
     pass::FunctionPass,
+    transform::inst_results,
     utils::{repair_reachability_phis, split_edge},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -140,7 +141,7 @@ impl PartialRedundancyEliminator {
         self.stats = PreStats::default();
         repair_reachability_phis(func);
 
-        let mut inst_results = Self::inst_results(func);
+        let mut inst_results = inst_results(func);
         let mut inst_blocks = Self::inst_blocks(func);
 
         let mut eliminated_keys = FxHashSet::default();
@@ -655,15 +656,6 @@ impl PartialRedundancyEliminator {
             }
         }
         predecessors
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
     }
 
     fn inst_blocks(func: &Function) -> FxHashMap<InstId, BlockId> {
