@@ -18,6 +18,8 @@ pub mod map;
 pub mod sync;
 pub mod trustme;
 
+pub mod bit_set;
+
 mod bump_ext;
 pub use bump_ext::BumpExt;
 

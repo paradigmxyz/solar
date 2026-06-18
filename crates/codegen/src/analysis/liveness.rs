@@ -12,114 +12,11 @@
 
 use crate::mir::{BlockId, Function, InstId, Terminator, Value, ValueId};
 use smallvec::SmallVec;
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use std::collections::VecDeque;
 
 /// A dense bitset for tracking live values.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct LiveSet {
-    /// Bit vector where bit i indicates whether value i is live.
-    bits: Vec<u64>,
-}
-
-impl LiveSet {
-    /// Creates a new empty live set with capacity for `n` values.
-    #[must_use]
-    pub fn with_capacity(n: usize) -> Self {
-        let words = n.div_ceil(64);
-        Self { bits: vec![0; words] }
-    }
-
-    /// Returns true if the value is in the set.
-    #[must_use]
-    pub fn contains(&self, val: ValueId) -> bool {
-        let idx = val.index();
-        let word = idx / 64;
-        let bit = idx % 64;
-        word < self.bits.len() && (self.bits[word] & (1u64 << bit)) != 0
-    }
-
-    /// Adds a value to the set. Returns true if the value was not already present.
-    pub fn insert(&mut self, val: ValueId) -> bool {
-        let idx = val.index();
-        let word = idx / 64;
-        let bit = idx % 64;
-        if word >= self.bits.len() {
-            self.bits.resize(word + 1, 0);
-        }
-        let mask = 1u64 << bit;
-        let was_absent = (self.bits[word] & mask) == 0;
-        self.bits[word] |= mask;
-        was_absent
-    }
-
-    /// Removes a value from the set.
-    pub fn remove(&mut self, val: ValueId) {
-        let idx = val.index();
-        let word = idx / 64;
-        let bit = idx % 64;
-        if word < self.bits.len() {
-            self.bits[word] &= !(1u64 << bit);
-        }
-    }
-
-    /// Sets `self = self - other`, returning true if this set changed.
-    pub fn subtract(&mut self, other: &Self) -> bool {
-        let mut changed = false;
-        for (i, &word) in other.bits.iter().enumerate() {
-            if i < self.bits.len() {
-                let old = self.bits[i];
-                self.bits[i] &= !word;
-                if self.bits[i] != old {
-                    changed = true;
-                }
-            }
-        }
-        changed
-    }
-
-    /// Unions this set with another, returning true if this set changed.
-    pub fn union_with(&mut self, other: &Self) -> bool {
-        let mut changed = false;
-        if self.bits.len() < other.bits.len() {
-            self.bits.resize(other.bits.len(), 0);
-        }
-        for (i, &word) in other.bits.iter().enumerate() {
-            let old = self.bits[i];
-            self.bits[i] |= word;
-            if self.bits[i] != old {
-                changed = true;
-            }
-        }
-        changed
-    }
-
-    /// Returns an iterator over all values in the set.
-    pub fn iter(&self) -> impl Iterator<Item = ValueId> + '_ {
-        self.bits.iter().enumerate().flat_map(|(word_idx, &word)| {
-            (0..64).filter_map(move |bit| {
-                if (word & (1u64 << bit)) != 0 {
-                    Some(ValueId::from_usize(word_idx * 64 + bit))
-                } else {
-                    None
-                }
-            })
-        })
-    }
-
-    /// Returns the number of live values.
-    #[must_use]
-    pub fn count(&self) -> usize {
-        self.bits.iter().map(|w| w.count_ones() as usize).sum()
-    }
-
-    /// Clears the set.
-    pub fn clear(&mut self) {
-        for word in &mut self.bits {
-            *word = 0;
-        }
-    }
-}
+pub type LiveSet = GrowableBitSet<ValueId>;
 
 /// Per-instruction liveness information.
 #[derive(Clone, Debug)]
@@ -235,7 +132,7 @@ impl Liveness {
             let successors =
                 block.terminator.as_ref().map(Terminator::successors).unwrap_or_default();
             for succ in successors {
-                new_live_out.union_with(&block_liveness[succ.index()].live_in);
+                new_live_out.union(&block_liveness[succ.index()].live_in);
             }
 
             // live_in = use ∪ (live_out - def)
@@ -454,14 +351,14 @@ mod tests {
         set2.insert(ValueId::from_usize(2));
         set2.insert(ValueId::from_usize(3));
 
-        assert!(set1.union_with(&set2));
+        assert!(set1.union(&set2));
         assert!(set1.contains(ValueId::from_usize(1)));
         assert!(set1.contains(ValueId::from_usize(2)));
         assert!(set1.contains(ValueId::from_usize(3)));
         assert_eq!(set1.count(), 3);
 
         // Union again should not change
-        assert!(!set1.union_with(&set2));
+        assert!(!set1.union(&set2));
     }
 
     #[test]

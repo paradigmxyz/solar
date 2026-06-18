@@ -25,9 +25,10 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, InstKind, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, InstKind, Terminator, Value, ValueId, utils::repair_reachability_phis,
+    },
     pass::FunctionPass,
-    utils::repair_reachability_phis,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
