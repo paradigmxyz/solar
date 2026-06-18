@@ -87,8 +87,8 @@ impl Function {
     /// Returns a map from each instruction to its result value.
     #[must_use]
     pub fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
-        let mut results = FxHashMap::default();
-        results.reserve(self.instructions.len());
+        let mut results =
+            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
         for (value_id, value) in self.values.iter_enumerated() {
             if let Value::Inst(inst_id) = value {
                 results.insert(*inst_id, value_id);
@@ -100,8 +100,8 @@ impl Function {
     /// Returns a map from each instruction to the block containing it.
     #[must_use]
     pub fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
-        let mut inst_blocks = FxHashMap::default();
-        inst_blocks.reserve(self.instructions.len());
+        let mut inst_blocks =
+            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
         for (block_id, block) in self.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 inst_blocks.insert(inst_id, block_id);
