@@ -216,18 +216,18 @@ impl Function {
     fn replace_uses_with(
         &mut self,
         replacements: &FxHashMap<ValueId, ValueId>,
-        replacement: fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
+        replacement: impl Fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
     ) {
         if replacements.is_empty() {
             return;
         }
 
         for inst in self.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements, replacement);
+            Self::replace_inst_operands(&mut inst.kind, replacements, &replacement);
         }
         for block in self.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_operands(term, replacements, replacement);
+                Self::replace_terminator_operands(term, replacements, &replacement);
             }
         }
     }
@@ -235,7 +235,7 @@ impl Function {
     fn replace_inst_operands(
         kind: &mut InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
-        replacement: fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
+        replacement: impl Fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
     ) {
         kind.visit_operands_mut(|value| *value = replacement(*value, replacements));
     }
@@ -243,7 +243,7 @@ impl Function {
     fn replace_terminator_operands(
         term: &mut Terminator,
         replacements: &FxHashMap<ValueId, ValueId>,
-        replacement: fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
+        replacement: impl Fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
     ) {
         let replace = |value: &mut ValueId| {
             *value = replacement(*value, replacements);
