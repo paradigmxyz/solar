@@ -644,7 +644,7 @@ mod solang_import_resolution {
         _tmp: tempfile::TempDir,
         root: PathBuf,
         cwd: PathBuf,
-        imports: HashMap<String, &'a [&'a str]>,
+        imports: HashMap<PathBuf, &'a [&'a str]>,
     }
 
     impl<'a> Harness<'a> {
@@ -662,7 +662,7 @@ mod solang_import_resolution {
                     std::fs::create_dir_all(parent).unwrap();
                 }
                 std::fs::write(path_on_disk, "").unwrap();
-                let key = cwd.join(path).strip_prefix(&root).unwrap().to_str().unwrap().to_string();
+                let key = cwd.join(path).strip_prefix(&root).unwrap().to_path_buf();
                 imports.insert(key, *file_imports);
             }
             Self { _tmp: tmp, root, cwd, imports }
@@ -692,7 +692,7 @@ mod solang_import_resolution {
                     continue;
                 }
 
-                let key = path.strip_prefix(&self.root).unwrap().to_str().unwrap();
+                let key = path.strip_prefix(&self.root).unwrap();
                 for import in self.imports.get(key).copied().unwrap_or_default() {
                     stack.push(file_resolver.resolve_file(Path::new(import), Some(path))?);
                 }
