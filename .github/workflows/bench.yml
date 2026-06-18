@@ -150,8 +150,28 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_OUTPUT"
 
+      - name: Find existing runtime benchmark comment
+        id: runtime-comment
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          exists="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" \
+              --jq 'any(.[].body; contains("codegen-runtime-bench"))'
+          )"
+          echo "exists=${exists}" >> "$GITHUB_OUTPUT"
+
       - name: Comment on PR
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && steps.runtime-report.outputs.should_comment == 'true'
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          (steps.runtime-report.outputs.should_comment == 'true' ||
+          steps.runtime-comment.outputs.exists == 'true')
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: codegen-runtime-bench
