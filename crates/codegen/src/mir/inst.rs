@@ -585,8 +585,18 @@ impl Instruction {
 
     /// Returns the matching form of this instruction.
     #[must_use]
+    #[inline(always)]
     pub fn kind(&self) -> InstKind<'_> {
-        let op = |index| self.operands[index];
+        macro_rules! unreachable {
+            ($($t:tt)*) => {
+                if cfg!(debug_assertions) {
+                    panic!($($t)*)
+                } else {
+                    unsafe { core::hint::unreachable_unchecked() }
+                }
+            };
+        }
+        let op = |index| unsafe { *self.operands.get_unchecked(index) };
         match self.kind {
             InstTag::Add => InstKind::Add(op(0), op(1)),
             InstTag::Sub => InstKind::Sub(op(0), op(1)),
