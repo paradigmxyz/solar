@@ -11,13 +11,13 @@ impl Assembler {
     /// leave stale jump destinations.
     pub(super) fn optimize_instructions(&mut self) -> usize {
         let mut total = 0;
-        let len = self.instructions.len();
+        let len = self.program.instructions.len();
         let mut read = 0;
         let mut write = 0;
 
         while read < len {
             if write != read {
-                self.instructions.swap(write, read);
+                self.program.instructions.swap(write, read);
             }
             read += 1;
             write += 1;
@@ -32,13 +32,13 @@ impl Assembler {
                 debug_assert!(skip <= write);
 
                 let start = write - skip;
-                self.instructions[start..start + replacement_len]
+                self.program.instructions[start..start + replacement_len]
                     .copy_from_slice(&peephole.replacement[..replacement_len]);
                 write = start + replacement_len;
                 total += 1;
             }
         }
-        self.instructions.truncate(write);
+        self.program.instructions.truncate(write);
 
         total += self.deduplicate_terminal_blocks();
         total
@@ -68,12 +68,12 @@ impl Assembler {
             return 0;
         }
 
-        let mut optimized = Vec::with_capacity(self.instructions.len());
+        let mut optimized = Vec::with_capacity(self.program.instructions.len());
         let mut removed = 0;
         let mut i = 0;
-        while i < self.instructions.len() {
+        while i < self.program.instructions.len() {
             if let Some(&target) = replacements.get(&i)
-                && let AsmInstKind::Label(label) = self.instructions[i].kind()
+                && let AsmInstKind::Label(label) = self.program.instructions[i].kind()
                 && let Some(end) = self.terminal_block_end(i)
             {
                 optimized.push(AsmInst::label(label));
@@ -83,24 +83,24 @@ impl Assembler {
                 i = end + 1;
                 continue;
             }
-            optimized.push(self.instructions[i]);
+            optimized.push(self.program.instructions[i]);
             i += 1;
         }
 
-        self.instructions = optimized;
+        self.program.instructions = optimized;
         removed
     }
 
     fn terminal_block_candidates(&self) -> Vec<TerminalBlock> {
         let mut candidates = Vec::new();
-        for i in 0..self.instructions.len().saturating_sub(1) {
-            let AsmInstKind::Label(label) = self.instructions[i].kind() else {
+        for i in 0..self.program.instructions.len().saturating_sub(1) {
+            let AsmInstKind::Label(label) = self.program.instructions[i].kind() else {
                 continue;
             };
             let Some(end) = self.terminal_block_end(i) else {
                 continue;
             };
-            let body = &self.instructions[i..=end];
+            let body = &self.program.instructions[i..=end];
             let key = body
                 .iter()
                 .copied()
@@ -113,11 +113,11 @@ impl Assembler {
     }
 
     fn terminal_block_end(&self, start: usize) -> Option<usize> {
-        for i in start..self.instructions.len() {
-            if i != start && matches!(self.instructions[i].kind(), AsmInstKind::Label(_)) {
+        for i in start..self.program.instructions.len() {
+            if i != start && matches!(self.program.instructions[i].kind(), AsmInstKind::Label(_)) {
                 return None;
             }
-            if let AsmInstKind::Op(op) = self.instructions[i].kind()
+            if let AsmInstKind::Op(op) = self.program.instructions[i].kind()
                 && op::is_terminal(op)
             {
                 return Some(i);
@@ -140,7 +140,7 @@ impl Assembler {
             };
         }
 
-        let stack = InstStack::new(&self.instructions[..write]);
+        let stack = InstStack::new(&self.program.instructions[..write]);
 
         if stack.len() >= 3
             && Self::is_removable_push(stack[2])

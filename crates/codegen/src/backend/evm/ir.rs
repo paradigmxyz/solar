@@ -15,6 +15,33 @@ use solar_data_structures::{
 };
 use std::fmt as std_fmt;
 
+use super::assembler::{AsmInst, Label};
+
+/// Internal EVM program used by the assembler before final bytecode emission.
+///
+/// This is intentionally close to the existing assembler instruction stream:
+/// it lets current lowering keep emitting opcodes while giving backend passes a
+/// structured home for block metadata and layout decisions.
+#[derive(Clone, Debug, Default)]
+#[allow(dead_code)]
+pub(in crate::backend::evm) struct EvmAsmProgram {
+    pub(in crate::backend::evm) instructions: Vec<AsmInst>,
+    cold_labels: FxHashSet<Label>,
+}
+
+#[allow(dead_code)]
+impl EvmAsmProgram {
+    /// Clears all instructions and block metadata.
+    pub(in crate::backend::evm) fn clear(&mut self) {
+        self.instructions.clear();
+    }
+
+    /// Emits an assembler instruction.
+    pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
+        self.instructions.push(inst);
+    }
+}
+
 newtype_index! {
     /// A unique identifier for a function in textual EVM IR.
     pub struct EvmIrFunctionId;
