@@ -6,9 +6,7 @@
 )]
 
 use std::{
-    fmt,
-    hash::Hash,
-    iter,
+    fmt, iter,
     marker::PhantomData,
     ops::{Bound, Range, RangeBounds},
     rc::Rc,
@@ -17,34 +15,7 @@ use std::{
 
 use Chunk::*;
 
-pub trait Idx: Copy + 'static + Ord + fmt::Debug + Hash {
-    fn new(index: usize) -> Self;
-    fn index(self) -> usize;
-}
-
-impl Idx for usize {
-    #[inline]
-    fn new(index: usize) -> Self {
-        index
-    }
-
-    #[inline]
-    fn index(self) -> usize {
-        self
-    }
-}
-
-impl Idx for u32 {
-    #[inline]
-    fn new(index: usize) -> Self {
-        Self::try_from(index).unwrap()
-    }
-
-    #[inline]
-    fn index(self) -> usize {
-        self as usize
-    }
-}
+use crate::index::Idx;
 
 #[cfg(test)]
 mod tests;
@@ -239,8 +210,8 @@ impl<T: Idx> DenseBitSet<T> {
             return;
         };
 
-        let (start_word_index, start_mask) = word_index_and_mask(start);
-        let (end_word_index, end_mask) = word_index_and_mask(end);
+        let (start_word_index, start_mask) = word_index_and_mask_usize(start);
+        let (end_word_index, end_mask) = word_index_and_mask_usize(end);
 
         // Set all words in between start and end (exclusively of both).
         for word_index in (start_word_index + 1)..end_word_index {
@@ -272,8 +243,8 @@ impl<T: Idx> DenseBitSet<T> {
         let Some((start, end)) = inclusive_start_end(elems, self.domain_size) else {
             return false;
         };
-        let (start_word_index, start_mask) = word_index_and_mask(start);
-        let (end_word_index, end_mask) = word_index_and_mask(end);
+        let (start_word_index, start_mask) = word_index_and_mask_usize(start);
+        let (end_word_index, end_mask) = word_index_and_mask_usize(end);
 
         if start_word_index == end_word_index {
             self.words[start_word_index] & (end_mask | (end_mask - start_mask)) != 0
@@ -312,14 +283,14 @@ impl<T: Idx> DenseBitSet<T> {
 
     pub fn last_set_in(&self, range: impl RangeBounds<T>) -> Option<T> {
         let (start, end) = inclusive_start_end(range, self.domain_size)?;
-        let (start_word_index, _) = word_index_and_mask(start);
-        let (end_word_index, end_mask) = word_index_and_mask(end);
+        let (start_word_index, _) = word_index_and_mask_usize(start);
+        let (end_word_index, end_mask) = word_index_and_mask_usize(end);
 
         let end_word = self.words[end_word_index] & (end_mask | (end_mask - 1));
         if end_word != 0 {
             let pos = max_bit(end_word) + WORD_BITS * end_word_index;
             if start <= pos {
-                return Some(T::new(pos));
+                return Some(T::from_usize(pos));
             }
         }
 
@@ -333,7 +304,7 @@ impl<T: Idx> DenseBitSet<T> {
             let start_word = self.words[word_idx];
             let pos = max_bit(start_word) + WORD_BITS * word_idx;
             if start <= pos {
-                return Some(T::new(pos));
+                return Some(T::from_usize(pos));
             }
         }
 
@@ -483,7 +454,7 @@ impl<'a, T: Idx> Iterator for BitIter<'a, T> {
                 // then clear the bit.
                 let bit_pos = self.word.trailing_zeros() as usize;
                 self.word ^= 1 << bit_pos;
-                return Some(T::new(bit_pos + self.offset));
+                return Some(T::from_usize(bit_pos + self.offset));
             }
 
             // Move onto the next word. `wrapping_add()` is needed to handle
@@ -591,7 +562,7 @@ impl<T: Idx> ChunkedBitSet<T> {
         let chunks = if domain_size == 0 {
             Box::new([])
         } else {
-            let num_chunks = domain_size.index().div_ceil(CHUNK_BITS);
+            let num_chunks = domain_size.div_ceil(CHUNK_BITS);
             let mut last_chunk_domain_size = domain_size % CHUNK_BITS;
             if last_chunk_domain_size == 0 {
                 last_chunk_domain_size = CHUNK_BITS;
@@ -1023,12 +994,12 @@ impl<'a, T: Idx> Iterator for ChunkedBitIter<'a, T> {
                 ChunkIter::Zeros => {}
                 ChunkIter::Ones(iter) => {
                     if let Some(next) = iter.next() {
-                        return Some(T::new(next + self.chunk_index * CHUNK_BITS));
+                        return Some(T::from_usize(next + self.chunk_index * CHUNK_BITS));
                     }
                 }
                 ChunkIter::Mixed(iter) => {
                     if let Some(next) = iter.next() {
-                        return Some(T::new(next + self.chunk_index * CHUNK_BITS));
+                        return Some(T::from_usize(next.index() + self.chunk_index * CHUNK_BITS));
                     }
                 }
                 ChunkIter::Finished => return None,
@@ -1075,8 +1046,23 @@ impl Chunk {
 enum ChunkIter<'a> {
     Zeros,
     Ones(Range<usize>),
-    Mixed(BitIter<'a, usize>),
+    Mixed(BitIter<'a, ChunkBitIdx>),
     Finished,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+struct ChunkBitIdx(usize);
+
+impl Idx for ChunkBitIdx {
+    const MAX: usize = usize::MAX;
+
+    unsafe fn from_usize_unchecked(idx: usize) -> Self {
+        Self(idx)
+    }
+
+    fn index(self) -> usize {
+        self.0
+    }
 }
 
 impl<T: Idx> fmt::Debug for ChunkedBitSet<T> {
@@ -1396,9 +1382,9 @@ impl<T: Idx> GrowableBitSet<T> {
     #[inline]
     pub fn contains_any(&self, elems: Range<T>) -> bool {
         elems.start.index() < self.bit_set.domain_size
-            && self
-                .bit_set
-                .contains_any(elems.start..T::new(elems.end.index().min(self.bit_set.domain_size)))
+            && self.bit_set.contains_any(
+                elems.start..T::from_usize(elems.end.index().min(self.bit_set.domain_size)),
+            )
     }
 
     #[inline]
@@ -1484,7 +1470,7 @@ impl<R: Idx, C: Idx> BitMatrix<R, C> {
     }
 
     pub fn rows(&self) -> impl Iterator<Item = R> {
-        (0..self.num_rows).map(R::new)
+        (0..self.num_rows).map(R::from_usize)
     }
 
     /// The range of bits for a given row.
@@ -1536,7 +1522,7 @@ impl<R: Idx, C: Idx> BitMatrix<R, C> {
                     break;
                 }
                 if v & 0x1 != 0 {
-                    result.push(C::new(base * WORD_BITS + bit));
+                    result.push(C::from_usize(base * WORD_BITS + bit));
                 }
                 v >>= 1;
             }
@@ -1726,7 +1712,7 @@ impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
     }
 
     pub fn rows(&self) -> impl Iterator<Item = R> {
-        (0..self.rows.len()).map(R::new)
+        (0..self.rows.len()).map(R::from_usize)
     }
 
     /// Iterates through all the columns set to true in a given row of
@@ -1780,13 +1766,17 @@ impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
 }
 
 #[inline]
-fn num_words<T: Idx>(domain_size: T) -> usize {
-    domain_size.index().div_ceil(WORD_BITS)
+fn num_words(domain_size: usize) -> usize {
+    domain_size.div_ceil(WORD_BITS)
 }
 
 #[inline]
 fn word_index_and_mask<T: Idx>(elem: T) -> (usize, Word) {
-    let elem = elem.index();
+    word_index_and_mask_usize(elem.index())
+}
+
+#[inline]
+fn word_index_and_mask_usize(elem: usize) -> (usize, Word) {
     let word_index = elem / WORD_BITS;
     let mask = 1 << (elem % WORD_BITS);
     (word_index, mask)
@@ -1800,7 +1790,7 @@ fn chunk_index<T: Idx>(elem: T) -> usize {
 #[inline]
 fn chunk_word_index_and_mask<T: Idx>(elem: T) -> (usize, Word) {
     let chunk_elem = elem.index() % CHUNK_BITS;
-    word_index_and_mask(chunk_elem)
+    word_index_and_mask_usize(chunk_elem)
 }
 
 fn pick2_mut<T>(slice: &mut [T], idx_1: usize, idx_2: usize) -> Option<(&mut T, &mut T)> {

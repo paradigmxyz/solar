@@ -18,18 +18,6 @@ macro_rules! newtype_index {
             /// The maximum index value.
             $vis const MAX: Self = Self::new(Self::MAX_INDEX);
         }
-
-        impl $crate::bit_set::Idx for $name {
-            #[inline]
-            fn new(index: usize) -> Self {
-                <$name as $crate::index::Idx>::from_usize(index)
-            }
-
-            #[inline]
-            fn index(self) -> usize {
-                <$name as $crate::index::Idx>::index(self)
-            }
-        }
     )*};
 }
 
