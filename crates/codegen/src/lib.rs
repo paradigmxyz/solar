@@ -31,7 +31,11 @@ pub use backend::{
     Backend,
     evm::{
         AssembledCode, Assembler, AssemblerConfig, EvmArtifact, EvmCodegen, EvmCodegenConfig,
-        Label, SpillManager, SpillSlot, StackModel, StackScheduler,
+        EvmIrBlock, EvmIrBlockHotness, EvmIrBlockId, EvmIrBlockMetadata, EvmIrFunction,
+        EvmIrFunctionId, EvmIrInstruction, EvmIrMetadata, EvmIrMetadataItem, EvmIrModule,
+        EvmIrOperand, EvmIrParseError, EvmIrStackEffect, EvmIrTerminator, EvmIrTerminatorKind,
+        EvmIrValue, EvmIrValueId, Label, SpillManager, SpillSlot, StackModel, StackScheduler,
+        parse_evm_ir_function, parse_evm_ir_module,
     },
 };
 

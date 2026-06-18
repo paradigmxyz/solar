@@ -1,0 +1,15 @@
+; evm module @Switch
+
+fn @runtime {
+  bb0 (entry) [hotness=unknown]:
+    %selector = calldataload 0 !meta(stack=1->1)
+    switch %selector, default bb3, [1 => bb1, 2 => bb2]
+  bb1 [hotness=hot]:
+    jump bb4
+  bb2 [hotness=hot]:
+    selfdestruct @beneficiary !meta(stack=1->0, source=admin-path)
+  bb3 [hotness=cold]:
+    invalid
+  bb4 [hotness=unknown]:
+    stop
+}
