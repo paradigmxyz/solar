@@ -140,8 +140,8 @@ impl PartialRedundancyEliminator {
         self.stats = PreStats::default();
         repair_reachability_phis(func);
 
-        let mut inst_results = mir_utils::inst_results(func);
-        let mut inst_blocks = mir_utils::inst_blocks(func);
+        let mut inst_results = func.inst_results();
+        let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
         let mut inserted_insts = FxHashSet::default();
@@ -201,7 +201,7 @@ impl PartialRedundancyEliminator {
         let mut eliminated_values: FxHashSet<ValueId> = FxHashSet::default();
 
         'targets: for target in func.blocks.indices() {
-            let predecessors = mir_utils::unique_predecessors(func, target);
+            let predecessors = func.unique_predecessors(target);
             if predecessors.len() < 2 {
                 continue;
             }

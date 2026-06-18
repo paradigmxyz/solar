@@ -112,7 +112,7 @@ impl IndVarSimplifier {
         };
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
 
         let mut blocks: Vec<_> = loop_data.blocks.iter().copied().collect();

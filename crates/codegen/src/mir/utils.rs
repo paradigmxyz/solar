@@ -6,7 +6,7 @@ use crate::mir::{
 };
 use alloy_primitives::U256;
 use smallvec::smallvec;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::map::FxHashMap;
 
 /// Which state-access instructions should receive storage-alias metadata.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -15,41 +15,6 @@ pub(crate) enum StorageAliasScope {
     Storage,
     /// Annotate persistent and transient storage accesses.
     StorageAndTransient,
-}
-
-/// Returns a map from each instruction to its result value.
-pub(crate) fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-    let mut results =
-        FxHashMap::with_capacity_and_hasher(func.instructions.len(), Default::default());
-    for (value_id, value) in func.values.iter_enumerated() {
-        if let Value::Inst(inst_id) = value {
-            results.insert(*inst_id, value_id);
-        }
-    }
-    results
-}
-
-/// Returns a map from each instruction to the block containing it.
-pub(crate) fn inst_blocks(func: &Function) -> FxHashMap<InstId, BlockId> {
-    let mut inst_blocks =
-        FxHashMap::with_capacity_and_hasher(func.instructions.len(), Default::default());
-    for (block_id, block) in func.blocks.iter_enumerated() {
-        for &inst_id in &block.instructions {
-            inst_blocks.insert(inst_id, block_id);
-        }
-    }
-    inst_blocks
-}
-
-/// Returns predecessors with duplicate CFG edges collapsed.
-pub(crate) fn unique_predecessors(func: &Function, block: BlockId) -> Vec<BlockId> {
-    let mut predecessors = Vec::new();
-    for &pred in &func.blocks[block].predecessors {
-        if !predecessors.contains(&pred) {
-            predecessors.push(pred);
-        }
-    }
-    predecessors
 }
 
 /// Splits the CFG edge from `pred` to `succ` by inserting a fresh block that
@@ -156,35 +121,6 @@ pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
         }
     }
     changed
-}
-
-/// Returns true if the block contains any phi instruction.
-pub(crate) fn block_has_phi(func: &Function, block: BlockId) -> bool {
-    func.blocks[block]
-        .instructions
-        .iter()
-        .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
-}
-
-/// Returns true if every instruction in the block is a phi instruction.
-pub(crate) fn block_has_only_phis(func: &Function, block: BlockId) -> bool {
-    func.blocks[block]
-        .instructions
-        .iter()
-        .all(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
-}
-
-/// Returns the result values produced by phi instructions in the block.
-pub(crate) fn block_phi_results(func: &Function, block: BlockId) -> FxHashSet<ValueId> {
-    func.blocks[block]
-        .instructions
-        .iter()
-        .filter_map(|&inst_id| {
-            matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
-                .then(|| func.inst_result_value(inst_id))
-                .flatten()
-        })
-        .collect()
 }
 
 /// Resolves a value through a replacement map until it reaches its canonical value.

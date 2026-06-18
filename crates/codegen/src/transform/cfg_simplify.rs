@@ -155,7 +155,7 @@ impl CfgSimplifier {
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
 
         let mut kept: Vec<(BlockId, CanonBlock)> = Vec::new();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
@@ -252,7 +252,7 @@ impl CfgSimplifier {
         let mut raw = FxHashMap::default();
 
         for block_id in func.blocks.indices() {
-            let same_block_phi_results = mir_utils::block_phi_results(func, block_id);
+            let same_block_phi_results = func.block_phi_results(block_id);
             for &inst_id in &func.blocks[block_id].instructions {
                 let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
                     continue;

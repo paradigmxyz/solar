@@ -43,7 +43,7 @@ impl StorageLoadCse {
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
         let mut dead = FxHashSet::default();

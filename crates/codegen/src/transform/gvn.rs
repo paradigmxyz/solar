@@ -154,7 +154,7 @@ impl GlobalValueNumberer {
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = CfgInfo::new(func);
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
             return false;
         };

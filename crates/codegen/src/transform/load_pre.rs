@@ -515,8 +515,8 @@ impl LoadRedundancyEliminator {
             outs,
             reach,
             dominators: cfg.dominators().clone(),
-            inst_results: mir_utils::inst_results(func),
-            inst_blocks: mir_utils::inst_blocks(func),
+            inst_results: func.inst_results(),
+            inst_blocks: func.inst_blocks(),
         })
     }
 
@@ -538,7 +538,7 @@ impl LoadRedundancyEliminator {
             if !cx.analysis.reachable.contains(&target) {
                 continue;
             }
-            let predecessors = mir_utils::unique_predecessors(func, target);
+            let predecessors = func.unique_predecessors(target);
             if predecessors.len() < 2
                 || predecessors.iter().any(|pred| !cx.analysis.reachable.contains(pred))
             {

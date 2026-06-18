@@ -258,11 +258,11 @@ impl JumpThreader {
         final_targets: &FxHashMap<BlockId, BlockId>,
     ) -> Option<BlockId> {
         let final_target = final_targets.get(&target).copied()?;
-        (!mir_utils::block_has_phi(func, final_target)).then_some(final_target)
+        (!func.block_has_phi(final_target)).then_some(final_target)
     }
 
     fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
-        let phi_results = mir_utils::block_phi_results(func, block_id);
+        let phi_results = func.block_phi_results(block_id);
         if phi_results.is_empty() {
             return false;
         }
@@ -299,7 +299,7 @@ impl JumpThreader {
         let block_ids: Vec<_> = func.blocks.indices().collect();
 
         for block_id in block_ids {
-            if !mir_utils::block_has_only_phis(func, block_id) {
+            if !func.block_has_only_phis(block_id) {
                 continue;
             }
             if Self::block_phi_results_have_external_uses(func, block_id) {
@@ -322,7 +322,7 @@ impl JumpThreader {
                 else {
                     continue;
                 };
-                if target == block_id || mir_utils::block_has_phi(func, target) {
+                if target == block_id || func.block_has_phi(target) {
                     continue;
                 }
                 rewrites.push((pred, block_id, target));

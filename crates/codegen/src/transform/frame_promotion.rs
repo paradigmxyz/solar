@@ -230,7 +230,7 @@ impl FrameSlotPromoter {
         };
 
         for info in slots {
-            let inst_results = mir_utils::inst_results(func);
+            let inst_results = func.inst_results();
             let mut builder = SlotSsaBuilder::new(&info, &cfg, &inst_results);
             if builder.run(func) {
                 self.stats.slots_promoted += 1;

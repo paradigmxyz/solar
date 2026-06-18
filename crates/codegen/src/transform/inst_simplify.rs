@@ -51,7 +51,7 @@ impl InstSimplifier {
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.simplified_count = 0;
 
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         let block_ids: Vec<_> = func.blocks.indices().collect();

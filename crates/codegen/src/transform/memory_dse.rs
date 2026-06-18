@@ -92,7 +92,7 @@ impl MemoryStoreEliminator {
     }
 
     fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         let cfg = CfgInfo::new(func);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
@@ -318,7 +318,7 @@ impl MemoryStoreEliminator {
 
     fn fold_constant_keccak(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         let mut stored_words: FxHashMap<MemAddrKey, U256> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
@@ -406,7 +406,7 @@ impl MemoryStoreEliminator {
 
     fn forward_loads(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         let mut stored_values: FxHashMap<MemAddrKey, ValueId> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();

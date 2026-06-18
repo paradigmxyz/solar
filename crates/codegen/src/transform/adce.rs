@@ -6,10 +6,7 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{
-        BlockId, Function, InstId, Terminator, ValueId,
-        utils::{self as mir_utils, repair_reachability_phis},
-    },
+    mir::{BlockId, Function, InstId, Terminator, ValueId, utils::repair_reachability_phis},
     pass::FunctionPass,
     transform::DeadCodeEliminator,
 };
@@ -112,7 +109,7 @@ impl AggressiveDeadCodeEliminator {
             else {
                 continue;
             };
-            if target == block_id || mir_utils::block_has_phi(func, target) {
+            if target == block_id || func.block_has_phi(target) {
                 continue;
             }
             rewrites.push((block_id, target));
@@ -172,7 +169,7 @@ impl AggressiveDeadCodeEliminator {
         block_id: BlockId,
         search: &mut TargetSearch,
     ) -> Option<BlockId> {
-        if mir_utils::block_has_phi(func, block_id)
+        if func.block_has_phi(block_id)
             || self.block_has_effect(func, block_id)
             || self.block_def_escapes(func, ctx, block_id)
         {
@@ -232,7 +229,7 @@ impl AggressiveDeadCodeEliminator {
 
 impl AdceContext {
     fn new(func: &Function) -> Self {
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         let value_uses = Self::value_uses(func);
         Self { inst_results, value_uses }
     }

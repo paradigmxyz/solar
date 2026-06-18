@@ -189,7 +189,7 @@ impl CommonSubexprEliminator {
         self.sink_redundant_phi_expressions(func);
 
         // Neither the global nor the local pass allocates values, so the map stays valid.
-        let inst_results = mir_utils::inst_results(func);
+        let inst_results = func.inst_results();
         self.process_global_pure(func, &inst_results);
 
         // Process each block independently (local CSE)
@@ -252,8 +252,8 @@ impl CommonSubexprEliminator {
 
     fn sink_redundant_phi_expressions(&mut self, func: &mut Function) {
         let cfg = CfgInfo::new(func);
-        let inst_results = mir_utils::inst_results(func);
-        let inst_blocks = mir_utils::inst_blocks(func);
+        let inst_results = func.inst_results();
+        let inst_blocks = func.inst_blocks();
         let use_counts = Self::value_use_counts(func);
         let replacements = FxHashMap::default();
         let ctx = PhiSinkContext {

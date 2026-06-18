@@ -1,9 +1,10 @@
 //! MIR functions.
 
-use super::{BasicBlock, BlockId, InstId, Instruction, MirType, Value, ValueId};
+use super::{BasicBlock, BlockId, InstId, InstKind, Instruction, MirType, Value, ValueId};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
+    map::{FxHashMap, FxHashSet},
 };
 use solar_interface::Ident;
 use solar_sema::hir::{StateMutability, Visibility};
@@ -79,6 +80,76 @@ impl Function {
             .iter_enumerated()
             .find(|(_, value)| matches!(value, Value::Inst(inst) if *inst == id))
             .map(|(value_id, _)| value_id)
+    }
+
+    /// Returns a map from each instruction to its result value.
+    #[must_use]
+    pub fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
+        let mut results =
+            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
+        for (value_id, value) in self.values.iter_enumerated() {
+            if let Value::Inst(inst_id) = value {
+                results.insert(*inst_id, value_id);
+            }
+        }
+        results
+    }
+
+    /// Returns a map from each instruction to the block containing it.
+    #[must_use]
+    pub fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
+        let mut inst_blocks =
+            FxHashMap::with_capacity_and_hasher(self.instructions.len(), Default::default());
+        for (block_id, block) in self.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                inst_blocks.insert(inst_id, block_id);
+            }
+        }
+        inst_blocks
+    }
+
+    /// Returns predecessors with duplicate CFG edges collapsed.
+    #[must_use]
+    pub fn unique_predecessors(&self, block: BlockId) -> Vec<BlockId> {
+        let mut predecessors = Vec::new();
+        for &pred in &self.blocks[block].predecessors {
+            if !predecessors.contains(&pred) {
+                predecessors.push(pred);
+            }
+        }
+        predecessors
+    }
+
+    /// Returns true if the block contains any phi instruction.
+    #[must_use]
+    pub fn block_has_phi(&self, block: BlockId) -> bool {
+        self.blocks[block]
+            .instructions
+            .iter()
+            .any(|&inst_id| matches!(self.instructions[inst_id].kind, InstKind::Phi(_)))
+    }
+
+    /// Returns true if every instruction in the block is a phi instruction.
+    #[must_use]
+    pub fn block_has_only_phis(&self, block: BlockId) -> bool {
+        self.blocks[block]
+            .instructions
+            .iter()
+            .all(|&inst_id| matches!(self.instructions[inst_id].kind, InstKind::Phi(_)))
+    }
+
+    /// Returns the result values produced by phi instructions in the block.
+    #[must_use]
+    pub fn block_phi_results(&self, block: BlockId) -> FxHashSet<ValueId> {
+        self.blocks[block]
+            .instructions
+            .iter()
+            .filter_map(|&inst_id| {
+                matches!(self.instructions[inst_id].kind, InstKind::Phi(_))
+                    .then(|| self.inst_result_value(inst_id))
+                    .flatten()
+            })
+            .collect()
     }
 
     /// Returns the basic block for the given ID.
