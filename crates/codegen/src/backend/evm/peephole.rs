@@ -9,14 +9,11 @@ impl Assembler {
     ///
     /// This pass runs before label resolution, so removing instructions cannot
     /// leave stale jump destinations.
-    pub(super) fn optimize_instructions(&mut self) -> usize {
-        let mut program = std::mem::take(&mut self.program);
-        let changed = program.optimize_instructions(
+    pub(super) fn optimize_instructions(&mut self, program: &mut EvmAsmProgram) -> usize {
+        program.optimize_instructions(
             |inst| self.inst_push_value(inst),
             |inst| self.estimated_inst_size(inst),
-        );
-        self.program = program;
-        changed
+        )
     }
 }
 

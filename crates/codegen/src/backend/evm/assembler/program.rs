@@ -1,13 +1,102 @@
-//! Linear EVM assembly program used before final bytecode emission.
+//! Structured EVM backend IR and final linear assembly program.
 
 use super::{AsmInst, AsmInstKind, Label, op};
 use solar_data_structures::map::FxHashSet;
 
-/// Linear EVM assembly program used by the assembler.
+/// Structured EVM backend IR used while MIR lowering emits EVM code.
 ///
-/// This sits below structured EVM IR: it is a label-bearing opcode stream with
-/// unresolved PUSH operands and layout metadata, ready for final assembly into
-/// bytecode.
+/// This is intentionally still instruction-close to the final assembly layer:
+/// operands such as unresolved labels, deferred constants, and immutable
+/// placeholders are preserved as assembler operands. The value of this layer is
+/// block structure and metadata, which backend layout and peephole passes can
+/// query before final linearization.
+#[derive(Clone, Debug, Default)]
+pub(in crate::backend::evm) struct EvmIrProgram {
+    blocks: Vec<EvmIrAsmBlock>,
+    current: Option<usize>,
+    cold_labels: FxHashSet<Label>,
+}
+
+impl EvmIrProgram {
+    /// Clears all blocks and metadata.
+    pub(in crate::backend::evm) fn clear(&mut self) {
+        self.blocks.clear();
+        self.current = None;
+        self.cold_labels.clear();
+    }
+
+    /// Emits an instruction into the current EVM IR block.
+    pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
+        let block = self.current_block_mut();
+        block.instructions.push(inst);
+    }
+
+    /// Defines a label, starting a new structured EVM IR block.
+    pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {
+        let block = EvmIrAsmBlock {
+            label: Some(label),
+            cold: self.cold_labels.contains(&label),
+            instructions: Vec::new(),
+        };
+        self.blocks.push(block);
+        self.current = Some(self.blocks.len() - 1);
+    }
+
+    /// Marks the block beginning at `label` as cold.
+    pub(in crate::backend::evm) fn mark_cold(&mut self, label: Label) {
+        self.cold_labels.insert(label);
+        if let Some(block) = self.blocks.iter_mut().find(|block| block.label == Some(label)) {
+            block.cold = true;
+        }
+    }
+
+    /// Returns a linear assembly view for tests.
+    #[cfg(test)]
+    pub(in crate::backend::evm) fn instructions(&self) -> Vec<AsmInst> {
+        self.to_asm_program().instructions
+    }
+
+    /// Lowers structured EVM IR blocks to the final linear assembly program.
+    pub(in crate::backend::evm) fn to_asm_program(&self) -> EvmAsmProgram {
+        let mut program = EvmAsmProgram::default();
+        for block in &self.blocks {
+            if let Some(label) = block.label {
+                program.instructions.push(AsmInst::label(label));
+                if block.cold {
+                    program.cold_labels.insert(label);
+                }
+            }
+            program.instructions.extend_from_slice(&block.instructions);
+        }
+        program
+    }
+
+    fn current_block_mut(&mut self) -> &mut EvmIrAsmBlock {
+        let index = match self.current {
+            Some(index) => index,
+            None => {
+                self.blocks.push(EvmIrAsmBlock::default());
+                let index = self.blocks.len() - 1;
+                self.current = Some(index);
+                index
+            }
+        };
+        &mut self.blocks[index]
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct EvmIrAsmBlock {
+    label: Option<Label>,
+    cold: bool,
+    instructions: Vec<AsmInst>,
+}
+
+/// Linear EVM assembly program used by the final assembler.
+///
+/// This is the MC-like layer below structured EVM IR: a label-bearing opcode
+/// stream with unresolved PUSH operands and layout metadata, ready for final
+/// assembly into bytecode.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct EvmAsmProgram {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
@@ -15,22 +104,6 @@ pub(in crate::backend::evm) struct EvmAsmProgram {
 }
 
 impl EvmAsmProgram {
-    /// Clears all instructions and block metadata.
-    pub(in crate::backend::evm) fn clear(&mut self) {
-        self.instructions.clear();
-        self.cold_labels.clear();
-    }
-
-    /// Emits an assembler instruction.
-    pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
-        self.instructions.push(inst);
-    }
-
-    /// Marks the block beginning at `label` as cold.
-    pub(in crate::backend::evm) fn mark_cold(&mut self, label: Label) {
-        self.cold_labels.insert(label);
-    }
-
     /// Moves non-fallthrough cold terminal blocks to the end of the program.
     ///
     /// The pass only moves blocks that start with a cold label, end with a
