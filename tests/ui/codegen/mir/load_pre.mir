@@ -1,10 +1,9 @@
 //@compile-flags: --pass load-pre
 // Basic storage shapes: a join reload of a slot loaded in both arms becomes a
 // phi; an sstore in one arm forwards its stored value into the phi. A load
-// available on one diamond arm only is NOT compensated on the other arm:
-// the backend's spill-slot phi copies lengthen the inserted path while the
-// savings land elsewhere, and static counts cannot weigh path frequencies,
-// so insertion is reserved for loop-carried availability (load_pre_loop.mir).
+// available on one diamond arm only is compensated on the other arm for
+// expensive storage/transient/keccak keys; cheap memory keys keep the stricter
+// loop-carried-only policy (load_pre_memory.mir).
 ; module @LoadPre
 fn @full_diamond(arg0: bool) -> u256 {
   bb0 (entry):
@@ -34,7 +33,7 @@ fn @store_forward_arm(arg0: bool, arg1: u256) -> u256 {
     ret v3
 }
 
-fn @partial_no_insert_diamond(arg0: bool) -> u256 {
+fn @partial_insert_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2
   bb1:

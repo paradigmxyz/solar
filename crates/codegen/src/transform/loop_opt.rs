@@ -430,6 +430,8 @@ impl LoopOptimizer {
         self.licm_profit(func, inst_id) >= self.config.min_licm_profit
             || (self.loop_has_known_multiple_iterations(ctx.loop_data)
                 && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
+            || (self.inst_dominates_loop_backedges(func, inst_id, ctx.loop_data, ctx.analyzer)
+                && self.is_affine_address_base_used_in_loop(func, inst_id, ctx))
     }
 
     fn loop_has_known_multiple_iterations(&self, loop_data: &Loop) -> bool {
@@ -445,6 +447,24 @@ impl LoopOptimizer {
             }
         }
         false
+    }
+
+    fn inst_dominates_loop_backedges(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        loop_data: &Loop,
+        analyzer: &LoopAnalyzer,
+    ) -> bool {
+        let Some(inst_block) = loop_data
+            .blocks
+            .iter()
+            .copied()
+            .find(|&block| func.blocks[block].instructions.contains(&inst_id))
+        else {
+            return false;
+        };
+        loop_data.back_edges.iter().all(|&latch| analyzer.dominates(inst_block, latch))
     }
 
     fn loop_may_mutate_memory_range(

@@ -187,7 +187,7 @@ impl IndVarSimplifier {
         let AffineExpr { base, constant, terms } = scev.get(value)?.clone();
         let base = base?;
         let [term] = terms.as_slice() else { return None };
-        if term.value != iv_value || term.scale <= 1 {
+        if term.value != iv_value || term.scale <= 0 {
             return None;
         }
         if constant < 0 {

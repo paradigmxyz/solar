@@ -214,14 +214,96 @@ impl KeySet {
 /// inserting copies of `kind` at the end of the `insertions` predecessors.
 struct Candidate {
     target: BlockId,
-    inst: InstId,
     key: LoadKey,
-    result: ValueId,
     result_ty: MirType,
     kind: InstKind,
     metadata: InstructionMetadata,
+    loads: Vec<(InstId, ValueId)>,
     incoming: Vec<(BlockId, ValueId)>,
     insertions: Vec<BlockId>,
+}
+
+/// A small static profitability model for load PRE insertions.
+///
+/// The model intentionally works in approximate dynamic path cost rather than
+/// MIR instruction count: a join-block reload executes on every predecessor
+/// path, while a compensating load only executes on the paths where the value
+/// was unavailable.
+#[derive(Clone, Copy, Debug, Default)]
+struct LoadPreCostModel;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct LoadPreCost {
+    saved: i64,
+    inserted: i64,
+    phi: i64,
+    operands: i64,
+}
+
+impl LoadPreCost {
+    const fn is_profitable(self) -> bool {
+        self.saved > self.inserted + self.phi + self.operands
+    }
+}
+
+struct LoadPreCostInput<'a> {
+    func: &'a Function,
+    key: LoadKey,
+    kind: &'a InstKind,
+    predecessors: &'a [BlockId],
+    loads: &'a [(InstId, ValueId)],
+    insertions: &'a [BlockId],
+    loop_carried: bool,
+    needs_phi: bool,
+}
+
+impl LoadPreCostModel {
+    const MEMORY_READ: i64 = 3;
+    const STORAGE_READ: i64 = 100;
+    const TRANSIENT_READ: i64 = 100;
+    const KECCAK_BASE: i64 = 30;
+    const KECCAK_WORD: i64 = 6;
+    const NON_LOOP_PHI_EDGE_COPY: i64 = 3;
+    const CROSS_BLOCK_OPERAND: i64 = 3;
+
+    fn estimate(&self, input: LoadPreCostInput<'_>) -> LoadPreCost {
+        let read = Self::read_cost(input.key);
+        let saved = read * input.loads.len() as i64 * input.predecessors.len() as i64;
+        let inserted = read * input.insertions.len() as i64;
+        let phi = if !input.needs_phi || input.loop_carried {
+            0
+        } else {
+            Self::NON_LOOP_PHI_EDGE_COPY * input.predecessors.len() as i64
+        };
+        let operands = Self::inserted_operand_cost(input.func, input.kind, input.insertions);
+        LoadPreCost { saved, inserted, phi, operands }
+    }
+
+    const fn read_cost(key: LoadKey) -> i64 {
+        match key {
+            LoadKey::Storage(_) => Self::STORAGE_READ,
+            LoadKey::Transient(_) => Self::TRANSIENT_READ,
+            LoadKey::Memory(_) => Self::MEMORY_READ,
+            LoadKey::Keccak(_, size) => match size {
+                KeccakSize::Const(size) => {
+                    Self::KECCAK_BASE + Self::KECCAK_WORD * size.div_ceil(32) as i64
+                }
+                KeccakSize::Dyn(_) => Self::KECCAK_BASE + Self::KECCAK_WORD * 2,
+            },
+        }
+    }
+
+    fn inserted_operand_cost(func: &Function, kind: &InstKind, insertions: &[BlockId]) -> i64 {
+        if insertions.is_empty() {
+            return 0;
+        }
+        let cross_block_operands = kind
+            .operands()
+            .into_iter()
+            .filter(|&value| matches!(func.value(value), Value::Inst(_) | Value::Undef(_)))
+            .count();
+        Self::CROSS_BLOCK_OPERAND * cross_block_operands as i64 * insertions.len() as i64
+    }
 }
 
 /// Per-round analysis shared by candidate collection.
@@ -481,7 +563,7 @@ impl LoadRedundancyEliminator {
                 }
                 modified_blocks.insert(candidate.target);
                 modified_blocks.extend(candidate.insertions.iter().copied());
-                eliminated_values.insert(candidate.result);
+                eliminated_values.extend(candidate.loads.iter().map(|&(_, value)| value));
                 batch.push(candidate);
             }
         }
@@ -500,6 +582,7 @@ impl LoadRedundancyEliminator {
         modified_blocks.contains(&candidate.target)
             || candidate.insertions.iter().any(|block| modified_blocks.contains(block))
             || candidate.incoming.iter().any(|(_, value)| eliminated_values.contains(value))
+            || candidate.loads.iter().any(|&(_, value)| eliminated_values.contains(&value))
             || (!candidate.insertions.is_empty()
                 && candidate
                     .kind
@@ -560,6 +643,50 @@ impl LoadRedundancyEliminator {
         found
     }
 
+    fn same_key_loads_in_target(
+        func: &Function,
+        analysis: &Analysis,
+        target: BlockId,
+        first_inst: InstId,
+        key: LoadKey,
+    ) -> Vec<(InstId, ValueId)> {
+        let mut loads = Vec::new();
+        let mut past_first = false;
+
+        for &inst_id in &func.blocks[target].instructions {
+            if inst_id == first_inst {
+                past_first = true;
+            }
+            if !past_first {
+                continue;
+            }
+
+            if inst_id != first_inst {
+                let kind = &func.instructions[inst_id].kind;
+                if matches!(kind, InstKind::Gas) {
+                    break;
+                }
+                if matches!(kind, InstKind::MSize)
+                    && matches!(key, LoadKey::Memory(_) | LoadKey::Keccak(_, _))
+                {
+                    break;
+                }
+                if kind.has_side_effects() && Self::inst_kills_key(func, inst_id, key) {
+                    break;
+                }
+            }
+
+            if let Some((load_key, GenSource::LoadResult)) = Self::gen_key_value(func, inst_id)
+                && load_key == key
+                && let Some(&value) = analysis.inst_results.get(&inst_id)
+            {
+                loads.push((inst_id, value));
+            }
+        }
+
+        loads
+    }
+
     fn candidate_for_load(
         &self,
         func: &Function,
@@ -573,6 +700,10 @@ impl LoadRedundancyEliminator {
         let result = *cx.analysis.inst_results.get(&inst)?;
         let result_ty = instruction.result_ty?;
         let key = cx.analysis.keys[key_idx];
+        let loads = Self::same_key_loads_in_target(func, cx.analysis, target, inst, key);
+        if loads.is_empty() {
+            return None;
+        }
 
         let mut incoming = Vec::with_capacity(predecessors.len());
         let mut insertions = Vec::new();
@@ -601,41 +732,50 @@ impl LoadRedundancyEliminator {
 
         let loop_carried =
             Self::is_loop_carried_rewrite(&cx.analysis.dominators, target, &incoming, &insertions);
-        // Memory reads are only 3 gas, so a diamond phi is still not worth
-        // the extra block-edge work. Loop-carried memory PRE is different:
-        // the entry load runs once while the eliminated header reload would
-        // run on every iteration, and the backend can now keep canonical loop
-        // phis stack-resident.
-        if matches!(key, LoadKey::Memory(_)) && !loop_carried {
+        let needs_phi = !insertions.is_empty()
+            || incoming.first().is_none_or(|&(_, first)| {
+                first == result || incoming.iter().any(|&(_, value)| value != first)
+            });
+        let model = LoadPreCostModel;
+        let cost = model.estimate(LoadPreCostInput {
+            func,
+            key,
+            kind: &instruction.kind,
+            predecessors,
+            loads: &loads,
+            insertions: &insertions,
+            loop_carried,
+            needs_phi,
+        });
+        if !cost.is_profitable() {
             return None;
         }
 
         if !insertions.is_empty() {
-            // The backend lowers phis through spill slots, so an insertion
-            // always lengthens its own path by the phi copies while the
-            // savings land on the other paths. Static counts cannot weigh
-            // execution frequencies, so only loop-carried availability is
-            // accepted: the value arrives over backedges (predecessors the
-            // join dominates) and the compensating loads sit on the entry
-            // edges, running once per loop entry while every iteration drops
-            // a full load.
-            let insertion_profitable = incoming
+            // Insertions must be structurally safe; profitability is decided
+            // by `LoadPreCostModel` above.
+            let loop_insertion = incoming
                 .iter()
                 .all(|&(pred, _)| cx.analysis.dominators.dominates(target, pred))
                 && insertions.iter().all(|&pred| !cx.analysis.dominators.dominates(target, pred));
-            if !insertion_profitable || insertions.len() > incoming.len() {
+            let diamond_insertion = Self::is_non_cyclic_diamond_insertion(
+                &cx.analysis.dominators,
+                target,
+                &incoming,
+                &insertions,
+            );
+            if !(loop_insertion || diamond_insertion) || insertions.len() > incoming.len() {
                 return None;
             }
         }
 
         Some(Candidate {
             target,
-            inst,
             key,
-            result,
             result_ty,
             kind: instruction.kind.clone(),
             metadata: instruction.metadata.clone(),
+            loads,
             incoming,
             insertions,
         })
@@ -653,6 +793,18 @@ impl LoadRedundancyEliminator {
             || !insertions.is_empty();
         has_backedge_incoming
             && has_entry_edge
+            && insertions.iter().all(|&pred| !dominators.dominates(target, pred))
+    }
+
+    fn is_non_cyclic_diamond_insertion(
+        dominators: &DominatorTree,
+        target: BlockId,
+        incoming: &[(BlockId, ValueId)],
+        insertions: &[BlockId],
+    ) -> bool {
+        !incoming.is_empty()
+            && !insertions.is_empty()
+            && incoming.iter().all(|&(pred, _)| !dominators.dominates(target, pred))
             && insertions.iter().all(|&pred| !dominators.dominates(target, pred))
     }
 
@@ -723,17 +875,8 @@ impl LoadRedundancyEliminator {
         eliminated_keys: &mut FxHashSet<(LoadKey, BlockId)>,
         inserted_insts: &mut FxHashSet<InstId>,
     ) {
-        let Candidate {
-            target,
-            inst,
-            key,
-            result,
-            result_ty,
-            kind,
-            metadata,
-            mut incoming,
-            insertions,
-        } = candidate;
+        let Candidate { target, key, result_ty, kind, metadata, loads, mut incoming, insertions } =
+            candidate;
 
         eliminated_keys.insert((key, target));
 
@@ -755,10 +898,11 @@ impl LoadRedundancyEliminator {
         // A fully-available key whose predecessors all locate the same value
         // needs no phi: that value's def dominates every predecessor and
         // therefore the join itself.
+        let first_result = loads[0].1;
         let replacement = match incoming.first() {
             Some(&(_, first))
                 if fully_available
-                    && first != result
+                    && first != first_result
                     && incoming.iter().all(|&(_, value)| value == first) =>
             {
                 first
@@ -779,9 +923,12 @@ impl LoadRedundancyEliminator {
             }
         };
 
-        Self::replace_uses(func, result, replacement);
-        func.blocks[target].instructions.retain(|&inst_id| inst_id != inst);
-        self.stats.loads_eliminated += 1;
+        for &(_, load_result) in &loads {
+            Self::replace_uses(func, load_result, replacement);
+        }
+        let load_insts: FxHashSet<InstId> = loads.iter().map(|&(inst_id, _)| inst_id).collect();
+        func.blocks[target].instructions.retain(|&inst_id| !load_insts.contains(&inst_id));
+        self.stats.loads_eliminated += loads.len();
     }
 
     // ----- Keys, gens, and kills -----

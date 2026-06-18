@@ -47,19 +47,20 @@ fn @staticcall_preserves_storage(arg0: bool, arg1: address) -> u256 {
     ret v3
 }
 
-fn @clobbered_arm_no_insert(arg0: bool, arg1: u256) -> u256 {
+fn @clobbered_arm_reload_after_store(arg0: bool, arg1: u256) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2
   bb1:
     v3 = sload 5
     sstore arg1, 7
+    v9 = sload 5
     jump bb3
   bb2:
     v6 = sload 5
     jump bb3
   bb3:
-    v8 = sload 5
-    ret v8
+    v10 = phi [bb1: v9], [bb2: v6]
+    ret v10
 }
 
 fn @gas_blocks_rewrite(arg0: bool) -> u256 {
