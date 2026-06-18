@@ -72,6 +72,15 @@ impl Function {
         &self.instructions[id]
     }
 
+    /// Returns the value produced by the given instruction, if it has one.
+    #[must_use]
+    pub fn inst_result_value(&self, id: InstId) -> Option<ValueId> {
+        self.values
+            .iter_enumerated()
+            .find(|(_, value)| matches!(value, Value::Inst(inst) if *inst == id))
+            .map(|(value_id, _)| value_id)
+    }
+
     /// Returns the basic block for the given ID.
     #[must_use]
     pub fn block(&self, id: BlockId) -> &BasicBlock {

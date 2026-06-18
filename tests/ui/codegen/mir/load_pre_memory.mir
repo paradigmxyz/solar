@@ -1,9 +1,7 @@
 //@compile-flags: --pass load-pre
-// Memory shapes are analyzed but never rewritten: the backend lowers phis
-// through memory spill slots (a store per predecessor plus a load at the
-// use), which costs more than the 3-gas MLOAD a rewrite would save. These
-// functions lock in the cost-model gate; keccak and storage reads keep
-// their rewrites (see the other load_pre tests).
+// Memory diamond shapes stay rejected: a 3-gas MLOAD does not pay for a
+// merge phi. Loop-carried memory reloads are profitable now that canonical
+// loop phis can stay stack-resident in the EVM backend.
 ; module @LoadPreMemory
 fn @mload_full_diamond(arg0: bool) -> u256 {
   bb0 (entry):
@@ -76,6 +74,20 @@ fn @mload_partial_two_available(arg0: u256) -> u256 {
   bb4:
     v3 = mload 128
     ret v3
+}
+
+fn @mload_loop_header(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = mload 128
+    jump bb1
+  bb1:
+    v2 = mload 128
+    v3 = lt v2, arg0
+    br v3, bb2, bb3
+  bb2:
+    jump bb1
+  bb3:
+    ret v2
 }
 
 fn @staticcall_kills_memory(arg0: bool, arg1: address) -> u256 {

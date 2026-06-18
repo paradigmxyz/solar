@@ -8,12 +8,15 @@
 
 use super::{
     assembler::{Assembler, AssemblerConfig, DeferredConst, ImmutableRef, Label, op},
-    stack::{MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler},
+    stack::{
+        MAX_STACK_ACCESS, ScheduledOp, SpillSlot, StackModel, StackOp, StackScheduler, TargetSlot,
+    },
 };
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
     analysis::{
-        CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, ParallelCopy, PhiEliminator,
+        CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
+        PhiEliminator,
     },
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{AnalysisManager, LivenessAnalysis, PipelineOptions, run_default_pipeline_with_options},
@@ -31,6 +34,7 @@ const LOW_MEMORY_START: u64 = 0x80;
 const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
 const CONSTRUCTOR_SPILL_BASE: u64 = 0x1000;
 const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
+const STACK_PHI_LAYOUT_LIMIT: usize = 8;
 
 /// Configuration for the EVM backend.
 #[derive(Clone, Copy, Debug, Default)]
@@ -99,6 +103,182 @@ struct SelectorDispatchEntry {
     label: Label,
 }
 
+#[derive(Clone, Debug, Default)]
+struct StackPhiPlan {
+    entries: FxHashMap<BlockId, Vec<ValueId>>,
+    edges: FxHashMap<BlockId, StackPhiEdge>,
+    edge_sources: FxHashMap<BlockId, FxHashSet<ValueId>>,
+}
+
+#[derive(Clone, Debug)]
+struct StackPhiEdge {
+    sources: Vec<ValueId>,
+    results: Vec<ValueId>,
+}
+
+impl StackPhiPlan {
+    fn analyze(func: &Function) -> Self {
+        StackPhiPlanner::new(func).plan()
+    }
+}
+
+struct StackPhiPlanner<'a> {
+    func: &'a Function,
+    loops: Vec<Loop>,
+    header_results: FxHashMap<BlockId, Vec<ValueId>>,
+}
+
+impl<'a> StackPhiPlanner<'a> {
+    fn new(func: &'a Function) -> Self {
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        let mut loops: Vec<_> = loop_info.all_loops().cloned().collect();
+        loops.sort_by_key(|loop_info| loop_info.header.index());
+
+        let mut planner = Self { func, loops, header_results: FxHashMap::default() };
+        planner.collect_header_results();
+        planner
+    }
+
+    fn plan(&self) -> StackPhiPlan {
+        let mut plan = StackPhiPlan::default();
+        for loop_info in &self.loops {
+            self.plan_loop(loop_info, &mut plan);
+        }
+        plan
+    }
+
+    fn collect_header_results(&mut self) {
+        for loop_info in &self.loops {
+            let block = &self.func.blocks[loop_info.header];
+            let phi_insts = self.leading_phi_insts(block);
+            if let Some(results) = self.phi_result_values(&phi_insts) {
+                self.header_results.insert(loop_info.header, results);
+            }
+        }
+    }
+
+    fn plan_loop(&self, loop_info: &Loop, plan: &mut StackPhiPlan) {
+        let Some(preheader) = loop_info.preheader else {
+            return;
+        };
+        let [latch] = loop_info.back_edges.as_slice() else {
+            return;
+        };
+        if !matches!(self.func.blocks[preheader].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
+            || !matches!(self.func.blocks[*latch].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
+        {
+            return;
+        }
+        if plan.edges.contains_key(&preheader) || plan.edges.contains_key(latch) {
+            return;
+        }
+
+        let block = &self.func.blocks[loop_info.header];
+        let phi_insts = self.leading_phi_insts(block);
+        if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
+            return;
+        }
+
+        let Some(results) = self.phi_result_values(&phi_insts) else {
+            return;
+        };
+        if results.len() > STACK_PHI_LAYOUT_LIMIT {
+            return;
+        }
+
+        let carry_through = self.carry_through_values(loop_info);
+        if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
+            return;
+        }
+
+        let mut entry = carry_through.clone();
+        entry.extend(results.iter().copied());
+
+        let predecessors = [preheader, *latch];
+        let mut edges = Vec::with_capacity(predecessors.len());
+        for pred in predecessors {
+            let Some(phi_sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
+                return;
+            };
+            let mut sources = carry_through.clone();
+            sources.extend(phi_sources);
+            debug_assert_eq!(sources.len(), entry.len());
+            edges.push((pred, sources));
+        }
+
+        plan.entries.insert(loop_info.header, entry.clone());
+        for (pred, sources) in edges {
+            plan.edge_sources.insert(pred, sources.iter().copied().collect());
+            plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
+        }
+    }
+
+    fn leading_phi_insts(&self, block: &crate::mir::BasicBlock) -> Vec<InstId> {
+        block
+            .instructions
+            .iter()
+            .copied()
+            .take_while(|&inst| matches!(self.func.instructions[inst].kind, InstKind::Phi(_)))
+            .collect()
+    }
+
+    fn carry_through_values(&self, loop_info: &Loop) -> Vec<ValueId> {
+        let mut carry_through = Vec::new();
+        for outer in &self.loops {
+            if outer.header == loop_info.header || !outer.blocks.contains(&loop_info.header) {
+                continue;
+            }
+            let Some(results) = self.header_results.get(&outer.header) else {
+                continue;
+            };
+            for &value in results {
+                if carry_through.contains(&value)
+                    || !self.value_used_in_blocks(&loop_info.blocks, value)
+                {
+                    continue;
+                }
+                carry_through.push(value);
+            }
+        }
+        carry_through
+    }
+
+    fn value_used_in_blocks(&self, blocks: &FxHashSet<BlockId>, value: ValueId) -> bool {
+        for &block_id in blocks {
+            let block = &self.func.blocks[block_id];
+            for &inst_id in &block.instructions {
+                if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                    continue;
+                }
+                if self.func.instructions[inst_id].kind.operands().contains(&value) {
+                    return true;
+                }
+            }
+            if block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn phi_result_values(&self, phi_insts: &[InstId]) -> Option<Vec<ValueId>> {
+        phi_insts.iter().map(|&inst| self.func.inst_result_value(inst)).collect()
+    }
+
+    fn phi_sources_for_pred(&self, phi_insts: &[InstId], pred: BlockId) -> Option<Vec<ValueId>> {
+        phi_insts
+            .iter()
+            .map(|&inst| {
+                let InstKind::Phi(incoming) = &self.func.instructions[inst].kind else {
+                    return None;
+                };
+                incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
+            })
+            .collect()
+    }
+}
+
 /// EVM code generator.
 pub struct EvmCodegen {
     /// The assembler for bytecode generation.
@@ -122,6 +302,8 @@ pub struct EvmCodegen {
     restorable_internal_frames: FxHashSet<FunctionId>,
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
+    /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
+    stack_phi_sources: FxHashMap<BlockId, FxHashSet<ValueId>>,
     /// Immutable `PUSH32` placeholders in the last assembled runtime code.
     runtime_immutable_refs: Vec<ImmutableRef>,
     /// Whether we're currently generating constructor code.
@@ -152,6 +334,7 @@ impl EvmCodegen {
             pending_frame_size_consts: Vec::new(),
             restorable_internal_frames: FxHashSet::default(),
             block_copies: FxHashMap::default(),
+            stack_phi_sources: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
             in_constructor: false,
             constructor_param_count: 0,
@@ -379,6 +562,7 @@ impl EvmCodegen {
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
             self.restorable_internal_frames.clear();
+            self.stack_phi_sources.clear();
 
             for (func_id, func) in module.functions.iter_enumerated() {
                 self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
@@ -491,6 +675,7 @@ impl EvmCodegen {
         self.pending_frame_size_consts.clear();
         self.restorable_internal_frames.clear();
         self.block_copies.clear();
+        self.stack_phi_sources.clear();
 
         if !module.functions.is_empty() {
             // The dispatcher generates function bodies inline
@@ -813,6 +998,8 @@ impl EvmCodegen {
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
+        let stack_phi_plan = StackPhiPlan::analyze(func);
+        self.stack_phi_sources = stack_phi_plan.edge_sources.clone();
 
         // Reset scheduler
         self.scheduler = StackScheduler::new();
@@ -857,6 +1044,9 @@ impl EvmCodegen {
                     self.scheduler.stack = entry_stack;
                     // Live-ins not on the carried stack still arrive in memory.
                     self.mark_live_in_spills(func, liveness, block_id);
+                } else if let Some(entry) = stack_phi_plan.entries.get(&block_id) {
+                    self.set_stack_to_values(entry);
+                    self.mark_live_in_spills(func, liveness, block_id);
                 } else {
                     self.scheduler.clear_stack();
                     self.mark_live_in_spills(func, liveness, block_id);
@@ -873,11 +1063,7 @@ impl EvmCodegen {
                 }
 
                 // Find the value ID that corresponds to this instruction (if any)
-                let result_value = func
-                    .values
-                    .iter_enumerated()
-                    .find(|(_, v)| matches!(v, crate::mir::Value::Inst(id) if *id == inst_id))
-                    .map(|(vid, _)| vid);
+                let result_value = func.inst_result_value(inst_id);
 
                 // Generate the instruction
                 self.generate_inst(func, &inst.kind, liveness, block_id, inst_idx, result_value);
@@ -886,8 +1072,21 @@ impl EvmCodegen {
                 }
             }
 
-            // Insert phi copies before terminator
-            if let Some(copies) = self.block_copies.remove(&block_id) {
+            let stack_phi_preserved = stack_phi_plan.edges.get(&block_id).is_some_and(|edge| {
+                if !self.can_prepare_stack_phi_edge(func, edge) {
+                    return false;
+                }
+                self.spill_live_out_values_except(func, liveness, block_id, &edge.sources);
+                self.pop_stack_values_not_needed_by(&edge.sources);
+                self.try_emit_stack_phi_edge(func, edge)
+            });
+
+            // Insert phi copies before terminator. If the edge was materialized
+            // as a stack-resident phi layout, the copies for this unconditional
+            // predecessor are represented by the edge stack itself.
+            if stack_phi_preserved {
+                self.block_copies.remove(&block_id);
+            } else if let Some(copies) = self.block_copies.remove(&block_id) {
                 let mut temps = FxHashMap::default();
                 for copy in &copies {
                     self.generate_copy(func, copy, &mut temps);
@@ -915,7 +1114,8 @@ impl EvmCodegen {
 
             let preserve_stack = preserve_stack_to_fallthrough
                 || preserve_jump_target.is_some()
-                || preserve_branch_target.is_some();
+                || preserve_branch_target.is_some()
+                || stack_phi_preserved;
 
             // Spill all live-out values before the terminator so they can be reloaded in successor
             // blocks. For a preserved edge, keep stack values live instead.
@@ -1076,6 +1276,138 @@ impl EvmCodegen {
         }
     }
 
+    fn set_stack_to_values(&mut self, values: &[ValueId]) {
+        self.scheduler.stack.clear();
+        for &value in values.iter().rev() {
+            self.scheduler.stack.push(value);
+        }
+    }
+
+    fn try_emit_stack_phi_edge(&mut self, func: &Function, edge: &StackPhiEdge) -> bool {
+        if edge.sources.len() != edge.results.len()
+            || edge.sources.is_empty()
+            || edge.sources.len() > STACK_PHI_LAYOUT_LIMIT
+        {
+            return false;
+        }
+        if !self.stack_contains_only_phi_sources(&edge.sources) {
+            return false;
+        }
+
+        for &source in Self::missing_stack_phi_sources(&self.scheduler.stack, &edge.sources).iter()
+        {
+            if !self.scheduler.can_emit_value(source, func) {
+                return false;
+            }
+            self.emit_operand(func, source);
+        }
+        if !self.stack_contains_only_phi_sources(&edge.sources) {
+            return false;
+        }
+
+        let target: Vec<_> = edge.sources.iter().copied().map(TargetSlot::Value).collect();
+        let shuffle = self.scheduler.shuffle_to_layout(&target);
+        for op in shuffle.ops {
+            self.asm.emit_op(op.opcode());
+        }
+
+        if self.scheduler.depth() != edge.sources.len() {
+            return false;
+        }
+        self.set_stack_to_values(&edge.results);
+        true
+    }
+
+    fn can_prepare_stack_phi_edge(&self, func: &Function, edge: &StackPhiEdge) -> bool {
+        if edge.sources.len() != edge.results.len()
+            || edge.sources.is_empty()
+            || edge.sources.len() > STACK_PHI_LAYOUT_LIMIT
+        {
+            return false;
+        }
+
+        let present =
+            Self::stack_phi_source_counts_after_trim(&self.scheduler.stack, &edge.sources);
+        if present.len() > STACK_PHI_LAYOUT_LIMIT {
+            return false;
+        }
+
+        let mut seen = Self::value_counts(present);
+        for &source in &edge.sources {
+            if let Some(count) = seen.get_mut(&source)
+                && *count > 0
+            {
+                *count -= 1;
+                continue;
+            }
+            if !self.scheduler.can_emit_value(source, func) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn stack_phi_source_counts_after_trim(stack: &StackModel, sources: &[ValueId]) -> Vec<ValueId> {
+        let mut remaining = Self::value_counts(sources.iter().copied());
+        let mut kept = Vec::new();
+        for value in stack.iter().flatten() {
+            if let Some(count) = remaining.get_mut(&value)
+                && *count > 0
+            {
+                *count -= 1;
+                kept.push(value);
+            }
+        }
+        kept
+    }
+
+    fn stack_contains_only_phi_sources(&self, sources: &[ValueId]) -> bool {
+        let mut remaining = Self::value_counts(sources.iter().copied());
+        for slot in self.scheduler.stack.iter() {
+            let Some(value) = slot else {
+                return false;
+            };
+            let Some(count) = remaining.get_mut(&value) else {
+                return false;
+            };
+            if *count == 0 {
+                return false;
+            }
+            *count -= 1;
+        }
+        true
+    }
+
+    fn missing_stack_phi_sources(stack: &StackModel, sources: &[ValueId]) -> Vec<ValueId> {
+        let mut needed = Self::value_counts(sources.iter().copied());
+        for value in stack.iter().flatten() {
+            if let Some(count) = needed.get_mut(&value)
+                && *count > 0
+            {
+                *count -= 1;
+            }
+        }
+
+        let mut missing = Vec::new();
+        for &source in sources {
+            if let Some(count) = needed.get_mut(&source)
+                && *count > 0
+            {
+                missing.push(source);
+                *count -= 1;
+            }
+        }
+        missing
+    }
+
+    fn value_counts(values: impl IntoIterator<Item = ValueId>) -> FxHashMap<ValueId, usize> {
+        let mut counts = FxHashMap::default();
+        for value in values {
+            *counts.entry(value).or_insert(0) += 1;
+        }
+        counts
+    }
+
     fn can_preserve_stack_fallthrough(
         &self,
         func: &Function,
@@ -1092,6 +1424,10 @@ impl EvmCodegen {
         // This block is the target's only predecessor, so no non-fallthrough edge can observe or
         // depend on a JUMPDEST at the target label.
         func.blocks[*target].predecessors.as_slice() == [block_id]
+    }
+
+    fn is_stack_phi_source(&self, block: BlockId, value: ValueId) -> bool {
+        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(&value))
     }
 
     /// Preallocates stable spill slots for values that may cross block boundaries.
@@ -1116,7 +1452,7 @@ impl EvmCodegen {
             }
             for &inst_id in &func.blocks[block_id].instructions {
                 if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
-                    && let Some(val) = Self::inst_result_value(func, inst_id)
+                    && let Some(val) = func.inst_result_value(inst_id)
                 {
                     values.insert(val);
                 }
@@ -1135,6 +1471,47 @@ impl EvmCodegen {
         }
     }
 
+    fn spill_live_out_values_except(
+        &mut self,
+        func: &Function,
+        liveness: &Liveness,
+        block_id: BlockId,
+        exempt: &[ValueId],
+    ) {
+        let exempt: FxHashSet<_> = exempt.iter().copied().collect();
+        for val in liveness.live_out(block_id).iter() {
+            if !exempt.contains(&val) {
+                self.spill_value_if_needed(func, val);
+            }
+        }
+    }
+
+    fn pop_stack_values_not_needed_by(&mut self, needed: &[ValueId]) {
+        while let Some(depth) = self.first_stack_value_not_needed_by(needed) {
+            if depth > 0 {
+                self.emit_stack_op(StackOp::Swap(depth as u8));
+            }
+            self.emit_stack_op(StackOp::Pop);
+        }
+    }
+
+    fn first_stack_value_not_needed_by(&self, needed: &[ValueId]) -> Option<usize> {
+        let mut remaining = Self::value_counts(needed.iter().copied());
+        for (depth, slot) in self.scheduler.stack.iter().enumerate() {
+            let Some(value) = slot else {
+                return Some(depth);
+            };
+            let Some(count) = remaining.get_mut(&value) else {
+                return Some(depth);
+            };
+            if *count == 0 {
+                return Some(depth);
+            }
+            *count -= 1;
+        }
+        None
+    }
+
     fn mark_live_in_spills(&mut self, func: &Function, liveness: &Liveness, block_id: BlockId) {
         // Values already on the stack (carried in from a preserved predecessor
         // edge) are read directly; marking them reloadable would point at a
@@ -1146,20 +1523,13 @@ impl EvmCodegen {
         }
         for &inst_id in &func.blocks[block_id].instructions {
             if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
-                && let Some(val) = Self::inst_result_value(func, inst_id)
+                && let Some(val) = func.inst_result_value(inst_id)
                 && !self.scheduler.stack.contains(val)
                 && self.scheduler.spills.get(val).is_some()
             {
                 self.scheduler.spills.mark_reloadable(val);
             }
         }
-    }
-
-    fn inst_result_value(func: &Function, inst_id: InstId) -> Option<ValueId> {
-        func.values
-            .iter_enumerated()
-            .find(|(_, v)| matches!(v, crate::mir::Value::Inst(id) if *id == inst_id))
-            .map(|(vid, _)| vid)
     }
 
     fn spill_values_before_stack_clear(&mut self, func: &Function, values: &[ValueId]) {
@@ -1311,7 +1681,7 @@ impl EvmCodegen {
         let live_out = liveness.live_out(block_id);
 
         for &op in operands {
-            if live_out.contains(op) {
+            if live_out.contains(op) && !self.is_stack_phi_source(block_id, op) {
                 self.spill_value_if_needed(func, op);
             }
         }
@@ -1327,7 +1697,15 @@ impl EvmCodegen {
         };
         matches!(
             func.instruction(*inst_id).kind,
-            InstKind::Add(_, _) | InstKind::Sub(_, _) | InstKind::Mul(_, _)
+            InstKind::Add(_, _)
+                | InstKind::Sub(_, _)
+                | InstKind::Mul(_, _)
+                | InstKind::And(_, _)
+                | InstKind::Or(_, _)
+                | InstKind::Xor(_, _)
+                | InstKind::Shl(_, _)
+                | InstKind::Shr(_, _)
+                | InstKind::Sar(_, _)
         )
     }
 
@@ -2089,6 +2467,7 @@ impl EvmCodegen {
 
         if let Some(result) = result_value
             && liveness.live_out(block).contains(result)
+            && !self.is_stack_phi_source(block, result)
         {
             self.spill_value_if_needed(func, result);
         }
@@ -2510,32 +2889,31 @@ impl EvmCodegen {
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Add(a, b) => {
-                            // Re-emit ADD
-                            self.emit_value_fresh(func, *a);
-                            self.emit_value_fresh(func, *b);
-                            self.asm.emit_op(op::ADD);
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.push(val);
+                            self.emit_fresh_binary(func, val, *a, *b, op::ADD, true);
                         }
                         crate::mir::InstKind::Sub(a, b) => {
-                            // Re-emit SUB. SUB computes s[0] - s[1], so the minuend
-                            // must be emitted last (on top).
-                            self.emit_value_fresh(func, *b);
-                            self.emit_value_fresh(func, *a);
-                            self.asm.emit_op(op::SUB);
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.push(val);
+                            self.emit_fresh_binary(func, val, *a, *b, op::SUB, false);
                         }
                         crate::mir::InstKind::Mul(a, b) => {
-                            // Re-emit MUL
-                            self.emit_value_fresh(func, *a);
-                            self.emit_value_fresh(func, *b);
-                            self.asm.emit_op(op::MUL);
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.pop();
-                            self.scheduler.stack.push(val);
+                            self.emit_fresh_binary(func, val, *a, *b, op::MUL, true);
+                        }
+                        crate::mir::InstKind::And(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::AND, true);
+                        }
+                        crate::mir::InstKind::Or(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::OR, true);
+                        }
+                        crate::mir::InstKind::Xor(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::XOR, true);
+                        }
+                        crate::mir::InstKind::Shl(shift, value) => {
+                            self.emit_fresh_binary(func, val, *shift, *value, op::SHL, false);
+                        }
+                        crate::mir::InstKind::Shr(shift, value) => {
+                            self.emit_fresh_binary(func, val, *shift, *value, op::SHR, false);
+                        }
+                        crate::mir::InstKind::Sar(shift, value) => {
+                            self.emit_fresh_binary(func, val, *shift, *value, op::SAR, false);
                         }
                         crate::mir::InstKind::SLoad(slot) => {
                             // Re-emit SLOAD. CALL operands are materialized in a
@@ -2568,6 +2946,30 @@ impl EvmCodegen {
                 );
             }
         }
+    }
+
+    fn emit_fresh_binary(
+        &mut self,
+        func: &Function,
+        result: ValueId,
+        a: ValueId,
+        b: ValueId,
+        opcode: u8,
+        commutative: bool,
+    ) {
+        if commutative {
+            self.emit_value_fresh(func, a);
+            self.emit_value_fresh(func, b);
+        } else {
+            // EVM binary opcodes consume `a` from the top of stack and `b`
+            // from the word below, matching the normal binary emitter.
+            self.emit_value_fresh(func, b);
+            self.emit_value_fresh(func, a);
+        }
+        self.asm.emit_op(opcode);
+        self.scheduler.stack.pop();
+        self.scheduler.stack.pop();
+        self.scheduler.stack.push(result);
     }
 
     /// Emits a binary operation with result tracking and liveness awareness.

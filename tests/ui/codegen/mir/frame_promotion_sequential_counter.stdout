@@ -1,0 +1,28 @@
+// === ROOT/tests/ui/codegen/mir/frame_promotion_sequential_counter.mir (after frame-slot-promotion,cfg-simplify,dce) ===
+; module @SequentialCounter
+fn @sequential(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v35 = phi [bb0: 0], [bb2: v11]
+    v37 = phi [bb0: 0], [bb2: v16]
+    v7 = lt v37, arg0
+    br v7, bb2, bb3
+  bb2:
+    v11 = add v35, 1
+    v16 = add v37, 1
+    jump bb1
+  bb3:
+    jump bb4
+  bb4:
+    v36 = phi [bb3: v35], [bb5: v26]
+    v38 = phi [bb3: 0], [bb5: v31]
+    v22 = lt v38, arg0
+    br v22, bb5, bb6
+  bb5:
+    v26 = add v36, 1
+    v31 = add v38, 1
+    jump bb4
+  bb6:
+    ret v36
+}
