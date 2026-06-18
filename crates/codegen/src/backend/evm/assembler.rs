@@ -196,10 +196,17 @@ impl Assembler {
     /// Uses an iterative two-pass algorithm that handles PUSH width changes.
     #[must_use]
     pub fn assemble(&mut self) -> AssembledCode {
-        let mut program = self.program.to_asm_program();
+        let mut ir_program = std::mem::take(&mut self.program);
+        ir_program.optimize_blocks(|inst| match inst.kind() {
+            // Deferred constants are resolved immediately after block-level IR
+            // passes. Use the worst-case PUSH32 size for pre-resolution
+            // profitability decisions.
+            AsmInstKind::PushDeferred(_) => 33,
+            _ => self.estimated_inst_size(inst),
+        });
+        let mut program = ir_program.to_asm_program();
         self.resolve_deferred_consts(&mut program);
         self.optimize_instructions(&mut program);
-        program.move_cold_terminal_blocks_to_end();
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();

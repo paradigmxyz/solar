@@ -62,13 +62,19 @@ impl EvmIrProgram {
         for block in &self.blocks {
             if let Some(label) = block.label {
                 program.instructions.push(AsmInst::label(label));
-                if block.cold {
-                    program.cold_labels.insert(label);
-                }
             }
             program.instructions.extend_from_slice(&block.instructions);
         }
         program
+    }
+
+    /// Runs block-aware EVM IR optimizations.
+    pub(in crate::backend::evm) fn optimize_blocks<S>(&mut self, estimated_inst_size: S) -> usize
+    where
+        S: FnMut(AsmInst) -> usize,
+    {
+        self.deduplicate_terminal_blocks(estimated_inst_size)
+            + self.move_cold_terminal_blocks_to_end()
     }
 
     fn current_block_mut(&mut self) -> &mut EvmIrAsmBlock {
@@ -83,6 +89,75 @@ impl EvmIrProgram {
         };
         &mut self.blocks[index]
     }
+
+    fn move_cold_terminal_blocks_to_end(&mut self) -> usize {
+        let mut moved = Vec::new();
+        let mut kept = Vec::with_capacity(self.blocks.len());
+        let mut moved_count = 0;
+
+        for index in 0..self.blocks.len() {
+            if self.is_movable_cold_terminal_block(index) {
+                moved.push(self.blocks[index].clone());
+                moved_count += 1;
+            } else {
+                kept.push(self.blocks[index].clone());
+            }
+        }
+
+        if moved_count == 0 {
+            return 0;
+        }
+
+        kept.extend(moved);
+        self.blocks = kept;
+        moved_count
+    }
+
+    fn is_movable_cold_terminal_block(&self, index: usize) -> bool {
+        if index == 0 {
+            return false;
+        }
+        let block = &self.blocks[index];
+        if block.label.is_none() || !block.cold || !block.ends_with_terminal() {
+            return false;
+        }
+        self.blocks[index - 1].ends_with_terminal()
+    }
+
+    fn deduplicate_terminal_blocks<S>(&mut self, mut estimated_inst_size: S) -> usize
+    where
+        S: FnMut(AsmInst) -> usize,
+    {
+        let mut canonical = Vec::<(Vec<AsmInst>, Label)>::new();
+        let mut changed = 0;
+
+        for block in &mut self.blocks {
+            let Some(label) = block.label else {
+                continue;
+            };
+            if !block.ends_with_terminal() {
+                continue;
+            }
+
+            let key = block.instructions.clone();
+            if let Some((_, target)) = canonical.iter().find(|(known, _)| *known == key) {
+                let current_size = 1 + block
+                    .instructions
+                    .iter()
+                    .map(|&inst| estimated_inst_size(inst))
+                    .sum::<usize>();
+                let replacement_size = 1 + 3 + 1; // JUMPDEST + PUSH2(label) + JUMP.
+                if current_size > replacement_size {
+                    block.instructions = vec![AsmInst::push_label(*target), AsmInst::op(op::JUMP)];
+                    changed += 1;
+                }
+            } else {
+                canonical.push((key, label));
+            }
+        }
+
+        changed
+    }
 }
 
 #[derive(Clone, Debug, Default)]
@@ -92,83 +167,17 @@ struct EvmIrAsmBlock {
     instructions: Vec<AsmInst>,
 }
 
+impl EvmIrAsmBlock {
+    fn ends_with_terminal(&self) -> bool {
+        matches!(self.instructions.last().map(|inst| inst.kind()), Some(AsmInstKind::Op(op)) if op::is_terminal(op))
+    }
+}
+
 /// Linear EVM assembly program used by the final assembler.
 ///
 /// This is the MC-like layer below structured EVM IR: a label-bearing opcode
-/// stream with unresolved PUSH operands and layout metadata, ready for final
-/// assembly into bytecode.
+/// stream with unresolved PUSH operands, ready for final assembly into bytecode.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct EvmAsmProgram {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
-    cold_labels: FxHashSet<Label>,
-}
-
-impl EvmAsmProgram {
-    /// Moves non-fallthrough cold terminal blocks to the end of the program.
-    ///
-    /// The pass only moves blocks that start with a cold label, end with a
-    /// terminal opcode, and are preceded by a terminal opcode. This excludes
-    /// physical fallthrough edges, which are stack-sensitive in MIR-to-EVM
-    /// lowering.
-    pub(in crate::backend::evm) fn move_cold_terminal_blocks_to_end(&mut self) -> usize {
-        let mut ranges = Vec::new();
-        let mut start = 0;
-
-        while start < self.instructions.len() {
-            let end = self.next_block_start(start + 1).unwrap_or(self.instructions.len());
-            if self.is_movable_cold_terminal_block(start, end) {
-                ranges.push(start..end);
-            }
-            start = end;
-        }
-
-        if ranges.is_empty() {
-            return 0;
-        }
-
-        let mut moved = Vec::new();
-        let mut optimized = Vec::with_capacity(self.instructions.len());
-        let mut range_index = 0;
-        let mut index = 0;
-
-        while index < self.instructions.len() {
-            if range_index < ranges.len() && index == ranges[range_index].start {
-                moved.extend_from_slice(&self.instructions[ranges[range_index].clone()]);
-                index = ranges[range_index].end;
-                range_index += 1;
-            } else {
-                optimized.push(self.instructions[index]);
-                index += 1;
-            }
-        }
-
-        let moved_count = ranges.len();
-        optimized.extend(moved);
-        self.instructions = optimized;
-        moved_count
-    }
-
-    fn next_block_start(&self, start: usize) -> Option<usize> {
-        self.instructions[start..]
-            .iter()
-            .position(|inst| matches!(inst.kind(), AsmInstKind::Label(_)))
-            .map(|offset| start + offset)
-    }
-
-    fn is_movable_cold_terminal_block(&self, start: usize, end: usize) -> bool {
-        if start == 0 || start >= end {
-            return false;
-        }
-        let AsmInstKind::Label(label) = self.instructions[start].kind() else {
-            return false;
-        };
-        if !self.cold_labels.contains(&label) {
-            return false;
-        }
-        if !matches!(self.instructions[start - 1].kind(), AsmInstKind::Op(op) if op::is_terminal(op))
-        {
-            return false;
-        }
-        matches!(self.instructions[end - 1].kind(), AsmInstKind::Op(op) if op::is_terminal(op))
-    }
 }

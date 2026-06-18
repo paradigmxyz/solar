@@ -1,8 +1,7 @@
 //! Peephole optimization over assembler instructions.
 
-use super::assembler::{AsmInst, AsmInstKind, Assembler, EvmAsmProgram, Label, op};
+use super::assembler::{AsmInst, AsmInstKind, Assembler, EvmAsmProgram, op};
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
 
 impl Assembler {
     /// Runs local peephole optimizations over assembler instructions.
@@ -10,38 +9,28 @@ impl Assembler {
     /// This pass runs before label resolution, so removing instructions cannot
     /// leave stale jump destinations.
     pub(super) fn optimize_instructions(&mut self, program: &mut EvmAsmProgram) -> usize {
-        program.optimize_instructions(
-            |inst| self.inst_push_value(inst),
-            |inst| self.estimated_inst_size(inst),
-        )
+        program.optimize_instructions(|inst| self.inst_push_value(inst))
     }
 }
 
 impl EvmAsmProgram {
     /// Runs local peephole optimizations over the linear EVM assembly program.
-    pub(in crate::backend::evm) fn optimize_instructions<P, S>(
-        &mut self,
-        inst_push_value: P,
-        estimated_inst_size: S,
-    ) -> usize
+    pub(in crate::backend::evm) fn optimize_instructions<P>(&mut self, inst_push_value: P) -> usize
     where
         P: FnMut(AsmInst) -> Option<U256>,
-        S: FnMut(AsmInst) -> usize,
     {
-        EvmAsmProgramOptimizer { program: self, inst_push_value, estimated_inst_size }.run()
+        EvmAsmProgramOptimizer { program: self, inst_push_value }.run()
     }
 }
 
-struct EvmAsmProgramOptimizer<'a, P, S> {
+struct EvmAsmProgramOptimizer<'a, P> {
     program: &'a mut EvmAsmProgram,
     inst_push_value: P,
-    estimated_inst_size: S,
 }
 
-impl<P, S> EvmAsmProgramOptimizer<'_, P, S>
+impl<P> EvmAsmProgramOptimizer<'_, P>
 where
     P: FnMut(AsmInst) -> Option<U256>,
-    S: FnMut(AsmInst) -> usize,
 {
     fn run(&mut self) -> usize {
         let mut total = 0;
@@ -74,90 +63,7 @@ where
         }
         self.program.instructions.truncate(write);
 
-        total += self.deduplicate_terminal_blocks();
         total
-    }
-
-    fn deduplicate_terminal_blocks(&mut self) -> usize {
-        let candidates = self.terminal_block_candidates();
-        if candidates.is_empty() {
-            return 0;
-        }
-
-        let mut canonical: FxHashMap<Vec<AsmInst>, Label> = FxHashMap::default();
-        let mut replacements: FxHashMap<usize, Label> = FxHashMap::default();
-
-        for block in candidates {
-            if let Some(&target) = canonical.get(&block.key) {
-                let replacement_size = 1 + 3 + 1; // JUMPDEST + PUSH2(label) + JUMP.
-                if block.estimated_size > replacement_size {
-                    replacements.insert(block.label_index, target);
-                }
-            } else {
-                canonical.insert(block.key, block.label);
-            }
-        }
-
-        if replacements.is_empty() {
-            return 0;
-        }
-
-        let mut optimized = Vec::with_capacity(self.program.instructions.len());
-        let mut removed = 0;
-        let mut i = 0;
-        while i < self.program.instructions.len() {
-            if let Some(&target) = replacements.get(&i)
-                && let AsmInstKind::Label(label) = self.program.instructions[i].kind()
-                && let Some(end) = self.terminal_block_end(i)
-            {
-                optimized.push(AsmInst::label(label));
-                optimized.push(AsmInst::push_label(target));
-                optimized.push(AsmInst::op(op::JUMP));
-                removed += 1;
-                i = end + 1;
-                continue;
-            }
-            optimized.push(self.program.instructions[i]);
-            i += 1;
-        }
-
-        self.program.instructions = optimized;
-        removed
-    }
-
-    fn terminal_block_candidates(&mut self) -> Vec<TerminalBlock> {
-        let mut candidates = Vec::new();
-        for i in 0..self.program.instructions.len().saturating_sub(1) {
-            let AsmInstKind::Label(label) = self.program.instructions[i].kind() else {
-                continue;
-            };
-            let Some(end) = self.terminal_block_end(i) else {
-                continue;
-            };
-            let body = &self.program.instructions[i..=end];
-            let key = body
-                .iter()
-                .copied()
-                .filter(|inst| !matches!(inst.kind(), AsmInstKind::Label(_)))
-                .collect();
-            let estimated_size = body.iter().map(|&inst| (self.estimated_inst_size)(inst)).sum();
-            candidates.push(TerminalBlock { label, label_index: i, key, estimated_size });
-        }
-        candidates
-    }
-
-    fn terminal_block_end(&self, start: usize) -> Option<usize> {
-        for i in start..self.program.instructions.len() {
-            if i != start && matches!(self.program.instructions[i].kind(), AsmInstKind::Label(_)) {
-                return None;
-            }
-            if let AsmInstKind::Op(op) = self.program.instructions[i].kind()
-                && op::is_terminal(op)
-            {
-                return Some(i);
-            }
-        }
-        None
     }
 
     #[inline]
@@ -281,14 +187,6 @@ fn is_removable_push(inst: AsmInst) -> bool {
             | AsmInstKind::PushLabel(_)
             | AsmInstKind::PushImmutable(_)
     )
-}
-
-#[derive(Clone, Debug)]
-struct TerminalBlock {
-    label: Label,
-    label_index: usize,
-    key: Vec<AsmInst>,
-    estimated_size: usize,
 }
 
 #[derive(Clone, Copy, Debug)]
