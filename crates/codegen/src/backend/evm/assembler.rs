@@ -871,11 +871,12 @@ mod tests {
         });
         unoptimized.emit_push(U256::MAX);
 
-        assert_eq!(size_optimized.assemble().bytecode, vec![op::PUSH0, op::NOT]);
+        let compact = vec![op::PUSH0, op::NOT];
+        assert_eq!(size_optimized.assemble().bytecode, compact);
+        assert_eq!(gas_optimized.assemble().bytecode, compact);
 
         let mut expected = vec![op::PUSH32];
         expected.extend(std::iter::repeat_n(0xff, 32));
-        assert_eq!(gas_optimized.assemble().bytecode, expected);
         assert_eq!(unoptimized.assemble().bytecode, expected);
     }
 
