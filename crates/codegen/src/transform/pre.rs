@@ -36,7 +36,7 @@ use crate::{
         Terminator, Value, ValueId,
     },
     pass::FunctionPass,
-    utils::{repair_reachability_phis, split_edge},
+    utils::{mir as mir_utils, repair_reachability_phis, split_edge},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;
@@ -140,8 +140,8 @@ impl PartialRedundancyEliminator {
         self.stats = PreStats::default();
         repair_reachability_phis(func);
 
-        let mut inst_results = func.inst_results();
-        let mut inst_blocks = func.inst_blocks();
+        let mut inst_results = mir_utils::inst_results(func);
+        let mut inst_blocks = mir_utils::inst_blocks(func);
 
         let mut eliminated_keys = FxHashSet::default();
         let mut inserted_insts = FxHashSet::default();
@@ -201,7 +201,7 @@ impl PartialRedundancyEliminator {
         let mut eliminated_values: FxHashSet<ValueId> = FxHashSet::default();
 
         'targets: for target in func.blocks.indices() {
-            let predecessors = func.unique_predecessors(target);
+            let predecessors = mir_utils::unique_predecessors(func, target);
             if predecessors.len() < 2 {
                 continue;
             }
@@ -404,7 +404,7 @@ impl PartialRedundancyEliminator {
         };
 
         let replacements = FxHashMap::from_iter([(result, replacement)]);
-        func.replace_uses(&replacements);
+        mir_utils::replace_uses(func, &replacements);
         func.blocks[target].instructions.retain(|&inst_id| inst_id != inst);
         inst_results.remove(&inst);
         inst_blocks.remove(&inst);

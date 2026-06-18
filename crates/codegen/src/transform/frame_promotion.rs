@@ -16,7 +16,7 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
-    utils::repair_reachability_phis,
+    utils::{mir as mir_utils, repair_reachability_phis},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -228,7 +228,7 @@ impl FrameSlotPromoter {
         };
 
         for info in slots {
-            let inst_results = func.inst_results();
+            let inst_results = mir_utils::inst_results(func);
             let mut builder = SlotSsaBuilder::new(&info, &cfg, &inst_results);
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
@@ -316,7 +316,7 @@ impl FrameSlotPromoter {
             return None;
         }
 
-        if let Some(addr) = Self::as_u64(func, value)
+        if let Some(addr) = mir_utils::value_u64(func, value)
             && Self::external_local_addr_in_range(func, addr).is_some()
         {
             return Some(addr);
@@ -345,7 +345,7 @@ impl FrameSlotPromoter {
         depth: usize,
     ) -> Option<u64> {
         let base = Self::external_local_addr_with_depth(func, base, depth + 1)?;
-        let addr = base.checked_add(Self::as_u64(func, offset)?)?;
+        let addr = base.checked_add(mir_utils::value_u64(func, offset)?)?;
         Self::external_local_addr_in_range(func, addr)
     }
 
@@ -380,16 +380,16 @@ impl FrameSlotPromoter {
         depth: usize,
     ) -> Option<u64> {
         let base = Self::internal_frame_offset_with_depth(func, base, depth + 1)?;
-        base.checked_add(Self::as_u64(func, offset)?)
-    }
-
-    fn as_u64(func: &Function, value: ValueId) -> Option<u64> {
-        let value = func.values[value].as_immediate()?.as_u256()?;
-        u64::try_from(value).ok()
+        base.checked_add(mir_utils::value_u64(func, offset)?)
     }
 
     fn external_local_slot_safe(func: &Function, slot_addr: u64) -> bool {
-        if Self::ranges_overlap(slot_addr, 32, LOW_MEMORY_START, func.external_static_return_size) {
+        if mir_utils::ranges_overlap(
+            slot_addr,
+            32,
+            LOW_MEMORY_START,
+            func.external_static_return_size,
+        ) {
             return false;
         }
 
@@ -455,18 +455,18 @@ impl FrameSlotPromoter {
             | InstKind::CalldataCopy(addr, _, size) => Self::internal_frame_range_may_overlap(
                 func,
                 addr,
-                Self::as_u64(func, size),
+                mir_utils::value_u64(func, size),
                 slot_offset,
             ),
             InstKind::MCopy(dest, src, size) => {
-                let size = Self::as_u64(func, size);
+                let size = mir_utils::value_u64(func, size);
                 Self::internal_frame_range_may_overlap(func, dest, size, slot_offset)
                     || Self::internal_frame_range_may_overlap(func, src, size, slot_offset)
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => Self::internal_frame_range_may_overlap(
                 func,
                 dest,
-                Self::as_u64(func, size),
+                mir_utils::value_u64(func, size),
                 slot_offset,
             ),
             InstKind::Log1(addr, size, _)
@@ -475,7 +475,7 @@ impl FrameSlotPromoter {
             | InstKind::Log4(addr, size, _, _, _, _) => Self::internal_frame_range_may_overlap(
                 func,
                 addr,
-                Self::as_u64(func, size),
+                mir_utils::value_u64(func, size),
                 slot_offset,
             ),
             InstKind::Call { args_offset, args_size, ret_offset, ret_size, .. }
@@ -484,12 +484,12 @@ impl FrameSlotPromoter {
                 Self::internal_frame_range_may_overlap(
                     func,
                     args_offset,
-                    Self::as_u64(func, args_size),
+                    mir_utils::value_u64(func, args_size),
                     slot_offset,
                 ) || Self::internal_frame_range_may_overlap(
                     func,
                     ret_offset,
-                    Self::as_u64(func, ret_size),
+                    mir_utils::value_u64(func, ret_size),
                     slot_offset,
                 )
             }
@@ -520,7 +520,7 @@ impl FrameSlotPromoter {
                 Self::internal_frame_range_may_overlap(
                     func,
                     *offset,
-                    Self::as_u64(func, *size),
+                    mir_utils::value_u64(func, *size),
                     slot_offset,
                 )
             }
@@ -544,23 +544,32 @@ impl FrameSlotPromoter {
             | InstKind::Log0(addr, size)
             | InstKind::ReturnDataCopy(addr, _, size)
             | InstKind::CodeCopy(addr, _, size)
-            | InstKind::CalldataCopy(addr, _, size) => {
-                Self::memory_range_may_overlap(func, addr, Self::as_u64(func, size), slot_addr)
-            }
+            | InstKind::CalldataCopy(addr, _, size) => Self::memory_range_may_overlap(
+                func,
+                addr,
+                mir_utils::value_u64(func, size),
+                slot_addr,
+            ),
             InstKind::MCopy(dest, src, size) => {
-                let size = Self::as_u64(func, size);
+                let size = mir_utils::value_u64(func, size);
                 Self::memory_range_may_overlap(func, dest, size, slot_addr)
                     || Self::memory_range_may_overlap(func, src, size, slot_addr)
             }
-            InstKind::ExtCodeCopy(_, dest, _, size) => {
-                Self::memory_range_may_overlap(func, dest, Self::as_u64(func, size), slot_addr)
-            }
+            InstKind::ExtCodeCopy(_, dest, _, size) => Self::memory_range_may_overlap(
+                func,
+                dest,
+                mir_utils::value_u64(func, size),
+                slot_addr,
+            ),
             InstKind::Log1(addr, size, _)
             | InstKind::Log2(addr, size, _, _)
             | InstKind::Log3(addr, size, _, _, _)
-            | InstKind::Log4(addr, size, _, _, _, _) => {
-                Self::memory_range_may_overlap(func, addr, Self::as_u64(func, size), slot_addr)
-            }
+            | InstKind::Log4(addr, size, _, _, _, _) => Self::memory_range_may_overlap(
+                func,
+                addr,
+                mir_utils::value_u64(func, size),
+                slot_addr,
+            ),
             InstKind::Call { .. }
             | InstKind::StaticCall { .. }
             | InstKind::DelegateCall { .. }
@@ -579,7 +588,12 @@ impl FrameSlotPromoter {
     ) -> bool {
         match term {
             Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                Self::memory_range_may_overlap(func, *offset, Self::as_u64(func, *size), slot_addr)
+                Self::memory_range_may_overlap(
+                    func,
+                    *offset,
+                    mir_utils::value_u64(func, *size),
+                    slot_addr,
+                )
             }
             Terminator::Jump(_)
             | Terminator::Branch { .. }
@@ -610,7 +624,7 @@ impl FrameSlotPromoter {
         if size == 0 {
             return false;
         }
-        Self::ranges_overlap(offset, size, slot_offset, 32)
+        mir_utils::ranges_overlap(offset, size, slot_offset, 32)
     }
 
     fn memory_range_may_overlap(
@@ -623,14 +637,8 @@ impl FrameSlotPromoter {
         if size == 0 {
             return false;
         }
-        let Some(addr) = Self::as_u64(func, addr) else { return true };
-        Self::ranges_overlap(addr, size, slot_addr, 32)
-    }
-
-    fn ranges_overlap(a_start: u64, a_size: u64, b_start: u64, b_size: u64) -> bool {
-        let Some(a_end) = a_start.checked_add(a_size) else { return true };
-        let Some(b_end) = b_start.checked_add(b_size) else { return true };
-        a_start < b_end && b_start < a_end
+        let Some(addr) = mir_utils::value_u64(func, addr) else { return true };
+        mir_utils::ranges_overlap(addr, size, slot_addr, 32)
     }
 }
 
@@ -830,7 +838,7 @@ impl<'a> SlotSsaBuilder<'a> {
             func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
         }
 
-        func.replace_uses_canonicalized(&self.replacements);
+        mir_utils::replace_uses_canonicalized(func, &self.replacements);
 
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|id| !self.dead.contains(id));
@@ -861,7 +869,7 @@ impl<'a> SlotSsaBuilder<'a> {
                 InstKind::MStore(addr, value)
                     if FrameSlotPromoter::promotable_slot(func, addr) == Some(self.info.slot) =>
                 {
-                    current = Some(Function::resolve_replacement(value, &self.replacements));
+                    current = Some(mir_utils::resolve_replacement(value, &self.replacements));
                     self.remove_store(inst_id);
                     changed = true;
                 }
@@ -873,7 +881,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn rewrite_single_store(&mut self, func: &Function) -> bool {
         let [store] = self.info.stores.as_slice() else { return false };
-        let stored_value = Function::resolve_replacement(store.value, &self.replacements);
+        let stored_value = mir_utils::resolve_replacement(store.value, &self.replacements);
 
         for load in &self.info.loads {
             let dominated = if load.block == store.block {
@@ -907,7 +915,7 @@ impl<'a> SlotSsaBuilder<'a> {
     fn replace_load(&mut self, inst_id: InstId, value: ValueId) {
         if let Some(&load_value) = self.inst_results.get(&inst_id) {
             self.replacements
-                .insert(load_value, Function::resolve_replacement(value, &self.replacements));
+                .insert(load_value, mir_utils::resolve_replacement(value, &self.replacements));
             self.dead.insert(inst_id);
             self.loads_promoted += 1;
         }
@@ -941,7 +949,7 @@ impl<'a> SlotSsaBuilder<'a> {
                 InstKind::MStore(addr, value)
                     if FrameSlotPromoter::promotable_slot(func, addr) == Some(self.info.slot) =>
                 {
-                    current = Some(Function::resolve_replacement(value, &self.replacements));
+                    current = Some(mir_utils::resolve_replacement(value, &self.replacements));
                     self.remove_store(inst_id);
                 }
                 _ => {}
@@ -955,7 +963,7 @@ impl<'a> SlotSsaBuilder<'a> {
                     return;
                 };
                 phi.incoming
-                    .push((block, Function::resolve_replacement(value, &self.replacements)));
+                    .push((block, mir_utils::resolve_replacement(value, &self.replacements)));
             }
         }
 

@@ -21,7 +21,7 @@ use crate::{
         Terminator, Value, ValueId,
     },
     pass::{FunctionPass, ModulePass},
-    utils::repair_reachability_phis,
+    utils::{mir as mir_utils, repair_reachability_phis},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -155,7 +155,7 @@ impl CfgSimplifier {
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
-        let inst_results = func.inst_results();
+        let inst_results = mir_utils::inst_results(func);
 
         let mut kept: Vec<(BlockId, CanonBlock)> = Vec::new();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
@@ -252,7 +252,7 @@ impl CfgSimplifier {
         let mut raw = FxHashMap::default();
 
         for block_id in func.blocks.indices() {
-            let same_block_phi_results = func.block_phi_results(block_id);
+            let same_block_phi_results = mir_utils::block_phi_results(func, block_id);
             for &inst_id in &func.blocks[block_id].instructions {
                 let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
                     continue;
@@ -301,7 +301,7 @@ impl CfgSimplifier {
             return;
         }
 
-        func.replace_uses(&replacements);
+        mir_utils::replace_uses(func, &replacements);
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|inst_id| !dead.contains(inst_id));
         }
@@ -447,7 +447,7 @@ impl CfgSimplifier {
         func.blocks[target].terminator = Some(Terminator::Invalid);
         func.blocks[target].predecessors.clear();
 
-        func.replace_uses(&phi_replacements);
+        mir_utils::replace_uses(func, &phi_replacements);
     }
 
     fn fold_target_phis_for_merge(

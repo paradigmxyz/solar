@@ -14,6 +14,7 @@ use crate::{
     analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId},
     pass::FunctionPass,
+    utils::mir as mir_utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashSet;
@@ -36,12 +37,6 @@ struct LoopOptContext<'a> {
     loop_data: &'a Loop,
     scev: &'a ScalarEvolution,
     analyzer: &'a LoopAnalyzer,
-}
-
-fn ranges_overlap(a_start: u64, a_width: u64, b_start: u64, b_width: u64) -> bool {
-    let a_end = a_start.saturating_add(a_width);
-    let b_end = b_start.saturating_add(b_width);
-    a_start < b_end && b_start < a_end
 }
 
 /// Loop optimization pass configuration.
@@ -111,7 +106,10 @@ impl LoopOptimizer {
     /// Runs all enabled loop optimizations on a function.
     pub fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
-        self.annotate_storage_aliases(func);
+        mir_utils::annotate_storage_aliases(
+            func,
+            mir_utils::StorageAliasScope::StorageAndTransient,
+        );
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
@@ -572,7 +570,7 @@ impl LoopOptimizer {
     ) -> bool {
         match (self.const_addr(func, load_addr), load_width, self.const_addr(func, write_addr)) {
             (Some(load), Some(load_width), Some(write)) => {
-                ranges_overlap(load, load_width, write, write_width)
+                mir_utils::ranges_overlap(load, load_width, write, write_width)
             }
             _ => {
                 let Some(load_width) = load_width else { return true };
@@ -706,22 +704,6 @@ impl LoopOptimizer {
             Value::Inst(inst_id) => self.inst_in_loop(func, *inst_id, loop_data),
             Value::Undef(_) => true,
             Value::Arg { .. } | Value::Immediate(_) => false,
-        }
-    }
-
-    fn annotate_storage_aliases(&self, func: &mut Function) {
-        let inst_ids: Vec<_> =
-            func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
-        for inst_id in inst_ids {
-            let slot = match func.instructions[inst_id].kind {
-                InstKind::SLoad(slot)
-                | InstKind::SStore(slot, _)
-                | InstKind::TLoad(slot)
-                | InstKind::TStore(slot, _) => Some(slot),
-                _ => None,
-            };
-            let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
-            func.instructions[inst_id].metadata.set_storage_alias(alias);
         }
     }
 

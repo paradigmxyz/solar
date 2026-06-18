@@ -25,6 +25,7 @@ use crate::{
         Module, Terminator, Value, ValueId,
     },
     pass::ModulePass,
+    utils::mir as mir_utils,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -1182,7 +1183,7 @@ fn inline_call_impl(
         insert_extra_return_stores(cloner.caller, continuation, &return_values[1..]);
     }
 
-    cloner.caller.replace_uses(&replacements);
+    mir_utils::replace_uses(cloner.caller, &replacements);
     recompute_cfg(cloner.caller);
     prune_phi_incoming_to_predecessors(cloner.caller);
     Some(())

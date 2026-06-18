@@ -79,7 +79,7 @@ use crate::{
         MirType, StorageAlias, Terminator, Value, ValueId,
     },
     pass::FunctionPass,
-    utils::repair_reachability_phis,
+    utils::{mir as mir_utils, repair_reachability_phis},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -515,8 +515,8 @@ impl LoadRedundancyEliminator {
             outs,
             reach,
             dominators: cfg.dominators().clone(),
-            inst_results: func.inst_results(),
-            inst_blocks: func.inst_blocks(),
+            inst_results: mir_utils::inst_results(func),
+            inst_blocks: mir_utils::inst_blocks(func),
         })
     }
 
@@ -538,7 +538,7 @@ impl LoadRedundancyEliminator {
             if !cx.analysis.reachable.contains(&target) {
                 continue;
             }
-            let predecessors = func.unique_predecessors(target);
+            let predecessors = mir_utils::unique_predecessors(func, target);
             if predecessors.len() < 2
                 || predecessors.iter().any(|pred| !cx.analysis.reachable.contains(pred))
             {
@@ -937,19 +937,19 @@ impl LoadRedundancyEliminator {
     fn gen_key_value(func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
         match func.instructions[inst_id].kind {
             InstKind::SLoad(slot) => Some((
-                LoadKey::Storage(Self::storage_alias(func, inst_id, slot)),
+                LoadKey::Storage(mir_utils::storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
             )),
             InstKind::SStore(slot, value) => Some((
-                LoadKey::Storage(Self::storage_alias(func, inst_id, slot)),
+                LoadKey::Storage(mir_utils::storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
             InstKind::TLoad(slot) => Some((
-                LoadKey::Transient(Self::storage_alias(func, inst_id, slot)),
+                LoadKey::Transient(mir_utils::storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
             )),
             InstKind::TStore(slot, value) => Some((
-                LoadKey::Transient(Self::storage_alias(func, inst_id, slot)),
+                LoadKey::Transient(mir_utils::storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
             InstKind::MLoad(addr) => Self::mem_addr(func, inst_id, addr)
@@ -958,7 +958,7 @@ impl LoadRedundancyEliminator {
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
                 let addr = Self::mem_addr(func, inst_id, offset)?;
-                let size = match Self::const_u64(func, size) {
+                let size = match mir_utils::value_u64(func, size) {
                     Some(size) => KeccakSize::Const(size),
                     None => KeccakSize::Dyn(size),
                 };
@@ -974,7 +974,7 @@ impl LoadRedundancyEliminator {
         match key {
             LoadKey::Storage(alias) => match *kind {
                 InstKind::SStore(slot, _) => {
-                    Self::storage_alias(func, inst_id, slot).may_alias(alias)
+                    mir_utils::storage_alias(func, inst_id, slot).may_alias(alias)
                 }
                 // Calls and creates may re-enter and mutate storage;
                 // STATICCALL cannot.
@@ -982,7 +982,7 @@ impl LoadRedundancyEliminator {
             },
             LoadKey::Transient(alias) => match *kind {
                 InstKind::TStore(slot, _) => {
-                    Self::storage_alias(func, inst_id, slot).may_alias(alias)
+                    mir_utils::storage_alias(func, inst_id, slot).may_alias(alias)
                 }
                 _ => kind.may_mutate_transient_storage(),
             },
@@ -1013,8 +1013,8 @@ impl LoadRedundancyEliminator {
             InstKind::MCopy(dest, _, size)
             | InstKind::CalldataCopy(dest, _, size)
             | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ReturnDataCopy(dest, _, size) => (dest, Self::const_u64(func, size)),
-            InstKind::ExtCodeCopy(_, dest, _, size) => (dest, Self::const_u64(func, size)),
+            | InstKind::ReturnDataCopy(dest, _, size) => (dest, mir_utils::value_u64(func, size)),
+            InstKind::ExtCodeCopy(_, dest, _, size) => (dest, mir_utils::value_u64(func, size)),
             // Every call clobbers tracked memory, including STATICCALL: its
             // return buffer write is a memory effect even in a static context.
             _ => return kind.may_mutate_memory(),
@@ -1023,7 +1023,7 @@ impl LoadRedundancyEliminator {
         let write_region = func.instructions[inst_id]
             .metadata
             .memory_region()
-            .unwrap_or_else(|| Self::memory_region_for_addr(func, dest));
+            .unwrap_or_else(|| mir_utils::memory_region_for_addr(func, dest));
         if read.region != MemoryRegion::Unknown
             && write_region != MemoryRegion::Unknown
             && read.region != write_region
@@ -1039,45 +1039,27 @@ impl LoadRedundancyEliminator {
         else {
             return true;
         };
-        Self::ranges_overlap(read.offset, read_size, write_offset, write_size)
-    }
-
-    fn storage_alias(func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
-        func.instructions[inst_id]
-            .metadata
-            .storage_alias()
-            .unwrap_or_else(|| StorageAlias::for_value(func, slot))
+        mir_utils::ranges_overlap(read.offset, read_size, write_offset, write_size)
     }
 
     fn mem_addr(func: &Function, inst_id: InstId, addr: ValueId) -> Option<MemAddr> {
         let region = func.instructions[inst_id]
             .metadata
             .memory_region()
-            .unwrap_or_else(|| Self::memory_region_for_addr(func, addr));
+            .unwrap_or_else(|| mir_utils::memory_region_for_addr(func, addr));
         let (base, offset) = Self::memory_addr_base_offset(func, addr);
         Some(MemAddr { region, base, offset: offset? })
     }
 
-    fn memory_region_for_addr(func: &Function, addr: ValueId) -> MemoryRegion {
-        match func.value(addr) {
-            Value::Immediate(imm)
-                if imm.as_u256().is_some_and(|value| value < U256::from(0x80)) =>
-            {
-                MemoryRegion::Scratch
-            }
-            _ => MemoryRegion::Unknown,
-        }
-    }
-
     fn memory_addr_base_offset(func: &Function, addr: ValueId) -> (Option<ValueId>, Option<u64>) {
         if let Some((base, offset)) = Self::offset_chain(func, addr, 0) {
-            if let Some(offset) = Self::u256_to_u64(offset) {
+            if let Some(offset) = mir_utils::u256_to_u64(offset) {
                 return (Some(base), Some(offset));
             }
             return (Some(addr), Some(0));
         }
         match func.value(addr) {
-            Value::Immediate(imm) => (None, imm.as_u256().and_then(Self::u256_to_u64)),
+            Value::Immediate(imm) => (None, imm.as_u256().and_then(mir_utils::u256_to_u64)),
             Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) => (Some(addr), Some(0)),
         }
     }
@@ -1094,10 +1076,10 @@ impl LoadRedundancyEliminator {
             Value::Arg { .. } | Value::Undef(_) => Some((value, U256::ZERO)),
             Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
                 InstKind::Add(a, b) => {
-                    if let Some(offset) = Self::const_u256(func, b) {
+                    if let Some(offset) = mir_utils::value_u256(func, b) {
                         let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
-                    } else if let Some(offset) = Self::const_u256(func, a) {
+                    } else if let Some(offset) = mir_utils::value_u256(func, a) {
                         let (base, existing) = Self::offset_chain(func, b, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
                     } else {
@@ -1105,32 +1087,13 @@ impl LoadRedundancyEliminator {
                     }
                 }
                 InstKind::Sub(a, b) => {
-                    let offset = Self::const_u256(func, b)?;
+                    let offset = mir_utils::value_u256(func, b)?;
                     let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
                     Some((base, existing.wrapping_sub(offset)))
                 }
                 _ => Some((value, U256::ZERO)),
             },
         }
-    }
-
-    fn ranges_overlap(a_start: u64, a_size: u64, b_start: u64, b_size: u64) -> bool {
-        let Some(a_end) = a_start.checked_add(a_size) else { return true };
-        let Some(b_end) = b_start.checked_add(b_size) else { return true };
-        a_start < b_end && b_start < a_end
-    }
-
-    fn const_u256(func: &Function, value: ValueId) -> Option<U256> {
-        let Value::Immediate(imm) = func.value(value) else { return None };
-        imm.as_u256()
-    }
-
-    fn const_u64(func: &Function, value: ValueId) -> Option<u64> {
-        Self::const_u256(func, value).and_then(Self::u256_to_u64)
-    }
-
-    fn u256_to_u64(value: U256) -> Option<u64> {
-        value.try_into().ok()
     }
 
     // ----- CFG helpers -----
@@ -1169,7 +1132,7 @@ impl LoadRedundancyEliminator {
                 continue;
             }
             // Operand-derived metadata is stale once the operand changes.
-            if Self::is_memory_inst(&inst.kind) {
+            if mir_utils::is_memory_inst(&inst.kind) {
                 inst.metadata.set_memory_region(None);
             }
             if matches!(
@@ -1217,20 +1180,5 @@ impl LoadRedundancyEliminator {
             }
             Terminator::SelfDestruct { recipient } => replace(recipient),
         }
-    }
-
-    fn is_memory_inst(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::MLoad(_)
-                | InstKind::MStore(_, _)
-                | InstKind::MStore8(_, _)
-                | InstKind::MCopy(_, _, _)
-                | InstKind::CalldataCopy(_, _, _)
-                | InstKind::CodeCopy(_, _, _)
-                | InstKind::ReturnDataCopy(_, _, _)
-                | InstKind::ExtCodeCopy(_, _, _, _)
-                | InstKind::Keccak256(_, _)
-        )
     }
 }

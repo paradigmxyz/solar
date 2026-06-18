@@ -42,6 +42,7 @@ use crate::{
         StorageAlias, Value, ValueId,
     },
     pass::FunctionPass,
+    utils::mir as mir_utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -189,7 +190,7 @@ impl CommonSubexprEliminator {
         self.sink_redundant_phi_expressions(func);
 
         // Neither the global nor the local pass allocates values, so the map stays valid.
-        let inst_results = func.inst_results();
+        let inst_results = mir_utils::inst_results(func);
         self.process_global_pure(func, &inst_results);
 
         // Process each block independently (local CSE)
@@ -252,8 +253,8 @@ impl CommonSubexprEliminator {
 
     fn sink_redundant_phi_expressions(&mut self, func: &mut Function) {
         let cfg = CfgInfo::new(func);
-        let inst_results = func.inst_results();
-        let inst_blocks = func.inst_blocks();
+        let inst_results = mir_utils::inst_results(func);
+        let inst_blocks = mir_utils::inst_blocks(func);
         let use_counts = Self::value_use_counts(func);
         let replacements = FxHashMap::default();
         let ctx = PhiSinkContext {
@@ -542,7 +543,7 @@ impl CommonSubexprEliminator {
     ) -> Option<ExprKey> {
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
-        let value = |v: ValueId| Function::resolve_replacement(v, replacements);
+        let value = |v: ValueId| mir_utils::resolve_replacement(v, replacements);
 
         match kind {
             // Commutative operations - normalize operand order
@@ -633,7 +634,7 @@ impl CommonSubexprEliminator {
             }
             InstKind::Keccak256(offset, size) => {
                 let size = value(*size);
-                let const_size = Self::const_u64(func, size);
+                let const_size = mir_utils::value_u64(func, size);
                 let mut key = self.memory_range_key(func, inst_id, value(*offset), const_size)?;
                 if const_size.is_none() {
                     // Key the dynamic size operand so reads of different lengths never unify.
@@ -642,12 +643,12 @@ impl CommonSubexprEliminator {
                 Some(ExprKey::Keccak256(key))
             }
 
-            InstKind::SLoad(slot) => {
-                Some(ExprKey::SLoad(self.storage_alias(func, inst_id, *slot, replacements)))
-            }
-            InstKind::TLoad(slot) => {
-                Some(ExprKey::TLoad(self.storage_alias(func, inst_id, *slot, replacements)))
-            }
+            InstKind::SLoad(slot) => Some(ExprKey::SLoad(
+                mir_utils::storage_alias_after_replacements(func, inst_id, *slot, replacements),
+            )),
+            InstKind::TLoad(slot) => Some(ExprKey::TLoad(
+                mir_utils::storage_alias_after_replacements(func, inst_id, *slot, replacements),
+            )),
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
 
@@ -687,7 +688,7 @@ impl CommonSubexprEliminator {
     ) {
         match *kind {
             InstKind::MStore(addr, _) => {
-                let addr = Function::resolve_replacement(addr, replacements);
+                let addr = mir_utils::resolve_replacement(addr, replacements);
                 clobbers.push(Clobber::Memory(self.memory_range_key(
                     func,
                     inst_id,
@@ -696,7 +697,7 @@ impl CommonSubexprEliminator {
                 )));
             }
             InstKind::MStore8(addr, _) => {
-                let addr = Function::resolve_replacement(addr, replacements);
+                let addr = mir_utils::resolve_replacement(addr, replacements);
                 clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, addr, Some(1))));
             }
             InstKind::MCopy(dest, _, size)
@@ -704,12 +705,13 @@ impl CommonSubexprEliminator {
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::ReturnDataCopy(dest, _, size)
             | InstKind::ExtCodeCopy(_, dest, _, size) => {
-                let dest = Function::resolve_replacement(dest, replacements);
-                let size = Self::const_u64(func, Function::resolve_replacement(size, replacements));
+                let dest = mir_utils::resolve_replacement(dest, replacements);
+                let size =
+                    mir_utils::value_u64(func, mir_utils::resolve_replacement(size, replacements));
                 clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, dest, size)));
             }
             InstKind::SStore(slot, _) => {
-                clobbers.push(Clobber::Storage(self.storage_alias(
+                clobbers.push(Clobber::Storage(mir_utils::storage_alias_after_replacements(
                     func,
                     inst_id,
                     slot,
@@ -717,7 +719,7 @@ impl CommonSubexprEliminator {
                 )));
             }
             InstKind::TStore(slot, _) => {
-                clobbers.push(Clobber::Transient(self.storage_alias(
+                clobbers.push(Clobber::Transient(mir_utils::storage_alias_after_replacements(
                     func,
                     inst_id,
                     slot,
@@ -855,25 +857,6 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn storage_alias(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> StorageAlias {
-        let original_slot = slot;
-        let slot = Function::resolve_replacement(slot, replacements);
-        if slot == original_slot {
-            func.instructions[inst_id]
-                .metadata
-                .storage_alias()
-                .unwrap_or_else(|| StorageAlias::for_value(func, slot))
-        } else {
-            StorageAlias::for_value(func, slot)
-        }
-    }
-
     fn memory_range_key(
         &self,
         func: &Function,
@@ -884,31 +867,21 @@ impl CommonSubexprEliminator {
         let region = func.instructions[inst_id]
             .metadata
             .memory_region()
-            .unwrap_or_else(|| Self::memory_region_for_addr(func, addr));
+            .unwrap_or_else(|| mir_utils::memory_region_for_addr(func, addr));
         let (base, offset) = Self::memory_addr_base_offset(func, addr);
         Some(MemRangeKey { region, base, offset, size, dyn_size: None })
     }
 
-    fn memory_region_for_addr(func: &Function, addr: ValueId) -> MemoryRegion {
-        match func.value(addr) {
-            Value::Immediate(imm)
-                if imm.as_u256().is_some_and(|value| value < U256::from(0x80)) =>
-            {
-                MemoryRegion::Scratch
-            }
-            _ => MemoryRegion::Unknown,
-        }
-    }
-
     fn memory_addr_base_offset(func: &Function, addr: ValueId) -> (Option<ValueId>, Option<u64>) {
         if let Some((base, offset)) = Self::offset_value(func, addr, &FxHashMap::default(), 0) {
-            if let (OperandKey::Value(base), Some(offset)) = (base, Self::u256_to_u64(offset)) {
+            if let (OperandKey::Value(base), Some(offset)) = (base, mir_utils::u256_to_u64(offset))
+            {
                 return (Some(base), Some(offset));
             }
             return (Some(addr), Some(0));
         }
         match func.value(addr) {
-            Value::Immediate(imm) => (None, imm.as_u256().and_then(Self::u256_to_u64)),
+            Value::Immediate(imm) => (None, imm.as_u256().and_then(mir_utils::u256_to_u64)),
             Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) => (Some(addr), Some(0)),
         }
     }
@@ -928,32 +901,7 @@ impl CommonSubexprEliminator {
         else {
             return true;
         };
-        Self::ranges_overlap(read_offset, read_size, write_offset, write_size)
-    }
-
-    fn ranges_overlap(a_start: u64, a_size: u64, b_start: u64, b_size: u64) -> bool {
-        let Some(a_end) = a_start.checked_add(a_size) else { return true };
-        let Some(b_end) = b_start.checked_add(b_size) else { return true };
-        a_start < b_end && b_start < a_end
-    }
-
-    fn const_u64(func: &Function, value: ValueId) -> Option<u64> {
-        let Value::Immediate(imm) = func.value(value) else { return None };
-        imm.as_u256().and_then(Self::u256_to_u64)
-    }
-
-    fn const_u256(
-        func: &Function,
-        value: ValueId,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> Option<U256> {
-        let value = Function::resolve_replacement(value, replacements);
-        let Value::Immediate(imm) = func.value(value) else { return None };
-        imm.as_u256()
-    }
-
-    fn u256_to_u64(value: U256) -> Option<u64> {
-        value.try_into().ok()
+        mir_utils::ranges_overlap(read_offset, read_size, write_offset, write_size)
     }
 
     fn offset_expr_for_add(
@@ -962,10 +910,11 @@ impl CommonSubexprEliminator {
         b: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<(OperandKey, U256)> {
-        if let Some(offset) = Self::const_u256(func, b, replacements) {
+        if let Some(offset) = mir_utils::value_u256_after_replacements(func, b, replacements) {
             let (base, existing) = Self::offset_value(func, a, replacements, 0)?;
             Some((base, existing.wrapping_add(offset)))
-        } else if let Some(offset) = Self::const_u256(func, a, replacements) {
+        } else if let Some(offset) = mir_utils::value_u256_after_replacements(func, a, replacements)
+        {
             let (base, existing) = Self::offset_value(func, b, replacements, 0)?;
             Some((base, existing.wrapping_add(offset)))
         } else {
@@ -979,7 +928,7 @@ impl CommonSubexprEliminator {
         b: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<(OperandKey, U256)> {
-        let offset = Self::const_u256(func, b, replacements)?;
+        let offset = mir_utils::value_u256_after_replacements(func, b, replacements)?;
         let (base, existing) = Self::offset_value(func, a, replacements, 0)?;
         Some((base, existing.wrapping_sub(offset)))
     }
@@ -994,17 +943,21 @@ impl CommonSubexprEliminator {
             return None;
         }
 
-        let value = Function::resolve_replacement(value, replacements);
+        let value = mir_utils::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(_) => None,
             Value::Arg { .. } | Value::Undef(_) => Some((OperandKey::Value(value), U256::ZERO)),
             Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
                 InstKind::Add(a, b) => {
-                    if let Some(offset) = Self::const_u256(func, b, replacements) {
+                    if let Some(offset) =
+                        mir_utils::value_u256_after_replacements(func, b, replacements)
+                    {
                         let (base, existing) =
                             Self::offset_value(func, a, replacements, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
-                    } else if let Some(offset) = Self::const_u256(func, a, replacements) {
+                    } else if let Some(offset) =
+                        mir_utils::value_u256_after_replacements(func, a, replacements)
+                    {
                         let (base, existing) =
                             Self::offset_value(func, b, replacements, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
@@ -1013,7 +966,7 @@ impl CommonSubexprEliminator {
                     }
                 }
                 InstKind::Sub(a, b) => {
-                    let offset = Self::const_u256(func, b, replacements)?;
+                    let offset = mir_utils::value_u256_after_replacements(func, b, replacements)?;
                     let (base, existing) = Self::offset_value(func, a, replacements, depth + 1)?;
                     Some((base, existing.wrapping_sub(offset)))
                 }
@@ -1027,7 +980,7 @@ impl CommonSubexprEliminator {
         value: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> OperandKey {
-        let value = Function::resolve_replacement(value, replacements);
+        let value = mir_utils::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
             _ => OperandKey::Value(value),
@@ -1139,8 +1092,8 @@ impl CommonSubexprEliminator {
 
         for inst_id in inst_ids {
             let inst = &mut func.instructions[inst_id];
-            if Self::replace_operands(&mut inst.kind, replacements) {
-                if Self::is_memory_inst(&inst.kind) {
+            if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
+                if mir_utils::is_memory_inst(&inst.kind) {
                     inst.metadata.set_memory_region(None);
                 }
                 if matches!(
@@ -1158,72 +1111,7 @@ impl CommonSubexprEliminator {
         // Also update terminator if present
         let block = func.block_mut(block_id);
         if let Some(term) = &mut block.terminator {
-            Self::replace_terminator_operands(term, replacements);
+            mir_utils::replace_terminator_uses_canonicalized(term, replacements);
         }
-    }
-
-    fn replace_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) -> bool {
-        let mut changed = false;
-        kind.visit_operands_mut(|v| {
-            let new_v = Function::resolve_replacement(*v, replacements);
-            if new_v != *v {
-                *v = new_v;
-                changed = true;
-            }
-        });
-
-        changed
-    }
-
-    /// Replaces operands in a terminator.
-    fn replace_terminator_operands(
-        term: &mut crate::mir::Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
-        use crate::mir::Terminator;
-
-        let replace = |v: &mut ValueId| {
-            *v = Function::resolve_replacement(*v, replacements);
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => {
-                replace(condition);
-            }
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case_val, _) in cases {
-                    replace(case_val);
-                }
-            }
-            Terminator::Return { values } => {
-                for val in values {
-                    replace(val);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => {
-                replace(recipient);
-            }
-        }
-    }
-
-    fn is_memory_inst(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::MLoad(_)
-                | InstKind::MStore(_, _)
-                | InstKind::MStore8(_, _)
-                | InstKind::MCopy(_, _, _)
-                | InstKind::CalldataCopy(_, _, _)
-                | InstKind::CodeCopy(_, _, _)
-                | InstKind::ReturnDataCopy(_, _, _)
-                | InstKind::ExtCodeCopy(_, _, _, _)
-                | InstKind::Keccak256(_, _)
-        )
     }
 }
