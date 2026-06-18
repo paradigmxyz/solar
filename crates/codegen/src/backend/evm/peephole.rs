@@ -9,18 +9,15 @@ impl Assembler {
     /// This pass runs before label resolution, so removing instructions cannot
     /// leave stale jump destinations.
     pub(super) fn optimize_instructions(&mut self, program: &mut EvmAsmProgram) -> usize {
-        program.optimize_instructions(|inst| self.inst_push_value(inst))
+        optimize_linear_instructions(program, |inst| self.inst_push_value(inst))
     }
 }
 
-impl EvmAsmProgram {
-    /// Runs local peephole optimizations over the linear EVM assembly program.
-    pub(in crate::backend::evm) fn optimize_instructions<P>(&mut self, inst_push_value: P) -> usize
-    where
-        P: FnMut(AsmInst) -> Option<U256>,
-    {
-        EvmAsmProgramOptimizer { program: self, inst_push_value }.run()
-    }
+fn optimize_linear_instructions<P>(program: &mut EvmAsmProgram, inst_push_value: P) -> usize
+where
+    P: FnMut(AsmInst) -> Option<U256>,
+{
+    EvmAsmProgramOptimizer { program, inst_push_value }.run()
 }
 
 struct EvmAsmProgramOptimizer<'a, P> {
