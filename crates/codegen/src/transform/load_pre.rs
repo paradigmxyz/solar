@@ -82,7 +82,11 @@ use crate::{
     utils::repair_reachability_phis,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+    newtype_index,
+};
 
 /// Statistics for load PRE.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -153,60 +157,49 @@ enum GenSource {
     Stored(ValueId),
 }
 
+newtype_index! {
+    struct KeyIdx;
+}
+
 /// A dense bitset over key-universe indices.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct KeySet {
-    bits: Vec<u64>,
-}
+struct KeySet(DenseBitSet<KeyIdx>);
 
 impl KeySet {
     fn empty(len: usize) -> Self {
-        Self { bits: vec![0; len.div_ceil(64)] }
+        Self(DenseBitSet::new_empty(len))
     }
 
     fn full(len: usize) -> Self {
-        let mut bits = vec![!0u64; len.div_ceil(64)];
-        let rem = len % 64;
-        if rem != 0
-            && let Some(last) = bits.last_mut()
-        {
-            *last = (1u64 << rem) - 1;
-        }
-        Self { bits }
+        Self(DenseBitSet::new_filled(len))
     }
 
     fn insert(&mut self, idx: usize) {
-        self.bits[idx / 64] |= 1 << (idx % 64);
+        self.0.insert(KeyIdx::from_usize(idx));
     }
 
     fn remove(&mut self, idx: usize) {
-        self.bits[idx / 64] &= !(1 << (idx % 64));
+        self.0.remove(KeyIdx::from_usize(idx));
     }
 
     fn contains(&self, idx: usize) -> bool {
-        self.bits[idx / 64] & (1 << (idx % 64)) != 0
+        self.0.contains(KeyIdx::from_usize(idx))
     }
 
     fn is_empty(&self) -> bool {
-        self.bits.iter().all(|word| *word == 0)
+        self.0.is_empty()
     }
 
     fn intersect_with(&mut self, other: &Self) {
-        for (word, other) in self.bits.iter_mut().zip(&other.bits) {
-            *word &= other;
-        }
+        self.0.intersect(&other.0);
     }
 
     fn subtract(&mut self, other: &Self) {
-        for (word, other) in self.bits.iter_mut().zip(&other.bits) {
-            *word &= !other;
-        }
+        self.0.subtract(&other.0);
     }
 
     fn union_with(&mut self, other: &Self) {
-        for (word, other) in self.bits.iter_mut().zip(&other.bits) {
-            *word |= other;
-        }
+        self.0.union(&other.0);
     }
 }
 
