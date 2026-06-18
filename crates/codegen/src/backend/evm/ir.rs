@@ -1,10 +1,10 @@
-//! Textual EVM backend IR.
+//! EVM backend IR.
 //!
-//! This module defines the target-specific IR boundary that will sit between
-//! MIR lowering and final EVM assembly. It is deliberately small for now: the
-//! shape is explicit enough to model backend basic blocks, stack-value
-//! instructions, terminators, and metadata, while opcodes remain textual so the
-//! lowering path can evolve without churning the format.
+//! This module defines the target-specific Machine-IR-like boundary between
+//! MIR lowering and final EVM assembly. It models backend basic blocks,
+//! stack-value instructions, terminators, and metadata. The parser/printer at
+//! the bottom of the file provide a text format for tests and debugging; the IR
+//! itself is not defined by that serialization.
 
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -15,121 +15,22 @@ use solar_data_structures::{
 };
 use std::fmt as std_fmt;
 
-use super::assembler::{AsmInst, AsmInstKind, Label, op};
-
-/// Internal EVM program used by the assembler before final bytecode emission.
-///
-/// This is intentionally close to the existing assembler instruction stream:
-/// it lets current lowering keep emitting opcodes while giving backend passes a
-/// structured home for block metadata and layout decisions.
-#[derive(Clone, Debug, Default)]
-pub(in crate::backend::evm) struct EvmAsmProgram {
-    pub(in crate::backend::evm) instructions: Vec<AsmInst>,
-    cold_labels: FxHashSet<Label>,
-}
-
-impl EvmAsmProgram {
-    /// Clears all instructions and block metadata.
-    pub(in crate::backend::evm) fn clear(&mut self) {
-        self.instructions.clear();
-        self.cold_labels.clear();
-    }
-
-    /// Emits an assembler instruction.
-    pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
-        self.instructions.push(inst);
-    }
-
-    /// Marks the block beginning at `label` as cold.
-    pub(in crate::backend::evm) fn mark_cold(&mut self, label: Label) {
-        self.cold_labels.insert(label);
-    }
-
-    /// Moves non-fallthrough cold terminal blocks to the end of the program.
-    ///
-    /// The pass only moves blocks that start with a cold label, end with a
-    /// terminal opcode, and are preceded by a terminal opcode. This excludes
-    /// physical fallthrough edges, which are stack-sensitive in MIR-to-EVM
-    /// lowering.
-    pub(in crate::backend::evm) fn move_cold_terminal_blocks_to_end(&mut self) -> usize {
-        let mut ranges = Vec::new();
-        let mut start = 0;
-
-        while start < self.instructions.len() {
-            let end = self.next_block_start(start + 1).unwrap_or(self.instructions.len());
-            if self.is_movable_cold_terminal_block(start, end) {
-                ranges.push(start..end);
-            }
-            start = end;
-        }
-
-        if ranges.is_empty() {
-            return 0;
-        }
-
-        let mut moved = Vec::new();
-        let mut optimized = Vec::with_capacity(self.instructions.len());
-        let mut range_index = 0;
-        let mut index = 0;
-
-        while index < self.instructions.len() {
-            if range_index < ranges.len() && index == ranges[range_index].start {
-                moved.extend_from_slice(&self.instructions[ranges[range_index].clone()]);
-                index = ranges[range_index].end;
-                range_index += 1;
-            } else {
-                optimized.push(self.instructions[index]);
-                index += 1;
-            }
-        }
-
-        let moved_count = ranges.len();
-        optimized.extend(moved);
-        self.instructions = optimized;
-        moved_count
-    }
-
-    fn next_block_start(&self, start: usize) -> Option<usize> {
-        self.instructions[start..]
-            .iter()
-            .position(|inst| matches!(inst.kind(), AsmInstKind::Label(_)))
-            .map(|offset| start + offset)
-    }
-
-    fn is_movable_cold_terminal_block(&self, start: usize, end: usize) -> bool {
-        if start == 0 || start >= end {
-            return false;
-        }
-        let AsmInstKind::Label(label) = self.instructions[start].kind() else {
-            return false;
-        };
-        if !self.cold_labels.contains(&label) {
-            return false;
-        }
-        if !matches!(self.instructions[start - 1].kind(), AsmInstKind::Op(op) if op::is_terminal(op))
-        {
-            return false;
-        }
-        matches!(self.instructions[end - 1].kind(), AsmInstKind::Op(op) if op::is_terminal(op))
-    }
-}
-
 newtype_index! {
-    /// A unique identifier for a function in textual EVM IR.
+    /// A unique identifier for a function in EVM IR.
     pub struct EvmIrFunctionId;
 }
 
 newtype_index! {
-    /// A unique identifier for a basic block in textual EVM IR.
+    /// A unique identifier for a basic block in EVM IR.
     pub struct EvmIrBlockId;
 }
 
 newtype_index! {
-    /// A unique identifier for a stack value in textual EVM IR.
+    /// A unique identifier for a stack value in EVM IR.
     pub struct EvmIrValueId;
 }
 
-/// A textual EVM IR module.
+/// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EvmIrModule {
     /// Module/contract name.
@@ -163,7 +64,7 @@ impl EvmIrModule {
         &mut self.functions[id]
     }
 
-    /// Returns the canonical textual EVM IR representation.
+    /// Returns the canonical EVM IR text-format representation.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "; evm module @{}", self.name)?;
@@ -175,7 +76,7 @@ impl EvmIrModule {
     }
 }
 
-/// A textual EVM IR function.
+/// An EVM IR function.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EvmIrFunction {
     /// Function name.
@@ -230,7 +131,7 @@ impl EvmIrFunction {
         &self.values[id]
     }
 
-    /// Returns the canonical textual EVM IR representation.
+    /// Returns the canonical EVM IR text-format representation.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
             writeln!(f, "fn @{} {{", self.name)?;
@@ -246,7 +147,7 @@ impl EvmIrFunction {
     }
 }
 
-/// A basic block in textual EVM IR.
+/// A basic block in EVM IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EvmIrBlock {
     /// Stable textual label for this block.
@@ -327,7 +228,7 @@ pub struct EvmIrValue {
 pub struct EvmIrInstruction {
     /// Optional stack value produced by this instruction.
     pub result: Option<EvmIrValueId>,
-    /// Textual EVM/backend opcode or pseudo-op mnemonic.
+    /// EVM opcode or backend pseudo-op mnemonic.
     pub mnemonic: String,
     /// Instruction operands.
     pub operands: Vec<EvmIrOperand>,
@@ -365,7 +266,7 @@ impl EvmIrTerminator {
     }
 }
 
-/// Control-flow terminators in textual EVM IR.
+/// Control-flow terminators in EVM IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EvmIrTerminatorKind {
     /// Unconditional jump.
@@ -426,7 +327,7 @@ pub enum EvmIrOperand {
     Symbol(String),
 }
 
-/// Generic textual metadata carried by instructions and terminators.
+/// Generic metadata carried by instructions and terminators.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EvmIrMetadata {
     /// Optional stack effect.
@@ -455,7 +356,7 @@ pub struct EvmIrMetadataItem {
     pub value: Option<String>,
 }
 
-/// Stack effect metadata for one textual EVM IR operation.
+/// Stack effect metadata for one EVM IR operation.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct EvmIrStackEffect {
     /// Number of stack items consumed.
@@ -472,7 +373,7 @@ impl EvmIrStackEffect {
     }
 }
 
-/// Parses a textual EVM IR module.
+/// Parses an EVM IR module from the text format.
 ///
 /// # Errors
 ///
@@ -481,7 +382,7 @@ pub fn parse_evm_ir_module(input: &str) -> Result<EvmIrModule, EvmIrParseError> 
     Parser::new(input).parse_module()
 }
 
-/// Parses a single textual EVM IR function.
+/// Parses a single EVM IR function from the text format.
 ///
 /// # Errors
 ///
@@ -497,7 +398,7 @@ pub fn parse_evm_ir_function(input: &str) -> Result<EvmIrFunction, EvmIrParseErr
     Ok(function)
 }
 
-/// An error produced while parsing textual EVM IR.
+/// An error produced while parsing the EVM IR text format.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EvmIrParseError {
     /// 1-based line number.

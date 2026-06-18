@@ -1,9 +1,6 @@
 //! Peephole optimization over assembler instructions.
 
-use super::{
-    assembler::{AsmInst, AsmInstKind, Assembler, Label, op},
-    ir::EvmAsmProgram,
-};
+use super::assembler::{AsmInst, AsmInstKind, Assembler, EvmAsmProgram, Label, op};
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
@@ -24,7 +21,7 @@ impl Assembler {
 }
 
 impl EvmAsmProgram {
-    /// Runs local peephole optimizations over the EVM backend IR.
+    /// Runs local peephole optimizations over the linear EVM assembly program.
     pub(in crate::backend::evm) fn optimize_instructions<P, S>(
         &mut self,
         inst_push_value: P,

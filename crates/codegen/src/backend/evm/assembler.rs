@@ -10,8 +10,6 @@ use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::FxHashMap;
 
-use super::ir::EvmAsmProgram;
-
 const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = EVM_WORD_BYTES as u8 / 2;
@@ -25,6 +23,9 @@ pub use inst::{DeferredConst, Label};
 
 mod local_interner;
 use local_interner::LocalInterner;
+
+mod program;
+pub(in crate::backend::evm) use program::EvmAsmProgram;
 
 /// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
 ///
@@ -64,7 +65,7 @@ pub struct AssemblerConfig {
 pub struct Assembler {
     /// Bytecode assembly configuration.
     config: AssemblerConfig,
-    /// EVM backend IR program to assemble.
+    /// Linear EVM assembly program to assemble.
     pub(in crate::backend::evm) program: EvmAsmProgram,
     /// Interned push immediates too large for inline storage.
     push_values: LocalInterner<U256, PushValueId>,
