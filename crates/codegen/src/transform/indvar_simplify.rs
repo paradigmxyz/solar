@@ -315,8 +315,9 @@ impl IndVarSimplifier {
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
         for &block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
+                let inst = &func.instructions[inst_id];
                 let kind = func.instructions[inst_id].kind();
-                if kind.operands().contains(&value) && !Self::is_address_builder(&kind) {
+                if inst.operands().contains(&value) && !Self::is_address_builder(&kind) {
                     return true;
                 }
             }
@@ -349,11 +350,7 @@ impl IndVarSimplifier {
             let insts = func.blocks[block].instructions.clone();
             for inst_id in insts {
                 let inst = &mut func.instructions[inst_id];
-                let mut kind = inst.kind();
-                let changed = self.replace_inst_operands(&mut kind, replacements);
-                if changed != 0 {
-                    inst.set_kind(kind);
-                }
+                let changed = self.replace_inst_operands(inst, replacements);
                 replaced += changed;
             }
             if let Some(term) = &mut func.blocks[block].terminator {
@@ -365,11 +362,11 @@ impl IndVarSimplifier {
 
     fn replace_inst_operands(
         &self,
-        kind: &mut InstKind,
+        inst: &mut Instruction,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> usize {
         let mut replaced = 0;
-        kind.visit_operands_mut(|value| {
+        inst.visit_operands_mut(|value| {
             if let Some(&replacement) = replacements.get(value) {
                 *value = replacement;
                 replaced += 1;

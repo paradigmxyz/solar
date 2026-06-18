@@ -509,12 +509,12 @@ impl FrameSlotPromoter {
                     .or_else(|| Self::internal_frame_add_offset(func, b, a, 0))
                     .is_some();
                 !exact_frame_addr
-                    && kind
+                    && Instruction::new(kind.clone(), None)
                         .operands()
                         .iter()
                         .any(|&value| Self::internal_frame_offset(func, value) == Some(slot_offset))
             }
-            _ => kind
+            _ => Instruction::new(kind.clone(), None)
                 .operands()
                 .iter()
                 .any(|&value| Self::internal_frame_offset(func, value) == Some(slot_offset)),

@@ -267,7 +267,10 @@ impl PartialRedundancyEliminator {
             || candidate.insertions.iter().any(|(block, _)| modified_blocks.contains(block))
             || candidate.incoming.iter().any(|(_, value)| eliminated_values.contains(value))
             || candidate.insertions.iter().any(|(_, kind)| {
-                kind.operands().into_iter().any(|value| eliminated_values.contains(&value))
+                Instruction::new(kind.clone(), None)
+                    .operands()
+                    .into_iter()
+                    .any(|value| eliminated_values.contains(&value))
             })
     }
 
@@ -416,7 +419,7 @@ impl PartialRedundancyEliminator {
         pred: BlockId,
         inst_blocks: &FxHashMap<InstId, BlockId>,
     ) -> Option<InstKind> {
-        let mut translated = kind.clone();
+        let mut translated = Instruction::new(kind.clone(), None);
         let mut ok = true;
         translated.visit_operands_mut(|value| {
             if let Some(translated) =
@@ -427,7 +430,7 @@ impl PartialRedundancyEliminator {
                 ok = false;
             }
         });
-        ok.then_some(translated)
+        ok.then(|| translated.kind())
     }
 
     fn translate_value_for_predecessor(
@@ -458,7 +461,8 @@ impl PartialRedundancyEliminator {
         inst_blocks: &FxHashMap<InstId, BlockId>,
         dominators: &DominatorTree,
     ) -> bool {
-        kind.operands()
+        Instruction::new(kind.clone(), None)
+            .operands()
             .into_iter()
             .all(|value| Self::value_available_at_end(func, value, block, inst_blocks, dominators))
     }

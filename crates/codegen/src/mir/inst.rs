@@ -414,10 +414,104 @@ impl Instruction {
                 }
                 InstData::Phi { blocks }
             }
-            kind => {
-                kind.collect_operands(&mut operands);
+            InstKind::Add(a, b)
+            | InstKind::Sub(a, b)
+            | InstKind::Mul(a, b)
+            | InstKind::Div(a, b)
+            | InstKind::SDiv(a, b)
+            | InstKind::Mod(a, b)
+            | InstKind::SMod(a, b)
+            | InstKind::Exp(a, b)
+            | InstKind::And(a, b)
+            | InstKind::Or(a, b)
+            | InstKind::Xor(a, b)
+            | InstKind::Shl(a, b)
+            | InstKind::Shr(a, b)
+            | InstKind::Sar(a, b)
+            | InstKind::Byte(a, b)
+            | InstKind::Lt(a, b)
+            | InstKind::Gt(a, b)
+            | InstKind::SLt(a, b)
+            | InstKind::SGt(a, b)
+            | InstKind::Eq(a, b)
+            | InstKind::MStore(a, b)
+            | InstKind::MStore8(a, b)
+            | InstKind::SStore(a, b)
+            | InstKind::TStore(a, b)
+            | InstKind::Keccak256(a, b)
+            | InstKind::Log0(a, b)
+            | InstKind::SignExtend(a, b) => {
+                operands.extend([a, b]);
                 InstData::None
             }
+            InstKind::Not(a)
+            | InstKind::IsZero(a)
+            | InstKind::MLoad(a)
+            | InstKind::SLoad(a)
+            | InstKind::TLoad(a)
+            | InstKind::CalldataLoad(a)
+            | InstKind::ExtCodeSize(a)
+            | InstKind::ExtCodeHash(a)
+            | InstKind::Balance(a)
+            | InstKind::BlockHash(a)
+            | InstKind::BlobHash(a) => {
+                operands.push(a);
+                InstData::None
+            }
+            InstKind::MCopy(a, b, c)
+            | InstKind::CalldataCopy(a, b, c)
+            | InstKind::CodeCopy(a, b, c)
+            | InstKind::ReturnDataCopy(a, b, c)
+            | InstKind::AddMod(a, b, c)
+            | InstKind::MulMod(a, b, c)
+            | InstKind::Create(a, b, c)
+            | InstKind::Log1(a, b, c)
+            | InstKind::Select(a, b, c) => {
+                operands.extend([a, b, c]);
+                InstData::None
+            }
+            InstKind::ExtCodeCopy(a, b, c, d)
+            | InstKind::Create2(a, b, c, d)
+            | InstKind::Log2(a, b, c, d) => {
+                operands.extend([a, b, c, d]);
+                InstData::None
+            }
+            InstKind::Log3(a, b, c, d, e) => {
+                operands.extend([a, b, c, d, e]);
+                InstData::None
+            }
+            InstKind::Log4(a, b, c, d, e, f) => {
+                operands.extend([a, b, c, d, e, f]);
+                InstData::None
+            }
+            InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
+                operands.extend([gas, addr, value, args_offset, args_size, ret_offset, ret_size]);
+                InstData::None
+            }
+            InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
+            | InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
+                operands.extend([gas, addr, args_offset, args_size, ret_offset, ret_size]);
+                InstData::None
+            }
+            InstKind::MSize
+            | InstKind::CalldataSize
+            | InstKind::CodeSize
+            | InstKind::ReturnDataSize
+            | InstKind::Caller
+            | InstKind::CallValue
+            | InstKind::Origin
+            | InstKind::GasPrice
+            | InstKind::Coinbase
+            | InstKind::Timestamp
+            | InstKind::BlockNumber
+            | InstKind::PrevRandao
+            | InstKind::GasLimit
+            | InstKind::ChainId
+            | InstKind::Address
+            | InstKind::SelfBalance
+            | InstKind::Gas
+            | InstKind::BaseFee
+            | InstKind::BlobBaseFee => InstData::None,
         };
         (tag, operands, data)
     }
@@ -1108,556 +1202,41 @@ impl InstKind {
         unsafe { std::mem::transmute::<u8, InstTag>(tag) }
     }
 
-    /// Collects all operands of this instruction into the provided vector.
-    /// This is the canonical way to get all operands for liveness analysis.
-    pub fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
-        match self {
-            // Binary operations
-            Self::Add(a, b)
-            | Self::Sub(a, b)
-            | Self::Mul(a, b)
-            | Self::Div(a, b)
-            | Self::SDiv(a, b)
-            | Self::Mod(a, b)
-            | Self::SMod(a, b)
-            | Self::Exp(a, b)
-            | Self::And(a, b)
-            | Self::Or(a, b)
-            | Self::Xor(a, b)
-            | Self::Shl(a, b)
-            | Self::Shr(a, b)
-            | Self::Sar(a, b)
-            | Self::Byte(a, b)
-            | Self::Lt(a, b)
-            | Self::Gt(a, b)
-            | Self::SLt(a, b)
-            | Self::SGt(a, b)
-            | Self::Eq(a, b)
-            | Self::MStore(a, b)
-            | Self::MStore8(a, b)
-            | Self::SStore(a, b)
-            | Self::TStore(a, b)
-            | Self::Keccak256(a, b)
-            | Self::Log0(a, b)
-            | Self::SignExtend(a, b) => {
-                out.push(*a);
-                out.push(*b);
-            }
-
-            // Unary operations
-            Self::Not(a)
-            | Self::IsZero(a)
-            | Self::MLoad(a)
-            | Self::SLoad(a)
-            | Self::TLoad(a)
-            | Self::CalldataLoad(a)
-            | Self::ExtCodeSize(a)
-            | Self::ExtCodeHash(a)
-            | Self::Balance(a)
-            | Self::BlockHash(a)
-            | Self::BlobHash(a) => {
-                out.push(*a);
-            }
-
-            // Ternary operations
-            Self::MCopy(a, b, c)
-            | Self::CalldataCopy(a, b, c)
-            | Self::CodeCopy(a, b, c)
-            | Self::ReturnDataCopy(a, b, c)
-            | Self::AddMod(a, b, c)
-            | Self::MulMod(a, b, c)
-            | Self::Create(a, b, c)
-            | Self::Log1(a, b, c)
-            | Self::Select(a, b, c) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-            }
-
-            // 4-operand operations
-            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
-            }
-
-            // 5-operand operations
-            Self::Log3(a, b, c, d, e) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
-                out.push(*e);
-            }
-
-            // 6-operand operations
-            Self::Log4(a, b, c, d, e, f) => {
-                out.push(*a);
-                out.push(*b);
-                out.push(*c);
-                out.push(*d);
-                out.push(*e);
-                out.push(*f);
-            }
-
-            // Call operations
-            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*value);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
-            }
-            Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
-            }
-            Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                out.push(*gas);
-                out.push(*addr);
-                out.push(*args_offset);
-                out.push(*args_size);
-                out.push(*ret_offset);
-                out.push(*ret_size);
-            }
-            Self::InternalCall { args, .. } => {
-                out.extend(args.iter().copied());
-            }
-
-            // Phi node - operands are the incoming values
-            Self::Phi(incoming) => {
-                for (_, val) in incoming {
-                    out.push(*val);
-                }
-            }
-
-            // Nullary operations - no operands
-            Self::MSize
-            | Self::CalldataSize
-            | Self::InternalFrameAddr(_)
-            | Self::CodeSize
-            | Self::LoadImmutable(_)
-            | Self::ReturnDataSize
-            | Self::Caller
-            | Self::CallValue
-            | Self::Origin
-            | Self::GasPrice
-            | Self::Coinbase
-            | Self::Timestamp
-            | Self::BlockNumber
-            | Self::PrevRandao
-            | Self::GasLimit
-            | Self::ChainId
-            | Self::Address
-            | Self::SelfBalance
-            | Self::Gas
-            | Self::BaseFee
-            | Self::BlobBaseFee => {}
-        }
-    }
-
-    /// Returns the operands of this instruction.
-    #[must_use]
-    pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
-        let mut out = SmallVec::new();
-        self.collect_operands(&mut out);
-        out
-    }
-
-    /// Visits every operand mutably.
-    pub fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
-        match self {
-            Self::Add(a, b)
-            | Self::Sub(a, b)
-            | Self::Mul(a, b)
-            | Self::Div(a, b)
-            | Self::SDiv(a, b)
-            | Self::Mod(a, b)
-            | Self::SMod(a, b)
-            | Self::Exp(a, b)
-            | Self::And(a, b)
-            | Self::Or(a, b)
-            | Self::Xor(a, b)
-            | Self::Shl(a, b)
-            | Self::Shr(a, b)
-            | Self::Sar(a, b)
-            | Self::Byte(a, b)
-            | Self::Lt(a, b)
-            | Self::Gt(a, b)
-            | Self::SLt(a, b)
-            | Self::SGt(a, b)
-            | Self::Eq(a, b)
-            | Self::MStore(a, b)
-            | Self::MStore8(a, b)
-            | Self::SStore(a, b)
-            | Self::TStore(a, b)
-            | Self::Keccak256(a, b)
-            | Self::Log0(a, b)
-            | Self::SignExtend(a, b) => {
-                f(a);
-                f(b);
-            }
-
-            Self::Not(a)
-            | Self::IsZero(a)
-            | Self::MLoad(a)
-            | Self::SLoad(a)
-            | Self::TLoad(a)
-            | Self::CalldataLoad(a)
-            | Self::ExtCodeSize(a)
-            | Self::ExtCodeHash(a)
-            | Self::Balance(a)
-            | Self::BlockHash(a)
-            | Self::BlobHash(a) => f(a),
-
-            Self::MCopy(a, b, c)
-            | Self::CalldataCopy(a, b, c)
-            | Self::CodeCopy(a, b, c)
-            | Self::ReturnDataCopy(a, b, c)
-            | Self::AddMod(a, b, c)
-            | Self::MulMod(a, b, c)
-            | Self::Create(a, b, c)
-            | Self::Log1(a, b, c)
-            | Self::Select(a, b, c) => {
-                f(a);
-                f(b);
-                f(c);
-            }
-
-            Self::ExtCodeCopy(a, b, c, d) | Self::Create2(a, b, c, d) | Self::Log2(a, b, c, d) => {
-                f(a);
-                f(b);
-                f(c);
-                f(d);
-            }
-
-            Self::Log3(a, b, c, d, e) => {
-                f(a);
-                f(b);
-                f(c);
-                f(d);
-                f(e);
-            }
-
-            Self::Log4(a, b, c, d, e, g) => {
-                f(a);
-                f(b);
-                f(c);
-                f(d);
-                f(e);
-                f(g);
-            }
-
-            Self::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
-                f(gas);
-                f(addr);
-                f(value);
-                f(args_offset);
-                f(args_size);
-                f(ret_offset);
-                f(ret_size);
-            }
-            Self::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size }
-            | Self::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
-                f(gas);
-                f(addr);
-                f(args_offset);
-                f(args_size);
-                f(ret_offset);
-                f(ret_size);
-            }
-            Self::InternalCall { args, .. } => {
-                for arg in args {
-                    f(arg);
-                }
-            }
-
-            Self::Phi(incoming) => {
-                for (_, value) in incoming {
-                    f(value);
-                }
-            }
-
-            Self::MSize
-            | Self::CalldataSize
-            | Self::InternalFrameAddr(_)
-            | Self::CodeSize
-            | Self::LoadImmutable(_)
-            | Self::ReturnDataSize
-            | Self::Caller
-            | Self::CallValue
-            | Self::Origin
-            | Self::GasPrice
-            | Self::Coinbase
-            | Self::Timestamp
-            | Self::BlockNumber
-            | Self::PrevRandao
-            | Self::GasLimit
-            | Self::ChainId
-            | Self::Address
-            | Self::SelfBalance
-            | Self::Gas
-            | Self::BaseFee
-            | Self::BlobBaseFee => {}
-        }
-    }
-
     /// Returns true if this instruction may mutate persistent storage.
     #[must_use]
-    pub const fn may_mutate_storage(&self) -> bool {
-        matches!(
-            self,
-            Self::SStore(_, _)
-                | Self::Call { .. }
-                | Self::DelegateCall { .. }
-                | Self::InternalCall { .. }
-                | Self::Create(_, _, _)
-                | Self::Create2(_, _, _, _)
-        )
+    pub fn may_mutate_storage(&self) -> bool {
+        self.tag().may_mutate_storage()
     }
 
     /// Returns true if this instruction may mutate transient storage.
     #[must_use]
-    pub const fn may_mutate_transient_storage(&self) -> bool {
-        matches!(
-            self,
-            Self::TStore(_, _)
-                | Self::Call { .. }
-                | Self::DelegateCall { .. }
-                | Self::InternalCall { .. }
-                | Self::Create(_, _, _)
-                | Self::Create2(_, _, _, _)
-        )
+    pub fn may_mutate_transient_storage(&self) -> bool {
+        self.tag().may_mutate_transient_storage()
     }
 
     /// Returns true if this instruction writes or may write memory.
     #[must_use]
-    pub const fn may_mutate_memory(&self) -> bool {
-        matches!(
-            self,
-            Self::MStore(_, _)
-                | Self::MStore8(_, _)
-                | Self::MCopy(_, _, _)
-                | Self::CalldataCopy(_, _, _)
-                | Self::CodeCopy(_, _, _)
-                | Self::ReturnDataCopy(_, _, _)
-                | Self::ExtCodeCopy(_, _, _, _)
-                | Self::Call { .. }
-                | Self::StaticCall { .. }
-                | Self::DelegateCall { .. }
-                | Self::InternalCall { .. }
-                | Self::Create(_, _, _)
-                | Self::Create2(_, _, _, _)
-        )
+    pub fn may_mutate_memory(&self) -> bool {
+        self.tag().may_mutate_memory()
     }
 
     /// Returns the mnemonic for this instruction.
     #[must_use]
-    pub const fn mnemonic(&self) -> &'static str {
-        match self {
-            Self::Add(_, _) => "add",
-            Self::Sub(_, _) => "sub",
-            Self::Mul(_, _) => "mul",
-            Self::Div(_, _) => "div",
-            Self::SDiv(_, _) => "sdiv",
-            Self::Mod(_, _) => "mod",
-            Self::SMod(_, _) => "smod",
-            Self::Exp(_, _) => "exp",
-            Self::AddMod(_, _, _) => "addmod",
-            Self::MulMod(_, _, _) => "mulmod",
-            Self::And(_, _) => "and",
-            Self::Or(_, _) => "or",
-            Self::Xor(_, _) => "xor",
-            Self::Not(_) => "not",
-            Self::Shl(_, _) => "shl",
-            Self::Shr(_, _) => "shr",
-            Self::Sar(_, _) => "sar",
-            Self::Byte(_, _) => "byte",
-            Self::Lt(_, _) => "lt",
-            Self::Gt(_, _) => "gt",
-            Self::SLt(_, _) => "slt",
-            Self::SGt(_, _) => "sgt",
-            Self::Eq(_, _) => "eq",
-            Self::IsZero(_) => "iszero",
-            Self::MLoad(_) => "mload",
-            Self::MStore(_, _) => "mstore",
-            Self::MStore8(_, _) => "mstore8",
-            Self::MSize => "msize",
-            Self::MCopy(_, _, _) => "mcopy",
-            Self::SLoad(_) => "sload",
-            Self::SStore(_, _) => "sstore",
-            Self::TLoad(_) => "tload",
-            Self::TStore(_, _) => "tstore",
-            Self::CalldataLoad(_) => "calldataload",
-            Self::CalldataCopy(_, _, _) => "calldatacopy",
-            Self::CalldataSize => "calldatasize",
-            Self::CodeSize => "codesize",
-            Self::CodeCopy(_, _, _) => "codecopy",
-            Self::LoadImmutable(_) => "loadimmutable",
-            Self::ExtCodeSize(_) => "extcodesize",
-            Self::ExtCodeCopy(_, _, _, _) => "extcodecopy",
-            Self::ExtCodeHash(_) => "extcodehash",
-            Self::ReturnDataSize => "returndatasize",
-            Self::ReturnDataCopy(_, _, _) => "returndatacopy",
-            Self::InternalFrameAddr(_) => "internal_frame_addr",
-            Self::Caller => "caller",
-            Self::CallValue => "callvalue",
-            Self::Origin => "origin",
-            Self::GasPrice => "gasprice",
-            Self::BlockHash(_) => "blockhash",
-            Self::Coinbase => "coinbase",
-            Self::Timestamp => "timestamp",
-            Self::BlockNumber => "number",
-            Self::PrevRandao => "prevrandao",
-            Self::GasLimit => "gaslimit",
-            Self::ChainId => "chainid",
-            Self::Address => "address",
-            Self::Balance(_) => "balance",
-            Self::SelfBalance => "selfbalance",
-            Self::Gas => "gas",
-            Self::BaseFee => "basefee",
-            Self::BlobBaseFee => "blobbasefee",
-            Self::BlobHash(_) => "blobhash",
-            Self::Keccak256(_, _) => "keccak256",
-            Self::Call { .. } => "call",
-            Self::StaticCall { .. } => "staticcall",
-            Self::DelegateCall { .. } => "delegatecall",
-            Self::InternalCall { .. } => "internal_call",
-            Self::Create(_, _, _) => "create",
-            Self::Create2(_, _, _, _) => "create2",
-            Self::Log0(_, _) => "log0",
-            Self::Log1(_, _, _) => "log1",
-            Self::Log2(_, _, _, _) => "log2",
-            Self::Log3(_, _, _, _, _) => "log3",
-            Self::Log4(_, _, _, _, _, _) => "log4",
-            Self::Phi(_) => "phi",
-            Self::Select(_, _, _) => "select",
-            Self::SignExtend(_, _) => "signextend",
-        }
+    pub fn mnemonic(&self) -> &'static str {
+        self.tag().mnemonic()
     }
 
     /// Returns true if this instruction has side effects.
     /// Side-effect instructions must not be eliminated by DCE.
     #[must_use]
-    pub const fn has_side_effects(&self) -> bool {
-        matches!(
-            self,
-            // Storage writes
-            Self::SStore(_, _)
-            | Self::TStore(_, _)
-            // Memory writes (may affect external calls)
-            | Self::MStore(_, _)
-            | Self::MStore8(_, _)
-            | Self::MCopy(_, _, _)
-            // External calls
-            | Self::Call { .. }
-            | Self::StaticCall { .. }
-            | Self::DelegateCall { .. }
-            | Self::InternalCall { .. }
-            // Contract creation
-            | Self::Create(_, _, _)
-            | Self::Create2(_, _, _, _)
-            // Event emission
-            | Self::Log0(_, _)
-            | Self::Log1(_, _, _)
-            | Self::Log2(_, _, _, _)
-            | Self::Log3(_, _, _, _, _)
-            | Self::Log4(_, _, _, _, _, _)
-            // Data copy operations (write to memory)
-            | Self::CalldataCopy(_, _, _)
-            | Self::CodeCopy(_, _, _)
-            | Self::ExtCodeCopy(_, _, _, _)
-            | Self::ReturnDataCopy(_, _, _)
-        )
+    pub fn has_side_effects(&self) -> bool {
+        self.tag().has_side_effects()
     }
 
     /// Returns a conservative effect classification for this instruction.
     #[must_use]
-    pub const fn effect_kind(&self) -> EffectKind {
-        match self {
-            Self::MStore(_, _)
-            | Self::MStore8(_, _)
-            | Self::MCopy(_, _, _)
-            | Self::CalldataCopy(_, _, _)
-            | Self::CodeCopy(_, _, _)
-            | Self::ExtCodeCopy(_, _, _, _)
-            | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
-            Self::MLoad(_) | Self::MSize | Self::Keccak256(_, _) => EffectKind::MemoryRead,
-            Self::SLoad(_) => EffectKind::StorageRead,
-            Self::SStore(_, _) => EffectKind::StorageWrite,
-            Self::TLoad(_) => EffectKind::TransientRead,
-            Self::TStore(_, _) => EffectKind::TransientWrite,
-            Self::Call { .. } | Self::StaticCall { .. } | Self::DelegateCall { .. } => {
-                EffectKind::ExternalCall
-            }
-            Self::InternalCall { .. } => EffectKind::InternalCall,
-            Self::Create(_, _, _) | Self::Create2(_, _, _, _) => EffectKind::Create,
-            Self::Log0(_, _)
-            | Self::Log1(_, _, _)
-            | Self::Log2(_, _, _, _)
-            | Self::Log3(_, _, _, _, _)
-            | Self::Log4(_, _, _, _, _, _) => EffectKind::Log,
-            Self::CalldataLoad(_)
-            | Self::CalldataSize
-            | Self::CodeSize
-            | Self::LoadImmutable(_)
-            | Self::ExtCodeSize(_)
-            | Self::ExtCodeHash(_)
-            | Self::ReturnDataSize
-            | Self::Caller
-            | Self::CallValue
-            | Self::Origin
-            | Self::GasPrice
-            | Self::BlockHash(_)
-            | Self::Coinbase
-            | Self::Timestamp
-            | Self::BlockNumber
-            | Self::PrevRandao
-            | Self::GasLimit
-            | Self::ChainId
-            | Self::Address
-            | Self::Balance(_)
-            | Self::SelfBalance
-            | Self::Gas
-            | Self::BaseFee
-            | Self::BlobBaseFee
-            | Self::BlobHash(_) => EffectKind::EnvironmentRead,
-            Self::Add(_, _)
-            | Self::Sub(_, _)
-            | Self::Mul(_, _)
-            | Self::Div(_, _)
-            | Self::SDiv(_, _)
-            | Self::Mod(_, _)
-            | Self::SMod(_, _)
-            | Self::Exp(_, _)
-            | Self::AddMod(_, _, _)
-            | Self::MulMod(_, _, _)
-            | Self::And(_, _)
-            | Self::Or(_, _)
-            | Self::Xor(_, _)
-            | Self::Not(_)
-            | Self::Shl(_, _)
-            | Self::Shr(_, _)
-            | Self::Sar(_, _)
-            | Self::Byte(_, _)
-            | Self::Lt(_, _)
-            | Self::Gt(_, _)
-            | Self::SLt(_, _)
-            | Self::SGt(_, _)
-            | Self::Eq(_, _)
-            | Self::IsZero(_)
-            | Self::InternalFrameAddr(_)
-            | Self::Phi(_)
-            | Self::Select(_, _, _)
-            | Self::SignExtend(_, _) => EffectKind::Pure,
-        }
+    pub fn effect_kind(&self) -> EffectKind {
+        self.tag().effect_kind()
     }
 }
 
@@ -1682,7 +1261,7 @@ mod tests {
         let a = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
         let b = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
 
-        let phi = InstKind::Phi(vec![(pred_a, a), (pred_b, b)]);
+        let phi = Instruction::new(InstKind::Phi(vec![(pred_a, a), (pred_b, b)]), None);
 
         assert_eq!(phi.operands().as_slice(), &[a, b]);
     }

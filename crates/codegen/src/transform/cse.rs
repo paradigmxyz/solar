@@ -846,7 +846,7 @@ impl CommonSubexprEliminator {
         inst_blocks: &FxHashMap<InstId, BlockId>,
         dominators: &DominatorTree,
     ) -> bool {
-        kind.operands().into_iter().all(|value| {
+        Instruction::new(kind.clone(), None).operands().into_iter().all(|value| {
             Self::value_dominates_block(func, value, block_id, inst_blocks, dominators)
         })
     }
@@ -1179,9 +1179,7 @@ impl CommonSubexprEliminator {
 
         for inst_id in inst_ids {
             let inst = &mut func.instructions[inst_id];
-            let mut kind = inst.kind();
-            if Self::replace_operands(&mut kind, replacements) {
-                inst.set_kind(kind);
+            if Self::replace_operands(inst, replacements) {
                 if Self::is_memory_inst(&inst.kind()) {
                     inst.metadata.set_memory_region(None);
                 }
@@ -1204,9 +1202,12 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn replace_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) -> bool {
+    fn replace_operands(
+        inst: &mut Instruction,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> bool {
         let mut changed = false;
-        kind.visit_operands_mut(|v| {
+        inst.visit_operands_mut(|v| {
             let new_v = Self::canonical_value(*v, replacements);
             if new_v != *v {
                 *v = new_v;

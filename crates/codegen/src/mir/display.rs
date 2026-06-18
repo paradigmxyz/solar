@@ -61,7 +61,9 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
             {
                 write!(f, "v{} = ", vid.index())?;
             }
-            write!(f, "{}\\l", display_inst_kind(&inst.kind(), func))
+            let kind = inst.kind();
+            let operands = inst.operands();
+            write!(f, "{}\\l", display_inst_kind(&kind, &operands, func))
         })
     }
 
@@ -203,7 +205,14 @@ pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
             {
                 write!(f, "v{} = ", vid.index())?;
             }
-            writeln!(f, "{}{}", display_inst_kind(&inst.kind(), func), display_metadata(inst, func))
+            let kind = inst.kind();
+            let operands = inst.operands();
+            writeln!(
+                f,
+                "{}{}",
+                display_inst_kind(&kind, &operands, func),
+                display_metadata(inst, func)
+            )
         })
     }
 
@@ -253,19 +262,23 @@ fn function_prints_return_values(func: &Function) -> bool {
 }
 
 /// Formats an instruction kind for display.
-fn display_inst_kind<'a>(kind: &'a InstKind, func: &'a Function) -> impl fmt::Display + 'a {
+fn display_inst_kind<'a>(
+    kind: &'a InstKind,
+    operands: &'a SmallVec<[ValueId; 8]>,
+    func: &'a Function,
+) -> impl fmt::Display + 'a {
     fn display_inst_operands(
         f: &mut fmt::Formatter<'_>,
         kind: &InstKind,
         func: &Function,
+        operands: &[ValueId],
     ) -> fmt::Result {
         write!(f, "{}", kind.mnemonic())?;
-        let operands = kind.operands();
         if !operands.is_empty() {
             write!(
                 f,
                 " {}",
-                operands.into_iter().map(|operand| display_val(operand, func)).format(", ")
+                operands.iter().map(|&operand| display_val(operand, func)).format(", ")
             )?;
         }
         Ok(())
@@ -294,7 +307,7 @@ fn display_inst_kind<'a>(kind: &'a InstKind, func: &'a Function) -> impl fmt::Di
             }
             Ok(())
         }
-        _ => display_inst_operands(f, kind, func),
+        _ => display_inst_operands(f, kind, func, operands),
     })
 }
 

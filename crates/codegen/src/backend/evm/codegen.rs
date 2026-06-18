@@ -18,7 +18,10 @@ use crate::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
         PhiEliminator,
     },
-    mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
+    mir::{
+        BlockId, Function, FunctionId, InstId, InstKind, Instruction, MirType, Module, Terminator,
+        ValueId,
+    },
     pass::{AnalysisManager, LivenessAnalysis, PipelineOptions, run_default_pipeline_with_options},
 };
 use alloy_primitives::U256;
@@ -1066,7 +1069,7 @@ impl EvmCodegen {
                 let result_value = func.inst_result_value(inst_id);
 
                 // Generate the instruction
-                self.generate_inst(func, inst.kind(), liveness, block_id, inst_idx, result_value);
+                self.generate_inst(func, inst, liveness, block_id, inst_idx, result_value);
                 if let Some(result) = result_value {
                     self.spill_reserved_result_if_live(func, liveness, block_id, inst_idx, result);
                 }
@@ -1741,7 +1744,7 @@ impl EvmCodegen {
     fn generate_inst(
         &mut self,
         func: &Function,
-        kind: InstKind,
+        inst: &Instruction,
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
@@ -1749,9 +1752,10 @@ impl EvmCodegen {
     ) {
         // Spill any operands that are live-out before they get consumed.
         // This ensures cross-block values are preserved in memory.
-        let operands = kind.operands();
+        let operands = inst.operands();
         self.spill_live_out_operands(func, liveness, block, &operands);
 
+        let kind = inst.kind();
         match kind {
             // Binary arithmetic operations
             InstKind::Add(a, b) => self.emit_binary_op_with_result(

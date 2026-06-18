@@ -297,7 +297,7 @@ impl LoadPreCostModel {
         if insertions.is_empty() {
             return 0;
         }
-        let cross_block_operands = kind
+        let cross_block_operands = Instruction::new(kind.clone(), None)
             .operands()
             .into_iter()
             .filter(|&value| matches!(func.value(value), Value::Inst(_) | Value::Undef(_)))
@@ -584,8 +584,7 @@ impl LoadRedundancyEliminator {
             || candidate.incoming.iter().any(|(_, value)| eliminated_values.contains(value))
             || candidate.loads.iter().any(|&(_, value)| eliminated_values.contains(&value))
             || (!candidate.insertions.is_empty()
-                && candidate
-                    .kind
+                && Instruction::new(candidate.kind.clone(), None)
                     .operands()
                     .into_iter()
                     .any(|value| eliminated_values.contains(&value)))
@@ -1145,12 +1144,14 @@ impl LoadRedundancyEliminator {
         block: BlockId,
         analysis: &Analysis,
     ) -> bool {
-        kind.operands().into_iter().all(|value| match func.value(value) {
-            Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) => true,
-            Value::Inst(inst_id) => analysis
-                .inst_blocks
-                .get(inst_id)
-                .is_some_and(|def_block| analysis.dominators.dominates(*def_block, block)),
+        Instruction::new(kind.clone(), None).operands().into_iter().all(|value| {
+            match func.value(value) {
+                Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) => true,
+                Value::Inst(inst_id) => analysis
+                    .inst_blocks
+                    .get(inst_id)
+                    .is_some_and(|def_block| analysis.dominators.dominates(*def_block, block)),
+            }
         })
     }
 

@@ -45,7 +45,10 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Terminator, Value,
+        ValueId,
+    },
     pass::FunctionPass,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -428,9 +431,7 @@ impl GlobalValueNumberer {
         let inst_ids: Vec<InstId> = func.blocks[block_id].instructions.clone();
         for inst_id in inst_ids {
             let inst = &mut func.instructions[inst_id];
-            let mut kind = inst.kind();
-            if Self::replace_operands(&mut kind, replacements) {
-                inst.set_kind(kind);
+            if Self::replace_operands(inst, replacements) {
                 if Self::is_memory_inst(&inst.kind()) {
                     inst.metadata.set_memory_region(None);
                 }
@@ -451,9 +452,12 @@ impl GlobalValueNumberer {
         }
     }
 
-    fn replace_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) -> bool {
+    fn replace_operands(
+        inst: &mut Instruction,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> bool {
         let mut changed = false;
-        kind.visit_operands_mut(|value| {
+        inst.visit_operands_mut(|value| {
             let new_value = Self::canonical_value(*value, replacements);
             if new_value != *value {
                 *value = new_value;
