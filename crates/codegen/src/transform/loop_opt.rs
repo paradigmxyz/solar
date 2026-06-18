@@ -12,7 +12,10 @@
 
 use crate::{
     analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId,
+        utils as mir_utils,
+    },
     pass::FunctionPass,
 };
 use alloy_primitives::U256;
@@ -36,12 +39,6 @@ struct LoopOptContext<'a> {
     loop_data: &'a Loop,
     scev: &'a ScalarEvolution,
     analyzer: &'a LoopAnalyzer,
-}
-
-fn ranges_overlap(a_start: u64, a_width: u64, b_start: u64, b_width: u64) -> bool {
-    let a_end = a_start.saturating_add(a_width);
-    let b_end = b_start.saturating_add(b_width);
-    a_start < b_end && b_start < a_end
 }
 
 /// Loop optimization pass configuration.
@@ -111,7 +108,7 @@ impl LoopOptimizer {
     /// Runs all enabled loop optimizations on a function.
     pub fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
-        self.annotate_storage_aliases(func);
+        func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
@@ -572,7 +569,7 @@ impl LoopOptimizer {
     ) -> bool {
         match (self.const_addr(func, load_addr), load_width, self.const_addr(func, write_addr)) {
             (Some(load), Some(load_width), Some(write)) => {
-                ranges_overlap(load, load_width, write, write_width)
+                mir_utils::ranges_overlap(load, load_width, write, write_width)
             }
             _ => {
                 let Some(load_width) = load_width else { return true };
@@ -709,29 +706,13 @@ impl LoopOptimizer {
         }
     }
 
-    fn annotate_storage_aliases(&self, func: &mut Function) {
-        let inst_ids: Vec<_> =
-            func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
-        for inst_id in inst_ids {
-            let slot = match func.instructions[inst_id].kind {
-                InstKind::SLoad(slot)
-                | InstKind::SStore(slot, _)
-                | InstKind::TLoad(slot)
-                | InstKind::TStore(slot, _) => Some(slot),
-                _ => None,
-            };
-            let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
-            func.instructions[inst_id].metadata.set_storage_alias(alias);
-        }
-    }
-
     fn is_affine_address_base_used_in_loop(
         &self,
         func: &Function,
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
     ) -> bool {
-        let Some(result) = self.inst_result(func, inst_id) else { return false };
+        let Some(result) = func.inst_result_value(inst_id) else { return false };
         for &block_id in &ctx.loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
                 let kind = &func.instructions[user_inst].kind;
@@ -788,12 +769,6 @@ impl LoopOptimizer {
             .iter()
             .copied()
             .any(|operand| self.value_feeds_affine_address(func, ctx, needle, operand, depth + 1))
-    }
-
-    fn inst_result(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
-        func.values.iter_enumerated().find_map(|(value, kind)| {
-            matches!(kind, Value::Inst(inst) if *inst == inst_id).then_some(value)
-        })
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {

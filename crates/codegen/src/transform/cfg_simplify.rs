@@ -18,10 +18,9 @@ use crate::{
     analysis::{CallGraphInfo, CfgInfo},
     mir::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-        Terminator, Value, ValueId,
+        Terminator, Value, ValueId, utils::repair_reachability_phis,
     },
     pass::{FunctionPass, ModulePass},
-    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -155,12 +154,7 @@ impl CfgSimplifier {
     /// no phis and a terminal block has no successors, so no phi inputs
     /// elsewhere can mention it.
     fn deduplicate_terminal_blocks(&mut self, func: &mut Function) {
-        let mut inst_results: FxHashMap<crate::mir::InstId, ValueId> = FxHashMap::default();
-        for (value, kind) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = kind {
-                inst_results.insert(*inst_id, value);
-            }
-        }
+        let inst_results = func.inst_results();
 
         let mut kept: Vec<(BlockId, CanonBlock)> = Vec::new();
         let mut merges: Vec<(BlockId, BlockId)> = Vec::new();
@@ -257,12 +251,12 @@ impl CfgSimplifier {
         let mut raw = FxHashMap::default();
 
         for block_id in func.blocks.indices() {
-            let same_block_phi_results = Self::block_phi_results(func, block_id);
+            let same_block_phi_results = func.block_phi_results(block_id);
             for &inst_id in &func.blocks[block_id].instructions {
                 let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
                     continue;
                 };
-                let Some(phi_value) = Self::find_inst_result(func, inst_id) else {
+                let Some(phi_value) = func.inst_result_value(inst_id) else {
                     continue;
                 };
                 let Some(replacement) =
@@ -306,25 +300,11 @@ impl CfgSimplifier {
             return;
         }
 
-        Self::replace_uses(func, &replacements);
+        func.replace_uses(&replacements);
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|inst_id| !dead.contains(inst_id));
         }
         self.stats.trivial_phis_simplified += dead.len();
-    }
-
-    fn block_phi_results(func: &Function, block_id: BlockId) -> FxHashSet<ValueId> {
-        func.blocks[block_id]
-            .instructions
-            .iter()
-            .filter_map(|&inst_id| {
-                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
-                    Self::find_inst_result(func, inst_id)
-                } else {
-                    None
-                }
-            })
-            .collect()
     }
 
     fn trivial_phi_replacement(
@@ -466,7 +446,7 @@ impl CfgSimplifier {
         func.blocks[target].terminator = Some(Terminator::Invalid);
         func.blocks[target].predecessors.clear();
 
-        Self::replace_uses(func, &phi_replacements);
+        func.replace_uses(&phi_replacements);
     }
 
     fn fold_target_phis_for_merge(
@@ -480,7 +460,7 @@ impl CfgSimplifier {
             let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
                 continue;
             };
-            let Some(phi_value) = Self::find_inst_result(func, inst_id) else {
+            let Some(phi_value) = func.inst_result_value(inst_id) else {
                 continue;
             };
             let Some((_, incoming_value)) =
@@ -491,66 +471,6 @@ impl CfgSimplifier {
             replacements.insert(phi_value, *incoming_value);
         }
         replacements
-    }
-
-    fn find_inst_result(func: &Function, inst_id: crate::mir::InstId) -> Option<ValueId> {
-        func.values.iter_enumerated().find_map(|(value, kind)| {
-            matches!(kind, Value::Inst(inst) if *inst == inst_id).then_some(value)
-        })
-    }
-
-    fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
-        if replacements.is_empty() {
-            return;
-        }
-        for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
-        }
-        for block in func.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_operands(term, replacements);
-            }
-        }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            if let Some(&replacement) = replacements.get(value) {
-                *value = replacement;
-            }
-        });
-    }
-
-    fn replace_terminator_operands(
-        term: &mut Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
-        let replace = |value: &mut ValueId| {
-            if let Some(&replacement) = replacements.get(value) {
-                *value = replacement;
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case_value, _) in cases {
-                    replace(case_value);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-        }
     }
 
     /// Eliminates empty blocks that only contain an unconditional jump.

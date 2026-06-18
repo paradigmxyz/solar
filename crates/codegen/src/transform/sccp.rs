@@ -15,9 +15,12 @@
 //! with immediates and rewrites branches with known-constant conditions.
 
 use crate::{
-    mir::{BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId,
+        utils::{self as mir_utils, repair_reachability_phis},
+    },
     pass::FunctionPass,
-    utils::{evm_word, repair_reachability_phis},
+    utils::evm_word,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -673,11 +676,11 @@ impl SccpPass {
                 .filter(|id| !dead_insts.contains(id))
                 .collect();
             for inst_id in all_insts {
-                replace_inst_operands(&mut func.instructions[inst_id].kind, &const_values);
+                mir_utils::replace_inst_uses(&mut func.instructions[inst_id].kind, &const_values);
             }
             for &block_id in &block_ids {
                 if let Some(term) = &mut func.blocks[block_id].terminator {
-                    replace_terminator_operands(term, &const_values);
+                    mir_utils::replace_terminator_uses(term, &const_values);
                 }
             }
         }
@@ -767,44 +770,6 @@ fn fits_signed(value: U256, bits: u16) -> bool {
     // Representable iff bits 255..=bits-1 of the 256-bit two's-complement word
     // all equal the sign bit.
     if value.bit(bits - 1) { (!value).bit_len() < bits } else { value.bit_len() < bits }
-}
-
-/// Replace operands in an instruction kind with constant replacements.
-fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-    kind.visit_operands_mut(|v| {
-        if let Some(&new_v) = replacements.get(v) {
-            *v = new_v;
-        }
-    });
-}
-
-/// Replace operands in a terminator.
-fn replace_terminator_operands(term: &mut Terminator, replacements: &FxHashMap<ValueId, ValueId>) {
-    let replace = |v: &mut ValueId| {
-        if let Some(&new_v) = replacements.get(v) {
-            *v = new_v;
-        }
-    };
-    match term {
-        Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-        Terminator::Branch { condition, .. } => replace(condition),
-        Terminator::Switch { value, cases, .. } => {
-            replace(value);
-            for (v, _) in cases {
-                replace(v);
-            }
-        }
-        Terminator::Return { values } => {
-            for v in values {
-                replace(v);
-            }
-        }
-        Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-            replace(offset);
-            replace(size);
-        }
-        Terminator::SelfDestruct { recipient } => replace(recipient),
-    }
 }
 
 #[cfg(test)]

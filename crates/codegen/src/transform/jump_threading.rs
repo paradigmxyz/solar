@@ -15,9 +15,10 @@
 //!    updating all references to point to the final target.
 
 use crate::{
-    mir::{BlockId, Function, InstKind, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, InstKind, Terminator, Value, ValueId, utils::repair_reachability_phis,
+    },
     pass::FunctionPass,
-    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -256,25 +257,11 @@ impl JumpThreader {
         final_targets: &FxHashMap<BlockId, BlockId>,
     ) -> Option<BlockId> {
         let final_target = final_targets.get(&target).copied()?;
-        (!Self::block_has_phi(func, final_target)).then_some(final_target)
-    }
-
-    fn block_has_phi(func: &Function, block_id: BlockId) -> bool {
-        func.blocks[block_id]
-            .instructions
-            .iter()
-            .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
-    }
-
-    fn block_has_only_phis(func: &Function, block_id: BlockId) -> bool {
-        func.blocks[block_id]
-            .instructions
-            .iter()
-            .all(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+        (!func.block_has_phi(final_target)).then_some(final_target)
     }
 
     fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
-        let phi_results = Self::block_phi_results(func, block_id);
+        let phi_results = func.block_phi_results(block_id);
         if phi_results.is_empty() {
             return false;
         }
@@ -306,28 +293,12 @@ impl JumpThreader {
         false
     }
 
-    fn block_phi_results(func: &Function, block_id: BlockId) -> FxHashSet<ValueId> {
-        let phi_insts: FxHashSet<_> = func.blocks[block_id]
-            .instructions
-            .iter()
-            .copied()
-            .filter(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
-            .collect();
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| match value {
-                Value::Inst(inst_id) if phi_insts.contains(inst_id) => Some(value_id),
-                _ => None,
-            })
-            .collect()
-    }
-
     fn thread_phi_constant_edges(&mut self, func: &mut Function) -> usize {
         let mut rewrites = Vec::new();
         let block_ids: Vec<_> = func.blocks.indices().collect();
 
         for block_id in block_ids {
-            if !Self::block_has_only_phis(func, block_id) {
+            if !func.block_has_only_phis(block_id) {
                 continue;
             }
             if Self::block_phi_results_have_external_uses(func, block_id) {
@@ -350,7 +321,7 @@ impl JumpThreader {
                 else {
                     continue;
                 };
-                if target == block_id || Self::block_has_phi(func, target) {
+                if target == block_id || func.block_has_phi(target) {
                     continue;
                 }
                 rewrites.push((pred, block_id, target));
@@ -382,14 +353,14 @@ impl JumpThreader {
         match term {
             Terminator::Branch { condition, then_block, else_block } => {
                 let incoming = Self::incoming_value_for_pred(func, block_id, *condition, pred)?;
-                let condition = Self::const_u256(func, incoming)?;
+                let condition = func.value_u256(incoming)?;
                 Some(if condition.is_zero() { *else_block } else { *then_block })
             }
             Terminator::Switch { value, default, cases } => {
                 let incoming = Self::incoming_value_for_pred(func, block_id, *value, pred)?;
-                let value = Self::const_u256(func, incoming)?;
+                let value = func.value_u256(incoming)?;
                 for (case, target) in cases {
-                    if Self::const_u256(func, *case)? == value {
+                    if func.value_u256(*case)? == value {
                         return Some(*target);
                     }
                 }
@@ -417,13 +388,6 @@ impl JumpThreader {
         incoming.iter().find_map(|(incoming_block, incoming_value)| {
             (*incoming_block == pred).then_some(*incoming_value)
         })
-    }
-
-    fn const_u256(func: &Function, value: ValueId) -> Option<alloy_primitives::U256> {
-        match func.value(value) {
-            Value::Immediate(imm) => imm.as_u256(),
-            _ => None,
-        }
     }
 
     fn successor_count(func: &Function, pred: BlockId, target: BlockId) -> usize {

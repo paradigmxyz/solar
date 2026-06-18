@@ -13,9 +13,11 @@
 
 use crate::{
     analysis::LoopAnalyzer,
-    mir::{BlockId, Function, InstId, InstKind, Instruction, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, InstId, InstKind, Instruction, Terminator, Value, ValueId,
+        utils::repair_reachability_phis,
+    },
     pass::FunctionPass,
-    utils::repair_reachability_phis,
 };
 use solar_data_structures::map::FxHashSet;
 

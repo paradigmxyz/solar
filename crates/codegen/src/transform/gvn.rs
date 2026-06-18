@@ -45,7 +45,9 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, Immediate, InstId, InstKind, MirType, Value, ValueId, utils as mir_utils,
+    },
     pass::FunctionPass,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -152,7 +154,7 @@ impl GlobalValueNumberer {
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = CfgInfo::new(func);
-        let inst_results = Self::inst_results(func);
+        let inst_results = func.inst_results();
         let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
             return false;
         };
@@ -393,15 +395,6 @@ impl GlobalValueNumberer {
 
     // ----- CFG helpers -----
 
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
-    }
-
     // ----- replacement application -----
 
     fn apply_replacements_to_all_blocks(
@@ -423,8 +416,8 @@ impl GlobalValueNumberer {
         let inst_ids: Vec<InstId> = func.blocks[block_id].instructions.clone();
         for inst_id in inst_ids {
             let inst = &mut func.instructions[inst_id];
-            if Self::replace_operands(&mut inst.kind, replacements) {
-                if Self::is_memory_inst(&inst.kind) {
+            if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
+                if mir_utils::is_memory_inst(&inst.kind) {
                     inst.metadata.set_memory_region(None);
                 }
                 if matches!(
@@ -440,74 +433,7 @@ impl GlobalValueNumberer {
         }
 
         if let Some(term) = &mut func.blocks[block_id].terminator {
-            Self::replace_terminator_operands(term, replacements);
+            mir_utils::replace_terminator_uses_canonicalized(term, replacements);
         }
-    }
-
-    fn replace_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) -> bool {
-        let mut changed = false;
-        kind.visit_operands_mut(|value| {
-            let new_value = Self::canonical_value(*value, replacements);
-            if new_value != *value {
-                *value = new_value;
-                changed = true;
-            }
-        });
-        changed
-    }
-
-    fn replace_terminator_operands(
-        term: &mut Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
-        let replace = |value: &mut ValueId| {
-            *value = Self::canonical_value(*value, replacements);
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case, _) in cases {
-                    replace(case);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-        }
-    }
-
-    fn canonical_value(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
-        while let Some(&replacement) = replacements.get(&value) {
-            if replacement == value {
-                break;
-            }
-            value = replacement;
-        }
-        value
-    }
-
-    fn is_memory_inst(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::MLoad(_)
-                | InstKind::MStore(_, _)
-                | InstKind::MStore8(_, _)
-                | InstKind::MCopy(_, _, _)
-                | InstKind::CalldataCopy(_, _, _)
-                | InstKind::CodeCopy(_, _, _)
-                | InstKind::ReturnDataCopy(_, _, _)
-                | InstKind::ExtCodeCopy(_, _, _, _)
-                | InstKind::Keccak256(_, _)
-        )
     }
 }

@@ -22,8 +22,8 @@
 use crate::{
     analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Terminator, Value,
-        ValueId,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Value, ValueId,
+        utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -112,7 +112,7 @@ impl IndVarSimplifier {
         };
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let inst_results = self.inst_results(func);
+        let inst_results = func.inst_results();
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
 
         let mut blocks: Vec<_> = loop_data.blocks.iter().copied().collect();
@@ -300,16 +300,6 @@ impl IndVarSimplifier {
         if value <= U256::from(i128::MAX as u128) { Some(value.to::<u128>() as i128) } else { None }
     }
 
-    fn inst_results(&self, func: &Function) -> FxHashMap<InstId, ValueId> {
-        let mut results = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value {
-                results.insert(*inst_id, value_id);
-            }
-        }
-        results
-    }
-
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
         for &block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
@@ -346,63 +336,14 @@ impl IndVarSimplifier {
         for &block in &loop_data.blocks {
             let insts = func.blocks[block].instructions.clone();
             for inst_id in insts {
-                replaced +=
-                    self.replace_inst_operands(&mut func.instructions[inst_id].kind, replacements);
+                replaced += mir_utils::replace_inst_uses(
+                    &mut func.instructions[inst_id].kind,
+                    replacements,
+                );
             }
             if let Some(term) = &mut func.blocks[block].terminator {
-                replaced += self.replace_terminator_operands(term, replacements);
+                replaced += mir_utils::replace_terminator_uses(term, replacements);
             }
-        }
-        replaced
-    }
-
-    fn replace_inst_operands(
-        &self,
-        kind: &mut InstKind,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> usize {
-        let mut replaced = 0;
-        kind.visit_operands_mut(|value| {
-            if let Some(&replacement) = replacements.get(value) {
-                *value = replacement;
-                replaced += 1;
-            }
-        });
-        replaced
-    }
-
-    fn replace_terminator_operands(
-        &self,
-        term: &mut Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> usize {
-        let mut replaced = 0;
-        let mut replace = |value: &mut ValueId| {
-            if let Some(&replacement) = replacements.get(value) {
-                *value = replacement;
-                replaced += 1;
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case_value, _) in cases {
-                    replace(case_value);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
         }
         replaced
     }

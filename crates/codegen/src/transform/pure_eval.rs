@@ -39,7 +39,7 @@ impl FunctionPass for PureEvalPass {
 
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         let changed = PureEvaluator::new().run(func).functions_folded != 0;
-        let repaired = crate::utils::repair_reachability_phis(func);
+        let repaired = crate::mir::utils::repair_reachability_phis(func);
         changed || repaired
     }
 }
@@ -144,7 +144,7 @@ impl PureEvaluator {
                     }
                     kind => self.eval_inst(kind, &env)?,
                 };
-                if let Some(value_id) = inst_result_value(func, inst_id) {
+                if let Some(value_id) = func.inst_result_value(inst_id) {
                     env.insert(value_id, result);
                 }
             }
@@ -263,10 +263,4 @@ impl PureEvaluator {
             .collect();
         func.blocks[entry].terminator = Some(Terminator::Return { values });
     }
-}
-
-fn inst_result_value(func: &Function, inst_id: crate::mir::InstId) -> Option<ValueId> {
-    func.values.iter_enumerated().find_map(|(value_id, value)| {
-        matches!(value, Value::Inst(id) if *id == inst_id).then_some(value_id)
-    })
 }

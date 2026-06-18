@@ -5,7 +5,7 @@
 
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -39,11 +39,11 @@ impl StorageLoadCse {
     /// Runs storage-load CSE on a function.
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        self.annotate_storage_aliases(func);
+        func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
-        let inst_results = Self::inst_results(func);
+        let inst_results = func.inst_results();
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
         let mut dead = FxHashSet::default();
@@ -99,7 +99,7 @@ impl StorageLoadCse {
         for (inst_idx, inst_id) in inst_ids.into_iter().enumerate() {
             match &func.instructions[inst_id].kind {
                 InstKind::SLoad(slot) => {
-                    let alias = self.storage_alias(func, inst_id, *slot, replacements);
+                    let alias = func.storage_alias_after_replacements(inst_id, *slot, replacements);
                     let Some(&result) = inst_results.get(&inst_id) else {
                         continue;
                     };
@@ -120,72 +120,13 @@ impl StorageLoadCse {
                     }
                 }
                 InstKind::SStore(slot, _) => {
-                    let alias = self.storage_alias(func, inst_id, *slot, replacements);
-                    cached_loads.retain(|cached_alias, _| {
-                        !Self::storage_aliases_may_alias(cached_alias, &alias)
-                    });
+                    let alias = func.storage_alias_after_replacements(inst_id, *slot, replacements);
+                    cached_loads.retain(|cached_alias, _| !cached_alias.may_alias(alias));
                 }
                 kind if kind.may_mutate_storage() => cached_loads.clear(),
                 _ => {}
             }
         }
-    }
-
-    fn annotate_storage_aliases(&self, func: &mut Function) {
-        let inst_ids: Vec<_> =
-            func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
-        for inst_id in inst_ids {
-            let slot = match &func.instructions[inst_id].kind {
-                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
-                _ => None,
-            };
-            let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
-            func.instructions[inst_id].metadata.set_storage_alias(alias);
-        }
-    }
-
-    fn storage_alias(
-        &self,
-        func: &Function,
-        inst_id: InstId,
-        slot: ValueId,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> StorageAlias {
-        let original_slot = slot;
-        let slot = Self::canonical_value(slot, replacements);
-        if slot == original_slot {
-            func.instructions[inst_id]
-                .metadata
-                .storage_alias()
-                .unwrap_or_else(|| StorageAlias::for_value(func, slot))
-        } else {
-            StorageAlias::for_value(func, slot)
-        }
-    }
-
-    fn storage_aliases_may_alias(a: &StorageAlias, b: &StorageAlias) -> bool {
-        a.may_alias(*b)
-    }
-
-    fn canonical_value(value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
-        let mut value = value;
-        while let Some(&replacement) = replacements.get(&value) {
-            if replacement == value {
-                break;
-            }
-            value = replacement;
-        }
-        value
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        let mut results = FxHashMap::default();
-        for (value_id, value) in func.values.iter_enumerated() {
-            if let Value::Inst(inst_id) = value {
-                results.insert(*inst_id, value_id);
-            }
-        }
-        results
     }
 
     fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
@@ -194,7 +135,7 @@ impl StorageLoadCse {
         }
 
         for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
+            mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements);
             if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
                 inst.metadata.set_storage_alias(None);
             }
@@ -202,44 +143,8 @@ impl StorageLoadCse {
 
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_operands(term, replacements);
+                mir_utils::replace_terminator_uses_canonicalized(term, replacements);
             }
-        }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            *value = Self::canonical_value(*value, replacements);
-        });
-    }
-
-    fn replace_terminator_operands(
-        term: &mut Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
-        let replace = |value: &mut ValueId| {
-            *value = Self::canonical_value(*value, replacements);
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case, _) in cases {
-                    replace(case);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
         }
     }
 }

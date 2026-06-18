@@ -34,9 +34,9 @@ use crate::{
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirType,
         Terminator, Value, ValueId,
+        utils::{repair_reachability_phis, split_edge},
     },
     pass::FunctionPass,
-    utils::{repair_reachability_phis, split_edge},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;
@@ -140,8 +140,8 @@ impl PartialRedundancyEliminator {
         self.stats = PreStats::default();
         repair_reachability_phis(func);
 
-        let mut inst_results = Self::inst_results(func);
-        let mut inst_blocks = Self::inst_blocks(func);
+        let mut inst_results = func.inst_results();
+        let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
         let mut inserted_insts = FxHashSet::default();
@@ -201,7 +201,7 @@ impl PartialRedundancyEliminator {
         let mut eliminated_values: FxHashSet<ValueId> = FxHashSet::default();
 
         'targets: for target in func.blocks.indices() {
-            let predecessors = Self::unique_predecessors(func, target);
+            let predecessors = func.unique_predecessors(target);
             if predecessors.len() < 2 {
                 continue;
             }
@@ -404,7 +404,7 @@ impl PartialRedundancyEliminator {
         };
 
         let replacements = FxHashMap::from_iter([(result, replacement)]);
-        Self::replace_uses(func, &replacements);
+        func.replace_uses(&replacements);
         func.blocks[target].instructions.retain(|&inst_id| inst_id != inst);
         inst_results.remove(&inst);
         inst_blocks.remove(&inst);
@@ -645,82 +645,5 @@ impl PartialRedundancyEliminator {
             }
             _ => Ordering::Equal,
         })
-    }
-
-    fn unique_predecessors(func: &Function, block: BlockId) -> Vec<BlockId> {
-        let mut predecessors = Vec::new();
-        for &pred in &func.blocks[block].predecessors {
-            if !predecessors.contains(&pred) {
-                predecessors.push(pred);
-            }
-        }
-        predecessors
-    }
-
-    fn inst_results(func: &Function) -> FxHashMap<InstId, ValueId> {
-        func.values
-            .iter_enumerated()
-            .filter_map(|(value_id, value)| {
-                if let Value::Inst(inst_id) = value { Some((*inst_id, value_id)) } else { None }
-            })
-            .collect()
-    }
-
-    fn inst_blocks(func: &Function) -> FxHashMap<InstId, BlockId> {
-        let mut inst_blocks = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                inst_blocks.insert(inst_id, block_id);
-            }
-        }
-        inst_blocks
-    }
-
-    fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
-        for inst in func.instructions.iter_mut() {
-            inst.kind.visit_operands_mut(|value| {
-                if let Some(&replacement) = replacements.get(value) {
-                    *value = replacement;
-                }
-            });
-        }
-
-        for block in func.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_operands(term, replacements);
-            }
-        }
-    }
-
-    fn replace_terminator_operands(
-        term: &mut Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
-        let replace = |value: &mut ValueId| {
-            if let Some(&replacement) = replacements.get(value) {
-                *value = replacement;
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case, _) in cases {
-                    replace(case);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-        }
     }
 }

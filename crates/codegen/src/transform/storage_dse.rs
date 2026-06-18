@@ -6,7 +6,7 @@
 //! repeated equal stores when no intervening instruction can clobber storage.
 
 use crate::{
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::FunctionPass,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -40,7 +40,7 @@ impl StorageStoreEliminator {
     /// Runs local storage DSE on a function.
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        self.annotate_storage_aliases(func);
+        func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
@@ -72,7 +72,7 @@ impl StorageStoreEliminator {
         for &inst_id in inst_ids.iter().rev() {
             match &func.instructions[inst_id].kind {
                 InstKind::SStore(slot, _) => {
-                    let alias = self.storage_alias(func, inst_id, *slot);
+                    let alias = func.storage_alias(inst_id, *slot);
                     if later_writes.contains(&alias) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
@@ -83,7 +83,7 @@ impl StorageStoreEliminator {
                     later_writes.insert(alias);
                 }
                 InstKind::SLoad(slot) => {
-                    let alias = self.storage_alias(func, inst_id, *slot);
+                    let alias = func.storage_alias(inst_id, *slot);
                     Self::remove_aliasing_set(&mut later_writes, alias);
                 }
                 kind if Self::may_observe_or_mutate_storage(kind) => {
@@ -108,7 +108,7 @@ impl StorageStoreEliminator {
         for &inst_id in &inst_ids {
             match &func.instructions[inst_id].kind {
                 InstKind::SStore(slot, value) => {
-                    let alias = self.storage_alias(func, inst_id, *slot);
+                    let alias = func.storage_alias(inst_id, *slot);
                     if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
@@ -130,26 +130,6 @@ impl StorageStoreEliminator {
         }
 
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
-    }
-
-    fn annotate_storage_aliases(&self, func: &mut Function) {
-        let inst_ids: Vec<_> =
-            func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
-        for inst_id in inst_ids {
-            let slot = match &func.instructions[inst_id].kind {
-                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
-                _ => None,
-            };
-            let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
-            func.instructions[inst_id].metadata.set_storage_alias(alias);
-        }
-    }
-
-    fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
-        func.instructions[inst_id]
-            .metadata
-            .storage_alias()
-            .unwrap_or_else(|| StorageAlias::for_value(func, slot))
     }
 
     fn remove_aliasing_set(aliases: &mut FxHashSet<StorageAlias>, alias: StorageAlias) {
