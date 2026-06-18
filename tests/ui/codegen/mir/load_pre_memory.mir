@@ -1,7 +1,8 @@
 //@compile-flags: --pass load-pre
-// Memory diamond shapes stay rejected: a 3-gas MLOAD does not pay for a
-// merge phi. Loop-carried memory reloads are profitable now that canonical
-// loop phis can stay stack-resident in the EVM backend.
+// Memory diamonds are cost-model gated: a single 3-gas MLOAD does not pay for
+// a merge phi, but repeated same-key join reloads can amortize the insertion.
+// Loop-carried memory reloads are profitable now that canonical loop phis can
+// stay stack-resident in the EVM backend.
 ; module @LoadPreMemory
 fn @mload_full_diamond(arg0: bool) -> u256 {
   bb0 (entry):
@@ -58,6 +59,21 @@ fn @mload_partial_rejected(arg0: bool) -> u256 {
   bb3:
     v2 = mload 128
     ret v2
+}
+
+fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    v1 = mload 128
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = mload 128
+    v3 = mload 128
+    v4 = add v2, v3
+    ret v4
 }
 
 fn @mload_partial_two_available(arg0: u256) -> u256 {

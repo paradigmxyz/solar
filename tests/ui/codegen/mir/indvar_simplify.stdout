@@ -39,3 +39,21 @@ fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
   bb3:
     ret 0
 }
+
+fn @strength_reduce_scale_one_address(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v3 = phi [bb0: 0], [bb2: v2]
+    v9 = phi [bb0: arg0], [bb2: v11]
+    v5 = lt v3, 4
+    br v5, bb2, bb3
+  bb2:
+    v6 = add arg0, v3
+    mstore8 v9, v3
+    v2 = add v3, 1
+    v11 = add v9, 1
+    jump bb1
+  bb3:
+    ret 0
+}

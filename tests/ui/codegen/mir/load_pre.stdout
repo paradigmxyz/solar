@@ -28,17 +28,18 @@ fn @store_forward_arm(arg0: bool, arg1: u256) -> u256 {
     ret v7
 }
 
-fn @partial_no_insert_diamond(arg0: bool) -> u256 {
+fn @partial_insert_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2
   bb1:
     v2 = sload 5
     jump bb3
   bb2:
+    v5 = sload 5
     jump bb3
   bb3:
-    v4 = sload 5
-    ret v4
+    v6 = phi [bb1: v2], [bb2: v5]
+    ret v6
 }
 
 fn @transient_store_forward(arg0: bool, arg1: u256) -> u256 {
