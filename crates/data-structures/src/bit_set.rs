@@ -107,7 +107,7 @@ macro_rules! bit_relations_inherent_impls {
 /// Note 1: Since this bitset is dense, if your domain is big, and/or relatively
 /// homogeneous (for example, with long runs of bits set or unset), then it may
 /// be preferable to instead use a [MixedBitSet], or an
-/// [IntervalSet](crate::interval::IntervalSet). They should be more suited to
+/// `IntervalSet`. They should be more suited to
 /// sparse, or highly-compressible, domains.
 ///
 /// Note 2: Use [`GrowableBitSet`] if you need support for resizing after creation.
