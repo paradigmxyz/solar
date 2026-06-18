@@ -56,7 +56,7 @@ impl InstSimplifier {
         for block_id in block_ids {
             let inst_ids = func.blocks[block_id].instructions.clone();
             for inst_id in inst_ids {
-                let kind = func.instructions[inst_id].kind();
+                let kind = func.instructions[inst_id].kind().into_owned();
 
                 if self.is_dead_noop_inst(func, &kind, &replacements) {
                     dead.insert(inst_id);
@@ -115,9 +115,9 @@ impl InstSimplifier {
     fn rewrite_inst(
         &mut self,
         func: &mut Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         replacements: &FxHashMap<ValueId, ValueId>,
-    ) -> Option<InstKind> {
+    ) -> Option<InstKind<'_>> {
         let resolve = |value| Self::resolve_replacement(replacements, value);
 
         match kind {
@@ -206,7 +206,7 @@ impl InstSimplifier {
     fn simplify_inst(
         &mut self,
         func: &mut Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ValueId> {
         let resolve = |value| Self::resolve_replacement(replacements, value);
@@ -469,11 +469,11 @@ impl InstSimplifier {
                 }
             }
             InstKind::Phi(incoming) => {
-                let &(_, first) = incoming.first()?;
+                let (_, first) = incoming.iter().next()?;
                 let first = resolve(first);
                 incoming
                     .iter()
-                    .all(|&(_, value)| Self::same_value(func, resolve(value), first))
+                    .all(|(_, value)| Self::same_value(func, resolve(value), first))
                     .then_some(first)
             }
             _ => None,
@@ -482,7 +482,7 @@ impl InstSimplifier {
 
     fn const_fold_inst(
         func: &mut Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ValueId> {
         let resolve = |value| Self::resolve_replacement(replacements, value);
@@ -612,7 +612,7 @@ impl InstSimplifier {
     fn is_dead_noop_inst(
         &self,
         func: &Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> bool {
         let resolve = |value| Self::resolve_replacement(replacements, value);
@@ -627,7 +627,7 @@ impl InstSimplifier {
         }
     }
 
-    fn rewrite_add(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+    fn rewrite_add(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind<'_>> {
         if Self::is_zero(func, a) || Self::is_zero(func, b) {
             return None;
         }
@@ -644,13 +644,13 @@ impl InstSimplifier {
         }
     }
 
-    fn rewrite_sub(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+    fn rewrite_sub(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind<'_>> {
         let offset = Self::as_u256(func, b)?;
         let (base, existing) = Self::offset_base(func, a)?;
         Some(self.add_offset_kind(func, base, existing.wrapping_sub(offset)))
     }
 
-    fn rewrite_mul(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+    fn rewrite_mul(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind<'_>> {
         if Self::is_zero(func, a)
             || Self::is_zero(func, b)
             || Self::is_one(func, a)
@@ -670,7 +670,7 @@ impl InstSimplifier {
         Some(InstKind::Shl(shift, value))
     }
 
-    fn rewrite_div(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+    fn rewrite_div(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind<'_>> {
         let shift = Self::power_of_two_shift(Self::as_u256(func, b)?)?;
         if shift.is_zero() {
             return None;
@@ -679,7 +679,7 @@ impl InstSimplifier {
         Some(InstKind::Shr(shift, a))
     }
 
-    fn rewrite_mod(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+    fn rewrite_mod(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind<'_>> {
         let constant = Self::as_u256(func, b)?;
         let shift = Self::power_of_two_shift(constant)?;
         if shift.is_zero() {
@@ -689,7 +689,7 @@ impl InstSimplifier {
         Some(InstKind::And(a, mask))
     }
 
-    fn rewrite_and(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind> {
+    fn rewrite_and(&self, func: &mut Function, a: ValueId, b: ValueId) -> Option<InstKind<'_>> {
         if a == b
             || Self::is_zero(func, a)
             || Self::is_zero(func, b)
@@ -709,7 +709,7 @@ impl InstSimplifier {
         Some(InstKind::And(base, combined))
     }
 
-    fn add_offset_kind(&self, func: &mut Function, base: ValueId, offset: U256) -> InstKind {
+    fn add_offset_kind(&self, func: &mut Function, base: ValueId, offset: U256) -> InstKind<'_> {
         let offset = Self::imm_u256(func, offset);
         InstKind::Add(base, offset)
     }

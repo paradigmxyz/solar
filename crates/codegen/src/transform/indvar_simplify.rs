@@ -214,7 +214,7 @@ impl IndVarSimplifier {
 
         let initial = self.build_base_plus_offset(func, preheader, key.base, init_offset)?;
         let phi_inst = func.alloc_inst(Instruction::new(
-            InstKind::Phi(vec![(preheader, initial)]),
+            InstKind::Phi(vec![(preheader, initial)].into()),
             Some(MirType::uint256()),
         ));
         let phi_value = func.alloc_value(Value::Inst(phi_inst));
@@ -262,7 +262,7 @@ impl IndVarSimplifier {
         &self,
         func: &mut Function,
         block: BlockId,
-        kind: InstKind,
+        kind: InstKind<'_>,
         ty: Option<MirType>,
     ) -> ValueId {
         let inst = func.alloc_inst(Instruction::new(kind, ty));
@@ -332,7 +332,7 @@ impl IndVarSimplifier {
         false
     }
 
-    fn is_address_builder(kind: &InstKind) -> bool {
+    fn is_address_builder(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::Add(_, _) | InstKind::Sub(_, _) | InstKind::Mul(_, _) | InstKind::Shl(_, _)

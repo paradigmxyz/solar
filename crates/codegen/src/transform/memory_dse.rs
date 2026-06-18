@@ -763,7 +763,7 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn is_memory_or_gas_observer(kind: &InstKind) -> bool {
+    fn is_memory_or_gas_observer(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::MStore8(_, _)
@@ -899,7 +899,7 @@ impl MemoryStoreEliminator {
         base.checked_add(Self::as_u64(func, offset)?)
     }
 
-    fn can_mutate_memory(kind: &InstKind) -> bool {
+    fn can_mutate_memory(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::MStore8(_, _)
@@ -915,7 +915,7 @@ impl MemoryStoreEliminator {
         )
     }
 
-    fn cross_block_memory_barrier(kind: &InstKind) -> bool {
+    fn cross_block_memory_barrier(kind: &InstKind<'_>) -> bool {
         matches!(kind, InstKind::MLoad(_)) || Self::is_memory_or_gas_observer(kind)
     }
 

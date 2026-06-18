@@ -216,7 +216,7 @@ struct Candidate {
     target: BlockId,
     key: LoadKey,
     result_ty: MirType,
-    kind: InstKind,
+    kind: InstKind<'static>,
     metadata: InstructionMetadata,
     loads: Vec<(InstId, ValueId)>,
     incoming: Vec<(BlockId, ValueId)>,
@@ -249,7 +249,7 @@ impl LoadPreCost {
 struct LoadPreCostInput<'a> {
     func: &'a Function,
     key: LoadKey,
-    kind: &'a InstKind,
+    kind: &'a InstKind<'a>,
     predecessors: &'a [BlockId],
     loads: &'a [(InstId, ValueId)],
     insertions: &'a [BlockId],
@@ -293,7 +293,7 @@ impl LoadPreCostModel {
         }
     }
 
-    fn inserted_operand_cost(func: &Function, kind: &InstKind, insertions: &[BlockId]) -> i64 {
+    fn inserted_operand_cost(func: &Function, kind: &InstKind<'_>, insertions: &[BlockId]) -> i64 {
         if insertions.is_empty() {
             return 0;
         }
@@ -737,10 +737,11 @@ impl LoadRedundancyEliminator {
                 first == result || incoming.iter().any(|&(_, value)| value != first)
             });
         let model = LoadPreCostModel;
+        let instruction_kind = instruction.kind();
         let cost = model.estimate(LoadPreCostInput {
             func,
             key,
-            kind: &instruction.kind(),
+            kind: &instruction_kind,
             predecessors,
             loads: &loads,
             insertions: &insertions,
@@ -773,7 +774,7 @@ impl LoadRedundancyEliminator {
             target,
             key,
             result_ty,
-            kind: instruction.kind(),
+            kind: instruction_kind.into_owned(),
             metadata: instruction.metadata.clone(),
             loads,
             incoming,
@@ -906,8 +907,8 @@ impl LoadRedundancyEliminator {
                 first
             }
             _ => {
-                let phi_inst =
-                    func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
+                let phi_inst = func
+                    .alloc_inst(Instruction::new(InstKind::Phi(incoming.into()), Some(result_ty)));
                 let phi_value = func.alloc_value(Value::Inst(phi_inst));
                 let phi_count = func.blocks[target]
                     .instructions
@@ -1140,7 +1141,7 @@ impl LoadRedundancyEliminator {
 
     fn operands_dominate_block(
         func: &Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         block: BlockId,
         analysis: &Analysis,
     ) -> bool {
@@ -1249,7 +1250,7 @@ impl LoadRedundancyEliminator {
         }
     }
 
-    fn is_memory_inst(kind: &InstKind) -> bool {
+    fn is_memory_inst(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::MLoad(_)

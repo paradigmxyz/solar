@@ -70,7 +70,7 @@ impl<'a> FunctionBuilder<'a> {
         self.func.alloc_value(Value::Undef(ty))
     }
 
-    fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+    fn emit_inst(&mut self, kind: InstKind<'_>, result_ty: Option<MirType>) -> ValueId {
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind()));
@@ -81,7 +81,7 @@ impl<'a> FunctionBuilder<'a> {
         self.func.alloc_value(Value::Inst(inst_id))
     }
 
-    fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
+    fn memory_region_for_inst(&self, kind: &InstKind<'_>) -> Option<MemoryRegion> {
         let addr = match *kind {
             InstKind::MLoad(addr)
             | InstKind::MStore(addr, _)
@@ -137,7 +137,7 @@ impl<'a> FunctionBuilder<'a> {
         matches!(self.func.value(value), Value::Immediate(_))
     }
 
-    fn storage_alias_for_inst(&self, kind: &InstKind) -> Option<StorageAlias> {
+    fn storage_alias_for_inst(&self, kind: &InstKind<'_>) -> Option<StorageAlias> {
         match *kind {
             InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(self.storage_alias(slot)),
             _ => None,
@@ -606,7 +606,7 @@ impl<'a> FunctionBuilder<'a> {
     /// current block with the value the phi takes when control arrives from
     /// that block. Emit phis before any other instruction in their block.
     pub fn phi(&mut self, incoming: Vec<(BlockId, ValueId)>) -> ValueId {
-        self.emit_inst(InstKind::Phi(incoming), Some(MirType::uint256()))
+        self.emit_inst(InstKind::Phi(incoming.into()), Some(MirType::uint256()))
     }
 
     /// Adds an incoming `(block, value)` edge to an existing phi. This is used

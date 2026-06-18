@@ -253,19 +253,22 @@ impl GlobalValueNumberer {
     /// sweep that no longer justifies it.
     fn instruction_class(
         block_id: BlockId,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         ty: MirType,
         result: ValueId,
         vn: &[ClassId],
         table: &mut FxHashMap<ExprKey, ClassId>,
     ) -> Option<ClassId> {
         if let InstKind::Phi(incoming) = kind {
-            let Some((&(_, first), rest)) = incoming.split_first() else { return Some(result) };
+            let incoming: Vec<_> = incoming.iter().collect();
+            let Some(&(_, first)) = incoming.first() else { return Some(result) };
             // Phi-of-same: a phi over one class is that class.
-            if rest.iter().all(|&(_, value)| vn[value.index()] == vn[first.index()]) {
+            if incoming.iter().skip(1).all(|&(_, value)| vn[value.index()] == vn[first.index()]) {
                 return Some(vn[first.index()]);
             }
-            let Some(incoming) = Self::phi_key_incoming(incoming, vn) else { return Some(result) };
+            let Some(incoming) = Self::phi_key_incoming(&incoming, vn) else {
+                return Some(result);
+            };
             let key = ExprKey { kind: ExprKind::Phi(block_id, incoming), ty };
             return Some(*table.entry(key).or_insert(result));
         }
@@ -293,7 +296,7 @@ impl GlobalValueNumberer {
 
     /// Builds the expression shape over operand classes for pure word ops.
     /// Returns `None` for every other instruction.
-    fn expr_kind(kind: &InstKind, vn: &[ClassId]) -> Option<ExprKind> {
+    fn expr_kind(kind: &InstKind<'_>, vn: &[ClassId]) -> Option<ExprKind> {
         let class = |value: ValueId| vn[value.index()];
         let sorted = |a: ValueId, b: ValueId| {
             let (a, b) = (class(a), class(b));
@@ -507,7 +510,7 @@ impl GlobalValueNumberer {
         value
     }
 
-    fn is_memory_inst(kind: &InstKind) -> bool {
+    fn is_memory_inst(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::MLoad(_)

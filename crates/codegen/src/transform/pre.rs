@@ -121,7 +121,7 @@ struct PreCandidate {
     result_ty: MirType,
     metadata: InstructionMetadata,
     incoming: Vec<(BlockId, ValueId)>,
-    insertions: Vec<(BlockId, InstKind)>,
+    insertions: Vec<(BlockId, InstKind<'static>)>,
 }
 
 impl PartialRedundancyEliminator {
@@ -387,8 +387,8 @@ impl PartialRedundancyEliminator {
                 first
             }
             _ => {
-                let phi_inst =
-                    func.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(result_ty)));
+                let phi_inst = func
+                    .alloc_inst(Instruction::new(InstKind::Phi(incoming.into()), Some(result_ty)));
                 let phi_value = func.alloc_value(Value::Inst(phi_inst));
                 let phi_count = func.blocks[target]
                     .instructions
@@ -414,11 +414,11 @@ impl PartialRedundancyEliminator {
 
     fn translate_kind_for_predecessor(
         func: &Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         target: BlockId,
         pred: BlockId,
         inst_blocks: &FxHashMap<InstId, BlockId>,
-    ) -> Option<InstKind> {
+    ) -> Option<InstKind<'static>> {
         let mut translated = Instruction::new(kind.clone(), None);
         let mut ok = true;
         translated.visit_operands_mut(|value| {
@@ -430,7 +430,7 @@ impl PartialRedundancyEliminator {
                 ok = false;
             }
         });
-        ok.then(|| translated.kind())
+        ok.then(|| translated.kind().into_owned())
     }
 
     fn translate_value_for_predecessor(
@@ -456,7 +456,7 @@ impl PartialRedundancyEliminator {
 
     fn operands_available_at_end(
         func: &Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         block: BlockId,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         dominators: &DominatorTree,
@@ -514,7 +514,7 @@ impl PartialRedundancyEliminator {
         })
     }
 
-    fn is_pre_expression(kind: &InstKind) -> bool {
+    fn is_pre_expression(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::Add(_, _)
@@ -546,7 +546,7 @@ impl PartialRedundancyEliminator {
         )
     }
 
-    fn make_expr_key(func: &Function, kind: &InstKind) -> Option<ExprKey> {
+    fn make_expr_key(func: &Function, kind: &InstKind<'_>) -> Option<ExprKey> {
         let operand = |value| Self::operand_key(func, value);
         match kind {
             InstKind::Add(a, b) => {

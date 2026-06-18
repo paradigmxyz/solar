@@ -163,7 +163,7 @@ struct PhiExpressionCandidate {
     block_id: BlockId,
     phi_inst: InstId,
     phi_result: ValueId,
-    kind: InstKind,
+    kind: InstKind<'static>,
     result_ty: MirType,
     incoming: Vec<(ValueId, InstId)>,
 }
@@ -373,7 +373,7 @@ impl CommonSubexprEliminator {
             block_id,
             phi_inst,
             phi_result,
-            kind: candidate_kind?,
+            kind: candidate_kind?.into_owned(),
             result_ty,
             incoming: incoming_insts,
         })
@@ -548,7 +548,7 @@ impl CommonSubexprEliminator {
         &self,
         func: &Function,
         inst_id: InstId,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ExprKey> {
         // Helper to get canonical operands after in-block replacements.
@@ -676,7 +676,7 @@ impl CommonSubexprEliminator {
         &self,
         func: &Function,
         inst_id: InstId,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         replacements: &FxHashMap<ValueId, ValueId>,
         expr_cache: &mut FxHashMap<ExprKey, ValueId>,
     ) {
@@ -692,7 +692,7 @@ impl CommonSubexprEliminator {
         &self,
         func: &Function,
         inst_id: InstId,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         replacements: &FxHashMap<ValueId, ValueId>,
         clobbers: &mut Vec<Clobber>,
     ) {
@@ -811,7 +811,7 @@ impl CommonSubexprEliminator {
     /// STATICCALL is excluded: the whole static context forbids value transfers, `SSTORE`,
     /// `CREATE`, and `SELFDESTRUCT`, so balances and deployed code cannot change. Its memory
     /// clobber (the return buffer write) is handled separately via `may_mutate_memory`.
-    fn may_change_account_environment(kind: &InstKind) -> bool {
+    fn may_change_account_environment(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::Call { .. }
@@ -841,7 +841,7 @@ impl CommonSubexprEliminator {
 
     fn operands_dominate_block(
         func: &Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         block_id: BlockId,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         dominators: &DominatorTree,
@@ -1255,7 +1255,7 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn is_memory_inst(kind: &InstKind) -> bool {
+    fn is_memory_inst(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::MLoad(_)

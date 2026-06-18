@@ -637,7 +637,7 @@ fn const_of(func: &Function, value: ValueId) -> Option<U256> {
     }
 }
 
-fn inst_kind(func: &Function, value: ValueId) -> Option<InstKind> {
+fn inst_kind(func: &Function, value: ValueId) -> Option<InstKind<'_>> {
     match func.value(value) {
         Value::Inst(inst_id) => Some(func.instructions[*inst_id].kind()),
         _ => None,

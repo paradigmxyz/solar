@@ -140,7 +140,7 @@ impl PureEvaluator {
                     InstKind::Phi(incoming) => {
                         let pred = predecessor?;
                         let (_, value) = incoming.iter().find(|(block, _)| *block == pred)?;
-                        self.value_const(&env, *value)?
+                        self.value_const(&env, value)?
                     }
                     kind => self.eval_inst(&kind, &env)?,
                 };
@@ -189,7 +189,7 @@ impl PureEvaluator {
         env.get(&value).copied()
     }
 
-    fn eval_inst(&self, kind: &InstKind, env: &FxHashMap<ValueId, U256>) -> Option<U256> {
+    fn eval_inst(&self, kind: &InstKind<'_>, env: &FxHashMap<ValueId, U256>) -> Option<U256> {
         let get = |value| self.value_const(env, value);
         Some(match *kind {
             InstKind::Add(a, b) => get(a)?.wrapping_add(get(b)?),

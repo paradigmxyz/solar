@@ -160,7 +160,7 @@ impl StorageStoreEliminator {
         values.retain(|cached, _| !cached.may_alias(alias));
     }
 
-    fn may_observe_or_mutate_storage(kind: &InstKind) -> bool {
+    fn may_observe_or_mutate_storage(kind: &InstKind<'_>) -> bool {
         matches!(
             kind,
             InstKind::Call { .. }

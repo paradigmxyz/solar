@@ -882,7 +882,7 @@ impl StorageScalarPromoter {
     fn alloc_inst_value(
         &self,
         func: &mut Function,
-        kind: InstKind,
+        kind: InstKind<'_>,
         ty: Option<MirType>,
     ) -> (InstId, ValueId) {
         let inst = func.alloc_inst(Instruction::new(kind, ty));
@@ -973,7 +973,7 @@ mod tests {
     fn inst_value(
         func: &mut Function,
         block: BlockId,
-        kind: InstKind,
+        kind: InstKind<'_>,
         ty: Option<MirType>,
     ) -> (InstId, ValueId) {
         let inst = func.alloc_inst(Instruction::new(kind, ty));
@@ -982,7 +982,12 @@ mod tests {
         (inst, value)
     }
 
-    fn inst(func: &mut Function, block: BlockId, kind: InstKind, ty: Option<MirType>) -> InstId {
+    fn inst(
+        func: &mut Function,
+        block: BlockId,
+        kind: InstKind<'_>,
+        ty: Option<MirType>,
+    ) -> InstId {
         inst_value(func, block, kind, ty).0
     }
 

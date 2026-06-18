@@ -5,7 +5,7 @@ use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
 use solar_sema::hir;
-use std::fmt;
+use std::{borrow::Cow, fmt};
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -373,6 +373,76 @@ enum InstData {
     Phi { blocks: Vec<BlockId> },
 }
 
+/// Phi incoming blocks and values.
+#[derive(Clone, Debug)]
+pub struct PhiIncoming<'a> {
+    blocks: Cow<'a, [BlockId]>,
+    values: Cow<'a, [ValueId]>,
+}
+
+impl<'a> PhiIncoming<'a> {
+    /// Creates borrowed phi incoming data from parallel block and value slices.
+    #[must_use]
+    pub fn borrowed(blocks: &'a [BlockId], values: &'a [ValueId]) -> Self {
+        Self { blocks: Cow::Borrowed(blocks), values: Cow::Borrowed(values) }
+    }
+
+    /// Returns true if this incoming list is empty.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.blocks.is_empty()
+    }
+
+    /// Returns the number of incoming edges.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.blocks.len()
+    }
+
+    /// Iterates over incoming block/value pairs.
+    pub fn iter(&self) -> impl Iterator<Item = (BlockId, ValueId)> + '_ {
+        self.blocks.iter().copied().zip(self.values.iter().copied())
+    }
+
+    fn into_blocks_values(self) -> (Vec<BlockId>, Vec<ValueId>) {
+        (self.blocks.into_owned(), self.values.into_owned())
+    }
+}
+
+impl From<Vec<(BlockId, ValueId)>> for PhiIncoming<'static> {
+    fn from(incoming: Vec<(BlockId, ValueId)>) -> Self {
+        let mut blocks = Vec::with_capacity(incoming.len());
+        let mut values = Vec::with_capacity(incoming.len());
+        for (block, value) in incoming {
+            blocks.push(block);
+            values.push(value);
+        }
+        Self { blocks: Cow::Owned(blocks), values: Cow::Owned(values) }
+    }
+}
+
+impl<'a> IntoIterator for PhiIncoming<'a> {
+    type Item = (BlockId, ValueId);
+    type IntoIter = std::iter::Zip<std::vec::IntoIter<BlockId>, std::vec::IntoIter<ValueId>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let (blocks, values) = self.into_blocks_values();
+        blocks.into_iter().zip(values)
+    }
+}
+
+impl<'a, 'b> IntoIterator for &'b PhiIncoming<'a> {
+    type Item = (BlockId, ValueId);
+    type IntoIter = std::iter::Zip<
+        std::iter::Copied<std::slice::Iter<'b, BlockId>>,
+        std::iter::Copied<std::slice::Iter<'b, ValueId>>,
+    >;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.blocks.iter().copied().zip(self.values.iter().copied())
+    }
+}
+
 /// An instruction in the MIR.
 #[derive(Clone, Debug)]
 pub struct Instruction {
@@ -391,12 +461,12 @@ pub struct Instruction {
 impl Instruction {
     /// Creates a new instruction.
     #[must_use]
-    pub fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
+    pub fn new(kind: InstKind<'_>, result_ty: Option<MirType>) -> Self {
         let (kind, operands, data) = Self::lower_kind(kind);
         Self { kind, operands, data, result_ty, metadata: InstructionMetadata::EMPTY }
     }
 
-    fn lower_kind(kind: InstKind) -> (InstTag, SmallVec<[ValueId; 8]>, InstData) {
+    fn lower_kind(kind: InstKind<'_>) -> (InstTag, SmallVec<[ValueId; 8]>, InstData) {
         let tag = kind.tag();
         let mut operands = SmallVec::new();
         let data = match kind {
@@ -407,11 +477,8 @@ impl Instruction {
                 InstData::InternalCall { function, returns }
             }
             InstKind::Phi(incoming) => {
-                let mut blocks = Vec::with_capacity(incoming.len());
-                for (block, value) in incoming {
-                    blocks.push(block);
-                    operands.push(value);
-                }
+                let (blocks, values) = incoming.into_blocks_values();
+                operands.extend(values);
                 InstData::Phi { blocks }
             }
             InstKind::Add(a, b)
@@ -518,7 +585,7 @@ impl Instruction {
 
     /// Returns the matching form of this instruction.
     #[must_use]
-    pub fn kind(&self) -> InstKind {
+    pub fn kind(&self) -> InstKind<'_> {
         let op = |index| self.operands[index];
         match self.kind {
             InstTag::Add => InstKind::Add(op(0), op(1)),
@@ -624,11 +691,7 @@ impl Instruction {
                 let InstData::InternalCall { function, returns } = self.data else {
                     unreachable!("internal_call missing payload")
                 };
-                InstKind::InternalCall {
-                    function,
-                    args: self.operands.iter().copied().collect(),
-                    returns,
-                }
+                InstKind::InternalCall { function, args: Cow::Borrowed(&self.operands), returns }
             }
             InstTag::Create => InstKind::Create(op(0), op(1), op(2)),
             InstTag::Create2 => InstKind::Create2(op(0), op(1), op(2), op(3)),
@@ -637,7 +700,12 @@ impl Instruction {
             InstTag::Log2 => InstKind::Log2(op(0), op(1), op(2), op(3)),
             InstTag::Log3 => InstKind::Log3(op(0), op(1), op(2), op(3), op(4)),
             InstTag::Log4 => InstKind::Log4(op(0), op(1), op(2), op(3), op(4), op(5)),
-            InstTag::Phi => InstKind::Phi(self.phi_incoming().unwrap_or_default()),
+            InstTag::Phi => {
+                let InstData::Phi { blocks } = &self.data else {
+                    unreachable!("phi missing payload")
+                };
+                InstKind::Phi(PhiIncoming::borrowed(blocks, &self.operands))
+            }
             InstTag::Select => InstKind::Select(op(0), op(1), op(2)),
             InstTag::SignExtend => InstKind::SignExtend(op(0), op(1)),
         }
@@ -662,7 +730,7 @@ impl Instruction {
     }
 
     /// Replaces the instruction kind.
-    pub fn set_kind(&mut self, kind: InstKind) {
+    pub fn set_kind(&mut self, kind: InstKind<'_>) {
         let (kind, operands, data) = Self::lower_kind(kind);
         self.kind = kind;
         self.operands = operands;
@@ -725,7 +793,7 @@ macro_rules! define_mir_insts {
         /// to match this enum.
         #[derive(Clone, Debug)]
         #[repr(u8)]
-        pub enum InstKind {
+        pub enum InstKind<'a> {
             $(
                 $(#[$attr])*
                 $variant $(($($tuple),*))? $({ $($fields)* })?,
@@ -919,7 +987,7 @@ define_mir_insts! {
         ret_size: ValueId,
     },
     /// Internal function call lowered to a direct jump.
-    InternalCall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
+    InternalCall { function: FunctionId, args: Cow<'a, [ValueId]>, returns: u32 },
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`
@@ -942,7 +1010,7 @@ define_mir_insts! {
 
     // SSA operations
     /// Phi node: merge values from different predecessors.
-    Phi(Vec<(BlockId, ValueId)>),
+    Phi(PhiIncoming<'a>),
     /// Select: `select(cond, true_val, false_val)`
     Select(ValueId, ValueId, ValueId),
 
@@ -1191,7 +1259,7 @@ impl InstTag {
     }
 }
 
-impl InstKind {
+impl InstKind<'_> {
     /// Returns the tag-only kind for this instruction.
     #[must_use]
     pub fn tag(&self) -> InstTag {
@@ -1238,9 +1306,30 @@ impl InstKind {
     pub fn effect_kind(&self) -> EffectKind {
         self.tag().effect_kind()
     }
+
+    /// Converts borrowed variable-length payloads into owned payloads.
+    #[must_use]
+    pub fn into_owned(self) -> InstKind<'static> {
+        match self {
+            Self::InternalCall { function, args, returns } => {
+                InstKind::InternalCall { function, args: Cow::Owned(args.into_owned()), returns }
+            }
+            Self::Phi(incoming) => {
+                let (blocks, values) = incoming.into_blocks_values();
+                InstKind::Phi(PhiIncoming {
+                    blocks: Cow::Owned(blocks),
+                    values: Cow::Owned(values),
+                })
+            }
+            kind => {
+                // SAFETY: all variants that contain lifetime-carrying fields are handled above.
+                unsafe { std::mem::transmute::<InstKind<'_>, InstKind<'static>>(kind) }
+            }
+        }
+    }
 }
 
-impl fmt::Display for InstKind {
+impl fmt::Display for InstKind<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.mnemonic())
     }
@@ -1261,7 +1350,7 @@ mod tests {
         let a = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(1))));
         let b = func.alloc_value(Value::Immediate(Immediate::uint256(U256::from(2))));
 
-        let phi = Instruction::new(InstKind::Phi(vec![(pred_a, a), (pred_b, b)]), None);
+        let phi = Instruction::new(InstKind::Phi(vec![(pred_a, a), (pred_b, b)].into()), None);
 
         assert_eq!(phi.operands().as_slice(), &[a, b]);
     }
@@ -1327,7 +1416,7 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<InstKind>(str!["32"]);
+        assert_size::<InstKind<'_>>(str!["56"]);
         assert_size::<InstructionMetadata>(str!["24"]);
         assert_size::<Instruction>(str!["96"]);
     }

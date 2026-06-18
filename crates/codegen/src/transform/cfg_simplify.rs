@@ -875,7 +875,7 @@ mod tests {
         }
 
         let phi_inst = func.alloc_inst(Instruction::new(
-            InstKind::Phi(vec![(forwarder, value), (direct, other)]),
+            InstKind::Phi(vec![(forwarder, value), (direct, other)].into()),
             Some(MirType::uint256()),
         ));
         let phi_value = func.alloc_value(Value::Inst(phi_inst));
@@ -928,7 +928,7 @@ mod tests {
         }
 
         let phi_inst = func.alloc_inst(Instruction::new(
-            InstKind::Phi(vec![(middle, result), (other, other_value)]),
+            InstKind::Phi(vec![(middle, result), (other, other_value)].into()),
             Some(MirType::uint256()),
         ));
         let phi_value = func.alloc_value(Value::Inst(phi_inst));

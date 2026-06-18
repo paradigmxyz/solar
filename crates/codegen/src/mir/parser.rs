@@ -1121,7 +1121,7 @@ impl<'a> Parser<'a> {
         arg_values: &[ValueId],
         block_labels: &FxHashMap<u32, BlockId>,
         value_labels: &mut FxHashMap<u32, ValueId>,
-    ) -> Result<(InstKind, Option<MirType>), ParseError> {
+    ) -> Result<(InstKind<'static>, Option<MirType>), ParseError> {
         // Operand parsing helpers.
         macro_rules! v {
             () => {
@@ -1627,7 +1627,7 @@ impl<'a> Parser<'a> {
                         break;
                     }
                 }
-                (InstKind::Phi(incoming), Some(MirType::uint256()))
+                (InstKind::Phi(incoming.into()), Some(MirType::uint256()))
             }
 
             other => return Err(self.error(format!("unknown instruction `{other}`"))),

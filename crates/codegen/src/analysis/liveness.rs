@@ -909,7 +909,7 @@ mod tests {
         // the placeholder value at its result.
         let phi_val = phi_placeholder;
         let phi_inst = func.alloc_inst(crate::mir::Instruction::new(
-            crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)]),
+            crate::mir::InstKind::Phi(vec![(entry, init), (body, updated)].into()),
             Some(MirType::uint256()),
         ));
         func.blocks[header].instructions.insert(0, phi_inst);

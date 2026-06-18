@@ -445,7 +445,11 @@ impl FrameSlotPromoter {
         true
     }
 
-    fn inst_may_observe_internal_slot(func: &Function, kind: &InstKind, slot_offset: u64) -> bool {
+    fn inst_may_observe_internal_slot(
+        func: &Function,
+        kind: &InstKind<'_>,
+        slot_offset: u64,
+    ) -> bool {
         match *kind {
             InstKind::MLoad(addr) => {
                 !Self::is_exact_internal_slot_access(func, addr, slot_offset)
@@ -542,7 +546,11 @@ impl FrameSlotPromoter {
         }
     }
 
-    fn inst_may_observe_external_slot(func: &Function, kind: &InstKind, slot_addr: u64) -> bool {
+    fn inst_may_observe_external_slot(
+        func: &Function,
+        kind: &InstKind<'_>,
+        slot_addr: u64,
+    ) -> bool {
         match *kind {
             InstKind::MLoad(addr) | InstKind::MStore(addr, _) => {
                 !Self::is_exact_external_slot_access(func, addr, slot_addr)
@@ -893,7 +901,7 @@ impl<'a> SlotSsaBuilder<'a> {
         for pending in self.phis.values() {
             let mut incoming = pending.incoming.clone();
             incoming.sort_by_key(|(block, _)| block.index());
-            func.instructions[pending.inst].set_kind(InstKind::Phi(incoming));
+            func.instructions[pending.inst].set_kind(InstKind::Phi(incoming.into()));
             let insert_pos = func.blocks[pending.block]
                 .instructions
                 .iter()
@@ -1050,8 +1058,10 @@ impl<'a> SlotSsaBuilder<'a> {
             return pending.value;
         }
 
-        let inst =
-            func.alloc_inst(Instruction::new(InstKind::Phi(Vec::new()), Some(MirType::uint256())));
+        let inst = func.alloc_inst(Instruction::new(
+            InstKind::Phi(Vec::new().into()),
+            Some(MirType::uint256()),
+        ));
         let value = func.alloc_value(Value::Inst(inst));
         self.phis.insert(
             block,

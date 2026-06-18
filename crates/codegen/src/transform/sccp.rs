@@ -269,12 +269,12 @@ impl SccpPass {
         let block = &func.blocks[block_id];
         for &inst_id in &block.instructions {
             let inst = &func.instructions[inst_id];
-            if let InstKind::Phi(incoming) = &inst.kind()
+            if let InstKind::Phi(incoming) = inst.kind()
                 && let Some(&vid) = inst_to_value.get(&inst_id)
             {
                 // Meet over all executable incoming edges.
                 let mut result = LatticeValue::Top;
-                for &(pred, operand) in incoming {
+                for (pred, operand) in incoming {
                     if executable_edges.contains(&(pred, block_id)) {
                         result = result.meet(&lattice[operand.index()]);
                     }
@@ -290,7 +290,7 @@ impl SccpPass {
     fn evaluate_instruction(
         &self,
         _func: &Function,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         lattice: &[LatticeValue],
     ) -> LatticeValue {
         // Helper: get the constant value of a ValueId, or None if not constant.

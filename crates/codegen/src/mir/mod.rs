@@ -12,7 +12,8 @@ pub use value::{Immediate, Value};
 
 mod inst;
 pub use inst::{
-    EffectKind, InstKind, InstTag, Instruction, InstructionMetadata, MemoryRegion, StorageAlias,
+    EffectKind, InstKind, InstTag, Instruction, InstructionMetadata, MemoryRegion, PhiIncoming,
+    StorageAlias,
 };
 
 mod block;

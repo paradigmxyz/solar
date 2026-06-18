@@ -236,7 +236,7 @@ impl Validator {
                             ));
                             continue;
                         }
-                        if !block_preds.contains(pred_block) {
+                        if !block_preds.contains(&pred_block) {
                             errors.push(ValidationError::at_inst(
                                 format!(
                                     "phi incoming from bb{} but bb{} is not a predecessor",
@@ -250,7 +250,7 @@ impl Validator {
                     }
                     // Every predecessor must appear in the incoming list.
                     for pred in &block_preds {
-                        if !incoming.iter().any(|(b, _)| b == pred) {
+                        if !incoming.iter().any(|(b, _)| b == *pred) {
                             errors.push(ValidationError::at_inst(
                                 format!(
                                     "phi missing incoming entry for predecessor bb{}",

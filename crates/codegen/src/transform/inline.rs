@@ -980,7 +980,7 @@ struct MirCost {
     code_size: usize,
 }
 
-fn estimate_inst_cost(kind: &InstKind) -> MirCost {
+fn estimate_inst_cost(kind: &InstKind<'_>) -> MirCost {
     let (runtime_gas, code_size) = match kind {
         InstKind::Add(..)
         | InstKind::Sub(..)
@@ -1144,6 +1144,7 @@ fn inline_call_impl(
     let InstKind::InternalCall { args, returns, .. } = caller.instructions[call_inst].kind() else {
         return None;
     };
+    let args = args.iter().copied().collect::<Vec<_>>();
     let returns = returns as usize;
     if returns != callee.returns.len() {
         return None;
@@ -1275,7 +1276,7 @@ impl<'a> InlineCloner<'a> {
     }
 
     #[allow(clippy::too_many_lines)]
-    fn clone_inst_kind(&mut self, kind: InstKind) -> Option<InstKind> {
+    fn clone_inst_kind(&mut self, kind: InstKind<'_>) -> Option<InstKind<'static>> {
         Some(match kind {
             InstKind::Add(a, b) => InstKind::Add(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Sub(a, b) => InstKind::Sub(self.clone_value(a)?, self.clone_value(b)?),
@@ -1402,8 +1403,8 @@ impl<'a> InlineCloner<'a> {
             InstKind::InternalCall { function, args, returns } => InstKind::InternalCall {
                 function,
                 args: args
-                    .into_iter()
-                    .map(|arg| self.clone_value(arg))
+                    .iter()
+                    .map(|&arg| self.clone_value(arg))
                     .collect::<Option<Vec<_>>>()?
                     .into(),
                 returns,
@@ -1512,7 +1513,7 @@ fn build_return_values(
             .iter()
             .map(|(block, edge_values)| Some((*block, *edge_values.get(index)?)))
             .collect::<Option<Vec<_>>>()?;
-        let phi = caller.alloc_inst(Instruction::new(InstKind::Phi(incoming), Some(ty)));
+        let phi = caller.alloc_inst(Instruction::new(InstKind::Phi(incoming.into()), Some(ty)));
         caller.blocks[continuation].instructions.insert(index, phi);
         values.push(caller.alloc_value(Value::Inst(phi)));
     }

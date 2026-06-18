@@ -263,13 +263,13 @@ fn function_prints_return_values(func: &Function) -> bool {
 
 /// Formats an instruction kind for display.
 fn display_inst_kind<'a>(
-    kind: &'a InstKind,
+    kind: &'a InstKind<'_>,
     operands: &'a SmallVec<[ValueId; 8]>,
     func: &'a Function,
 ) -> impl fmt::Display + 'a {
     fn display_inst_operands(
         f: &mut fmt::Formatter<'_>,
-        kind: &InstKind,
+        kind: &InstKind<'_>,
         func: &Function,
         operands: &[ValueId],
     ) -> fmt::Result {
@@ -301,7 +301,7 @@ fn display_inst_kind<'a>(
                     f,
                     " {}",
                     args.iter().format_with(", ", |f, (block, val)| {
-                        write!(f, "[bb{}: {}]", block.index(), display_val(*val, func))
+                        write!(f, "[bb{}: {}]", block.index(), display_val(val, func))
                     })
                 )?;
             }
