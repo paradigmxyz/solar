@@ -1,6 +1,9 @@
 //! Peephole optimization over assembler instructions.
 
-use super::assembler::{AsmInst, AsmInstKind, Assembler, Label, op};
+use super::{
+    assembler::{AsmInst, AsmInstKind, Assembler, Label, op},
+    ir::EvmAsmProgram,
+};
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
@@ -10,6 +13,43 @@ impl Assembler {
     /// This pass runs before label resolution, so removing instructions cannot
     /// leave stale jump destinations.
     pub(super) fn optimize_instructions(&mut self) -> usize {
+        let mut program = std::mem::take(&mut self.program);
+        let changed = program.optimize_instructions(
+            |inst| self.inst_push_value(inst),
+            |inst| self.estimated_inst_size(inst),
+        );
+        self.program = program;
+        changed
+    }
+}
+
+impl EvmAsmProgram {
+    /// Runs local peephole optimizations over the EVM backend IR.
+    pub(in crate::backend::evm) fn optimize_instructions<P, S>(
+        &mut self,
+        inst_push_value: P,
+        estimated_inst_size: S,
+    ) -> usize
+    where
+        P: FnMut(AsmInst) -> Option<U256>,
+        S: FnMut(AsmInst) -> usize,
+    {
+        EvmAsmProgramOptimizer { program: self, inst_push_value, estimated_inst_size }.run()
+    }
+}
+
+struct EvmAsmProgramOptimizer<'a, P, S> {
+    program: &'a mut EvmAsmProgram,
+    inst_push_value: P,
+    estimated_inst_size: S,
+}
+
+impl<P, S> EvmAsmProgramOptimizer<'_, P, S>
+where
+    P: FnMut(AsmInst) -> Option<U256>,
+    S: FnMut(AsmInst) -> usize,
+{
+    fn run(&mut self) -> usize {
         let mut total = 0;
         let len = self.program.instructions.len();
         let mut read = 0;
@@ -91,7 +131,7 @@ impl Assembler {
         removed
     }
 
-    fn terminal_block_candidates(&self) -> Vec<TerminalBlock> {
+    fn terminal_block_candidates(&mut self) -> Vec<TerminalBlock> {
         let mut candidates = Vec::new();
         for i in 0..self.program.instructions.len().saturating_sub(1) {
             let AsmInstKind::Label(label) = self.program.instructions[i].kind() else {
@@ -106,7 +146,7 @@ impl Assembler {
                 .copied()
                 .filter(|inst| !matches!(inst.kind(), AsmInstKind::Label(_)))
                 .collect();
-            let estimated_size = body.iter().map(|&inst| self.estimated_inst_size(inst)).sum();
+            let estimated_size = body.iter().map(|&inst| (self.estimated_inst_size)(inst)).sum();
             candidates.push(TerminalBlock { label, label_index: i, key, estimated_size });
         }
         candidates
@@ -127,7 +167,7 @@ impl Assembler {
     }
 
     #[inline]
-    fn try_peephole(&self, write: usize) -> Option<Peephole> {
+    fn try_peephole(&mut self, write: usize) -> Option<Peephole> {
         macro_rules! peephole {
             ($skip:expr => []) => {
                 Some(Peephole::delete($skip))
@@ -143,9 +183,9 @@ impl Assembler {
         let stack = InstStack::new(&self.program.instructions[..write]);
 
         if stack.len() >= 3
-            && Self::is_removable_push(stack[2])
+            && is_removable_push(stack[2])
             && let (Some(value), AsmInstKind::Op(op)) =
-                (self.inst_push_value(stack[1]), stack[0].kind())
+                ((self.inst_push_value)(stack[1]), stack[0].kind())
         {
             // `PUSH<N> PUSH0 MUL -> PUSH0`.
             if value.is_zero()
@@ -165,7 +205,7 @@ impl Assembler {
 
         if stack.len() >= 2
             && let (Some(value), AsmInstKind::Op(op)) =
-                (self.inst_push_value(stack[1]), stack[0].kind())
+                ((self.inst_push_value)(stack[1]), stack[0].kind())
         {
             if value.is_zero() {
                 return match op {
@@ -200,7 +240,7 @@ impl Assembler {
 
         // `PUSH POP -> []`.
         if stack.len() >= 2
-            && Self::is_removable_push(stack[1])
+            && is_removable_push(stack[1])
             && matches!(stack[0].kind(), AsmInstKind::Op(op::POP))
         {
             return peephole!(2 => []);
@@ -237,16 +277,16 @@ impl Assembler {
 
         None
     }
+}
 
-    fn is_removable_push(inst: AsmInst) -> bool {
-        matches!(
-            inst.kind(),
-            AsmInstKind::PushInline(_)
-                | AsmInstKind::Push(_)
-                | AsmInstKind::PushLabel(_)
-                | AsmInstKind::PushImmutable(_)
-        )
-    }
+fn is_removable_push(inst: AsmInst) -> bool {
+    matches!(
+        inst.kind(),
+        AsmInstKind::PushInline(_)
+            | AsmInstKind::Push(_)
+            | AsmInstKind::PushLabel(_)
+            | AsmInstKind::PushImmutable(_)
+    )
 }
 
 #[derive(Clone, Debug)]
