@@ -37,6 +37,7 @@ use crate::mir::{Immediate, MirType};
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{BytePos, Ident, Span, Symbol};
+use solar_sema::hir;
 use std::fmt;
 
 // =============================================================================
@@ -984,22 +985,25 @@ impl<'a> Parser<'a> {
             let key = self.parse_ident()?.to_string();
             match key.as_str() {
                 "unchecked" => {
-                    metadata.unchecked = true;
+                    metadata.set_unchecked(true);
                 }
                 "storage" => {
                     self.expect_punct('=')?;
-                    metadata.storage_alias =
-                        Some(self.parse_storage_alias(func, arg_values, value_labels)?);
+                    metadata.set_storage_alias(Some(self.parse_storage_alias(
+                        func,
+                        arg_values,
+                        value_labels,
+                    )?));
                 }
                 "memory" => {
                     self.expect_punct('=')?;
                     let value = self.parse_ident()?;
-                    metadata.memory_region = Some(self.parse_memory_region(value)?);
+                    metadata.set_memory_region(Some(self.parse_memory_region(value)?));
                 }
                 "effect" => {
                     self.expect_punct('=')?;
                     let value = self.parse_ident()?;
-                    metadata.effect = Some(self.parse_effect_kind(value)?);
+                    metadata.set_effect(Some(self.parse_effect_kind(value)?));
                 }
                 "loop_depth" => {
                     self.expect_punct('=')?;
@@ -1009,7 +1013,9 @@ impl<'a> Parser<'a> {
                 "hir" => {
                     self.expect_punct('=')?;
                     let value = self.parse_uint_literal()?;
-                    metadata.hir_expr = Some(self.u256_to_u32(value)?);
+                    metadata.set_hir_expr(Some(hir::ExprId::from_usize(
+                        self.u256_to_u32(value)? as usize
+                    )));
                 }
                 "span" => {
                     self.expect_punct('=')?;
@@ -1019,7 +1025,7 @@ impl<'a> Parser<'a> {
                     self.expect_punct('.')?;
                     let hi = self.parse_uint_literal()?;
                     let hi = self.u256_to_u32(hi)?;
-                    metadata.source_span = Some(Span::new(BytePos(lo), BytePos(hi)));
+                    metadata.set_source_span(Some(Span::new(BytePos(lo), BytePos(hi))));
                 }
                 _ => return Err(self.error(format!("unknown metadata key `{key}`"))),
             }
@@ -1360,7 +1366,8 @@ impl<'a> Parser<'a> {
                 (InstKind::CodeCopy(a, b, c), None)
             }
             "loadimmutable" => {
-                let offset = self.parse_uint_literal()?.to::<u64>();
+                let offset = self.parse_uint_literal()?;
+                let offset = self.u256_to_u32(offset)?;
                 (InstKind::LoadImmutable(offset), Some(MirType::uint256()))
             }
             "extcodesize" => {
@@ -1511,13 +1518,13 @@ impl<'a> Parser<'a> {
             "internal_call" => {
                 let function = self.parse_function_id()?;
                 comma!();
-                let returns = self.parse_uint_literal()?.to::<usize>();
+                let returns = self.parse_uint_literal()?.to::<u32>();
                 let mut args = Vec::new();
                 while self.try_punct(',') {
                     args.push(v!());
                 }
                 let result_ty = (returns > 0).then(MirType::uint256);
-                (InstKind::InternalCall { function, args, returns }, result_ty)
+                (InstKind::InternalCall { function, args: args.into(), returns }, result_ty)
             }
             "internal_frame_addr" => {
                 let offset = self.parse_uint_literal()?.to::<u64>();

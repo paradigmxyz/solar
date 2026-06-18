@@ -30,8 +30,8 @@ pub mod backend;
 pub use backend::{
     Backend,
     evm::{
-        AssembledCode, Assembler, EvmArtifact, EvmCodegen, EvmCodegenConfig, Label,
-        PeepholeOptimizer, SpillManager, SpillSlot, StackModel, StackScheduler,
+        AssembledCode, Assembler, AssemblerConfig, EvmArtifact, EvmCodegen, EvmCodegenConfig,
+        Label, SpillManager, SpillSlot, StackModel, StackScheduler,
     },
 };
 

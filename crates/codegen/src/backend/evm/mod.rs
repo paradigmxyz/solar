@@ -10,10 +10,9 @@ mod codegen;
 pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
 
 pub mod assembler;
-pub use assembler::{AssembledCode, Assembler, Label};
+pub use assembler::{AssembledCode, Assembler, AssemblerConfig, Label};
 
-pub mod peephole;
-pub use peephole::PeepholeOptimizer;
+mod peephole;
 
 pub mod stack;
 pub use stack::{SpillManager, SpillSlot, StackModel, StackScheduler};

@@ -13,9 +13,6 @@ mod stmt;
 mod storage;
 mod type_query;
 
-pub(super) const ARRAY_METHOD_PUSH: &str = "push";
-pub(super) const ARRAY_METHOD_POP: &str = "pop";
-
 use crate::{
     IMMUTABLE_SCRATCH_BASE,
     mir::{
@@ -28,7 +25,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Ident, Span};
+use solar_interface::{Ident, Span, kw, sym};
 use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
@@ -69,9 +66,9 @@ pub struct Lowerer<'gcx> {
     /// Next available byte offset in `next_storage_slot` for packed variables.
     next_storage_offset: u8,
     /// Mapping from HIR immutable variable IDs to runtime immutable byte offsets.
-    immutable_slots: FxHashMap<VariableId, u64>,
+    immutable_slots: FxHashMap<VariableId, u32>,
     /// Next available immutable byte offset.
-    next_immutable_offset: u64,
+    next_immutable_offset: u32,
     /// Mapping from HIR variable IDs to MIR values (for local variables).
     /// For SSA-style immutable variables (function params and non-mutated locals).
     locals: FxHashMap<VariableId, ValueId>,
@@ -229,15 +226,15 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the constructor scratch address for an immutable word.
-    pub fn immutable_scratch_addr(offset: u64) -> u64 {
-        IMMUTABLE_SCRATCH_BASE + offset
+    pub fn immutable_scratch_addr(offset: u32) -> u64 {
+        IMMUTABLE_SCRATCH_BASE + u64::from(offset)
     }
 
     /// Stages an immutable word in constructor memory.
     pub fn store_immutable_value(
         &self,
         builder: &mut FunctionBuilder<'_>,
-        offset: u64,
+        offset: u32,
         value: ValueId,
     ) {
         let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
@@ -250,7 +247,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// with the staged value before returning the runtime code. The running
     /// constructor's own placeholders are never patched, so constructor-context
     /// reads load the staged scratch word instead.
-    pub fn load_immutable_value(&self, builder: &mut FunctionBuilder<'_>, offset: u64) -> ValueId {
+    pub fn load_immutable_value(&self, builder: &mut FunctionBuilder<'_>, offset: u32) -> ValueId {
         if self.lowering_constructor {
             let addr = builder.imm_u64(Self::immutable_scratch_addr(offset));
             builder.mload(addr)
@@ -400,10 +397,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Create constructor function
-        let ctor_name = Ident::new(
-            solar_interface::Symbol::intern("constructor"),
-            solar_interface::Span::DUMMY,
-        );
+        let ctor_name = Ident::new(kw::Constructor, Span::DUMMY);
         let mut mir_func = Function::new(ctor_name);
         mir_func.attributes = FunctionAttributes {
             visibility: hir::Visibility::Public,
@@ -458,7 +452,10 @@ impl<'gcx> Lowerer<'gcx> {
                 // runtime code's `PUSH32` placeholders at deploy time.
                 if var.is_state_variable() && var.is_immutable() {
                     let offset = self.next_immutable_offset;
-                    self.next_immutable_offset += IMMUTABLE_WORD_SIZE as u64;
+                    self.next_immutable_offset = self
+                        .next_immutable_offset
+                        .checked_add(IMMUTABLE_WORD_SIZE as u32)
+                        .expect("immutable offset overflow");
                     self.immutable_slots.insert(var_id, offset);
 
                     let mir_ty = self.lower_type_from_var(var);
@@ -520,10 +517,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         if self.lowering_functions.contains(&func_id) {
-            return self.module.add_function(Function::new(Ident::new(
-                solar_interface::Symbol::intern("_recursive_internal"),
-                solar_interface::Span::DUMMY,
-            )));
+            return self
+                .module
+                .add_function(Function::new(Ident::new(sym::_recursive_internal, Span::DUMMY)));
         }
 
         let saved_locals = std::mem::take(&mut self.locals);
@@ -597,9 +593,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn lower_function(&mut self, func_id: hir::FunctionId, force_internal: bool) -> FunctionId {
         let hir_func = self.gcx.hir.function(func_id);
 
-        let func_name = hir_func.name.unwrap_or_else(|| {
-            Ident::new(solar_interface::Symbol::intern("_anonymous"), solar_interface::Span::DUMMY)
-        });
+        let func_name = hir_func.name.unwrap_or_else(|| Ident::new(sym::_anonymous, Span::DUMMY));
 
         // Reserve and register the MIR id before lowering the body so recursive
         // self-calls can resolve to this function.
@@ -1401,44 +1395,9 @@ pub fn contract_bytecode_dependencies(
     contract_id: ContractId,
 ) -> FxHashSet<ContractId> {
     let mut deps = FxHashSet::default();
-    collect_contract_bytecode_dependencies(gcx, contract_id, &mut deps);
+    BytecodeDependencyCollector { gcx, deps: &mut deps }.collect_contract(contract_id);
     deps.remove(&contract_id);
     deps
-}
-
-fn collect_contract_bytecode_dependencies(
-    gcx: Gcx<'_>,
-    contract_id: ContractId,
-    deps: &mut FxHashSet<ContractId>,
-) {
-    let contract = gcx.hir.contract(contract_id);
-    let mut collector = BytecodeDependencyCollector { gcx, deps };
-
-    for modifier in contract.linearized_bases_args.iter().flatten() {
-        let ControlFlow::Continue(()) = collector.visit_modifier(modifier);
-    }
-
-    for &base_id in contract.linearized_bases {
-        let base = gcx.hir.contract(base_id);
-
-        for var_id in base.variables() {
-            let ControlFlow::Continue(()) = collector.visit_nested_var(var_id);
-        }
-
-        for func_id in base.all_functions() {
-            let func = gcx.hir.function(func_id);
-
-            for modifier in func.modifiers {
-                let ControlFlow::Continue(()) = collector.visit_modifier(modifier);
-            }
-
-            if let Some(body) = func.body {
-                for stmt in body.stmts {
-                    let ControlFlow::Continue(()) = collector.visit_stmt(stmt);
-                }
-            }
-        }
-    }
 }
 
 struct BytecodeDependencyCollector<'a, 'gcx> {
@@ -1447,6 +1406,36 @@ struct BytecodeDependencyCollector<'a, 'gcx> {
 }
 
 impl<'a, 'gcx> BytecodeDependencyCollector<'a, 'gcx> {
+    fn collect_contract(&mut self, contract_id: ContractId) {
+        let contract = self.gcx.hir.contract(contract_id);
+
+        for modifier in contract.linearized_bases_args.iter().flatten() {
+            let ControlFlow::Continue(()) = self.visit_modifier(modifier);
+        }
+
+        for &base_id in contract.linearized_bases {
+            let base = self.gcx.hir.contract(base_id);
+
+            for var_id in base.variables() {
+                let ControlFlow::Continue(()) = self.visit_nested_var(var_id);
+            }
+
+            for func_id in base.all_functions() {
+                let func = self.gcx.hir.function(func_id);
+
+                for modifier in func.modifiers {
+                    let ControlFlow::Continue(()) = self.visit_modifier(modifier);
+                }
+
+                if let Some(body) = func.body {
+                    for stmt in body.stmts {
+                        let ControlFlow::Continue(()) = self.visit_stmt(stmt);
+                    }
+                }
+            }
+        }
+    }
+
     fn collect_type(&mut self, ty: &hir::Type<'gcx>) {
         if let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = &ty.kind {
             self.deps.insert(*contract_id);
@@ -1465,7 +1454,7 @@ impl<'gcx> Visit<'gcx> for BytecodeDependencyCollector<'_, 'gcx> {
         match &expr.kind {
             hir::ExprKind::New(ty) => self.collect_type(ty),
             hir::ExprKind::Member(base, member)
-                if matches!(member.name.as_str(), "creationCode" | "runtimeCode") =>
+                if matches!(member.name, sym::creationCode | sym::runtimeCode) =>
             {
                 if let hir::ExprKind::TypeCall(ty) = &base.kind {
                     self.collect_type(ty);

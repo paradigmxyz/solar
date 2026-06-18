@@ -146,7 +146,7 @@ pub struct StorageSlot {
 #[derive(Clone, Debug)]
 pub struct ImmutableSlot {
     /// Byte offset from the start of the immutable scratch area.
-    pub offset: u64,
+    pub offset: u32,
     /// The type of the value stored.
     pub ty: MirType,
     /// The variable name (for debugging).

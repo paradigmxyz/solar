@@ -1,169 +1,303 @@
-//! Peephole optimizer for EVM bytecode.
-//!
-//! Performs pattern-based optimizations on raw bytecode sequences,
-//! replacing inefficient patterns with more optimal ones.
+//! Peephole optimization over assembler instructions.
 
-use super::assembler::opcodes;
+use super::assembler::{AsmInst, AsmInstKind, Assembler, Label, op};
+use alloy_primitives::U256;
+use solar_data_structures::map::FxHashMap;
 
-/// Peephole optimizer for EVM bytecode.
-pub struct PeepholeOptimizer;
+impl Assembler {
+    /// Runs local peephole optimizations over assembler instructions.
+    ///
+    /// This pass runs before label resolution, so removing instructions cannot
+    /// leave stale jump destinations.
+    pub(super) fn optimize_instructions(&mut self) -> usize {
+        let mut total = 0;
+        let len = self.instructions.len();
+        let mut read = 0;
+        let mut write = 0;
 
-impl PeepholeOptimizer {
-    /// Optimizes the given bytecode using peephole patterns.
-    /// Returns the optimized bytecode.
-    #[must_use]
-    pub fn optimize(bytecode: &[u8]) -> Vec<u8> {
-        let mut result = bytecode.to_vec();
-        let mut changed = true;
-
-        // Iterate until no more changes (patterns may enable other patterns)
-        while changed {
-            changed = false;
-            let mut new_result = Vec::with_capacity(result.len());
-            let mut i = 0;
-
-            while i < result.len() {
-                // Try each pattern in order of precedence
-                if let Some((skip, replacement)) = Self::try_pattern(&result, i) {
-                    new_result.extend_from_slice(&replacement);
-                    i += skip;
-                    changed = true;
-                } else {
-                    new_result.push(result[i]);
-                    i += 1;
-                }
+        while read < len {
+            if write != read {
+                self.instructions.swap(write, read);
             }
+            read += 1;
+            write += 1;
 
-            result = new_result;
+            while let Some(peephole) = self.try_peephole(write) {
+                let skip = peephole.skip as usize;
+                let replacement_len = peephole.replacement_len as usize;
+                debug_assert!(
+                    replacement_len <= skip,
+                    "peepholes must not produce a larger replacement"
+                );
+                debug_assert!(skip <= write);
+
+                let start = write - skip;
+                self.instructions[start..start + replacement_len]
+                    .copy_from_slice(&peephole.replacement[..replacement_len]);
+                write = start + replacement_len;
+                total += 1;
+            }
         }
+        self.instructions.truncate(write);
 
-        result
+        total += self.deduplicate_terminal_blocks();
+        total
     }
 
-    /// Tries to match a pattern at the given position.
-    /// Returns (bytes_to_skip, replacement_bytes) if a pattern matches.
-    fn try_pattern(bytecode: &[u8], pos: usize) -> Option<(usize, Vec<u8>)> {
-        let remaining = &bytecode[pos..];
-
-        // Pattern: PUSH0 ADD -> (nop) - adding zero is identity
-        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::ADD {
-            return Some((2, vec![]));
+    fn deduplicate_terminal_blocks(&mut self) -> usize {
+        let candidates = self.terminal_block_candidates();
+        if candidates.is_empty() {
+            return 0;
         }
 
-        // Pattern: PUSH0 MUL -> PUSH0 POP PUSH0 -> POP PUSH0
-        // Actually: x * 0 = 0, but we need to consume x from stack
-        // This is: [x] PUSH0 MUL -> [0], so we replace with POP PUSH0
-        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::MUL {
-            return Some((2, vec![opcodes::POP, opcodes::PUSH0]));
+        let mut canonical: FxHashMap<Vec<AsmInst>, Label> = FxHashMap::default();
+        let mut replacements: FxHashMap<usize, Label> = FxHashMap::default();
+
+        for block in candidates {
+            if let Some(&target) = canonical.get(&block.key) {
+                let replacement_size = 1 + 3 + 1; // JUMPDEST + PUSH2(label) + JUMP.
+                if block.estimated_size > replacement_size {
+                    replacements.insert(block.label_index, target);
+                }
+            } else {
+                canonical.insert(block.key, block.label);
+            }
         }
 
-        // Pattern: PUSH1 1 MUL -> (nop) - multiplying by 1 is identity
-        if remaining.len() >= 3
-            && remaining[0] == 0x60 // PUSH1
-            && remaining[1] == 1
-            && remaining[2] == opcodes::MUL
-        {
-            return Some((3, vec![]));
+        if replacements.is_empty() {
+            return 0;
         }
 
-        // Pattern: SWAP1 SWAP1 -> (nop) - double swap is identity
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::swap(1)
-            && remaining[1] == opcodes::swap(1)
-        {
-            return Some((2, vec![]));
-        }
-
-        // Pattern: SWAP<N> SWAP<N> -> (nop) for any n
-        for n in 2..=16u8 {
-            if remaining.len() >= 2
-                && remaining[0] == opcodes::swap(n)
-                && remaining[1] == opcodes::swap(n)
+        let mut optimized = Vec::with_capacity(self.instructions.len());
+        let mut removed = 0;
+        let mut i = 0;
+        while i < self.instructions.len() {
+            if let Some(&target) = replacements.get(&i)
+                && let AsmInstKind::Label(label) = self.instructions[i].kind()
+                && let Some(end) = self.terminal_block_end(i)
             {
-                return Some((2, vec![]));
+                optimized.push(AsmInst::label(label));
+                optimized.push(AsmInst::push_label(target));
+                optimized.push(AsmInst::op(op::JUMP));
+                removed += 1;
+                i = end + 1;
+                continue;
             }
+            optimized.push(self.instructions[i]);
+            i += 1;
         }
 
-        // Pattern: DUP1 POP -> (nop) - dup then immediate pop is useless
-        if remaining.len() >= 2 && remaining[0] == opcodes::dup(1) && remaining[1] == opcodes::POP {
-            return Some((2, vec![]));
-        }
+        self.instructions = optimized;
+        removed
+    }
 
-        // Pattern: DUP<N> POP -> (nop) for any n
-        for n in 2..=16u8 {
-            if remaining.len() >= 2
-                && remaining[0] == opcodes::dup(n)
-                && remaining[1] == opcodes::POP
+    fn terminal_block_candidates(&self) -> Vec<TerminalBlock> {
+        let mut candidates = Vec::new();
+        for i in 0..self.instructions.len().saturating_sub(1) {
+            let AsmInstKind::Label(label) = self.instructions[i].kind() else {
+                continue;
+            };
+            let Some(end) = self.terminal_block_end(i) else {
+                continue;
+            };
+            let body = &self.instructions[i..=end];
+            let key = body
+                .iter()
+                .copied()
+                .filter(|inst| !matches!(inst.kind(), AsmInstKind::Label(_)))
+                .collect();
+            let estimated_size = body.iter().map(|&inst| self.estimated_inst_size(inst)).sum();
+            candidates.push(TerminalBlock { label, label_index: i, key, estimated_size });
+        }
+        candidates
+    }
+
+    fn terminal_block_end(&self, start: usize) -> Option<usize> {
+        for i in start..self.instructions.len() {
+            if i != start && matches!(self.instructions[i].kind(), AsmInstKind::Label(_)) {
+                return None;
+            }
+            if let AsmInstKind::Op(op) = self.instructions[i].kind()
+                && op::is_terminal(op)
             {
-                return Some((2, vec![]));
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    #[inline]
+    fn try_peephole(&self, write: usize) -> Option<Peephole> {
+        macro_rules! peephole {
+            ($skip:expr => []) => {
+                Some(Peephole::delete($skip))
+            };
+            ($skip:expr => [$inst:expr]) => {
+                Some(Peephole::replace_1($skip, $inst))
+            };
+            ($skip:expr => [$a:expr, $b:expr]) => {
+                Some(Peephole::replace_2($skip, $a, $b))
+            };
+        }
+
+        let stack = InstStack::new(&self.instructions[..write]);
+
+        if stack.len() >= 3
+            && Self::is_removable_push(stack[2])
+            && let (Some(value), AsmInstKind::Op(op)) =
+                (self.inst_push_value(stack[1]), stack[0].kind())
+        {
+            // `PUSH<N> PUSH0 MUL -> PUSH0`.
+            if value.is_zero()
+                && matches!(
+                    op,
+                    op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT
+                )
+            {
+                return peephole!(3 => [AsmInst::push_inline(0).unwrap()]);
+            }
+
+            // `PUSH<N> PUSH1 EXP -> PUSH1`.
+            if value == U256::ONE && op == op::EXP {
+                return peephole!(3 => [AsmInst::push_inline(1).unwrap()]);
             }
         }
 
-        // Pattern: ISZERO ISZERO ISZERO -> ISZERO
-        // (reduces to single negation)
-        if remaining.len() >= 3
-            && remaining[0] == opcodes::ISZERO
-            && remaining[1] == opcodes::ISZERO
-            && remaining[2] == opcodes::ISZERO
+        if stack.len() >= 2
+            && let (Some(value), AsmInstKind::Op(op)) =
+                (self.inst_push_value(stack[1]), stack[0].kind())
         {
-            return Some((3, vec![opcodes::ISZERO]));
-        }
+            if value.is_zero() {
+                return match op {
+                    // `PUSH0 ADD -> []`.
+                    op::ADD | op::OR | op::XOR | op::SHL | op::SHR | op::SAR => peephole!(2 => []),
+                    // `PUSH0 EQ -> ISZERO`.
+                    op::EQ => peephole!(2 => [AsmInst::op(op::ISZERO)]),
+                    // `PUSH0 MUL -> POP PUSH0`.
+                    op::MUL | op::DIV | op::SDIV | op::MOD | op::SMOD | op::AND | op::GT => {
+                        peephole!(2 => [
+                            AsmInst::op(op::POP),
+                            AsmInst::push_inline(0).unwrap()
+                        ])
+                    }
+                    _ => None,
+                };
+            }
 
-        // Pattern: NOT NOT -> (nop) - double bitwise not is identity
-        if remaining.len() >= 2 && remaining[0] == opcodes::NOT && remaining[1] == opcodes::NOT {
-            return Some((2, vec![]));
-        }
-
-        // Pattern: PUSH0 OR -> (nop) - OR with 0 is identity
-        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::OR {
-            return Some((2, vec![]));
-        }
-
-        // Pattern: PUSH0 XOR -> (nop) - XOR with 0 is identity
-        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::XOR {
-            return Some((2, vec![]));
-        }
-
-        // Pattern: PUSH0 EQ -> ISZERO
-        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::EQ {
-            return Some((2, vec![opcodes::ISZERO]));
-        }
-
-        // Pattern: PUSH0 SHL/SHR/SAR -> (nop) - shifting by 0 is identity
-        if remaining.len() >= 2
-            && remaining[0] == opcodes::PUSH0
-            && matches!(remaining[1], opcodes::SHL | opcodes::SHR | opcodes::SAR)
-        {
-            return Some((2, vec![]));
-        }
-
-        // Pattern: POP POP -> double pop can be combined into consecutive POPs
-        // (no optimization, but we can detect push-pop sequences)
-
-        // Pattern: PUSH<n> <val> POP -> (nop) - push followed by immediate pop
-        // PUSH0 = 0x5f, PUSH1-PUSH32 = 0x60-0x7f
-        if remaining.len() >= 2 && remaining[0] == opcodes::PUSH0 && remaining[1] == opcodes::POP {
-            return Some((2, vec![]));
-        }
-
-        // PUSH1-PUSH32 followed by POP
-        if !remaining.is_empty() && remaining[0] >= 0x60 && remaining[0] <= 0x7f {
-            let push_size = (remaining[0] - 0x5f) as usize; // 1-32 bytes
-            let total_len = 1 + push_size; // opcode + data bytes
-            if remaining.len() > total_len && remaining[total_len] == opcodes::POP {
-                return Some((total_len + 1, vec![]));
+            if value == U256::ONE {
+                return match op {
+                    // `PUSH1 MUL -> []`.
+                    op::MUL => peephole!(2 => []),
+                    // `PUSH1 EXP -> POP PUSH1`.
+                    op::EXP => peephole!(2 => [
+                        AsmInst::op(op::POP),
+                        AsmInst::push_inline(1).unwrap()
+                    ]),
+                    _ => None,
+                };
             }
         }
 
-        // Pattern: JUMP after JUMP/JUMPI/STOP/RETURN/REVERT/INVALID
-        // (unreachable code elimination)
-        // MIR DCE handles this before EVM assembly is built; doing it here would
-        // require reconstructing basic block boundaries.
+        // `PUSH POP -> []`.
+        if stack.len() >= 2
+            && Self::is_removable_push(stack[1])
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::POP))
+        {
+            return peephole!(2 => []);
+        }
 
-        // Pattern: EQ ISZERO -> can sometimes be combined with jumps
-        // but this requires more context
+        if stack.len() >= 2
+            && let (AsmInstKind::Op(a), AsmInstKind::Op(b)) = (stack[1].kind(), stack[0].kind())
+        {
+            match (a, b) {
+                // `NOT NOT -> []`.
+                (op::NOT, op::NOT) => {
+                    return peephole!(2 => []);
+                }
+                // `DUP<N> POP -> []`.
+                (op, op::POP) if (op::DUP1..=op::DUP1 + 15).contains(&op) => {
+                    return peephole!(2 => []);
+                }
+                // `SWAP<N> SWAP<N> -> []`.
+                (a, b) if a == b && (op::SWAP1..=op::SWAP1 + 15).contains(&a) => {
+                    return peephole!(2 => []);
+                }
+                _ => {}
+            }
+        }
+
+        // `ISZERO ISZERO ISZERO -> ISZERO`.
+        if stack.len() >= 3
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[1].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::ISZERO))
+        {
+            return peephole!(3 => [AsmInst::op(op::ISZERO)]);
+        }
 
         None
+    }
+
+    fn is_removable_push(inst: AsmInst) -> bool {
+        matches!(
+            inst.kind(),
+            AsmInstKind::PushInline(_)
+                | AsmInstKind::Push(_)
+                | AsmInstKind::PushLabel(_)
+                | AsmInstKind::PushImmutable(_)
+        )
+    }
+}
+
+#[derive(Clone, Debug)]
+struct TerminalBlock {
+    label: Label,
+    label_index: usize,
+    key: Vec<AsmInst>,
+    estimated_size: usize,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct InstStack<'a> {
+    instructions: &'a [AsmInst],
+}
+
+impl<'a> InstStack<'a> {
+    fn new(instructions: &'a [AsmInst]) -> Self {
+        Self { instructions }
+    }
+
+    fn len(self) -> usize {
+        self.instructions.len()
+    }
+}
+
+impl std::ops::Index<usize> for InstStack<'_> {
+    type Output = AsmInst;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.instructions[self.instructions.len() - 1 - index]
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Peephole {
+    skip: u32,
+    replacement_len: u32,
+    replacement: [AsmInst; 2],
+}
+
+impl Peephole {
+    fn delete(skip: u32) -> Self {
+        Self { skip, replacement_len: 0, replacement: [AsmInst::PLACEHOLDER; 2] }
+    }
+
+    fn replace_1(skip: u32, inst: AsmInst) -> Self {
+        Self { skip, replacement_len: 1, replacement: [inst, AsmInst::PLACEHOLDER] }
+    }
+
+    fn replace_2(skip: u32, a: AsmInst, b: AsmInst) -> Self {
+        Self { skip, replacement_len: 2, replacement: [a, b] }
     }
 }
 
@@ -172,147 +306,104 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_push0_add() {
-        // PUSH0 ADD should be removed
-        let input = vec![0x60, 0x42, opcodes::PUSH0, opcodes::ADD]; // PUSH1 42, PUSH0, ADD
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]); // Just PUSH1 42
+    fn removes_push_zero_add() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::ADD);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, op::STOP]);
     }
 
     #[test]
-    fn test_swap1_swap1() {
-        // SWAP1 SWAP1 should be removed
-        let input = vec![0x60, 0x01, 0x60, 0x02, opcodes::swap(1), opcodes::swap(1)];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x01, 0x60, 0x02]);
+    fn cascades_after_rewrite() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::ADD);
+        asm.emit_op(op::POP);
+
+        let result = asm.assemble();
+
+        assert!(result.bytecode.is_empty());
     }
 
     #[test]
-    fn test_dup1_pop() {
-        // DUP1 POP should be removed
-        let input = vec![0x60, 0x42, opcodes::dup(1), opcodes::POP];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]);
+    fn resolves_labels_after_rewrites() {
+        let mut asm = Assembler::new();
+        let label = asm.new_label();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::ADD);
+        asm.define_label(label);
+        asm.emit_push_label(label);
+        asm.emit_op(op::JUMP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.label_offsets[&label], 2);
+        assert_eq!(result.bytecode, vec![0x60, 42, op::JUMPDEST, 0x60, 2, op::JUMP]);
     }
 
     #[test]
-    fn test_push_pop() {
-        // PUSH<n> <val> POP should be removed
-        let input = vec![0x60, 0x42, opcodes::POP]; // PUSH1 42, POP
-        let output = PeepholeOptimizer::optimize(&input);
-        assert!(output.is_empty());
+    fn replaces_mul_zero_with_pop_zero() {
+        let mut asm = Assembler::new();
 
-        // PUSH2 with 2 bytes then POP
-        let input2 = vec![0x61, 0x01, 0x02, opcodes::POP];
-        let output2 = PeepholeOptimizer::optimize(&input2);
-        assert!(output2.is_empty());
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::MUL);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![op::PUSH0, op::STOP]);
     }
 
     #[test]
-    fn test_push0_pop() {
-        // PUSH0 POP should be removed
-        let input = vec![opcodes::PUSH0, opcodes::POP];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert!(output.is_empty());
+    fn preserves_push_zero_sub() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::SUB);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, op::PUSH0, op::SUB, op::STOP]);
     }
 
     #[test]
-    fn test_not_not() {
-        // NOT NOT should be removed
-        let input = vec![0x60, 0x42, opcodes::NOT, opcodes::NOT];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]);
+    fn rewrites_push_zero_eq() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::EQ);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, op::ISZERO, op::STOP]);
     }
 
     #[test]
-    fn test_triple_iszero() {
-        // ISZERO ISZERO ISZERO -> ISZERO
-        let input = vec![0x60, 0x00, opcodes::ISZERO, opcodes::ISZERO, opcodes::ISZERO];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x00, opcodes::ISZERO]);
-    }
+    fn preserves_push_one_div() {
+        let mut asm = Assembler::new();
 
-    #[test]
-    fn test_push1_1_mul() {
-        // PUSH1 1 MUL should be removed (multiply by 1)
-        let input = vec![0x60, 0x42, 0x60, 0x01, opcodes::MUL];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]);
-    }
+        asm.emit_push(U256::from(42));
+        asm.emit_push(U256::from(1));
+        asm.emit_op(op::DIV);
+        asm.emit_op(op::STOP);
 
-    #[test]
-    fn test_push1_1_div_preserved() {
-        // PUSH1 1 DIV is not an identity in EVM stack order
-        let input = vec![0x60, 0x42, 0x60, 0x01, opcodes::DIV];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, input);
-    }
+        let result = asm.assemble();
 
-    #[test]
-    fn test_push0_or() {
-        // PUSH0 OR should be removed
-        let input = vec![0x60, 0x42, opcodes::PUSH0, opcodes::OR];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]);
-    }
-
-    #[test]
-    fn test_push0_xor() {
-        // PUSH0 XOR should be removed
-        let input = vec![0x60, 0x42, opcodes::PUSH0, opcodes::XOR];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]);
-    }
-
-    #[test]
-    fn test_push0_sub_preserved() {
-        // PUSH0 SUB is not an identity in EVM stack order
-        let input = vec![0x60, 0x42, opcodes::PUSH0, opcodes::SUB];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, input);
-    }
-
-    #[test]
-    fn test_chained_optimizations() {
-        // After one optimization, another may become possible
-        // PUSH0 ADD PUSH0 ADD -> (empty) after two passes
-        let input = vec![0x60, 0x42, opcodes::PUSH0, opcodes::ADD, opcodes::PUSH0, opcodes::ADD];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, vec![0x60, 0x42]);
-    }
-
-    #[test]
-    fn test_preserves_valid_code() {
-        // Valid code should not be modified
-        let input = vec![
-            0x60,
-            0x42, // PUSH1 42
-            0x60,
-            0x10,         // PUSH1 16
-            opcodes::ADD, // ADD
-            opcodes::STOP,
-        ];
-        let output = PeepholeOptimizer::optimize(&input);
-        assert_eq!(output, input);
-    }
-
-    #[test]
-    fn test_swap_various_depths() {
-        // SWAP2 SWAP2, SWAP3 SWAP3, etc. should be removed
-        for n in 2..=16u8 {
-            let input = vec![opcodes::swap(n), opcodes::swap(n)];
-            let output = PeepholeOptimizer::optimize(&input);
-            assert!(output.is_empty(), "SWAP{n} SWAP{n} should be removed");
-        }
-    }
-
-    #[test]
-    fn test_dup_various_depths() {
-        // DUP2 POP, DUP3 POP, etc. should be removed
-        for n in 2..=16u8 {
-            let input = vec![opcodes::dup(n), opcodes::POP];
-            let output = PeepholeOptimizer::optimize(&input);
-            assert!(output.is_empty(), "DUP{n} POP should be removed");
-        }
+        assert_eq!(result.bytecode, vec![0x60, 42, 0x60, 1, op::DIV, op::STOP]);
     }
 }

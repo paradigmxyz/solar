@@ -4,38 +4,184 @@ use super::{BlockId, Function, FunctionId, MirType, Value, ValueId};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
+use solar_sema::hir;
 use std::fmt;
 
 /// Extra information attached to a MIR instruction by lowering or analysis passes.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct InstructionMetadata {
     /// Proven storage alias key for `sload`/`sstore` instructions.
-    pub storage_alias: Option<StorageAlias>,
-    /// Proven memory region for memory instructions.
-    pub memory_region: Option<MemoryRegion>,
-    /// HIR expression that produced this instruction, when the lowerer can preserve it.
-    pub hir_expr: Option<u32>,
+    storage_alias: Option<Box<StorageAlias>>,
     /// Source span that produced this instruction, when the lowerer can preserve it.
-    pub source_span: Option<Span>,
-    /// Whether this instruction was lowered from an unchecked arithmetic context.
-    pub unchecked: bool,
+    source_span: Span,
+    /// HIR expression that produced this instruction, when the lowerer can preserve it.
+    hir_expr: Option<hir::ExprId>,
     /// Loop nesting depth attached by loop-aware analyses.
     pub loop_depth: u16,
-    /// Conservative effect classification attached by lowering or analysis.
-    pub effect: Option<EffectKind>,
+    /// Packed optional memory region, effect kind, and unchecked flag.
+    flags: MetadataFlags,
 }
 
 impl InstructionMetadata {
     /// Empty instruction metadata.
     pub const EMPTY: Self = Self {
         storage_alias: None,
-        memory_region: None,
         hir_expr: None,
-        source_span: None,
-        unchecked: false,
+        source_span: Span::DUMMY,
         loop_depth: 0,
-        effect: None,
+        flags: MetadataFlags::EMPTY,
     };
+
+    /// Returns the proven storage alias key.
+    #[must_use]
+    pub fn storage_alias(&self) -> Option<StorageAlias> {
+        self.storage_alias.as_deref().copied()
+    }
+
+    /// Sets the proven storage alias key.
+    pub fn set_storage_alias(&mut self, alias: Option<StorageAlias>) {
+        self.storage_alias = alias.map(Box::new);
+    }
+
+    /// Returns the HIR expression that produced this instruction.
+    #[must_use]
+    pub fn hir_expr(&self) -> Option<hir::ExprId> {
+        self.hir_expr
+    }
+
+    /// Sets the HIR expression that produced this instruction.
+    pub fn set_hir_expr(&mut self, expr: Option<hir::ExprId>) {
+        self.hir_expr = expr;
+    }
+
+    /// Returns the source span that produced this instruction.
+    #[must_use]
+    pub fn source_span(&self) -> Option<Span> {
+        (!self.source_span.is_dummy()).then_some(self.source_span)
+    }
+
+    /// Sets the source span that produced this instruction.
+    pub fn set_source_span(&mut self, span: Option<Span>) {
+        self.source_span = span.unwrap_or(Span::DUMMY);
+    }
+
+    /// Returns the proven memory region.
+    #[must_use]
+    pub fn memory_region(&self) -> Option<MemoryRegion> {
+        self.flags.memory_region()
+    }
+
+    /// Sets the proven memory region.
+    pub fn set_memory_region(&mut self, region: Option<MemoryRegion>) {
+        self.flags.set_memory_region(region);
+    }
+
+    /// Returns whether this instruction was lowered from an unchecked arithmetic context.
+    #[must_use]
+    pub fn unchecked(&self) -> bool {
+        self.flags.unchecked()
+    }
+
+    /// Sets whether this instruction was lowered from an unchecked arithmetic context.
+    pub fn set_unchecked(&mut self, unchecked: bool) {
+        self.flags.set_unchecked(unchecked);
+    }
+
+    /// Returns the conservative effect classification attached by lowering or analysis.
+    #[must_use]
+    pub fn effect(&self) -> Option<EffectKind> {
+        self.flags.effect()
+    }
+
+    /// Sets the conservative effect classification attached by lowering or analysis.
+    pub fn set_effect(&mut self, effect: Option<EffectKind>) {
+        self.flags.set_effect(effect);
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct MetadataFlags(u8);
+
+impl MetadataFlags {
+    const EMPTY: Self = Self(0);
+    const MEMORY_MASK: u8 = 0b0000_0111;
+    const EFFECT_MASK: u8 = 0b0111_1000;
+    const EFFECT_SHIFT: u8 = 3;
+    const UNCHECKED: u8 = 0b1000_0000;
+
+    fn memory_region(self) -> Option<MemoryRegion> {
+        match self.0 & Self::MEMORY_MASK {
+            0 => None,
+            1 => Some(MemoryRegion::Scratch),
+            2 => Some(MemoryRegion::AbiReturn),
+            3 => Some(MemoryRegion::Heap),
+            4 => Some(MemoryRegion::InternalFrame),
+            5 => Some(MemoryRegion::Unknown),
+            _ => unreachable!("invalid packed memory region"),
+        }
+    }
+
+    fn set_memory_region(&mut self, region: Option<MemoryRegion>) {
+        let bits = match region {
+            None => 0,
+            Some(MemoryRegion::Scratch) => 1,
+            Some(MemoryRegion::AbiReturn) => 2,
+            Some(MemoryRegion::Heap) => 3,
+            Some(MemoryRegion::InternalFrame) => 4,
+            Some(MemoryRegion::Unknown) => 5,
+        };
+        self.0 = (self.0 & !Self::MEMORY_MASK) | bits;
+    }
+
+    fn unchecked(self) -> bool {
+        self.0 & Self::UNCHECKED != 0
+    }
+
+    fn set_unchecked(&mut self, unchecked: bool) {
+        if unchecked {
+            self.0 |= Self::UNCHECKED;
+        } else {
+            self.0 &= !Self::UNCHECKED;
+        }
+    }
+
+    fn effect(self) -> Option<EffectKind> {
+        match (self.0 & Self::EFFECT_MASK) >> Self::EFFECT_SHIFT {
+            0 => None,
+            1 => Some(EffectKind::Pure),
+            2 => Some(EffectKind::MemoryRead),
+            3 => Some(EffectKind::MemoryWrite),
+            4 => Some(EffectKind::StorageRead),
+            5 => Some(EffectKind::StorageWrite),
+            6 => Some(EffectKind::TransientRead),
+            7 => Some(EffectKind::TransientWrite),
+            8 => Some(EffectKind::EnvironmentRead),
+            9 => Some(EffectKind::ExternalCall),
+            10 => Some(EffectKind::InternalCall),
+            11 => Some(EffectKind::Create),
+            12 => Some(EffectKind::Log),
+            _ => unreachable!("invalid packed effect kind"),
+        }
+    }
+
+    fn set_effect(&mut self, effect: Option<EffectKind>) {
+        let bits = match effect {
+            None => 0,
+            Some(EffectKind::Pure) => 1,
+            Some(EffectKind::MemoryRead) => 2,
+            Some(EffectKind::MemoryWrite) => 3,
+            Some(EffectKind::StorageRead) => 4,
+            Some(EffectKind::StorageWrite) => 5,
+            Some(EffectKind::TransientRead) => 6,
+            Some(EffectKind::TransientWrite) => 7,
+            Some(EffectKind::EnvironmentRead) => 8,
+            Some(EffectKind::ExternalCall) => 9,
+            Some(EffectKind::InternalCall) => 10,
+            Some(EffectKind::Create) => 11,
+            Some(EffectKind::Log) => 12,
+        } << Self::EFFECT_SHIFT;
+        self.0 = (self.0 & !Self::EFFECT_MASK) | bits;
+    }
 }
 
 /// A conservative storage alias key.
@@ -238,7 +384,7 @@ impl Instruction {
     /// Returns the metadata effect, or derives a conservative one from the instruction kind.
     #[must_use]
     pub fn effect_kind(&self) -> EffectKind {
-        self.metadata.effect.unwrap_or_else(|| self.kind.effect_kind())
+        self.metadata.effect().unwrap_or_else(|| self.kind.effect_kind())
     }
 }
 
@@ -351,7 +497,7 @@ pub enum InstKind {
     /// In runtime code this assembles to a `PUSH32` placeholder that the
     /// constructor patches with the staged value before returning the runtime
     /// code. In constructor code it reads the staged scratch word instead.
-    LoadImmutable(u64),
+    LoadImmutable(u32),
 
     // Return data operations
     /// Get return data size: `returndatasize()`
@@ -433,7 +579,7 @@ pub enum InstKind {
         ret_size: ValueId,
     },
     /// Internal function call lowered to a direct jump.
-    InternalCall { function: FunctionId, args: Vec<ValueId>, returns: usize },
+    InternalCall { function: FunctionId, args: Box<[ValueId]>, returns: u32 },
 
     // Contract creation
     /// Create contract: `create(value, offset, size)`
@@ -1043,5 +1189,26 @@ mod tests {
         let phi = InstKind::Phi(vec![(pred_a, a), (pred_b, b)]);
 
         assert_eq!(phi.operands().as_slice(), &[a, b]);
+    }
+
+    #[test]
+    #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
+    #[cfg_attr(feature = "nightly", ignore = "stable only")]
+    fn instruction_layout_sizes() {
+        use snapbox::{assert_data_eq, str};
+
+        #[track_caller]
+        fn assert_size<T>(size: impl snapbox::IntoData) {
+            assert_size_(std::mem::size_of::<T>(), size.into_data());
+        }
+
+        #[track_caller]
+        fn assert_size_(actual: usize, expected: snapbox::Data) {
+            assert_data_eq!(actual.to_string(), expected);
+        }
+
+        assert_size::<InstKind>(str!["32"]);
+        assert_size::<InstructionMetadata>(str!["24"]);
+        assert_size::<Instruction>(str!["64"]);
     }
 }

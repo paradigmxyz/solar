@@ -667,7 +667,7 @@ impl LoopOptimizer {
     ) -> Option<StorageAlias> {
         let alias = func.instructions[inst_id]
             .metadata
-            .storage_alias
+            .storage_alias()
             .unwrap_or_else(|| StorageAlias::for_value(func, value));
         if let Some(base) = alias.symbolic_base()
             && self.value_defined_in_loop(func, base, loop_data)
@@ -700,8 +700,8 @@ impl LoopOptimizer {
                 | InstKind::TStore(slot, _) => Some(slot),
                 _ => None,
             };
-            func.instructions[inst_id].metadata.storage_alias =
-                slot.map(|slot| StorageAlias::for_value(func, slot));
+            let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
+            func.instructions[inst_id].metadata.set_storage_alias(alias);
         }
     }
 

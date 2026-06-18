@@ -956,8 +956,11 @@ symbols! {
     // There is currently no checking that all symbols are used; that would be
     // nice to have.
     Symbols {
+        Test,
         X,
         __tmp_struct,
+        _anonymous,
+        _recursive_internal,
         abi,
         abicoder,
         assert,
@@ -969,6 +972,7 @@ symbols! {
         creationCode,
         data,
         decode,
+        display_test,
         ecrecover,
         encode,
         encodeCall,

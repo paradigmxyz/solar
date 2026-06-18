@@ -3035,6 +3035,7 @@ dependencies = [
  "smallvec",
  "snapbox",
  "solar-ast",
+ "solar-config",
  "solar-data-structures",
  "solar-interface",
  "solar-sema",

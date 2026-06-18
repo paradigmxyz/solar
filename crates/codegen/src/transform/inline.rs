@@ -817,7 +817,7 @@ impl MirInliner {
                         inst_index,
                         callee: function,
                         args_len: args.len(),
-                        returns,
+                        returns: returns as usize,
                         loop_depth: loop_depths.get(&block).copied().unwrap_or_default(),
                     });
                 }
@@ -1043,7 +1043,8 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
             (700, 1)
         }
         InstKind::InternalCall { args, returns, .. } => {
-            (80 + ((args.len() + *returns) as u64) * 20, 16 + (args.len() + *returns) * 4)
+            let returns = *returns as usize;
+            (80 + ((args.len() + returns) as u64) * 20, 16 + (args.len() + returns) * 4)
         }
         InstKind::Create(..) | InstKind::Create2(..) => (32_000, 1),
         InstKind::Log0(..) => (375, 1),
@@ -1140,6 +1141,7 @@ fn inline_call_impl(
     else {
         return None;
     };
+    let returns = returns as usize;
     if returns != callee.returns.len() {
         return None;
     }
@@ -1399,7 +1401,8 @@ impl<'a> InlineCloner<'a> {
                 args: args
                     .into_iter()
                     .map(|arg| self.clone_value(arg))
-                    .collect::<Option<Vec<_>>>()?,
+                    .collect::<Option<Vec<_>>>()?
+                    .into(),
                 returns,
             },
             InstKind::Create(a, b, c) => {

@@ -1,9 +1,10 @@
 //! Bytes and string lowering helpers.
 
-use super::{ARRAY_METHOD_POP, ARRAY_METHOD_PUSH, Lowerer, checked_arith::PanicCode};
+use super::{Lowerer, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::LitKind;
+use solar_interface::{Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, CallArgs, ElementaryType, ExprKind},
@@ -217,13 +218,13 @@ impl<'gcx> Lowerer<'gcx> {
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,
-        method: &str,
+        method: Symbol,
         args: &CallArgs<'_>,
     ) -> ValueId {
         let current = self.materialize_storage_bytes(builder, slot);
         let len = builder.mload(current);
         match method {
-            ARRAY_METHOD_PUSH => {
+            sym::push => {
                 let one = builder.imm_u64(1);
                 let new_len = builder.add(len, one);
                 let overflow = builder.lt(new_len, len);
@@ -244,7 +245,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore8(dst, byte);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
             }
-            ARRAY_METHOD_POP => {
+            kw::Pop => {
                 self.emit_panic_if_zero(builder, len, PanicCode::PopEmptyArray);
                 let one = builder.imm_u64(1);
                 let new_len = builder.sub(len, one);
@@ -394,8 +395,8 @@ impl<'gcx> Lowerer<'gcx> {
             && let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Builtin(Builtin::Abi)) = res_slice.first()
         {
-            match member.name.as_str() {
-                "encodePacked" => {
+            match member.name {
+                sym::encodePacked => {
                     // Returns a `bytes memory` pointer: `[length][data...]`.
                     let ptr = self.lower_abi_encode_packed(builder, args);
                     let word = builder.imm_u64(32);
@@ -403,13 +404,13 @@ impl<'gcx> Lowerer<'gcx> {
                     let len = builder.mload(ptr);
                     return (data, len);
                 }
-                "encode" => {
+                sym::encode => {
                     let arg_exprs: Vec<_> = args.exprs().collect();
                     if let Some(payload) = self.abi_encode_call_payload(builder, None, &arg_exprs) {
                         return payload;
                     }
                 }
-                "encodeWithSelector" => {
+                sym::encodeWithSelector => {
                     let mut exprs = args.exprs();
                     if let Some(selector_expr) = exprs.next() {
                         // `bytes4` values are left-aligned words.
@@ -422,7 +423,7 @@ impl<'gcx> Lowerer<'gcx> {
                         }
                     }
                 }
-                "encodeWithSignature" => {
+                sym::encodeWithSignature => {
                     let mut exprs = args.exprs();
                     if let Some(sig_expr) = exprs.next()
                         && let ExprKind::Lit(lit) = &sig_expr.kind

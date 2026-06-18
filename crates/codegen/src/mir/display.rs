@@ -8,6 +8,7 @@ use super::{
 };
 use smallvec::SmallVec;
 use solar_data_structures::fmt::{self, FmtIteratorExt};
+use solar_sema::hir;
 
 /// Displays a DOT format CFG for a function.
 pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
@@ -324,7 +325,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
     enum MetadataField<'a> {
         Storage(StorageAlias, &'a Function),
         Memory(MemoryRegion),
-        Hir(u32),
+        Hir(hir::ExprId),
         Span { lo: u32, hi: u32 },
         Unchecked,
         LoopDepth(u16),
@@ -337,7 +338,7 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
                 write!(f, "storage={}", display_storage_alias(storage, func))
             }
             MetadataField::Memory(memory) => write!(f, "memory={}", memory.name()),
-            MetadataField::Hir(hir_expr) => write!(f, "hir={hir_expr}"),
+            MetadataField::Hir(hir_expr) => write!(f, "hir={}", hir_expr.index()),
             MetadataField::Span { lo, hi } => write!(f, "span={lo}..{hi}"),
             MetadataField::Unchecked => write!(f, "unchecked"),
             MetadataField::LoopDepth(loop_depth) => write!(f, "loop_depth={loop_depth}"),
@@ -359,29 +360,27 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
         let metadata = &inst.metadata;
         let mut fields = SmallVec::<[MetadataField<'_>; 8]>::new();
 
-        if let Some(storage) = metadata.storage_alias {
+        if let Some(storage) = metadata.storage_alias() {
             fields.push(MetadataField::Storage(storage, func));
         }
-        if let Some(memory) = metadata.memory_region
+        if let Some(memory) = metadata.memory_region()
             && memory != MemoryRegion::Unknown
         {
             fields.push(MetadataField::Memory(memory));
         }
-        if let Some(hir_expr) = metadata.hir_expr {
+        if let Some(hir_expr) = metadata.hir_expr() {
             fields.push(MetadataField::Hir(hir_expr));
         }
-        if let Some(span) = metadata.source_span
-            && !span.is_dummy()
-        {
+        if let Some(span) = metadata.source_span() {
             fields.push(MetadataField::Span { lo: span.lo().0, hi: span.hi().0 });
         }
-        if metadata.unchecked {
+        if metadata.unchecked() {
             fields.push(MetadataField::Unchecked);
         }
         if metadata.loop_depth != 0 {
             fields.push(MetadataField::LoopDepth(metadata.loop_depth));
         }
-        if let Some(effect) = metadata.effect
+        if let Some(effect) = metadata.effect()
             && effect != inst.kind.effect_kind()
         {
             fields.push(MetadataField::Effect(effect));
@@ -446,10 +445,10 @@ fn display_terminator<'a>(term: &'a Terminator, func: &'a Function) -> impl fmt:
 mod tests {
     use crate::mir::{Function, FunctionBuilder, MirType};
     use snapbox::{IntoData as _, assert_data_eq, str};
-    use solar_interface::{ColorChoice, Ident, Session, Symbol};
+    use solar_interface::{ColorChoice, Ident, Session, sym};
 
     fn make_func() -> Function {
-        Function::new(Ident::with_dummy_span(Symbol::intern("display_test")))
+        Function::new(Ident::with_dummy_span(sym::display_test))
     }
 
     /// Runs `f` inside a fresh test session so the symbol interner is available.

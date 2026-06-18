@@ -119,7 +119,7 @@ enum ExprKind {
     CalldataLoad(ClassId),
     BlockHash(ClassId),
     BlobHash(ClassId),
-    LoadImmutable(u64),
+    LoadImmutable(u32),
     Phi(BlockId, Vec<(BlockId, ClassId)>),
 }
 
@@ -425,7 +425,7 @@ impl GlobalValueNumberer {
             let inst = &mut func.instructions[inst_id];
             if Self::replace_operands(&mut inst.kind, replacements) {
                 if Self::is_memory_inst(&inst.kind) {
-                    inst.metadata.memory_region = None;
+                    inst.metadata.set_memory_region(None);
                 }
                 if matches!(
                     inst.kind,
@@ -434,7 +434,7 @@ impl GlobalValueNumberer {
                         | InstKind::TLoad(_)
                         | InstKind::TStore(_, _)
                 ) {
-                    inst.metadata.storage_alias = None;
+                    inst.metadata.set_storage_alias(None);
                 }
             }
         }
