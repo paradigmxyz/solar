@@ -945,6 +945,60 @@ mod tests {
     }
 
     #[test]
+    fn cold_terminal_block_moves_after_hot_block() {
+        let mut asm = Assembler::new();
+        let cold = asm.new_label();
+        let hot = asm.new_label();
+
+        asm.emit_push_label(hot);
+        asm.emit_op(op::JUMP);
+        asm.mark_label_cold(cold);
+        asm.define_label(cold);
+        asm.emit_push(U256::ZERO);
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::REVERT);
+        asm.define_label(hot);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(
+            result.bytecode,
+            vec![
+                op::PUSH1,
+                3,
+                op::JUMP,
+                op::JUMPDEST,
+                op::STOP,
+                op::JUMPDEST,
+                op::PUSH0,
+                op::PUSH0,
+                op::REVERT,
+            ]
+        );
+    }
+
+    #[test]
+    fn cold_terminal_block_keeps_fallthrough_position() {
+        let mut asm = Assembler::new();
+        let cold = asm.new_label();
+
+        asm.emit_push(U256::ONE);
+        asm.mark_label_cold(cold);
+        asm.define_label(cold);
+        asm.emit_push(U256::ZERO);
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::REVERT);
+
+        let result = asm.assemble();
+
+        assert_eq!(
+            result.bytecode,
+            vec![op::PUSH1, 1, op::JUMPDEST, op::PUSH0, op::PUSH0, op::REVERT]
+        );
+    }
+
+    #[test]
     fn compact_full_word_all_ones_push() {
         let mut asm = size_optimized_assembler();
 

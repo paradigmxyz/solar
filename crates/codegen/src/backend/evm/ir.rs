@@ -142,7 +142,9 @@ impl EvmIrModule {
     /// Creates an empty EVM IR module.
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
-        Self { name: name.into(), functions: IndexVec::new() }
+        let name = name.into();
+        assert!(is_valid_ident(&name), "invalid EVM IR module name `{name}`");
+        Self { name, functions: IndexVec::new() }
     }
 
     /// Adds a function to the module.
@@ -190,12 +192,9 @@ impl EvmIrFunction {
     /// Creates an empty EVM IR function.
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            blocks: IndexVec::new(),
-            entry_block: None,
-            values: IndexVec::new(),
-        }
+        let name = name.into();
+        assert!(is_valid_ident(&name), "invalid EVM IR function name `{name}`");
+        Self { name, blocks: IndexVec::new(), entry_block: None, values: IndexVec::new() }
     }
 
     /// Adds a block to the function.
@@ -209,7 +208,9 @@ impl EvmIrFunction {
 
     /// Allocates a named stack value.
     pub fn add_value(&mut self, name: impl Into<String>) -> EvmIrValueId {
-        self.values.push(EvmIrValue { name: name.into() })
+        let name = name.into();
+        assert!(is_valid_value_name(&name), "invalid EVM IR value name `%{name}`");
+        self.values.push(EvmIrValue { name })
     }
 
     /// Returns the block for the given ID.
@@ -263,8 +264,10 @@ impl EvmIrBlock {
     /// Creates an empty block with unknown hotness.
     #[must_use]
     pub fn new(label: impl Into<String>) -> Self {
+        let label = label.into();
+        assert!(is_valid_block_label(&label), "invalid EVM IR block label `{label}`");
         Self {
-            label: label.into(),
+            label,
             metadata: EvmIrBlockMetadata::default(),
             instructions: Vec::new(),
             terminator: None,
@@ -1051,6 +1054,12 @@ impl<'a> Parser<'a> {
         defined_values: &mut FxHashSet<EvmIrValueId>,
     ) -> Result<(), EvmIrParseError> {
         self.skip_inline_whitespace();
+        if func.blocks[block].terminator.is_some() {
+            return Err(self.error(format!(
+                "instruction after terminator in block `{}`",
+                func.blocks[block].label
+            )));
+        }
 
         let result = self.try_parse_result(func, value_labels, defined_values)?;
         let mnemonic = self.parse_ident()?.to_string();
@@ -1341,6 +1350,24 @@ fn is_ident_continue(c: char) -> bool {
     is_ident_start(c) || c.is_ascii_digit()
 }
 
+fn is_valid_ident(name: &str) -> bool {
+    let mut chars = name.chars();
+    matches!(chars.next(), Some(c) if is_ident_start(c)) && chars.all(is_ident_continue)
+}
+
+fn is_valid_value_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    matches!(chars.next(), Some(c) if is_ident_start(c) || c.is_ascii_digit())
+        && chars.all(is_ident_continue)
+}
+
+fn is_valid_block_label(label: &str) -> bool {
+    let Some(digits) = label.strip_prefix("bb") else {
+        return false;
+    };
+    !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
 #[cfg(test)]
 mod tests {
     use super::parse_evm_ir_module;
@@ -1382,6 +1409,21 @@ mod tests {
             failures.len(),
             failures.join("\n  ")
         );
+    }
+
+    #[test]
+    fn parser_rejects_instructions_after_terminator() {
+        let input = "\
+; evm module @m
+
+fn @f {
+  bb0 (entry):
+    stop
+    invalid
+}
+";
+        let err = parse_evm_ir_module(input).unwrap_err().to_string();
+        assert!(err.contains("instruction after terminator"), "{err}");
     }
 
     fn round_trip_fixture(path: &Path) -> Result<(), String> {
