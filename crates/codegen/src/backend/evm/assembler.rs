@@ -151,6 +151,11 @@ impl Assembler {
         self.program.push(AsmInst::label(label));
     }
 
+    /// Marks a label-started block as cold for EVM IR layout passes.
+    pub(in crate::backend::evm) fn mark_label_cold(&mut self, label: Label) {
+        self.program.mark_cold(label);
+    }
+
     fn resolve_deferred_consts(&mut self) {
         for i in 0..self.program.instructions.len() {
             if let AsmInstKind::PushDeferred(id) = self.program.instructions[i].kind() {
@@ -192,6 +197,7 @@ impl Assembler {
     pub fn assemble(&mut self) -> AssembledCode {
         self.resolve_deferred_consts();
         self.optimize_instructions();
+        self.program.move_cold_terminal_blocks_to_end();
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();

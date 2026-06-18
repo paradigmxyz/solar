@@ -736,6 +736,7 @@ impl EvmCodegen {
             func_labels.push(label);
         }
         let revert_label = self.asm.new_label();
+        self.asm.mark_label_cold(revert_label);
         let has_calldata_label = self.asm.new_label();
         let all_external_entries_reject_value =
             module.functions.iter().any(Self::is_external_entry)
@@ -1009,7 +1010,11 @@ impl EvmCodegen {
         // Create labels for each block
         self.block_labels.clear();
         for block_id in func.blocks.indices() {
-            self.block_labels.insert(block_id, self.asm.new_label());
+            let label = self.asm.new_label();
+            if Self::block_is_cold(func, block_id) {
+                self.asm.mark_label_cold(label);
+            }
+            self.block_labels.insert(block_id, label);
         }
 
         // Generate each block.
