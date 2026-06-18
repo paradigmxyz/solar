@@ -738,7 +738,7 @@ impl<'a> SlotSsaBuilder<'a> {
     /// - `kill` (def): the block stores the slot, overwriting any entry value.
     /// - `live_in(b) = gen(b) ∨ (live_out(b) ∧ ¬kill(b))`, with `live_out(b) = ⋁ live_in(succ)`.
     ///
-    /// Phis are only created at live-in blocks (pruned SSA); see [`Self::entry_value`].
+    /// Phis are only created at live-in blocks (pruned SSA).
     fn summary(&self) -> PromotedSlotSummary {
         let mut phi_blocks = sorted_blocks(&self.phi_blocks);
         phi_blocks.retain(|block| self.phis.contains_key(block));
