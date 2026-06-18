@@ -15,7 +15,8 @@ mod utils;
 /// Runs all the tests.
 ///
 /// `cmd` is the path to the `solar` binary used by all modes. `Mode::Mir`
-/// invokes it as `solar mir-opt …`.
+/// invokes it as `solar mir-opt …`; `Mode::EvmIr` invokes it as
+/// `solar evm-opt …`.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
     ui_test::color_eyre::install()?;
 
@@ -38,6 +39,7 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
 
     let mut modes = DEFAULT_MODES.to_vec();
     modes.insert(1, Mode::Mir);
+    modes.insert(2, Mode::EvmIr);
 
     // TESTER_MODE can be a single mode or a comma-separated list.
     // The "ui" alias also implicitly runs the "mir" mode, since they share the
@@ -50,6 +52,9 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
             requested.push(m);
             if name.trim() == "ui" && !requested.contains(&Mode::Mir) {
                 requested.push(Mode::Mir);
+            }
+            if name.trim() == "ui" && !requested.contains(&Mode::EvmIr) {
+                requested.push(Mode::EvmIr);
             }
         }
         modes = requested;
@@ -86,6 +91,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     let path = match mode {
         Mode::Ui | Mode::StandardJson => "tests/ui/",
         Mode::Mir => "tests/ui/codegen/mir/",
+        Mode::EvmIr => "tests/ui/codegen/evm-ir/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
@@ -111,9 +117,10 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             },
             args: {
                 let mut args: Vec<OsString> = match mode {
-                    // `Mir` mode runs `solar mir-opt …`, which doesn't accept
-                    // the normal compiler flags.
+                    // `Mir` and `EvmIr` modes run subcommands which don't
+                    // accept the normal compiler flags.
                     Mode::Mir => vec!["mir-opt".into()],
+                    Mode::EvmIr => vec!["evm-opt".into()],
                     Mode::StandardJson => vec![
                         standard_json_script.into_os_string(),
                         "solar-standard-json".into(),
@@ -245,6 +252,8 @@ fn mode_from_config(config: &ui_test::Config) -> Mode {
         Mode::StandardJson
     } else if config.root_dir.ends_with("tests/ui/codegen/mir") {
         Mode::Mir
+    } else if config.root_dir.ends_with("tests/ui/codegen/evm-ir") {
+        Mode::EvmIr
     } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
         Mode::SolcYul
     } else if config.root_dir.ends_with("testdata/solidity/test") {
@@ -259,6 +268,9 @@ fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Opti
         Mode::Mir => {
             path.extension().filter(|&ext| ext == "mir")?;
         }
+        Mode::EvmIr => {
+            path.extension().filter(|&ext| ext == "evmir")?;
+        }
         Mode::StandardJson => {
             path.extension().filter(|&ext| ext == "jsonc")?;
         }
@@ -271,7 +283,7 @@ fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Opti
         return Some(false);
     }
     let skip = match cfg.mode {
-        Mode::Ui | Mode::Mir | Mode::StandardJson => false,
+        Mode::Ui | Mode::Mir | Mode::EvmIr | Mode::StandardJson => false,
         Mode::SolcSolidity => solc::solidity::should_skip(path).is_err(),
         Mode::SolcYul => solc::yul::should_skip(path).is_err(),
     };
@@ -344,6 +356,9 @@ enum Mode {
     /// MIR-level tests: runs `solar mir-opt` on `.mir` files under
     /// `tests/ui/codegen/mir/`.
     Mir,
+    /// EVM-IR-level tests: runs `solar evm-opt` on `.evmir` files under
+    /// `tests/ui/codegen/evm-ir/`.
+    EvmIr,
     StandardJson,
     SolcSolidity,
     SolcYul,
@@ -356,6 +371,7 @@ impl Mode {
         Some(match s {
             "ui" => Self::Ui,
             "mir" => Self::Mir,
+            "evm-ir" => Self::EvmIr,
             "standard-json" => Self::StandardJson,
             "solc-solidity" => Self::SolcSolidity,
             "solc-yul" => Self::SolcYul,
@@ -367,6 +383,7 @@ impl Mode {
         match self {
             Self::Ui => "ui",
             Self::Mir => "mir",
+            Self::EvmIr => "evm-ir",
             Self::StandardJson => "standard-json",
             Self::SolcSolidity => "solc-solidity",
             Self::SolcYul => "solc-yul",
@@ -378,7 +395,7 @@ impl Mode {
     }
 
     fn allows_yul(self) -> bool {
-        !matches!(self, Self::SolcSolidity | Self::Mir)
+        !matches!(self, Self::SolcSolidity | Self::Mir | Self::EvmIr)
     }
 }
 
