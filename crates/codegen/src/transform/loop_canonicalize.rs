@@ -190,6 +190,7 @@ impl LoopCanonicalizer {
             };
             incoming.retain(|(pred, _)| !outside_preds.contains(pred));
             incoming.push((preheader, preheader_value));
+            func.instructions[inst_id].refresh_operands();
             self.stats.header_phis_rewritten += 1;
 
             if let Value::Inst(phi_inst) = func.values[preheader_value]

@@ -196,7 +196,7 @@ impl Liveness {
 
                 // Collect uses (upward-exposed uses - used before defined in this block)
                 operand_buf.clear();
-                inst.kind.collect_operands(&mut operand_buf);
+                inst.collect_operands(&mut operand_buf);
                 for &operand in &operand_buf {
                     if !block_defs[bidx].contains(operand) {
                         block_uses[bidx].insert(operand);
@@ -279,7 +279,7 @@ impl Liveness {
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
                 let inst = func.instruction(inst_id);
                 operand_buf.clear();
-                inst.kind.collect_operands(&mut operand_buf);
+                inst.collect_operands(&mut operand_buf);
                 for &operand in &operand_buf {
                     last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
                 }
@@ -341,7 +341,7 @@ impl Liveness {
 
             // Add uses (values become live before this instruction)
             operand_buf.clear();
-            func.instruction(inst_id).kind.collect_operands(&mut operand_buf);
+            func.instruction(inst_id).collect_operands(&mut operand_buf);
             for &operand in &operand_buf {
                 live.insert(operand);
             }

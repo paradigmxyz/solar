@@ -223,7 +223,7 @@ impl LoopOptimizer {
         }
 
         let inst = &func.instructions[inst_id];
-        for operand in inst.kind.operands() {
+        for operand in inst.operands() {
             if let Value::Inst(dep_inst) = func.value(operand)
                 && self.inst_in_loop(func, *dep_inst, ctx.loop_data)
                 && !self.collect_hoist_closure(func, *dep_inst, ctx, selected, visiting, out)
@@ -814,7 +814,7 @@ impl LoopOptimizer {
             visited.insert(inst_id);
 
             let inst = &func.instructions[inst_id];
-            for operand in inst.kind.operands() {
+            for operand in inst.operands() {
                 if let Value::Inst(dep_inst) = &func.values[operand]
                     && inst_set.contains(dep_inst)
                 {

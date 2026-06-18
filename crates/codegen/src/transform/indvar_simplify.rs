@@ -231,6 +231,7 @@ impl IndVarSimplifier {
             return None;
         };
         incoming.push((latch, next));
+        func.instructions[phi_inst].refresh_operands();
         self.stats.pointer_phis_inserted += 1;
         Some(phi_value)
     }
@@ -346,8 +347,9 @@ impl IndVarSimplifier {
         for &block in &loop_data.blocks {
             let insts = func.blocks[block].instructions.clone();
             for inst_id in insts {
-                replaced +=
-                    self.replace_inst_operands(&mut func.instructions[inst_id].kind, replacements);
+                let inst = &mut func.instructions[inst_id];
+                replaced += self.replace_inst_operands(&mut inst.kind, replacements);
+                inst.refresh_operands();
             }
             if let Some(term) = &mut func.blocks[block].terminator {
                 replaced += self.replace_terminator_operands(term, replacements);

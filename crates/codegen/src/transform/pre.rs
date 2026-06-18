@@ -359,11 +359,9 @@ impl PartialRedundancyEliminator {
                 }
                 _ => split_edge(func, pred, target),
             };
-            let new_inst = func.alloc_inst(Instruction {
-                kind,
-                result_ty: Some(result_ty),
-                metadata: metadata.clone(),
-            });
+            let mut inst = Instruction::new(kind, Some(result_ty));
+            inst.metadata = metadata.clone();
+            let new_inst = func.alloc_inst(inst);
             let value = func.alloc_value(Value::Inst(new_inst));
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
@@ -678,7 +676,7 @@ impl PartialRedundancyEliminator {
 
     fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
         for inst in func.instructions.iter_mut() {
-            inst.kind.visit_operands_mut(|value| {
+            inst.visit_operands_mut(|value| {
                 if let Some(&replacement) = replacements.get(value) {
                     *value = replacement;
                 }

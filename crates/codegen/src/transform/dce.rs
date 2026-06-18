@@ -166,7 +166,7 @@ impl DeadCodeEliminator {
         for (_, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = &func.instructions[inst_id];
-                for val_id in inst.kind.operands() {
+                for val_id in inst.operands() {
                     if let Value::Arg { index, .. } = &func.values[val_id] {
                         used_args.insert(*index);
                     }
@@ -222,7 +222,7 @@ impl DeadCodeEliminator {
         for (_, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let inst = &func.instructions[inst_id];
-                for val in inst.kind.operands() {
+                for val in inst.operands() {
                     used.insert(val);
                 }
             }

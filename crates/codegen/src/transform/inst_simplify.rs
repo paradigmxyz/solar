@@ -65,7 +65,7 @@ impl InstSimplifier {
                 }
 
                 if let Some(new_kind) = self.rewrite_inst(func, &kind, &replacements) {
-                    func.instructions[inst_id].kind = new_kind;
+                    func.instructions[inst_id].set_kind(new_kind);
                     self.simplified_count += 1;
                     continue;
                 }
@@ -931,6 +931,7 @@ impl InstSimplifier {
 
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
+            inst.refresh_operands();
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {

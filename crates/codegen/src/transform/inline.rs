@@ -1554,6 +1554,7 @@ fn redirect_phi_predecessors(
                         *pred = new_pred;
                     }
                 }
+                func.instructions[inst_id].refresh_operands();
             }
         }
     }
@@ -1572,6 +1573,7 @@ fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>)
 
     for inst in func.instructions.iter_mut() {
         replace_inst_operands(&mut inst.kind, replacements);
+        inst.refresh_operands();
     }
     for block in func.blocks.iter_mut() {
         if let Some(term) = &mut block.terminator {
@@ -1642,6 +1644,7 @@ fn prune_phi_incoming_to_predecessors(func: &mut Function) {
         for &inst_id in &func.blocks[block_id].instructions {
             if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
+                func.instructions[inst_id].refresh_operands();
             }
         }
     }

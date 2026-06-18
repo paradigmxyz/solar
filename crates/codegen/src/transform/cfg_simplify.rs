@@ -242,7 +242,7 @@ impl CfgSimplifier {
             insts.push(CanonInst {
                 mnemonic: inst.kind.mnemonic(),
                 payload: extra,
-                operands: inst.kind.operands().into_iter().map(canon_operand).collect(),
+                operands: inst.operands().into_iter().map(canon_operand).collect(),
                 result_ty: inst.result_ty,
                 metadata,
             });
@@ -505,6 +505,7 @@ impl CfgSimplifier {
         }
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
+            inst.refresh_operands();
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
@@ -691,6 +692,7 @@ impl CfgSimplifier {
                 }
             });
             *incoming = rewritten;
+            func.instructions[inst_id].refresh_operands();
         }
     }
 

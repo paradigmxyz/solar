@@ -1169,6 +1169,7 @@ impl CommonSubexprEliminator {
         for inst_id in inst_ids {
             let inst = &mut func.instructions[inst_id];
             if Self::replace_operands(&mut inst.kind, replacements) {
+                inst.refresh_operands();
                 if Self::is_memory_inst(&inst.kind) {
                     inst.metadata.set_memory_region(None);
                 }

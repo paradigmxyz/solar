@@ -125,7 +125,7 @@ impl MemoryStoreEliminator {
                     && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
                 {
                     replacements.insert(loaded_value, cached_copy.value);
-                    func.instructions[codecopy].kind = InstKind::MStore(dest, cached_copy.value);
+                    func.instructions[codecopy].set_kind(InstKind::MStore(dest, cached_copy.value));
                     dead.insert(load);
                     self.eliminated_count += 1;
                     continue;
@@ -937,6 +937,7 @@ impl MemoryStoreEliminator {
 
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
+            inst.refresh_operands();
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {

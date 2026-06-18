@@ -550,13 +550,14 @@ impl StorageScalarPromoter {
             if let Some(init_store) = candidate.candidate.init_store
                 && let InstKind::SStore(_, init) = &func.instructions[init_store].kind
             {
+                let init = *init;
                 let init_pos = func.blocks[preheader]
                     .instructions
                     .iter()
                     .position(|&inst_id| inst_id == init_store)
                     .expect("candidate init store should be in the preheader");
                 temps.insert(candidate.candidate.slot, (candidate.temp_addr, init_pos));
-                func.instructions[init_store].kind = InstKind::MStore(candidate.temp_addr, *init);
+                func.instructions[init_store].set_kind(InstKind::MStore(candidate.temp_addr, init));
                 func.instructions[init_store].metadata.set_storage_alias(None);
                 self.stats.stores_promoted += 1;
             }
@@ -569,7 +570,7 @@ impl StorageScalarPromoter {
                 if let Some(&(temp_addr, init_pos)) = temps.get(&alias)
                     && pos > init_pos
                 {
-                    func.instructions[inst_id].kind = InstKind::MLoad(temp_addr);
+                    func.instructions[inst_id].set_kind(InstKind::MLoad(temp_addr));
                     func.instructions[inst_id].metadata.set_storage_alias(None);
                     self.stats.loads_promoted += 1;
                 }
@@ -606,7 +607,7 @@ impl StorageScalarPromoter {
                         InstKind::MStore(_, _) => self.stats.stores_promoted += 1,
                         _ => {}
                     }
-                    func.instructions[inst_id].kind = new_kind;
+                    func.instructions[inst_id].set_kind(new_kind);
                     func.instructions[inst_id].metadata.set_storage_alias(None);
                 }
             }
@@ -649,7 +650,7 @@ impl StorageScalarPromoter {
                         InstKind::MStore(_, _) => self.stats.stores_promoted += 1,
                         _ => {}
                     }
-                    func.instructions[inst_id].kind = new_kind;
+                    func.instructions[inst_id].set_kind(new_kind);
                     func.instructions[inst_id].metadata.set_storage_alias(None);
                     if track_dirty
                         && let (Some(dirty_addr), Some(dirty_value)) =
@@ -694,8 +695,9 @@ impl StorageScalarPromoter {
         match candidate.init_store {
             Some(init_store) => {
                 if let InstKind::SStore(_, init) = &func.instructions[init_store].kind {
-                    func.instructions[init_store].kind =
-                        InstKind::MStore(promoted.temp_addr, *init);
+                    let init = *init;
+                    func.instructions[init_store]
+                        .set_kind(InstKind::MStore(promoted.temp_addr, init));
                     func.instructions[init_store].metadata.set_storage_alias(None);
                     self.stats.stores_promoted += 1;
                 }
@@ -713,7 +715,7 @@ impl StorageScalarPromoter {
                     if let InstKind::SLoad(load_slot) = &func.instructions[inst_id].kind
                         && self.storage_alias(func, inst_id, *load_slot) == candidate.slot
                     {
-                        func.instructions[inst_id].kind = InstKind::MLoad(promoted.temp_addr);
+                        func.instructions[inst_id].set_kind(InstKind::MLoad(promoted.temp_addr));
                         func.instructions[inst_id].metadata.set_storage_alias(None);
                         self.stats.loads_promoted += 1;
                     }
@@ -868,6 +870,7 @@ impl StorageScalarPromoter {
                         *pred = new_pred;
                     }
                 }
+                func.instructions[inst_id].refresh_operands();
             }
         }
     }

@@ -207,7 +207,7 @@ impl Validator {
                 let inst = func.instruction(inst_id);
 
                 // Operand range check.
-                for op in inst.kind.operands() {
+                for op in inst.operands() {
                     if op.index() >= num_values {
                         errors.push(ValidationError::at_inst(
                             format!(

@@ -882,11 +882,9 @@ impl LoadRedundancyEliminator {
 
         let fully_available = insertions.is_empty();
         for block in insertions {
-            let new_inst = func.alloc_inst(Instruction {
-                kind: kind.clone(),
-                result_ty: Some(result_ty),
-                metadata: metadata.clone(),
-            });
+            let mut inst = Instruction::new(kind.clone(), Some(result_ty));
+            inst.metadata = metadata.clone();
+            let new_inst = func.alloc_inst(inst);
             let value = func.alloc_value(Value::Inst(new_inst));
             func.blocks[block].instructions.push(new_inst);
             incoming.push((block, value));
@@ -1188,7 +1186,7 @@ impl LoadRedundancyEliminator {
     fn replace_uses(func: &mut Function, from: ValueId, to: ValueId) {
         for inst in func.instructions.iter_mut() {
             let mut changed = false;
-            inst.kind.visit_operands_mut(|value| {
+            inst.visit_operands_mut(|value| {
                 if *value == from {
                     *value = to;
                     changed = true;

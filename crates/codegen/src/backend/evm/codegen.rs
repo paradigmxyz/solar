@@ -251,7 +251,7 @@ impl<'a> StackPhiPlanner<'a> {
                 if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
                     continue;
                 }
-                if self.func.instructions[inst_id].kind.operands().contains(&value) {
+                if self.func.instructions[inst_id].operands().contains(&value) {
                     return true;
                 }
             }

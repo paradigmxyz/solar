@@ -259,7 +259,7 @@ impl AdceContext {
         let mut uses: FxHashMap<ValueId, FxHashSet<BlockId>> = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                for operand in func.instructions[inst_id].kind.operands() {
+                for operand in func.instructions[inst_id].operands() {
                     uses.entry(operand).or_default().insert(block_id);
                 }
             }

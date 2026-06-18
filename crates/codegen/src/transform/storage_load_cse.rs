@@ -195,6 +195,7 @@ impl StorageLoadCse {
 
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
+            inst.refresh_operands();
             if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
                 inst.metadata.set_storage_alias(None);
             }

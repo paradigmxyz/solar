@@ -362,6 +362,8 @@ impl EffectKind {
 pub struct Instruction {
     /// The kind of instruction.
     pub kind: InstKind,
+    /// Cached SSA operands for generic operand walks.
+    operands: SmallVec<[ValueId; 8]>,
     /// The result type (if any).
     pub result_ty: Option<MirType>,
     /// Metadata produced by lowering or analysis.
@@ -371,14 +373,44 @@ pub struct Instruction {
 impl Instruction {
     /// Creates a new instruction.
     #[must_use]
-    pub const fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
-        Self { kind, result_ty, metadata: InstructionMetadata::EMPTY }
+    pub fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
+        let operands = kind.operands();
+        Self { kind, operands, result_ty, metadata: InstructionMetadata::EMPTY }
     }
 
     /// Returns the operands of this instruction.
     #[must_use]
     pub fn operands(&self) -> SmallVec<[ValueId; 8]> {
-        self.kind.operands()
+        self.operands.clone()
+    }
+
+    /// Collects all operands of this instruction into the provided vector.
+    pub fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
+        out.extend_from_slice(&self.operands);
+    }
+
+    /// Visits every cached operand mutably and mirrors the rewrite into the matching enum.
+    pub fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
+        for operand in &mut self.operands {
+            f(operand);
+        }
+        let mut operands = self.operands.iter().copied();
+        self.kind.visit_operands_mut(|value| {
+            *value = operands.next().expect("cached operand count matches instruction kind");
+        });
+        debug_assert!(operands.next().is_none());
+    }
+
+    /// Replaces the instruction kind and refreshes its cached operands.
+    pub fn set_kind(&mut self, kind: InstKind) {
+        self.kind = kind;
+        self.refresh_operands();
+    }
+
+    /// Refreshes cached operands from the matching enum.
+    pub fn refresh_operands(&mut self) {
+        self.operands.clear();
+        self.kind.collect_operands(&mut self.operands);
     }
 
     /// Returns the metadata effect, or derives a conservative one from the instruction kind.
@@ -388,13 +420,39 @@ impl Instruction {
     }
 }
 
-/// The kind of an instruction.
-///
-/// TODO(codegen): Consider separating opcode and operands once the MIR shape stabilizes, e.g.
-/// `Instruction { opcode: Opcode, operands: SmallVec<[ValueId; 4]>, ... }`. That would make generic
-/// operand visitors and rewrites less variant-heavy.
-#[derive(Clone, Debug)]
-pub enum InstKind {
+macro_rules! define_mir_insts {
+    ($(
+        $(#[$attr:meta])*
+        $variant:ident
+        $(($($tuple:ty),* $(,)?))?
+        $({ $($fields:tt)* })?
+    ,)*) => {
+        /// The tag-only kind of a MIR instruction.
+        #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+        #[repr(u8)]
+        pub enum InstTag {
+            $(
+                $(#[$attr])*
+                $variant,
+            )*
+        }
+
+        /// The matching form of a MIR instruction, including immediate payloads.
+        ///
+        /// `Instruction` stores generic SSA operands separately, so hot operand walks do not need
+        /// to match this enum.
+        #[derive(Clone, Debug)]
+        #[repr(u8)]
+        pub enum InstKind {
+            $(
+                $(#[$attr])*
+                $variant $(($($tuple),*))? $({ $($fields)* })?,
+            )*
+        }
+    };
+}
+
+define_mir_insts! {
     // Arithmetic operations
     /// Addition: `a + b`
     Add(ValueId, ValueId),
@@ -611,7 +669,257 @@ pub enum InstKind {
     SignExtend(ValueId, ValueId),
 }
 
+impl InstTag {
+    /// Returns true if this instruction may mutate persistent storage.
+    #[must_use]
+    pub const fn may_mutate_storage(&self) -> bool {
+        matches!(
+            self,
+            Self::SStore
+                | Self::Call
+                | Self::DelegateCall
+                | Self::InternalCall
+                | Self::Create
+                | Self::Create2
+        )
+    }
+
+    /// Returns true if this instruction may mutate transient storage.
+    #[must_use]
+    pub const fn may_mutate_transient_storage(&self) -> bool {
+        matches!(
+            self,
+            Self::TStore
+                | Self::Call
+                | Self::DelegateCall
+                | Self::InternalCall
+                | Self::Create
+                | Self::Create2
+        )
+    }
+
+    /// Returns true if this instruction writes or may write memory.
+    #[must_use]
+    pub const fn may_mutate_memory(&self) -> bool {
+        matches!(
+            self,
+            Self::MStore
+                | Self::MStore8
+                | Self::MCopy
+                | Self::CalldataCopy
+                | Self::CodeCopy
+                | Self::ReturnDataCopy
+                | Self::ExtCodeCopy
+                | Self::Call
+                | Self::StaticCall
+                | Self::DelegateCall
+                | Self::InternalCall
+                | Self::Create
+                | Self::Create2
+        )
+    }
+
+    /// Returns the mnemonic for this instruction.
+    #[must_use]
+    pub const fn mnemonic(&self) -> &'static str {
+        match self {
+            Self::Add => "add",
+            Self::Sub => "sub",
+            Self::Mul => "mul",
+            Self::Div => "div",
+            Self::SDiv => "sdiv",
+            Self::Mod => "mod",
+            Self::SMod => "smod",
+            Self::Exp => "exp",
+            Self::AddMod => "addmod",
+            Self::MulMod => "mulmod",
+            Self::And => "and",
+            Self::Or => "or",
+            Self::Xor => "xor",
+            Self::Not => "not",
+            Self::Shl => "shl",
+            Self::Shr => "shr",
+            Self::Sar => "sar",
+            Self::Byte => "byte",
+            Self::Lt => "lt",
+            Self::Gt => "gt",
+            Self::SLt => "slt",
+            Self::SGt => "sgt",
+            Self::Eq => "eq",
+            Self::IsZero => "iszero",
+            Self::MLoad => "mload",
+            Self::MStore => "mstore",
+            Self::MStore8 => "mstore8",
+            Self::MSize => "msize",
+            Self::MCopy => "mcopy",
+            Self::SLoad => "sload",
+            Self::SStore => "sstore",
+            Self::TLoad => "tload",
+            Self::TStore => "tstore",
+            Self::CalldataLoad => "calldataload",
+            Self::CalldataCopy => "calldatacopy",
+            Self::CalldataSize => "calldatasize",
+            Self::CodeSize => "codesize",
+            Self::CodeCopy => "codecopy",
+            Self::LoadImmutable => "loadimmutable",
+            Self::ExtCodeSize => "extcodesize",
+            Self::ExtCodeCopy => "extcodecopy",
+            Self::ExtCodeHash => "extcodehash",
+            Self::ReturnDataSize => "returndatasize",
+            Self::ReturnDataCopy => "returndatacopy",
+            Self::InternalFrameAddr => "internal_frame_addr",
+            Self::Caller => "caller",
+            Self::CallValue => "callvalue",
+            Self::Origin => "origin",
+            Self::GasPrice => "gasprice",
+            Self::BlockHash => "blockhash",
+            Self::Coinbase => "coinbase",
+            Self::Timestamp => "timestamp",
+            Self::BlockNumber => "number",
+            Self::PrevRandao => "prevrandao",
+            Self::GasLimit => "gaslimit",
+            Self::ChainId => "chainid",
+            Self::Address => "address",
+            Self::Balance => "balance",
+            Self::SelfBalance => "selfbalance",
+            Self::Gas => "gas",
+            Self::BaseFee => "basefee",
+            Self::BlobBaseFee => "blobbasefee",
+            Self::BlobHash => "blobhash",
+            Self::Keccak256 => "keccak256",
+            Self::Call => "call",
+            Self::StaticCall => "staticcall",
+            Self::DelegateCall => "delegatecall",
+            Self::InternalCall => "internal_call",
+            Self::Create => "create",
+            Self::Create2 => "create2",
+            Self::Log0 => "log0",
+            Self::Log1 => "log1",
+            Self::Log2 => "log2",
+            Self::Log3 => "log3",
+            Self::Log4 => "log4",
+            Self::Phi => "phi",
+            Self::Select => "select",
+            Self::SignExtend => "signextend",
+        }
+    }
+
+    /// Returns true if this instruction has side effects.
+    #[must_use]
+    pub const fn has_side_effects(&self) -> bool {
+        matches!(
+            self,
+            Self::SStore
+                | Self::TStore
+                | Self::MStore
+                | Self::MStore8
+                | Self::MCopy
+                | Self::Call
+                | Self::StaticCall
+                | Self::DelegateCall
+                | Self::InternalCall
+                | Self::Create
+                | Self::Create2
+                | Self::Log0
+                | Self::Log1
+                | Self::Log2
+                | Self::Log3
+                | Self::Log4
+                | Self::CalldataCopy
+                | Self::CodeCopy
+                | Self::ExtCodeCopy
+                | Self::ReturnDataCopy
+        )
+    }
+
+    /// Returns a conservative effect classification for this instruction.
+    #[must_use]
+    pub const fn effect_kind(&self) -> EffectKind {
+        match self {
+            Self::MStore
+            | Self::MStore8
+            | Self::MCopy
+            | Self::CalldataCopy
+            | Self::CodeCopy
+            | Self::ExtCodeCopy
+            | Self::ReturnDataCopy => EffectKind::MemoryWrite,
+            Self::MLoad | Self::MSize | Self::Keccak256 => EffectKind::MemoryRead,
+            Self::SLoad => EffectKind::StorageRead,
+            Self::SStore => EffectKind::StorageWrite,
+            Self::TLoad => EffectKind::TransientRead,
+            Self::TStore => EffectKind::TransientWrite,
+            Self::Call | Self::StaticCall | Self::DelegateCall => EffectKind::ExternalCall,
+            Self::InternalCall => EffectKind::InternalCall,
+            Self::Create | Self::Create2 => EffectKind::Create,
+            Self::Log0 | Self::Log1 | Self::Log2 | Self::Log3 | Self::Log4 => EffectKind::Log,
+            Self::CalldataLoad
+            | Self::CalldataSize
+            | Self::CodeSize
+            | Self::LoadImmutable
+            | Self::ExtCodeSize
+            | Self::ExtCodeHash
+            | Self::ReturnDataSize
+            | Self::Caller
+            | Self::CallValue
+            | Self::Origin
+            | Self::GasPrice
+            | Self::BlockHash
+            | Self::Coinbase
+            | Self::Timestamp
+            | Self::BlockNumber
+            | Self::PrevRandao
+            | Self::GasLimit
+            | Self::ChainId
+            | Self::Address
+            | Self::Balance
+            | Self::SelfBalance
+            | Self::Gas
+            | Self::BaseFee
+            | Self::BlobBaseFee
+            | Self::BlobHash => EffectKind::EnvironmentRead,
+            Self::Add
+            | Self::Sub
+            | Self::Mul
+            | Self::Div
+            | Self::SDiv
+            | Self::Mod
+            | Self::SMod
+            | Self::Exp
+            | Self::AddMod
+            | Self::MulMod
+            | Self::And
+            | Self::Or
+            | Self::Xor
+            | Self::Not
+            | Self::Shl
+            | Self::Shr
+            | Self::Sar
+            | Self::Byte
+            | Self::Lt
+            | Self::Gt
+            | Self::SLt
+            | Self::SGt
+            | Self::Eq
+            | Self::IsZero
+            | Self::InternalFrameAddr
+            | Self::Phi
+            | Self::Select
+            | Self::SignExtend => EffectKind::Pure,
+        }
+    }
+}
+
 impl InstKind {
+    /// Returns the tag-only kind for this instruction.
+    #[must_use]
+    pub fn tag(&self) -> InstTag {
+        // SAFETY: `define_mir_insts!` emits `InstTag` and `InstKind` with the same variants in the
+        // same order, and both enums are `repr(u8)`.
+        let tag = unsafe { *std::ptr::from_ref(self).cast::<u8>() };
+        // SAFETY: every live `InstKind` has a discriminant emitted by the same macro as `InstTag`.
+        unsafe { std::mem::transmute::<u8, InstTag>(tag) }
+    }
+
     /// Collects all operands of this instruction into the provided vector.
     /// This is the canonical way to get all operands for liveness analysis.
     pub fn collect_operands(&self, out: &mut SmallVec<[ValueId; 8]>) {
@@ -1192,6 +1500,51 @@ mod tests {
     }
 
     #[test]
+    fn instruction_cached_operands_track_rewrites() {
+        let a = ValueId::from_usize(1);
+        let b = ValueId::from_usize(2);
+        let c = ValueId::from_usize(3);
+        let mut inst = Instruction::new(InstKind::Add(a, b), Some(MirType::uint256()));
+
+        inst.visit_operands_mut(|value| {
+            if *value == b {
+                *value = c;
+            }
+        });
+
+        assert_eq!(inst.operands().as_slice(), &[a, c]);
+        assert!(matches!(inst.kind, InstKind::Add(x, y) if x == a && y == c));
+
+        inst.set_kind(InstKind::IsZero(c));
+        assert_eq!(inst.operands().as_slice(), &[c]);
+    }
+
+    #[test]
+    fn inst_tag_matches_matching_enum_discriminant() {
+        let a = ValueId::from_usize(1);
+        let b = ValueId::from_usize(2);
+
+        let add = InstKind::Add(a, b);
+        let msize = InstKind::MSize;
+        let call = InstKind::Call {
+            gas: a,
+            addr: b,
+            value: a,
+            args_offset: b,
+            args_size: a,
+            ret_offset: b,
+            ret_size: a,
+        };
+
+        assert_eq!(add.tag(), InstTag::Add);
+        assert_eq!(add.tag().mnemonic(), add.mnemonic());
+        assert_eq!(msize.tag(), InstTag::MSize);
+        assert_eq!(msize.tag().effect_kind(), msize.effect_kind());
+        assert_eq!(call.tag(), InstTag::Call);
+        assert_eq!(call.tag().has_side_effects(), call.has_side_effects());
+    }
+
+    #[test]
     #[cfg_attr(not(target_pointer_width = "64"), ignore = "64-bit only")]
     #[cfg_attr(feature = "nightly", ignore = "stable only")]
     fn instruction_layout_sizes() {
@@ -1209,6 +1562,6 @@ mod tests {
 
         assert_size::<InstKind>(str!["32"]);
         assert_size::<InstructionMetadata>(str!["24"]);
-        assert_size::<Instruction>(str!["64"]);
+        assert_size::<Instruction>(str!["104"]);
     }
 }

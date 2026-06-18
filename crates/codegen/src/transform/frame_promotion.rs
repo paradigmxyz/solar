@@ -659,6 +659,7 @@ impl FrameSlotPromoter {
 
         for inst in func.instructions.iter_mut() {
             Self::replace_inst_operands(&mut inst.kind, replacements);
+            inst.refresh_operands();
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
@@ -895,7 +896,7 @@ impl<'a> SlotSsaBuilder<'a> {
         for pending in self.phis.values() {
             let mut incoming = pending.incoming.clone();
             incoming.sort_by_key(|(block, _)| block.index());
-            func.instructions[pending.inst].kind = InstKind::Phi(incoming);
+            func.instructions[pending.inst].set_kind(InstKind::Phi(incoming));
             let insert_pos = func.blocks[pending.block]
                 .instructions
                 .iter()

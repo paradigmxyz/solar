@@ -589,7 +589,7 @@ impl SccpPass {
                 if matches!(inst.kind, InstKind::Phi(_)) {
                     continue;
                 }
-                let operands = inst.kind.operands();
+                let operands = inst.operands();
                 if operands.contains(&vid)
                     && let Some(&result_vid) = inst_to_value.get(&inst_id)
                 {
@@ -673,7 +673,9 @@ impl SccpPass {
                 .filter(|id| !dead_insts.contains(id))
                 .collect();
             for inst_id in all_insts {
-                replace_inst_operands(&mut func.instructions[inst_id].kind, &const_values);
+                let inst = &mut func.instructions[inst_id];
+                replace_inst_operands(&mut inst.kind, &const_values);
+                inst.refresh_operands();
             }
             for &block_id in &block_ids {
                 if let Some(term) = &mut func.blocks[block_id].terminator {

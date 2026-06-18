@@ -338,7 +338,7 @@ impl LoopAnalyzer {
                         continue;
                     }
 
-                    let operands = inst.kind.operands();
+                    let operands = inst.operands();
                     if operands.iter().all(|op| invariant_values.contains(op)) {
                         loop_info.invariant_insts.insert(inst_id);
                         if let Some(result) = self.find_result_value(func, inst_id) {

@@ -624,6 +624,7 @@ impl<'a> FunctionBuilder<'a> {
             panic!("add_phi_incoming: instruction is not a phi");
         };
         incoming.push((block, value));
+        self.func.instructions[inst_id].refresh_operands();
     }
 
     /// Sets a jump terminator.

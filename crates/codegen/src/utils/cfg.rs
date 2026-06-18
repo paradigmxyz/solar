@@ -69,6 +69,7 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
                     *block = new_block;
                 }
             }
+            func.instructions[inst_id].refresh_operands();
         }
     }
 
@@ -103,6 +104,7 @@ pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
                 let len_before = incoming.len();
                 incoming.retain(|(pred, _)| predecessors.contains(pred));
                 changed |= incoming.len() != len_before;
+                func.instructions[inst_id].refresh_operands();
             }
         }
     }
