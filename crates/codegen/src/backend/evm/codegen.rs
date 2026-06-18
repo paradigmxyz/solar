@@ -116,6 +116,169 @@ struct StackPhiEdge {
     results: Vec<ValueId>,
 }
 
+impl StackPhiPlan {
+    fn analyze(func: &Function) -> Self {
+        StackPhiPlanner::new(func).plan()
+    }
+}
+
+struct StackPhiPlanner<'a> {
+    func: &'a Function,
+    loops: Vec<Loop>,
+    header_results: FxHashMap<BlockId, Vec<ValueId>>,
+}
+
+impl<'a> StackPhiPlanner<'a> {
+    fn new(func: &'a Function) -> Self {
+        let mut loop_analyzer = LoopAnalyzer::new();
+        let loop_info = loop_analyzer.analyze(func);
+        let mut loops: Vec<_> = loop_info.all_loops().cloned().collect();
+        loops.sort_by_key(|loop_info| loop_info.header.index());
+
+        let mut planner = Self { func, loops, header_results: FxHashMap::default() };
+        planner.collect_header_results();
+        planner
+    }
+
+    fn plan(&self) -> StackPhiPlan {
+        let mut plan = StackPhiPlan::default();
+        for loop_info in &self.loops {
+            self.plan_loop(loop_info, &mut plan);
+        }
+        plan
+    }
+
+    fn collect_header_results(&mut self) {
+        for loop_info in &self.loops {
+            let block = &self.func.blocks[loop_info.header];
+            let phi_insts = self.leading_phi_insts(block);
+            if let Some(results) = self.phi_result_values(&phi_insts) {
+                self.header_results.insert(loop_info.header, results);
+            }
+        }
+    }
+
+    fn plan_loop(&self, loop_info: &Loop, plan: &mut StackPhiPlan) {
+        let Some(preheader) = loop_info.preheader else {
+            return;
+        };
+        let [latch] = loop_info.back_edges.as_slice() else {
+            return;
+        };
+        if !matches!(self.func.blocks[preheader].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
+            || !matches!(self.func.blocks[*latch].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
+        {
+            return;
+        }
+        if plan.edges.contains_key(&preheader) || plan.edges.contains_key(latch) {
+            return;
+        }
+
+        let block = &self.func.blocks[loop_info.header];
+        let phi_insts = self.leading_phi_insts(block);
+        if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
+            return;
+        }
+
+        let Some(results) = self.phi_result_values(&phi_insts) else {
+            return;
+        };
+        if results.len() > STACK_PHI_LAYOUT_LIMIT {
+            return;
+        }
+
+        let carry_through = self.carry_through_values(loop_info);
+        if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
+            return;
+        }
+
+        let mut entry = carry_through.clone();
+        entry.extend(results.iter().copied());
+
+        let predecessors = [preheader, *latch];
+        let mut edges = Vec::with_capacity(predecessors.len());
+        for pred in predecessors {
+            let Some(phi_sources) = self.phi_sources_for_pred(&phi_insts, pred) else {
+                return;
+            };
+            let mut sources = carry_through.clone();
+            sources.extend(phi_sources);
+            debug_assert_eq!(sources.len(), entry.len());
+            edges.push((pred, sources));
+        }
+
+        plan.entries.insert(loop_info.header, entry.clone());
+        for (pred, sources) in edges {
+            plan.edge_sources.insert(pred, sources.iter().copied().collect());
+            plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
+        }
+    }
+
+    fn leading_phi_insts(&self, block: &crate::mir::BasicBlock) -> Vec<InstId> {
+        block
+            .instructions
+            .iter()
+            .copied()
+            .take_while(|&inst| matches!(self.func.instructions[inst].kind, InstKind::Phi(_)))
+            .collect()
+    }
+
+    fn carry_through_values(&self, loop_info: &Loop) -> Vec<ValueId> {
+        let mut carry_through = Vec::new();
+        for outer in &self.loops {
+            if outer.header == loop_info.header || !outer.blocks.contains(&loop_info.header) {
+                continue;
+            }
+            let Some(results) = self.header_results.get(&outer.header) else {
+                continue;
+            };
+            for &value in results {
+                if carry_through.contains(&value)
+                    || !self.value_used_in_blocks(&loop_info.blocks, value)
+                {
+                    continue;
+                }
+                carry_through.push(value);
+            }
+        }
+        carry_through
+    }
+
+    fn value_used_in_blocks(&self, blocks: &FxHashSet<BlockId>, value: ValueId) -> bool {
+        for &block_id in blocks {
+            let block = &self.func.blocks[block_id];
+            for &inst_id in &block.instructions {
+                if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                    continue;
+                }
+                if self.func.instructions[inst_id].kind.operands().contains(&value) {
+                    return true;
+                }
+            }
+            if block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn phi_result_values(&self, phi_insts: &[InstId]) -> Option<Vec<ValueId>> {
+        phi_insts.iter().map(|&inst| self.func.inst_result_value(inst)).collect()
+    }
+
+    fn phi_sources_for_pred(&self, phi_insts: &[InstId], pred: BlockId) -> Option<Vec<ValueId>> {
+        phi_insts
+            .iter()
+            .map(|&inst| {
+                let InstKind::Phi(incoming) = &self.func.instructions[inst].kind else {
+                    return None;
+                };
+                incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
+            })
+            .collect()
+    }
+}
+
 /// EVM code generator.
 pub struct EvmCodegen {
     /// The assembler for bytecode generation.
@@ -835,7 +998,7 @@ impl EvmCodegen {
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
-        let stack_phi_plan = Self::plan_stack_phis(func);
+        let stack_phi_plan = StackPhiPlan::analyze(func);
         self.stack_phi_sources = stack_phi_plan.edge_sources.clone();
 
         // Reset scheduler
@@ -900,11 +1063,7 @@ impl EvmCodegen {
                 }
 
                 // Find the value ID that corresponds to this instruction (if any)
-                let result_value = func
-                    .values
-                    .iter_enumerated()
-                    .find(|(_, v)| matches!(v, crate::mir::Value::Inst(id) if *id == inst_id))
-                    .map(|(vid, _)| vid);
+                let result_value = func.inst_result_value(inst_id);
 
                 // Generate the instruction
                 self.generate_inst(func, &inst.kind, liveness, block_id, inst_idx, result_value);
@@ -1117,155 +1276,6 @@ impl EvmCodegen {
         }
     }
 
-    fn plan_stack_phis(func: &Function) -> StackPhiPlan {
-        let mut plan = StackPhiPlan::default();
-
-        let mut loop_analyzer = LoopAnalyzer::new();
-        let loop_info = loop_analyzer.analyze(func);
-        let mut loops: Vec<_> = loop_info.all_loops().cloned().collect();
-        loops.sort_by_key(|loop_info| loop_info.header.index());
-
-        let mut header_results = FxHashMap::default();
-        for loop_info in &loops {
-            let block = &func.blocks[loop_info.header];
-            let phi_insts = Self::leading_phi_insts(func, block);
-            if let Some(results) = Self::phi_result_values(func, &phi_insts) {
-                header_results.insert(loop_info.header, results);
-            }
-        }
-
-        'loops: for loop_info in &loops {
-            let Some(preheader) = loop_info.preheader else {
-                continue;
-            };
-            let [latch] = loop_info.back_edges.as_slice() else {
-                continue;
-            };
-            if !matches!(func.blocks[preheader].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
-                || !matches!(func.blocks[*latch].terminator, Some(Terminator::Jump(target)) if target == loop_info.header)
-            {
-                continue;
-            }
-            if plan.edges.contains_key(&preheader) || plan.edges.contains_key(latch) {
-                continue;
-            }
-
-            let block_id = loop_info.header;
-            let block = &func.blocks[block_id];
-            let phi_insts = Self::leading_phi_insts(func, block);
-            if phi_insts.is_empty() || phi_insts.len() > STACK_PHI_LAYOUT_LIMIT {
-                continue;
-            }
-
-            let Some(results) = Self::phi_result_values(func, &phi_insts) else {
-                continue;
-            };
-            if results.len() > STACK_PHI_LAYOUT_LIMIT {
-                continue;
-            }
-            let carry_through =
-                Self::stack_phi_carry_through_values(func, loop_info, &loops, &header_results);
-            if carry_through.len() + results.len() > STACK_PHI_LAYOUT_LIMIT {
-                continue;
-            }
-            let mut entry = carry_through.clone();
-            entry.extend(results.iter().copied());
-
-            let predecessors = [preheader, *latch];
-            let mut edges = Vec::with_capacity(predecessors.len());
-            for pred in predecessors {
-                let Some(phi_sources) = Self::phi_sources_for_pred(func, &phi_insts, pred) else {
-                    continue 'loops;
-                };
-                let mut sources = carry_through.clone();
-                sources.extend(phi_sources);
-                debug_assert_eq!(sources.len(), entry.len());
-                edges.push((pred, sources));
-            }
-
-            plan.entries.insert(block_id, entry.clone());
-            for (pred, sources) in edges {
-                plan.edge_sources.insert(pred, sources.iter().copied().collect());
-                plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
-            }
-        }
-
-        plan
-    }
-
-    fn leading_phi_insts(func: &Function, block: &crate::mir::BasicBlock) -> Vec<InstId> {
-        block
-            .instructions
-            .iter()
-            .copied()
-            .take_while(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)))
-            .collect()
-    }
-
-    fn stack_phi_carry_through_values(
-        func: &Function,
-        loop_info: &Loop,
-        loops: &[Loop],
-        header_results: &FxHashMap<BlockId, Vec<ValueId>>,
-    ) -> Vec<ValueId> {
-        let mut carry_through = Vec::new();
-        for outer in loops {
-            if outer.header == loop_info.header || !outer.blocks.contains(&loop_info.header) {
-                continue;
-            }
-            let Some(results) = header_results.get(&outer.header) else {
-                continue;
-            };
-            for &value in results {
-                if carry_through.contains(&value)
-                    || !Self::value_used_in_blocks(func, &loop_info.blocks, value)
-                {
-                    continue;
-                }
-                carry_through.push(value);
-            }
-        }
-        carry_through
-    }
-
-    fn value_used_in_blocks(func: &Function, blocks: &FxHashSet<BlockId>, value: ValueId) -> bool {
-        for &block_id in blocks {
-            let block = &func.blocks[block_id];
-            for &inst_id in &block.instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
-                    continue;
-                }
-                if func.instructions[inst_id].kind.operands().contains(&value) {
-                    return true;
-                }
-            }
-            if block.terminator.as_ref().is_some_and(|term| term.operands().contains(&value)) {
-                return true;
-            }
-        }
-        false
-    }
-
-    fn phi_result_values(func: &Function, phi_insts: &[InstId]) -> Option<Vec<ValueId>> {
-        phi_insts.iter().map(|&inst| Self::inst_result_value(func, inst)).collect()
-    }
-
-    fn phi_sources_for_pred(
-        func: &Function,
-        phi_insts: &[InstId],
-        pred: BlockId,
-    ) -> Option<Vec<ValueId>> {
-        phi_insts
-            .iter()
-            .map(|&inst| {
-                let InstKind::Phi(incoming) = &func.instructions[inst].kind else {
-                    return None;
-                };
-                incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
-            })
-            .collect()
-    }
-
     fn set_stack_to_values(&mut self, values: &[ValueId]) {
         self.scheduler.stack.clear();
         for &value in values.iter().rev() {
@@ -1442,7 +1452,7 @@ impl EvmCodegen {
             }
             for &inst_id in &func.blocks[block_id].instructions {
                 if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
-                    && let Some(val) = Self::inst_result_value(func, inst_id)
+                    && let Some(val) = func.inst_result_value(inst_id)
                 {
                     values.insert(val);
                 }
@@ -1513,20 +1523,13 @@ impl EvmCodegen {
         }
         for &inst_id in &func.blocks[block_id].instructions {
             if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
-                && let Some(val) = Self::inst_result_value(func, inst_id)
+                && let Some(val) = func.inst_result_value(inst_id)
                 && !self.scheduler.stack.contains(val)
                 && self.scheduler.spills.get(val).is_some()
             {
                 self.scheduler.spills.mark_reloadable(val);
             }
         }
-    }
-
-    fn inst_result_value(func: &Function, inst_id: InstId) -> Option<ValueId> {
-        func.values
-            .iter_enumerated()
-            .find(|(_, v)| matches!(v, crate::mir::Value::Inst(id) if *id == inst_id))
-            .map(|(vid, _)| vid)
     }
 
     fn spill_values_before_stack_clear(&mut self, func: &Function, values: &[ValueId]) {
