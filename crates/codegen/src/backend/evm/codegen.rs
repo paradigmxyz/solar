@@ -1107,14 +1107,16 @@ impl EvmCodegen {
             // A conditional branch whose other arm is a cold revert can carry
             // its single freshly-computed live-out on the stack into the hot
             // arm, which restores it as its recorded entry layout.
-            let preserve_branch_target = (!preserve_stack_to_fallthrough
-                && preserve_jump_target.is_none())
-            .then(|| self.branch_preserve_target(func, liveness, block_id, pos, &block_pos))
-            .flatten();
+            let preserve_branch_targets =
+                if !preserve_stack_to_fallthrough && preserve_jump_target.is_none() {
+                    self.branch_preserve_targets(func, liveness, block_id, pos, &block_pos)
+                } else {
+                    Vec::new()
+                };
 
             let preserve_stack = preserve_stack_to_fallthrough
                 || preserve_jump_target.is_some()
-                || preserve_branch_target.is_some()
+                || !preserve_branch_targets.is_empty()
                 || stack_phi_preserved;
 
             // Spill all live-out values before the terminator so they can be reloaded in successor
@@ -1129,7 +1131,10 @@ impl EvmCodegen {
             }
             if preserve_stack_to_fallthrough {
                 preserved_fallthrough = fallthrough;
-            } else if let Some(target) = preserve_jump_target.or(preserve_branch_target) {
+            } else if let Some(target) = preserve_jump_target {
+                block_entry_stacks.insert(target, self.scheduler.stack.clone());
+            }
+            for target in preserve_branch_targets {
                 block_entry_stacks.insert(target, self.scheduler.stack.clone());
             }
         }
@@ -1159,71 +1164,71 @@ impl EvmCodegen {
         (!has_phi).then_some(*target)
     }
 
-    /// Returns the hot successor of a `Branch` whose single freshly-computed
-    /// live-out value can be carried on the stack into it, instead of being
-    /// spilled and reloaded, because the other arm is a cold revert.
+    /// Returns branch successors that can receive the current stack layout.
     ///
-    /// Eligible only in the textbook checked-arithmetic shape, where right
-    /// before the terminator the stack holds exactly `[carried, condition]`:
-    /// the branch condition on top and one tracked, live-out value beneath it.
-    /// The carried value is still spilled eagerly when computed, so the memory
-    /// copy remains a correct fallback; the stack copy just lets the hot arm
-    /// `DUP` it instead of reloading. The hot arm must own this edge alone
-    /// (single predecessor), be emitted later (its entry layout isn't fixed
-    /// yet), carry no phis, and actually use the carried value.
-    fn branch_preserve_target(
+    /// This handles loop headers after stack-resident phi planning: the header
+    /// computes the branch condition while the carried phi values remain below
+    /// it. If both successors are private, later blocks, we can leave those
+    /// values on the stack for both edges instead of spilling them before every
+    /// loop condition.
+    fn branch_preserve_targets(
         &self,
         func: &Function,
         liveness: &Liveness,
         block_id: BlockId,
         pos: usize,
         block_pos: &FxHashMap<BlockId, usize>,
-    ) -> Option<BlockId> {
+    ) -> Vec<BlockId> {
         let Some(Terminator::Branch { condition, then_block, else_block }) =
             func.blocks[block_id].terminator.as_ref()
         else {
-            return None;
+            return Vec::new();
         };
 
-        // Exactly one arm must be cold; the other is the hot arm we carry into.
-        let then_cold = Self::block_is_cold(func, *then_block);
-        let else_cold = Self::block_is_cold(func, *else_block);
-        if then_cold == else_cold {
-            return None;
-        }
-        let hot = if then_cold { *else_block } else { *then_block };
-        if hot == block_id {
-            return None;
+        if self.scheduler.stack.depth() <= 1 || self.scheduler.stack.top() != Some(*condition) {
+            return Vec::new();
         }
 
-        // The hot arm must own this edge alone, be emitted later, carry no phis.
-        if func.blocks[hot].predecessors.as_slice() != [block_id] {
-            return None;
-        }
-        if block_pos.get(&hot).copied() <= Some(pos) {
-            return None;
-        }
-        if func.blocks[hot]
-            .instructions
+        let Some(carried) = self
+            .scheduler
+            .stack
             .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)))
-        {
-            return None;
+            .skip(1)
+            .map(|slot| {
+                let value = slot?;
+                liveness.live_out(block_id).contains(value).then_some(value)
+            })
+            .collect::<Option<Vec<_>>>()
+        else {
+            return Vec::new();
+        };
+        if carried.len() > STACK_PHI_LAYOUT_LIMIT {
+            return Vec::new();
         }
 
-        // The stack must be exactly `[carried, condition]`.
-        if self.scheduler.stack.depth() != 2 || self.scheduler.stack.top() != Some(*condition) {
-            return None;
+        let targets = [*then_block, *else_block];
+        let mut live_in_any_target = FxHashSet::default();
+        for target in targets {
+            live_in_any_target.extend(liveness.live_in(target).iter());
         }
-        let carried = self.scheduler.stack.peek(1)?;
-        if !matches!(func.value(carried), crate::mir::Value::Inst(_))
-            || !liveness.live_out(block_id).contains(carried)
-            || !liveness.live_in(hot).contains(carried)
-        {
-            return None;
+        if carried.iter().any(|value| !live_in_any_target.contains(value)) {
+            return Vec::new();
         }
 
-        Some(hot)
+        for target in targets {
+            if target == block_id
+                || func.blocks[target].predecessors.as_slice() != [block_id]
+                || block_pos.get(&target).copied() <= Some(pos)
+                || func.blocks[target]
+                    .instructions
+                    .iter()
+                    .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)))
+            {
+                return Vec::new();
+            }
+        }
+
+        targets.into()
     }
 
     /// Returns true when a block is statically cold: it only aborts execution
