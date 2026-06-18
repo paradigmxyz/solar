@@ -219,7 +219,9 @@ impl<'a> StackPhiPlanner<'a> {
             .instructions
             .iter()
             .copied()
-            .take_while(|&inst| matches!(self.func.instructions[inst].kind, InstKind::Phi(_)))
+            .take_while(|&inst| {
+                matches!(self.func.instructions[inst].kind, crate::mir::InstTag::Phi)
+            })
             .collect()
     }
 
@@ -248,7 +250,7 @@ impl<'a> StackPhiPlanner<'a> {
         for &block_id in blocks {
             let block = &self.func.blocks[block_id];
             for &inst_id in &block.instructions {
-                if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                if matches!(self.func.instructions[inst_id].kind, crate::mir::InstTag::Phi) {
                     continue;
                 }
                 if self.func.instructions[inst_id].operands().contains(&value) {
@@ -270,10 +272,8 @@ impl<'a> StackPhiPlanner<'a> {
         phi_insts
             .iter()
             .map(|&inst| {
-                let InstKind::Phi(incoming) = &self.func.instructions[inst].kind else {
-                    return None;
-                };
-                incoming.iter().find_map(|&(block, value)| (block == pred).then_some(value))
+                let incoming = self.func.instructions[inst].phi_incoming()?;
+                incoming.into_iter().find_map(|(block, value)| (block == pred).then_some(value))
             })
             .collect()
     }
@@ -1058,7 +1058,7 @@ impl EvmCodegen {
                 let inst = &func.instructions[inst_id];
 
                 // Skip phi instructions (they're handled by copies)
-                if matches!(inst.kind, InstKind::Phi(_)) {
+                if matches!(inst.kind, crate::mir::InstTag::Phi) {
                     continue;
                 }
 
@@ -1066,7 +1066,7 @@ impl EvmCodegen {
                 let result_value = func.inst_result_value(inst_id);
 
                 // Generate the instruction
-                self.generate_inst(func, &inst.kind, liveness, block_id, inst_idx, result_value);
+                self.generate_inst(func, inst.kind(), liveness, block_id, inst_idx, result_value);
                 if let Some(result) = result_value {
                     self.spill_reserved_result_if_live(func, liveness, block_id, inst_idx, result);
                 }
@@ -1160,7 +1160,7 @@ impl EvmCodegen {
         let has_phi = func.blocks[*target]
             .instructions
             .iter()
-            .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)));
+            .any(|&inst| matches!(func.instructions[inst].kind, crate::mir::InstTag::Phi));
         (!has_phi).then_some(*target)
     }
 
@@ -1222,7 +1222,7 @@ impl EvmCodegen {
                 || func.blocks[target]
                     .instructions
                     .iter()
-                    .any(|&inst| matches!(func.instructions[inst].kind, InstKind::Phi(_)))
+                    .any(|&inst| matches!(func.instructions[inst].kind, crate::mir::InstTag::Phi))
             {
                 return Vec::new();
             }
@@ -1456,7 +1456,7 @@ impl EvmCodegen {
                 }
             }
             for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+                if matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
                     && let Some(val) = func.inst_result_value(inst_id)
                 {
                     values.insert(val);
@@ -1527,7 +1527,7 @@ impl EvmCodegen {
             }
         }
         for &inst_id in &func.blocks[block_id].instructions {
-            if matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+            if matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
                 && let Some(val) = func.inst_result_value(inst_id)
                 && !self.scheduler.stack.contains(val)
                 && self.scheduler.spills.get(val).is_some()
@@ -1702,15 +1702,15 @@ impl EvmCodegen {
         };
         matches!(
             func.instruction(*inst_id).kind,
-            InstKind::Add(_, _)
-                | InstKind::Sub(_, _)
-                | InstKind::Mul(_, _)
-                | InstKind::And(_, _)
-                | InstKind::Or(_, _)
-                | InstKind::Xor(_, _)
-                | InstKind::Shl(_, _)
-                | InstKind::Shr(_, _)
-                | InstKind::Sar(_, _)
+            crate::mir::InstTag::Add
+                | crate::mir::InstTag::Sub
+                | crate::mir::InstTag::Mul
+                | crate::mir::InstTag::And
+                | crate::mir::InstTag::Or
+                | crate::mir::InstTag::Xor
+                | crate::mir::InstTag::Shl
+                | crate::mir::InstTag::Shr
+                | crate::mir::InstTag::Sar
         )
     }
 
@@ -1741,7 +1741,7 @@ impl EvmCodegen {
     fn generate_inst(
         &mut self,
         func: &Function,
-        kind: &InstKind,
+        kind: InstKind,
         liveness: &Liveness,
         block: BlockId,
         inst_idx: usize,
@@ -1756,8 +1756,8 @@ impl EvmCodegen {
             // Binary arithmetic operations
             InstKind::Add(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::ADD,
                 result_value,
                 liveness,
@@ -1766,8 +1766,8 @@ impl EvmCodegen {
             ),
             InstKind::Sub(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::SUB,
                 result_value,
                 liveness,
@@ -1776,8 +1776,8 @@ impl EvmCodegen {
             ),
             InstKind::Mul(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::MUL,
                 result_value,
                 liveness,
@@ -1786,8 +1786,8 @@ impl EvmCodegen {
             ),
             InstKind::Div(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::DIV,
                 result_value,
                 liveness,
@@ -1796,8 +1796,8 @@ impl EvmCodegen {
             ),
             InstKind::SDiv(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::SDIV,
                 result_value,
                 liveness,
@@ -1806,8 +1806,8 @@ impl EvmCodegen {
             ),
             InstKind::Mod(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::MOD,
                 result_value,
                 liveness,
@@ -1816,8 +1816,8 @@ impl EvmCodegen {
             ),
             InstKind::SMod(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::SMOD,
                 result_value,
                 liveness,
@@ -1826,8 +1826,8 @@ impl EvmCodegen {
             ),
             InstKind::Exp(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::EXP,
                 result_value,
                 liveness,
@@ -1838,8 +1838,8 @@ impl EvmCodegen {
             // Bitwise operations
             InstKind::And(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::AND,
                 result_value,
                 liveness,
@@ -1848,8 +1848,8 @@ impl EvmCodegen {
             ),
             InstKind::Or(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::OR,
                 result_value,
                 liveness,
@@ -1858,8 +1858,8 @@ impl EvmCodegen {
             ),
             InstKind::Xor(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::XOR,
                 result_value,
                 liveness,
@@ -1868,7 +1868,7 @@ impl EvmCodegen {
             ),
             InstKind::Not(a) => self.emit_unary_op_with_result(
                 func,
-                *a,
+                a,
                 op::NOT,
                 result_value,
                 liveness,
@@ -1877,8 +1877,8 @@ impl EvmCodegen {
             ),
             InstKind::Shl(shift, val) => self.emit_binary_op_with_result(
                 func,
-                *shift,
-                *val,
+                shift,
+                val,
                 op::SHL,
                 result_value,
                 liveness,
@@ -1887,8 +1887,8 @@ impl EvmCodegen {
             ),
             InstKind::Shr(shift, val) => self.emit_binary_op_with_result(
                 func,
-                *shift,
-                *val,
+                shift,
+                val,
                 op::SHR,
                 result_value,
                 liveness,
@@ -1897,8 +1897,8 @@ impl EvmCodegen {
             ),
             InstKind::Sar(shift, val) => self.emit_binary_op_with_result(
                 func,
-                *shift,
-                *val,
+                shift,
+                val,
                 op::SAR,
                 result_value,
                 liveness,
@@ -1907,8 +1907,8 @@ impl EvmCodegen {
             ),
             InstKind::Byte(i, x) => self.emit_binary_op_with_result(
                 func,
-                *i,
-                *x,
+                i,
+                x,
                 op::BYTE,
                 result_value,
                 liveness,
@@ -1919,8 +1919,8 @@ impl EvmCodegen {
             // Comparison operations - track results for branch conditions and Select
             InstKind::Lt(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::LT,
                 result_value,
                 liveness,
@@ -1929,8 +1929,8 @@ impl EvmCodegen {
             ),
             InstKind::Gt(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::GT,
                 result_value,
                 liveness,
@@ -1939,8 +1939,8 @@ impl EvmCodegen {
             ),
             InstKind::SLt(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::SLT,
                 result_value,
                 liveness,
@@ -1949,8 +1949,8 @@ impl EvmCodegen {
             ),
             InstKind::SGt(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::SGT,
                 result_value,
                 liveness,
@@ -1959,8 +1959,8 @@ impl EvmCodegen {
             ),
             InstKind::Eq(a, b) => self.emit_binary_op_with_result(
                 func,
-                *a,
-                *b,
+                a,
+                b,
                 op::EQ,
                 result_value,
                 liveness,
@@ -1969,7 +1969,7 @@ impl EvmCodegen {
             ),
             InstKind::IsZero(a) => self.emit_unary_op_with_result(
                 func,
-                *a,
+                a,
                 op::ISZERO,
                 result_value,
                 liveness,
@@ -1983,7 +1983,7 @@ impl EvmCodegen {
             // becomes an argument to another call.
             InstKind::MLoad(addr) => self.emit_unary_op_with_result(
                 func,
-                *addr,
+                addr,
                 op::MLOAD,
                 result_value,
                 liveness,
@@ -1992,8 +1992,8 @@ impl EvmCodegen {
             ),
             InstKind::MStore(addr, val) => self.emit_store_op_live_aware(
                 func,
-                *addr,
-                *val,
+                addr,
+                val,
                 op::MSTORE,
                 liveness,
                 block,
@@ -2001,8 +2001,8 @@ impl EvmCodegen {
             ),
             InstKind::MStore8(addr, val) => self.emit_store_op_live_aware(
                 func,
-                *addr,
-                *val,
+                addr,
+                val,
                 op::MSTORE8,
                 liveness,
                 block,
@@ -2016,7 +2016,7 @@ impl EvmCodegen {
             // Storage operations
             InstKind::SLoad(slot) => self.emit_unary_op_with_result(
                 func,
-                *slot,
+                slot,
                 op::SLOAD,
                 result_value,
                 liveness,
@@ -2025,8 +2025,8 @@ impl EvmCodegen {
             ),
             InstKind::SStore(slot, val) => self.emit_store_op_live_aware(
                 func,
-                *slot,
-                *val,
+                slot,
+                val,
                 op::SSTORE,
                 liveness,
                 block,
@@ -2034,7 +2034,7 @@ impl EvmCodegen {
             ),
             InstKind::TLoad(slot) => self.emit_unary_op_with_result(
                 func,
-                *slot,
+                slot,
                 op::TLOAD,
                 result_value,
                 liveness,
@@ -2043,8 +2043,8 @@ impl EvmCodegen {
             ),
             InstKind::TStore(slot, val) => self.emit_store_op_live_aware(
                 func,
-                *slot,
-                *val,
+                slot,
+                val,
                 op::TSTORE,
                 liveness,
                 block,
@@ -2054,7 +2054,7 @@ impl EvmCodegen {
             // Calldata operations
             InstKind::CalldataLoad(off) => self.emit_unary_op_with_result(
                 func,
-                *off,
+                off,
                 op::CALLDATALOAD,
                 result_value,
                 liveness,
@@ -2069,8 +2069,8 @@ impl EvmCodegen {
             // Hash operations
             InstKind::Keccak256(off, len) => self.emit_binary_op_with_result(
                 func,
-                *off,
-                *len,
+                off,
+                len,
                 op::KECCAK256,
                 result_value,
                 liveness,
@@ -2141,7 +2141,7 @@ impl EvmCodegen {
             }
             InstKind::Balance(addr) => self.emit_unary_op_with_result(
                 func,
-                *addr,
+                addr,
                 op::BALANCE,
                 result_value,
                 liveness,
@@ -2150,7 +2150,7 @@ impl EvmCodegen {
             ),
             InstKind::BlockHash(num) => self.emit_unary_op_with_result(
                 func,
-                *num,
+                num,
                 op::BLOCKHASH,
                 result_value,
                 liveness,
@@ -2159,7 +2159,7 @@ impl EvmCodegen {
             ),
             InstKind::BlobHash(idx) => self.emit_unary_op_with_result(
                 func,
-                *idx,
+                idx,
                 op::BLOBHASH,
                 result_value,
                 liveness,
@@ -2168,7 +2168,7 @@ impl EvmCodegen {
             ),
             InstKind::ExtCodeSize(addr) => self.emit_unary_op_with_result(
                 func,
-                *addr,
+                addr,
                 op::EXTCODESIZE,
                 result_value,
                 liveness,
@@ -2177,7 +2177,7 @@ impl EvmCodegen {
             ),
             InstKind::ExtCodeHash(addr) => self.emit_unary_op_with_result(
                 func,
-                *addr,
+                addr,
                 op::EXTCODEHASH,
                 result_value,
                 liveness,
@@ -2192,10 +2192,10 @@ impl EvmCodegen {
                 if self.in_constructor {
                     // The running constructor's own placeholders are never
                     // patched; read the staged scratch word instead.
-                    self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(*offset)));
+                    self.asm.emit_push(U256::from(IMMUTABLE_SCRATCH_BASE + u64::from(offset)));
                     self.asm.emit_op(op::MLOAD);
                 } else {
-                    self.asm.emit_push_immutable(*offset);
+                    self.asm.emit_push_immutable(offset);
                 }
                 self.scheduler.instruction_executed(0, result_value);
             }
@@ -2206,10 +2206,10 @@ impl EvmCodegen {
 
             // Ternary operations
             InstKind::AddMod(a, b, n) => {
-                self.emit_ternary_op(func, *a, *b, *n, op::ADDMOD, result_value)
+                self.emit_ternary_op(func, a, b, n, op::ADDMOD, result_value)
             }
             InstKind::MulMod(a, b, n) => {
-                self.emit_ternary_op(func, *a, *b, *n, op::MULMOD, result_value)
+                self.emit_ternary_op(func, a, b, n, op::MULMOD, result_value)
             }
 
             // Select is like a ternary conditional
@@ -2220,9 +2220,9 @@ impl EvmCodegen {
                 // Stack notation: rightmost = top (depth 0).
                 // Stack after emit_value calls: [f, t, cond] with cond on top.
 
-                self.emit_value(func, *false_val); // Stack: [f]
-                self.emit_operand(func, *true_val); // Stack: [f, t]
-                self.emit_operand(func, *cond); // Stack: [f, t, cond]
+                self.emit_value(func, false_val); // Stack: [f]
+                self.emit_operand(func, true_val); // Stack: [f, t]
+                self.emit_operand(func, cond); // Stack: [f, t, cond]
 
                 // Now compute: f + cond * (t - f)
                 // Stack is [f, t, cond] with cond on top (depth 0), t at depth 1, f at depth 2
@@ -2255,8 +2255,8 @@ impl EvmCodegen {
             // Sign extend
             InstKind::SignExtend(b, x) => self.emit_binary_op_with_result(
                 func,
-                *b,
-                *x,
+                b,
+                x,
                 op::SIGNEXTEND,
                 result_value,
                 liveness,
@@ -2269,9 +2269,9 @@ impl EvmCodegen {
 
             // Contract creation
             InstKind::Create(value, offset, size) => {
-                self.emit_value(func, *size);
-                self.emit_operand(func, *offset);
-                self.emit_operand(func, *value);
+                self.emit_value(func, size);
+                self.emit_operand(func, offset);
+                self.emit_operand(func, value);
                 self.asm.emit_op(op::CREATE);
                 // CREATE consumes 3 values and produces 1 (new contract address)
                 self.scheduler.instruction_executed(3, result_value);
@@ -2280,10 +2280,10 @@ impl EvmCodegen {
             InstKind::Create2(value, offset, size, salt) => {
                 // CREATE2 expects stack (top to bottom): salt, size, offset, value
                 // So we push in reverse order: value first (goes deepest), then offset, size, salt
-                self.emit_value(func, *value);
-                self.emit_operand(func, *offset);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *salt);
+                self.emit_value(func, value);
+                self.emit_operand(func, offset);
+                self.emit_operand(func, size);
+                self.emit_operand(func, salt);
                 self.asm.emit_op(op::CREATE2);
                 // CREATE2 consumes 4 values and produces 1 (new contract address)
                 self.scheduler.instruction_executed(4, result_value);
@@ -2298,13 +2298,13 @@ impl EvmCodegen {
                 // EVM pops in order: gas (TOS), addr, value, argsOffset, argsSize, retOffset,
                 // retSize So we push in reverse order: retSize first (deepest), gas
                 // last (TOS)
-                self.emit_value_fresh(func, *ret_size);
-                self.emit_value_fresh(func, *ret_offset);
-                self.emit_value_fresh(func, *args_size);
-                self.emit_value_fresh(func, *args_offset);
-                self.emit_value_fresh(func, *value);
-                self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_value_fresh(func, ret_size);
+                self.emit_value_fresh(func, ret_offset);
+                self.emit_value_fresh(func, args_size);
+                self.emit_value_fresh(func, args_offset);
+                self.emit_value_fresh(func, value);
+                self.emit_value_fresh(func, addr);
+                self.emit_value_fresh(func, gas);
 
                 // CALL consumes 7 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
@@ -2313,12 +2313,12 @@ impl EvmCodegen {
 
             InstKind::StaticCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 // STATICCALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
-                self.emit_value_fresh(func, *ret_size);
-                self.emit_value_fresh(func, *ret_offset);
-                self.emit_value_fresh(func, *args_size);
-                self.emit_value_fresh(func, *args_offset);
-                self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_value_fresh(func, ret_size);
+                self.emit_value_fresh(func, ret_offset);
+                self.emit_value_fresh(func, args_size);
+                self.emit_value_fresh(func, args_offset);
+                self.emit_value_fresh(func, addr);
+                self.emit_value_fresh(func, gas);
                 // STATICCALL consumes 6 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(op::STATICCALL, StackEffect { pops: 6, pushes: 1 }, push);
@@ -2326,12 +2326,12 @@ impl EvmCodegen {
 
             InstKind::DelegateCall { gas, addr, args_offset, args_size, ret_offset, ret_size } => {
                 // DELEGATECALL(gas, addr, argsOffset, argsSize, retOffset, retSize)
-                self.emit_value_fresh(func, *ret_size);
-                self.emit_value_fresh(func, *ret_offset);
-                self.emit_value_fresh(func, *args_size);
-                self.emit_value_fresh(func, *args_offset);
-                self.emit_value_fresh(func, *addr);
-                self.emit_value_fresh(func, *gas);
+                self.emit_value_fresh(func, ret_size);
+                self.emit_value_fresh(func, ret_offset);
+                self.emit_value_fresh(func, args_size);
+                self.emit_value_fresh(func, args_offset);
+                self.emit_value_fresh(func, addr);
+                self.emit_value_fresh(func, gas);
                 // DELEGATECALL consumes 6 values and produces 1 (success bool)
                 let push = result_value.map_or(StackPush::Unknown, StackPush::Tracked);
                 self.emit_op_with_effect(
@@ -2344,9 +2344,9 @@ impl EvmCodegen {
             InstKind::InternalCall { function, args, returns } => {
                 self.emit_internal_call(
                     func,
-                    *function,
-                    args,
-                    *returns as usize,
+                    function,
+                    &args,
+                    returns as usize,
                     result_value,
                     liveness,
                     block,
@@ -2355,7 +2355,7 @@ impl EvmCodegen {
             }
 
             InstKind::InternalFrameAddr(offset) => {
-                self.emit_current_internal_frame_addr(*offset);
+                self.emit_current_internal_frame_addr(offset);
                 if let Some(result) = result_value {
                     self.scheduler.stack.push(result);
                 }
@@ -2364,46 +2364,46 @@ impl EvmCodegen {
             // Log operations
             InstKind::Log0(offset, size) => {
                 // LOG0(offset, size) - stack order: offset on top, then size
-                self.emit_value(func, *size);
-                self.emit_operand(func, *offset);
+                self.emit_value(func, size);
+                self.emit_operand(func, offset);
                 self.asm.emit_op(op::LOG0);
                 self.scheduler.instruction_executed(2, None);
             }
             InstKind::Log1(offset, size, topic1) => {
                 // LOG1(offset, size, topic1) - stack order: offset, size, topic1
-                self.emit_value(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
+                self.emit_value(func, topic1);
+                self.emit_operand(func, size);
+                self.emit_operand(func, offset);
                 self.asm.emit_op(op::LOG1);
                 self.scheduler.instruction_executed(3, None);
             }
             InstKind::Log2(offset, size, topic1, topic2) => {
                 // LOG2(offset, size, topic1, topic2) - stack order: offset, size, topic1, topic2
-                self.emit_value(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
+                self.emit_value(func, topic2);
+                self.emit_operand(func, topic1);
+                self.emit_operand(func, size);
+                self.emit_operand(func, offset);
                 self.asm.emit_op(op::LOG2);
                 self.scheduler.instruction_executed(4, None);
             }
             InstKind::Log3(offset, size, topic1, topic2, topic3) => {
                 // LOG3(offset, size, topic1, topic2, topic3)
-                self.emit_value(func, *topic3);
-                self.emit_operand(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
+                self.emit_value(func, topic3);
+                self.emit_operand(func, topic2);
+                self.emit_operand(func, topic1);
+                self.emit_operand(func, size);
+                self.emit_operand(func, offset);
                 self.asm.emit_op(op::LOG3);
                 self.scheduler.instruction_executed(5, None);
             }
             InstKind::Log4(offset, size, topic1, topic2, topic3, topic4) => {
                 // LOG4(offset, size, topic1, topic2, topic3, topic4)
-                self.emit_value(func, *topic4);
-                self.emit_operand(func, *topic3);
-                self.emit_operand(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
+                self.emit_value(func, topic4);
+                self.emit_operand(func, topic3);
+                self.emit_operand(func, topic2);
+                self.emit_operand(func, topic1);
+                self.emit_operand(func, size);
+                self.emit_operand(func, offset);
                 self.asm.emit_op(op::LOG4);
                 self.scheduler.instruction_executed(6, None);
             }
@@ -2413,7 +2413,7 @@ impl EvmCodegen {
                 // CALLDATACOPY(destOffset, offset, size)
                 self.emit_copy_op_live_aware(
                     func,
-                    &[*size, *offset, *dest],
+                    &[size, offset, dest],
                     op::CALLDATACOPY,
                     liveness,
                     block,
@@ -2425,7 +2425,7 @@ impl EvmCodegen {
                 // CODECOPY(destOffset, offset, size)
                 self.emit_copy_op_live_aware(
                     func,
-                    &[*size, *offset, *dest],
+                    &[size, offset, dest],
                     op::CODECOPY,
                     liveness,
                     block,
@@ -2437,7 +2437,7 @@ impl EvmCodegen {
                 // RETURNDATACOPY(destOffset, offset, size)
                 self.emit_copy_op_live_aware(
                     func,
-                    &[*size, *offset, *dest],
+                    &[size, offset, dest],
                     op::RETURNDATACOPY,
                     liveness,
                     block,
@@ -2449,7 +2449,7 @@ impl EvmCodegen {
                 // MCOPY(destOffset, srcOffset, size)
                 self.emit_copy_op_live_aware(
                     func,
-                    &[*size, *src, *dest],
+                    &[size, src, dest],
                     op::MCOPY,
                     liveness,
                     block,
@@ -2461,7 +2461,7 @@ impl EvmCodegen {
                 // EXTCODECOPY(address, destOffset, offset, size)
                 self.emit_copy_op_live_aware(
                     func,
-                    &[*size, *offset, *dest, *addr],
+                    &[size, offset, dest, addr],
                     op::EXTCODECOPY,
                     liveness,
                     block,
@@ -2557,7 +2557,7 @@ impl EvmCodegen {
     }
 
     fn uses_internal_frame_slot(func: &Function) -> bool {
-        func.instructions.iter().any(|inst| matches!(inst.kind, InstKind::InternalCall { .. }))
+        func.instructions.iter().any(|inst| matches!(inst.kind, crate::mir::InstTag::InternalCall))
     }
 
     fn emit_external_free_memory_start(&mut self) -> DeferredConst {
@@ -2832,7 +2832,7 @@ impl EvmCodegen {
                     // Check if the instruction is one that we can "re-execute" to get a fresh value
                     // This handles GAS (which is always fresh) and MLOAD (which re-reads from
                     // memory)
-                    let inst_kind = &func.instruction(*inst_id).kind;
+                    let inst_kind = func.instruction(*inst_id).kind();
                     match inst_kind {
                         crate::mir::InstKind::Gas => {
                             self.asm.emit_op(op::GAS);
@@ -2855,7 +2855,7 @@ impl EvmCodegen {
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::InternalFrameAddr(offset) => {
-                            self.emit_current_internal_frame_addr(*offset);
+                            self.emit_current_internal_frame_addr(offset);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Timestamp => {
@@ -2875,7 +2875,7 @@ impl EvmCodegen {
                             //
                             // For other MLOAD addresses (reading from constant locations),
                             // re-emit is safe.
-                            self.emit_value_fresh(func, *offset);
+                            self.emit_value_fresh(func, offset);
                             self.asm.emit_op(op::MLOAD);
                             // Pop offset, push result
                             self.scheduler.stack.pop();
@@ -2885,8 +2885,8 @@ impl EvmCodegen {
                             // Re-emit KECCAK256 - memory content should still be valid.
                             // KECCAK256 reads s[0] = offset, s[1] = size, so emit the
                             // offset last so it ends up on top.
-                            self.emit_value_fresh(func, *size);
-                            self.emit_value_fresh(func, *offset);
+                            self.emit_value_fresh(func, size);
+                            self.emit_value_fresh(func, offset);
                             self.asm.emit_op(op::KECCAK256);
                             // Pop offset and size, push result
                             self.scheduler.stack.pop();
@@ -2894,38 +2894,38 @@ impl EvmCodegen {
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Add(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::ADD, true);
+                            self.emit_fresh_binary(func, val, a, b, op::ADD, true);
                         }
                         crate::mir::InstKind::Sub(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::SUB, false);
+                            self.emit_fresh_binary(func, val, a, b, op::SUB, false);
                         }
                         crate::mir::InstKind::Mul(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::MUL, true);
+                            self.emit_fresh_binary(func, val, a, b, op::MUL, true);
                         }
                         crate::mir::InstKind::And(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::AND, true);
+                            self.emit_fresh_binary(func, val, a, b, op::AND, true);
                         }
                         crate::mir::InstKind::Or(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::OR, true);
+                            self.emit_fresh_binary(func, val, a, b, op::OR, true);
                         }
                         crate::mir::InstKind::Xor(a, b) => {
-                            self.emit_fresh_binary(func, val, *a, *b, op::XOR, true);
+                            self.emit_fresh_binary(func, val, a, b, op::XOR, true);
                         }
                         crate::mir::InstKind::Shl(shift, value) => {
-                            self.emit_fresh_binary(func, val, *shift, *value, op::SHL, false);
+                            self.emit_fresh_binary(func, val, shift, value, op::SHL, false);
                         }
                         crate::mir::InstKind::Shr(shift, value) => {
-                            self.emit_fresh_binary(func, val, *shift, *value, op::SHR, false);
+                            self.emit_fresh_binary(func, val, shift, value, op::SHR, false);
                         }
                         crate::mir::InstKind::Sar(shift, value) => {
-                            self.emit_fresh_binary(func, val, *shift, *value, op::SAR, false);
+                            self.emit_fresh_binary(func, val, shift, value, op::SAR, false);
                         }
                         crate::mir::InstKind::SLoad(slot) => {
                             // Re-emit SLOAD. CALL operands are materialized in a
                             // tight sequence with no intervening store, so the
                             // storage slot reads the same value as the original
                             // load (same recompute contract as MLOAD above).
-                            self.emit_value_fresh(func, *slot);
+                            self.emit_value_fresh(func, slot);
                             self.asm.emit_op(op::SLOAD);
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);

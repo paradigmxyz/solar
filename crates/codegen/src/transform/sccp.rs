@@ -238,12 +238,12 @@ impl SccpPass {
         let block = &func.blocks[block_id];
 
         for &inst_id in &block.instructions {
-            if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
+            if matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi) {
                 continue;
             }
             if let Some(&vid) = inst_to_value.get(&inst_id) {
                 let new_val =
-                    self.evaluate_instruction(func, &func.instructions[inst_id].kind, lattice);
+                    self.evaluate_instruction(func, &func.instructions[inst_id].kind(), lattice);
                 if self.update_lattice(lattice, vid, new_val) {
                     ssa_worklist.push_back(vid);
                 }
@@ -269,7 +269,7 @@ impl SccpPass {
         let block = &func.blocks[block_id];
         for &inst_id in &block.instructions {
             let inst = &func.instructions[inst_id];
-            if let InstKind::Phi(incoming) = &inst.kind
+            if let InstKind::Phi(incoming) = &inst.kind()
                 && let Some(&vid) = inst_to_value.get(&inst_id)
             {
                 // Meet over all executable incoming edges.
@@ -586,14 +586,14 @@ impl SccpPass {
             }
             for &inst_id in &block.instructions {
                 let inst = &func.instructions[inst_id];
-                if matches!(inst.kind, InstKind::Phi(_)) {
+                if matches!(inst.kind, crate::mir::InstTag::Phi) {
                     continue;
                 }
                 let operands = inst.operands();
                 if operands.contains(&vid)
                     && let Some(&result_vid) = inst_to_value.get(&inst_id)
                 {
-                    let new_val = self.evaluate_instruction(func, &inst.kind, lattice);
+                    let new_val = self.evaluate_instruction(func, &inst.kind(), lattice);
                     if self.update_lattice(lattice, result_vid, new_val) {
                         ssa_worklist.push_back(result_vid);
                     }
@@ -674,8 +674,11 @@ impl SccpPass {
                 .collect();
             for inst_id in all_insts {
                 let inst = &mut func.instructions[inst_id];
-                replace_inst_operands(&mut inst.kind, &const_values);
-                inst.refresh_operands();
+                inst.visit_operands_mut(|value| {
+                    if let Some(&replacement) = const_values.get(value) {
+                        *value = replacement;
+                    }
+                });
             }
             for &block_id in &block_ids {
                 if let Some(term) = &mut func.blocks[block_id].terminator {
@@ -769,15 +772,6 @@ fn fits_signed(value: U256, bits: u16) -> bool {
     // Representable iff bits 255..=bits-1 of the 256-bit two's-complement word
     // all equal the sign bit.
     if value.bit(bits - 1) { (!value).bit_len() < bits } else { value.bit_len() < bits }
-}
-
-/// Replace operands in an instruction kind with constant replacements.
-fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-    kind.visit_operands_mut(|v| {
-        if let Some(&new_v) = replacements.get(v) {
-            *v = new_v;
-        }
-    });
 }
 
 /// Replace operands in a terminator.

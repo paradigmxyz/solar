@@ -15,7 +15,7 @@
 //!    updating all references to point to the final target.
 
 use crate::{
-    mir::{BlockId, Function, InstKind, Terminator, Value, ValueId},
+    mir::{BlockId, Function, Terminator, Value, ValueId},
     pass::FunctionPass,
     utils::repair_reachability_phis,
 };
@@ -263,14 +263,14 @@ impl JumpThreader {
         func.blocks[block_id]
             .instructions
             .iter()
-            .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .any(|&inst_id| matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi))
     }
 
     fn block_has_only_phis(func: &Function, block_id: BlockId) -> bool {
         func.blocks[block_id]
             .instructions
             .iter()
-            .all(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .all(|&inst_id| matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi))
     }
 
     fn block_phi_results_have_external_uses(func: &Function, block_id: BlockId) -> bool {
@@ -283,7 +283,6 @@ impl JumpThreader {
             if other_block != block_id {
                 for &inst_id in &block.instructions {
                     if func.instructions[inst_id]
-                        .kind
                         .operands()
                         .iter()
                         .any(|operand| phi_results.contains(operand))
@@ -311,7 +310,7 @@ impl JumpThreader {
             .instructions
             .iter()
             .copied()
-            .filter(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .filter(|&inst_id| matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi))
             .collect();
         func.values
             .iter_enumerated()
@@ -411,12 +410,9 @@ impl JumpThreader {
         if !func.blocks[block_id].instructions.contains(inst_id) {
             return None;
         }
-        let InstKind::Phi(incoming) = &func.instructions[*inst_id].kind else {
-            return None;
-        };
-        incoming.iter().find_map(|(incoming_block, incoming_value)| {
-            (*incoming_block == pred).then_some(*incoming_value)
-        })
+        func.instructions[*inst_id].phi_incoming()?.into_iter().find_map(
+            |(incoming_block, incoming_value)| (incoming_block == pred).then_some(incoming_value),
+        )
     }
 
     fn const_u256(func: &Function, value: ValueId) -> Option<alloy_primitives::U256> {

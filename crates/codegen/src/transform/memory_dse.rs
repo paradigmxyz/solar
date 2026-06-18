@@ -100,7 +100,7 @@ impl MemoryStoreEliminator {
             for (index, window) in insts.windows(2).enumerate() {
                 let codecopy = window[0];
                 let load = window[1];
-                let InstKind::CodeCopy(dest, src, size) = func.instructions[codecopy].kind else {
+                let InstKind::CodeCopy(dest, src, size) = func.instructions[codecopy].kind() else {
                     continue;
                 };
                 if Self::as_u64(func, size) != Some(32) {
@@ -109,7 +109,7 @@ impl MemoryStoreEliminator {
                 let Some(key) = Self::immutable_copy_key(func, src) else {
                     continue;
                 };
-                let InstKind::MLoad(load_addr) = func.instructions[load].kind else {
+                let InstKind::MLoad(load_addr) = func.instructions[load].kind() else {
                     continue;
                 };
                 if Self::mem_addr_key_static(func, dest)
@@ -160,7 +160,7 @@ impl MemoryStoreEliminator {
 
         for block in func.blocks.iter() {
             for &inst_id in &block.instructions {
-                let InstKind::MStore(addr, _) = func.instructions[inst_id].kind else {
+                let InstKind::MStore(addr, _) = func.instructions[inst_id].kind() else {
                     continue;
                 };
                 let Some(offset) = Self::internal_frame_offset(func, addr) else {
@@ -195,9 +195,9 @@ impl MemoryStoreEliminator {
 
         for &inst_id in inst_ids.iter().rev() {
             let inst = &func.instructions[inst_id];
-            match &inst.kind {
+            match inst.kind() {
                 InstKind::MStore(addr, _) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
+                    if let Some(key) = self.mem_addr_key(func, addr) {
                         if overwritten.contains(&key) {
                             dead.insert(inst_id);
                             self.eliminated_count += 1;
@@ -209,7 +209,7 @@ impl MemoryStoreEliminator {
                     }
                 }
                 InstKind::MLoad(addr) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
+                    if let Some(key) = self.mem_addr_key(func, addr) {
                         Self::remove_overlapping_set(&mut overwritten, key);
                     } else {
                         overwritten.clear();
@@ -221,19 +221,19 @@ impl MemoryStoreEliminator {
                     Self::insert_or_clear_full_word_overwritten_range(
                         func,
                         &mut overwritten,
-                        *dest,
-                        *size,
+                        dest,
+                        size,
                     );
                 }
                 InstKind::ExtCodeCopy(_, dest, _, size) => {
                     Self::insert_or_clear_full_word_overwritten_range(
                         func,
                         &mut overwritten,
-                        *dest,
-                        *size,
+                        dest,
+                        size,
                     );
                 }
-                kind if Self::is_memory_or_gas_observer(kind) => {
+                kind if Self::is_memory_or_gas_observer(&kind) => {
                     overwritten.clear();
                 }
                 _ => {}
@@ -292,7 +292,7 @@ impl MemoryStoreEliminator {
         block: BlockId,
     ) -> Option<(InstId, MemAddrKey)> {
         for &inst_id in func.blocks[block].instructions.iter().rev() {
-            match func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::MStore(addr, _) => {
                     let key = self.mem_addr_key(func, addr)?;
                     return Some((inst_id, key));
@@ -306,7 +306,7 @@ impl MemoryStoreEliminator {
 
     fn first_cross_block_overwrite(&self, func: &Function, block: BlockId) -> Option<MemAddrKey> {
         for &inst_id in &func.blocks[block].instructions {
-            match func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::MStore(addr, _) => return self.mem_addr_key(func, addr),
                 ref kind if Self::cross_block_memory_barrier(kind) => return None,
                 _ => {}
@@ -323,20 +323,20 @@ impl MemoryStoreEliminator {
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
 
         for &inst_id in &inst_ids {
-            match &func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::MStore(addr, value) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = self.mem_addr_key(func, addr) else {
                         stored_words.clear();
                         continue;
                     };
                     Self::remove_overlapping_map(&mut stored_words, key);
-                    if let Some(value) = Self::as_u256(func, *value) {
+                    if let Some(value) = Self::as_u256(func, value) {
                         stored_words.insert(key, value);
                     }
                 }
                 InstKind::Keccak256(offset, size) => {
                     let Some(bytes) =
-                        Self::constant_memory_bytes(func, &stored_words, *offset, *size)
+                        Self::constant_memory_bytes(func, &stored_words, offset, size)
                     else {
                         continue;
                     };
@@ -351,7 +351,7 @@ impl MemoryStoreEliminator {
                     dead.insert(inst_id);
                     self.eliminated_count += 1;
                 }
-                kind if Self::can_mutate_memory(kind) => {
+                kind if Self::can_mutate_memory(&kind) => {
                     stored_words.clear();
                 }
                 _ => {}
@@ -373,23 +373,23 @@ impl MemoryStoreEliminator {
 
         for &inst_id in &inst_ids {
             let inst = &func.instructions[inst_id];
-            match &inst.kind {
+            match inst.kind() {
                 InstKind::MStore(addr, value) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = self.mem_addr_key(func, addr) else {
                         stored_values.clear();
                         continue;
                     };
 
-                    if stored_values.get(&key).is_some_and(|&stored| stored == *value) {
+                    if stored_values.get(&key).is_some_and(|&stored| stored == value) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
                         continue;
                     }
 
                     Self::remove_overlapping_map(&mut stored_values, key);
-                    stored_values.insert(key, *value);
+                    stored_values.insert(key, value);
                 }
-                kind if Self::can_mutate_memory(kind) => {
+                kind if Self::can_mutate_memory(&kind) => {
                     stored_values.clear();
                 }
                 _ => {}
@@ -412,25 +412,21 @@ impl MemoryStoreEliminator {
 
         for &inst_id in &inst_ids {
             let inst = &func.instructions[inst_id];
-            match &inst.kind {
+            match inst.kind() {
                 InstKind::MStore(addr, value) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
-                        if !Self::remove_overlapping_write_range(
-                            func,
-                            &mut stored_values,
-                            *addr,
-                            32,
-                        ) {
+                    if let Some(key) = self.mem_addr_key(func, addr) {
+                        if !Self::remove_overlapping_write_range(func, &mut stored_values, addr, 32)
+                        {
                             stored_values.clear();
                             continue;
                         }
-                        stored_values.insert(key, Self::resolve_replacement(&replacements, *value));
+                        stored_values.insert(key, Self::resolve_replacement(&replacements, value));
                     } else {
                         stored_values.clear();
                     }
                 }
                 InstKind::MLoad(addr) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = self.mem_addr_key(func, addr) else {
                         continue;
                     };
                     let Some(&stored_value) = stored_values.get(&key) else {
@@ -442,38 +438,31 @@ impl MemoryStoreEliminator {
                     }
                 }
                 InstKind::MStore8(addr, _)
-                    if !Self::remove_overlapping_write_range(
-                        func,
-                        &mut stored_values,
-                        *addr,
-                        1,
-                    ) =>
+                    if !Self::remove_overlapping_write_range(func, &mut stored_values, addr, 1) =>
                 {
                     stored_values.clear();
                 }
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size) => {
-                    let Some(size) = Self::as_u64(func, *size) else {
+                    let Some(size) = Self::as_u64(func, size) else {
                         stored_values.clear();
                         continue;
                     };
-                    if !Self::remove_overlapping_write_range(func, &mut stored_values, *dest, size)
-                    {
+                    if !Self::remove_overlapping_write_range(func, &mut stored_values, dest, size) {
                         stored_values.clear();
                     }
                 }
                 InstKind::ExtCodeCopy(_, dest, _, size) => {
-                    let Some(size) = Self::as_u64(func, *size) else {
+                    let Some(size) = Self::as_u64(func, size) else {
                         stored_values.clear();
                         continue;
                     };
-                    if !Self::remove_overlapping_write_range(func, &mut stored_values, *dest, size)
-                    {
+                    if !Self::remove_overlapping_write_range(func, &mut stored_values, dest, size) {
                         stored_values.clear();
                     }
                 }
-                kind if Self::can_mutate_memory(kind) => {
+                kind if Self::can_mutate_memory(&kind) => {
                     stored_values.clear();
                 }
                 _ => {}
@@ -530,7 +519,7 @@ impl MemoryStoreEliminator {
                 let addr = imm.as_u256()?;
                 u64::try_from(addr).ok().map(MemAddrKey::Const)
             }
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind() {
                 InstKind::Add(a, b) => Self::add_addr_offset(func, a, b, depth)
                     .or_else(|| Self::add_addr_offset(func, b, a, depth))
                     .or(Some(MemAddrKey::BaseOffset { base: value, offset: 0 })),
@@ -558,7 +547,7 @@ impl MemoryStoreEliminator {
 
     fn immutable_copy_key(func: &Function, src: ValueId) -> Option<ImmutableCopyKey> {
         match func.values[src] {
-            Value::Inst(inst_id) => match func.instructions[inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[inst_id].kind() {
                 InstKind::Sub(code_size, len) if Self::is_codesize(func, code_size) => {
                     Some(ImmutableCopyKey { len: Self::as_u64(func, len)?, offset: 0 })
                 }
@@ -583,7 +572,7 @@ impl MemoryStoreEliminator {
     }
 
     fn is_codesize(func: &Function, value: ValueId) -> bool {
-        matches!(func.values[value], Value::Inst(inst_id) if matches!(func.instructions[inst_id].kind, InstKind::CodeSize))
+        matches!(func.values[value], Value::Inst(inst_id) if matches!(func.instructions[inst_id].kind(), InstKind::CodeSize))
     }
 
     fn copy_dominates(
@@ -764,7 +753,7 @@ impl MemoryStoreEliminator {
         let Value::Inst(inst_id) = func.values[value] else {
             return false;
         };
-        match func.instructions[inst_id].kind {
+        match func.instructions[inst_id].kind() {
             InstKind::MLoad(addr) => Self::as_u64(func, addr) == Some(0x40),
             InstKind::Add(a, b) => {
                 Self::is_fmp_heap_value(func, a, depth + 1)
@@ -804,7 +793,7 @@ impl MemoryStoreEliminator {
         func.blocks.iter().any(|block| {
             block.instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.instructions[inst_id].kind(),
                     InstKind::Gas | InstKind::MSize | InstKind::InternalCall { .. }
                 )
             })
@@ -816,7 +805,7 @@ impl MemoryStoreEliminator {
 
         for block in func.blocks.iter() {
             for &inst_id in &block.instructions {
-                match func.instructions[inst_id].kind {
+                match func.instructions[inst_id].kind() {
                     InstKind::MLoad(addr) => {
                         if let Some(offset) = Self::internal_frame_offset(func, addr) {
                             reads.push((offset, 32));
@@ -890,7 +879,7 @@ impl MemoryStoreEliminator {
         }
 
         match func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[inst_id].kind() {
                 InstKind::InternalFrameAddr(offset) => Some(offset),
                 InstKind::Add(a, b) => Self::internal_frame_add_offset(func, a, b, depth)
                     .or_else(|| Self::internal_frame_add_offset(func, b, a, depth)),
@@ -936,22 +925,17 @@ impl MemoryStoreEliminator {
         }
 
         for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
-            inst.refresh_operands();
+            inst.visit_operands_mut(|value| {
+                if let Some(&replacement) = replacements.get(value) {
+                    *value = replacement;
+                }
+            });
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
                 Self::replace_terminator_operands(term, replacements);
             }
         }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            if replacements.contains_key(value) {
-                *value = Self::resolve_replacement(replacements, *value);
-            }
-        });
     }
 
     fn replace_terminator_operands(
@@ -1157,7 +1141,7 @@ mod tests {
         let mut loads = 0;
         let mut stores = 0;
         for inst_id in active_insts {
-            match func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::CodeCopy(_, _, _) => code_copies += 1,
                 InstKind::MLoad(_) => loads += 1,
                 InstKind::MStore(_, _) => stores += 1,
@@ -1169,7 +1153,7 @@ mod tests {
         assert_eq!(stores, 1);
 
         let add = match &func.values[sum] {
-            Value::Inst(inst_id) => &func.instructions[*inst_id].kind,
+            Value::Inst(inst_id) => &func.instructions[*inst_id].kind(),
             _ => panic!("expected add instruction"),
         };
         let InstKind::Add(lhs, rhs) = *add else {

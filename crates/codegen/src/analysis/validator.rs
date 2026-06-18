@@ -222,9 +222,9 @@ impl Validator {
                 }
 
                 // Phi-specific checks.
-                if let InstKind::Phi(incoming) = &inst.kind {
+                if let InstKind::Phi(incoming) = inst.kind() {
                     // Every incoming block must be a predecessor.
-                    for (pred_block, _) in incoming {
+                    for (pred_block, _) in &incoming {
                         if pred_block.index() >= num_blocks {
                             errors.push(ValidationError::at_inst(
                                 format!(

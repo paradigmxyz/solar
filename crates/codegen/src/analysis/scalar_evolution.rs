@@ -144,7 +144,7 @@ impl ScalarEvolution {
                 if loop_data.induction_vars.iter().any(|iv| iv.value == value) {
                     AffineExpr::induction(value)
                 } else {
-                    match func.instructions[*inst_id].kind {
+                    match func.instructions[*inst_id].kind() {
                         InstKind::Add(a, b) => {
                             let a = self.affine_expr(func, loop_data, a)?;
                             let b = self.affine_expr(func, loop_data, b)?;

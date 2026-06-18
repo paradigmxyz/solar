@@ -165,7 +165,7 @@ impl IndVarSimplifier {
         update_inst: Option<InstId>,
     ) -> Option<i128> {
         let update_inst = update_inst?;
-        let InstKind::Add(a, b) = func.instructions[update_inst].kind else {
+        let InstKind::Add(a, b) = func.instructions[update_inst].kind() else {
             return None;
         };
         let step = if a == iv_value {
@@ -227,11 +227,7 @@ impl IndVarSimplifier {
             InstKind::Add(phi_value, delta),
             Some(MirType::uint256()),
         );
-        let InstKind::Phi(incoming) = &mut func.instructions[phi_inst].kind else {
-            return None;
-        };
-        incoming.push((latch, next));
-        func.instructions[phi_inst].refresh_operands();
+        func.instructions[phi_inst].update_phi_incoming(|incoming| incoming.push((latch, next)));
         self.stats.pointer_phis_inserted += 1;
         Some(phi_value)
     }
@@ -278,7 +274,9 @@ impl IndVarSimplifier {
         let insert_pos = func.blocks[header]
             .instructions
             .iter()
-            .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .take_while(|&&inst_id| {
+                matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
+            })
             .count();
         func.blocks[header].instructions.insert(insert_pos, phi_inst);
     }
@@ -289,7 +287,10 @@ impl IndVarSimplifier {
         }
         matches!(
             func.instructions[inst_id].kind,
-            InstKind::Add(_, _) | InstKind::Sub(_, _) | InstKind::Mul(_, _) | InstKind::Shl(_, _)
+            crate::mir::InstTag::Add
+                | crate::mir::InstTag::Sub
+                | crate::mir::InstTag::Mul
+                | crate::mir::InstTag::Shl
         )
     }
 
@@ -314,8 +315,8 @@ impl IndVarSimplifier {
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
         for &block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
-                let kind = &func.instructions[inst_id].kind;
-                if kind.operands().contains(&value) && !Self::is_address_builder(kind) {
+                let kind = func.instructions[inst_id].kind();
+                if kind.operands().contains(&value) && !Self::is_address_builder(&kind) {
                     return true;
                 }
             }
@@ -348,8 +349,12 @@ impl IndVarSimplifier {
             let insts = func.blocks[block].instructions.clone();
             for inst_id in insts {
                 let inst = &mut func.instructions[inst_id];
-                replaced += self.replace_inst_operands(&mut inst.kind, replacements);
-                inst.refresh_operands();
+                let mut kind = inst.kind();
+                let changed = self.replace_inst_operands(&mut kind, replacements);
+                if changed != 0 {
+                    inst.set_kind(kind);
+                }
+                replaced += changed;
             }
             if let Some(term) = &mut func.blocks[block].terminator {
                 replaced += self.replace_terminator_operands(term, replacements);

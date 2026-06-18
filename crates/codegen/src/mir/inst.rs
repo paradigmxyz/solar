@@ -206,7 +206,7 @@ impl StorageAlias {
     pub fn for_value(func: &Function, value: ValueId) -> Self {
         match func.value(value) {
             Value::Immediate(imm) => imm.as_u256().map_or(Self::Symbolic(value), Self::Slot),
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind() {
                 InstKind::Add(lhs, rhs) => {
                     if let Some(offset) = Self::immediate_u256(func, rhs) {
                         Self::add_offset(func, lhs, offset)
@@ -357,13 +357,31 @@ impl EffectKind {
     }
 }
 
+/// Non-`ValueId` instruction payload data.
+#[derive(Clone, Debug, Default)]
+enum InstData {
+    /// No extra payload.
+    #[default]
+    None,
+    /// Immediate payload for `internal_frame_addr`.
+    InternalFrameAddr(u64),
+    /// Immediate payload for `loadimmutable`.
+    LoadImmutable(u32),
+    /// Non-operand payload for `internal_call`.
+    InternalCall { function: FunctionId, returns: u32 },
+    /// Predecessor blocks for phi operands.
+    Phi { blocks: Vec<BlockId> },
+}
+
 /// An instruction in the MIR.
 #[derive(Clone, Debug)]
 pub struct Instruction {
-    /// The kind of instruction.
-    pub kind: InstKind,
-    /// Cached SSA operands for generic operand walks.
+    /// The tag-only kind of instruction.
+    pub kind: InstTag,
+    /// SSA operands for generic operand walks.
     operands: SmallVec<[ValueId; 8]>,
+    /// Non-`ValueId` instruction payload data.
+    data: InstData,
     /// The result type (if any).
     pub result_ty: Option<MirType>,
     /// Metadata produced by lowering or analysis.
@@ -374,8 +392,161 @@ impl Instruction {
     /// Creates a new instruction.
     #[must_use]
     pub fn new(kind: InstKind, result_ty: Option<MirType>) -> Self {
-        let operands = kind.operands();
-        Self { kind, operands, result_ty, metadata: InstructionMetadata::EMPTY }
+        let (kind, operands, data) = Self::lower_kind(kind);
+        Self { kind, operands, data, result_ty, metadata: InstructionMetadata::EMPTY }
+    }
+
+    fn lower_kind(kind: InstKind) -> (InstTag, SmallVec<[ValueId; 8]>, InstData) {
+        let tag = kind.tag();
+        let mut operands = SmallVec::new();
+        let data = match kind {
+            InstKind::InternalFrameAddr(offset) => InstData::InternalFrameAddr(offset),
+            InstKind::LoadImmutable(offset) => InstData::LoadImmutable(offset),
+            InstKind::InternalCall { function, args, returns } => {
+                operands.extend(args.iter().copied());
+                InstData::InternalCall { function, returns }
+            }
+            InstKind::Phi(incoming) => {
+                let mut blocks = Vec::with_capacity(incoming.len());
+                for (block, value) in incoming {
+                    blocks.push(block);
+                    operands.push(value);
+                }
+                InstData::Phi { blocks }
+            }
+            kind => {
+                kind.collect_operands(&mut operands);
+                InstData::None
+            }
+        };
+        (tag, operands, data)
+    }
+
+    /// Returns the matching form of this instruction.
+    #[must_use]
+    pub fn kind(&self) -> InstKind {
+        let op = |index| self.operands[index];
+        match self.kind {
+            InstTag::Add => InstKind::Add(op(0), op(1)),
+            InstTag::Sub => InstKind::Sub(op(0), op(1)),
+            InstTag::Mul => InstKind::Mul(op(0), op(1)),
+            InstTag::Div => InstKind::Div(op(0), op(1)),
+            InstTag::SDiv => InstKind::SDiv(op(0), op(1)),
+            InstTag::Mod => InstKind::Mod(op(0), op(1)),
+            InstTag::SMod => InstKind::SMod(op(0), op(1)),
+            InstTag::Exp => InstKind::Exp(op(0), op(1)),
+            InstTag::AddMod => InstKind::AddMod(op(0), op(1), op(2)),
+            InstTag::MulMod => InstKind::MulMod(op(0), op(1), op(2)),
+            InstTag::And => InstKind::And(op(0), op(1)),
+            InstTag::Or => InstKind::Or(op(0), op(1)),
+            InstTag::Xor => InstKind::Xor(op(0), op(1)),
+            InstTag::Not => InstKind::Not(op(0)),
+            InstTag::Shl => InstKind::Shl(op(0), op(1)),
+            InstTag::Shr => InstKind::Shr(op(0), op(1)),
+            InstTag::Sar => InstKind::Sar(op(0), op(1)),
+            InstTag::Byte => InstKind::Byte(op(0), op(1)),
+            InstTag::Lt => InstKind::Lt(op(0), op(1)),
+            InstTag::Gt => InstKind::Gt(op(0), op(1)),
+            InstTag::SLt => InstKind::SLt(op(0), op(1)),
+            InstTag::SGt => InstKind::SGt(op(0), op(1)),
+            InstTag::Eq => InstKind::Eq(op(0), op(1)),
+            InstTag::IsZero => InstKind::IsZero(op(0)),
+            InstTag::MLoad => InstKind::MLoad(op(0)),
+            InstTag::MStore => InstKind::MStore(op(0), op(1)),
+            InstTag::MStore8 => InstKind::MStore8(op(0), op(1)),
+            InstTag::MSize => InstKind::MSize,
+            InstTag::MCopy => InstKind::MCopy(op(0), op(1), op(2)),
+            InstTag::SLoad => InstKind::SLoad(op(0)),
+            InstTag::SStore => InstKind::SStore(op(0), op(1)),
+            InstTag::TLoad => InstKind::TLoad(op(0)),
+            InstTag::TStore => InstKind::TStore(op(0), op(1)),
+            InstTag::CalldataLoad => InstKind::CalldataLoad(op(0)),
+            InstTag::CalldataCopy => InstKind::CalldataCopy(op(0), op(1), op(2)),
+            InstTag::CalldataSize => InstKind::CalldataSize,
+            InstTag::InternalFrameAddr => {
+                let InstData::InternalFrameAddr(offset) = self.data else {
+                    unreachable!("internal_frame_addr missing payload")
+                };
+                InstKind::InternalFrameAddr(offset)
+            }
+            InstTag::CodeSize => InstKind::CodeSize,
+            InstTag::CodeCopy => InstKind::CodeCopy(op(0), op(1), op(2)),
+            InstTag::ExtCodeSize => InstKind::ExtCodeSize(op(0)),
+            InstTag::ExtCodeCopy => InstKind::ExtCodeCopy(op(0), op(1), op(2), op(3)),
+            InstTag::ExtCodeHash => InstKind::ExtCodeHash(op(0)),
+            InstTag::LoadImmutable => {
+                let InstData::LoadImmutable(offset) = self.data else {
+                    unreachable!("loadimmutable missing payload")
+                };
+                InstKind::LoadImmutable(offset)
+            }
+            InstTag::ReturnDataSize => InstKind::ReturnDataSize,
+            InstTag::ReturnDataCopy => InstKind::ReturnDataCopy(op(0), op(1), op(2)),
+            InstTag::Caller => InstKind::Caller,
+            InstTag::CallValue => InstKind::CallValue,
+            InstTag::Origin => InstKind::Origin,
+            InstTag::GasPrice => InstKind::GasPrice,
+            InstTag::BlockHash => InstKind::BlockHash(op(0)),
+            InstTag::Coinbase => InstKind::Coinbase,
+            InstTag::Timestamp => InstKind::Timestamp,
+            InstTag::BlockNumber => InstKind::BlockNumber,
+            InstTag::PrevRandao => InstKind::PrevRandao,
+            InstTag::GasLimit => InstKind::GasLimit,
+            InstTag::ChainId => InstKind::ChainId,
+            InstTag::Address => InstKind::Address,
+            InstTag::Balance => InstKind::Balance(op(0)),
+            InstTag::SelfBalance => InstKind::SelfBalance,
+            InstTag::Gas => InstKind::Gas,
+            InstTag::BaseFee => InstKind::BaseFee,
+            InstTag::BlobBaseFee => InstKind::BlobBaseFee,
+            InstTag::BlobHash => InstKind::BlobHash(op(0)),
+            InstTag::Keccak256 => InstKind::Keccak256(op(0), op(1)),
+            InstTag::Call => InstKind::Call {
+                gas: op(0),
+                addr: op(1),
+                value: op(2),
+                args_offset: op(3),
+                args_size: op(4),
+                ret_offset: op(5),
+                ret_size: op(6),
+            },
+            InstTag::StaticCall => InstKind::StaticCall {
+                gas: op(0),
+                addr: op(1),
+                args_offset: op(2),
+                args_size: op(3),
+                ret_offset: op(4),
+                ret_size: op(5),
+            },
+            InstTag::DelegateCall => InstKind::DelegateCall {
+                gas: op(0),
+                addr: op(1),
+                args_offset: op(2),
+                args_size: op(3),
+                ret_offset: op(4),
+                ret_size: op(5),
+            },
+            InstTag::InternalCall => {
+                let InstData::InternalCall { function, returns } = self.data else {
+                    unreachable!("internal_call missing payload")
+                };
+                InstKind::InternalCall {
+                    function,
+                    args: self.operands.iter().copied().collect(),
+                    returns,
+                }
+            }
+            InstTag::Create => InstKind::Create(op(0), op(1), op(2)),
+            InstTag::Create2 => InstKind::Create2(op(0), op(1), op(2), op(3)),
+            InstTag::Log0 => InstKind::Log0(op(0), op(1)),
+            InstTag::Log1 => InstKind::Log1(op(0), op(1), op(2)),
+            InstTag::Log2 => InstKind::Log2(op(0), op(1), op(2), op(3)),
+            InstTag::Log3 => InstKind::Log3(op(0), op(1), op(2), op(3), op(4)),
+            InstTag::Log4 => InstKind::Log4(op(0), op(1), op(2), op(3), op(4), op(5)),
+            InstTag::Phi => InstKind::Phi(self.phi_incoming().unwrap_or_default()),
+            InstTag::Select => InstKind::Select(op(0), op(1), op(2)),
+            InstTag::SignExtend => InstKind::SignExtend(op(0), op(1)),
+        }
     }
 
     /// Returns the operands of this instruction.
@@ -389,28 +560,45 @@ impl Instruction {
         out.extend_from_slice(&self.operands);
     }
 
-    /// Visits every cached operand mutably and mirrors the rewrite into the matching enum.
+    /// Visits every operand mutably.
     pub fn visit_operands_mut(&mut self, mut f: impl FnMut(&mut ValueId)) {
         for operand in &mut self.operands {
             f(operand);
         }
-        let mut operands = self.operands.iter().copied();
-        self.kind.visit_operands_mut(|value| {
-            *value = operands.next().expect("cached operand count matches instruction kind");
-        });
-        debug_assert!(operands.next().is_none());
     }
 
-    /// Replaces the instruction kind and refreshes its cached operands.
+    /// Replaces the instruction kind.
     pub fn set_kind(&mut self, kind: InstKind) {
+        let (kind, operands, data) = Self::lower_kind(kind);
         self.kind = kind;
-        self.refresh_operands();
+        self.operands = operands;
+        self.data = data;
     }
 
-    /// Refreshes cached operands from the matching enum.
-    pub fn refresh_operands(&mut self) {
+    /// Returns this phi's incoming edges.
+    #[must_use]
+    pub fn phi_incoming(&self) -> Option<Vec<(BlockId, ValueId)>> {
+        let InstData::Phi { blocks } = &self.data else { return None };
+        Some(blocks.iter().copied().zip(self.operands.iter().copied()).collect())
+    }
+
+    /// Replaces this phi's incoming edges.
+    pub fn set_phi_incoming(&mut self, incoming: Vec<(BlockId, ValueId)>) {
+        self.kind = InstTag::Phi;
         self.operands.clear();
-        self.kind.collect_operands(&mut self.operands);
+        let mut blocks = Vec::with_capacity(incoming.len());
+        for (block, value) in incoming {
+            blocks.push(block);
+            self.operands.push(value);
+        }
+        self.data = InstData::Phi { blocks };
+    }
+
+    /// Mutates this phi's incoming edges.
+    pub fn update_phi_incoming(&mut self, f: impl FnOnce(&mut Vec<(BlockId, ValueId)>)) {
+        let mut incoming = self.phi_incoming().expect("instruction is not a phi");
+        f(&mut incoming);
+        self.set_phi_incoming(incoming);
     }
 
     /// Returns the metadata effect, or derives a conservative one from the instruction kind.
@@ -1513,7 +1701,7 @@ mod tests {
         });
 
         assert_eq!(inst.operands().as_slice(), &[a, c]);
-        assert!(matches!(inst.kind, InstKind::Add(x, y) if x == a && y == c));
+        assert!(matches!(inst.kind(), InstKind::Add(x, y) if x == a && y == c));
 
         inst.set_kind(InstKind::IsZero(c));
         assert_eq!(inst.operands().as_slice(), &[c]);
@@ -1562,6 +1750,6 @@ mod tests {
 
         assert_size::<InstKind>(str!["32"]);
         assert_size::<InstructionMetadata>(str!["24"]);
-        assert_size::<Instruction>(str!["104"]);
+        assert_size::<Instruction>(str!["96"]);
     }
 }

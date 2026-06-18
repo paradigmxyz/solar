@@ -1927,9 +1927,12 @@ fn @diamond(arg0: bool) -> u256 {
             let func = parse_function(src).unwrap();
             assert_eq!(func.blocks.len(), 4);
             // Find the phi instruction.
-            let phi_inst =
-                func.instructions.iter().find(|i| matches!(i.kind, InstKind::Phi(_))).unwrap();
-            if let InstKind::Phi(args) = &phi_inst.kind {
+            let phi_inst = func
+                .instructions
+                .iter()
+                .find(|i| matches!(i.kind, crate::mir::InstTag::Phi))
+                .unwrap();
+            if let Some(args) = phi_inst.phi_incoming() {
                 assert_eq!(args.len(), 2);
             } else {
                 panic!("expected phi");

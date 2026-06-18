@@ -126,7 +126,7 @@ impl LoopCanonicalizer {
         }
 
         for &inst_id in &func.blocks[header].instructions {
-            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+            let Some(incoming) = func.instructions[inst_id].phi_incoming() else {
                 continue;
             };
             if outside_preds
@@ -176,7 +176,9 @@ impl LoopCanonicalizer {
             .instructions
             .iter()
             .copied()
-            .take_while(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .take_while(|&inst_id| {
+                matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
+            })
             .collect();
 
         let mut preheader_insert_pos = 0;
@@ -185,12 +187,10 @@ impl LoopCanonicalizer {
             let preheader_value =
                 self.canonical_preheader_value(func, inst_id, external_incoming, preheader);
 
-            let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind else {
-                continue;
-            };
-            incoming.retain(|(pred, _)| !outside_preds.contains(pred));
-            incoming.push((preheader, preheader_value));
-            func.instructions[inst_id].refresh_operands();
+            func.instructions[inst_id].update_phi_incoming(|incoming| {
+                incoming.retain(|(pred, _)| !outside_preds.contains(pred));
+                incoming.push((preheader, preheader_value));
+            });
             self.stats.header_phis_rewritten += 1;
 
             if let Value::Inst(phi_inst) = func.values[preheader_value]
@@ -213,9 +213,7 @@ impl LoopCanonicalizer {
         inst_id: InstId,
         outside_preds: &[BlockId],
     ) -> Vec<(BlockId, ValueId)> {
-        let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
-            return Vec::new();
-        };
+        let Some(incoming) = func.instructions[inst_id].phi_incoming() else { return Vec::new() };
         outside_preds
             .iter()
             .filter_map(|pred| {

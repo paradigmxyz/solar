@@ -1,6 +1,6 @@
 //! CFG mutation utilities shared by MIR analyses and transformation passes.
 
-use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator};
+use crate::mir::{BasicBlock, BlockId, Function, Terminator};
 use smallvec::smallvec;
 
 /// Splits the CFG edge from `pred` to `succ` by inserting a fresh block that
@@ -63,13 +63,14 @@ pub(crate) fn split_edge(func: &mut Function, pred: BlockId, succ: BlockId) -> B
 
     // Rekey `succ`'s phi incoming entries from `pred` to the new block.
     for &inst_id in &func.blocks[succ].instructions {
-        if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
-            for (block, _) in incoming.iter_mut() {
-                if *block == pred {
-                    *block = new_block;
+        if func.instructions[inst_id].kind == crate::mir::InstTag::Phi {
+            func.instructions[inst_id].update_phi_incoming(|incoming| {
+                for (block, _) in incoming {
+                    if *block == pred {
+                        *block = new_block;
+                    }
                 }
-            }
-            func.instructions[inst_id].refresh_operands();
+            });
         }
     }
 
@@ -100,11 +101,12 @@ pub(crate) fn repair_reachability_phis(func: &mut Function) -> bool {
     for block_id in func.blocks.indices() {
         let predecessors = func.blocks[block_id].predecessors.clone();
         for &inst_id in &func.blocks[block_id].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
-                let len_before = incoming.len();
-                incoming.retain(|(pred, _)| predecessors.contains(pred));
-                changed |= incoming.len() != len_before;
-                func.instructions[inst_id].refresh_operands();
+            if func.instructions[inst_id].kind == crate::mir::InstTag::Phi {
+                func.instructions[inst_id].update_phi_incoming(|incoming| {
+                    let len_before = incoming.len();
+                    incoming.retain(|(pred, _)| predecessors.contains(pred));
+                    changed |= incoming.len() != len_before;
+                });
             }
         }
     }

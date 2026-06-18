@@ -61,7 +61,7 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
             {
                 write!(f, "v{} = ", vid.index())?;
             }
-            write!(f, "{}\\l", display_inst_kind(&inst.kind, func))
+            write!(f, "{}\\l", display_inst_kind(&inst.kind(), func))
         })
     }
 
@@ -203,7 +203,7 @@ pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
             {
                 write!(f, "v{} = ", vid.index())?;
             }
-            writeln!(f, "{}{}", display_inst_kind(&inst.kind, func), display_metadata(inst, func))
+            writeln!(f, "{}{}", display_inst_kind(&inst.kind(), func), display_metadata(inst, func))
         })
     }
 

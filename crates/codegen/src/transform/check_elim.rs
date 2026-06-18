@@ -230,7 +230,7 @@ impl CheckEliminator {
         }
         let Some(depth) = depth.checked_sub(1) else { return };
         let Some(kind) = inst_kind(func, value) else { return };
-        match *kind {
+        match kind {
             InstKind::IsZero(a) => self.assume(func, a, !truth, depth),
             InstKind::Lt(a, b) => self.assume_lt(func, a, b, truth, depth),
             InstKind::Gt(a, b) => self.assume_lt(func, b, a, truth, depth),
@@ -344,7 +344,7 @@ impl CheckEliminator {
         let mut range = self.ranges.get(&value).copied().unwrap_or(Range::FULL);
         let Some(depth) = depth.checked_sub(1) else { return range };
         let Some(kind) = inst_kind(func, value) else { return range };
-        let derived = match *kind {
+        let derived = match kind {
             InstKind::Add(a, b) => {
                 let ra = self.range_of(func, a, depth);
                 let rb = self.range_of(func, b, depth);
@@ -432,7 +432,7 @@ impl CheckEliminator {
         }
         let depth = depth.checked_sub(1)?;
         let kind = inst_kind(func, value)?;
-        match *kind {
+        match kind {
             InstKind::Lt(a, b) => self.eval_lt(func, a, b, depth),
             InstKind::Gt(a, b) => self.eval_lt(func, b, a, depth),
             InstKind::Eq(a, b) => self.eval_eq(func, a, b, depth),
@@ -505,7 +505,7 @@ impl CheckEliminator {
         // Overflow check for checked add: `lt (add x, y), x` is the wrap
         // flag of `x + y`. If the maximum bounds cannot wrap the check is
         // false; if even the minimum bounds wrap it is true.
-        if let Some(&InstKind::Add(x, y)) = inst_kind(func, a)
+        if let Some(InstKind::Add(x, y)) = inst_kind(func, a)
             && (b == x || b == y)
         {
             let rx = self.range_of(func, x, depth);
@@ -520,7 +520,7 @@ impl CheckEliminator {
 
         // Underflow check variant `lt x, (sub x, y)`: equivalent to
         // `lt x, y` for every `y` (with wrapping subtraction).
-        if let Some(&InstKind::Sub(x, y)) = inst_kind(func, b)
+        if let Some(InstKind::Sub(x, y)) = inst_kind(func, b)
             && a == x
             && let Some(reduced_depth) = depth.checked_sub(1)
         {
@@ -576,8 +576,8 @@ impl CheckEliminator {
         expected: ValueId,
         depth: usize,
     ) -> Option<bool> {
-        let InstKind::Div(mul_value, divisor) = *inst_kind(func, div_value)? else { return None };
-        let InstKind::Mul(p, q) = *inst_kind(func, mul_value)? else { return None };
+        let InstKind::Div(mul_value, divisor) = inst_kind(func, div_value)? else { return None };
+        let InstKind::Mul(p, q) = inst_kind(func, mul_value)? else { return None };
         for (x, y) in [(p, q), (q, p)] {
             if x != expected || !values_equal(func, divisor, y) {
                 continue;
@@ -637,9 +637,9 @@ fn const_of(func: &Function, value: ValueId) -> Option<U256> {
     }
 }
 
-fn inst_kind(func: &Function, value: ValueId) -> Option<&InstKind> {
+fn inst_kind(func: &Function, value: ValueId) -> Option<InstKind> {
     match func.value(value) {
-        Value::Inst(inst_id) => Some(&func.instructions[*inst_id].kind),
+        Value::Inst(inst_id) => Some(func.instructions[*inst_id].kind()),
         _ => None,
     }
 }

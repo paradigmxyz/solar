@@ -119,7 +119,7 @@ impl CallGraphInfo {
     fn collect_internal_callees(func: &Function) -> FxHashSet<FunctionId> {
         let mut callees = FxHashSet::default();
         for inst in &func.instructions {
-            if let InstKind::InternalCall { function, .. } = inst.kind {
+            if let InstKind::InternalCall { function, .. } = inst.kind() {
                 callees.insert(function);
             }
         }

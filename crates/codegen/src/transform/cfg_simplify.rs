@@ -227,11 +227,11 @@ impl CfgSimplifier {
         let mut insts = Vec::with_capacity(block.instructions.len());
         for &inst_id in &block.instructions {
             let inst = &func.instructions[inst_id];
-            let extra = match &inst.kind {
+            let extra = match inst.kind() {
                 InstKind::Phi(_) => return None,
-                InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(*offset),
+                InstKind::InternalFrameAddr(offset) => CanonPayload::FrameAddr(offset),
                 InstKind::InternalCall { function, returns, .. } => {
-                    CanonPayload::Call(*function, *returns as usize)
+                    CanonPayload::Call(function, returns as usize)
                 }
                 _ => CanonPayload::None,
             };
@@ -259,14 +259,14 @@ impl CfgSimplifier {
         for block_id in func.blocks.indices() {
             let same_block_phi_results = Self::block_phi_results(func, block_id);
             for &inst_id in &func.blocks[block_id].instructions {
-                let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+                let Some(incoming) = func.instructions[inst_id].phi_incoming() else {
                     continue;
                 };
                 let Some(phi_value) = Self::find_inst_result(func, inst_id) else {
                     continue;
                 };
                 let Some(replacement) =
-                    Self::trivial_phi_replacement(incoming, phi_value, &same_block_phi_results)
+                    Self::trivial_phi_replacement(&incoming, phi_value, &same_block_phi_results)
                 else {
                     continue;
                 };
@@ -318,7 +318,7 @@ impl CfgSimplifier {
             .instructions
             .iter()
             .filter_map(|&inst_id| {
-                if matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                if matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi) {
                     Self::find_inst_result(func, inst_id)
                 } else {
                     None
@@ -424,7 +424,7 @@ impl CfgSimplifier {
         }
 
         for &inst_id in &target_block.instructions {
-            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+            let Some(incoming) = func.instructions[inst_id].phi_incoming() else {
                 continue;
             };
             if !incoming.iter().any(|(pred, _)| *pred == block_id) {
@@ -442,7 +442,7 @@ impl CfgSimplifier {
             .instructions
             .iter()
             .copied()
-            .filter(|&inst_id| !matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .filter(|&inst_id| !matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi))
             .collect();
         let target_terminator = func.blocks[target].terminator.take();
         let target_successors =
@@ -477,7 +477,7 @@ impl CfgSimplifier {
     ) -> FxHashMap<ValueId, ValueId> {
         let mut replacements = FxHashMap::default();
         for &inst_id in &func.blocks[target].instructions {
-            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+            let Some(incoming) = func.instructions[inst_id].phi_incoming() else {
                 continue;
             };
             let Some(phi_value) = Self::find_inst_result(func, inst_id) else {
@@ -504,22 +504,17 @@ impl CfgSimplifier {
             return;
         }
         for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
-            inst.refresh_operands();
+            inst.visit_operands_mut(|value| {
+                if let Some(&replacement) = replacements.get(value) {
+                    *value = replacement;
+                }
+            });
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
                 Self::replace_terminator_operands(term, replacements);
             }
         }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            if let Some(&replacement) = replacements.get(value) {
-                *value = replacement;
-            }
-        });
     }
 
     fn replace_terminator_operands(
@@ -597,7 +592,7 @@ impl CfgSimplifier {
         };
         if !matches!(
             func.blocks[target].instructions.first(),
-            Some(&inst) if matches!(func.instructions[inst].kind, InstKind::Phi(_))
+            Some(&inst) if matches!(func.instructions[inst].kind, crate::mir::InstTag::Phi)
         ) {
             return false;
         }
@@ -621,7 +616,7 @@ impl CfgSimplifier {
         };
         let predecessors = &func.blocks[block_id].predecessors;
         for &inst_id in &func.blocks[target].instructions {
-            let InstKind::Phi(incoming) = &func.instructions[inst_id].kind else {
+            let Some(incoming) = func.instructions[inst_id].phi_incoming() else {
                 continue;
             };
             let Some(&(_, forwarded)) = incoming.iter().find(|(pred, _)| *pred == block_id) else {
@@ -667,32 +662,30 @@ impl CfgSimplifier {
         new_preds: &[BlockId],
     ) {
         for &inst_id in &func.blocks[target].instructions {
-            let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind else {
+            if func.instructions[inst_id].kind != crate::mir::InstTag::Phi {
                 continue;
-            };
-
-            let mut rewritten: Vec<(BlockId, ValueId)> =
-                Vec::with_capacity(incoming.len() + new_preds.len());
-            for &(pred, value) in incoming.iter() {
-                if pred == old_pred {
-                    rewritten.extend(new_preds.iter().map(|&new_pred| (new_pred, value)));
-                } else {
-                    rewritten.push((pred, value));
-                }
             }
-            // The safety check guarantees colliding entries carry equal values;
-            // keep one entry per predecessor block.
-            let mut seen = Vec::with_capacity(rewritten.len());
-            rewritten.retain(|&(pred, _)| {
-                if seen.contains(&pred) {
-                    false
-                } else {
-                    seen.push(pred);
-                    true
+            func.instructions[inst_id].update_phi_incoming(|incoming| {
+                let mut rewritten: Vec<(BlockId, ValueId)> =
+                    Vec::with_capacity(incoming.len() + new_preds.len());
+                for &(pred, value) in incoming.iter() {
+                    if pred == old_pred {
+                        rewritten.extend(new_preds.iter().map(|&new_pred| (new_pred, value)));
+                    } else {
+                        rewritten.push((pred, value));
+                    }
                 }
+                let mut seen = Vec::with_capacity(rewritten.len());
+                rewritten.retain(|&(pred, _)| {
+                    if seen.contains(&pred) {
+                        false
+                    } else {
+                        seen.push(pred);
+                        true
+                    }
+                });
+                *incoming = rewritten;
             });
-            *incoming = rewritten;
-            func.instructions[inst_id].refresh_operands();
         }
     }
 
@@ -895,9 +888,7 @@ mod tests {
 
         assert!(matches!(func.blocks[forwarder].terminator, Some(Terminator::Invalid)));
         let phi_inst = func.blocks[target].instructions[0];
-        let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
-            panic!("expected phi");
-        };
+        let incoming = func.instructions[phi_inst].phi_incoming().expect("expected phi");
         assert_eq!(incoming.as_slice(), &[(func.entry_block, value), (direct, other)]);
     }
 
@@ -949,9 +940,7 @@ mod tests {
 
         assert!(matches!(func.blocks[middle].terminator, Some(Terminator::Invalid)));
         let phi_inst = func.blocks[exit].instructions[0];
-        let InstKind::Phi(incoming) = &func.instructions[phi_inst].kind else {
-            panic!("expected phi");
-        };
+        let incoming = func.instructions[phi_inst].phi_incoming().expect("expected phi");
         assert_eq!(incoming.as_slice(), &[(source, result), (other, other_value)]);
     }
 }

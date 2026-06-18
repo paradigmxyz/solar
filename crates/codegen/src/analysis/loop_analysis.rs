@@ -210,12 +210,12 @@ impl LoopAnalyzer {
         for &inst_id in &func.blocks[loop_info.header].instructions {
             let inst = &func.instructions[inst_id];
 
-            if let InstKind::Phi(incoming) = &inst.kind {
+            if let InstKind::Phi(incoming) = inst.kind() {
                 let mut init_value: Option<ValueId> = None;
                 let mut step_value: Option<ValueId> = None;
                 let mut conflicting = false;
 
-                for &(block, value) in incoming {
+                for (block, value) in incoming {
                     let slot = if loop_info.blocks.contains(&block) {
                         &mut step_value
                     } else {
@@ -266,9 +266,9 @@ impl LoopAnalyzer {
     ) -> Option<InstId> {
         if let Value::Inst(inst_id) = &func.values[step_val] {
             let inst = &func.instructions[*inst_id];
-            match &inst.kind {
-                InstKind::Add(a, b) if *a == phi_val || *b == phi_val => return Some(*inst_id),
-                InstKind::Sub(a, _) if *a == phi_val => return Some(*inst_id),
+            match inst.kind() {
+                InstKind::Add(a, b) if a == phi_val || b == phi_val => return Some(*inst_id),
+                InstKind::Sub(a, _) if a == phi_val => return Some(*inst_id),
                 _ => {}
             }
         }
@@ -283,9 +283,9 @@ impl LoopAnalyzer {
         phi_val: ValueId,
     ) -> Option<(ValueId, bool)> {
         let inst = &func.instructions[inst_id];
-        match &inst.kind {
+        match inst.kind() {
             InstKind::Add(a, b) => {
-                let step = if *a == phi_val { *b } else { *a };
+                let step = if a == phi_val { b } else { a };
                 // A wrapping decrement can be encoded as an addition of a huge
                 // constant (two's-complement negative); classify it as
                 // descending so trip-count and range reasoning bail out.
@@ -295,7 +295,7 @@ impl LoopAnalyzer {
                 );
                 Some((step, descending))
             }
-            InstKind::Sub(_, b) => Some((*b, true)),
+            InstKind::Sub(_, b) => Some((b, true)),
             _ => None,
         }
     }
@@ -334,7 +334,7 @@ impl LoopAnalyzer {
                     if inst.kind.has_side_effects() {
                         continue;
                     }
-                    if matches!(inst.kind, InstKind::Phi(_)) {
+                    if matches!(inst.kind, crate::mir::InstTag::Phi) {
                         continue;
                     }
 
@@ -429,9 +429,9 @@ impl LoopAnalyzer {
                 continue;
             }
             let Value::Inst(cond_inst) = &func.values[*condition] else { continue };
-            let imm = match &func.instructions[*cond_inst].kind {
-                InstKind::Lt(a, b) if *a == iv_value => *b,
-                InstKind::Gt(a, b) if *b == iv_value => *a,
+            let imm = match func.instructions[*cond_inst].kind() {
+                InstKind::Lt(a, b) if a == iv_value => b,
+                InstKind::Gt(a, b) if b == iv_value => a,
                 _ => continue,
             };
             let Value::Immediate(imm) = &func.values[imm] else { continue };

@@ -6,7 +6,7 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
+    mir::{BlockId, Function, InstId, Terminator, Value, ValueId},
     pass::FunctionPass,
     transform::DeadCodeEliminator,
     utils::repair_reachability_phis,
@@ -196,7 +196,7 @@ impl AggressiveDeadCodeEliminator {
         func.blocks[block_id]
             .instructions
             .iter()
-            .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .any(|&inst_id| matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi))
     }
 
     fn target_has_phi(&self, func: &Function, block_id: BlockId) -> bool {

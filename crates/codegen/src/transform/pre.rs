@@ -216,7 +216,7 @@ impl PartialRedundancyEliminator {
                     continue;
                 }
                 let instruction = &func.instructions[inst];
-                if !Self::is_pre_expression(&instruction.kind) {
+                if !Self::is_pre_expression(&instruction.kind()) {
                     continue;
                 }
                 let Some(result_ty) = instruction.result_ty else {
@@ -286,14 +286,14 @@ impl PartialRedundancyEliminator {
         dominators: &DominatorTree,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
     ) -> Option<PreCandidate> {
-        let original = &func.instructions[inst].kind;
+        let original = func.instructions[inst].kind();
         let mut incoming = Vec::with_capacity(predecessors.len());
         let mut insertions = Vec::new();
         let mut available = 0usize;
 
         for &pred in predecessors {
             let translated =
-                Self::translate_kind_for_predecessor(func, original, target, pred, inst_blocks)?;
+                Self::translate_kind_for_predecessor(func, &original, target, pred, inst_blocks)?;
             if !Self::operands_available_at_end(func, &translated, pred, inst_blocks, dominators) {
                 return None;
             }
@@ -341,7 +341,7 @@ impl PartialRedundancyEliminator {
         let PreCandidate { target, inst, result, result_ty, metadata, mut incoming, insertions } =
             candidate;
 
-        if let Some(key) = Self::make_expr_key(func, &func.instructions[inst].kind) {
+        if let Some(key) = Self::make_expr_key(func, &func.instructions[inst].kind()) {
             eliminated_keys.insert((key, target));
         }
 
@@ -391,7 +391,7 @@ impl PartialRedundancyEliminator {
                     .instructions
                     .iter()
                     .take_while(|&&inst_id| {
-                        matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+                        matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
                     })
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
@@ -440,13 +440,11 @@ impl PartialRedundancyEliminator {
         match func.value(value) {
             Value::Inst(inst_id)
                 if inst_blocks.get(inst_id).copied() == Some(target)
-                    && matches!(func.instructions[*inst_id].kind, InstKind::Phi(_)) =>
+                    && matches!(func.instructions[*inst_id].kind, crate::mir::InstTag::Phi) =>
             {
-                let InstKind::Phi(incoming) = &func.instructions[*inst_id].kind else {
-                    return None;
-                };
-                incoming.iter().find_map(|(incoming_pred, incoming_value)| {
-                    (*incoming_pred == pred).then_some(*incoming_value)
+                let incoming = func.instructions[*inst_id].phi_incoming()?;
+                incoming.into_iter().find_map(|(incoming_pred, incoming_value)| {
+                    (incoming_pred == pred).then_some(incoming_value)
                 })
             }
             _ => Some(value),
@@ -504,10 +502,10 @@ impl PartialRedundancyEliminator {
     ) -> Option<ValueId> {
         func.blocks[block].instructions.iter().rev().find_map(|&inst| {
             let instruction = &func.instructions[inst];
-            if !Self::is_pre_expression(&instruction.kind) {
+            if !Self::is_pre_expression(&instruction.kind()) {
                 return None;
             }
-            let candidate_key = Self::make_expr_key(func, &instruction.kind)?;
+            let candidate_key = Self::make_expr_key(func, &instruction.kind())?;
             (candidate_key == *key).then(|| inst_results.get(&inst).copied()).flatten()
         })
     }

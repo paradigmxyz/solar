@@ -614,12 +614,12 @@ impl LoadRedundancyEliminator {
                 }
                 continue;
             }
-            let kind = &func.instructions[inst_id].kind;
+            let kind = func.instructions[inst_id].kind;
             match kind {
                 // `gas` blocks every space, so nothing after it can be a
                 // candidate.
-                InstKind::Gas => break,
-                InstKind::MSize => {
+                crate::mir::InstTag::Gas => break,
+                crate::mir::InstTag::MSize => {
                     for (idx, key) in analysis.keys.iter().enumerate() {
                         if matches!(key, LoadKey::Memory(_) | LoadKey::Keccak(_, _)) {
                             blocked.insert(idx);
@@ -662,11 +662,11 @@ impl LoadRedundancyEliminator {
             }
 
             if inst_id != first_inst {
-                let kind = &func.instructions[inst_id].kind;
-                if matches!(kind, InstKind::Gas) {
+                let kind = func.instructions[inst_id].kind;
+                if matches!(kind, crate::mir::InstTag::Gas) {
                     break;
                 }
-                if matches!(kind, InstKind::MSize)
+                if matches!(kind, crate::mir::InstTag::MSize)
                     && matches!(key, LoadKey::Memory(_) | LoadKey::Keccak(_, _))
                 {
                     break;
@@ -724,7 +724,8 @@ impl LoadRedundancyEliminator {
             if cx.eliminated_keys.contains(&(key, pred)) {
                 return None;
             }
-            if !Self::operands_dominate_block(func, &instruction.kind, pred, cx.analysis) {
+            let instruction_kind = instruction.kind();
+            if !Self::operands_dominate_block(func, &instruction_kind, pred, cx.analysis) {
                 return None;
             }
             insertions.push(pred);
@@ -740,7 +741,7 @@ impl LoadRedundancyEliminator {
         let cost = model.estimate(LoadPreCostInput {
             func,
             key,
-            kind: &instruction.kind,
+            kind: &instruction.kind(),
             predecessors,
             loads: &loads,
             insertions: &insertions,
@@ -773,7 +774,7 @@ impl LoadRedundancyEliminator {
             target,
             key,
             result_ty,
-            kind: instruction.kind.clone(),
+            kind: instruction.kind(),
             metadata: instruction.metadata.clone(),
             loads,
             incoming,
@@ -913,7 +914,7 @@ impl LoadRedundancyEliminator {
                     .instructions
                     .iter()
                     .take_while(|&&inst_id| {
-                        matches!(func.instructions[inst_id].kind, InstKind::Phi(_))
+                        matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
                     })
                     .count();
                 func.blocks[target].instructions.insert(phi_count, phi_inst);
@@ -933,7 +934,7 @@ impl LoadRedundancyEliminator {
 
     /// Returns the key an instruction gens and where its value comes from.
     fn gen_key_value(func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
-        match func.instructions[inst_id].kind {
+        match func.instructions[inst_id].kind() {
             InstKind::SLoad(slot) => Some((
                 LoadKey::Storage(Self::storage_alias(func, inst_id, slot)),
                 GenSource::LoadResult,
@@ -968,21 +969,22 @@ impl LoadRedundancyEliminator {
 
     /// Returns true if an instruction may invalidate the value of `key`.
     fn inst_kills_key(func: &Function, inst_id: InstId, key: LoadKey) -> bool {
-        let kind = &func.instructions[inst_id].kind;
+        let inst = &func.instructions[inst_id];
+        let kind = inst.kind();
         match key {
-            LoadKey::Storage(alias) => match *kind {
+            LoadKey::Storage(alias) => match kind {
                 InstKind::SStore(slot, _) => {
                     Self::storage_alias(func, inst_id, slot).may_alias(alias)
                 }
                 // Calls and creates may re-enter and mutate storage;
                 // STATICCALL cannot.
-                _ => kind.may_mutate_storage(),
+                _ => inst.kind.may_mutate_storage(),
             },
-            LoadKey::Transient(alias) => match *kind {
+            LoadKey::Transient(alias) => match kind {
                 InstKind::TStore(slot, _) => {
                     Self::storage_alias(func, inst_id, slot).may_alias(alias)
                 }
-                _ => kind.may_mutate_transient_storage(),
+                _ => inst.kind.may_mutate_transient_storage(),
             },
             LoadKey::Memory(addr) => Self::memory_write_clobbers(func, inst_id, addr, Some(32)),
             LoadKey::Keccak(addr, size) => {
@@ -1004,8 +1006,8 @@ impl LoadRedundancyEliminator {
         read: MemAddr,
         read_size: Option<u64>,
     ) -> bool {
-        let kind = &func.instructions[inst_id].kind;
-        let (dest, write_size) = match *kind {
+        let inst = &func.instructions[inst_id];
+        let (dest, write_size) = match inst.kind() {
             InstKind::MStore(dest, _) => (dest, Some(32)),
             InstKind::MStore8(dest, _) => (dest, Some(1)),
             InstKind::MCopy(dest, _, size)
@@ -1015,7 +1017,7 @@ impl LoadRedundancyEliminator {
             InstKind::ExtCodeCopy(_, dest, _, size) => (dest, Self::const_u64(func, size)),
             // Every call clobbers tracked memory, including STATICCALL: its
             // return buffer write is a memory effect even in a static context.
-            _ => return kind.may_mutate_memory(),
+            _ => return inst.kind.may_mutate_memory(),
         };
 
         let write_region = func.instructions[inst_id]
@@ -1090,7 +1092,7 @@ impl LoadRedundancyEliminator {
         match func.value(value) {
             Value::Immediate(_) => None,
             Value::Arg { .. } | Value::Undef(_) => Some((value, U256::ZERO)),
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind() {
                 InstKind::Add(a, b) => {
                     if let Some(offset) = Self::const_u256(func, b) {
                         let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
@@ -1196,15 +1198,15 @@ impl LoadRedundancyEliminator {
                 continue;
             }
             // Operand-derived metadata is stale once the operand changes.
-            if Self::is_memory_inst(&inst.kind) {
+            if Self::is_memory_inst(&inst.kind()) {
                 inst.metadata.set_memory_region(None);
             }
             if matches!(
                 inst.kind,
-                InstKind::SLoad(_)
-                    | InstKind::SStore(_, _)
-                    | InstKind::TLoad(_)
-                    | InstKind::TStore(_, _)
+                crate::mir::InstTag::SLoad
+                    | crate::mir::InstTag::SStore
+                    | crate::mir::InstTag::TLoad
+                    | crate::mir::InstTag::TStore
             ) {
                 inst.metadata.set_storage_alias(None);
             }

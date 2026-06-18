@@ -56,7 +56,7 @@ impl InstSimplifier {
         for block_id in block_ids {
             let inst_ids = func.blocks[block_id].instructions.clone();
             for inst_id in inst_ids {
-                let kind = func.instructions[inst_id].kind.clone();
+                let kind = func.instructions[inst_id].kind();
 
                 if self.is_dead_noop_inst(func, &kind, &replacements) {
                     dead.insert(inst_id);
@@ -724,7 +724,7 @@ impl InstSimplifier {
 
     fn offset_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
-        match func.instructions[*inst_id].kind {
+        match func.instructions[*inst_id].kind() {
             InstKind::Add(a, b) => Self::const_operand(func, a, b),
             InstKind::Sub(a, b) => {
                 let offset = Self::as_u256(func, b)?;
@@ -736,7 +736,7 @@ impl InstSimplifier {
 
     fn and_mask_base(func: &Function, value: ValueId) -> Option<(ValueId, U256)> {
         let Value::Inst(inst_id) = func.value(value) else { return None };
-        match func.instructions[*inst_id].kind {
+        match func.instructions[*inst_id].kind() {
             InstKind::And(a, b) => Self::const_operand(func, a, b),
             _ => None,
         }
@@ -831,12 +831,12 @@ impl InstSimplifier {
             Value::Immediate(Immediate::Address(_)) => true,
             Value::Inst(inst_id) => matches!(
                 func.instructions[*inst_id].kind,
-                InstKind::Address
-                    | InstKind::Caller
-                    | InstKind::Origin
-                    | InstKind::Coinbase
-                    | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
+                crate::mir::InstTag::Address
+                    | crate::mir::InstTag::Caller
+                    | crate::mir::InstTag::Origin
+                    | crate::mir::InstTag::Coinbase
+                    | crate::mir::InstTag::Create
+                    | crate::mir::InstTag::Create2
             ),
             _ => false,
         }
@@ -844,7 +844,9 @@ impl InstSimplifier {
 
     fn is_current_address(func: &Function, value: ValueId) -> bool {
         match &func.values[value] {
-            Value::Inst(inst_id) => matches!(func.instructions[*inst_id].kind, InstKind::Address),
+            Value::Inst(inst_id) => {
+                matches!(func.instructions[*inst_id].kind, crate::mir::InstTag::Address)
+            }
             _ => false,
         }
     }
@@ -891,7 +893,7 @@ impl InstSimplifier {
     /// which are the unsigned nonzero test.
     fn nonzero_test_operand(func: &Function, value: ValueId) -> Option<ValueId> {
         match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind() {
                 InstKind::Gt(a, b) if Self::is_zero(func, b) => Some(a),
                 InstKind::Lt(a, b) if Self::is_zero(func, a) => Some(b),
                 _ => None,
@@ -902,7 +904,7 @@ impl InstSimplifier {
 
     fn iszero_operand(func: &Function, value: ValueId) -> Option<ValueId> {
         match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind() {
                 InstKind::IsZero(inner) => Some(inner),
                 _ => None,
             },
@@ -912,7 +914,7 @@ impl InstSimplifier {
 
     fn not_operand(func: &Function, value: ValueId) -> Option<ValueId> {
         match &func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind() {
                 InstKind::Not(inner) => Some(inner),
                 _ => None,
             },
@@ -930,22 +932,17 @@ impl InstSimplifier {
         }
 
         for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
-            inst.refresh_operands();
+            inst.visit_operands_mut(|value| {
+                if let Some(&replacement) = replacements.get(value) {
+                    *value = replacement;
+                }
+            });
         }
         for block in func.blocks.iter_mut() {
             if let Some(term) = &mut block.terminator {
                 Self::replace_terminator_operands(term, replacements);
             }
         }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            if replacements.contains_key(value) {
-                *value = Self::resolve_replacement(replacements, *value);
-            }
-        });
     }
 
     fn replace_terminator_operands(
@@ -1132,7 +1129,7 @@ mod tests {
 
         let block = &func.blocks[func.entry_block];
         assert_eq!(block.instructions.len(), 1);
-        let eq_inst = func.instructions[block.instructions[0]].kind.clone();
+        let eq_inst = func.instructions[block.instructions[0]].kind();
         assert!(matches!(eq_inst, InstKind::IsZero(value) if value == arg));
     }
 
@@ -1188,7 +1185,7 @@ mod tests {
 
         let block = &func.blocks[func.entry_block];
         assert_eq!(block.instructions.len(), 2);
-        let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
+        let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind();
         assert!(matches!(balance_inst, InstKind::SelfBalance));
     }
 
@@ -1233,7 +1230,7 @@ mod tests {
 
         let block = &func.blocks[func.entry_block];
         assert_eq!(block.instructions.len(), 2);
-        let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind.clone();
+        let balance_inst = func.instructions[*block.instructions.last().unwrap()].kind();
         assert!(matches!(balance_inst, InstKind::SelfBalance));
     }
 }

@@ -73,8 +73,8 @@ impl<'a> FunctionBuilder<'a> {
     fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
-        inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
-        inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind));
+        inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind()));
+        inst.metadata.set_storage_alias(self.storage_alias_for_inst(&inst.kind()));
 
         let inst_id = self.func.alloc_inst(inst);
         self.func.blocks[self.current_block].instructions.push(inst_id);
@@ -104,7 +104,7 @@ impl<'a> FunctionBuilder<'a> {
             {
                 MemoryRegion::Scratch
             }
-            Value::Inst(inst_id) => match self.func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match self.func.instructions[*inst_id].kind() {
                 InstKind::InternalFrameAddr(_) => MemoryRegion::InternalFrame,
                 InstKind::Add(lhs, rhs) if self.is_internal_frame_add(lhs, rhs) => {
                     MemoryRegion::InternalFrame
@@ -129,7 +129,7 @@ impl<'a> FunctionBuilder<'a> {
         matches!(
             self.func.value(value),
             Value::Inst(inst_id)
-                if matches!(self.func.instructions[*inst_id].kind, InstKind::InternalFrameAddr(_))
+                if matches!(self.func.instructions[*inst_id].kind, crate::mir::InstTag::InternalFrameAddr)
         )
     }
 
@@ -620,11 +620,8 @@ impl<'a> FunctionBuilder<'a> {
         let Value::Inst(inst_id) = *self.func.value(phi) else {
             panic!("add_phi_incoming: value is not an instruction result");
         };
-        let InstKind::Phi(incoming) = &mut self.func.instructions[inst_id].kind else {
-            panic!("add_phi_incoming: instruction is not a phi");
-        };
-        incoming.push((block, value));
-        self.func.instructions[inst_id].refresh_operands();
+        self.func.instructions[inst_id]
+            .update_phi_incoming(|incoming| incoming.push((block, value)));
     }
 
     /// Sets a jump terminator.

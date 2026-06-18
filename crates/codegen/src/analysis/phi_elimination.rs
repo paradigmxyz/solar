@@ -74,7 +74,7 @@ impl PhiEliminator {
             for (inst_idx, &inst_id) in block.instructions.iter().enumerate() {
                 let inst = func.instruction(inst_id);
 
-                if let InstKind::Phi(incoming) = &inst.kind {
+                if let InstKind::Phi(incoming) = inst.kind() {
                     // Find the value defined by this phi
                     let phi_dst = find_phi_dst(func, inst_id);
 
@@ -82,7 +82,7 @@ impl PhiEliminator {
                         let ty = func.value(dst).ty();
 
                         // For each predecessor, insert a copy
-                        for &(pred_block, src_val) in incoming {
+                        for (pred_block, src_val) in incoming {
                             block_copies.entry(pred_block).or_default().copies.push(ParallelCopy {
                                 src: CopySource::Value(src_val),
                                 dst: CopyDest::Value(dst),

@@ -136,13 +136,13 @@ impl PureEvaluator {
 
             for &inst_id in &block.instructions {
                 let inst = &func.instructions[inst_id];
-                let result = match &inst.kind {
+                let result = match inst.kind() {
                     InstKind::Phi(incoming) => {
                         let pred = predecessor?;
                         let (_, value) = incoming.iter().find(|(block, _)| *block == pred)?;
                         self.value_const(&env, *value)?
                     }
-                    kind => self.eval_inst(kind, &env)?,
+                    kind => self.eval_inst(&kind, &env)?,
                 };
                 if let Some(value_id) = inst_result_value(func, inst_id) {
                     env.insert(value_id, result);

@@ -269,7 +269,9 @@ impl CommonSubexprEliminator {
                 .instructions
                 .iter()
                 .copied()
-                .take_while(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+                .take_while(|&inst_id| {
+                    matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
+                })
                 .collect();
             for phi_inst in phi_insts {
                 if let Some(candidate) =
@@ -296,7 +298,9 @@ impl CommonSubexprEliminator {
             let phi_count = func.blocks[candidate.block_id]
                 .instructions
                 .iter()
-                .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+                .take_while(|&&inst_id| {
+                    matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
+                })
                 .count();
             let inserted = inserted_by_block.entry(candidate.block_id).or_default();
             func.blocks[candidate.block_id].instructions.insert(phi_count + *inserted, new_inst);
@@ -328,7 +332,7 @@ impl CommonSubexprEliminator {
         let inst = &func.instructions[phi_inst];
         let result_ty = inst.result_ty?;
         let phi_result = *ctx.inst_results.get(&phi_inst)?;
-        let InstKind::Phi(incoming) = &inst.kind else { return None };
+        let incoming = inst.phi_incoming()?;
         if incoming.len() < 2 {
             return None;
         }
@@ -337,13 +341,14 @@ impl CommonSubexprEliminator {
         let mut candidate_kind = None;
         let mut incoming_insts = Vec::with_capacity(incoming.len());
 
-        for &(_, value) in incoming {
+        for (_, value) in incoming {
             let Value::Inst(inst_id) = func.value(value) else { return None };
             let source_inst = &func.instructions[*inst_id];
+            let source_kind = source_inst.kind();
             if source_inst.kind.has_side_effects()
                 || !Self::operands_dominate_block(
                     func,
-                    &source_inst.kind,
+                    &source_kind,
                     block_id,
                     ctx.inst_blocks,
                     ctx.dominators,
@@ -352,7 +357,7 @@ impl CommonSubexprEliminator {
                 return None;
             }
 
-            let key = self.make_expr_key(func, *inst_id, &source_inst.kind, ctx.replacements)?;
+            let key = self.make_expr_key(func, *inst_id, &source_kind, ctx.replacements)?;
             if !Self::is_sinkable_pure_expr(&key) {
                 return None;
             }
@@ -360,7 +365,7 @@ impl CommonSubexprEliminator {
                 return None;
             }
             expected_key = Some(key);
-            candidate_kind.get_or_insert_with(|| source_inst.kind.clone());
+            candidate_kind.get_or_insert(source_kind);
             incoming_insts.push((value, *inst_id));
         }
 
@@ -383,7 +388,7 @@ impl CommonSubexprEliminator {
     ) {
         let inst_ids = func.blocks[block_id].instructions.clone();
         for inst_id in inst_ids {
-            let kind = func.instructions[inst_id].kind.clone();
+            let kind = func.instructions[inst_id].kind();
             if kind.has_side_effects() {
                 self.invalidate_for_side_effect(func, inst_id, &kind, ctx.replacements, cache);
                 continue;
@@ -452,9 +457,15 @@ impl CommonSubexprEliminator {
         for (block_id, block) in func.blocks.iter_enumerated() {
             let mut clobbers = Vec::new();
             for &inst_id in &block.instructions {
-                let kind = &func.instructions[inst_id].kind;
-                if kind.has_side_effects() {
-                    self.side_effect_clobbers(func, inst_id, kind, &no_replacements, &mut clobbers);
+                let inst = &func.instructions[inst_id];
+                if inst.kind.has_side_effects() {
+                    self.side_effect_clobbers(
+                        func,
+                        inst_id,
+                        &inst.kind(),
+                        &no_replacements,
+                        &mut clobbers,
+                    );
                 }
             }
             if !clobbers.is_empty() {
@@ -492,7 +503,7 @@ impl CommonSubexprEliminator {
 
         for inst_id in inst_ids {
             let inst = &func.instructions[inst_id];
-            let kind = inst.kind.clone();
+            let kind = inst.kind();
 
             if kind.has_side_effects() {
                 self.invalidate_for_side_effect(
@@ -998,7 +1009,7 @@ impl CommonSubexprEliminator {
         match func.value(value) {
             Value::Immediate(_) => None,
             Value::Arg { .. } | Value::Undef(_) => Some((OperandKey::Value(value), U256::ZERO)),
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
+            Value::Inst(inst_id) => match func.instructions[*inst_id].kind() {
                 InstKind::Add(a, b) => {
                     if let Some(offset) = Self::const_u256(func, b, replacements) {
                         let (base, existing) =
@@ -1168,13 +1179,14 @@ impl CommonSubexprEliminator {
 
         for inst_id in inst_ids {
             let inst = &mut func.instructions[inst_id];
-            if Self::replace_operands(&mut inst.kind, replacements) {
-                inst.refresh_operands();
-                if Self::is_memory_inst(&inst.kind) {
+            let mut kind = inst.kind();
+            if Self::replace_operands(&mut kind, replacements) {
+                inst.set_kind(kind);
+                if Self::is_memory_inst(&inst.kind()) {
                     inst.metadata.set_memory_region(None);
                 }
                 if matches!(
-                    inst.kind,
+                    inst.kind(),
                     InstKind::SLoad(_)
                         | InstKind::SStore(_, _)
                         | InstKind::TLoad(_)

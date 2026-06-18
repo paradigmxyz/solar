@@ -70,9 +70,9 @@ impl StorageStoreEliminator {
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
 
         for &inst_id in inst_ids.iter().rev() {
-            match &func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::SStore(slot, _) => {
-                    let alias = self.storage_alias(func, inst_id, *slot);
+                    let alias = self.storage_alias(func, inst_id, slot);
                     if later_writes.contains(&alias) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
@@ -83,10 +83,10 @@ impl StorageStoreEliminator {
                     later_writes.insert(alias);
                 }
                 InstKind::SLoad(slot) => {
-                    let alias = self.storage_alias(func, inst_id, *slot);
+                    let alias = self.storage_alias(func, inst_id, slot);
                     Self::remove_aliasing_set(&mut later_writes, alias);
                 }
-                kind if Self::may_observe_or_mutate_storage(kind) => {
+                kind if Self::may_observe_or_mutate_storage(&kind) => {
                     later_writes.clear();
                 }
                 _ => {}
@@ -106,19 +106,19 @@ impl StorageStoreEliminator {
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
 
         for &inst_id in &inst_ids {
-            match &func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::SStore(slot, value) => {
-                    let alias = self.storage_alias(func, inst_id, *slot);
-                    if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {
+                    let alias = self.storage_alias(func, inst_id, slot);
+                    if stored_values.get(&alias).is_some_and(|&stored| stored == value) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
                         continue;
                     }
 
                     Self::remove_aliasing_map(&mut stored_values, alias);
-                    stored_values.insert(alias, *value);
+                    stored_values.insert(alias, value);
                 }
-                kind if Self::may_observe_or_mutate_storage(kind) => {
+                kind if Self::may_observe_or_mutate_storage(&kind) => {
                     stored_values.clear();
                 }
                 _ => {}
@@ -136,8 +136,8 @@ impl StorageStoreEliminator {
         let inst_ids: Vec<_> =
             func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
         for inst_id in inst_ids {
-            let slot = match &func.instructions[inst_id].kind {
-                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
+            let slot = match func.instructions[inst_id].kind() {
+                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
                 _ => None,
             };
             let alias = slot.map(|slot| StorageAlias::for_value(func, slot));

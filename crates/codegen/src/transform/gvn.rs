@@ -219,9 +219,14 @@ impl GlobalValueNumberer {
                     let Some(&result) = inst_results.get(&inst_id) else { continue };
                     let inst = &func.instructions[inst_id];
                     let Some(ty) = inst.result_ty else { continue };
-                    let Some(class) =
-                        Self::instruction_class(block_id, &inst.kind, ty, result, &vn, &mut table)
-                    else {
+                    let Some(class) = Self::instruction_class(
+                        block_id,
+                        &inst.kind(),
+                        ty,
+                        result,
+                        &vn,
+                        &mut table,
+                    ) else {
                         continue;
                     };
                     if vn[result.index()] != class {
@@ -369,8 +374,8 @@ impl GlobalValueNumberer {
     ) {
         for &inst_id in &func.blocks[block_id].instructions {
             let Some(&result) = ctx.inst_results.get(&inst_id) else { continue };
-            let kind = &func.instructions[inst_id].kind;
-            if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(kind, ctx.vn).is_none() {
+            let kind = func.instructions[inst_id].kind();
+            if !matches!(kind, InstKind::Phi(_)) && Self::expr_kind(&kind, ctx.vn).is_none() {
                 continue;
             }
             let class = ctx.vn[result.index()];
@@ -423,13 +428,14 @@ impl GlobalValueNumberer {
         let inst_ids: Vec<InstId> = func.blocks[block_id].instructions.clone();
         for inst_id in inst_ids {
             let inst = &mut func.instructions[inst_id];
-            if Self::replace_operands(&mut inst.kind, replacements) {
-                inst.refresh_operands();
-                if Self::is_memory_inst(&inst.kind) {
+            let mut kind = inst.kind();
+            if Self::replace_operands(&mut kind, replacements) {
+                inst.set_kind(kind);
+                if Self::is_memory_inst(&inst.kind()) {
                     inst.metadata.set_memory_region(None);
                 }
                 if matches!(
-                    inst.kind,
+                    inst.kind(),
                     InstKind::SLoad(_)
                         | InstKind::SStore(_, _)
                         | InstKind::TLoad(_)

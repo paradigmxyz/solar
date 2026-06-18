@@ -5,7 +5,7 @@
 
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, Value, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, InstTag, StorageAlias, Terminator, Value, ValueId},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -97,9 +97,9 @@ impl StorageLoadCse {
         let inst_ids = func.blocks[block_id].instructions.clone();
 
         for (inst_idx, inst_id) in inst_ids.into_iter().enumerate() {
-            match &func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::SLoad(slot) => {
-                    let alias = self.storage_alias(func, inst_id, *slot, replacements);
+                    let alias = self.storage_alias(func, inst_id, slot, replacements);
                     let Some(&result) = inst_results.get(&inst_id) else {
                         continue;
                     };
@@ -120,7 +120,7 @@ impl StorageLoadCse {
                     }
                 }
                 InstKind::SStore(slot, _) => {
-                    let alias = self.storage_alias(func, inst_id, *slot, replacements);
+                    let alias = self.storage_alias(func, inst_id, slot, replacements);
                     cached_loads.retain(|cached_alias, _| {
                         !Self::storage_aliases_may_alias(cached_alias, &alias)
                     });
@@ -135,8 +135,8 @@ impl StorageLoadCse {
         let inst_ids: Vec<_> =
             func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
         for inst_id in inst_ids {
-            let slot = match &func.instructions[inst_id].kind {
-                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
+            let slot = match func.instructions[inst_id].kind() {
+                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
                 _ => None,
             };
             let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
@@ -194,9 +194,10 @@ impl StorageLoadCse {
         }
 
         for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
-            inst.refresh_operands();
-            if matches!(inst.kind, InstKind::SLoad(_) | InstKind::SStore(_, _)) {
+            inst.visit_operands_mut(|value| {
+                *value = Self::canonical_value(*value, replacements);
+            });
+            if matches!(inst.kind, InstTag::SLoad | InstTag::SStore) {
                 inst.metadata.set_storage_alias(None);
             }
         }
@@ -206,12 +207,6 @@ impl StorageLoadCse {
                 Self::replace_terminator_operands(term, replacements);
             }
         }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            *value = Self::canonical_value(*value, replacements);
-        });
     }
 
     fn replace_terminator_operands(

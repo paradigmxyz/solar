@@ -17,8 +17,8 @@
 use crate::{
     analysis::{Loop, LoopAnalyzer},
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
-        Terminator, Value, ValueId,
+        BlockId, Function, Immediate, InstId, InstKind, InstTag, Instruction, MirType,
+        StorageAlias, Terminator, Value, ValueId,
     },
     pass::FunctionPass,
 };
@@ -148,15 +148,15 @@ impl StorageScalarPromoter {
 
         for &block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                if let InstKind::SStore(store_slot, _) = &func.instructions[inst_id].kind {
+                if let InstKind::SStore(store_slot, _) = func.instructions[inst_id].kind() {
                     let store_key =
-                        self.storage_alias_for_loop_value(func, *store_slot, loop_data)?;
+                        self.storage_alias_for_loop_value(func, store_slot, loop_data)?;
                     match slot {
                         Some(existing) if existing != store_key => return None,
                         Some(_) => {}
                         None => {
                             slot = Some(store_key);
-                            slot_value = Some(*store_slot);
+                            slot_value = Some(store_slot);
                         }
                     }
                     saw_loop_store = true;
@@ -176,8 +176,8 @@ impl StorageScalarPromoter {
         let saw_loop_load = rewrite_blocks.iter().any(|&block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
-                    &func.instructions[inst_id].kind,
-                    InstKind::SLoad(load_slot) if self.storage_alias(func, inst_id, *load_slot) == slot
+                    func.instructions[inst_id].kind(),
+                    InstKind::SLoad(load_slot) if self.storage_alias(func, inst_id, load_slot) == slot
                 )
             })
         });
@@ -216,10 +216,10 @@ impl StorageScalarPromoter {
         let mut stores: FxHashMap<StorageAlias, ValueId> = FxHashMap::default();
         for &block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                if let InstKind::SStore(store_slot, _) = &func.instructions[inst_id].kind {
+                if let InstKind::SStore(store_slot, _) = func.instructions[inst_id].kind() {
                     let store_key =
-                        self.storage_alias_for_loop_value(func, *store_slot, loop_data)?;
-                    stores.entry(store_key).or_insert(*store_slot);
+                        self.storage_alias_for_loop_value(func, store_slot, loop_data)?;
+                    stores.entry(store_key).or_insert(store_slot);
                 }
             }
         }
@@ -288,14 +288,14 @@ impl StorageScalarPromoter {
     fn rollback_exit_has_no_observable_effects(&self, func: &Function, exit: BlockId) -> bool {
         func.blocks[exit].instructions.iter().all(|&inst_id| {
             !matches!(
-                &func.instructions[inst_id].kind,
-                InstKind::Call { .. }
-                    | InstKind::StaticCall { .. }
-                    | InstKind::DelegateCall { .. }
-                    | InstKind::InternalCall { .. }
-                    | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
-                    | InstKind::Gas
+                func.instructions[inst_id].kind,
+                InstTag::Call
+                    | InstTag::StaticCall
+                    | InstTag::DelegateCall
+                    | InstTag::InternalCall
+                    | InstTag::Create
+                    | InstTag::Create2
+                    | InstTag::Gas
             )
         })
     }
@@ -329,16 +329,16 @@ impl StorageScalarPromoter {
 
             for &inst_id in &func.blocks[block_id].instructions {
                 let inst = &func.instructions[inst_id];
-                match &inst.kind {
-                    InstKind::SLoad(_) | InstKind::SStore(_, _) => {}
-                    InstKind::TStore(_, _)
-                    | InstKind::Call { .. }
-                    | InstKind::StaticCall { .. }
-                    | InstKind::DelegateCall { .. }
-                    | InstKind::InternalCall { .. }
-                    | InstKind::Create(_, _, _)
-                    | InstKind::Create2(_, _, _, _)
-                    | InstKind::Gas => return false,
+                match inst.kind {
+                    InstTag::SLoad | InstTag::SStore => {}
+                    InstTag::TStore
+                    | InstTag::Call
+                    | InstTag::StaticCall
+                    | InstTag::DelegateCall
+                    | InstTag::InternalCall
+                    | InstTag::Create
+                    | InstTag::Create2
+                    | InstTag::Gas => return false,
                     _ => {}
                 }
             }
@@ -354,16 +354,16 @@ impl StorageScalarPromoter {
     ) -> bool {
         for &block_id in blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match &func.instructions[inst_id].kind {
+                match func.instructions[inst_id].kind() {
                     InstKind::SLoad(slot) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
+                        let alias = self.storage_alias(func, inst_id, slot);
                         if alias != *candidate && self.storage_aliases_may_alias(candidate, &alias)
                         {
                             return false;
                         }
                     }
                     InstKind::SStore(slot, _) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
+                        let alias = self.storage_alias(func, inst_id, slot);
                         if alias != *candidate {
                             return false;
                         }
@@ -383,9 +383,9 @@ impl StorageScalarPromoter {
     ) -> bool {
         for &block_id in blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match &func.instructions[inst_id].kind {
+                match func.instructions[inst_id].kind() {
                     InstKind::SLoad(slot) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
+                        let alias = self.storage_alias(func, inst_id, slot);
                         if self.candidate_index(candidates, &alias).is_none()
                             && candidates.iter().any(|candidate| {
                                 self.storage_aliases_may_alias(&candidate.slot, &alias)
@@ -395,7 +395,7 @@ impl StorageScalarPromoter {
                         }
                     }
                     InstKind::SStore(slot, _) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
+                        let alias = self.storage_alias(func, inst_id, slot);
                         if self.candidate_index(candidates, &alias).is_none() {
                             return false;
                         }
@@ -415,14 +415,14 @@ impl StorageScalarPromoter {
     ) -> Option<InstId> {
         func.blocks[preheader].instructions.iter().rev().copied().find(|&inst_id| {
             matches!(
-                &func.instructions[inst_id].kind,
-                InstKind::SStore(store_slot, _) if self.storage_alias(func, inst_id, *store_slot) == *slot
+                func.instructions[inst_id].kind(),
+                InstKind::SStore(store_slot, _) if self.storage_alias(func, inst_id, store_slot) == *slot
             )
         })
     }
 
     fn store_slot(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
-        match func.instructions[inst_id].kind {
+        match func.instructions[inst_id].kind() {
             InstKind::SStore(slot, _) => Some(slot),
             _ => None,
         }
@@ -442,9 +442,9 @@ impl StorageScalarPromoter {
         };
 
         for &inst_id in &func.blocks[preheader].instructions[init_pos + 1..] {
-            match &func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::SLoad(load_slot) => {
-                    let alias = self.storage_alias(func, inst_id, *load_slot);
+                    let alias = self.storage_alias(func, inst_id, load_slot);
                     if alias != *slot && self.storage_aliases_may_alias(slot, &alias) {
                         return false;
                     }
@@ -480,9 +480,9 @@ impl StorageScalarPromoter {
         };
 
         for &inst_id in &func.blocks[preheader].instructions[first_init + 1..] {
-            match &func.instructions[inst_id].kind {
+            match func.instructions[inst_id].kind() {
                 InstKind::SLoad(load_slot) | InstKind::SStore(load_slot, _) => {
-                    let alias = self.storage_alias(func, inst_id, *load_slot);
+                    let alias = self.storage_alias(func, inst_id, load_slot);
                     if self.candidate_index(candidates, &alias).is_none()
                         && candidates.iter().any(|candidate| {
                             self.storage_aliases_may_alias(&candidate.slot, &alias)
@@ -548,9 +548,8 @@ impl StorageScalarPromoter {
         let mut temps: FxHashMap<StorageAlias, (ValueId, usize)> = FxHashMap::default();
         for candidate in promoted {
             if let Some(init_store) = candidate.candidate.init_store
-                && let InstKind::SStore(_, init) = &func.instructions[init_store].kind
+                && let InstKind::SStore(_, init) = func.instructions[init_store].kind()
             {
-                let init = *init;
                 let init_pos = func.blocks[preheader]
                     .instructions
                     .iter()
@@ -565,8 +564,8 @@ impl StorageScalarPromoter {
 
         let inst_ids = func.blocks[preheader].instructions.clone();
         for (pos, inst_id) in inst_ids.into_iter().enumerate() {
-            if let InstKind::SLoad(load_slot) = &func.instructions[inst_id].kind {
-                let alias = self.storage_alias(func, inst_id, *load_slot);
+            if let InstKind::SLoad(load_slot) = func.instructions[inst_id].kind() {
+                let alias = self.storage_alias(func, inst_id, load_slot);
                 if let Some(&(temp_addr, init_pos)) = temps.get(&alias)
                     && pos > init_pos
                 {
@@ -589,14 +588,14 @@ impl StorageScalarPromoter {
 
         for &block_id in blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                let replacement = match &func.instructions[inst_id].kind {
+                let replacement = match func.instructions[inst_id].kind() {
                     InstKind::SLoad(slot) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
+                        let alias = self.storage_alias(func, inst_id, slot);
                         temps.get(&alias).copied().map(InstKind::MLoad)
                     }
                     InstKind::SStore(slot, value) => {
-                        let alias = self.storage_alias(func, inst_id, *slot);
-                        temps.get(&alias).copied().map(|temp| InstKind::MStore(temp, *value))
+                        let alias = self.storage_alias(func, inst_id, slot);
+                        temps.get(&alias).copied().map(|temp| InstKind::MStore(temp, value))
                     }
                     _ => None,
                 };
@@ -630,16 +629,16 @@ impl StorageScalarPromoter {
             let mut index = 0;
             while index < func.blocks[block_id].instructions.len() {
                 let inst_id = func.blocks[block_id].instructions[index];
-                let replacement = match &func.instructions[inst_id].kind {
+                let replacement = match func.instructions[inst_id].kind() {
                     InstKind::SLoad(slot)
-                        if self.storage_alias(func, inst_id, *slot) == candidate.slot =>
+                        if self.storage_alias(func, inst_id, slot) == candidate.slot =>
                     {
                         Some(InstKind::MLoad(temp_addr))
                     }
                     InstKind::SStore(slot, value)
-                        if self.storage_alias(func, inst_id, *slot) == candidate.slot =>
+                        if self.storage_alias(func, inst_id, slot) == candidate.slot =>
                     {
-                        Some(InstKind::MStore(temp_addr, *value))
+                        Some(InstKind::MStore(temp_addr, value))
                     }
                     _ => None,
                 };
@@ -655,7 +654,7 @@ impl StorageScalarPromoter {
                     if track_dirty
                         && let (Some(dirty_addr), Some(dirty_value)) =
                             (promoted.dirty_addr, promoted.dirty_value)
-                        && matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _))
+                        && matches!(func.instructions[inst_id].kind, InstTag::MStore)
                     {
                         let (dirty_store, _) = self.alloc_inst_value(
                             func,
@@ -694,8 +693,7 @@ impl StorageScalarPromoter {
         let candidate = &promoted.candidate;
         match candidate.init_store {
             Some(init_store) => {
-                if let InstKind::SStore(_, init) = &func.instructions[init_store].kind {
-                    let init = *init;
+                if let InstKind::SStore(_, init) = func.instructions[init_store].kind() {
                     func.instructions[init_store]
                         .set_kind(InstKind::MStore(promoted.temp_addr, init));
                     func.instructions[init_store].metadata.set_storage_alias(None);
@@ -712,8 +710,8 @@ impl StorageScalarPromoter {
                     if !rewrite {
                         continue;
                     }
-                    if let InstKind::SLoad(load_slot) = &func.instructions[inst_id].kind
-                        && self.storage_alias(func, inst_id, *load_slot) == candidate.slot
+                    if let InstKind::SLoad(load_slot) = func.instructions[inst_id].kind()
+                        && self.storage_alias(func, inst_id, load_slot) == candidate.slot
                     {
                         func.instructions[inst_id].set_kind(InstKind::MLoad(promoted.temp_addr));
                         func.instructions[inst_id].metadata.set_storage_alias(None);
@@ -774,7 +772,9 @@ impl StorageScalarPromoter {
         let insert_pos = func.blocks[exit]
             .instructions
             .iter()
-            .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .take_while(|&&inst_id| {
+                matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
+            })
             .count();
         func.blocks[exit].instructions.insert(insert_pos, store_inst);
         func.blocks[exit].instructions.insert(insert_pos, load_inst);
@@ -799,7 +799,9 @@ impl StorageScalarPromoter {
         // Keep existing exit phis in place; only the non-phi tail moves behind the dirty check.
         let split_pos = old_instructions
             .iter()
-            .take_while(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
+            .take_while(|&&inst_id| {
+                matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi)
+            })
             .count();
         let mut exit_instructions = old_instructions[..split_pos].to_vec();
         let continuation_instructions = old_instructions[split_pos..].to_vec();
@@ -859,18 +861,16 @@ impl StorageScalarPromoter {
         for &successor in successors {
             for idx in 0..func.blocks[successor].instructions.len() {
                 let inst_id = func.blocks[successor].instructions[idx];
-                if !matches!(func.instructions[inst_id].kind, InstKind::Phi(_)) {
+                if !matches!(func.instructions[inst_id].kind, crate::mir::InstTag::Phi) {
                     break;
                 }
-                let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind else {
-                    continue;
-                };
-                for (pred, _) in incoming {
-                    if *pred == old_pred {
-                        *pred = new_pred;
+                func.instructions[inst_id].update_phi_incoming(|incoming| {
+                    for (pred, _) in incoming {
+                        if *pred == old_pred {
+                            *pred = new_pred;
+                        }
                     }
-                }
-                func.instructions[inst_id].refresh_operands();
+                });
             }
         }
     }
@@ -894,8 +894,8 @@ impl StorageScalarPromoter {
         let inst_ids: Vec<_> =
             func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
         for inst_id in inst_ids {
-            let slot = match &func.instructions[inst_id].kind {
-                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(*slot),
+            let slot = match func.instructions[inst_id].kind() {
+                InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
                 _ => None,
             };
             let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
@@ -1232,15 +1232,15 @@ mod tests {
         assert_eq!(stats.loops_promoted, 1);
         assert_eq!(stats.loads_promoted, 1);
         assert_eq!(stats.stores_promoted, 2);
-        assert!(matches!(test.func.instructions[test.entry_store].kind, InstKind::MStore(_, _)));
-        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::MLoad(_)));
-        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::MStore(_, _)));
+        assert!(matches!(test.func.instructions[test.entry_store].kind(), InstKind::MStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_load].kind(), InstKind::MLoad(_)));
+        assert!(matches!(test.func.instructions[test.body_store].kind(), InstKind::MStore(_, _)));
         assert!(matches!(
-            test.func.instructions[test.func.blocks[test.exit].instructions[0]].kind,
+            test.func.instructions[test.func.blocks[test.exit].instructions[0]].kind(),
             InstKind::MLoad(_)
         ));
         assert!(matches!(
-            test.func.instructions[test.func.blocks[test.exit].instructions[1]].kind,
+            test.func.instructions[test.func.blocks[test.exit].instructions[1]].kind(),
             InstKind::SStore(_, _)
         ));
     }
@@ -1252,9 +1252,9 @@ mod tests {
         let stats = pass.run(&mut test.func);
 
         assert_eq!(stats.loops_promoted, 0);
-        assert!(matches!(test.func.instructions[test.entry_store].kind, InstKind::SStore(_, _)));
-        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::SLoad(_)));
-        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::SStore(_, _)));
+        assert!(matches!(test.func.instructions[test.entry_store].kind(), InstKind::SStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_load].kind(), InstKind::SLoad(_)));
+        assert!(matches!(test.func.instructions[test.body_store].kind(), InstKind::SStore(_, _)));
     }
 
     #[test]
@@ -1268,19 +1268,19 @@ mod tests {
         assert_eq!(stats.loads_promoted, 1);
         assert_eq!(stats.stores_promoted, 1);
         assert!(matches!(
-            test.func.instructions[test.func.blocks[entry].instructions[0]].kind,
+            test.func.instructions[test.func.blocks[entry].instructions[0]].kind(),
             InstKind::SLoad(_)
         ));
         assert!(matches!(
-            test.func.instructions[test.func.blocks[entry].instructions[1]].kind,
+            test.func.instructions[test.func.blocks[entry].instructions[1]].kind(),
             InstKind::MStore(_, _)
         ));
         assert!(matches!(
-            test.func.instructions[test.func.blocks[entry].instructions[2]].kind,
+            test.func.instructions[test.func.blocks[entry].instructions[2]].kind(),
             InstKind::MStore(_, _)
         ));
-        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::MLoad(_)));
-        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::MStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_load].kind(), InstKind::MLoad(_)));
+        assert!(matches!(test.func.instructions[test.body_store].kind(), InstKind::MStore(_, _)));
 
         let dirty_store_pos = test.func.blocks.iter().find_map(|block| {
             block
@@ -1293,12 +1293,12 @@ mod tests {
             panic!("missing promoted body store");
         };
         assert!(matches!(
-            test.func.instructions[body_block.instructions[dirty_store_pos]].kind,
+            test.func.instructions[body_block.instructions[dirty_store_pos]].kind(),
             InstKind::MStore(_, _)
         ));
 
         assert!(matches!(
-            test.func.instructions[test.func.blocks[test.exit].instructions[0]].kind,
+            test.func.instructions[test.func.blocks[test.exit].instructions[0]].kind(),
             InstKind::MLoad(_)
         ));
         let Some(Terminator::Branch { then_block, else_block, .. }) =
@@ -1307,11 +1307,11 @@ mod tests {
             panic!("dirty exit should branch");
         };
         assert!(matches!(
-            test.func.instructions[test.func.blocks[*then_block].instructions[0]].kind,
+            test.func.instructions[test.func.blocks[*then_block].instructions[0]].kind(),
             InstKind::MLoad(_)
         ));
         assert!(matches!(
-            test.func.instructions[test.func.blocks[*then_block].instructions[1]].kind,
+            test.func.instructions[test.func.blocks[*then_block].instructions[1]].kind(),
             InstKind::SStore(_, _)
         ));
         assert_eq!(test.func.blocks[*else_block].terminator, Some(Terminator::Stop));
@@ -1329,10 +1329,10 @@ mod tests {
         assert_eq!(stats.stores_promoted, 1);
         assert_eq!(test.func.blocks[entry].instructions.len(), 1);
         assert!(matches!(
-            test.func.instructions[test.func.blocks[entry].instructions[0]].kind,
+            test.func.instructions[test.func.blocks[entry].instructions[0]].kind(),
             InstKind::MStore(_, _)
         ));
-        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::MStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_store].kind(), InstKind::MStore(_, _)));
 
         let Some(Terminator::Branch { then_block, else_block, .. }) =
             test.func.blocks[test.exit].terminator.as_ref()
@@ -1340,11 +1340,11 @@ mod tests {
             panic!("dirty exit should branch");
         };
         assert!(matches!(
-            test.func.instructions[test.func.blocks[*then_block].instructions[0]].kind,
+            test.func.instructions[test.func.blocks[*then_block].instructions[0]].kind(),
             InstKind::MLoad(_)
         ));
         assert!(matches!(
-            test.func.instructions[test.func.blocks[*then_block].instructions[1]].kind,
+            test.func.instructions[test.func.blocks[*then_block].instructions[1]].kind(),
             InstKind::SStore(_, _)
         ));
         assert_eq!(test.func.blocks[*else_block].terminator, Some(Terminator::Stop));
@@ -1359,9 +1359,9 @@ mod tests {
         assert_eq!(stats.loops_promoted, 1);
         assert_eq!(stats.loads_promoted, 1);
         assert_eq!(stats.stores_promoted, 2);
-        assert!(matches!(test.func.instructions[test.entry_store].kind, InstKind::MStore(_, _)));
-        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::MLoad(_)));
-        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::MStore(_, _)));
+        assert!(matches!(test.func.instructions[test.entry_store].kind(), InstKind::MStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_load].kind(), InstKind::MLoad(_)));
+        assert!(matches!(test.func.instructions[test.body_store].kind(), InstKind::MStore(_, _)));
     }
 
     #[test]
@@ -1371,8 +1371,8 @@ mod tests {
         let stats = pass.run(&mut test.func);
 
         assert_eq!(stats.loops_promoted, 0);
-        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::SLoad(_)));
-        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::SStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_load].kind(), InstKind::SLoad(_)));
+        assert!(matches!(test.func.instructions[test.body_store].kind(), InstKind::SStore(_, _)));
     }
 
     #[test]
@@ -1382,8 +1382,8 @@ mod tests {
         let stats = pass.run(&mut test.func);
 
         assert_eq!(stats.loops_promoted, 0);
-        assert!(matches!(test.func.instructions[test.entry_store].kind, InstKind::SStore(_, _)));
-        assert!(matches!(test.func.instructions[test.body_load].kind, InstKind::SLoad(_)));
-        assert!(matches!(test.func.instructions[test.body_store].kind, InstKind::SStore(_, _)));
+        assert!(matches!(test.func.instructions[test.entry_store].kind(), InstKind::SStore(_, _)));
+        assert!(matches!(test.func.instructions[test.body_load].kind(), InstKind::SLoad(_)));
+        assert!(matches!(test.func.instructions[test.body_store].kind(), InstKind::SStore(_, _)));
     }
 }

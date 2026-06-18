@@ -747,7 +747,8 @@ impl MirInliner {
         for func in module.functions.iter() {
             for block in func.blocks.iter() {
                 for &inst_id in &block.instructions {
-                    if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind
+                    if let InstKind::InternalCall { function, .. } =
+                        func.instructions[inst_id].kind()
                     {
                         *counts.entry(function).or_default() += 1;
                     }
@@ -792,7 +793,7 @@ impl MirInliner {
         let mut callees = Vec::new();
         for block in func.blocks.iter() {
             for &inst_id in &block.instructions {
-                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind {
+                if let InstKind::InternalCall { function, .. } = func.instructions[inst_id].kind() {
                     callees.push(function);
                 }
             }
@@ -810,7 +811,7 @@ impl MirInliner {
             let start_inst = if block.index() == start.0 { start.1 } else { 0 };
             for (inst_index, &inst_id) in bb.instructions.iter().enumerate().skip(start_inst) {
                 if let InstKind::InternalCall { function, ref args, returns } =
-                    func.instructions[inst_id].kind
+                    func.instructions[inst_id].kind()
                 {
                     return Some(CallSite {
                         block,
@@ -911,25 +912,28 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
     for block in func.blocks.iter() {
         summary.instruction_count += block.instructions.len();
         for &inst_id in &block.instructions {
-            let inst_cost = estimate_inst_cost(&func.instructions[inst_id].kind);
+            let inst = &func.instructions[inst_id];
+            let inst_cost = estimate_inst_cost(&inst.kind());
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
-            match &func.instructions[inst_id].kind {
-                InstKind::InternalCall { .. } => summary.has_internal_call = true,
-                InstKind::Phi(_) => summary.has_phi = true,
-                InstKind::Call { .. }
-                | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::Create(..)
-                | InstKind::Create2(..) => {
+            match inst.kind {
+                crate::mir::InstTag::InternalCall => summary.has_internal_call = true,
+                crate::mir::InstTag::Phi => summary.has_phi = true,
+                crate::mir::InstTag::Call
+                | crate::mir::InstTag::StaticCall
+                | crate::mir::InstTag::DelegateCall
+                | crate::mir::InstTag::Create
+                | crate::mir::InstTag::Create2 => {
                     summary.has_external_call = true;
                 }
-                InstKind::SStore(..) | InstKind::TStore(..) => summary.has_storage_write = true,
-                InstKind::Log0(..)
-                | InstKind::Log1(..)
-                | InstKind::Log2(..)
-                | InstKind::Log3(..)
-                | InstKind::Log4(..) => summary.has_log = true,
+                crate::mir::InstTag::SStore | crate::mir::InstTag::TStore => {
+                    summary.has_storage_write = true;
+                }
+                crate::mir::InstTag::Log0
+                | crate::mir::InstTag::Log1
+                | crate::mir::InstTag::Log2
+                | crate::mir::InstTag::Log3
+                | crate::mir::InstTag::Log4 => summary.has_log = true,
                 _ => {}
             }
         }
@@ -1137,8 +1141,7 @@ fn inline_call_impl(
     callee: &Function,
 ) -> Option<()> {
     let call_inst = caller.blocks[call_block].instructions[call_inst_index];
-    let InstKind::InternalCall { args, returns, .. } = caller.instructions[call_inst].kind.clone()
-    else {
+    let InstKind::InternalCall { args, returns, .. } = caller.instructions[call_inst].kind() else {
         return None;
     };
     let returns = returns as usize;
@@ -1232,7 +1235,7 @@ impl<'a> InlineCloner<'a> {
             let mut instructions = Vec::with_capacity(block.instructions.len());
             for &inst_id in &block.instructions {
                 let inst = self.callee.instructions[inst_id].clone();
-                let kind = self.clone_inst_kind(inst.kind)?;
+                let kind = self.clone_inst_kind(inst.kind())?;
                 let new_inst = self.caller.alloc_inst(Instruction::new(kind, inst.result_ty));
                 instructions.push(new_inst);
                 if let Some(callee_result) = find_inst_result(self.callee, inst_id) {
@@ -1525,7 +1528,9 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
     let phi_count = caller.blocks[continuation]
         .instructions
         .iter()
-        .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
+        .take_while(|&&inst_id| {
+            matches!(caller.instructions[inst_id].kind, crate::mir::InstTag::Phi)
+        })
         .count();
 
     for (index, &value) in values.iter().enumerate() {
@@ -1548,13 +1553,14 @@ fn redirect_phi_predecessors(
 
     for &succ in successors {
         for &inst_id in &func.blocks[succ].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
-                for (pred, _) in incoming {
-                    if *pred == old_pred {
-                        *pred = new_pred;
+            if func.instructions[inst_id].kind == crate::mir::InstTag::Phi {
+                func.instructions[inst_id].update_phi_incoming(|incoming| {
+                    for (pred, _) in incoming {
+                        if *pred == old_pred {
+                            *pred = new_pred;
+                        }
                     }
-                }
-                func.instructions[inst_id].refresh_operands();
+                });
             }
         }
     }
@@ -1572,22 +1578,17 @@ fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>)
     }
 
     for inst in func.instructions.iter_mut() {
-        replace_inst_operands(&mut inst.kind, replacements);
-        inst.refresh_operands();
+        inst.visit_operands_mut(|value| {
+            if let Some(new_value) = replacements.get(value) {
+                *value = *new_value;
+            }
+        });
     }
     for block in func.blocks.iter_mut() {
         if let Some(term) = &mut block.terminator {
             replace_terminator_operands(term, replacements);
         }
     }
-}
-
-fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-    kind.visit_operands_mut(|value| {
-        if let Some(new_value) = replacements.get(value) {
-            *value = *new_value;
-        }
-    });
 }
 
 fn replace_terminator_operands(term: &mut Terminator, replacements: &FxHashMap<ValueId, ValueId>) {
@@ -1642,9 +1643,10 @@ fn prune_phi_incoming_to_predecessors(func: &mut Function) {
     for block_id in func.blocks.indices() {
         let predecessors = func.blocks[block_id].predecessors.clone();
         for &inst_id in &func.blocks[block_id].instructions {
-            if let InstKind::Phi(incoming) = &mut func.instructions[inst_id].kind {
-                incoming.retain(|(pred, _)| predecessors.contains(pred));
-                func.instructions[inst_id].refresh_operands();
+            if func.instructions[inst_id].kind == crate::mir::InstTag::Phi {
+                func.instructions[inst_id].update_phi_incoming(|incoming| {
+                    incoming.retain(|(pred, _)| predecessors.contains(pred))
+                });
             }
         }
     }
@@ -1718,14 +1720,14 @@ mod tests {
         let caller = module.function(caller_id);
         assert!(caller.blocks.iter().all(|block| {
             block.instructions.iter().all(|&inst| {
-                !matches!(caller.instructions[inst].kind, InstKind::InternalCall { .. })
+                !matches!(caller.instructions[inst].kind, crate::mir::InstTag::InternalCall)
             })
         }));
         assert!(caller.blocks.iter().any(|block| {
             block
                 .instructions
                 .iter()
-                .any(|&inst| matches!(caller.instructions[inst].kind, InstKind::Phi(_)))
+                .any(|&inst| matches!(caller.instructions[inst].kind, crate::mir::InstTag::Phi))
         }));
     }
 }

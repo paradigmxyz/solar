@@ -242,10 +242,10 @@ impl LoopOptimizer {
         if inst.kind.has_side_effects() {
             return false;
         }
-        if matches!(inst.kind, InstKind::Phi(_)) {
+        if matches!(inst.kind, crate::mir::InstTag::Phi) {
             return false;
         }
-        match inst.kind {
+        match inst.kind() {
             // Hoisting memory reads expands memory earlier (and unconditionally), which any
             // MSIZE in the function could observe; on top of the dependence checks they must
             // also be guaranteed to execute so a zero-trip loop cannot start trapping (OOG
@@ -376,10 +376,9 @@ impl LoopOptimizer {
 
     fn function_observes_msize(&self, func: &Function) -> bool {
         func.blocks.iter().any(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MSize))
+            block.instructions.iter().any(|&inst_id| {
+                matches!(func.instructions[inst_id].kind, crate::mir::InstTag::MSize)
+            })
         })
     }
 
@@ -387,7 +386,7 @@ impl LoopOptimizer {
         loop_data.blocks.iter().any(|&block_id| {
             func.blocks[block_id].instructions.iter().any(|&inst_id| {
                 matches!(
-                    func.instructions[inst_id].kind,
+                    func.instructions[inst_id].kind(),
                     InstKind::Call { .. }
                         | InstKind::StaticCall { .. }
                         | InstKind::DelegateCall { .. }
@@ -404,7 +403,7 @@ impl LoopOptimizer {
     }
 
     fn licm_profit(&self, func: &Function, inst_id: InstId) -> u16 {
-        match func.instructions[inst_id].kind {
+        match func.instructions[inst_id].kind() {
             InstKind::SLoad(_) => 100,
             InstKind::TLoad(_) => 100,
             InstKind::Keccak256(_, _) => 30,
@@ -441,7 +440,7 @@ impl LoopOptimizer {
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
         for &block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                if matches!(func.instructions[inst_id].kind, InstKind::Gas) {
+                if matches!(func.instructions[inst_id].kind(), InstKind::Gas) {
                     return true;
                 }
             }
@@ -476,7 +475,7 @@ impl LoopOptimizer {
     ) -> bool {
         for &block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match func.instructions[inst_id].kind {
+                match func.instructions[inst_id].kind() {
                     InstKind::MStore(addr, _)
                         if self.memory_ranges_may_alias(
                             func, ctx, load_addr, load_width, addr, 32, block_id,
@@ -527,7 +526,7 @@ impl LoopOptimizer {
 
         for &block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
-                match (space, &func.instructions[inst_id].kind) {
+                match (space, &func.instructions[inst_id].kind()) {
                     (StorageSpace::Persistent, InstKind::SStore(slot, _))
                     | (StorageSpace::Transient, InstKind::TStore(slot, _)) => {
                         let Some(store_alias) =
@@ -713,7 +712,7 @@ impl LoopOptimizer {
         let inst_ids: Vec<_> =
             func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
         for inst_id in inst_ids {
-            let slot = match func.instructions[inst_id].kind {
+            let slot = match func.instructions[inst_id].kind() {
                 InstKind::SLoad(slot)
                 | InstKind::SStore(slot, _)
                 | InstKind::TLoad(slot)
@@ -734,7 +733,7 @@ impl LoopOptimizer {
         let Some(result) = self.inst_result(func, inst_id) else { return false };
         for &block_id in &ctx.loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
-                let kind = &func.instructions[user_inst].kind;
+                let kind = &func.instructions[user_inst].kind();
                 let address_operands: smallvec::SmallVec<[ValueId; 2]> = match kind {
                     InstKind::MLoad(addr)
                     | InstKind::MStore(addr, _)
@@ -783,7 +782,6 @@ impl LoopOptimizer {
             return false;
         }
         func.instructions[*inst_id]
-            .kind
             .operands()
             .iter()
             .copied()
