@@ -633,7 +633,7 @@ impl CommonSubexprEliminator {
             }
             InstKind::Keccak256(offset, size) => {
                 let size = value(*size);
-                let const_size = mir_utils::value_u64(func, size);
+                let const_size = func.value_u64(size);
                 let mut key = self.memory_range_key(func, inst_id, value(*offset), const_size)?;
                 if const_size.is_none() {
                     // Key the dynamic size operand so reads of different lengths never unify.
@@ -642,12 +642,16 @@ impl CommonSubexprEliminator {
                 Some(ExprKey::Keccak256(key))
             }
 
-            InstKind::SLoad(slot) => Some(ExprKey::SLoad(
-                mir_utils::storage_alias_after_replacements(func, inst_id, *slot, replacements),
-            )),
-            InstKind::TLoad(slot) => Some(ExprKey::TLoad(
-                mir_utils::storage_alias_after_replacements(func, inst_id, *slot, replacements),
-            )),
+            InstKind::SLoad(slot) => Some(ExprKey::SLoad(func.storage_alias_after_replacements(
+                inst_id,
+                *slot,
+                replacements,
+            ))),
+            InstKind::TLoad(slot) => Some(ExprKey::TLoad(func.storage_alias_after_replacements(
+                inst_id,
+                *slot,
+                replacements,
+            ))),
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
 
@@ -705,21 +709,18 @@ impl CommonSubexprEliminator {
             | InstKind::ReturnDataCopy(dest, _, size)
             | InstKind::ExtCodeCopy(_, dest, _, size) => {
                 let dest = mir_utils::resolve_replacement(dest, replacements);
-                let size =
-                    mir_utils::value_u64(func, mir_utils::resolve_replacement(size, replacements));
+                let size = func.value_u64(mir_utils::resolve_replacement(size, replacements));
                 clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, dest, size)));
             }
             InstKind::SStore(slot, _) => {
-                clobbers.push(Clobber::Storage(mir_utils::storage_alias_after_replacements(
-                    func,
+                clobbers.push(Clobber::Storage(func.storage_alias_after_replacements(
                     inst_id,
                     slot,
                     replacements,
                 )));
             }
             InstKind::TStore(slot, _) => {
-                clobbers.push(Clobber::Transient(mir_utils::storage_alias_after_replacements(
-                    func,
+                clobbers.push(Clobber::Transient(func.storage_alias_after_replacements(
                     inst_id,
                     slot,
                     replacements,
@@ -866,7 +867,7 @@ impl CommonSubexprEliminator {
         let region = func.instructions[inst_id]
             .metadata
             .memory_region()
-            .unwrap_or_else(|| mir_utils::memory_region_for_addr(func, addr));
+            .unwrap_or_else(|| func.memory_region_for_addr(addr));
         let (base, offset) = Self::memory_addr_base_offset(func, addr);
         Some(MemRangeKey { region, base, offset, size, dyn_size: None })
     }
@@ -909,11 +910,10 @@ impl CommonSubexprEliminator {
         b: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<(OperandKey, U256)> {
-        if let Some(offset) = mir_utils::value_u256_after_replacements(func, b, replacements) {
+        if let Some(offset) = func.value_u256_after_replacements(b, replacements) {
             let (base, existing) = Self::offset_value(func, a, replacements, 0)?;
             Some((base, existing.wrapping_add(offset)))
-        } else if let Some(offset) = mir_utils::value_u256_after_replacements(func, a, replacements)
-        {
+        } else if let Some(offset) = func.value_u256_after_replacements(a, replacements) {
             let (base, existing) = Self::offset_value(func, b, replacements, 0)?;
             Some((base, existing.wrapping_add(offset)))
         } else {
@@ -927,7 +927,7 @@ impl CommonSubexprEliminator {
         b: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<(OperandKey, U256)> {
-        let offset = mir_utils::value_u256_after_replacements(func, b, replacements)?;
+        let offset = func.value_u256_after_replacements(b, replacements)?;
         let (base, existing) = Self::offset_value(func, a, replacements, 0)?;
         Some((base, existing.wrapping_sub(offset)))
     }
@@ -948,14 +948,11 @@ impl CommonSubexprEliminator {
             Value::Arg { .. } | Value::Undef(_) => Some((OperandKey::Value(value), U256::ZERO)),
             Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
                 InstKind::Add(a, b) => {
-                    if let Some(offset) =
-                        mir_utils::value_u256_after_replacements(func, b, replacements)
-                    {
+                    if let Some(offset) = func.value_u256_after_replacements(b, replacements) {
                         let (base, existing) =
                             Self::offset_value(func, a, replacements, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
-                    } else if let Some(offset) =
-                        mir_utils::value_u256_after_replacements(func, a, replacements)
+                    } else if let Some(offset) = func.value_u256_after_replacements(a, replacements)
                     {
                         let (base, existing) =
                             Self::offset_value(func, b, replacements, depth + 1)?;
@@ -965,7 +962,7 @@ impl CommonSubexprEliminator {
                     }
                 }
                 InstKind::Sub(a, b) => {
-                    let offset = mir_utils::value_u256_after_replacements(func, b, replacements)?;
+                    let offset = func.value_u256_after_replacements(b, replacements)?;
                     let (base, existing) = Self::offset_value(func, a, replacements, depth + 1)?;
                     Some((base, existing.wrapping_sub(offset)))
                 }

@@ -34,7 +34,7 @@ use crate::{
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirType,
         Terminator, Value, ValueId,
-        utils::{self as mir_utils, repair_reachability_phis, split_edge},
+        utils::{repair_reachability_phis, split_edge},
     },
     pass::FunctionPass,
 };
@@ -404,7 +404,7 @@ impl PartialRedundancyEliminator {
         };
 
         let replacements = FxHashMap::from_iter([(result, replacement)]);
-        mir_utils::replace_uses(func, &replacements);
+        func.replace_uses(&replacements);
         func.blocks[target].instructions.retain(|&inst_id| inst_id != inst);
         inst_results.remove(&inst);
         inst_blocks.remove(&inst);

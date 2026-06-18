@@ -108,10 +108,7 @@ impl LoopOptimizer {
     /// Runs all enabled loop optimizations on a function.
     pub fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
-        mir_utils::annotate_storage_aliases(
-            func,
-            mir_utils::StorageAliasScope::StorageAndTransient,
-        );
+        func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);

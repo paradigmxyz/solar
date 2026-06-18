@@ -16,8 +16,7 @@
 
 use crate::{
     mir::{
-        BlockId, Function, InstKind, Terminator, Value, ValueId,
-        utils::{self as mir_utils, repair_reachability_phis},
+        BlockId, Function, InstKind, Terminator, Value, ValueId, utils::repair_reachability_phis,
     },
     pass::FunctionPass,
 };
@@ -354,14 +353,14 @@ impl JumpThreader {
         match term {
             Terminator::Branch { condition, then_block, else_block } => {
                 let incoming = Self::incoming_value_for_pred(func, block_id, *condition, pred)?;
-                let condition = mir_utils::value_u256(func, incoming)?;
+                let condition = func.value_u256(incoming)?;
                 Some(if condition.is_zero() { *else_block } else { *then_block })
             }
             Terminator::Switch { value, default, cases } => {
                 let incoming = Self::incoming_value_for_pred(func, block_id, *value, pred)?;
-                let value = mir_utils::value_u256(func, incoming)?;
+                let value = func.value_u256(incoming)?;
                 for (case, target) in cases {
-                    if mir_utils::value_u256(func, *case)? == value {
+                    if func.value_u256(*case)? == value {
                         return Some(*target);
                     }
                 }

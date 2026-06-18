@@ -40,7 +40,7 @@ impl StorageStoreEliminator {
     /// Runs local storage DSE on a function.
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        mir_utils::annotate_storage_aliases(func, mir_utils::StorageAliasScope::Storage);
+        func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
@@ -72,7 +72,7 @@ impl StorageStoreEliminator {
         for &inst_id in inst_ids.iter().rev() {
             match &func.instructions[inst_id].kind {
                 InstKind::SStore(slot, _) => {
-                    let alias = mir_utils::storage_alias(func, inst_id, *slot);
+                    let alias = func.storage_alias(inst_id, *slot);
                     if later_writes.contains(&alias) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;
@@ -83,7 +83,7 @@ impl StorageStoreEliminator {
                     later_writes.insert(alias);
                 }
                 InstKind::SLoad(slot) => {
-                    let alias = mir_utils::storage_alias(func, inst_id, *slot);
+                    let alias = func.storage_alias(inst_id, *slot);
                     Self::remove_aliasing_set(&mut later_writes, alias);
                 }
                 kind if Self::may_observe_or_mutate_storage(kind) => {
@@ -108,7 +108,7 @@ impl StorageStoreEliminator {
         for &inst_id in &inst_ids {
             match &func.instructions[inst_id].kind {
                 InstKind::SStore(slot, value) => {
-                    let alias = mir_utils::storage_alias(func, inst_id, *slot);
+                    let alias = func.storage_alias(inst_id, *slot);
                     if stored_values.get(&alias).is_some_and(|&stored| stored == *value) {
                         dead.insert(inst_id);
                         self.eliminated_count += 1;

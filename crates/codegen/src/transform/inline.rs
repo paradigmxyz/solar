@@ -22,7 +22,7 @@ use crate::{
     analysis::LoopAnalyzer,
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
-        Module, Terminator, Value, ValueId, utils as mir_utils,
+        Module, Terminator, Value, ValueId,
     },
     pass::ModulePass,
 };
@@ -1182,7 +1182,7 @@ fn inline_call_impl(
         insert_extra_return_stores(cloner.caller, continuation, &return_values[1..]);
     }
 
-    mir_utils::replace_uses(cloner.caller, &replacements);
+    cloner.caller.replace_uses(&replacements);
     recompute_cfg(cloner.caller);
     prune_phi_incoming_to_predecessors(cloner.caller);
     Some(())

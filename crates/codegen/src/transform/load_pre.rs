@@ -936,20 +936,18 @@ impl LoadRedundancyEliminator {
     /// Returns the key an instruction gens and where its value comes from.
     fn gen_key_value(func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
         match func.instructions[inst_id].kind {
-            InstKind::SLoad(slot) => Some((
-                LoadKey::Storage(mir_utils::storage_alias(func, inst_id, slot)),
-                GenSource::LoadResult,
-            )),
+            InstKind::SLoad(slot) => {
+                Some((LoadKey::Storage(func.storage_alias(inst_id, slot)), GenSource::LoadResult))
+            }
             InstKind::SStore(slot, value) => Some((
-                LoadKey::Storage(mir_utils::storage_alias(func, inst_id, slot)),
+                LoadKey::Storage(func.storage_alias(inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::TLoad(slot) => Some((
-                LoadKey::Transient(mir_utils::storage_alias(func, inst_id, slot)),
-                GenSource::LoadResult,
-            )),
+            InstKind::TLoad(slot) => {
+                Some((LoadKey::Transient(func.storage_alias(inst_id, slot)), GenSource::LoadResult))
+            }
             InstKind::TStore(slot, value) => Some((
-                LoadKey::Transient(mir_utils::storage_alias(func, inst_id, slot)),
+                LoadKey::Transient(func.storage_alias(inst_id, slot)),
                 GenSource::Stored(value),
             )),
             InstKind::MLoad(addr) => Self::mem_addr(func, inst_id, addr)
@@ -958,7 +956,7 @@ impl LoadRedundancyEliminator {
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
                 let addr = Self::mem_addr(func, inst_id, offset)?;
-                let size = match mir_utils::value_u64(func, size) {
+                let size = match func.value_u64(size) {
                     Some(size) => KeccakSize::Const(size),
                     None => KeccakSize::Dyn(size),
                 };
@@ -973,17 +971,13 @@ impl LoadRedundancyEliminator {
         let kind = &func.instructions[inst_id].kind;
         match key {
             LoadKey::Storage(alias) => match *kind {
-                InstKind::SStore(slot, _) => {
-                    mir_utils::storage_alias(func, inst_id, slot).may_alias(alias)
-                }
+                InstKind::SStore(slot, _) => func.storage_alias(inst_id, slot).may_alias(alias),
                 // Calls and creates may re-enter and mutate storage;
                 // STATICCALL cannot.
                 _ => kind.may_mutate_storage(),
             },
             LoadKey::Transient(alias) => match *kind {
-                InstKind::TStore(slot, _) => {
-                    mir_utils::storage_alias(func, inst_id, slot).may_alias(alias)
-                }
+                InstKind::TStore(slot, _) => func.storage_alias(inst_id, slot).may_alias(alias),
                 _ => kind.may_mutate_transient_storage(),
             },
             LoadKey::Memory(addr) => Self::memory_write_clobbers(func, inst_id, addr, Some(32)),
@@ -1013,8 +1007,8 @@ impl LoadRedundancyEliminator {
             InstKind::MCopy(dest, _, size)
             | InstKind::CalldataCopy(dest, _, size)
             | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ReturnDataCopy(dest, _, size) => (dest, mir_utils::value_u64(func, size)),
-            InstKind::ExtCodeCopy(_, dest, _, size) => (dest, mir_utils::value_u64(func, size)),
+            | InstKind::ReturnDataCopy(dest, _, size) => (dest, func.value_u64(size)),
+            InstKind::ExtCodeCopy(_, dest, _, size) => (dest, func.value_u64(size)),
             // Every call clobbers tracked memory, including STATICCALL: its
             // return buffer write is a memory effect even in a static context.
             _ => return kind.may_mutate_memory(),
@@ -1023,7 +1017,7 @@ impl LoadRedundancyEliminator {
         let write_region = func.instructions[inst_id]
             .metadata
             .memory_region()
-            .unwrap_or_else(|| mir_utils::memory_region_for_addr(func, dest));
+            .unwrap_or_else(|| func.memory_region_for_addr(dest));
         if read.region != MemoryRegion::Unknown
             && write_region != MemoryRegion::Unknown
             && read.region != write_region
@@ -1046,7 +1040,7 @@ impl LoadRedundancyEliminator {
         let region = func.instructions[inst_id]
             .metadata
             .memory_region()
-            .unwrap_or_else(|| mir_utils::memory_region_for_addr(func, addr));
+            .unwrap_or_else(|| func.memory_region_for_addr(addr));
         let (base, offset) = Self::memory_addr_base_offset(func, addr);
         Some(MemAddr { region, base, offset: offset? })
     }
@@ -1076,10 +1070,10 @@ impl LoadRedundancyEliminator {
             Value::Arg { .. } | Value::Undef(_) => Some((value, U256::ZERO)),
             Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
                 InstKind::Add(a, b) => {
-                    if let Some(offset) = mir_utils::value_u256(func, b) {
+                    if let Some(offset) = func.value_u256(b) {
                         let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
-                    } else if let Some(offset) = mir_utils::value_u256(func, a) {
+                    } else if let Some(offset) = func.value_u256(a) {
                         let (base, existing) = Self::offset_chain(func, b, depth + 1)?;
                         Some((base, existing.wrapping_add(offset)))
                     } else {
@@ -1087,7 +1081,7 @@ impl LoadRedundancyEliminator {
                     }
                 }
                 InstKind::Sub(a, b) => {
-                    let offset = mir_utils::value_u256(func, b)?;
+                    let offset = func.value_u256(b)?;
                     let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
                     Some((base, existing.wrapping_sub(offset)))
                 }

@@ -106,7 +106,7 @@ impl MemoryStoreEliminator {
                 let InstKind::CodeCopy(dest, src, size) = func.instructions[codecopy].kind else {
                     continue;
                 };
-                if mir_utils::value_u64(func, size) != Some(32) {
+                if func.value_u64(size) != Some(32) {
                     continue;
                 }
                 let Some(key) = Self::immutable_copy_key(func, src) else {
@@ -143,7 +143,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        mir_utils::replace_uses_canonicalized(func, &replacements);
+        func.replace_uses_canonicalized(&replacements);
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|id| !dead.contains(id));
         }
@@ -331,7 +331,7 @@ impl MemoryStoreEliminator {
                         continue;
                     };
                     Self::remove_overlapping_map(&mut stored_words, key);
-                    if let Some(value) = mir_utils::value_u256(func, *value) {
+                    if let Some(value) = func.value_u256(*value) {
                         stored_words.insert(key, value);
                     }
                 }
@@ -363,7 +363,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        mir_utils::replace_uses_canonicalized(func, &replacements);
+        func.replace_uses_canonicalized(&replacements);
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
     }
 
@@ -456,7 +456,7 @@ impl MemoryStoreEliminator {
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
                 | InstKind::ReturnDataCopy(dest, _, size) => {
-                    let Some(size) = mir_utils::value_u64(func, *size) else {
+                    let Some(size) = func.value_u64(*size) else {
                         stored_values.clear();
                         continue;
                     };
@@ -466,7 +466,7 @@ impl MemoryStoreEliminator {
                     }
                 }
                 InstKind::ExtCodeCopy(_, dest, _, size) => {
-                    let Some(size) = mir_utils::value_u64(func, *size) else {
+                    let Some(size) = func.value_u64(*size) else {
                         stored_values.clear();
                         continue;
                     };
@@ -486,7 +486,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        mir_utils::replace_uses_canonicalized(func, &replacements);
+        func.replace_uses_canonicalized(&replacements);
         self.eliminated_count += dead.len();
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
     }
@@ -526,7 +526,7 @@ impl MemoryStoreEliminator {
         offset: ValueId,
         depth: usize,
     ) -> Option<MemAddrKey> {
-        let offset = mir_utils::value_u64(func, offset)?;
+        let offset = func.value_u64(offset)?;
         match Self::mem_addr_key_with_depth(func, base, depth + 1)? {
             MemAddrKey::Const(addr) => addr.checked_add(offset).map(MemAddrKey::Const),
             MemAddrKey::BaseOffset { base, offset: base_offset } => base_offset
@@ -539,7 +539,7 @@ impl MemoryStoreEliminator {
         match func.values[src] {
             Value::Inst(inst_id) => match func.instructions[inst_id].kind {
                 InstKind::Sub(code_size, len) if Self::is_codesize(func, code_size) => {
-                    Some(ImmutableCopyKey { len: mir_utils::value_u64(func, len)?, offset: 0 })
+                    Some(ImmutableCopyKey { len: func.value_u64(len)?, offset: 0 })
                 }
                 InstKind::Add(base, offset) => {
                     Self::immutable_copy_key_with_offset(func, base, offset)
@@ -557,7 +557,7 @@ impl MemoryStoreEliminator {
         offset: ValueId,
     ) -> Option<ImmutableCopyKey> {
         let mut key = Self::immutable_copy_key(func, base)?;
-        key.offset = key.offset.checked_add(mir_utils::value_u64(func, offset)?)?;
+        key.offset = key.offset.checked_add(func.value_u64(offset)?)?;
         Some(key)
     }
 
@@ -583,8 +583,8 @@ impl MemoryStoreEliminator {
         offset: ValueId,
         size: ValueId,
     ) -> Option<Vec<u8>> {
-        let offset = mir_utils::value_u64(func, offset)?;
-        let size = mir_utils::value_u64(func, size)?;
+        let offset = func.value_u64(offset)?;
+        let size = func.value_u64(size)?;
         if size > 4096 || size % 32 != 0 {
             return None;
         }
@@ -636,7 +636,7 @@ impl MemoryStoreEliminator {
         dest: ValueId,
         size: ValueId,
     ) -> bool {
-        let Some(size) = mir_utils::value_u64(func, size) else {
+        let Some(size) = func.value_u64(size) else {
             return false;
         };
         if size % 32 != 0 || size > 4096 {
@@ -721,7 +721,7 @@ impl MemoryStoreEliminator {
             return false;
         };
         match func.instructions[inst_id].kind {
-            InstKind::MLoad(addr) => mir_utils::value_u64(func, addr) == Some(0x40),
+            InstKind::MLoad(addr) => func.value_u64(addr) == Some(0x40),
             InstKind::Add(a, b) => {
                 Self::is_fmp_heap_value(func, a, depth + 1)
                     || Self::is_fmp_heap_value(func, b, depth + 1)
@@ -827,7 +827,7 @@ impl MemoryStoreEliminator {
         size: ValueId,
     ) -> Option<()> {
         if let Some(frame_offset) = Self::internal_frame_offset(func, offset) {
-            reads.push((frame_offset, mir_utils::value_u64(func, size)?));
+            reads.push((frame_offset, func.value_u64(size)?));
         }
         Some(())
     }
@@ -863,7 +863,7 @@ impl MemoryStoreEliminator {
         depth: usize,
     ) -> Option<u64> {
         let base = Self::internal_frame_offset_with_depth(func, base, depth + 1)?;
-        base.checked_add(mir_utils::value_u64(func, offset)?)
+        base.checked_add(func.value_u64(offset)?)
     }
 
     fn can_mutate_memory(kind: &InstKind) -> bool {

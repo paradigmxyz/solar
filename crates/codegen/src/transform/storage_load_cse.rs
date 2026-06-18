@@ -39,7 +39,7 @@ impl StorageLoadCse {
     /// Runs storage-load CSE on a function.
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
-        mir_utils::annotate_storage_aliases(func, mir_utils::StorageAliasScope::Storage);
+        func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
@@ -99,12 +99,7 @@ impl StorageLoadCse {
         for (inst_idx, inst_id) in inst_ids.into_iter().enumerate() {
             match &func.instructions[inst_id].kind {
                 InstKind::SLoad(slot) => {
-                    let alias = mir_utils::storage_alias_after_replacements(
-                        func,
-                        inst_id,
-                        *slot,
-                        replacements,
-                    );
+                    let alias = func.storage_alias_after_replacements(inst_id, *slot, replacements);
                     let Some(&result) = inst_results.get(&inst_id) else {
                         continue;
                     };
@@ -125,12 +120,7 @@ impl StorageLoadCse {
                     }
                 }
                 InstKind::SStore(slot, _) => {
-                    let alias = mir_utils::storage_alias_after_replacements(
-                        func,
-                        inst_id,
-                        *slot,
-                        replacements,
-                    );
+                    let alias = func.storage_alias_after_replacements(inst_id, *slot, replacements);
                     cached_loads.retain(|cached_alias, _| !cached_alias.may_alias(alias));
                 }
                 kind if kind.may_mutate_storage() => cached_loads.clear(),

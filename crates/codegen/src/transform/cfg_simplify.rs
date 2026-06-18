@@ -18,8 +18,7 @@ use crate::{
     analysis::{CallGraphInfo, CfgInfo},
     mir::{
         BlockId, Function, FunctionId, Immediate, InstKind, InstructionMetadata, MirType, Module,
-        Terminator, Value, ValueId,
-        utils::{self as mir_utils, repair_reachability_phis},
+        Terminator, Value, ValueId, utils::repair_reachability_phis,
     },
     pass::{FunctionPass, ModulePass},
 };
@@ -301,7 +300,7 @@ impl CfgSimplifier {
             return;
         }
 
-        mir_utils::replace_uses(func, &replacements);
+        func.replace_uses(&replacements);
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|inst_id| !dead.contains(inst_id));
         }
@@ -447,7 +446,7 @@ impl CfgSimplifier {
         func.blocks[target].terminator = Some(Terminator::Invalid);
         func.blocks[target].predecessors.clear();
 
-        mir_utils::replace_uses(func, &phi_replacements);
+        func.replace_uses(&phi_replacements);
     }
 
     fn fold_target_phis_for_merge(

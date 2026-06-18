@@ -1,9 +1,6 @@
 //! Shared MIR utility helpers.
 
-use crate::mir::{
-    BasicBlock, BlockId, Function, InstId, InstKind, MemoryRegion, StorageAlias, Terminator, Value,
-    ValueId,
-};
+use crate::mir::{BasicBlock, BlockId, Function, InstKind, Terminator, ValueId};
 use alloy_primitives::U256;
 use smallvec::smallvec;
 use solar_data_structures::map::FxHashMap;
@@ -137,21 +134,6 @@ pub(crate) fn resolve_replacement(
     value
 }
 
-/// Replaces all value uses according to a one-step replacement map.
-pub(crate) fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
-    replace_uses_with(func, replacements, |value, replacements| {
-        replacements.get(&value).copied().unwrap_or(value)
-    });
-}
-
-/// Replaces all value uses according to a canonicalized replacement map.
-pub(crate) fn replace_uses_canonicalized(
-    func: &mut Function,
-    replacements: &FxHashMap<ValueId, ValueId>,
-) {
-    replace_uses_with(func, replacements, resolve_replacement);
-}
-
 /// Replaces instruction operands according to a one-step replacement map.
 pub(crate) fn replace_inst_uses(
     kind: &mut InstKind,
@@ -188,72 +170,9 @@ pub(crate) fn replace_terminator_uses_canonicalized(
     replace_terminator_operands(term, replacements, resolve_replacement)
 }
 
-/// Annotates storage-alias metadata for state-access instructions.
-pub(crate) fn annotate_storage_aliases(func: &mut Function, scope: StorageAliasScope) {
-    let inst_ids: Vec<_> =
-        func.instructions.iter_enumerated().map(|(inst_id, _)| inst_id).collect();
-    for inst_id in inst_ids {
-        let slot = match func.instructions[inst_id].kind {
-            InstKind::SLoad(slot) | InstKind::SStore(slot, _) => Some(slot),
-            InstKind::TLoad(slot) | InstKind::TStore(slot, _)
-                if scope == StorageAliasScope::StorageAndTransient =>
-            {
-                Some(slot)
-            }
-            _ => None,
-        };
-        let alias = slot.map(|slot| StorageAlias::for_value(func, slot));
-        func.instructions[inst_id].metadata.set_storage_alias(alias);
-    }
-}
-
-/// Returns stored storage-alias metadata, or computes a conservative alias key.
-pub(crate) fn storage_alias(func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
-    func.instructions[inst_id]
-        .metadata
-        .storage_alias()
-        .unwrap_or_else(|| StorageAlias::for_value(func, slot))
-}
-
-/// Returns storage-alias metadata after applying value replacements.
-pub(crate) fn storage_alias_after_replacements(
-    func: &Function,
-    inst_id: InstId,
-    slot: ValueId,
-    replacements: &FxHashMap<ValueId, ValueId>,
-) -> StorageAlias {
-    let original_slot = slot;
-    let slot = resolve_replacement(slot, replacements);
-    if slot == original_slot {
-        storage_alias(func, inst_id, slot)
-    } else {
-        StorageAlias::for_value(func, slot)
-    }
-}
-
 /// Converts a U256 to a u64 when lossless.
 pub(crate) fn u256_to_u64(value: U256) -> Option<u64> {
     value.try_into().ok()
-}
-
-/// Returns an immediate value as U256.
-pub(crate) fn value_u256(func: &Function, value: ValueId) -> Option<U256> {
-    let Value::Immediate(imm) = func.value(value) else { return None };
-    imm.as_u256()
-}
-
-/// Returns an immediate value as u64 when lossless.
-pub(crate) fn value_u64(func: &Function, value: ValueId) -> Option<u64> {
-    value_u256(func, value).and_then(u256_to_u64)
-}
-
-/// Returns a possibly replaced immediate value as U256.
-pub(crate) fn value_u256_after_replacements(
-    func: &Function,
-    value: ValueId,
-    replacements: &FxHashMap<ValueId, ValueId>,
-) -> Option<U256> {
-    value_u256(func, resolve_replacement(value, replacements))
 }
 
 /// Returns true if two possibly-overflowing byte ranges overlap.
@@ -265,16 +184,6 @@ pub(crate) fn ranges_overlap(a_start: u64, a_size: u64, b_start: u64, b_size: u6
         return true;
     };
     a_start < b_end && b_start < a_end
-}
-
-/// Returns the statically known memory region for an address value.
-pub(crate) fn memory_region_for_addr(func: &Function, addr: ValueId) -> MemoryRegion {
-    match func.value(addr) {
-        Value::Immediate(imm) if imm.as_u256().is_some_and(|value| value < U256::from(0x80)) => {
-            MemoryRegion::Scratch
-        }
-        _ => MemoryRegion::Unknown,
-    }
 }
 
 /// Returns true for instructions whose operands derive memory metadata.
@@ -291,25 +200,6 @@ pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
             | InstKind::ExtCodeCopy(_, _, _, _)
             | InstKind::Keccak256(_, _)
     )
-}
-
-fn replace_uses_with(
-    func: &mut Function,
-    replacements: &FxHashMap<ValueId, ValueId>,
-    replacement: impl Fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
-) {
-    if replacements.is_empty() {
-        return;
-    }
-
-    for inst in func.instructions.iter_mut() {
-        replace_inst_operands(&mut inst.kind, replacements, &replacement);
-    }
-    for block in func.blocks.iter_mut() {
-        if let Some(term) = &mut block.terminator {
-            replace_terminator_operands(term, replacements, &replacement);
-        }
-    }
 }
 
 fn replace_inst_operands(
