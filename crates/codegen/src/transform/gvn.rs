@@ -45,9 +45,10 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, Immediate, InstId, InstKind, MirType, Value, ValueId},
+    mir::{
+        BlockId, Function, Immediate, InstId, InstKind, MirType, Value, ValueId, utils as mir_utils,
+    },
     pass::FunctionPass,
-    utils::mir as mir_utils,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 

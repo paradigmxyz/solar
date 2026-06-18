@@ -11,9 +11,12 @@
 //! - preserve boolean-only rewrites behind explicit MIR boolean type checks
 
 use crate::{
-    mir::{Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
+    mir::{
+        Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId,
+        utils as mir_utils,
+    },
     pass::FunctionPass,
-    utils::{evm_word, mir as mir_utils},
+    utils::evm_word,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};

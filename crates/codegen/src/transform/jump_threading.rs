@@ -15,9 +15,11 @@
 //!    updating all references to point to the final target.
 
 use crate::{
-    mir::{BlockId, Function, InstKind, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, InstKind, Terminator, Value, ValueId,
+        utils::{self as mir_utils, repair_reachability_phis},
+    },
     pass::FunctionPass,
-    utils::{mir as mir_utils, repair_reachability_phis},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 

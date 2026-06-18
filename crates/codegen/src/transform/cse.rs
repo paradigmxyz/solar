@@ -39,10 +39,9 @@ use crate::{
     analysis::{CfgInfo, DominatorTree},
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
-        StorageAlias, Value, ValueId,
+        StorageAlias, Value, ValueId, utils as mir_utils,
     },
     pass::FunctionPass,
-    utils::mir as mir_utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};

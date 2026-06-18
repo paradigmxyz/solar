@@ -6,10 +6,12 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{BlockId, Function, InstId, Terminator, ValueId},
+    mir::{
+        BlockId, Function, InstId, Terminator, ValueId,
+        utils::{self as mir_utils, repair_reachability_phis},
+    },
     pass::FunctionPass,
     transform::DeadCodeEliminator,
-    utils::{mir as mir_utils, repair_reachability_phis},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 

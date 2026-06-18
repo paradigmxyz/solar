@@ -5,9 +5,8 @@
 
 use crate::{
     analysis::Liveness,
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
-    utils::mir as mir_utils,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 

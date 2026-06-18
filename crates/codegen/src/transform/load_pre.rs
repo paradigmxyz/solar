@@ -77,9 +77,9 @@ use crate::{
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion,
         MirType, StorageAlias, Terminator, Value, ValueId,
+        utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::FunctionPass,
-    utils::{mir as mir_utils, repair_reachability_phis},
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};

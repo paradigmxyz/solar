@@ -6,9 +6,8 @@
 //! repeated equal stores when no intervening instruction can clobber storage.
 
 use crate::{
-    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::FunctionPass,
-    utils::mir as mir_utils,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 

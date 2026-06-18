@@ -22,10 +22,9 @@ use crate::{
     analysis::LoopAnalyzer,
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
-        Module, Terminator, Value, ValueId,
+        Module, Terminator, Value, ValueId, utils as mir_utils,
     },
     pass::ModulePass,
-    utils::mir as mir_utils,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;

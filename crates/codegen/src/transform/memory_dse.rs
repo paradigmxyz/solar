@@ -8,9 +8,11 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId,
+        utils as mir_utils,
+    },
     pass::FunctionPass,
-    utils::mir as mir_utils,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::map::{FxHashMap, FxHashSet};

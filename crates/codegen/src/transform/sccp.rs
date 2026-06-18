@@ -15,9 +15,12 @@
 //! with immediates and rewrites branches with known-constant conditions.
 
 use crate::{
-    mir::{BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
+    mir::{
+        BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId,
+        utils::{self as mir_utils, repair_reachability_phis},
+    },
     pass::FunctionPass,
-    utils::{evm_word, mir as mir_utils, repair_reachability_phis},
+    utils::evm_word,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};

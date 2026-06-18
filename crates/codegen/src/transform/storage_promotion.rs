@@ -18,10 +18,9 @@ use crate::{
     analysis::{Loop, LoopAnalyzer},
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
-        Terminator, Value, ValueId,
+        Terminator, Value, ValueId, utils as mir_utils,
     },
     pass::FunctionPass,
-    utils::mir as mir_utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;

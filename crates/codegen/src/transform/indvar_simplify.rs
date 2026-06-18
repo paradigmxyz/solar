@@ -21,9 +21,11 @@
 
 use crate::{
     analysis::{AffineExpr, Loop, LoopAnalyzer, ScalarEvolution},
-    mir::{BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Value, ValueId},
+    mir::{
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Value, ValueId,
+        utils as mir_utils,
+    },
     pass::FunctionPass,
-    utils::mir as mir_utils,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;

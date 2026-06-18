@@ -34,9 +34,9 @@ use crate::{
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, InstructionMetadata, MirType,
         Terminator, Value, ValueId,
+        utils::{self as mir_utils, repair_reachability_phis, split_edge},
     },
     pass::FunctionPass,
-    utils::{mir as mir_utils, repair_reachability_phis, split_edge},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::cmp::Ordering;

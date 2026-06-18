@@ -32,6 +32,8 @@ mod display;
 mod parser;
 pub use parser::{ParseError, parse_function, parse_module};
 
+pub(crate) mod utils;
+
 newtype_index! {
     /// A unique identifier for a value in the MIR.
     pub struct ValueId;
