@@ -184,6 +184,7 @@ impl Emitter for LocalEmitter {
     }
 }
 
+#[cfg(feature = "json")]
 #[cold]
 #[inline(never)]
 fn io_panic(error: std::io::Error) -> ! {
