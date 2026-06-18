@@ -10,7 +10,6 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::inst_results,
 };
 use alloy_primitives::{U256, keccak256};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -90,7 +89,7 @@ impl MemoryStoreEliminator {
     }
 
     fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         let cfg = CfgInfo::new(func);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
@@ -143,7 +142,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        Self::replace_uses(func, &replacements);
+        func.replace_uses_canonicalized(&replacements);
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|id| !dead.contains(id));
         }
@@ -318,7 +317,7 @@ impl MemoryStoreEliminator {
 
     fn fold_constant_keccak(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         let mut stored_words: FxHashMap<MemAddrKey, U256> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
@@ -363,7 +362,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        Self::replace_uses(func, &replacements);
+        func.replace_uses_canonicalized(&replacements);
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
     }
 
@@ -406,7 +405,7 @@ impl MemoryStoreEliminator {
 
     fn forward_loads(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         let mut stored_values: FxHashMap<MemAddrKey, ValueId> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
@@ -425,7 +424,8 @@ impl MemoryStoreEliminator {
                             stored_values.clear();
                             continue;
                         }
-                        stored_values.insert(key, Self::resolve_replacement(&replacements, *value));
+                        stored_values
+                            .insert(key, Function::resolve_replacement(*value, &replacements));
                     } else {
                         stored_values.clear();
                     }
@@ -485,19 +485,9 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        Self::replace_uses(func, &replacements);
+        func.replace_uses_canonicalized(&replacements);
         self.eliminated_count += dead.len();
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
-    }
-
-    fn resolve_replacement(
-        replacements: &FxHashMap<ValueId, ValueId>,
-        mut value: ValueId,
-    ) -> ValueId {
-        while let Some(&replacement) = replacements.get(&value) {
-            value = replacement;
-        }
-        value
     }
 
     fn mem_addr_key(&self, func: &Function, value: ValueId) -> Option<MemAddrKey> {
@@ -920,61 +910,6 @@ impl MemoryStoreEliminator {
 
     fn cross_block_memory_barrier(kind: &InstKind) -> bool {
         matches!(kind, InstKind::MLoad(_)) || Self::is_memory_or_gas_observer(kind)
-    }
-
-    fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
-        if replacements.is_empty() {
-            return;
-        }
-
-        for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
-        }
-        for block in func.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_operands(term, replacements);
-            }
-        }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            if replacements.contains_key(value) {
-                *value = Self::resolve_replacement(replacements, *value);
-            }
-        });
-    }
-
-    fn replace_terminator_operands(
-        term: &mut Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
-        let replace = |value: &mut ValueId| {
-            if replacements.contains_key(value) {
-                *value = Self::resolve_replacement(replacements, *value);
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case_value, _) in cases {
-                    replace(case_value);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-        }
     }
 }
 

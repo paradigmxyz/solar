@@ -47,7 +47,6 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::inst_results,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -153,7 +152,7 @@ impl GlobalValueNumberer {
     /// Runs one numbering and replacement round. Returns true if MIR changed.
     fn run_round(&mut self, func: &mut Function) -> bool {
         let cfg = CfgInfo::new(func);
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         let Some(vn) = Self::compute_value_numbers(func, cfg.rpo(), &inst_results) else {
             return false;
         };
@@ -439,7 +438,7 @@ impl GlobalValueNumberer {
     fn replace_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) -> bool {
         let mut changed = false;
         kind.visit_operands_mut(|value| {
-            let new_value = Self::canonical_value(*value, replacements);
+            let new_value = Function::resolve_replacement(*value, replacements);
             if new_value != *value {
                 *value = new_value;
                 changed = true;
@@ -453,7 +452,7 @@ impl GlobalValueNumberer {
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
         let replace = |value: &mut ValueId| {
-            *value = Self::canonical_value(*value, replacements);
+            *value = Function::resolve_replacement(*value, replacements);
         };
 
         match term {
@@ -476,16 +475,6 @@ impl GlobalValueNumberer {
             }
             Terminator::SelfDestruct { recipient } => replace(recipient),
         }
-    }
-
-    fn canonical_value(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
-        while let Some(&replacement) = replacements.get(&value) {
-            if replacement == value {
-                break;
-            }
-            value = replacement;
-        }
-        value
     }
 
     fn is_memory_inst(kind: &InstKind) -> bool {

@@ -13,7 +13,6 @@
 use crate::{
     mir::{Function, Immediate, InstId, InstKind, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::inst_results,
     utils::evm_word,
 };
 use alloy_primitives::U256;
@@ -49,7 +48,7 @@ impl InstSimplifier {
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.simplified_count = 0;
 
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
         let block_ids: Vec<_> = func.blocks.indices().collect();
@@ -77,7 +76,7 @@ impl InstSimplifier {
                 let Some(replacement) = self.simplify_inst(func, &kind, &replacements) else {
                     continue;
                 };
-                let replacement = Self::resolve_replacement(&replacements, replacement);
+                let replacement = Function::resolve_replacement(replacement, &replacements);
                 if replacement == result {
                     continue;
                 }
@@ -88,7 +87,7 @@ impl InstSimplifier {
         }
 
         if !replacements.is_empty() {
-            Self::replace_uses(func, &replacements);
+            func.replace_uses_canonicalized(&replacements);
         }
         if !dead.is_empty() {
             for block in func.blocks.iter_mut() {
@@ -119,7 +118,7 @@ impl InstSimplifier {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<InstKind> {
-        let resolve = |value| Self::resolve_replacement(replacements, value);
+        let resolve = |value| Function::resolve_replacement(value, replacements);
 
         match kind {
             InstKind::Add(a, b) => {
@@ -210,7 +209,7 @@ impl InstSimplifier {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ValueId> {
-        let resolve = |value| Self::resolve_replacement(replacements, value);
+        let resolve = |value| Function::resolve_replacement(value, replacements);
 
         if let Some(value) = Self::const_fold_inst(func, kind, replacements) {
             return Some(value);
@@ -486,7 +485,7 @@ impl InstSimplifier {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<ValueId> {
-        let resolve = |value| Self::resolve_replacement(replacements, value);
+        let resolve = |value| Function::resolve_replacement(value, replacements);
         let constant = |func: &Function, value| Self::as_u256(func, resolve(value));
 
         match *kind {
@@ -616,7 +615,7 @@ impl InstSimplifier {
         kind: &InstKind,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> bool {
-        let resolve = |value| Self::resolve_replacement(replacements, value);
+        let resolve = |value| Function::resolve_replacement(value, replacements);
         match kind {
             InstKind::MCopy(_, _, size)
             | InstKind::CalldataCopy(_, _, size)
@@ -750,16 +749,6 @@ impl InstSimplifier {
         Some(U256::from(value.trailing_zeros()))
     }
 
-    fn resolve_replacement(
-        replacements: &FxHashMap<ValueId, ValueId>,
-        mut value: ValueId,
-    ) -> ValueId {
-        while let Some(&replacement) = replacements.get(&value) {
-            value = replacement;
-        }
-        value
-    }
-
     fn imm_u256(func: &mut Function, value: U256) -> ValueId {
         func.alloc_value(Value::Immediate(Immediate::uint256(value)))
     }
@@ -852,13 +841,17 @@ impl InstSimplifier {
             else {
                 continue;
             };
-            let condition = Self::resolve_replacement(replacements, condition);
+            let condition = Function::resolve_replacement(condition, replacements);
             if let Some(inner) = Self::iszero_operand(func, condition) {
-                rewrites.push((block_id, Self::resolve_replacement(replacements, inner), true));
+                rewrites.push((block_id, Function::resolve_replacement(inner, replacements), true));
             } else if let Some(inner) = Self::nonzero_test_operand(func, condition) {
                 // `branch gt(x, 0)` / `branch lt(0, x)` test exactly `x != 0`,
                 // which is what `branch x` already does.
-                rewrites.push((block_id, Self::resolve_replacement(replacements, inner), false));
+                rewrites.push((
+                    block_id,
+                    Function::resolve_replacement(inner, replacements),
+                    false,
+                ));
             }
         }
 
@@ -914,61 +907,6 @@ impl InstSimplifier {
 
     fn is_bitwise_complement_pair(func: &Function, a: ValueId, b: ValueId) -> bool {
         Self::not_operand(func, a) == Some(b) || Self::not_operand(func, b) == Some(a)
-    }
-
-    fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
-        if replacements.is_empty() {
-            return;
-        }
-
-        for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
-        }
-        for block in func.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_operands(term, replacements);
-            }
-        }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            if replacements.contains_key(value) {
-                *value = Self::resolve_replacement(replacements, *value);
-            }
-        });
-    }
-
-    fn replace_terminator_operands(
-        term: &mut Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
-        let replace = |value: &mut ValueId| {
-            if replacements.contains_key(value) {
-                *value = Self::resolve_replacement(replacements, *value);
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case_value, _) in cases {
-                    replace(case_value);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-        }
     }
 }
 

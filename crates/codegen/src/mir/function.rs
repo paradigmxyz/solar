@@ -1,9 +1,12 @@
 //! MIR functions.
 
-use super::{BasicBlock, BlockId, InstId, Instruction, MirType, Value, ValueId};
+use super::{
+    BasicBlock, BlockId, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId,
+};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
+    map::{FxHashMap, FxHashSet},
 };
 use solar_interface::Ident;
 use solar_sema::hir::{StateMutability, Visibility};
@@ -81,6 +84,76 @@ impl Function {
             .map(|(value_id, _)| value_id)
     }
 
+    /// Returns a map from each instruction to its result value.
+    #[must_use]
+    pub fn inst_results(&self) -> FxHashMap<InstId, ValueId> {
+        let mut results = FxHashMap::default();
+        results.reserve(self.instructions.len());
+        for (value_id, value) in self.values.iter_enumerated() {
+            if let Value::Inst(inst_id) = value {
+                results.insert(*inst_id, value_id);
+            }
+        }
+        results
+    }
+
+    /// Returns a map from each instruction to the block containing it.
+    #[must_use]
+    pub fn inst_blocks(&self) -> FxHashMap<InstId, BlockId> {
+        let mut inst_blocks = FxHashMap::default();
+        inst_blocks.reserve(self.instructions.len());
+        for (block_id, block) in self.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                inst_blocks.insert(inst_id, block_id);
+            }
+        }
+        inst_blocks
+    }
+
+    /// Returns predecessors with duplicate CFG edges collapsed.
+    #[must_use]
+    pub fn unique_predecessors(&self, block: BlockId) -> Vec<BlockId> {
+        let mut predecessors = Vec::new();
+        for &pred in &self.blocks[block].predecessors {
+            if !predecessors.contains(&pred) {
+                predecessors.push(pred);
+            }
+        }
+        predecessors
+    }
+
+    /// Returns true if the block contains any phi instruction.
+    #[must_use]
+    pub fn block_has_phi(&self, block: BlockId) -> bool {
+        self.blocks[block]
+            .instructions
+            .iter()
+            .any(|&inst_id| matches!(self.instructions[inst_id].kind, InstKind::Phi(_)))
+    }
+
+    /// Returns true if every instruction in the block is a phi instruction.
+    #[must_use]
+    pub fn block_has_only_phis(&self, block: BlockId) -> bool {
+        self.blocks[block]
+            .instructions
+            .iter()
+            .all(|&inst_id| matches!(self.instructions[inst_id].kind, InstKind::Phi(_)))
+    }
+
+    /// Returns the result values produced by phi instructions in the block.
+    #[must_use]
+    pub fn block_phi_results(&self, block: BlockId) -> FxHashSet<ValueId> {
+        self.blocks[block]
+            .instructions
+            .iter()
+            .filter_map(|&inst_id| {
+                matches!(self.instructions[inst_id].kind, InstKind::Phi(_))
+                    .then(|| self.inst_result_value(inst_id))
+                    .flatten()
+            })
+            .collect()
+    }
+
     /// Returns the basic block for the given ID.
     #[must_use]
     pub fn block(&self, id: BlockId) -> &BasicBlock {
@@ -111,6 +184,91 @@ impl Function {
     /// Allocates a new basic block.
     pub fn alloc_block(&mut self) -> BlockId {
         self.blocks.push(BasicBlock::new())
+    }
+
+    /// Replaces all value uses according to a one-step replacement map.
+    pub fn replace_uses(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
+        self.replace_uses_with(replacements, |value, replacements| {
+            replacements.get(&value).copied().unwrap_or(value)
+        });
+    }
+
+    /// Replaces all value uses according to a canonicalized replacement map.
+    pub fn replace_uses_canonicalized(&mut self, replacements: &FxHashMap<ValueId, ValueId>) {
+        self.replace_uses_with(replacements, Self::resolve_replacement);
+    }
+
+    /// Resolves a value through a replacement map until it reaches its canonical value.
+    #[must_use]
+    pub fn resolve_replacement(
+        mut value: ValueId,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> ValueId {
+        while let Some(&replacement) = replacements.get(&value) {
+            if replacement == value {
+                break;
+            }
+            value = replacement;
+        }
+        value
+    }
+
+    fn replace_uses_with(
+        &mut self,
+        replacements: &FxHashMap<ValueId, ValueId>,
+        replacement: fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
+    ) {
+        if replacements.is_empty() {
+            return;
+        }
+
+        for inst in self.instructions.iter_mut() {
+            Self::replace_inst_operands(&mut inst.kind, replacements, replacement);
+        }
+        for block in self.blocks.iter_mut() {
+            if let Some(term) = &mut block.terminator {
+                Self::replace_terminator_operands(term, replacements, replacement);
+            }
+        }
+    }
+
+    fn replace_inst_operands(
+        kind: &mut InstKind,
+        replacements: &FxHashMap<ValueId, ValueId>,
+        replacement: fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
+    ) {
+        kind.visit_operands_mut(|value| *value = replacement(*value, replacements));
+    }
+
+    fn replace_terminator_operands(
+        term: &mut Terminator,
+        replacements: &FxHashMap<ValueId, ValueId>,
+        replacement: fn(ValueId, &FxHashMap<ValueId, ValueId>) -> ValueId,
+    ) {
+        let replace = |value: &mut ValueId| {
+            *value = replacement(*value, replacements);
+        };
+
+        match term {
+            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
+            Terminator::Branch { condition, .. } => replace(condition),
+            Terminator::Switch { value, cases, .. } => {
+                replace(value);
+                for (case_value, _) in cases {
+                    replace(case_value);
+                }
+            }
+            Terminator::Return { values } => {
+                for value in values {
+                    replace(value);
+                }
+            }
+            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
+                replace(offset);
+                replace(size);
+            }
+            Terminator::SelfDestruct { recipient } => replace(recipient),
+        }
     }
 
     /// Returns true if this function is public or external.

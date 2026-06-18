@@ -6,9 +6,9 @@
 //! and values escaping a candidate dead block all prevent rewriting.
 
 use crate::{
-    mir::{BlockId, Function, InstId, InstKind, Terminator, ValueId},
+    mir::{BlockId, Function, InstId, Terminator, ValueId},
     pass::FunctionPass,
-    transform::{DeadCodeEliminator, inst_results},
+    transform::DeadCodeEliminator,
     utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -170,7 +170,7 @@ impl AggressiveDeadCodeEliminator {
         block_id: BlockId,
         search: &mut TargetSearch,
     ) -> Option<BlockId> {
-        if self.block_has_phi(func, block_id)
+        if func.block_has_phi(block_id)
             || self.block_has_effect(func, block_id)
             || self.block_def_escapes(func, ctx, block_id)
         {
@@ -192,15 +192,8 @@ impl AggressiveDeadCodeEliminator {
         }
     }
 
-    fn block_has_phi(&self, func: &Function, block_id: BlockId) -> bool {
-        func.blocks[block_id]
-            .instructions
-            .iter()
-            .any(|&inst_id| matches!(func.instructions[inst_id].kind, InstKind::Phi(_)))
-    }
-
     fn target_has_phi(&self, func: &Function, block_id: BlockId) -> bool {
-        self.block_has_phi(func, block_id)
+        func.block_has_phi(block_id)
     }
 
     fn block_has_effect(&self, func: &Function, block_id: BlockId) -> bool {
@@ -241,7 +234,7 @@ impl AggressiveDeadCodeEliminator {
 
 impl AdceContext {
     fn new(func: &Function) -> Self {
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         let value_uses = Self::value_uses(func);
         Self { inst_results, value_uses }
     }

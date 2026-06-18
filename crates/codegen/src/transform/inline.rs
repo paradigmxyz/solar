@@ -21,8 +21,8 @@
 use crate::{
     analysis::LoopAnalyzer,
     mir::{
-        BlockId, Function, FunctionId as MirFunctionId, Immediate, InstId, InstKind, Instruction,
-        MirType, Module, Terminator, Value, ValueId,
+        BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
+        Module, Terminator, Value, ValueId,
     },
     pass::ModulePass,
 };
@@ -1146,7 +1146,7 @@ fn inline_call_impl(
         return None;
     }
 
-    let call_result = find_inst_result(caller, call_inst);
+    let call_result = caller.inst_result_value(call_inst);
     if returns > 0 && call_result.is_none() {
         return None;
     }
@@ -1182,7 +1182,7 @@ fn inline_call_impl(
         insert_extra_return_stores(cloner.caller, continuation, &return_values[1..]);
     }
 
-    replace_uses(cloner.caller, &replacements);
+    cloner.caller.replace_uses(&replacements);
     recompute_cfg(cloner.caller);
     prune_phi_incoming_to_predecessors(cloner.caller);
     Some(())
@@ -1235,7 +1235,7 @@ impl<'a> InlineCloner<'a> {
                 let kind = self.clone_inst_kind(inst.kind)?;
                 let new_inst = self.caller.alloc_inst(Instruction::new(kind, inst.result_ty));
                 instructions.push(new_inst);
-                if let Some(callee_result) = find_inst_result(self.callee, inst_id) {
+                if let Some(callee_result) = self.callee.inst_result_value(inst_id) {
                     let new_result = self.caller.alloc_value(Value::Inst(new_inst));
                     self.value_map.insert(callee_result, new_result);
                 }
@@ -1556,64 +1556,6 @@ fn redirect_phi_predecessors(
                 }
             }
         }
-    }
-}
-
-fn find_inst_result(func: &Function, inst: InstId) -> Option<ValueId> {
-    func.values
-        .iter_enumerated()
-        .find_map(|(value, v)| matches!(v, Value::Inst(id) if *id == inst).then_some(value))
-}
-
-fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
-    if replacements.is_empty() {
-        return;
-    }
-
-    for inst in func.instructions.iter_mut() {
-        replace_inst_operands(&mut inst.kind, replacements);
-    }
-    for block in func.blocks.iter_mut() {
-        if let Some(term) = &mut block.terminator {
-            replace_terminator_operands(term, replacements);
-        }
-    }
-}
-
-fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-    kind.visit_operands_mut(|value| {
-        if let Some(new_value) = replacements.get(value) {
-            *value = *new_value;
-        }
-    });
-}
-
-fn replace_terminator_operands(term: &mut Terminator, replacements: &FxHashMap<ValueId, ValueId>) {
-    let replace = |value: &mut ValueId| {
-        if let Some(new_value) = replacements.get(value) {
-            *value = *new_value;
-        }
-    };
-
-    match term {
-        Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-        Terminator::Branch { condition, .. } => replace(condition),
-        Terminator::Switch { value, cases, .. } => {
-            replace(value);
-            for (case_value, _) in cases {
-                replace(case_value);
-            }
-        }
-        Terminator::Return { values } => {
-            for value in values {
-                replace(value);
-            }
-        }
-        Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-            replace(offset);
-            replace(size);
-        }
-        Terminator::SelfDestruct { recipient } => replace(recipient),
     }
 }
 

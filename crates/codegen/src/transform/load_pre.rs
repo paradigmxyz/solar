@@ -79,7 +79,6 @@ use crate::{
         MirType, StorageAlias, Terminator, Value, ValueId,
     },
     pass::FunctionPass,
-    transform::inst_results,
     utils::repair_reachability_phis,
 };
 use alloy_primitives::U256;
@@ -516,8 +515,8 @@ impl LoadRedundancyEliminator {
             outs,
             reach,
             dominators: cfg.dominators().clone(),
-            inst_results: inst_results(func),
-            inst_blocks: Self::inst_blocks(func),
+            inst_results: func.inst_results(),
+            inst_blocks: func.inst_blocks(),
         })
     }
 
@@ -539,7 +538,7 @@ impl LoadRedundancyEliminator {
             if !cx.analysis.reachable.contains(&target) {
                 continue;
             }
-            let predecessors = Self::unique_predecessors(func, target);
+            let predecessors = func.unique_predecessors(target);
             if predecessors.len() < 2
                 || predecessors.iter().any(|pred| !cx.analysis.reachable.contains(pred))
             {
@@ -1153,26 +1152,6 @@ impl LoadRedundancyEliminator {
                 .get(inst_id)
                 .is_some_and(|def_block| analysis.dominators.dominates(*def_block, block)),
         })
-    }
-
-    fn unique_predecessors(func: &Function, block: BlockId) -> Vec<BlockId> {
-        let mut predecessors = Vec::new();
-        for &pred in &func.blocks[block].predecessors {
-            if !predecessors.contains(&pred) {
-                predecessors.push(pred);
-            }
-        }
-        predecessors
-    }
-
-    fn inst_blocks(func: &Function) -> FxHashMap<InstId, BlockId> {
-        let mut inst_blocks = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                inst_blocks.insert(inst_id, block_id);
-            }
-        }
-        inst_blocks
     }
 
     // ----- Rewriting -----

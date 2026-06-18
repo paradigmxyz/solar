@@ -7,7 +7,6 @@ use crate::{
     analysis::Liveness,
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, Terminator, ValueId},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
-    transform::inst_results,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -44,7 +43,7 @@ impl StorageLoadCse {
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
         let mut dead = FxHashSet::default();
@@ -153,7 +152,7 @@ impl StorageLoadCse {
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> StorageAlias {
         let original_slot = slot;
-        let slot = Self::canonical_value(slot, replacements);
+        let slot = Function::resolve_replacement(slot, replacements);
         if slot == original_slot {
             func.instructions[inst_id]
                 .metadata
@@ -166,17 +165,6 @@ impl StorageLoadCse {
 
     fn storage_aliases_may_alias(a: &StorageAlias, b: &StorageAlias) -> bool {
         a.may_alias(*b)
-    }
-
-    fn canonical_value(value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
-        let mut value = value;
-        while let Some(&replacement) = replacements.get(&value) {
-            if replacement == value {
-                break;
-            }
-            value = replacement;
-        }
-        value
     }
 
     fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
@@ -200,7 +188,7 @@ impl StorageLoadCse {
 
     fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
         kind.visit_operands_mut(|value| {
-            *value = Self::canonical_value(*value, replacements);
+            *value = Function::resolve_replacement(*value, replacements);
         });
     }
 
@@ -209,7 +197,7 @@ impl StorageLoadCse {
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
         let replace = |value: &mut ValueId| {
-            *value = Self::canonical_value(*value, replacements);
+            *value = Function::resolve_replacement(*value, replacements);
         };
 
         match term {

@@ -16,7 +16,6 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId},
     pass::FunctionPass,
-    transform::inst_results,
     utils::repair_reachability_phis,
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -229,7 +228,7 @@ impl FrameSlotPromoter {
         };
 
         for info in slots {
-            let inst_results = inst_results(func);
+            let inst_results = func.inst_results();
             let mut builder = SlotSsaBuilder::new(&info, &cfg, &inst_results);
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
@@ -633,71 +632,6 @@ impl FrameSlotPromoter {
         let Some(b_end) = b_start.checked_add(b_size) else { return true };
         a_start < b_end && b_start < a_end
     }
-
-    fn resolve_replacement(
-        replacements: &FxHashMap<ValueId, ValueId>,
-        mut value: ValueId,
-    ) -> ValueId {
-        while let Some(&replacement) = replacements.get(&value) {
-            value = replacement;
-        }
-        value
-    }
-
-    fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
-        if replacements.is_empty() {
-            return;
-        }
-
-        for inst in func.instructions.iter_mut() {
-            Self::replace_inst_operands(&mut inst.kind, replacements);
-        }
-        for block in func.blocks.iter_mut() {
-            if let Some(term) = &mut block.terminator {
-                Self::replace_terminator_operands(term, replacements);
-            }
-        }
-    }
-
-    fn replace_inst_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) {
-        kind.visit_operands_mut(|value| {
-            if replacements.contains_key(value) {
-                *value = Self::resolve_replacement(replacements, *value);
-            }
-        });
-    }
-
-    fn replace_terminator_operands(
-        term: &mut Terminator,
-        replacements: &FxHashMap<ValueId, ValueId>,
-    ) {
-        let replace = |value: &mut ValueId| {
-            if replacements.contains_key(value) {
-                *value = Self::resolve_replacement(replacements, *value);
-            }
-        };
-
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => replace(condition),
-            Terminator::Switch { value, cases, .. } => {
-                replace(value);
-                for (case_value, _) in cases {
-                    replace(case_value);
-                }
-            }
-            Terminator::Return { values } => {
-                for value in values {
-                    replace(value);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                replace(offset);
-                replace(size);
-            }
-            Terminator::SelfDestruct { recipient } => replace(recipient),
-        }
-    }
 }
 
 impl<'a> SlotSsaBuilder<'a> {
@@ -896,7 +830,7 @@ impl<'a> SlotSsaBuilder<'a> {
             func.blocks[pending.block].instructions.insert(insert_pos, pending.inst);
         }
 
-        FrameSlotPromoter::replace_uses(func, &self.replacements);
+        func.replace_uses_canonicalized(&self.replacements);
 
         for block in func.blocks.iter_mut() {
             block.instructions.retain(|id| !self.dead.contains(id));
@@ -927,8 +861,7 @@ impl<'a> SlotSsaBuilder<'a> {
                 InstKind::MStore(addr, value)
                     if FrameSlotPromoter::promotable_slot(func, addr) == Some(self.info.slot) =>
                 {
-                    current =
-                        Some(FrameSlotPromoter::resolve_replacement(&self.replacements, value));
+                    current = Some(Function::resolve_replacement(value, &self.replacements));
                     self.remove_store(inst_id);
                     changed = true;
                 }
@@ -940,7 +873,7 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn rewrite_single_store(&mut self, func: &Function) -> bool {
         let [store] = self.info.stores.as_slice() else { return false };
-        let stored_value = FrameSlotPromoter::resolve_replacement(&self.replacements, store.value);
+        let stored_value = Function::resolve_replacement(store.value, &self.replacements);
 
         for load in &self.info.loads {
             let dominated = if load.block == store.block {
@@ -973,10 +906,8 @@ impl<'a> SlotSsaBuilder<'a> {
 
     fn replace_load(&mut self, inst_id: InstId, value: ValueId) {
         if let Some(&load_value) = self.inst_results.get(&inst_id) {
-            self.replacements.insert(
-                load_value,
-                FrameSlotPromoter::resolve_replacement(&self.replacements, value),
-            );
+            self.replacements
+                .insert(load_value, Function::resolve_replacement(value, &self.replacements));
             self.dead.insert(inst_id);
             self.loads_promoted += 1;
         }
@@ -1010,8 +941,7 @@ impl<'a> SlotSsaBuilder<'a> {
                 InstKind::MStore(addr, value)
                     if FrameSlotPromoter::promotable_slot(func, addr) == Some(self.info.slot) =>
                 {
-                    current =
-                        Some(FrameSlotPromoter::resolve_replacement(&self.replacements, value));
+                    current = Some(Function::resolve_replacement(value, &self.replacements));
                     self.remove_store(inst_id);
                 }
                 _ => {}
@@ -1024,10 +954,8 @@ impl<'a> SlotSsaBuilder<'a> {
                     self.failed = true;
                     return;
                 };
-                phi.incoming.push((
-                    block,
-                    FrameSlotPromoter::resolve_replacement(&self.replacements, value),
-                ));
+                phi.incoming
+                    .push((block, Function::resolve_replacement(value, &self.replacements)));
             }
         }
 

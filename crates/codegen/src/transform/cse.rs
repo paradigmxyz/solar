@@ -42,7 +42,6 @@ use crate::{
         StorageAlias, Value, ValueId,
     },
     pass::FunctionPass,
-    transform::inst_results,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
@@ -190,7 +189,7 @@ impl CommonSubexprEliminator {
         self.sink_redundant_phi_expressions(func);
 
         // Neither the global nor the local pass allocates values, so the map stays valid.
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         self.process_global_pure(func, &inst_results);
 
         // Process each block independently (local CSE)
@@ -253,8 +252,8 @@ impl CommonSubexprEliminator {
 
     fn sink_redundant_phi_expressions(&mut self, func: &mut Function) {
         let cfg = CfgInfo::new(func);
-        let inst_results = inst_results(func);
-        let inst_blocks = Self::inst_blocks(func);
+        let inst_results = func.inst_results();
+        let inst_blocks = func.inst_blocks();
         let use_counts = Self::value_use_counts(func);
         let replacements = FxHashMap::default();
         let ctx = PhiSinkContext {
@@ -543,7 +542,7 @@ impl CommonSubexprEliminator {
     ) -> Option<ExprKey> {
         // Helper to get canonical operands after in-block replacements.
         let operand = |v: ValueId| Self::operand_key(func, v, replacements);
-        let value = |v: ValueId| Self::canonical_value(v, replacements);
+        let value = |v: ValueId| Function::resolve_replacement(v, replacements);
 
         match kind {
             // Commutative operations - normalize operand order
@@ -688,7 +687,7 @@ impl CommonSubexprEliminator {
     ) {
         match *kind {
             InstKind::MStore(addr, _) => {
-                let addr = Self::canonical_value(addr, replacements);
+                let addr = Function::resolve_replacement(addr, replacements);
                 clobbers.push(Clobber::Memory(self.memory_range_key(
                     func,
                     inst_id,
@@ -697,7 +696,7 @@ impl CommonSubexprEliminator {
                 )));
             }
             InstKind::MStore8(addr, _) => {
-                let addr = Self::canonical_value(addr, replacements);
+                let addr = Function::resolve_replacement(addr, replacements);
                 clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, addr, Some(1))));
             }
             InstKind::MCopy(dest, _, size)
@@ -705,8 +704,8 @@ impl CommonSubexprEliminator {
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::ReturnDataCopy(dest, _, size)
             | InstKind::ExtCodeCopy(_, dest, _, size) => {
-                let dest = Self::canonical_value(dest, replacements);
-                let size = Self::const_u64(func, Self::canonical_value(size, replacements));
+                let dest = Function::resolve_replacement(dest, replacements);
+                let size = Self::const_u64(func, Function::resolve_replacement(size, replacements));
                 clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, dest, size)));
             }
             InstKind::SStore(slot, _) => {
@@ -864,7 +863,7 @@ impl CommonSubexprEliminator {
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> StorageAlias {
         let original_slot = slot;
-        let slot = Self::canonical_value(slot, replacements);
+        let slot = Function::resolve_replacement(slot, replacements);
         if slot == original_slot {
             func.instructions[inst_id]
                 .metadata
@@ -948,7 +947,7 @@ impl CommonSubexprEliminator {
         value: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> Option<U256> {
-        let value = Self::canonical_value(value, replacements);
+        let value = Function::resolve_replacement(value, replacements);
         let Value::Immediate(imm) = func.value(value) else { return None };
         imm.as_u256()
     }
@@ -995,7 +994,7 @@ impl CommonSubexprEliminator {
             return None;
         }
 
-        let value = Self::canonical_value(value, replacements);
+        let value = Function::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(_) => None,
             Value::Arg { .. } | Value::Undef(_) => Some((OperandKey::Value(value), U256::ZERO)),
@@ -1023,22 +1022,12 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn canonical_value(mut value: ValueId, replacements: &FxHashMap<ValueId, ValueId>) -> ValueId {
-        while let Some(&replacement) = replacements.get(&value) {
-            if replacement == value {
-                break;
-            }
-            value = replacement;
-        }
-        value
-    }
-
     fn operand_key(
         func: &Function,
         value: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> OperandKey {
-        let value = Self::canonical_value(value, replacements);
+        let value = Function::resolve_replacement(value, replacements);
         match func.value(value) {
             Value::Immediate(imm) => OperandKey::Immediate(imm.clone()),
             _ => OperandKey::Value(value),
@@ -1078,16 +1067,6 @@ impl CommonSubexprEliminator {
             }
             _ => Ordering::Equal,
         })
-    }
-
-    fn inst_blocks(func: &Function) -> FxHashMap<InstId, BlockId> {
-        let mut inst_blocks = FxHashMap::default();
-        for (block_id, block) in func.blocks.iter_enumerated() {
-            for &inst_id in &block.instructions {
-                inst_blocks.insert(inst_id, block_id);
-            }
-        }
-        inst_blocks
     }
 
     fn value_use_counts(func: &Function) -> FxHashMap<ValueId, usize> {
@@ -1186,7 +1165,7 @@ impl CommonSubexprEliminator {
     fn replace_operands(kind: &mut InstKind, replacements: &FxHashMap<ValueId, ValueId>) -> bool {
         let mut changed = false;
         kind.visit_operands_mut(|v| {
-            let new_v = Self::canonical_value(*v, replacements);
+            let new_v = Function::resolve_replacement(*v, replacements);
             if new_v != *v {
                 *v = new_v;
                 changed = true;
@@ -1204,7 +1183,7 @@ impl CommonSubexprEliminator {
         use crate::mir::Terminator;
 
         let replace = |v: &mut ValueId| {
-            *v = Self::canonical_value(*v, replacements);
+            *v = Function::resolve_replacement(*v, replacements);
         };
 
         match term {

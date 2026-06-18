@@ -26,7 +26,6 @@ use crate::{
         ValueId,
     },
     pass::FunctionPass,
-    transform::inst_results,
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
@@ -113,7 +112,7 @@ impl IndVarSimplifier {
         };
 
         let scev = ScalarEvolution::analyze(func, loop_data);
-        let inst_results = inst_results(func);
+        let inst_results = func.inst_results();
         let mut candidates: FxHashMap<AddressKey, Vec<ValueId>> = FxHashMap::default();
 
         let mut blocks: Vec<_> = loop_data.blocks.iter().copied().collect();
