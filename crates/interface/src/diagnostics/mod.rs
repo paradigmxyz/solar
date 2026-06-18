@@ -1046,7 +1046,9 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 mod tests {
     use super::*;
     use crate::{BytePos, ColorChoice, Span, source_map};
-    use snapbox::{IntoData as _, assert_data_eq, str};
+    #[cfg(feature = "json")]
+    use snapbox::IntoData as _;
+    use snapbox::{assert_data_eq, str};
 
     #[test]
     fn test_styled_messages() {
