@@ -112,9 +112,7 @@ impl MemoryStoreEliminator {
                 let InstKind::MLoad(load_addr) = func.instructions[load].kind else {
                     continue;
                 };
-                if Self::mem_addr_key_static(func, dest)
-                    != Self::mem_addr_key_static(func, load_addr)
-                {
+                if Self::mem_addr_key(func, dest) != Self::mem_addr_key(func, load_addr) {
                     continue;
                 }
                 let Some(&loaded_value) = inst_results.get(&load) else {
@@ -197,7 +195,7 @@ impl MemoryStoreEliminator {
             let inst = &func.instructions[inst_id];
             match &inst.kind {
                 InstKind::MStore(addr, _) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
+                    if let Some(key) = Self::mem_addr_key(func, *addr) {
                         if overwritten.contains(&key) {
                             dead.insert(inst_id);
                             self.eliminated_count += 1;
@@ -209,7 +207,7 @@ impl MemoryStoreEliminator {
                     }
                 }
                 InstKind::MLoad(addr) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
+                    if let Some(key) = Self::mem_addr_key(func, *addr) {
                         Self::remove_overlapping_set(&mut overwritten, key);
                     } else {
                         overwritten.clear();
@@ -294,7 +292,7 @@ impl MemoryStoreEliminator {
         for &inst_id in func.blocks[block].instructions.iter().rev() {
             match func.instructions[inst_id].kind {
                 InstKind::MStore(addr, _) => {
-                    let key = self.mem_addr_key(func, addr)?;
+                    let key = Self::mem_addr_key(func, addr)?;
                     return Some((inst_id, key));
                 }
                 ref kind if Self::cross_block_memory_barrier(kind) => return None,
@@ -307,7 +305,7 @@ impl MemoryStoreEliminator {
     fn first_cross_block_overwrite(&self, func: &Function, block: BlockId) -> Option<MemAddrKey> {
         for &inst_id in &func.blocks[block].instructions {
             match func.instructions[inst_id].kind {
-                InstKind::MStore(addr, _) => return self.mem_addr_key(func, addr),
+                InstKind::MStore(addr, _) => return Self::mem_addr_key(func, addr),
                 ref kind if Self::cross_block_memory_barrier(kind) => return None,
                 _ => {}
             }
@@ -325,7 +323,7 @@ impl MemoryStoreEliminator {
         for &inst_id in &inst_ids {
             match &func.instructions[inst_id].kind {
                 InstKind::MStore(addr, value) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = Self::mem_addr_key(func, *addr) else {
                         stored_words.clear();
                         continue;
                     };
@@ -375,7 +373,7 @@ impl MemoryStoreEliminator {
             let inst = &func.instructions[inst_id];
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = Self::mem_addr_key(func, *addr) else {
                         stored_values.clear();
                         continue;
                     };
@@ -414,7 +412,7 @@ impl MemoryStoreEliminator {
             let inst = &func.instructions[inst_id];
             match &inst.kind {
                 InstKind::MStore(addr, value) => {
-                    if let Some(key) = self.mem_addr_key(func, *addr) {
+                    if let Some(key) = Self::mem_addr_key(func, *addr) {
                         if !Self::remove_overlapping_write_range(
                             func,
                             &mut stored_values,
@@ -431,7 +429,7 @@ impl MemoryStoreEliminator {
                     }
                 }
                 InstKind::MLoad(addr) => {
-                    let Some(key) = self.mem_addr_key(func, *addr) else {
+                    let Some(key) = Self::mem_addr_key(func, *addr) else {
                         continue;
                     };
                     let Some(&stored_value) = stored_values.get(&key) else {
@@ -490,11 +488,7 @@ impl MemoryStoreEliminator {
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
     }
 
-    fn mem_addr_key(&self, func: &Function, value: ValueId) -> Option<MemAddrKey> {
-        Self::mem_addr_key_static(func, value)
-    }
-
-    fn mem_addr_key_static(func: &Function, value: ValueId) -> Option<MemAddrKey> {
+    fn mem_addr_key(func: &Function, value: ValueId) -> Option<MemAddrKey> {
         Self::mem_addr_key_with_depth(func, value, 0)
     }
 
@@ -649,7 +643,7 @@ impl MemoryStoreEliminator {
         dest: ValueId,
         size: u64,
     ) -> bool {
-        let Some(write) = Self::mem_addr_key_static(func, dest) else {
+        let Some(write) = Self::mem_addr_key(func, dest) else {
             return false;
         };
         map.retain(|&stored, _| !Self::ranges_overlap_mem_keys(func, stored, 32, write, size));
@@ -669,7 +663,7 @@ impl MemoryStoreEliminator {
             return false;
         }
 
-        let Some(base) = Self::mem_addr_key_static(func, dest) else {
+        let Some(base) = Self::mem_addr_key(func, dest) else {
             return false;
         };
         for offset in (0..size).step_by(32) {

@@ -731,7 +731,7 @@ impl LoopOptimizer {
         inst_id: InstId,
         ctx: LoopOptContext<'_>,
     ) -> bool {
-        let Some(result) = self.inst_result(func, inst_id) else { return false };
+        let Some(result) = func.inst_result_value(inst_id) else { return false };
         for &block_id in &ctx.loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
                 let kind = &func.instructions[user_inst].kind;
@@ -788,12 +788,6 @@ impl LoopOptimizer {
             .iter()
             .copied()
             .any(|operand| self.value_feeds_affine_address(func, ctx, needle, operand, depth + 1))
-    }
-
-    fn inst_result(&self, func: &Function, inst_id: InstId) -> Option<ValueId> {
-        func.values.iter_enumerated().find_map(|(value, kind)| {
-            matches!(kind, Value::Inst(inst) if *inst == inst_id).then_some(value)
-        })
     }
 
     fn topological_sort_instructions(&self, func: &Function, insts: &[InstId]) -> Vec<InstId> {

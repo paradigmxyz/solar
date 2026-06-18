@@ -187,8 +187,8 @@ impl InstSimplifier {
                 let (condition, then_value, else_value) =
                     (resolve(*condition), resolve(*then_value), resolve(*else_value));
                 if Self::is_bool_value(func, condition)
-                    && Self::is_false(func, then_value)
-                    && Self::is_true(func, else_value)
+                    && Self::is_zero(func, then_value)
+                    && Self::is_one(func, else_value)
                 {
                     Some(InstKind::IsZero(condition))
                 } else {
@@ -355,9 +355,9 @@ impl InstSimplifier {
                 let (a, b) = (resolve(*a), resolve(*b));
                 if a == b {
                     Some(Self::imm_bool(func, true))
-                } else if Self::is_bool_value(func, a) && Self::is_true(func, b) {
+                } else if Self::is_bool_value(func, a) && Self::is_one(func, b) {
                     Some(a)
-                } else if Self::is_bool_value(func, b) && Self::is_true(func, a) {
+                } else if Self::is_bool_value(func, b) && Self::is_one(func, a) {
                     Some(b)
                 } else {
                     None
@@ -453,15 +453,15 @@ impl InstSimplifier {
             InstKind::Select(condition, then_value, else_value) => {
                 let (condition, then_value, else_value) =
                     (resolve(*condition), resolve(*then_value), resolve(*else_value));
-                if Self::is_true(func, condition) {
+                if Self::is_one(func, condition) {
                     Some(then_value)
-                } else if Self::is_false(func, condition) {
+                } else if Self::is_zero(func, condition) {
                     Some(else_value)
                 } else if Self::same_value(func, then_value, else_value) {
                     Some(then_value)
                 } else if Self::is_bool_value(func, condition)
-                    && Self::is_true(func, then_value)
-                    && Self::is_false(func, else_value)
+                    && Self::is_one(func, then_value)
+                    && Self::is_zero(func, else_value)
                 {
                     Some(condition)
                 } else {
@@ -771,14 +771,6 @@ impl InstSimplifier {
 
     fn is_one(func: &Function, value: ValueId) -> bool {
         Self::is_const(func, value, U256::from(1))
-    }
-
-    fn is_true(func: &Function, value: ValueId) -> bool {
-        Self::is_one(func, value)
-    }
-
-    fn is_false(func: &Function, value: ValueId) -> bool {
-        Self::is_zero(func, value)
     }
 
     fn is_bool_value(func: &Function, value: ValueId) -> bool {

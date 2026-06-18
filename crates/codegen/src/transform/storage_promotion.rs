@@ -357,8 +357,7 @@ impl StorageScalarPromoter {
                 match &func.instructions[inst_id].kind {
                     InstKind::SLoad(slot) => {
                         let alias = self.storage_alias(func, inst_id, *slot);
-                        if alias != *candidate && self.storage_aliases_may_alias(candidate, &alias)
-                        {
+                        if alias != *candidate && candidate.may_alias(alias) {
                             return false;
                         }
                     }
@@ -387,9 +386,7 @@ impl StorageScalarPromoter {
                     InstKind::SLoad(slot) => {
                         let alias = self.storage_alias(func, inst_id, *slot);
                         if self.candidate_index(candidates, &alias).is_none()
-                            && candidates.iter().any(|candidate| {
-                                self.storage_aliases_may_alias(&candidate.slot, &alias)
-                            })
+                            && candidates.iter().any(|candidate| candidate.slot.may_alias(alias))
                         {
                             return false;
                         }
@@ -445,7 +442,7 @@ impl StorageScalarPromoter {
             match &func.instructions[inst_id].kind {
                 InstKind::SLoad(load_slot) => {
                     let alias = self.storage_alias(func, inst_id, *load_slot);
-                    if alias != *slot && self.storage_aliases_may_alias(slot, &alias) {
+                    if alias != *slot && slot.may_alias(alias) {
                         return false;
                     }
                 }
@@ -484,9 +481,7 @@ impl StorageScalarPromoter {
                 InstKind::SLoad(load_slot) | InstKind::SStore(load_slot, _) => {
                     let alias = self.storage_alias(func, inst_id, *load_slot);
                     if self.candidate_index(candidates, &alias).is_none()
-                        && candidates.iter().any(|candidate| {
-                            self.storage_aliases_may_alias(&candidate.slot, &alias)
-                        })
+                        && candidates.iter().any(|candidate| candidate.slot.may_alias(alias))
                     {
                         return false;
                     }
@@ -931,10 +926,6 @@ impl StorageScalarPromoter {
             Value::Undef(_) => true,
             Value::Arg { .. } | Value::Immediate(_) => false,
         }
-    }
-
-    fn storage_aliases_may_alias(&self, a: &StorageAlias, b: &StorageAlias) -> bool {
-        a.may_alias(*b)
     }
 
     fn candidate_index(&self, candidates: &[Candidate], alias: &StorageAlias) -> Option<usize> {

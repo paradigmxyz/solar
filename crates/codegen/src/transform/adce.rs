@@ -110,7 +110,7 @@ impl AggressiveDeadCodeEliminator {
             else {
                 continue;
             };
-            if target == block_id || self.target_has_phi(func, target) {
+            if target == block_id || func.block_has_phi(target) {
                 continue;
             }
             rewrites.push((block_id, target));
@@ -190,10 +190,6 @@ impl AggressiveDeadCodeEliminator {
             | Terminator::SelfDestruct { .. }
             | Terminator::Invalid => Some(block_id),
         }
-    }
-
-    fn target_has_phi(&self, func: &Function, block_id: BlockId) -> bool {
-        func.block_has_phi(block_id)
     }
 
     fn block_has_effect(&self, func: &Function, block_id: BlockId) -> bool {

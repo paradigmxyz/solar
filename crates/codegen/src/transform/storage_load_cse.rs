@@ -121,9 +121,7 @@ impl StorageLoadCse {
                 }
                 InstKind::SStore(slot, _) => {
                     let alias = self.storage_alias(func, inst_id, *slot, replacements);
-                    cached_loads.retain(|cached_alias, _| {
-                        !Self::storage_aliases_may_alias(cached_alias, &alias)
-                    });
+                    cached_loads.retain(|cached_alias, _| !cached_alias.may_alias(alias));
                 }
                 kind if kind.may_mutate_storage() => cached_loads.clear(),
                 _ => {}
@@ -161,10 +159,6 @@ impl StorageLoadCse {
         } else {
             StorageAlias::for_value(func, slot)
         }
-    }
-
-    fn storage_aliases_may_alias(a: &StorageAlias, b: &StorageAlias) -> bool {
-        a.may_alias(*b)
     }
 
     fn replace_uses(func: &mut Function, replacements: &FxHashMap<ValueId, ValueId>) {
