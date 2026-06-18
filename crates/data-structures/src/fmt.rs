@@ -25,6 +25,15 @@ where
     }
 }
 
+impl<F> fmt::Debug for FromFn<F>
+where
+    F: Fn(&mut fmt::Formatter<'_>) -> fmt::Result,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        (self.0)(f)
+    }
+}
+
 /// Iterator formatting helpers.
 pub trait FmtIteratorExt: Iterator + Sized {
     /// Formats each item separated by `separator`.
