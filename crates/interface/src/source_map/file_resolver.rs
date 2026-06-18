@@ -272,6 +272,8 @@ impl<'a> FileResolver<'a> {
             if let Some(file) = self.try_file(path)? {
                 push_candidate(file);
             }
+        } else if let Some(file) = self.get_source_unit_file(path) {
+            return Ok(file);
         } else {
             // Try the base path and all include paths.
             let base_path = self.try_base_path().into_iter();
@@ -354,6 +356,18 @@ impl<'a> FileResolver<'a> {
     /// Returns the source file with the given path, if it exists, without loading it.
     pub fn get_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
         self.get_file_inner(path, false).ok().flatten()
+    }
+
+    fn get_source_unit_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
+        if path.is_absolute() {
+            return None;
+        }
+        if let Some(file) = self.source_map().get_file(path) {
+            return Some(file);
+        }
+
+        let rpath = &*self.normalize(path);
+        if rpath != path { self.source_map().get_file(rpath) } else { None }
     }
 
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
@@ -617,6 +631,26 @@ mod tests {
         let resolved = file_resolver.resolve_file(Path::new("B.sol"), Some(Path::new("A.sol")));
 
         assert_eq!(resolved.unwrap().name.as_real(), Some(Path::new("B.sol")));
+    }
+
+    #[test]
+    fn direct_import_reuses_preloaded_source_unit_name() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        let source_path = base_path.join("src/B.sol");
+        std::fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        std::fs::write(&source_path, "contract B {}").unwrap();
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let imported = sm.new_source_file(PathBuf::from("src/B.sol"), "contract B {}").unwrap();
+        let mut file_resolver = FileResolver::new(&sm);
+        file_resolver.set_current_dir(&base_path);
+
+        let resolved =
+            file_resolver.resolve_file(Path::new("src/B.sol"), Some(Path::new("test/A.sol")));
+
+        assert!(Arc::ptr_eq(&resolved.unwrap(), &imported));
     }
 }
 
