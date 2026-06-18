@@ -275,11 +275,16 @@ impl<'a> FileResolver<'a> {
         } else {
             // Try the base path and all include paths.
             let base_path = self.try_base_path().into_iter();
+            let mut searched = false;
             for include_path in base_path.chain(self.include_paths.iter().map(|p| p.as_path())) {
+                searched = true;
                 let path = include_path.join(path);
                 if let Some(file) = self.try_file(&path)? {
                     push_candidate(file);
                 }
+            }
+            if !searched && let Some(file) = self.try_file(path)? {
+                push_candidate(file);
             }
         }
 
@@ -577,6 +582,41 @@ mod tests {
         let resolved = file_resolver.resolve_file(Path::new("./B.sol"), Some(Path::new("A.sol")));
 
         assert!(Arc::ptr_eq(&resolved.unwrap(), &imported));
+    }
+
+    #[test]
+    fn direct_import_without_current_dir_uses_source_unit_name() {
+        use crate::source_map::FileLoader;
+
+        struct Loader;
+
+        impl FileLoader for Loader {
+            fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+                Ok(path.to_path_buf())
+            }
+
+            fn load_stdin(&self) -> io::Result<String> {
+                unreachable!()
+            }
+
+            fn load_file(&self, path: &Path) -> io::Result<String> {
+                assert_eq!(path, Path::new("B.sol"));
+                Ok(String::new())
+            }
+
+            fn load_binary_file(&self, _path: &Path) -> io::Result<Vec<u8>> {
+                unreachable!()
+            }
+        }
+
+        let sm = SourceMap::empty();
+        sm.set_file_loader(Loader);
+        let file_resolver = FileResolver::new(&sm);
+        file_resolver.env_current_dir.set(None).unwrap();
+
+        let resolved = file_resolver.resolve_file(Path::new("B.sol"), Some(Path::new("A.sol")));
+
+        assert_eq!(resolved.unwrap().name.as_real(), Some(Path::new("B.sol")));
     }
 }
 
