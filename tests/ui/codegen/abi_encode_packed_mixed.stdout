@@ -1,0 +1,159 @@
+// === ROOT/tests/ui/codegen/abi_encode_packed_mixed.sol:AbiEncodePackedMixed ===
+; module @AbiEncodePackedMixed
+fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 96
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v9 = calldataload 36
+    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
+    v12 = eq v9, v11
+    br v12, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v16 = calldataload 68
+    v18 = and v16, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v19 = eq v16, v18
+    br v19, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 128, 0
+    v25 = mload 64 !metadata(memory=scratch)
+    mstore v25, arg0
+    v28 = shl 96, arg1
+    v30 = add v25, 32
+    mstore v30, v28
+    v33 = add v25, 52
+    mstore v33, arg2
+    v36 = keccak256 v25, 54
+    mstore 128, v36
+    returndata 128, 32
+}
+
+fn @dynamicArg(arg0: bytes32, arg1: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v9 = add 4, arg1
+    v10 = calldataload v9
+    v12 = add v10, 31
+    v13 = not 31
+    v14 = and v12, v13
+    v16 = add v14, 32
+    v18 = mload 64 !metadata(memory=scratch)
+    v19 = add v18, v16
+    mstore 64, v19 !metadata(memory=scratch)
+    mstore v18, v10
+    v23 = add v18, 32
+    v24 = add v9, 32
+    calldatacopy v23, v24, v10
+    mstore 128, 0
+    v30 = mload 64 !metadata(memory=scratch)
+    mstore v30, arg0
+    v33 = add v30, 32
+    v34 = mload v18
+    v36 = add v18, 32
+    mcopy v33, v36, v34
+    v38 = add v33, v34
+    v39 = sub v38, v30
+    v40 = keccak256 v30, v39
+    mstore 128, v40
+    returndata 128, 32
+}
+
+fn @materialized(arg0: u16, arg1: memptr, arg2: bool) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 96
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffff
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = add 4, arg1
+    v16 = calldataload v15
+    v18 = add v16, 31
+    v19 = not 31
+    v20 = and v18, v19
+    v22 = add v20, 32
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, v22
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v16
+    v29 = add v24, 32
+    v30 = add v15, 32
+    calldatacopy v29, v30, v16
+    v34 = calldataload 68
+    v35 = iszero v34
+    v36 = iszero v35
+    v37 = eq v34, v36
+    br v37, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 128, 0
+    v43 = mload 64 !metadata(memory=scratch)
+    v45 = add v43, 32
+    v47 = shl 240, arg0
+    mstore v45, v47
+    v50 = add v45, 2
+    v51 = mload v24
+    v53 = add v24, 32
+    mcopy v50, v53, v51
+    v55 = add v50, v51
+    v57 = shl 248, arg2
+    mstore v55, v57
+    v60 = add v55, 1
+    v61 = sub v60, v45
+    v63 = add v61, 31
+    v64 = not 31
+    v65 = and v63, v64
+    v66 = add v65, 32
+    mstore v43, v61
+    v68 = add v43, v66
+    mstore 64, v68 !metadata(memory=scratch)
+    v71 = mload 64 !metadata(memory=scratch)
+    v73 = add v71, 32
+    mstore 64, v73 !metadata(memory=scratch)
+    v77 = add v71, 32
+    v78 = sub v77, v71
+    mstore v71, v78
+    v80 = mload v43
+    mstore v77, v80
+    v84 = not 31
+    v85 = add v80, 31
+    v86 = and v85, v84
+    v87 = add v77, 32
+    v88 = iszero v86
+    br v88, bb8, bb7
+  bb7:
+    v89 = sub v86, 32
+    v90 = add v87, v89
+    mstore v90, 0
+    jump bb8
+  bb8:
+    v93 = add v43, 32
+    v94 = add v87, v86
+    mcopy v87, v93, v80
+    v96 = sub v94, v71
+    returndata v71, v96
+}
+

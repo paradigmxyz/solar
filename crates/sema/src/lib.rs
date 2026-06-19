@@ -21,6 +21,7 @@ pub use solar_interface as interface;
 
 mod ast_lowering;
 mod ast_passes;
+mod natspec;
 
 mod compiler;
 pub use compiler::{Compiler, CompilerRef};
@@ -38,8 +39,6 @@ pub mod ty;
 pub use ty::{Gcx, Ty};
 
 mod typeck;
-
-mod emit;
 
 pub mod stats;
 
@@ -88,8 +87,6 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
         });
     });
 
-    gcx.sess.dcx.has_errors()?;
-
     ast_lowering::lower(compiler.gcx_mut());
 
     Ok(ControlFlow::Continue(()))
@@ -111,20 +108,17 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
     gcx.hir.par_item_ids().for_each(|id| {
         let _ = gcx.type_of_item(id);
         match id {
-            hir::ItemId::Struct(id) => _ = gcx.struct_field_types(id),
+            hir::ItemId::Struct(id) => {
+                let _ = gcx.struct_recursiveness(id);
+                let _ = gcx.struct_field_types(id);
+            }
             hir::ItemId::Contract(id) => _ = gcx.interface_functions(id),
             _ => {}
         }
+        natspec::validate_item_docs(gcx, id);
     });
-    gcx.sess.dcx.has_errors()?;
 
     typeck::check(gcx);
-    gcx.sess.dcx.has_errors()?;
-
-    if !gcx.sess.opts.emit.is_empty() {
-        emit::emit(gcx);
-        gcx.sess.dcx.has_errors()?;
-    }
 
     Ok(ControlFlow::Continue(()))
 }

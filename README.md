@@ -125,19 +125,121 @@ EOF
 solar $(forge re) src/Contract.sol
 ```
 
+### C API, WASM, and JavaScript usage
+
+The `solar-capi` crate exposes the compiler through a Solidity-compatible C API.
+That same ABI is also the boundary used by the WebAssembly build and the
+soljson-compatible JavaScript wrapper.
+
+The C header is the source of truth for the ABI:
+[`crates/capi/include/libsolc.h`](/crates/capi/include/libsolc.h). The API
+accepts Standard JSON input and returns Standard JSON output, matching the
+interface used by Solidity's `libsolc` and raw `soljson.js` builds. Like
+Solidity, client code owns memory explicitly through the C API described in the
+header.
+
+Solidity distributes JavaScript compiler builds as `soljson.js` files. Modern
+builds are WebAssembly modules loaded through a JavaScript wrapper, with the
+wasm bytes made available as `Module.wasmBinary`. The JavaScript package
+`solc-js` then layers a higher-level API over that raw module.
+
+This repository ships the wasm distribution as `solar-wasm.tar.gz` in releases.
+The archive contains:
+
+- `soljson.js`: a packed, soljson-compatible JavaScript file with wasm embedded.
+- `solar.wasm`: the raw WebAssembly module.
+- `soljson-wrapper.js`: the JavaScript wrapper for loading `solar.wasm`
+  yourself.
+
+There are two ways to use the wasm and JavaScript distribution:
+
+1. Download `solar-wasm.tar.gz` from a release and extract the file you need.
+   Use `soljson.js` for the most solc-js-compatible path, or use
+   `solar.wasm` with `soljson-wrapper.js` when you want to control wasm loading.
+
+2. Build the same files from source:
+
+```bash
+rustup target add wasm32-unknown-unknown
+scripts/wasm/dist-wasm.sh
+```
+
+This produces the same files under `target/dist/`. The script builds with an
+exported, growable WebAssembly table so JavaScript callbacks can be installed,
+then packs the wasm bytes into `soljson.js`.
+
+Use the packed `soljson.js` directly:
+
+```js
+const solar = require("./soljson.js");
+
+const output = solar.compile(JSON.stringify({
+  language: "Solidity",
+  sources: {
+    "A.sol": { content: 'import "B.sol"; contract A is B {}' },
+  },
+  settings: { outputSelection: { "*": { "*": ["abi"] } } },
+}), {
+  import(path) {
+    if (path === "B.sol") {
+      return { contents: "contract B {}" };
+    }
+    return { error: `source not found: ${path}` };
+  },
+});
+```
+
+For custom wasm loading, use `soljson-wrapper.js` from the release archive or
+[`crates/capi/soljson.js`](/crates/capi/soljson.js) from source.
+
+In Node, load the separate wasm bytes through the same `Module.wasmBinary`
+hook used by the packed file:
+
+```js
+const fs = require("node:fs");
+
+globalThis.Module = {
+  wasmBinary: fs.readFileSync("./solar.wasm"),
+};
+const solar = require("./soljson-wrapper.js");
+delete globalThis.Module;
+
+const output = solar.compile(JSON.stringify({
+  language: "Solidity",
+  sources: {
+    "A.sol": { content: 'import "B.sol"; contract A is B {}' },
+  },
+  settings: { outputSelection: { "*": { "*": ["abi"] } } },
+}), {
+  import(path) {
+    if (path === "B.sol") {
+      return { contents: "contract B {}" };
+    }
+    return { error: `source not found: ${path}` };
+  },
+});
+```
+
+In browsers, serve `solar.wasm` and `soljson-wrapper.js`, fetch the wasm bytes,
+assign `globalThis.Module = { wasmBinary }`, and then load the wrapper script.
+
+The wrapper exposes the solc-js-style Standard JSON compile entry point plus
+metadata helpers. Legacy low-level solc-js entry points are intentionally set to
+`null`.
+
 ## Roadmap
 
 You can find a more detailed list in the [pinned GitHub issue](https://github.com/paradigmxyz/solar/issues/1).
 
-- [ ] Front-end
+- [x] Front-end
   - [x] Lexing
   - [x] Parsing
-  - [ ] Semantic analysis
+  - [x] Semantic analysis
     - [x] Symbol resolution
-    - [ ] Type checker
-    - [ ] Static analysis
-- [ ] Middle-end
-- [ ] Back-end
+    - [x] Type checker
+    - [x] Static analysis
+- [x] Middle-end
+- [x] Back-end
 
 ## Semver Compatibility
 

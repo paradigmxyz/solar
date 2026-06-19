@@ -5,14 +5,17 @@
 #![allow(unreachable_pub)]
 
 use eyre::{Result, eyre};
-use std::path::Path;
+use std::{ffi::OsString, path::Path};
 use ui_test::{color_eyre::eyre, spanned::Spanned};
 
 mod errors;
 mod solc;
 mod utils;
 
-/// Runs all the tests with the given `solar` command path.
+/// Runs all the tests.
+///
+/// `cmd` is the path to the `solar` binary used by all modes. `Mode::Mir`
+/// invokes it as `solar mir-opt …`.
 pub fn run_tests(cmd: &'static Path) -> Result<()> {
     ui_test::color_eyre::install()?;
 
@@ -33,30 +36,46 @@ pub fn run_tests(cmd: &'static Path) -> Result<()> {
         args.format = ui_test::Format::Terse;
     }
 
-    let mut modes = &[Mode::Ui, Mode::SolcSolidity, Mode::SolcYul][..];
-    let mode_tmp;
-    if let Ok(mode) = std::env::var("TESTER_MODE") {
-        mode_tmp = Mode::parse(&mode).ok_or_else(|| eyre!("invalid mode: {mode}"))?;
-        modes = std::slice::from_ref(&mode_tmp);
+    let mut modes = DEFAULT_MODES.to_vec();
+    modes.insert(1, Mode::Mir);
+
+    // TESTER_MODE can be a single mode or a comma-separated list.
+    // The "ui" alias also implicitly runs the "mir" mode, since they share the
+    // same `tests/ui/` tree and users typically want `cargo uitest` to cover
+    // both.
+    if let Ok(mode_str) = std::env::var("TESTER_MODE") {
+        let mut requested = Vec::new();
+        for name in mode_str.split(',') {
+            let m = Mode::parse(name.trim()).ok_or_else(|| eyre!("invalid mode: {name}"))?;
+            requested.push(m);
+            if name.trim() == "ui" && !requested.contains(&Mode::Mir) {
+                requested.push(Mode::Mir);
+            }
+        }
+        modes = requested;
     }
 
     let tmp_dir = tempfile::tempdir()?;
     let tmp_dir = &*Box::leak(tmp_dir.path().to_path_buf().into_boxed_path());
-    for &mode in modes {
-        let cfg = MyConfig::<'static> { mode, tmp_dir };
-        let config = config(cmd, &args, mode);
+    let configs = modes.iter().copied().map(|mode| config(cmd, &args, mode)).collect();
 
-        let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
-        let gha_emitter = ui_test::status_emitter::Gha { name: mode.to_string(), group: true };
-        let status_emitter = (text_emitter, gha_emitter);
+    let text_emitter: Box<dyn ui_test::status_emitter::StatusEmitter> = args.format.into();
+    let gha_name = if modes.len() == 1 { modes[0].to_string() } else { "ui-tests".to_string() };
+    let gha_emitter = ui_test::status_emitter::Gha { name: gha_name, group: true };
+    let status_emitter = (text_emitter, gha_emitter);
 
-        ui_test::run_tests_generic(
-            vec![config],
-            move |path, config| file_filter(path, config, cfg),
-            move |config, contents| per_file_config(config, contents, cfg),
-            status_emitter,
-        )?;
-    }
+    ui_test::run_tests_generic(
+        configs,
+        move |path, config| {
+            let cfg = MyConfig::<'static> { mode: mode_from_config(config), tmp_dir };
+            file_filter(path, config, cfg)
+        },
+        move |config, contents| {
+            let cfg = MyConfig::<'static> { mode: mode_from_config(config), tmp_dir };
+            per_file_config(config, contents, cfg)
+        },
+        status_emitter,
+    )?;
 
     Ok(())
 }
@@ -65,7 +84,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().parent().unwrap();
 
     let path = match mode {
-        Mode::Ui => "tests/ui/",
+        Mode::Ui | Mode::StandardJson => "tests/ui/",
+        Mode::Mir => "tests/ui/codegen/mir/",
         Mode::SolcSolidity => "testdata/solidity/test/",
         Mode::SolcYul => "testdata/solidity/test/libyul/",
     };
@@ -76,20 +96,38 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
          you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
+    let standard_json_script = root.join("scripts/standard-json-filecheck.py");
+
     let mut config = ui_test::Config {
-        // `host` and `target` are used for `//@ignore-...` comments.
+        // `host` and `target` are used for `//@ ignore-...` comments.
         host: Some(get_host().to_string()),
         target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
-            program: cmd.into(),
+            program: if matches!(mode, Mode::StandardJson) {
+                if cfg!(windows) { "python".into() } else { "python3".into() }
+            } else {
+                cmd.into()
+            },
             args: {
-                let mut args =
-                    vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"];
+                let mut args: Vec<OsString> = match mode {
+                    // `Mir` mode runs `solar mir-opt …`, which doesn't accept
+                    // the normal compiler flags.
+                    Mode::Mir => vec!["mir-opt".into()],
+                    Mode::StandardJson => vec![
+                        standard_json_script.into_os_string(),
+                        "solar-standard-json".into(),
+                        cmd.as_os_str().to_os_string(),
+                    ],
+                    _ => vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
+                        .into_iter()
+                        .map(Into::into)
+                        .collect(),
+                };
                 if mode.is_solc() {
-                    args.push("--stop-after=parsing");
+                    args.push("--stop-after=parsing".into());
                 }
-                args.into_iter().map(Into::into).collect()
+                args
             },
             out_dir_flag: None,
             input_file_flag: None,
@@ -121,14 +159,23 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     config.comment_defaults.base().require_annotations_for_level =
         Spanned::dummy(ui_test::diagnostics::Level::Warn).into();
 
-    let filters = [
-        (ui_test::Match::PathBackslash, b"/".to_vec()),
-        #[cfg(windows)]
-        (ui_test::Match::Exact(vec![b'\r']), b"".to_vec()),
-        #[cfg(windows)]
-        (ui_test::Match::Exact(br"\\?\".to_vec()), b"".to_vec()),
+    // `mut` is only used under `#[cfg(windows)]` below.
+    #[allow(unused_mut)]
+    let mut filters = vec![
         (root.into(), b"ROOT".to_vec()),
+        (ui_test::Match::PathBackslash, b"/".to_vec()),
+        (
+            ui_test::Match::Exact(root.to_string_lossy().replace('\\', "/").into_bytes()),
+            b"ROOT".to_vec(),
+        ),
     ];
+    // Windows paths carry `\\?\` long-path prefixes and `\r` line endings; strip
+    // both, ahead of the rewrites above.
+    #[cfg(windows)]
+    {
+        filters.insert(0, (ui_test::Match::Exact(vec![b'\r']), b"".to_vec()));
+        filters.insert(0, (ui_test::Match::Exact(br"\\?\".to_vec()), b"".to_vec()));
+    }
     config.comment_defaults.base().normalize_stderr.extend(filters.iter().cloned());
     config.comment_defaults.base().normalize_stdout.extend(filters);
 
@@ -140,9 +187,12 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
         config.filter(pattern, replacement);
     }
     let stdout_filters: &[(&str, &str)] = &[
+        (r"\\\\", "/"),
+        (r"\\/", "/"),
         //
         (&env!("CARGO_PKG_VERSION").replace(".", r"\."), "VERSION"),
     ];
+    add_root_stdout_filters(&mut config, root);
     for &(pattern, replacement) in stdout_filters {
         config.stdout_filter(pattern, replacement);
     }
@@ -164,6 +214,22 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
     config
 }
 
+fn add_root_stdout_filters(config: &mut ui_test::Config, root: &Path) {
+    let native = root.to_string_lossy();
+    let slash = native.replace('\\', "/");
+    let escaped = native.replace('\\', r"\\");
+    let mut roots = vec![native.into_owned(), slash.clone(), escaped];
+    if let Some((drive, rest)) = slash.split_once(':') {
+        roots.push(format!("{}:{rest}", drive.to_ascii_uppercase()));
+        roots.push(format!("{}:{rest}", drive.to_ascii_lowercase()));
+    }
+    roots.sort();
+    roots.dedup();
+    for root in roots {
+        config.stdout_filter(&regex::escape(&root), "ROOT");
+    }
+}
+
 fn get_host() -> &'static str {
     static CACHE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
     CACHE.get_or_init(|| {
@@ -174,13 +240,38 @@ fn get_host() -> &'static str {
     })
 }
 
+fn mode_from_config(config: &ui_test::Config) -> Mode {
+    if config.program.args.get(1).is_some_and(|arg| arg == "solar-standard-json") {
+        Mode::StandardJson
+    } else if config.root_dir.ends_with("tests/ui/codegen/mir") {
+        Mode::Mir
+    } else if config.root_dir.ends_with("testdata/solidity/test/libyul") {
+        Mode::SolcYul
+    } else if config.root_dir.ends_with("testdata/solidity/test") {
+        Mode::SolcSolidity
+    } else {
+        Mode::Ui
+    }
+}
+
 fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
-    path.extension().filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?;
+    match cfg.mode {
+        Mode::Mir => {
+            path.extension().filter(|&ext| ext == "mir")?;
+        }
+        Mode::StandardJson => {
+            path.extension().filter(|&ext| ext == "jsonc")?;
+        }
+        _ => {
+            path.extension()
+                .filter(|&ext| ext == "sol" || (cfg.mode.allows_yul() && ext == "yul"))?;
+        }
+    }
     if !ui_test::default_any_file_filter(path, config) {
         return Some(false);
     }
     let skip = match cfg.mode {
-        Mode::Ui => false,
+        Mode::Ui | Mode::Mir | Mode::StandardJson => false,
         Mode::SolcSolidity => solc::solidity::should_skip(path).is_err(),
         Mode::SolcYul => solc::yul::should_skip(path).is_err(),
     };
@@ -196,15 +287,26 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if cfg.mode.is_solc() {
         return solc_per_file_config(config, src, path, cfg);
     }
+    if matches!(cfg.mode, Mode::StandardJson) {
+        config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
+        config.comment_defaults.base().exit_status = Spanned::dummy(0).into();
+        return;
+    }
 
     assert_eq!(config.comment_start, "//");
     let has_annotations = src.contains("//~");
-    // TODO: https://github.com/oli-obk/ui_test/issues/341
-    let is_check_fail = src.contains("check-fail");
-    config.comment_defaults.base().require_annotations =
-        Spanned::dummy(is_check_fail || has_annotations).into();
-    let code = if is_check_fail || (has_annotations && src.contains("ERROR:")) { 1 } else { 0 };
+    config.comment_defaults.base().require_annotations = Spanned::dummy(has_annotations).into();
+    let code = if has_annotations && src.contains("ERROR:") { 1 } else { 0 };
     config.comment_defaults.base().exit_status = Spanned::dummy(code).into();
+
+    if src.lines().any(|line| {
+        let line = line.trim_start();
+        line.starts_with("//@")
+            && line.contains("compile-flags")
+            && (line.contains("-j") || line.contains("--threads"))
+    }) {
+        config.program.args.retain(|arg| arg != "-j1");
+    }
 }
 
 // For solc tests, we can't expect errors normally since we have different diagnostics.
@@ -236,17 +338,25 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
     Ui,
+    /// MIR-level tests: runs `solar mir-opt` on `.mir` files under
+    /// `tests/ui/codegen/mir/`.
+    Mir,
+    StandardJson,
     SolcSolidity,
     SolcYul,
 }
+
+const DEFAULT_MODES: &[Mode] = &[Mode::Ui, Mode::StandardJson, Mode::SolcSolidity, Mode::SolcYul];
 
 impl Mode {
     fn parse(s: &str) -> Option<Self> {
         Some(match s {
             "ui" => Self::Ui,
+            "mir" => Self::Mir,
+            "standard-json" => Self::StandardJson,
             "solc-solidity" => Self::SolcSolidity,
             "solc-yul" => Self::SolcYul,
             _ => return None,
@@ -256,6 +366,8 @@ impl Mode {
     fn to_str(self) -> &'static str {
         match self {
             Self::Ui => "ui",
+            Self::Mir => "mir",
+            Self::StandardJson => "standard-json",
             Self::SolcSolidity => "solc-solidity",
             Self::SolcYul => "solc-yul",
         }
@@ -266,7 +378,7 @@ impl Mode {
     }
 
     fn allows_yul(self) -> bool {
-        !matches!(self, Self::SolcSolidity)
+        !matches!(self, Self::SolcSolidity | Self::Mir)
     }
 }
 

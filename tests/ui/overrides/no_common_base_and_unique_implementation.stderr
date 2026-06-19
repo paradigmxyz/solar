@@ -1,0 +1,20 @@
+error[6480]: derived contract must override function `f`
+   ╭▸ ROOT/tests/ui/overrides/no_common_base_and_unique_implementation.sol:LL:CC
+   │
+LL │ contract C is A, B {}
+   │          ━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ╰ note: defined in: `A`, `B`
+
+error[6480]: derived contract must override function `g`
+   ╭▸ ROOT/tests/ui/overrides/no_common_base_and_unique_implementation.sol:LL:CC
+   │
+LL │ contract C is A, B {}
+   │          ━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ╰ note: defined in: `A`, `B`
+
+error: aborting due to 2 previous errors
+

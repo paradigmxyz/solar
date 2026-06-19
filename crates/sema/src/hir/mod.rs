@@ -10,13 +10,13 @@ use solar_data_structures::{
     index::{Idx, IndexVec},
     newtype_index,
 };
-use solar_interface::{Ident, Span, diagnostics::ErrorGuaranteed, source_map::SourceFile};
+use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed, source_map::SourceFile};
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
 use strum::EnumIs;
 
 pub use ast::{
-    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit,
-    StateMutability, UnOp, UnOpKind, VarMut, Visibility,
+    BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit, NatSpecItem,
+    NatSpecKind, StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
 mod visit;
@@ -76,6 +76,8 @@ impl std::ops::Deref for Arena {
 pub struct Hir<'hir> {
     /// All sources.
     pub(crate) sources: IndexVec<SourceId, Source<'hir>>,
+    /// All documentation comments.
+    pub(crate) docs: IndexVec<DocId, Doc<'hir>>,
     /// All contracts.
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
@@ -113,7 +115,7 @@ macro_rules! indexvec_methods {
             pub fn [<$singular _ids>](&self) -> impl ExactSizeIterator<Item = $id> + Clone + use<> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                (0..self.$plural.len()).map(|id| $id::from_usize_unchecked(id))
+                (0..self.$plural.len()).map(|id| unsafe { $id::from_usize_unchecked(id) })
             }
 
             #[doc = "Returns a parallel iterator over all of the " $singular " IDs."]
@@ -121,7 +123,7 @@ macro_rules! indexvec_methods {
             pub fn [<par_ $singular _ids>](&self) -> impl IndexedParallelIterator<Item = $id> + use<> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                (0..self.$plural.len()).into_par_iter().map(|id| $id::from_usize_unchecked(id))
+                (0..self.$plural.len()).into_par_iter().map(|id| unsafe { $id::from_usize_unchecked(id) })
             }
 
             #[doc = "Returns an iterator over all of the " $singular " values."]
@@ -141,7 +143,7 @@ macro_rules! indexvec_methods {
             pub fn [<$plural _enumerated>](&self) -> impl ExactSizeIterator<Item = ($id, &$type)> + Clone {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                self.$plural().enumerate().map(|(i, v)| ($id::from_usize_unchecked(i), v))
+                self.$plural().enumerate().map(|(i, v)| (unsafe { $id::from_usize_unchecked(i) }, v))
             }
 
             #[doc = "Returns an iterator over all of the " $singular " IDs and their associated values."]
@@ -149,7 +151,7 @@ macro_rules! indexvec_methods {
             pub fn [<par_ $plural _enumerated>](&self) -> impl IndexedParallelIterator<Item = ($id, &$type)> {
                 // SAFETY: `$plural` is an IndexVec, which guarantees that all indexes are in bounds
                 // of the respective index type.
-                self.[<par_ $plural>]().enumerate().map(|(i, v)| ($id::from_usize_unchecked(i), v))
+                self.[<par_ $plural>]().enumerate().map(|(i, v)| (unsafe { $id::from_usize_unchecked(i) }, v))
             }
         )*
 
@@ -163,8 +165,17 @@ macro_rules! indexvec_methods {
 
 impl<'hir> Hir<'hir> {
     pub(crate) fn new() -> Self {
+        let mut docs = IndexVec::new();
+        let empty_doc_id = docs.push(Doc {
+            source: SourceId::MAX,
+            item: ItemId::Contract(ContractId::MAX),
+            ast_comments: ast::DocComments::default(),
+        });
+        debug_assert_eq!(empty_doc_id, DocId::EMPTY);
+
         Self {
             sources: IndexVec::new(),
+            docs,
             contracts: IndexVec::new(),
             functions: IndexVec::new(),
             structs: IndexVec::new(),
@@ -178,6 +189,7 @@ impl<'hir> Hir<'hir> {
 
     indexvec_methods! {
         source => sources, SourceId => Source<'hir>;
+        doc => docs, DocId => Doc<'hir>;
         contract => contracts, ContractId => Contract<'hir>;
         function => functions, FunctionId => Function<'hir>;
         strukt => structs, StructId => Struct<'hir>;
@@ -256,7 +268,7 @@ impl<'hir> Hir<'hir> {
     pub fn contract_item_ids(
         &self,
         id: ContractId,
-    ) -> impl Iterator<Item = ItemId> + Clone + use<'_> {
+    ) -> impl Iterator<Item = ItemId> + Clone + use<'_, 'hir> {
         self.contract(id)
             .linearized_bases
             .iter()
@@ -404,6 +416,11 @@ newtype_index! {
     /// A [`Source`] ID.
     pub struct SourceId;
 
+    /// A [`Doc`] ID.
+    ///
+    /// Use [`Gcx::natspec_doc_comments`] to access validated and resolved NatSpec items.
+    pub struct DocId;
+
     /// A [`Contract`] ID.
     pub struct ContractId;
 
@@ -432,6 +449,18 @@ newtype_index! {
     pub struct ExprId;
 }
 
+impl DocId {
+    /// The empty documentation id.
+    ///
+    /// This is reserved as index 0 and represents items with no documentation.
+    pub const EMPTY: Self = Self::new(0);
+
+    /// Whether a documentation id is empty or not.
+    pub fn is_empty(&self) -> bool {
+        self == &Self::EMPTY
+    }
+}
+
 /// A source file.
 pub struct Source<'hir> {
     pub file: Arc<SourceFile>,
@@ -442,6 +471,10 @@ pub struct Source<'hir> {
     pub imports: &'hir [(ast::ItemId, SourceId)],
     /// The source items.
     pub items: &'hir [ItemId],
+    /// The source-level `using for` directives.
+    pub usings: &'hir [UsingDirective<'hir>],
+    /// The source docs.
+    pub docs: &'hir [DocId],
 }
 
 impl fmt::Debug for Source<'_> {
@@ -452,6 +485,22 @@ impl fmt::Debug for Source<'_> {
             .field("items", &self.items)
             .finish()
     }
+}
+
+/// The documentation of an item.
+///
+/// Use [`Gcx::natspec_doc_comments`] with the corresponding [`DocId`] to access validated and
+/// resolved NatSpec items.
+#[derive(Debug)]
+pub struct Doc<'hir> {
+    /// The source this documentation is defined in.
+    pub source: SourceId,
+    /// The item this documentation is defined in.
+    pub item: ItemId,
+    /// Reference to the raw AST documentation comments.
+    ///
+    /// Use [`Gcx::natspec_doc_comments`] for the validated and resolved NatSpec view.
+    pub(crate) ast_comments: ast::DocComments<'hir>,
 }
 
 #[derive(Clone, Copy, Debug, EnumIs)]
@@ -542,6 +591,21 @@ impl<'hir> Item<'_, 'hir> {
         }
     }
 
+    /// Returns the documentation comments associated with this item.
+    #[inline]
+    pub fn doc(self) -> DocId {
+        match self {
+            Item::Contract(c) => c.doc,
+            Item::Function(f) => f.doc,
+            Item::Struct(s) => s.doc,
+            Item::Enum(e) => e.doc,
+            Item::Udvt(u) => u.doc,
+            Item::Error(e) => e.doc,
+            Item::Event(e) => e.doc,
+            Item::Variable(v) => v.doc,
+        }
+    }
+
     /// Returns the parameters of the item.
     #[inline]
     pub fn parameters(self) -> Option<&'hir [VariableId]> {
@@ -568,6 +632,24 @@ impl<'hir> Item<'_, 'hir> {
         } else {
             true
         }) && self.visibility() != Visibility::External
+    }
+
+    /// Returns `true` if the item is visible as a library member.
+    #[inline]
+    pub fn is_visible_as_library_member(self) -> bool {
+        self.visibility() >= Visibility::Internal
+    }
+
+    /// Returns `true` if the item is visible through contract type access.
+    #[inline]
+    pub fn is_visible_via_contract_type_access(self) -> bool {
+        match self {
+            Item::Function(f) => f.is_ordinary() && f.visibility >= Visibility::Public,
+            Item::Struct(_) | Item::Enum(_) | Item::Udvt(_) | Item::Error(_) | Item::Event(_) => {
+                true
+            }
+            Item::Contract(_) | Item::Variable(_) => false,
+        }
     }
 
     /// Returns `true` if the item is public or external.
@@ -667,12 +749,16 @@ impl ItemId {
 pub struct Contract<'hir> {
     /// The source this contract is defined in.
     pub source: SourceId,
+    /// The documentation of this contract.
+    pub doc: DocId,
     /// The contract span.
     pub span: Span,
     /// The contract name.
     pub name: Ident,
     /// The contract kind.
     pub kind: ContractKind,
+    /// The storage layout base slot expression, if specified.
+    pub layout: Option<&'hir Expr<'hir>>,
     /// The contract bases, as declared in the source code.
     pub bases: &'hir [ContractId],
     /// The base arguments, as declared in the source code.
@@ -701,6 +787,8 @@ pub struct Contract<'hir> {
     /// Note that this only includes items defined in the contract itself, not inherited items.
     /// For getting all items, use [`Hir::contract_items`].
     pub items: &'hir [ItemId],
+    /// The contract-level `using for` directives.
+    pub usings: &'hir [UsingDirective<'hir>],
 }
 
 impl Contract<'_> {
@@ -777,11 +865,54 @@ pub struct Modifier<'hir> {
     pub args: CallArgs<'hir>,
 }
 
+/// A resolved `using for` directive.
+#[derive(Debug)]
+pub struct UsingDirective<'hir> {
+    /// The directive span.
+    pub span: Span,
+    /// The source this directive is defined in.
+    pub source: SourceId,
+    /// The contract this directive is defined in, if any.
+    pub contract: Option<ContractId>,
+    /// The type this directive applies to. `None` means `*`.
+    pub ty: Option<Type<'hir>>,
+    /// Whether this is a global directive.
+    pub global: bool,
+    /// The attached library/functions.
+    pub entries: &'hir [UsingEntry<'hir>],
+}
+
+/// A resolved entry in a `using for` directive.
+#[derive(Debug)]
+pub struct UsingEntry<'hir> {
+    /// The path span.
+    pub span: Span,
+    /// The member name introduced by a braced function entry.
+    pub name: Option<Symbol>,
+    /// The attached item.
+    pub kind: UsingEntryKind<'hir>,
+    /// The operator this entry defines, if any.
+    pub operator: Option<ast::UserDefinableOperator>,
+}
+
+/// A resolved `using for` entry kind.
+#[derive(Debug)]
+pub enum UsingEntryKind<'hir> {
+    /// `using L for T`.
+    Library(ContractId),
+    /// `using { f } for T`.
+    Functions(&'hir [FunctionId]),
+    /// An erroneous entry.
+    Err(ErrorGuaranteed),
+}
+
 /// A function.
 #[derive(Debug)]
 pub struct Function<'hir> {
     /// The source this function is defined in.
     pub source: SourceId,
+    /// The documentation of this function.
+    pub doc: DocId,
     /// The contract this function is defined in, if any.
     pub contract: Option<ContractId>,
     /// The function span.
@@ -791,6 +922,8 @@ pub struct Function<'hir> {
     pub name: Option<Ident>,
     /// The function kind.
     pub kind: FunctionKind,
+    /// Whether this function was lowered from a Yul function definition.
+    pub is_yul: bool,
     /// The visibility of the function.
     pub visibility: Visibility,
     /// The state mutability of the function.
@@ -872,6 +1005,8 @@ impl Function<'_> {
 pub struct Struct<'hir> {
     /// The source this struct is defined in.
     pub source: SourceId,
+    /// The documentation of this struct.
+    pub doc: DocId,
     /// The contract this struct is defined in, if any.
     pub contract: Option<ContractId>,
     /// The struct span.
@@ -886,6 +1021,8 @@ pub struct Struct<'hir> {
 pub struct Enum<'hir> {
     /// The source this enum is defined in.
     pub source: SourceId,
+    /// The documentation of this enum.
+    pub doc: DocId,
     /// The contract this enum is defined in, if any.
     pub contract: Option<ContractId>,
     /// The enum span.
@@ -901,6 +1038,8 @@ pub struct Enum<'hir> {
 pub struct Udvt<'hir> {
     /// The source this UDVT is defined in.
     pub source: SourceId,
+    /// The documentation of this UDVT.
+    pub doc: DocId,
     /// The contract this UDVT is defined in, if any.
     pub contract: Option<ContractId>,
     /// The UDVT span.
@@ -916,6 +1055,8 @@ pub struct Udvt<'hir> {
 pub struct Event<'hir> {
     /// The source this event is defined in.
     pub source: SourceId,
+    /// The documentation of this event.
+    pub doc: DocId,
     /// The contract this event is defined in, if any.
     pub contract: Option<ContractId>,
     /// The event span.
@@ -932,6 +1073,8 @@ pub struct Event<'hir> {
 pub struct Error<'hir> {
     /// The source this error is defined in.
     pub source: SourceId,
+    /// The documentation of this error.
+    pub doc: DocId,
     /// The contract this error is defined in, if any.
     pub contract: Option<ContractId>,
     /// The error span.
@@ -946,10 +1089,17 @@ pub struct Error<'hir> {
 pub struct Variable<'hir> {
     /// The source this variable is defined in.
     pub source: SourceId,
+    /// The documentation of this variable.
+    pub doc: DocId,
     /// The contract this variable is defined in, if any.
     pub contract: Option<ContractId>,
-    /// The function this variable is defined in, if any.
-    pub function: Option<FunctionId>,
+    /// The parent item containing this variable.
+    ///
+    /// - Struct fields → the struct
+    /// - Event/Error parameters → the event/error
+    /// - Function parameters/returns/locals → the function
+    /// - State/Global variables → `None`, as they are items themselves
+    pub parent: Option<ItemId>,
     /// The variable's span.
     pub span: Span,
     /// The kind of variable.
@@ -972,11 +1122,18 @@ pub struct Variable<'hir> {
 
 impl<'hir> Variable<'hir> {
     /// Creates a new variable.
-    pub fn new(source: SourceId, ty: Type<'hir>, name: Option<Ident>, kind: VarKind) -> Self {
+    pub fn new(
+        source: SourceId,
+        doc: DocId,
+        ty: Type<'hir>,
+        name: Option<Ident>,
+        kind: VarKind,
+    ) -> Self {
         Self {
             source,
+            doc,
             contract: None,
-            function: None,
+            parent: None,
             span: Span::DUMMY,
             kind,
             ty,
@@ -995,6 +1152,7 @@ impl<'hir> Variable<'hir> {
     /// Creates a new variable statement.
     pub fn new_stmt(
         source: SourceId,
+        docs: DocId,
         contract: ContractId,
         function: FunctionId,
         ty: Type<'hir>,
@@ -1002,8 +1160,8 @@ impl<'hir> Variable<'hir> {
     ) -> Self {
         Self {
             contract: Some(contract),
-            function: Some(function),
-            ..Self::new(source, ty, Some(name), VarKind::Statement)
+            parent: Some(ItemId::Function(function)),
+            ..Self::new(source, docs, ty, Some(name), VarKind::Statement)
         }
     }
 
@@ -1160,9 +1318,6 @@ pub struct Stmt<'hir> {
 /// A kind of statement.
 #[derive(Debug)]
 pub enum StmtKind<'hir> {
-    // TODO: Yul to HIR.
-    // /// An assembly block, with optional flags: `assembly "evmasm" (...) { ... }`.
-    // Assembly(StmtAssembly<'hir>),
     /// A single-variable declaration statement: `uint256 foo = 42;`.
     DeclSingle(VariableId),
 
@@ -1176,6 +1331,9 @@ pub enum StmtKind<'hir> {
 
     /// An unchecked block: `unchecked { ... }`.
     UncheckedBlock(Block<'hir>),
+
+    /// An inline assembly block: `assembly { ... }`.
+    AssemblyBlock(Block<'hir>),
 
     /// An emit statement: `emit Foo.bar(42);`.
     ///
@@ -1202,6 +1360,9 @@ pub enum StmtKind<'hir> {
     /// An `if` statement with an optional `else` block: `if (expr) { ... } else { ... }`.
     If(&'hir Expr<'hir>, &'hir Stmt<'hir>, Option<&'hir Stmt<'hir>>),
 
+    /// A switch statement: `switch expr case 0 { ... } default { ... }`.
+    Switch(&'hir StmtSwitch<'hir>),
+
     /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
     Try(&'hir StmtTry<'hir>),
 
@@ -1212,6 +1373,26 @@ pub enum StmtKind<'hir> {
     Placeholder,
 
     Err(ErrorGuaranteed),
+}
+
+/// A switch statement: `switch expr case 0 { ... } default { ... }`.
+#[derive(Debug)]
+pub struct StmtSwitch<'hir> {
+    /// The switch selector.
+    pub selector: &'hir Expr<'hir>,
+    /// The cases of the switch statement. Includes the default case in the last position, if any.
+    pub cases: &'hir [StmtSwitchCase<'hir>],
+}
+
+/// A case of a switch statement.
+#[derive(Debug)]
+pub struct StmtSwitchCase<'hir> {
+    /// The span of the entire case, from `case` or `default` to the closing brace of the block.
+    pub span: Span,
+    /// The constant of the case, if any. `None` for the default case.
+    pub constant: Option<&'hir Lit<'hir>>,
+    /// The case body.
+    pub body: Block<'hir>,
 }
 
 /// A try statement: `try fooBar(42) returns (...) { ... } catch (...) { ... }`.
@@ -1373,7 +1554,7 @@ pub enum ExprKind<'hir> {
     Binary(&'hir Expr<'hir>, BinOp, &'hir Expr<'hir>),
 
     /// A function call expression: `foo(42)`, `foo({ bar: 42 })`, `foo{ gas: 100_000 }(42)`.
-    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir [NamedArg<'hir>]>),
+    Call(&'hir Expr<'hir>, CallArgs<'hir>, Option<&'hir CallOptions<'hir>>),
 
     // TODO: Add a MethodCall variant
     /// A unary `delete` expression: `delete vector`.
@@ -1417,6 +1598,9 @@ pub enum ExprKind<'hir> {
     /// A unary operation: `!x`, `-x`, `x++`.
     Unary(UnOp, &'hir Expr<'hir>),
 
+    /// A dotted Yul identifier path.
+    YulMember(&'hir Expr<'hir>, Ident),
+
     Err(ErrorGuaranteed),
 }
 
@@ -1425,6 +1609,13 @@ pub enum ExprKind<'hir> {
 pub struct NamedArg<'hir> {
     pub name: Ident,
     pub value: Expr<'hir>,
+}
+
+/// Function call options: `foo{ gas: 100_000 }`.
+#[derive(Clone, Copy, Debug)]
+pub struct CallOptions<'hir> {
+    pub span: Span,
+    pub args: &'hir [NamedArg<'hir>],
 }
 
 /// A list of function call arguments.
@@ -1607,7 +1798,7 @@ impl TypeKind<'_> {
     pub fn is_reference_type(&self) -> bool {
         match self {
             TypeKind::Elementary(t) => t.is_reference_type(),
-            TypeKind::Custom(ItemId::Struct(_)) | TypeKind::Array(_) => true,
+            TypeKind::Custom(ItemId::Struct(_)) | TypeKind::Array(_) | TypeKind::Mapping(_) => true,
             _ => false,
         }
     }
@@ -1657,23 +1848,23 @@ mod tests {
             assert_data_eq!(actual.to_string(), expected);
         }
 
-        assert_size::<Hir<'_>>(str!["216"]);
+        assert_size::<Hir<'_>>(str!["240"]);
 
         assert_size::<Item<'_, '_>>(str!["16"]);
-        assert_size::<Contract<'_>>(str!["120"]);
-        assert_size::<Function<'_>>(str!["136"]);
+        assert_size::<Contract<'_>>(str!["152"]);
+        assert_size::<Function<'_>>(str!["144"]);
         assert_size::<Struct<'_>>(str!["48"]);
         assert_size::<Enum<'_>>(str!["48"]);
         assert_size::<Udvt<'_>>(str!["56"]);
         assert_size::<Error<'_>>(str!["48"]);
-        assert_size::<Event<'_>>(str!["48"]);
-        assert_size::<Variable<'_>>(str!["96"]);
+        assert_size::<Event<'_>>(str!["56"]);
+        assert_size::<Variable<'_>>(str!["104"]);
 
         assert_size::<TypeKind<'_>>(str!["16"]);
         assert_size::<Type<'_>>(str!["24"]);
 
-        assert_size::<ExprKind<'_>>(str!["56"]);
-        assert_size::<Expr<'_>>(str!["72"]);
+        assert_size::<ExprKind<'_>>(str!["48"]);
+        assert_size::<Expr<'_>>(str!["64"]);
 
         assert_size::<StmtKind<'_>>(str!["32"]);
         assert_size::<Stmt<'_>>(str!["40"]);

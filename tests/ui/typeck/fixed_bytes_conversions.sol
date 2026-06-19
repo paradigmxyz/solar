@@ -1,12 +1,41 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract C {
+    // Valid: implicit FixedBytes widening and same-size conversion.
+    function validImplicitBytesToBytes(bytes1 b1, bytes4 b4) public pure {
+        bytes2 b2 = b1;
+        bytes32 b32 = b4;
+        bytes4 same = b4;
+    }
+
+    // Invalid: implicit FixedBytes narrowing.
+    function invalidImplicitBytesToBytes(bytes2 b2, bytes32 b32) public pure {
+        bytes1 b1 = b2; //~ ERROR: mismatched types
+        bytes4 b4 = b32; //~ ERROR: mismatched types
+    }
+
     // Valid: FixedBytes to FixedBytes (any size)
     function validBytesToBytes(bytes4 b4) public pure {
         bytes32 b32 = bytes32(b4);  // smaller to larger: right-pads with zeros
         bytes2 b2 = bytes2(b32);    // larger to smaller: truncates right
         bytes1 b1 = bytes1(b4);     // larger to smaller
         bytes16 b16 = bytes16(b1);  // smaller to larger
+    }
+
+    // Valid: explicit bytes to FixedBytes conversion.
+    function validBytesToFixedBytes(bytes memory b) public pure {
+        bytes4 b4 = bytes4(b);
+    }
+
+    // Invalid: explicit FixedBytes to bytes conversion.
+    function invalidFixedBytesToBytes(bytes4 b4) public pure {
+        bytes memory b = bytes(b4); //~ ERROR: invalid explicit type conversion
+    }
+
+    // Invalid: implicit bytes and FixedBytes conversions.
+    function invalidImplicitBytes(bytes memory b, bytes4 b4) public pure {
+        bytes4 b4FromBytes = b; //~ ERROR: mismatched types
+        bytes memory bytesFromB4 = b4; //~ ERROR: mismatched types
     }
 
     // Valid: FixedBytes to UInt (same size only)
@@ -18,6 +47,89 @@ contract C {
     // Valid: UInt to FixedBytes (same size only)
     function validUintToBytes(uint32 u32) public pure {
         bytes4 b4 = bytes4(u32);    // uint32 (4 bytes) to bytes4 (4 bytes)
+    }
+
+    // Invalid: implicit FixedBytes and integer conversions.
+    function invalidImplicitIntegerConversions(bytes4 b4, uint32 u32, int32 i32) public pure {
+        uint32 u32FromB4 = b4; //~ ERROR: mismatched types
+        bytes4 b4FromU32 = u32; //~ ERROR: mismatched types
+        int32 i32FromB4 = b4; //~ ERROR: mismatched types
+        bytes4 b4FromI32 = i32; //~ ERROR: mismatched types
+    }
+
+    // Valid: explicit address and FixedBytes conversions.
+    function validAddressBytes20(address a, bytes20 b20) public pure {
+        bytes20 b20FromAddress = bytes20(a);
+        bytes20 b20FromZeroAddress = bytes20(address(0));
+        address addressFromB20 = address(b20);
+    }
+
+    // Valid: integer literals to address.
+    function validIntLiteralToAddress() public pure {
+        address a0 = address(0);
+        address a1 = address(-0x0);
+        address a2 = address(1);
+        address a3 = address(0x1);
+        address a4 = address(0x0102);
+        address a5 = address(1 - 1);
+        address a6 = address(1461501637330902918203684832716283019655932542975);
+        address payable p0 = payable(0);
+        address payable p1 = payable(0x00);
+        address payable p2 = payable(-0x0);
+        address payable p3 = payable(0x01 - 0x01);
+        address payable p4 = payable(address(1));
+    }
+
+    // Invalid: implicit address and FixedBytes conversions.
+    function invalidImplicitAddressBytes20(address a, bytes20 b20) public pure {
+        bytes20 b20FromAddress = a; //~ ERROR: mismatched types
+        address addressFromB20 = b20; //~ ERROR: mismatched types
+    }
+
+    // Invalid: integer literals to address.
+    function invalidIntLiteralToAddress() public pure {
+        address a0 = address(-1); //~ ERROR: invalid explicit type conversion
+        address a1 = address(1461501637330902918203684832716283019655932542976); //~ ERROR: invalid explicit type conversion
+        address payable p0 = payable(1); //~ ERROR: invalid explicit type conversion
+        address payable p1 = payable(0x01); //~ ERROR: invalid explicit type conversion
+        address payable p2 = payable(1461501637330902918203684832716283019655932542975); //~ ERROR: invalid explicit type conversion
+    }
+
+    // Valid: same-size hex integer literals to FixedBytes.
+    function validHexLiteralToBytes() public pure {
+        bytes1 b1 = bytes1(0x01);
+        bytes2 b2 = bytes2(0x0102);
+        bytes4 b4 = bytes4(0x01ffc9a7);
+        bytes32 b32 = bytes32(0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff);
+    }
+
+    // Valid: same-size hex integer literals implicitly convert to FixedBytes.
+    function validImplicitHexLiteralToBytes() public pure {
+        bytes1 b1 = 0xff;
+        bytes2 b2 = 0x0001;
+        bytes4 b4 = 0x01ffc9a7;
+        bytes32 b32 =
+            (0x4b9f2d36e1b4c93de62cc077b00b1a91d84b6c31b4a14e012718dcca230689e7);
+    }
+
+    // Valid: zero integer literals to FixedBytes.
+    function validZeroLiteralToBytes() public pure {
+        bytes1 b1 = bytes1(0);
+        bytes2 b2 = bytes2(0x00000);
+        bytes32 b32 = bytes32(-0x0);
+        bytes1 b3 = bytes1(1 - 1);
+        bytes32 b4 = bytes32(0x01 - 0x01);
+        bytes16 b16 = bytes16(0x00 + 0);
+    }
+
+    // Valid: zero integer literals implicitly convert to FixedBytes.
+    function validImplicitZeroLiteralToBytes() public pure {
+        bytes1 b1 = 0;
+        bytes2 b2 = 0x00000;
+        bytes32 b32 = -0x0;
+        bytes1 b3 = 1 - 1;
+        bytes32 b4 = 0x01 - 0x01;
+        bytes16 b16 = 0x00 + 0;
     }
 
     // Invalid: FixedBytes to signed Int (not allowed)
@@ -41,5 +153,33 @@ contract C {
     function invalidUintToBytes(uint64 u64) public pure {
         bytes4 b4 = bytes4(u64);    //~ ERROR: invalid explicit type conversion
         bytes32 b32 = bytes32(u64); //~ ERROR: invalid explicit type conversion
+    }
+
+    // Invalid: non-zero integer literals to FixedBytes unless they are same-size hex literals.
+    function invalidIntLiteralToBytes() public pure {
+        bytes1 b1 = bytes1(1); //~ ERROR: invalid explicit type conversion
+        bytes2 b2 = bytes2(256); //~ ERROR: invalid explicit type conversion
+        bytes1 b3 = bytes1(-0x01); //~ ERROR: invalid explicit type conversion
+        bytes1 b4 = bytes1(0x1); //~ ERROR: invalid explicit type conversion
+        bytes2 b5 = bytes2(0xff); //~ ERROR: invalid explicit type conversion
+        bytes1 b6 = bytes1(0x0100); //~ ERROR: invalid explicit type conversion
+        bytes2 b7 = bytes2(0x010000); //~ ERROR: invalid explicit type conversion
+        bytes1 b8 = bytes1(0x02 - 0x01); //~ ERROR: invalid explicit type conversion
+        bytes1 b9 = bytes1(0x00 + 0x01); //~ ERROR: invalid explicit type conversion
+        bytes2 b10 = bytes2(0x0102 + 0); //~ ERROR: invalid explicit type conversion
+    }
+
+    // Invalid: non-zero integer literals do not implicitly convert to FixedBytes unless they are same-size hex literals.
+    function invalidImplicitIntLiteralToBytes() public pure {
+        bytes1 b1 = 1; //~ ERROR: mismatched types
+        bytes2 b2 = 256; //~ ERROR: mismatched types
+        bytes1 b3 = -0x01; //~ ERROR: mismatched types
+        bytes1 b4 = 0x1; //~ ERROR: mismatched types
+        bytes2 b5 = 0xff; //~ ERROR: mismatched types
+        bytes1 b6 = 0x0100; //~ ERROR: mismatched types
+        bytes2 b7 = 0x010000; //~ ERROR: mismatched types
+        bytes1 b8 = 0x02 - 0x01; //~ ERROR: mismatched types
+        bytes1 b9 = 0x00 + 0x01; //~ ERROR: mismatched types
+        bytes2 b10 = 0x0102 + 0; //~ ERROR: mismatched types
     }
 }

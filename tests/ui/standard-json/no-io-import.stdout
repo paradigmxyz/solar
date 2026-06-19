@@ -1,0 +1,37 @@
+{
+  "errors": [
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 7,
+        "end": 53
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "couldn't read tests/ui/standard-json/auxiliary/on-disk.sol: File import callback not supported",
+      "formattedMessage": "error: couldn't read tests/ui/standard-json/auxiliary/on-disk.sol: File import callback not supported\n   ╭▸ A.sol:LL:CC\n   │\nLL │ import \"tests/ui/standard-json/auxiliary/on-disk.sol\"; contract A is OnDisk {}\n   ╰╴       ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+    },
+    {
+      "sourceLocation": {
+        "file": "A.sol",
+        "start": 69,
+        "end": 75
+      },
+      "secondarySourceLocations": [],
+      "type": "Exception",
+      "component": "general",
+      "severity": "error",
+      "errorCode": null,
+      "message": "unresolved symbol `OnDisk`",
+      "formattedMessage": "error: unresolved symbol `OnDisk`\n   ╭▸ A.sol:LL:CC\n   │\nLL │ import \"tests/ui/standard-json/auxiliary/on-disk.sol\"; contract A is OnDisk {}\n   ╰╴                                                                     ━━━━━━\n\n"
+    }
+  ],
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  }
+}

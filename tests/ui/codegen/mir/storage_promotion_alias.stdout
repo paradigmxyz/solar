@@ -1,0 +1,99 @@
+// === ROOT/tests/ui/codegen/mir/storage_promotion_alias.mir (after storage-promotion) ===
+; module @StoragePromotionAlias
+fn @reject_two_symbolic_slots(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    sstore arg0, 1 !metadata(storage=symbolic(arg0))
+    sstore arg1, 2 !metadata(storage=symbolic(arg1))
+    jump bb1
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    v5 = sload arg0 !metadata(storage=symbolic(arg0))
+    v7 = mul v5, 2
+    sstore arg0, v7 !metadata(storage=symbolic(arg0))
+    v8 = sload arg1 !metadata(storage=symbolic(arg1))
+    v10 = add v8, 3
+    sstore arg1, v10 !metadata(storage=symbolic(arg1))
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    stop
+}
+
+fn @reject_symbolic_and_constant_slots(arg0: u256) {
+  bb0 (entry):
+    sstore arg0, 1 !metadata(storage=symbolic(arg0))
+    sstore 7, 2 !metadata(storage=slot(7))
+    jump bb1
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    v5 = sload arg0 !metadata(storage=symbolic(arg0))
+    v7 = mul v5, 2
+    sstore arg0, v7 !metadata(storage=symbolic(arg0))
+    v9 = sload 7 !metadata(storage=slot(7))
+    v11 = add v9, 3
+    sstore 7, v11 !metadata(storage=slot(7))
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    stop
+}
+
+fn @promote_two_constant_slots() {
+  bb0 (entry):
+    mstore 128, 1
+    mstore 160, 2
+    jump bb1
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    v6 = mload 128
+    v8 = mul v6, 2
+    mstore 128, v8
+    v11 = mload 160
+    v13 = add v11, 3
+    mstore 160, v13
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    v18 = mload 160
+    sstore 1, v18
+    v17 = mload 128
+    sstore 0, v17
+    stop
+}
+
+fn @promote_same_base_distinct_offsets(arg0: u256) {
+  bb0 (entry):
+    v2 = add arg0, 1
+    mstore 128, 1
+    v5 = add arg0, 2
+    mstore 160, 2
+    jump bb1
+  bb1:
+    br 1, bb2, bb4
+  bb2:
+    v9 = add arg0, 1
+    v10 = mload 128
+    v12 = mul v10, 2
+    v14 = add arg0, 1
+    mstore 128, v12
+    v16 = add arg0, 2
+    v17 = mload 160
+    v19 = add v17, 3
+    v21 = add arg0, 2
+    mstore 160, v19
+    jump bb3
+  bb3:
+    jump bb1
+  bb4:
+    v25 = mload 160
+    sstore v5, v25
+    v24 = mload 128
+    sstore v2, v24
+    stop
+}

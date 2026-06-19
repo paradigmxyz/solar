@@ -1,0 +1,56 @@
+//@compile-flags: -Zcodegen --emit=mir
+
+// Pins the calldata lower-bound check and validators emitted for value-type
+// external parameters.
+// Like solc via-ir, every value-type argument word must be its canonical ABI
+// encoding or the call reverts with empty revert data (`revert(0, 0)`):
+// - uintN: high bits zero (`eq(word, and(word, mask))`)
+// - intN: word equals its sign extension (`eq(word, signextend(N/8-1, word))`)
+// - address/contract: top 96 bits zero
+// - bool: word is 0 or 1 (`eq(word, iszero(iszero(word)))`)
+// - bytesN: low 32-N bytes zero
+// - enum: word < member count (`lt(word, count)`)
+// Full-word types (uint256, int256, bytes32) need no canonicalization
+// validator, but still need the short-calldata guard. The validators read the
+// raw word with an explicit `calldataload` so optimization passes may assume
+// `Arg` values of external functions are canonical.
+contract CalldataValidation {
+    enum Dir {
+        Up,
+        Down,
+        Left
+    }
+
+    function vUint8(uint8 x) external pure returns (uint8) {
+        return x;
+    }
+
+    function vInt16(int16 x) external pure returns (int16) {
+        return x;
+    }
+
+    function vBool(bool x) external pure returns (bool) {
+        return x;
+    }
+
+    function vAddress(address x) external pure returns (address) {
+        return x;
+    }
+
+    function vBytes4(bytes4 x) external pure returns (bytes4) {
+        return x;
+    }
+
+    function vEnum(Dir x) external pure returns (Dir) {
+        return x;
+    }
+
+    function vMulti(uint32 a, int8 b) external pure returns (uint256) {
+        return uint256(uint32(a)) + uint256(uint8(int8(b)));
+    }
+
+    // Full-word value types are canonical by construction: no validator.
+    function vFull(uint256 a, bytes32 b, int256 c) external pure returns (uint256) {
+        return a + uint256(b) + uint256(c);
+    }
+}

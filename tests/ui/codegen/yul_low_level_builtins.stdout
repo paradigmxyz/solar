@@ -1,0 +1,56 @@
+// === ROOT/tests/ui/codegen/yul_low_level_builtins.sol:YulLowLevelBuiltins ===
+; module @YulLowLevelBuiltins
+fn @safeCall(arg0: address, arg1: bytes4) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 64
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = calldataload 4
+    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
+    v11 = eq v8, v10
+    br v11, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v15 = calldataload 36
+    v17 = and v15, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v18 = eq v15, v17
+    br v18, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 128, 0
+    v24 = mload 64 !metadata(memory=scratch)
+    mstore 0, arg1 !metadata(memory=scratch)
+    v28 = gas
+    v34 = call v28, arg0, 0, 0, 4, 0, 32
+    mstore 128, v34
+    v38 = mload 128
+    v40 = mload 0 !metadata(memory=scratch)
+    v42 = eq v40, 1
+    v43 = and v38, v42
+    v44 = iszero v43
+    v46 = eq v44, 0
+    v47 = iszero v46
+    br v47, bb7, bb8
+  bb7:
+    v49 = returndatasize
+    returndatacopy v24, 0, v49
+    v52 = returndatasize
+    revert v24, v52
+  bb8:
+    v55 = mload 128
+    v56 = extcodesize arg0
+    v58 = gt v56, 0
+    v59 = and v55, v58
+    mstore 128, v59
+    mstore 64, v24 !metadata(memory=scratch)
+    v66 = mload 128
+    mstore 128, v66
+    returndata 128, 32
+}
+

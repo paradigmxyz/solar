@@ -1,0 +1,26 @@
+error: base slot of storage layout evaluates to a value outside the range of type `uint256`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_negative.sol:LL:CC
+   │
+LL │ contract UnderflowSub layout at 0 - 1 {}
+   ╰╴                                ━━━━━
+
+error: base slot of storage layout evaluates to a value outside the range of type `uint256`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_negative.sol:LL:CC
+   │
+LL │ contract UnderflowExpression layout at 2**8 - 2**16 {}
+   ╰╴                                       ━━━━━━━━━━━━
+
+error: base slot of storage layout evaluates to a value outside the range of type `uint256`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_negative.sol:LL:CC
+   │
+LL │ contract NegativeNumber layout at -1 {}
+   ╰╴                                  ━━
+
+error: base slot of storage layout evaluates to a value outside the range of type `uint256`
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_negative.sol:LL:CC
+   │
+LL │ contract NegativeConstant layout at -X {}
+   ╰╴                                    ━━
+
+error: aborting due to 4 previous errors
+

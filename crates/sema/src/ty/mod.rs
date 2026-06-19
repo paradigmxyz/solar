@@ -6,7 +6,7 @@ use crate::{
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
-use solar_ast::{DataLocation, StateMutability, TypeSize, Visibility};
+use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
 use solar_data_structures::{
     BumpExt,
     fmt::{from_fn, or_list},
@@ -15,7 +15,7 @@ use solar_data_structures::{
     trustme,
 };
 use solar_interface::{
-    Ident, Session, Span,
+    Ident, Session, Span, Symbol,
     config::CompilerStage,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
     source_map::{FileName, SourceFile},
@@ -25,7 +25,7 @@ use std::{
     hash::Hash,
     ops::ControlFlow,
     sync::{
-        Arc,
+        Arc, OnceLock,
         atomic::{AtomicUsize, Ordering},
     },
 };
@@ -42,9 +42,12 @@ use interner::Interner;
 
 #[allow(clippy::module_inception)]
 mod ty;
-pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFnPtr, TyKind};
+pub(crate) use ty::SameSourceFileLevelUserTypeError;
+pub use ty::{Ty, TyConvertError, TyData, TyFlags, TyFn, TyFnKind, TyKind};
 
 type FxOnceMap<K, V> = once_map::OnceMap<K, V, FxBuildHasher>;
+type NatSpecContractKey = (Symbol, hir::SourceId);
+type UsingDirectiveKey = usize;
 
 /// A function exported by a contract.
 #[derive(Clone, Copy, Debug)]
@@ -53,7 +56,7 @@ pub struct InterfaceFunction<'gcx> {
     pub id: hir::FunctionId,
     /// The function 4-byte selector.
     pub selector: Selector,
-    /// The function type. This is always a function pointer.
+    /// The function type.
     pub ty: Ty<'gcx>,
 }
 
@@ -66,6 +69,85 @@ pub struct InterfaceFunctions<'gcx> {
     pub functions: &'gcx [InterfaceFunction<'gcx>],
     /// The index in `functions` where the inherited functions start.
     pub inheritance_start: usize,
+}
+
+/// Sparse results produced by semantic type checking for later compiler stages.
+#[derive(Clone, Debug, Default)]
+pub struct TypeckResults<'gcx> {
+    pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
+    pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
+    pub(crate) resolved_members: FxHashMap<hir::ExprId, ResolvedMember>,
+    pub(crate) unsupported_udvt_operators: FxHashSet<hir::ExprId>,
+}
+
+/// The target selected for a call callee expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct ResolvedCallee {
+    pub res: hir::Res,
+    /// Whether this member call was attached to the receiver through `using for`.
+    pub attached: bool,
+}
+
+impl ResolvedCallee {
+    #[inline]
+    pub fn new(res: hir::Res, attached: bool) -> Self {
+        Self { res, attached }
+    }
+}
+
+/// The target selected for a non-call member access expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ResolvedMember {
+    /// A member with a regular item or builtin resolution.
+    Res(hir::Res),
+    /// A struct field selected from the receiver type.
+    StructField { struct_id: hir::StructId, field_index: usize },
+    /// An enum variant selected from `Enum.Variant`.
+    EnumVariant { enum_id: hir::EnumId, variant_index: usize },
+}
+
+impl<'gcx> TypeckResults<'gcx> {
+    /// Returns the type inferred for the given expression, if available.
+    #[inline]
+    pub fn type_of_expr(&self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.expr_types.get(&id).copied()
+    }
+
+    /// Returns the overload/member target selected for a call callee expression, if available.
+    #[inline]
+    pub fn resolved_callee(&self, id: hir::ExprId) -> Option<ResolvedCallee> {
+        self.resolved_callees.get(&id).copied()
+    }
+
+    /// Returns the target selected for a non-call member access expression, if available.
+    #[inline]
+    pub fn resolved_member(&self, id: hir::ExprId) -> Option<ResolvedMember> {
+        self.resolved_members.get(&id).copied()
+    }
+
+    /// Returns the selected builtin target for a non-call member access expression, if available.
+    #[inline]
+    pub fn builtin_member(&self, id: hir::ExprId) -> Option<Builtin> {
+        match self.resolved_member(id)? {
+            ResolvedMember::Res(hir::Res::Builtin(builtin)) => Some(builtin),
+            _ => None,
+        }
+    }
+
+    /// Returns the selected builtin target for a call callee expression, if available.
+    #[inline]
+    pub fn builtin_callee(&self, id: hir::ExprId) -> Option<Builtin> {
+        match self.resolved_callee(id)?.res {
+            hir::Res::Builtin(builtin) => Some(builtin),
+            _ => None,
+        }
+    }
+
+    /// Returns whether codegen cannot lower the user-defined operator used by this expression.
+    #[inline]
+    pub fn unsupported_udvt_operator(&self, id: hir::ExprId) -> bool {
+        self.unsupported_udvt_operators.contains(&id)
+    }
 }
 
 impl<'gcx> InterfaceFunctions<'gcx> {
@@ -222,11 +304,14 @@ pub struct GlobalCtxt<'gcx> {
     stage: AtomicCompilerStage,
 
     pub types: CommonTypes<'gcx>,
+    typeck_results: OnceLock<TypeckResults<'gcx>>,
 
     pub(crate) ast_arenas: ThreadLocal<ast::Arena>,
     pub(crate) hir_arenas: ThreadLocal<hir::Arena>,
     interner: Interner<'gcx>,
     cache: Cache<'gcx>,
+    pub(crate) inherited_override_functions:
+        FxOnceMap<hir::ContractId, &'gcx crate::typeck::override_checker::InheritedFunctions<'gcx>>,
 }
 
 impl fmt::Debug for GlobalCtxt<'_> {
@@ -255,11 +340,13 @@ impl<'gcx> GlobalCtxt<'gcx> {
                 &interner,
                 unsafe { trustme::decouple_lt(&hir_arenas) }.get_or_default().bump(),
             ),
+            typeck_results: Default::default(),
 
             ast_arenas: ThreadLocal::new(),
             hir_arenas,
             interner,
             cache: Cache::default(),
+            inherited_override_functions: FxOnceMap::default(),
         }
     }
 }
@@ -336,7 +423,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty(self, kind: TyKind<'gcx>) -> Ty<'gcx> {
-        self.interner.intern_ty_with_flags(self.bump(), kind, |kind| TyFlags::calculate(self, kind))
+        self.interner.intern_ty(self.bump(), kind)
     }
 
     pub fn mk_tys(self, tys: &[Ty<'gcx>]) -> &'gcx [Ty<'gcx>] {
@@ -351,7 +438,7 @@ impl<'gcx> Gcx<'gcx> {
         self.mk_ty(TyKind::Tuple(tys))
     }
 
-    fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
+    pub(crate) fn mk_item_tys<T: Into<hir::ItemId> + Copy>(self, ids: &[T]) -> &'gcx [Ty<'gcx>] {
         self.mk_ty_iter(ids.iter().map(|&id| self.type_of_item(id.into())))
     }
 
@@ -363,30 +450,99 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     pub fn mk_ty_int_literal(self, negative: bool, bits: u64) -> Option<Ty<'gcx>> {
+        self.mk_ty_int_literal_with_fixed_bytes(negative, bits, None)
+    }
+
+    pub fn mk_ty_int_literal_with_fixed_bytes(
+        self,
+        negative: bool,
+        bits: u64,
+        compatible_fixed_bytes: Option<TypeSize>,
+    ) -> Option<Ty<'gcx>> {
         let bits = bits.max(1);
         if bits > TypeSize::MAX as u64 {
             return None;
         }
-        Some(self.mk_ty(TyKind::IntLiteral(negative, TypeSize::new_literal_bits(bits as u16))))
+        Some(self.mk_ty(TyKind::IntLiteral(
+            negative,
+            TypeSize::new_literal_bits(bits as u16),
+            compatible_fixed_bytes,
+        )))
     }
 
-    pub fn mk_ty_fn_ptr(self, ptr: TyFnPtr<'gcx>) -> Ty<'gcx> {
-        self.mk_ty(TyKind::FnPtr(self.interner.intern_ty_fn_ptr(self.bump(), ptr)))
+    pub fn mk_ty_fn(self, ptr: TyFn<'gcx>) -> Ty<'gcx> {
+        self.mk_ty(TyKind::Fn(self.interner.intern_ty_fn(self.bump(), ptr)))
     }
 
-    pub fn mk_ty_fn(
+    /// Returns the type inferred for the given expression, if available.
+    ///
+    /// Expression types are populated by the experimental type checker, which runs when `-Ztypeck`
+    /// or `-Zcodegen` is enabled, or when a codegen output was requested.
+    #[inline]
+    pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
+        self.typeck_results.get()?.type_of_expr(id)
+    }
+
+    /// Returns the overload/member target selected for a call callee expression, if available.
+    #[inline]
+    pub fn resolved_callee(self, id: hir::ExprId) -> Option<ResolvedCallee> {
+        self.typeck_results.get()?.resolved_callee(id)
+    }
+
+    /// Returns the target selected for a non-call member access expression, if available.
+    #[inline]
+    pub fn resolved_member(self, id: hir::ExprId) -> Option<ResolvedMember> {
+        self.typeck_results.get()?.resolved_member(id)
+    }
+
+    /// Returns the selected builtin target for a non-call member access expression, if available.
+    #[inline]
+    pub fn builtin_member(self, id: hir::ExprId) -> Option<Builtin> {
+        self.typeck_results.get()?.builtin_member(id)
+    }
+
+    /// Returns the selected builtin target for a call callee expression, if available.
+    #[inline]
+    pub fn builtin_callee(self, id: hir::ExprId) -> Option<Builtin> {
+        self.typeck_results.get()?.builtin_callee(id)
+    }
+
+    /// Returns whether codegen cannot lower the user-defined operator used by this expression.
+    #[inline]
+    pub fn unsupported_udvt_operator(self, id: hir::ExprId) -> bool {
+        self.typeck_results.get().is_some_and(|results| results.unsupported_udvt_operator(id))
+    }
+
+    /// Returns whether sparse type-checker results are available for codegen queries.
+    #[inline]
+    pub fn has_typeck_results(self) -> bool {
+        self.typeck_results.get().is_some()
+    }
+
+    pub(crate) fn set_typeck_results(self, results: TypeckResults<'gcx>) {
+        if self.typeck_results.set(results).is_err() {
+            self.dcx().bug("typeck results are already initialized").emit();
+        }
+    }
+
+    pub fn mk_ty_variadic(self) -> Ty<'gcx> {
+        self.mk_ty(TyKind::Variadic)
+    }
+
+    pub fn mk_ty_fn_with_kind(
         self,
+        kind: TyFnKind,
         parameters: &[Ty<'gcx>],
         state_mutability: StateMutability,
-        visibility: Visibility,
         returns: &[Ty<'gcx>],
     ) -> Ty<'gcx> {
-        self.mk_ty_fn_ptr(TyFnPtr {
+        self.mk_ty_fn(TyFn {
+            kind,
             parameters: self.mk_tys(parameters),
             returns: self.mk_tys(returns),
-            state_mutability,
-            visibility,
+            state_mutability: fn_state_mutability(kind, state_mutability),
             function_id: None,
+            attached: false,
         })
     }
 
@@ -396,7 +552,22 @@ impl<'gcx> Gcx<'gcx> {
         state_mutability: StateMutability,
         returns: &[Ty<'gcx>],
     ) -> Ty<'gcx> {
-        self.mk_ty_fn(parameters, state_mutability, Visibility::Internal, returns)
+        self.mk_ty_fn_with_kind(TyFnKind::Internal, parameters, state_mutability, returns)
+    }
+
+    pub(crate) fn mk_yul_builtin_fn(self, parameters: usize, returns: usize) -> Ty<'gcx> {
+        let parameters = vec![self.types.uint(256); parameters];
+        let returns = vec![self.types.uint(256); returns];
+        self.mk_builtin_fn(&parameters, StateMutability::NonPayable, &returns)
+    }
+
+    pub(crate) fn mk_creation_fn(
+        self,
+        parameters: &[Ty<'gcx>],
+        state_mutability: StateMutability,
+        returns: &[Ty<'gcx>],
+    ) -> Ty<'gcx> {
+        self.mk_ty_fn_with_kind(TyFnKind::Creation, parameters, state_mutability, returns)
     }
 
     pub(crate) fn mk_builtin_mod(self, builtin: Builtin) -> Ty<'gcx> {
@@ -411,8 +582,11 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
+    #[inline]
     pub fn mk_ty_err(self, guar: ErrorGuaranteed) -> Ty<'gcx> {
-        Ty::new(self, TyKind::Err(guar))
+        const { assert!(std::mem::size_of::<ErrorGuaranteed>() == 0) }
+        let _ = guar;
+        self.types.__err_do_not_use
     }
 
     /// Returns the source file with the given path, if it exists.
@@ -587,12 +761,18 @@ impl<'gcx> Gcx<'gcx> {
                 }
             }
             hir::TypeKind::Function(f) => {
-                return self.mk_ty_fn_ptr(TyFnPtr {
+                let kind = if f.visibility == Visibility::External {
+                    TyFnKind::External
+                } else {
+                    TyFnKind::Internal
+                };
+                return self.mk_ty_fn(TyFn {
+                    kind,
                     parameters: self.mk_item_tys(f.parameters),
                     returns: self.mk_item_tys(f.returns),
-                    state_mutability: f.state_mutability,
-                    visibility: f.visibility,
+                    state_mutability: fn_state_mutability(kind, f.state_mutability),
                     function_id: None,
+                    attached: false,
                 });
             }
             hir::TypeKind::Mapping(mapping) => {
@@ -601,9 +781,17 @@ impl<'gcx> Gcx<'gcx> {
                 TyKind::Mapping(key, value)
             }
             hir::TypeKind::Custom(item) => return self.type_of_item_simple(item, ty.span),
-            hir::TypeKind::Err(guar) => TyKind::Err(guar),
+            hir::TypeKind::Err(guar) => return self.mk_ty_err(guar),
         };
         self.mk_ty(kind)
+    }
+
+    /// Returns the target type of the given [`hir::UsingDirective`].
+    pub(crate) fn type_of_using_directive(
+        self,
+        using: &'gcx hir::UsingDirective<'gcx>,
+    ) -> Option<Ty<'gcx>> {
+        self.type_of_using_directive_cached(using as *const _ as UsingDirectiveKey)
     }
 
     fn type_of_item_simple(self, id: hir::ItemId, span: Span) -> Ty<'gcx> {
@@ -614,7 +802,7 @@ impl<'gcx> Gcx<'gcx> {
             | hir::ItemId::Udvt(_) => self.type_of_item(id),
             _ => {
                 let msg = "name has to refer to a valid user-defined type";
-                self.mk_ty_err(self.dcx().err(msg).span(span).emit())
+                self.mk_ty_err(self.dcx().emit_err(span, msg))
             }
         }
     }
@@ -637,18 +825,21 @@ impl<'gcx> Gcx<'gcx> {
         match &lit.kind {
             solar_ast::LitKind::Str(_, s, _) => self.mk_ty_string_literal(s.as_byte_str()),
             solar_ast::LitKind::Number(int) => {
-                self.mk_ty_int_literal(false, int.bit_len() as _).unwrap_or_else(|| {
+                let compatible_fixed_bytes = compatible_fixed_bytes_type(lit);
+                self.mk_ty_int_literal_with_fixed_bytes(
+                    false,
+                    int.bit_len() as _,
+                    compatible_fixed_bytes,
+                )
+                .unwrap_or_else(|| {
                     self.mk_ty_err(
-                        self.dcx()
-                            .err("integer literal is greater than 2**256")
-                            .span(lit.span)
-                            .emit(),
+                        self.dcx().emit_err(lit.span, "integer literal is greater than 2**256"),
                     )
                 })
             }
-            solar_ast::LitKind::Rational(_) => self.mk_ty_err(
-                self.dcx().err("rational literals are not supported").span(lit.span).emit(),
-            ),
+            solar_ast::LitKind::Rational(_) => {
+                self.mk_ty_err(self.dcx().emit_err(lit.span, "rational literals are not supported"))
+            }
             solar_ast::LitKind::Address(_) => self.types.address,
             solar_ast::LitKind::Bool(_) => self.types.bool,
             &solar_ast::LitKind::Err(guar) => self.mk_ty_err(guar),
@@ -660,9 +851,226 @@ impl<'gcx> Gcx<'gcx> {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> members::MemberList<'gcx> {
-        let _ = (source, contract); // TODO
-        self.native_members(ty)
+    ) -> impl Iterator<Item = members::Member<'gcx>> + 'gcx {
+        let native =
+            self.native_members_in_context(ty, contract).unwrap_or_else(|| self.native_members(ty));
+        let attached = self.attached_functions(ty, source, contract);
+        native.iter().copied().chain(attached)
+    }
+
+    fn native_members_in_context(
+        self,
+        ty: Ty<'gcx>,
+        current_contract: Option<hir::ContractId>,
+    ) -> Option<members::MemberList<'gcx>> {
+        let current_contract = current_contract?;
+        match ty.kind {
+            TyKind::Type(ty) => {
+                let TyKind::Contract(id) = ty.kind else { return None };
+                let contract = self.hir.contract(id);
+                if contract.kind.is_library()
+                    || !self.hir.contract(current_contract).linearized_bases.contains(&id)
+                {
+                    return None;
+                }
+                Some(self.contract_type_members_in_context((id, current_contract)))
+            }
+            TyKind::Fn(f) if f.kind == TyFnKind::Internal => {
+                let id = f.function_id?;
+                Some(self.internal_function_members_in_context((id, current_contract)))
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn for_each_user_operator(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+        op: UserDefinableOperator,
+        unary: bool,
+        f: &mut dyn FnMut(hir::FunctionId),
+    ) {
+        let TyKind::Udvt(_, user_ty) = ty.peel_refs().kind else {
+            return;
+        };
+        let ty = self.type_of_item(user_ty.into());
+        let mut seen = FxHashSet::default();
+        self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
+            for entry in using.entries {
+                if entry.operator == Some(op)
+                    && let hir::UsingEntryKind::Functions(candidates) = entry.kind
+                {
+                    for &function_id in candidates {
+                        if let TyKind::Fn(function_ty) = self.type_of_item(function_id.into()).kind
+                            && function_ty.parameters.len() == if unary { 1 } else { 2 }
+                            && function_ty.parameters.first().copied() == Some(ty)
+                            && seen.insert(function_id)
+                        {
+                            f(function_id);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    fn attached_functions(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Vec<members::Member<'gcx>> {
+        let mut members = Vec::new();
+        let mut seen = FxHashSet::default();
+        self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
+            for entry in using.entries {
+                if entry.operator.is_some() {
+                    continue;
+                }
+                match entry.kind {
+                    hir::UsingEntryKind::Library(library) => {
+                        for function in self.hir.contract(library).functions() {
+                            let f = self.hir.function(function);
+                            if !f.is_ordinary()
+                                || f.parameters.is_empty()
+                                || f.visibility == Visibility::Private
+                            {
+                                continue;
+                            }
+                            self.add_attached_function(ty, function, None, &mut seen, &mut members);
+                        }
+                    }
+                    hir::UsingEntryKind::Functions(functions) => {
+                        for &function in functions {
+                            let name = entry.name.unwrap_or_else(|| self.item_name(function).name);
+                            self.add_attached_function(
+                                ty,
+                                function,
+                                Some(name),
+                                &mut seen,
+                                &mut members,
+                            );
+                        }
+                    }
+                    hir::UsingEntryKind::Err(_) => {}
+                }
+            }
+        });
+        members
+    }
+
+    fn add_attached_function(
+        self,
+        ty: Ty<'gcx>,
+        function: hir::FunctionId,
+        name: Option<Symbol>,
+        seen: &mut FxHashSet<(Symbol, hir::FunctionId)>,
+        members: &mut Vec<members::Member<'gcx>>,
+    ) {
+        let function_item = self.hir.function(function);
+        let fn_ty = self.type_of_item(function.into());
+        let fn_ty =
+            if function_item.contract.is_some_and(|id| self.hir.contract(id).kind.is_library())
+                && function_item.visibility >= Visibility::Public
+            {
+                fn_ty.as_externally_callable_function(true, self)
+            } else {
+                fn_ty
+            }
+            .as_attached_function(self);
+        if let TyKind::Fn(function_ty) = fn_ty.kind
+            && let Some(&self_ty) = function_ty.parameters.first()
+            && ty.convert_implicit_to(self_ty, self)
+            && let name = name.unwrap_or_else(|| self.item_name(function).name)
+            && seen.insert((name, function))
+        {
+            members.push(members::Member::with_attached_function(name, fn_ty, function));
+        }
+    }
+
+    fn for_each_using_directive_for_type(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+        f: &mut dyn FnMut(&'gcx hir::UsingDirective<'gcx>),
+    ) {
+        let mut check = |usings: &'gcx [hir::UsingDirective<'gcx>], only_global: bool| {
+            for using in usings {
+                if self.using_directive_applies(using, ty, only_global) {
+                    f(using);
+                }
+            }
+        };
+
+        if let Some(contract) = contract {
+            check(self.hir.contract(contract).usings, false);
+        }
+        check(self.hir.source(source).usings, false);
+
+        if let Some(type_source) = ty.item_source(self)
+            && type_source != source
+        {
+            check(self.hir.source(type_source).usings, true);
+        }
+    }
+
+    fn using_directive_applies(
+        self,
+        using: &'gcx hir::UsingDirective<'gcx>,
+        ty: Ty<'gcx>,
+        only_global: bool,
+    ) -> bool {
+        if only_global && !(using.global && using.ty.is_some()) {
+            return false;
+        }
+        let Some(using_ty) = self.type_of_using_directive(using) else {
+            // For `*`.
+            return true;
+        };
+        let loc = ty.loc().unwrap_or(DataLocation::Storage);
+        using_directive_ty_matches(ty, using_ty.with_loc_if_ref(self, loc))
+    }
+}
+
+fn using_directive_ty_matches(ty: Ty<'_>, using_ty: Ty<'_>) -> bool {
+    if ty == using_ty {
+        return true;
+    }
+    // HACK: allow attached functions to be called on function declarations. Function type equality
+    // also checks declaration IDs, so this is a quick way to make it work for now.
+    if let (TyKind::Fn(a), TyKind::Fn(b)) = (ty.kind, using_ty.kind) {
+        return a.kind == b.kind
+            && a.parameters == b.parameters
+            && a.returns == b.returns
+            && a.state_mutability == b.state_mutability
+            && a.attached == b.attached;
+    }
+    false
+}
+
+fn compatible_fixed_bytes_type(lit: &hir::Lit<'_>) -> Option<TypeSize> {
+    let solar_ast::LitKind::Number(int) = lit.kind else { return None };
+    if int.is_zero() {
+        return Some(TypeSize::ZERO);
+    }
+
+    let hex = lit.symbol.as_str().strip_prefix("0x")?;
+    let digit_count = hex.bytes().filter(|&b| b != b'_').count();
+    if digit_count % 2 == 0 {
+        TypeSize::try_new_fb_bytes((digit_count / 2).try_into().ok()?)
+    } else {
+        None
+    }
+}
+
+fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> StateMutability {
+    if kind == TyFnKind::Internal && state_mutability == StateMutability::Payable {
+        StateMutability::NonPayable
+    } else {
+        state_mutability
     }
 }
 
@@ -736,15 +1144,25 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
         functions
     }).filter_map(|f_id| {
         let f = gcx.hir.function(f_id);
-        let ty = gcx.type_of_item(f_id.into());
-        let TyKind::FnPtr(ty_f) = ty.kind else { unreachable!() };
+        let TyKind::Fn(fn_ty) = gcx.type_of_item(f_id.into()).kind else { unreachable!() };
+        let ty = gcx
+            .mk_ty_fn(TyFn {
+                kind: TyFnKind::External,
+                parameters: fn_ty.parameters,
+                returns: fn_ty.returns,
+                state_mutability: f.state_mutability,
+                function_id: fn_ty.function_id,
+                attached: false,
+            })
+            .as_externally_callable_function(false, gcx);
+        let TyKind::Fn(ty_f) = ty.kind else { unreachable!() };
         let mut result = Ok(());
         for (var_id, ty) in f.variables().zip(ty_f.tys()) {
             if let Err(guar) = ty.error_reported() {
                 result = Err(guar);
                 continue;
             }
-            if !ty.can_be_exported() {
+            if !ty.can_be_exported(gcx) {
                 // TODO: implement `interfaceType`
                 if c.kind.is_library() {
                     result = Err(ErrorGuaranteed::new_unchecked());
@@ -752,9 +1170,9 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                 }
 
                 let kind = f.description();
-                let msg = if ty.has_mapping() {
+                let msg = if ty.has_mapping(gcx) {
                     format!("types containing mappings cannot be parameter or return types of public {kind}s")
-                } else if ty.is_recursive() {
+                } else if ty.is_recursive(gcx) {
                     format!("recursive types cannot be parameter or return types of public {kind}s")
                 } else if ty.has_internal_function() {
                     format!("types containing internal function pointers cannot be parameter or return types of public {kind}s")
@@ -762,7 +1180,7 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
                     format!("this type cannot be parameter or return type of a public {kind}")
                 };
                 let span = gcx.hir.variable(var_id).ty.span;
-                result = Err(gcx.dcx().err(msg).span(span).emit());
+                result = Err(gcx.dcx().emit_err(span, msg));
             }
         }
         if result.is_err() {
@@ -797,6 +1215,34 @@ pub fn interface_functions(gcx: _, id: hir::ContractId) -> InterfaceFunctions<'g
     InterfaceFunctions { functions, inheritance_start }
 }
 
+pub(crate) fn base_override_functions(
+    gcx: _,
+    proxy: crate::typeck::override_checker::OverrideProxy
+) -> &'gcx [crate::typeck::override_checker::OverrideProxy] {
+    crate::typeck::override_checker::base_override_functions(gcx, proxy)
+}
+
+/// Returns the resolved NatSpec doc comments for the given doc ID.
+pub fn natspec_doc_comments(gcx: _, id: hir::DocId) -> &'gcx [hir::NatSpecItem] {
+    crate::natspec::resolve_doc_comments(gcx, id)
+}
+
+/// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+pub(crate) fn natspec_contract_in_source(
+    gcx: _,
+    key: NatSpecContractKey
+) -> Option<hir::ContractId> {
+    let (name, source_id) = key;
+    gcx.symbol_resolver.source_scopes[source_id]
+        .resolve(solar_interface::Ident { name, span: Span::DUMMY })
+        .and_then(|decls| {
+            decls.iter().find_map(|decl| match decl.res {
+                hir::Res::Item(hir::ItemId::Contract(id)) => Some(id),
+                _ => None,
+            })
+        })
+}
+
 /// Returns the ABI signature of the given item. Only accepts functions, errors, and events.
 pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
@@ -808,19 +1254,31 @@ pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
     keccak256(gcx.item_signature(id))
 }
 
+/// Returns the type of the given builtin.
+pub fn type_of_builtin(gcx: _, builtin: Builtin) -> Ty<'gcx> {
+    builtin.ty_impl(gcx)
+}
+
+fn type_of_using_directive_cached(gcx: _, key: UsingDirectiveKey) -> Option<Ty<'gcx>> {
+    // HIR nodes are arena-allocated for the lifetime of `GlobalCtxt`.
+    let using = unsafe { &*(key as *const hir::UsingDirective<'gcx>) };
+    using.ty.as_ref().map(|ty| gcx.type_of_hir_ty(ty))
+}
+
 /// Returns the type of the given item.
 pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
     let kind = match id {
         hir::ItemId::Contract(id) => TyKind::Contract(id),
         hir::ItemId::Function(id) => {
             let f = gcx.hir.function(id);
-            TyKind::FnPtr(gcx.interner.intern_ty_fn_ptr(gcx.bump(), TyFnPtr {
+            return gcx.mk_ty_fn(TyFn {
+                kind: TyFnKind::Internal,
                 parameters: gcx.mk_item_tys(f.parameters),
                 returns: gcx.mk_item_tys(f.returns),
-                state_mutability: f.state_mutability,
-                visibility: f.visibility,
+                state_mutability: fn_state_mutability(TyFnKind::Internal, f.state_mutability),
                 function_id: Some(id),
-            }))
+                attached: false,
+            });
         }
         hir::ItemId::Variable(id) => {
             let var = gcx.hir.variable(id);
@@ -838,7 +1296,7 @@ pub fn type_of_item(gcx: _, id: hir::ItemId) -> Ty<'gcx> {
                 TyKind::Udvt(ty, id)
             } else {
                 let msg = "the underlying type of UDVTs must be an elementary value type";
-                TyKind::Err(gcx.dcx().err(msg).span(udvt.ty.span).emit())
+                return gcx.mk_ty_err(gcx.dcx().emit_err(udvt.ty.span, msg));
             }
         }
         hir::ItemId::Error(id) => {
@@ -864,7 +1322,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         let s = gcx.hir.strukt(id);
 
         if cd.depth() >= 256 {
-            let guar = gcx.dcx().err("struct is too deeply nested").span(s.span).emit();
+            let guar = gcx.dcx().emit_err(s.span, "struct is too deeply nested");
             return CycleDetectorResult::Break(Either::Left(guar));
         }
 
@@ -903,7 +1361,7 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
         CycleDetectorResult::Break(Either::Left(guar)) => Recursiveness::Infinite(guar),
         CycleDetectorResult::Break(Either::Right(())) => Recursiveness::Recursive,
         CycleDetectorResult::Cycle(id) => Recursiveness::Infinite(
-            gcx.dcx().err("recursive struct definition").span(gcx.item_span(id)).emit()
+            gcx.dcx().emit_err(gcx.item_span(id), "recursive struct definition")
         ),
     }
 }
@@ -911,24 +1369,45 @@ pub fn struct_recursiveness(gcx: _, id: hir::StructId) -> Recursiveness {
 fn native_members(gcx: _, ty: Ty<'gcx>) -> members::MemberList<'gcx> {
     members::native_members(gcx, ty)
 }
+
+fn contract_type_members_in_context(
+    gcx: _,
+    key: (hir::ContractId, hir::ContractId)
+) -> members::MemberList<'gcx> {
+    let (id, current_contract) = key;
+    members::contract_type_members_in_context(gcx, id, current_contract)
+}
+
+fn internal_function_members_in_context(
+    gcx: _,
+    key: (hir::FunctionId, hir::ContractId)
+) -> members::MemberList<'gcx> {
+    let (id, current_contract) = key;
+    gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
+}
 }
 
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     use hir::DataLocation::*;
 
     // https://github.com/argotorg/solidity/blob/48d40d5eaf97c835cf55896a7a161eedc57c57f9/libsolidity/ast/AST.cpp#L820
-    let has_reference_or_mapping_type = ty.is_reference_type() || ty.has_mapping();
+    let mut has_reference_or_mapping_type_slot = None;
+    let mut has_reference_or_mapping_type = || {
+        *has_reference_or_mapping_type_slot
+            .get_or_insert_with(|| ty.is_reference_type() || ty.has_mapping(gcx))
+    };
+
     let mut func_vis = None;
     let mut locs;
     let allowed: &[_] = if var.is_state_variable() {
         &[None, Some(Transient)]
-    } else if !has_reference_or_mapping_type || var.is_event_or_error_parameter() {
+    } else if !has_reference_or_mapping_type() || var.is_event_or_error_parameter() {
         &[None]
     } else if var.is_callable_or_catch_parameter() {
         locs = SmallVec::<[_; 3]>::new();
         locs.push(Some(Memory));
         let mut is_constructor_parameter = false;
-        if let Some(f) = var.function {
+        if let Some(hir::ItemId::Function(f)) = var.parent {
             let f = gcx.hir.function(f);
             is_constructor_parameter = f.kind.is_constructor();
             if !var.is_try_catch_parameter() && !is_constructor_parameter {
@@ -954,7 +1433,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
     let mut var_loc = var.data_location;
     if !allowed.contains(&var_loc) {
         if !ty.references_error() {
-            let msg = if !has_reference_or_mapping_type {
+            let msg = if !has_reference_or_mapping_type() {
                 "data location can only be specified for array, struct or mapping types".to_string()
             } else if let Some(var_loc) = var_loc {
                 format!("invalid data location `{var_loc}`")
@@ -962,7 +1441,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
                 "expected data location".to_string()
             };
             let mut err = gcx.dcx().err(msg).span(var.span);
-            if has_reference_or_mapping_type {
+            if has_reference_or_mapping_type() {
                 let note = format!(
                     "data location must be {expected} for {vis}{descr}{got}",
                     expected = or_list(
@@ -998,12 +1477,12 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             Some(Transient) => {
                 if mut_specified {
                     let msg = "transient cannot be used as data location for constant or immutable variables";
-                    gcx.dcx().err(msg).span(var.span).emit();
+                    gcx.dcx().emit_err(var.span, msg);
                 }
                 if var.initializer.is_some() {
                     let msg =
                         "initialization of transient storage state variables is not supported";
-                    gcx.dcx().err(msg).span(var.span).emit();
+                    gcx.dcx().emit_err(var.span, msg);
                 }
                 Transient
             }
@@ -1016,7 +1495,7 @@ fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) 
             Some(loc @ (Memory | Storage | Calldata)) => loc,
             Some(Transient) => unimplemented!(),
             None => {
-                assert!(!has_reference_or_mapping_type, "data location not properly set");
+                debug_assert!(!has_reference_or_mapping_type(), "data location not properly set");
                 Memory
             }
         }

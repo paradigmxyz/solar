@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract CallChecking {
     event E(uint a, bytes32 b);
@@ -141,4 +141,16 @@ contract CallChecking {
         //~^ ERROR: mismatched types
         //~| ERROR: mismatched types
     }
+}
+
+contract BaseCallTarget {
+    function ownerCheck() internal view virtual {}
+}
+
+contract DerivedCallTarget is BaseCallTarget {
+    function testMostDerivedCall() public view {
+        ownerCheck();
+    }
+
+    function ownerCheck() internal view virtual override {}
 }

@@ -1,0 +1,58 @@
+error: cannot apply builtin operator `+` to `U` and `bool`
+   ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
+   │
+LL │         U a = y + x;
+   │               ┬ ━ ─ bool
+   │               │
+   ╰╴              U
+
+error: cannot apply builtin operator `+` to `bool` and `U`
+   ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
+   │
+LL │         U b = x + y;
+   │               ┬ ━ ─ U
+   │               │
+   ╰╴              bool
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
+   │
+LL │         U c = -x;
+   ╰╴               ━ expected `U`, found `bool`
+
+error: cannot apply unary operator `-` to `bool`
+   ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
+   │
+LL │         U c = -x;
+   ╰╴              ━━
+
+error: cannot apply builtin operator `+` to `U` and `uint32`
+   ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
+   │
+LL │         U a = y + x;
+   │               ┬ ━ ─ uint32
+   │               │
+   ╰╴              U
+
+error: cannot apply builtin operator `+` to `uint32` and `U`
+   ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
+   │
+LL │         U b = x + y;
+   │               ┬ ━ ─ U
+   │               │
+   ╰╴              uint32
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
+   │
+LL │         U c = -x;
+   ╰╴               ━ expected `U`, found `uint32`
+
+error: cannot apply unary operator `-` to `uint32`
+   ╭▸ ROOT/tests/ui/using-for/operators/implicit_conversion_failures.sol:LL:CC
+   │
+LL │         U c = -x;
+   ╰╴              ━━
+
+error: aborting due to 8 previous errors
+

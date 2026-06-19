@@ -38,6 +38,8 @@ pub struct FileResolver<'a> {
     include_paths: Vec<PathBuf>,
     /// Import remappings.
     remappings: Vec<ImportRemapping>,
+    /// Base path for source unit names.
+    base_path: Option<PathBuf>,
 
     /// Custom current directory.
     custom_current_dir: Option<PathBuf>,
@@ -52,6 +54,7 @@ impl<'a> FileResolver<'a> {
             source_map,
             include_paths: Vec::new(),
             remappings: Vec::new(),
+            base_path: source_map.base_path(),
             custom_current_dir: source_map.base_path(),
             env_current_dir: OnceLock::new(),
         }
@@ -61,6 +64,9 @@ impl<'a> FileResolver<'a> {
     pub fn configure_from_sess(&mut self, sess: &Session) {
         self.add_include_paths(sess.opts.include_paths.iter().cloned());
         self.add_import_remappings(sess.opts.import_remappings.iter().cloned());
+        if let Ok(current_dir) = std::env::current_dir() {
+            self.set_current_dir(&current_dir);
+        }
         'b: {
             if let Some(base_path) = &sess.opts.base_path {
                 let base_path = if base_path.is_absolute() {
@@ -72,7 +78,7 @@ impl<'a> FileResolver<'a> {
                         break 'b;
                     }
                 };
-                self.set_current_dir(base_path);
+                self.set_base_path(base_path);
             }
         }
     }
@@ -81,6 +87,7 @@ impl<'a> FileResolver<'a> {
     pub fn clear(&mut self) {
         self.include_paths.clear();
         self.remappings.clear();
+        self.base_path = None;
         self.custom_current_dir = None;
         self.env_current_dir.take();
     }
@@ -97,6 +104,19 @@ impl<'a> FileResolver<'a> {
             panic!("current_dir must be an absolute path");
         }
         self.custom_current_dir = Some(current_dir.to_path_buf());
+    }
+
+    /// Sets the base path.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `base_path` is not an absolute path.
+    #[track_caller]
+    pub fn set_base_path(&mut self, base_path: &Path) {
+        if !base_path.is_absolute() {
+            panic!("base_path must be an absolute path");
+        }
+        self.base_path = Some(base_path.to_path_buf());
     }
 
     /// Adds include paths.
@@ -134,6 +154,11 @@ impl<'a> FileResolver<'a> {
     #[doc(alias = "try_base_path")]
     pub fn try_current_dir(&self) -> Option<&Path> {
         self.custom_current_dir.as_deref().or_else(|| self.env_current_dir())
+    }
+
+    /// Returns the base path for import resolution.
+    pub fn try_base_path(&self) -> Option<&Path> {
+        self.base_path.as_deref().or_else(|| self.try_current_dir())
     }
 
     fn env_current_dir(&self) -> Option<&Path> {
@@ -189,7 +214,7 @@ impl<'a> FileResolver<'a> {
         // `parent` comes from `FileName::Real` so it should be an absolute path.
         // Make it relative to the base path.
         if let Some(parent) = &mut parent
-            && let Some(base_path) = self.try_current_dir()
+            && let Some(base_path) = self.try_base_path()
         {
             if let Ok(new_parent) = parent.strip_prefix(base_path) {
                 *parent = new_parent;
@@ -218,6 +243,11 @@ impl<'a> FileResolver<'a> {
             } else {
                 path
             };
+            if is_relative
+                && let Some(file) = self.source_map().get_file(&*self.normalize(try_path))
+            {
+                return Ok(file);
+            }
             if let Some(file) = self.try_file(try_path)? {
                 return Ok(file);
             }
@@ -238,21 +268,25 @@ impl<'a> FileResolver<'a> {
             }
         };
 
-        // If there are no include paths, then try the file directly. See
-        // https://docs.soliditylang.org/en/latest/path-resolution.html#base-path-and-include-paths
-        // "By default the base path is empty, which leaves the source unit name unchanged."
-        if self.include_paths.is_empty() || path.is_absolute() {
+        if path.is_absolute() {
             if let Some(file) = self.try_file(path)? {
                 push_candidate(file);
             }
+        } else if let Some(file) = self.get_source_unit_file(path) {
+            return Ok(file);
         } else {
-            // Try all the include paths.
-            let base_path = self.try_current_dir().into_iter();
+            // Try the base path and all include paths.
+            let base_path = self.try_base_path().into_iter();
+            let mut searched = false;
             for include_path in base_path.chain(self.include_paths.iter().map(|p| p.as_path())) {
+                searched = true;
                 let path = include_path.join(path);
                 if let Some(file) = self.try_file(&path)? {
                     push_candidate(file);
                 }
+            }
+            if !searched && let Some(file) = self.try_file(path)? {
+                push_candidate(file);
             }
         }
 
@@ -324,6 +358,18 @@ impl<'a> FileResolver<'a> {
         self.get_file_inner(path, false).ok().flatten()
     }
 
+    fn get_source_unit_file(&self, path: &Path) -> Option<Arc<SourceFile>> {
+        if path.is_absolute() {
+            return None;
+        }
+        if let Some(file) = self.source_map().get_file(path) {
+            return Some(file);
+        }
+
+        let rpath = &*self.normalize(path);
+        if rpath != path { self.source_map().get_file(rpath) } else { None }
+    }
+
     /// Loads `path` into the source map. Returns `None` if the file doesn't exist.
     #[instrument(level = "debug", skip_all, fields(path = %path.display()))]
     pub fn try_file(&self, path: &Path) -> Result<Option<Arc<SourceFile>>, ResolveError> {
@@ -335,29 +381,29 @@ impl<'a> FileResolver<'a> {
         path: &Path,
         load: bool,
     ) -> Result<Option<Arc<SourceFile>>, ResolveError> {
-        // Normalize unnecessary components.
-        let rpath = &*self.normalize(path);
-        if let Some(file) = self.source_map().get_file(rpath) {
+        if let Some(file) = self.source_map().get_file(path) {
             trace!("loaded from cache 1");
             return Ok(Some(file));
         }
 
-        // Make the path absolute with the current directory.
-        let apath = &*self.make_absolute(rpath);
-        if apath != rpath
-            && let Some(file) = self.source_map().get_file(apath)
+        // Make the path absolute before normalizing so leading `..` components are resolved
+        // against the current directory instead of being discarded from a relative path.
+        let apath = &*self.make_absolute(path);
+        let rpath = &*self.normalize(apath);
+        if rpath != path
+            && let Some(file) = self.source_map().get_file(rpath)
         {
             trace!("loaded from cache 2");
             return Ok(Some(file));
         }
 
         // Canonicalize, checking symlinks and if it exists.
-        if load && let Ok(path) = self.canonicalize_unchecked(apath) {
+        if load && let Ok(path) = self.canonicalize_unchecked(rpath) {
             return self
                 .source_map()
-                // Store the file with `apath` as the name instead of `path`.
+                // Store the file with `rpath` as the name instead of `path`.
                 // In case of symlinks we want to reference the symlink path, not the target path.
-                .load_file_with_name(apath.to_path_buf().into(), &path)
+                .load_file_with_name(rpath.to_path_buf().into(), &path)
                 .map(Some)
                 .map_err(|e| ResolveError::ReadFile(path, e));
         }
@@ -507,5 +553,423 @@ mod tests {
         ];
         run(&TestCase { remappings: &["a:x/y/z=d", "a/b:x=e"], sources });
         run(&TestCase { remappings: &["a/b:x=e", "a:x/y/z=d"], sources });
+    }
+
+    #[test]
+    fn top_level_relative_path_uses_current_dir() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let cwd = tmp.path().join("cwd");
+        let sibling = tmp.path().join("sibling");
+        let source = sibling.join("a.sol");
+        let import = sibling.join("b.sol");
+        std::fs::create_dir_all(&cwd).unwrap();
+        std::fs::create_dir_all(&sibling).unwrap();
+        std::fs::write(&source, "").unwrap();
+        std::fs::write(&import, "").unwrap();
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(cwd));
+        let file_resolver = FileResolver::new(&sm);
+        let resolved = file_resolver.resolve_file(Path::new("../sibling/a.sol"), None).unwrap();
+
+        assert_eq!(resolved.name.as_real(), Some(source.as_path()));
+
+        let parent = resolved.name.as_real().unwrap();
+        let relative_import =
+            file_resolver.resolve_file(Path::new("./b.sol"), Some(parent)).unwrap();
+        assert_eq!(relative_import.name.as_real(), Some(import.as_path()));
+
+        let direct_import = file_resolver.resolve_file(Path::new("b.sol"), Some(parent));
+        assert!(
+            matches!(direct_import, Err(ResolveError::NotFound(path)) if path == Path::new("b.sol"))
+        );
+    }
+
+    #[test]
+    fn relative_import_from_virtual_source_uses_source_unit_name() {
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(PathBuf::new()));
+        let mut file_resolver = FileResolver::new(&sm);
+        file_resolver.set_current_dir(&std::env::current_dir().unwrap());
+        let imported = sm.new_source_file(PathBuf::from("B.sol"), "").unwrap();
+
+        let resolved = file_resolver.resolve_file(Path::new("./B.sol"), Some(Path::new("A.sol")));
+
+        assert!(Arc::ptr_eq(&resolved.unwrap(), &imported));
+    }
+
+    #[test]
+    fn direct_import_without_current_dir_uses_source_unit_name() {
+        use crate::source_map::FileLoader;
+
+        struct Loader;
+
+        impl FileLoader for Loader {
+            fn canonicalize_path(&self, path: &Path) -> io::Result<PathBuf> {
+                Ok(path.to_path_buf())
+            }
+
+            fn load_stdin(&self) -> io::Result<String> {
+                unreachable!()
+            }
+
+            fn load_file(&self, path: &Path) -> io::Result<String> {
+                assert_eq!(path, Path::new("B.sol"));
+                Ok(String::new())
+            }
+
+            fn load_binary_file(&self, _path: &Path) -> io::Result<Vec<u8>> {
+                unreachable!()
+            }
+        }
+
+        let sm = SourceMap::empty();
+        sm.set_file_loader(Loader);
+        let file_resolver = FileResolver::new(&sm);
+        file_resolver.env_current_dir.set(None).unwrap();
+
+        let resolved = file_resolver.resolve_file(Path::new("B.sol"), Some(Path::new("A.sol")));
+
+        assert_eq!(resolved.unwrap().name.as_real(), Some(Path::new("B.sol")));
+    }
+
+    #[test]
+    fn direct_import_reuses_preloaded_source_unit_name() {
+        let tmp = tempfile::Builder::new().prefix("solar-file-resolver-test").tempdir().unwrap();
+        let base_path = tmp.path().to_path_buf();
+        let source_path = base_path.join("src/B.sol");
+        std::fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        std::fs::write(&source_path, "contract B {}").unwrap();
+
+        let sm = SourceMap::empty();
+        sm.set_base_path(Some(base_path.clone()));
+        let imported = sm.new_source_file(PathBuf::from("src/B.sol"), "contract B {}").unwrap();
+        let mut file_resolver = FileResolver::new(&sm);
+        file_resolver.set_current_dir(&base_path);
+
+        let resolved =
+            file_resolver.resolve_file(Path::new("src/B.sol"), Some(Path::new("test/A.sol")));
+
+        assert!(Arc::ptr_eq(&resolved.unwrap(), &imported));
+    }
+}
+
+// ported-from: https://github.com/BenTheKush/solc_remapping_behavior_test
+#[cfg(test)]
+mod solang_import_resolution {
+    use super::*;
+    use std::collections::{HashMap, HashSet};
+
+    struct FixtureFile {
+        path: &'static str,
+        imports: &'static [&'static str],
+    }
+
+    struct Scenario {
+        name: &'static str,
+        input: &'static str,
+        remappings: &'static [&'static str],
+        base_path: Option<&'static str>,
+        include_paths: &'static [&'static str],
+        should_resolve: bool,
+    }
+
+    struct Harness<'a> {
+        _tmp: tempfile::TempDir,
+        root: PathBuf,
+        cwd: PathBuf,
+        imports: HashMap<PathBuf, &'a [&'a str]>,
+    }
+
+    impl<'a> Harness<'a> {
+        fn new(cwd: &str, files: &'a [FixtureFile]) -> Self {
+            let tmp = tempfile::Builder::new()
+                .prefix("solar-solang-import-resolution-test")
+                .tempdir()
+                .unwrap();
+            let root = tmp.path().to_path_buf();
+            let cwd = root.join(cwd);
+            let mut imports = HashMap::default();
+            for FixtureFile { path, imports: file_imports } in files {
+                let path_on_disk = cwd.join(path);
+                if let Some(parent) = path_on_disk.parent() {
+                    std::fs::create_dir_all(parent).unwrap();
+                }
+                std::fs::write(path_on_disk, "").unwrap();
+                let key = cwd.join(path).strip_prefix(&root).unwrap().to_path_buf();
+                imports.insert(key, *file_imports);
+            }
+            Self { _tmp: tmp, root, cwd, imports }
+        }
+
+        fn run(&self, scenario: &Scenario) -> Result<(), ResolveError> {
+            let sm = SourceMap::empty();
+            sm.set_base_path(Some(self.cwd.clone()));
+            let mut file_resolver = FileResolver::new(&sm);
+            file_resolver.set_current_dir(&self.cwd);
+            if let Some(base_path) = scenario.base_path {
+                file_resolver.set_base_path(&self.cwd.join(base_path));
+            }
+            for include_path in scenario.include_paths {
+                file_resolver.add_include_path(self.cwd.join(include_path));
+            }
+            for remapping in scenario.remappings {
+                file_resolver.add_import_remapping(remapping.parse().unwrap());
+            }
+
+            let root_file = file_resolver.resolve_file(Path::new(scenario.input), None)?;
+            let mut stack = vec![root_file];
+            let mut seen = HashSet::new();
+            while let Some(file) = stack.pop() {
+                let path = file.name.as_real().unwrap();
+                if !seen.insert(path.to_path_buf()) {
+                    continue;
+                }
+
+                let key = path.strip_prefix(&self.root).unwrap();
+                for import in self.imports.get(key).copied().unwrap_or_default() {
+                    stack.push(file_resolver.resolve_file(Path::new(import), Some(path))?);
+                }
+            }
+            Ok(())
+        }
+    }
+
+    fn check_solang_import_resolution_scenarios(
+        cwd: &str,
+        files: &[FixtureFile],
+        scenarios: &[Scenario],
+    ) {
+        let harness = Harness::new(cwd, files);
+        for scenario in scenarios {
+            let result = harness.run(scenario);
+            assert_eq!(
+                result.is_ok(),
+                scenario.should_resolve,
+                "{}: expected should_resolve={}, got {result:?}",
+                scenario.name,
+                scenario.should_resolve
+            );
+        }
+    }
+
+    #[test]
+    fn solang_import_resolution_corpus() {
+        check_solang_import_resolution_scenarios(
+            "01_solang_remap_target",
+            &[
+                FixtureFile { path: "contracts/Contract.sol", imports: &["lib/Lib.sol"] },
+                FixtureFile { path: "resources/node_modules/lib/Lib.sol", imports: &[] },
+            ],
+            &[
+                Scenario {
+                    name: "01.1 no remapping",
+                    input: "contracts/Contract.sol",
+                    remappings: &[],
+                    base_path: None,
+                    include_paths: &[],
+                    should_resolve: false,
+                },
+                Scenario {
+                    name: "01.2 no base path or include path",
+                    input: "contracts/Contract.sol",
+                    remappings: &["lib=node_modules/lib"],
+                    base_path: None,
+                    include_paths: &[],
+                    should_resolve: false,
+                },
+                Scenario {
+                    name: "01.3 incomplete include paths",
+                    input: "contracts/Contract.sol",
+                    remappings: &["lib=node_modules/lib"],
+                    base_path: Some("."),
+                    include_paths: &[],
+                    should_resolve: false,
+                },
+                Scenario {
+                    name: "01.4 incorrect include paths",
+                    input: "contracts/Contract.sol",
+                    remappings: &["lib=node_modules/lib"],
+                    base_path: Some("."),
+                    include_paths: &["resources/node_modules"],
+                    should_resolve: false,
+                },
+                Scenario {
+                    name: "01.5 correct configuration",
+                    input: "contracts/Contract.sol",
+                    remappings: &["lib=node_modules/lib"],
+                    base_path: Some("."),
+                    include_paths: &["resources"],
+                    should_resolve: true,
+                },
+            ],
+        );
+
+        check_solang_import_resolution_scenarios(
+            "02_solang_incorrect_direct_imports",
+            &[
+                FixtureFile { path: "Ambiguous.sol", imports: &[] },
+                FixtureFile {
+                    path: "contracts/Ambiguous.sol",
+                    imports: &["Error: contracts/Ambiguous.sol should not be imported"],
+                },
+                FixtureFile { path: "contracts/Contract.sol", imports: &["Ambiguous.sol"] },
+                FixtureFile {
+                    path: "resources/node_modules/lib/Ambiguous.sol",
+                    imports: &[
+                        "Error: resources/node_modules/lib/Ambiguous.sol should not be imported",
+                    ],
+                },
+                FixtureFile { path: "resources/node_modules/lib/Lib.sol", imports: &[] },
+            ],
+            &[
+                Scenario {
+                    name: "02.1 direct import default base path",
+                    input: "contracts/Contract.sol",
+                    remappings: &[],
+                    base_path: None,
+                    include_paths: &[],
+                    should_resolve: true,
+                },
+                Scenario {
+                    name: "02.2 direct import explicit base path",
+                    input: "contracts/Contract.sol",
+                    remappings: &[],
+                    base_path: Some("."),
+                    include_paths: &[],
+                    should_resolve: true,
+                },
+            ],
+        );
+
+        check_solang_import_resolution_scenarios(
+            "03_ambiguous_imports_should_fail",
+            &[
+                FixtureFile { path: "Ambiguous.sol", imports: &["This should not be imported"] },
+                FixtureFile { path: "contracts/Ambiguous.sol", imports: &[] },
+                FixtureFile {
+                    path: "contracts/Contract.sol",
+                    imports: &["lib/Lib.sol", "Ambiguous.sol"],
+                },
+                FixtureFile { path: "resources/node_modules/lib/Ambiguous.sol", imports: &[] },
+                FixtureFile { path: "resources/node_modules/lib/Lib.sol", imports: &[] },
+            ],
+            &[
+                Scenario {
+                    name: "03.1 ambiguous imports should fail",
+                    input: "contracts/Contract.sol",
+                    remappings: &["lib=resources/node_modules/lib"],
+                    base_path: Some("."),
+                    include_paths: &["contracts"],
+                    should_resolve: false,
+                },
+                Scenario {
+                    name: "03.2 import order resources then root",
+                    input: "contracts/Contract.sol",
+                    remappings: &["lib=resources/node_modules/lib"],
+                    base_path: Some("."),
+                    include_paths: &["resources/node_modules/lib", "."],
+                    should_resolve: false,
+                },
+                Scenario {
+                    name: "03.3 import order root then resources",
+                    input: "contracts/Contract.sol",
+                    remappings: &["lib=resources/node_modules/lib"],
+                    base_path: Some("."),
+                    include_paths: &[".", "resources/node_modules/lib"],
+                    should_resolve: false,
+                },
+            ],
+        );
+
+        check_solang_import_resolution_scenarios(
+            "04_multiple_map_path_segments",
+            &[
+                FixtureFile { path: "contracts/Contract.sol", imports: &["lib/nested/Lib.sol"] },
+                FixtureFile { path: "resources/node_modules/lib/nested/Lib.sol", imports: &[] },
+            ],
+            &[Scenario {
+                name: "04.1 multiple import mapping segments",
+                input: "contracts/Contract.sol",
+                remappings: &["lib/nested=resources/node_modules/lib/nested"],
+                base_path: Some("."),
+                include_paths: &[],
+                should_resolve: true,
+            }],
+        );
+
+        check_solang_import_resolution_scenarios(
+            "05_import_path_order_should_not_matter",
+            &[
+                FixtureFile { path: "contracts/Contract.sol", imports: &["A.sol"] },
+                FixtureFile { path: "contracts/nested1/A.sol", imports: &[] },
+                FixtureFile { path: "contracts/nested2/A.sol", imports: &[] },
+            ],
+            &[
+                Scenario {
+                    name: "05.1 include order nested1 then nested2",
+                    input: "contracts/Contract.sol",
+                    remappings: &[],
+                    base_path: None,
+                    include_paths: &["contracts/nested1", "contracts/nested2"],
+                    should_resolve: false,
+                },
+                Scenario {
+                    name: "05.2 include order nested2 then nested1",
+                    input: "contracts/Contract.sol",
+                    remappings: &[],
+                    base_path: None,
+                    include_paths: &["contracts/nested2", "contracts/nested1"],
+                    should_resolve: false,
+                },
+            ],
+        );
+
+        check_solang_import_resolution_scenarios(
+            "06_redundant_remaps",
+            &[
+                FixtureFile {
+                    path: "contracts/Contract.sol",
+                    imports: &["node_modules/lib/Lib.sol"],
+                },
+                FixtureFile { path: "resources/node_modules/lib/Lib.sol", imports: &[] },
+            ],
+            &[
+                Scenario {
+                    name: "06.1 multiple remappings",
+                    input: "contracts/Contract.sol",
+                    remappings: &[
+                        "node_modules=resources/node_modules",
+                        "node_modules=node_modules",
+                    ],
+                    base_path: Some("resources"),
+                    include_paths: &[],
+                    should_resolve: true,
+                },
+                Scenario {
+                    name: "06.2 multiple remappings reversed",
+                    input: "contracts/Contract.sol",
+                    remappings: &[
+                        "node_modules=node_modules",
+                        "node_modules=resources/node_modules",
+                    ],
+                    base_path: Some("resources"),
+                    include_paths: &[],
+                    should_resolve: false,
+                },
+                Scenario {
+                    name: "06.3 multiple remappings last wins",
+                    input: "contracts/Contract.sol",
+                    remappings: &[
+                        "node_modules=node_modules",
+                        "node_modules=resources/node_modules",
+                        "node_modules=node_modules",
+                    ],
+                    base_path: Some("resources"),
+                    include_paths: &[],
+                    should_resolve: true,
+                },
+            ],
+        );
     }
 }

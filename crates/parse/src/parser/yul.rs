@@ -6,7 +6,7 @@ use solar_ast::{
 };
 use solar_interface::{Ident, error_code, kw, sym};
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a Yul object or plain block.
     ///
     /// The plain block gets returned as a Yul object named "object", with a single `code` block.
@@ -229,7 +229,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if cases.is_empty() {
             let span = lo.to(self.prev_token.span);
             if default_case.is_none() {
-                self.dcx().err("`switch` statement has no cases").span(span).emit();
+                self.dcx().emit_err(span, "`switch` statement has no cases");
             } else {
                 self.dcx()
                     .warn("`switch` statement has only a default case")
@@ -287,6 +287,11 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 // Paths are not allowed in call expressions, but Solc parses them anyway.
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
+            } else if path.segments().len() == 1 && path.first().is_reserved_yul_builtin() {
+                let name = path.first();
+                self.dcx()
+                    .emit_err(path.span(), format!("builtin function `{name}` must be called"));
+                Ok(ExprKind::Path(path))
             } else {
                 self.check_valid_path(&path);
                 Ok(ExprKind::Path(path))
@@ -298,7 +303,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
 
     /// Parses a Yul function call expression with the given name.
     fn parse_yul_expr_call_with(&mut self, name: Ident) -> PResult<'sess, ExprCall<'ast>> {
-        if !name.is_yul_evm_builtin() && name.is_reserved(true) {
+        if !name.is_yul_builtin() && name.is_reserved(true) {
             self.expected_ident_found_other(name.into(), false).unwrap_err().emit();
         }
         let arguments = self.parse_paren_comma_seq(true, Self::parse_yul_expr)?;
@@ -309,7 +314,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     #[track_caller]
     fn expect_single_ident_path(&mut self, path: AstPath<'_>) -> Ident {
         if path.segments().len() > 1 {
-            self.dcx().err("fully-qualified paths aren't allowed here").span(path.span()).emit();
+            self.dcx().emit_err(path.span(), "fully-qualified paths aren't allowed here");
         }
         *path.last()
     }
@@ -326,7 +331,8 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         // We allow EVM builtins in any position if multiple segments are present:
         // https://github.com/argotorg/solidity/issues/16054
         let first = *path.first();
-        if first.is_yul_keyword() || (path.segments().len() == 1 && first.is_yul_evm_builtin()) {
+        if first.is_yul_keyword() || (path.segments().len() == 1 && first.is_reserved_yul_builtin())
+        {
             self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
         }
         for &ident in &path.segments()[1..] {

@@ -1,0 +1,21 @@
+// CHECK: "errors": [
+// CHECK: "message": "couldn't read tests/ui/standard-json/auxiliary/on-disk.sol: File import callback not supported"
+// CHECK: "message": "unresolved symbol `OnDisk`"
+// CHECK-NOT: "contracts"
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import \"tests/ui/standard-json/auxiliary/on-disk.sol\"; contract A is OnDisk {}"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

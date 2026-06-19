@@ -1,8 +1,9 @@
 use super::{
     BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee, EmittedDiagnostics,
-    ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, SilentEmitter, emitter::HumanEmitter,
+    ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, MultiSpan, SilentEmitter,
+    emitter::HumanEmitter,
 };
-use crate::{Result, SourceMap};
+use crate::{Result, SourceMap, Span};
 use anstream::ColorChoice;
 use solar_config::{ErrorFormat, Opts};
 use solar_data_structures::{map::FxHashSet, sync::Mutex};
@@ -44,7 +45,7 @@ impl DiagCtxtFlags {
         self.deduplicate_diagnostics &= !opts.unstable.ui_testing;
         self.track_diagnostics &= !opts.unstable.ui_testing;
         self.track_diagnostics |= opts.unstable.track_diagnostics;
-        self.can_emit_warnings |= !opts.no_warnings;
+        self.can_emit_warnings &= !opts.no_warnings;
     }
 }
 
@@ -74,6 +75,7 @@ struct DiagCtxtInner {
     emitter: Box<DynEmitter>,
 
     flags: DiagCtxtFlags,
+    allowed_diagnostic_codes: FxHashSet<String>,
 
     /// The number of errors that have been emitted, including duplicates.
     ///
@@ -100,6 +102,7 @@ impl DiagCtxt {
             inner: Mutex::new(DiagCtxtInner {
                 emitter,
                 flags: DiagCtxtFlags::default(),
+                allowed_diagnostic_codes: FxHashSet::default(),
                 err_count: 0,
                 deduplicated_err_count: 0,
                 warn_count: 0,
@@ -192,7 +195,18 @@ impl DiagCtxt {
             }
             format => unimplemented!("{format:?}"),
         };
-        Self::new(emitter).with_flags(|flags| flags.update_from_opts(opts))
+        Self::new(emitter)
+            .with_flags(|flags| flags.update_from_opts(opts))
+            .with_allowed_diagnostic_codes(opts.allow.iter().cloned())
+    }
+
+    /// Adds diagnostic codes that should be allowed.
+    pub fn with_allowed_diagnostic_codes(
+        mut self,
+        codes: impl IntoIterator<Item = String>,
+    ) -> Self {
+        self.set_allowed_diagnostic_codes_mut(codes);
+        self
     }
 
     /// Sets the emitter to [`SilentEmitter`].
@@ -243,6 +257,16 @@ impl DiagCtxt {
     /// Sets flags.
     pub fn set_flags_mut(&mut self, f: impl FnOnce(&mut DiagCtxtFlags)) {
         f(&mut self.inner.get_mut().flags);
+    }
+
+    /// Adds diagnostic codes that should be allowed.
+    pub fn set_allowed_diagnostic_codes(&self, codes: impl IntoIterator<Item = String>) {
+        self.inner.lock().allowed_diagnostic_codes.extend(codes);
+    }
+
+    /// Adds diagnostic codes that should be allowed.
+    pub fn set_allowed_diagnostic_codes_mut(&mut self, codes: impl IntoIterator<Item = String>) {
+        self.inner.get_mut().allowed_diagnostic_codes.extend(codes);
     }
 
     /// Disables emitting warnings.
@@ -377,6 +401,47 @@ impl DiagCtxt {
         self.diag(Level::Error, msg)
     }
 
+    /// Emits an error at `span` with the given `msg`.
+    #[track_caller]
+    pub fn emit_err(&self, span: impl Into<MultiSpan>, msg: impl Into<DiagMsg>) -> ErrorGuaranteed {
+        self.err(msg).span(span).emit()
+    }
+
+    /// Emits an error at `span` with an attached note.
+    #[track_caller]
+    pub fn emit_err_note(
+        &self,
+        span: impl Into<MultiSpan>,
+        msg: impl Into<DiagMsg>,
+        note: impl Into<DiagMsg>,
+    ) -> ErrorGuaranteed {
+        self.err(msg).span(span).note(note).emit()
+    }
+
+    /// Emits an error at `span` with an attached span note.
+    #[track_caller]
+    pub fn emit_err_span_note(
+        &self,
+        span: impl Into<MultiSpan>,
+        msg: impl Into<DiagMsg>,
+        note_span: impl Into<MultiSpan>,
+        note: impl Into<DiagMsg>,
+    ) -> ErrorGuaranteed {
+        self.err(msg).span(span).span_note(note_span, note).emit()
+    }
+
+    /// Emits an error at `span` with an attached span label.
+    #[track_caller]
+    pub fn emit_err_label(
+        &self,
+        span: impl Into<MultiSpan>,
+        msg: impl Into<DiagMsg>,
+        label_span: Span,
+        label: impl Into<DiagMsg>,
+    ) -> ErrorGuaranteed {
+        self.err(msg).span(span).span_label(label_span, label).emit()
+    }
+
     /// Creates a builder at the `Warning` level with the given `msg`.
     ///
     /// Attempting to `.emit()` the builder will only emit if `can_emit_warnings` is `true`.
@@ -407,6 +472,10 @@ impl DiagCtxtInner {
         &mut self,
         diagnostic: &mut Diag,
     ) -> Result<(), ErrorGuaranteed> {
+        if self.is_allowed_diagnostic(diagnostic) {
+            return Ok(());
+        }
+
         if diagnostic.level == Level::Warning && !self.flags.can_emit_warnings {
             return Ok(());
         }
@@ -510,6 +579,11 @@ impl DiagCtxtInner {
 
     fn treat_err_as_bug(&self) -> bool {
         self.flags.treat_err_as_bug.is_some_and(|c| self.err_count >= c.get())
+    }
+
+    fn is_allowed_diagnostic(&self, diagnostic: &Diag) -> bool {
+        diagnostic.level == Level::Warning
+            && diagnostic.id().is_some_and(|id| self.allowed_diagnostic_codes.contains(id))
     }
 
     fn bump_err_count(&mut self) {

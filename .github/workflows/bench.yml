@@ -10,8 +10,193 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  SOLC_VERSION: 0.8.30
+  BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
+  BENCHMARK_REF: 759b27b596ca6632717465832859863eccbe41a2
+  BENCHMARK_PATH: solidity-compiler-benchmarks
 
 jobs:
+  codegen-runtime:
+    name: codegen runtime benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout Solar
+        uses: actions/checkout@v6
+
+      - name: Checkout benchmark corpus
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ env.BENCHMARK_REPOSITORY }}
+          ref: ${{ env.BENCHMARK_REF }}
+          path: ${{ env.BENCHMARK_PATH }}
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install solc
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/solc"
+          curl -fsSL \
+            "https://github.com/ethereum/solidity/releases/download/v${SOLC_VERSION}/solc-static-linux" \
+            -o "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+          chmod +x "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
+          "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
+
+      - name: Build Solar
+        run: cargo build -p solar-compiler --bin solar
+
+      - name: Download baseline (main branch)
+        id: baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench/baseline
+
+          run_id="$(
+            gh run list \
+              --workflow bench.yml \
+              --branch main \
+              --status success \
+              --limit 1 \
+              --json databaseId \
+              --jq '.[0].databaseId // ""' \
+              2>/dev/null || true
+          )"
+          if [[ -z "$run_id" ]]; then
+            echo "::warning::No successful main benchmark run was found for baseline comparison"
+            exit 0
+          fi
+
+          if ! gh run download "$run_id" \
+            --name codegen-runtime-baseline \
+            --dir target/codegen-bench/baseline; then
+            echo "::warning::No main baseline artifact was available for comparison"
+          fi
+
+      - name: Run micro codegen benchmark
+        id: micro-bench
+        working-directory: ${{ env.BENCHMARK_PATH }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
+          if ! python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --suite micro \
+            --gas \
+            --gas-profile hot \
+            --start-anvil \
+            --allow-failures \
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/micro.json"; then
+            echo "::warning::Micro codegen benchmark failed to complete"
+          fi
+
+      - name: Run repository codegen benchmark
+        id: repo-bench
+        working-directory: ${{ env.BENCHMARK_PATH }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
+          if ! python3 ./solar_bench.py --verbose \
+            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
+            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
+            --suite repo \
+            --gas \
+            --gas-profile hot \
+            --start-anvil \
+            --allow-failures \
+            --output "$GITHUB_WORKSPACE/target/codegen-bench/repo.json"; then
+            echo "::warning::Repository codegen benchmark failed to complete"
+          fi
+
+      - name: Generate runtime benchmark report
+        id: runtime-report
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p target/codegen-bench
+          args=(
+            --micro target/codegen-bench/micro.json
+            --repo target/codegen-bench/repo.json
+          )
+          if [[ -f target/codegen-bench/baseline/micro.json ]]; then
+            args+=(--baseline-micro target/codegen-bench/baseline/micro.json)
+          fi
+          if [[ -f target/codegen-bench/baseline/repo.json ]]; then
+            args+=(--baseline-repo target/codegen-bench/baseline/repo.json)
+          fi
+          python3 .github/scripts/check_codegen_benchmark.py "${args[@]}" \
+            | tee target/codegen-bench/report.md
+          {
+            echo 'report<<EOF'
+            cat target/codegen-bench/report.md
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Find existing runtime benchmark comment
+        id: runtime-comment
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          exists="$(
+            gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments?per_page=100" \
+              --jq 'any(.[].body; contains("codegen-runtime-bench"))'
+          )"
+          echo "exists=${exists}" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on PR
+        if: >-
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          (steps.runtime-report.outputs.should_comment == 'true' ||
+          steps.runtime-comment.outputs.exists == 'true')
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: codegen-runtime-bench
+          message: ${{ steps.runtime-report.outputs.report }}
+
+      - name: Upload results as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codegen-runtime-results
+          path: target/codegen-bench/
+          retention-days: 30
+          if-no-files-found: ignore
+
+      - name: Save baseline (main only)
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: codegen-runtime-baseline
+          path: |
+            target/codegen-bench/micro.json
+            target/codegen-bench/repo.json
+          retention-days: 90
+          if-no-files-found: ignore
+
   codspeed:
     runs-on: ubuntu-latest
     permissions:
@@ -39,13 +224,14 @@ jobs:
           mode: instrumentation
           token: ${{ secrets.CODSPEED_TOKEN }}
 
-  iai:
+  gungraun:
     runs-on: ubuntu-latest
     permissions:
       contents: read
     env:
       BASELINE: base
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
+      GUNGRAUN_RUNNER: gungraun-runner
     steps:
       - uses: actions/checkout@v6
         with:
@@ -68,15 +254,32 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Install iai-callgrind-runner
-        run: ./.github/scripts/install_iai_callgrind_runner.sh
+      - name: Install benchmark runner
+        run: |
+          package=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun" or .name == "iai-callgrind").name' | head -n1)
+          version=$(cargo metadata --format-version=1 | jq -r --arg package "$package" '.packages[] | select(.name == $package).version')
+          case "$package" in
+            gungraun) runner=gungraun-runner ;;
+            iai-callgrind) runner=iai-callgrind-runner ;;
+            *) echo "unknown benchmark runner package: $package" && exit 1 ;;
+          esac
+          cargo binstall "$runner" --version "$version" --no-confirm --no-symlinks --force
+          which "$runner"
       - name: Save baseline
-        run: cargo bench -p solar-bench --bench iai --features ci -- --save-baseline=$BASELINE
+        run: |
+          bench_target=$(cargo metadata --no-deps --format-version=1 | jq -r '.packages[] | select(.name == "solar-bench").targets[] | select(any(.kind[]; . == "bench") and (.name == "gungraun" or .name == "iai")).name' | head -n1)
+          cargo bench -p solar-bench --bench "$bench_target" --features ci -- --save-baseline=$BASELINE
+          if [ "$bench_target" = "iai" ] && [ -d target/iai ] && [ ! -e target/gungraun ]; then
+            mv target/iai target/gungraun
+          fi
       - name: Checkout PR
         uses: actions/checkout@v6
         with:
           clean: false
-      - name: Install iai-callgrind-runner
-        run: ./.github/scripts/install_iai_callgrind_runner.sh
+      - name: Install benchmark runner
+        run: |
+          version=$(cargo metadata --format-version=1 | jq -r '.packages[] | select(.name == "gungraun").version')
+          cargo binstall gungraun-runner --version "$version" --no-confirm --no-symlinks --force
+          which gungraun-runner
       - name: Compare PR benchmarks
-        run: cargo bench -p solar-bench --bench iai --features ci -- --baseline=$BASELINE
+        run: cargo bench -p solar-bench --bench gungraun --features ci -- --baseline=$BASELINE

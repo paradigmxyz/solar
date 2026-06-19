@@ -36,5 +36,11 @@ LL │         (uint256 x, uint256 y, uint256 z) = (a, b);
    │                                             │
    ╰╴                                            expected a tuple with 3 elements, found one with 2 elements
 
-error: aborting due to 6 previous errors
+error: incompatible conditional types
+   ╭▸ ROOT/tests/ui/typeck/implicit_tuple_conversions.sol:LL:CC
+   │
+LL │         cond ? (a, b) : (c, d);
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 7 previous errors
 

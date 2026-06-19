@@ -20,11 +20,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        rust: ["stable"]
         include:
           - os: "ubuntu-latest"
-            rust: "1.88" # MSRV
+            rust: "stable"
+          - os: "macos-latest"
+            rust: "stable"
+          - os: "windows-latest"
+            rust: "stable"
+          - os: "ubuntu-latest"
+            rust: "1.95" # MSRV
           - os: "ubuntu-latest"
             rust: "nightly"
     steps:
@@ -33,10 +37,36 @@ jobs:
           submodules: true
       - name: Checkout submodules
         run: git submodule update --checkout
+      - name: Install LLVM (apt)
+        if: matrix.os == 'ubuntu-latest'
+        run: .github/scripts/install_llvm.sh ubuntu
+      - name: Install LLVM (brew)
+        if: matrix.os == 'macos-latest'
+        run: .github/scripts/install_llvm.sh macos
+      - uses: msys2/setup-msys2@v2
+        if: matrix.os == 'windows-latest'
+        with:
+          msystem: MINGW64
+          update: true
+          install: mingw-w64-x86_64-llvm
+      - name: FileCheck
+        if: matrix.os == 'windows-latest'
+        shell: msys2 {0}
+        run: |
+          filecheck="$(command -v FileCheck)"
+          "$filecheck" --version
+          echo "FILECHECK=$(cygpath -w "$filecheck")" >> "$GITHUB_ENV"
+      - name: llvm-config
+        if: matrix.os != 'windows-latest'
+        run: llvm-config --version --bindir --libdir
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
       - uses: taiki-e/install-action@nextest
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
@@ -65,6 +95,24 @@ jobs:
           cache-on-failure: true
       - name: cargo hack
         run: cargo hack check --feature-powerset --depth 1
+
+  wasm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: build wasm
+        run: scripts/wasm/dist-wasm.sh
+      - name: test soljson
+        run: node crates/capi/tests/soljson.js
 
   typos:
     runs-on: ubuntu-latest
@@ -159,6 +207,7 @@ jobs:
     needs:
       - test
       - feature-checks
+      - wasm
       - typos
       - clippy
       - docs

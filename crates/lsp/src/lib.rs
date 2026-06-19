@@ -12,6 +12,7 @@ use async_lsp::{
     router::Router, server::LifecycleLayer, tracing::TracingLayer,
 };
 use lsp_types::{notification as notif, request as req};
+use serde_json as _;
 use tower::ServiceBuilder;
 
 use crate::global_state::GlobalState;

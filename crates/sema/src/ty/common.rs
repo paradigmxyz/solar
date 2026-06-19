@@ -1,5 +1,6 @@
-use super::{Interner, Ty, TyFlags, TyKind};
+use super::{Interner, Ty, TyKind};
 use solar_ast::{DataLocation, ElementaryType, TypeSize};
+use solar_interface::diagnostics::ErrorGuaranteed;
 
 /// Pre-interned types.
 pub struct CommonTypes<'gcx> {
@@ -27,6 +28,8 @@ pub struct CommonTypes<'gcx> {
     ints: [Ty<'gcx>; 32],
     uints: [Ty<'gcx>; 32],
     fbs: [Ty<'gcx>; 32],
+
+    pub(super) __err_do_not_use: Ty<'gcx>,
 }
 
 impl<'gcx> CommonTypes<'gcx> {
@@ -37,10 +40,7 @@ impl<'gcx> CommonTypes<'gcx> {
         use TyKind::*;
         use std::array::from_fn;
 
-        // NOTE: We need to skip calculating flags here because it would require `Gcx` when we
-        // haven't built one yet. This is fine since elementary types don't have any flags.
-        // If that ever changes, then this closure should also reflect that.
-        let mk = |kind| interner.intern_ty_with_flags(bump, kind, |_| TyFlags::empty());
+        let mk = |kind| interner.intern_ty(bump, kind);
         let mk_refs = |ty| EachDataLoc {
             storage: mk(Ref(ty, DataLocation::Storage)),
             transient: mk(Ref(ty, DataLocation::Transient)),
@@ -68,6 +68,8 @@ impl<'gcx> CommonTypes<'gcx> {
             ints: from_fn(|i| mk(Elementary(Int(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
             uints: from_fn(|i| mk(Elementary(UInt(TypeSize::new_int_bits((i as u16 + 1) * 8))))),
             fbs: from_fn(|i| mk(Elementary(FixedBytes(TypeSize::new_fb_bytes(i as u8 + 1))))),
+
+            __err_do_not_use: mk(Err(ErrorGuaranteed::new_unchecked())),
         }
     }
 

@@ -1,0 +1,25 @@
+// === ROOT/tests/ui/codegen/mir/frame_promotion_dead_merge.mir (after frame-slot-promotion) ===
+; module @FramePromotionDeadMerge
+fn @dead_merge(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    br arg1, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v2 = internal_frame_addr 128
+    jump bb4
+  bb4:
+    v12 = phi [bb3: 0], [bb5: v8]
+    v4 = internal_frame_addr 128
+    v6 = lt v12, arg0
+    br v6, bb5, bb6
+  bb5:
+    v8 = add v12, 1
+    v9 = internal_frame_addr 128
+    jump bb4
+  bb6:
+    v10 = internal_frame_addr 128
+    ret v12
+}

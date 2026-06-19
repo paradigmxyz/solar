@@ -1,0 +1,8 @@
+error: named argument `self` does not match function declaration
+   ╭▸ ROOT/tests/ui/using-for/overloads/library_member_overloads.sol:LL:CC
+   │
+LL │         x.pair({self: 1, x: 2});
+   ╰╴                ━━━━
+
+error: aborting due to 1 previous error
+

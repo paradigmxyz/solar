@@ -1,0 +1,36 @@
+error: only file-level functions and library functions can be attached to a type in a `using` statement
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ using {C.add as +} for U global;
+   ╰╴       ━━━━━
+
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ using {C.add as +} for U global;
+   │        ━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ ┏     function add(U a, U b) public pure returns (U) {
+LL │ ┃         return U.wrap(U.unwrap(a) + U.unwrap(b));
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ using {L.add as -} for U global;
+   │        ━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ ┏     function add(U a, U b) internal pure returns (U) {
+LL │ ┃         return U.wrap(U.unwrap(a) + U.unwrap(b));
+LL │ ┃     }
+   ╰╴┗━━━━━┛
+
+error: aborting due to 3 previous errors
+

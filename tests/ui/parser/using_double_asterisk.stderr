@@ -1,0 +1,8 @@
+error: expected identifier, found `*`
+   ╭▸ ROOT/tests/ui/parser/using_double_asterisk.sol:LL:CC
+   │
+LL │ using * for *;
+   ╰╴      ━
+
+error: aborting due to 1 previous error
+

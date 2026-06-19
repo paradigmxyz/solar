@@ -1,0 +1,38 @@
+error: builtin function `chainid` must be called
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             id := chainid
+   ╰╴                  ━━━━━━━
+
+error: builtin function `caller` must be called
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             a := caller
+   ╰╴                 ━━━━━━
+
+error: builtin function `gas` must be called
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             g := gas
+   ╰╴                 ━━━
+
+error: unresolved symbol `chainid`
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             id := chainid
+   ╰╴                  ━━━━━━━
+
+error: unresolved symbol `caller`
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             a := caller
+   ╰╴                 ━━━━━━
+
+error: unresolved symbol `gas`
+   ╭▸ ROOT/tests/ui/parser/yul/bare_evm_builtin.sol:LL:CC
+   │
+LL │             g := gas
+   ╰╴                 ━━━
+
+error: aborting due to 6 previous errors
+

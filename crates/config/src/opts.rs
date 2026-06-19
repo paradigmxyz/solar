@@ -2,7 +2,7 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, Threads,
+    ImportRemapping, Language, OptimizationMode, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -13,12 +13,20 @@ use clap::{Parser, ValueHint};
 
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "clap", derive(Parser))]
-#[cfg_attr(feature = "clap", command(name = "solar"))]
+#[cfg_attr(feature = "clap", command(
+    name = "solar",
+    version = crate::version::short_version(),
+    long_version = crate::version::version(),
+    arg_required_else_help = true,
+))]
 #[allow(clippy::manual_non_exhaustive)]
 pub struct Opts {
     /// Files to compile, or import remappings.
     ///
     /// `-` specifies standard input.
+    ///
+    /// In Standard JSON mode, no input or `-` reads from standard input; otherwise, exactly one
+    /// input file may be specified.
     ///
     /// Import remappings are specified as `[context:]prefix=path`.
     /// See <https://docs.soliditylang.org/en/latest/path-resolution.html#import-remapping>.
@@ -86,6 +94,9 @@ pub struct Opts {
     /// Stop execution after the given compiler stage.
     #[cfg_attr(feature = "clap", arg(long, value_enum))]
     pub stop_after: Option<CompilerStage>,
+    /// MIR optimization objective.
+    #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
+    pub optimization: OptimizationMode,
 
     /// Directory to write output files.
     #[cfg_attr(feature = "clap", arg(long, value_hint = ValueHint::DirPath))]
@@ -93,6 +104,10 @@ pub struct Opts {
     /// Comma separated list of types of output for the compiler to emit.
     #[cfg_attr(feature = "clap", arg(long, value_delimiter = ','))]
     pub emit: Vec<CompilerOutput>,
+
+    /// Switch to Standard JSON input/output mode.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub standard_json: bool,
 
     /// Coloring.
     #[cfg_attr(
@@ -138,6 +153,12 @@ pub struct Opts {
     /// Whether to disable warnings.
     #[cfg_attr(feature = "clap", arg(help_heading = "Display options", long))]
     pub no_warnings: bool,
+    /// Comma separated list of diagnostic codes to allow.
+    #[cfg_attr(
+        feature = "clap",
+        arg(help_heading = "Display options", long, value_name = "CODE", value_delimiter = ',')
+    )]
+    pub allow: Vec<String>,
 
     /// Unstable flags. WARNING: these are completely unstable, and may change at any time.
     ///
@@ -157,6 +178,12 @@ pub struct Opts {
 }
 
 impl Opts {
+    /// Returns whether MIR optimization passes should run during codegen.
+    #[inline]
+    pub const fn optimize_mir(&self) -> bool {
+        !matches!(self.optimization, OptimizationMode::None)
+    }
+
     /// Returns the number of threads to use.
     #[inline]
     pub fn threads(&self) -> NonZeroUsize {
@@ -166,6 +193,23 @@ impl Opts {
     /// Finishes argument parsing.
     #[cfg(feature = "clap")]
     pub fn finish(&mut self) -> Result<(), clap::Error> {
+        if self.standard_json {
+            if self.input.iter().any(|s| s.contains('=')) {
+                return Err(make_clap_error(
+                    clap::error::ErrorKind::InvalidValue,
+                    "Import remappings are not accepted on the command line in Standard JSON mode.\n\
+                     Please put them under 'settings.remappings' in the JSON input.",
+                ));
+            }
+            if self.input.len() > 1 {
+                return Err(make_clap_error(
+                    clap::error::ErrorKind::TooManyValues,
+                    "Too many input files for --standard-json.\n\
+                     Please either specify a single file name or provide its content on standard input.",
+                ));
+            }
+        }
+
         self.import_remappings = self
             .input
             .iter()
@@ -282,6 +326,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
 
+    /// Print Standard JSON input stats.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub standard_json_stats: bool,
+
     /// Run the span visitor after parsing.
     #[cfg_attr(feature = "clap", arg(long))]
     pub span_visitor: bool,
@@ -290,9 +338,25 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_max_storage_sizes: bool,
 
+    /// Print resolved NatSpec docs as diagnostics for UI tests.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub print_natspec: bool,
+
     /// Type check the program. WIP.
     #[cfg_attr(feature = "clap", arg(long))]
     pub typeck: bool,
+
+    /// Print MIR after every MIR optimization pass during codegen.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub mir_print_after_each: bool,
+
+    /// Enable the experimental EVM code generator (MIR lowering and backend).
+    ///
+    /// Off by default: MIR and bytecode output is only produced when this is
+    /// set. Codegen is a work in progress and not yet part of the compiler's
+    /// stable, solc-compatible behavior.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub codegen: bool,
 
     // ----------------------------------------
     // Please add new options above this point!
@@ -329,6 +393,45 @@ mod tests {
         UnstableOpts::command().debug_assert();
         let _ = UnstableOpts::default();
         let _ = UnstableOpts { ast_stats: false, ..Default::default() };
+    }
+
+    #[test]
+    fn allow() {
+        let mut opts = Opts::try_parse_from(["solar", "--allow", "1234,5678", "a.sol"]).unwrap();
+        opts.finish().unwrap();
+
+        assert_eq!(opts.allow, ["1234", "5678"]);
+    }
+
+    #[test]
+    fn standard_json_input() {
+        let mut opts = Opts::try_parse_from(["solar", "--standard-json"]).unwrap();
+        opts.finish().unwrap();
+        assert!(opts.input.is_empty());
+
+        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "-"]).unwrap();
+        opts.finish().unwrap();
+        assert_eq!(opts.input, ["-"]);
+
+        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "input.json"]).unwrap();
+        opts.finish().unwrap();
+        assert_eq!(opts.input, ["input.json"]);
+    }
+
+    #[test]
+    fn standard_json_rejects_multiple_inputs() {
+        let mut opts =
+            Opts::try_parse_from(["solar", "--standard-json", "input1.json", "input2.json"])
+                .unwrap();
+        let error = opts.finish().unwrap_err().render().ansi().to_string();
+        assert!(error.contains("Too many input files for --standard-json."));
+    }
+
+    #[test]
+    fn standard_json_rejects_remappings() {
+        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "a=b"]).unwrap();
+        let error = opts.finish().unwrap_err().render().ansi().to_string();
+        assert!(error.contains("Import remappings are not accepted on the command line"));
     }
 
     #[test]

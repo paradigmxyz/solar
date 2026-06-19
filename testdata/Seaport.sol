@@ -9077,7 +9077,7 @@ contract ConsiderationEncoder {
      *
      * @param src A memory pointer referencing the bytes array to be copied (and
      *            pointing to the length of the bytes array).
-     * @param src A memory pointer referencing the location in memory to copy
+     * @param dst A memory pointer referencing the location in memory to copy
      *            the bytes array to (and pointing to the length of the copied
      *            bytes array).
      *
@@ -11077,7 +11077,7 @@ contract CriteriaResolution is CriteriaResolutionErrors {
      *      all necessary criteria items have been resolved for an order.
      *
      * @param inFn  The function that accepts consideration items.
-     * @param outFn The function that accepts offer items.
+     * @return outFn The function that accepts offer items.
      */
     function _toOfferItemArgumentType(
         function(uint256, ConsiderationItem[] memory, OrderType, uint256)

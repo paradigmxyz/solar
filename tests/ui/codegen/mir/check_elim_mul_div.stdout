@@ -1,0 +1,32 @@
+// === ROOT/tests/ui/codegen/mir/check_elim_mul_div.mir (after check-elim) ===
+; module @CheckElimMulDiv
+fn @fold_mul_check_with_bound(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = lt arg0, 100
+    br v2, bb1, bb2
+  bb1:
+    v4 = mul arg0, 3
+    v6 = div v4, 3
+    v7 = eq v6, arg0
+    v8 = iszero v7
+    jump bb4
+  bb2:
+    ret 0
+  bb3:
+    revert 0, 0
+  bb4:
+    ret v4
+}
+
+fn @keep_mul_check_without_bound(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = mul arg0, 3
+    v4 = div v2, 3
+    v5 = eq v4, arg0
+    v6 = iszero v5
+    br v6, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    ret v2
+}

@@ -1,0 +1,12 @@
+warning[6546]: invalid natspec tag '@invalid', custom tags must use format '@custom:name'
+   ╭▸ ROOT/tests/ui/natspec/tag_syntax.sol:LL:CC
+   │
+LL │ /// @invalid This is not a valid tag
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+warning[6546]: invalid natspec tag '@customwrong', custom tags must use format '@custom:name'
+   ╭▸ ROOT/tests/ui/natspec/tag_syntax.sol:LL:CC
+   │
+LL │ /// @customwrong Should use colon format
+   ╰╴━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+

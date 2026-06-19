@@ -19,17 +19,29 @@ error: failed to evaluate constant: attempted to divide by zero
 LL │     function a2(uint[x / zeroPublic] memory) public {}
    ╰╴                     ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: arithmetic overflow
+error: array length cannot be negative
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function d(uint[0 - 1] memory) public {}
-   ╰╴                    ━━━━━ evaluation of constant value failed here
+   ╰╴                    ━━━━━
+
+error: array length cannot be negative
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d2(uint[zeroPublic - 1] memory) public {}
+   ╰╴                     ━━━━━━━━━━━━━━
 
 error: failed to evaluate constant: arithmetic overflow
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
-LL │     function d2(uint[zeroPublic - 1] memory) public {}
-   ╰╴                     ━━━━━━━━━━━━━━ evaluation of constant value failed here
+LL │     function d3(uint[2 ** 4294967295] memory) public {}
+   ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
+
+error: failed to evaluate constant: arithmetic overflow
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d4(uint[1 << 4294967295] memory) public {}
+   ╰╴                     ━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
 error: failed to evaluate constant: recursion limit reached
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -97,11 +109,11 @@ error: failed to evaluate constant: only constant variables are allowed
 LL │     function m(uint[stateVarPublic] memory) public {}
    ╰╴                    ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: failed to evaluate constant: unsupported expression
+error: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
    │
 LL │     function tern(uint[(zero > 0) ? 1 : 0] memory) public {}
-   ╰╴                       ━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
+   ╰╴                       ━━━━━━━━━━━━━━━━━━
 
 error: array length must be greater than zero
    ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
@@ -115,5 +127,5 @@ error: failed to evaluate constant: arithmetic overflow
 LL │     uint[bigLiteral + 1] public tooBig1;
    ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: aborting due to 18 previous errors
+error: aborting due to 20 previous errors
 

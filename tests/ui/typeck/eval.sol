@@ -25,8 +25,10 @@ contract C {
     function a2(uint[x / zeroPublic] memory) public {} //~ ERROR: failed to evaluate constant: attempted to divide by zero
     function b(uint[x] memory) public {}
     function c(uint[x * 2] memory) public {}
-    function d(uint[0 - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
-    function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
+    function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: array length cannot be negative
+    function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
+    function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function e(uint[rec1] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
     function f(uint[rec2] memory) public {} //~ ERROR: failed to evaluate constant: recursion limit reached
 
@@ -40,5 +42,5 @@ contract C {
     function l(uint[stateVar] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
     function m(uint[stateVarPublic] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
 
-    function tern(uint[(zero > 0) ? 1 : 0] memory) public {} //~ ERROR: failed to evaluate constant: unsupported expression
+    function tern(uint[(zero > 0) ? 1 : 0] memory) public {} //~ ERROR: array length must be greater than zero
 }

@@ -6,18 +6,23 @@ Guidance for AI coding agents working in this repository.
 
 Solar is a blazingly fast, modular Solidity compiler written in Rust, aiming to be a modern alternative to solc.
 
+For testing and comparing behavior and semantics, the current tracked solc version (usually the latest stable release) is always available as a submodule `./testdata/solidity`.
+
 ## Commands
 
 ```bash
-cargo build                                      # Build
-cargo nextest run --workspace                    # Run tests (faster than cargo test)
-cargo uitest                                     # Run UI tests
-cargo uibless                                    # Update UI test expectations
-cargo +nightly fmt --all                         # Format (CI uses nightly)
-cargo clippy --workspace --all-targets           # Lint
-cargo run -- file.sol                            # Run compiler
-cargo run -- -Zhelp                              # Unstable flags help
+cargo build                            # Build
+cargo nextest run --workspace          # Run tests (faster than cargo test)
+cargo llvm-cov nextest --workspace     # Test coverage
+cargo uitest                           # Run UI tests
+cargo uibless                          # Update UI test expectations
+cargo fmt --all                        # Format
+cargo clippy --workspace --all-targets # Lint
+cargo run -- file.sol                  # Run compiler
+cargo run -- -Zhelp                    # Unstable flags help
 ```
+
+DO NOT USE `cargo test` DIRECTLY IF YOU CAN AVOID IT.
 
 ## Architecture
 
@@ -44,12 +49,30 @@ fn visit_expr(&mut self, expr: &'ast Expr) -> ControlFlow<Self::BreakValue> {
 
 - **Unit tests**: In source files
 - **UI tests**: In `tests/ui/`, verify compiler output
-- Auxiliary files go in `auxiliary/` subdirectory
+- Prefer UI tests over unit tests for end-to-end Solidity behavior, especially
+  diagnostics, semantic analysis, and compiler-output checks.
+- For Rust tests that assert formatted output, use `snapbox` snapshots instead
+  of scattered `text.contains(...)` assertions.
+- Auxiliary files go in an `auxiliary/` subdirectory next to the UI test that needs
+  imports or secondary source files. Do not use `aux/`: Windows rejects it.
+
+### Codegen / MIR Pass Tests
+
+- Prefer UI tests for MIR/codegen behavior. Put MIR pass tests under
+  `tests/ui/codegen/mir/` and codegen lowering tests under `tests/ui/codegen/`.
+- Do not add Rust unit tests that execute whole optimization passes; they make
+  pass APIs harder to refactor. Use unit tests only for small pure helpers.
+- Validate pass output with MIR snapshots or FileCheck-style UI expectations,
+  then add runtime or differential tests when behavior can affect bytecode
+  execution.
+- Keep pass adapters small and colocated with the transform implementation. The
+  central pass manager should only coordinate pass names, pipelines, and
+  `dyn ModulePass` execution.
 
 ### UI Test Annotations
 
 ```solidity
-//@compile-flags: --emit=abi
+//@ compile-flags: --emit=abi
 contract Test {
     uint x; //~ ERROR: message here
     //~^ NOTE: note about previous line
@@ -59,6 +82,33 @@ contract Test {
 Annotations: `//~ ERROR:`, `//~ WARN:`, `//~ NOTE:`, `//~ HELP:`
 Use `^` or `v` to point to lines above/below.
 
+Common file-level UI directives:
+
+- `//@ compile-flags: ...`: Pass extra compiler flags for this test.
+- `//@ error-in-other-file: ...`: Expect a diagnostic with this text in an
+  imported/auxiliary source.
+- `//@ check-fail`: Mark the test as expected to fail even if no inline
+  diagnostic annotation appears in the primary file.
+- `//@ ignore-host: windows`: Skip a test on a specific host.
+- `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
+  multiple revisions.
+
+### Porting Tests from Solc
+
+Always look at the corresponding Solc test when porting behavior. Solc is always
+available in `./testdata/solidity`. Solc tests may embed multiple source files in
+one `.sol` file with `==== Source: ... ====` annotations. When porting those
+tests, split the secondary sources into the UI test's `auxiliary/` directory and
+update imports accordingly.
+
+Add attribution using:
+`// ported-from: test/libsolidity/.../name.sol`. Use one line per upstream file.
+Do not add a full stop or other trailing punctuation after the path.
+Place these after initial UI metadata directives such as `//@ compile-flags`,
+`//@ error-in-other-file`, and `//@ check-fail`; if the file has no UI metadata,
+put the attribution at the top.
+Only add attribution if you're actually porting the semantics of the test 1-1 from Solc, not just "covering the error message". Renames are OK.
+
 ## Diagnostics Style
 
 Error messages should follow these conventions:
@@ -66,6 +116,8 @@ Error messages should follow these conventions:
 - **No full stops**: Error messages should not end with periods
 - **Use backticks for code**: Use `` `identifier` `` instead of `"identifier"` for code references
 - **Main message is concise**: Keep the primary error message short and direct
+- **Propagate guarantees**: Code paths that emit diagnostics should return `Result<(), ErrorGuaranteed>` instead of `bool` where practical, and pass the emitted guarantee to `mk_ty_err` when producing an error type
+- **Avoid unchecked guarantees**: Do not use `ErrorGuaranteed::new_unchecked()` when a real emitted diagnostic guarantee can be propagated
 - **Use subdiagnostics**: Add context via `note`, `help`, and `span_note`:
   - `note`: Additional context about why the error occurred
   - `help`: Actionable suggestion for how to fix the error
@@ -87,3 +139,6 @@ self.dcx()
 - **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to `crates/macros/src/symbols.rs`.
 - **Arena allocation**: AST nodes use arenas for performance.
 - **Benchmarks**: See @benches/README.md to benchmark when working on performance-critical code.
+- Do not describe Solar in the third person. This repository is the project:
+  say "we", "this codebase", or "the compiler" instead of "Solar does",
+  "Solar is", or "Solar supports".

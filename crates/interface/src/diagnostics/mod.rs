@@ -20,12 +20,12 @@ mod context;
 pub use context::{DiagCtxt, DiagCtxtFlags};
 
 mod emitter;
-#[cfg(feature = "json")]
-pub use emitter::JsonEmitter;
 pub use emitter::{
     DynEmitter, Emitter, HumanBufferEmitter, HumanEmitter, InMemoryEmitter, LocalEmitter,
     SilentEmitter,
 };
+#[cfg(feature = "json")]
+pub use emitter::{JsonEmitter, Severity, SolcDiagnostic, SourceLocation};
 
 mod message;
 pub use message::{DiagMsg, MultiSpan, SpanLabel};
@@ -123,9 +123,9 @@ impl DiagId {
         Self { s: Cow::Owned(format!("{id:04}")) }
     }
 
-    /// Returns the string representation of the diagnostic ID.
-    pub fn as_string(&self) -> String {
-        self.s.to_string()
+    /// Returns the diagnostic ID as a string slice.
+    pub fn as_str(&self) -> &str {
+        &self.s
     }
 }
 
@@ -714,9 +714,9 @@ impl Diag {
         self.level
     }
 
-    /// Returns the code of this diagnostic as a string.
-    pub fn id(&self) -> Option<String> {
-        self.code.as_ref().map(|code| code.as_string())
+    /// Returns the code of this diagnostic as a string slice.
+    pub fn id(&self) -> Option<&str> {
+        self.code.as_ref().map(|code| code.as_str())
     }
 
     /// Fields used for `PartialEq` and `Hash` implementations.
@@ -1046,7 +1046,9 @@ fn write_fmt(output: &mut String, msg: &DiagMsg, style: &Style, level: Level) {
 mod tests {
     use super::*;
     use crate::{BytePos, ColorChoice, Span, source_map};
-    use snapbox::{IntoData, assert_data_eq, str};
+    #[cfg(feature = "json")]
+    use snapbox::IntoData as _;
+    use snapbox::{assert_data_eq, str};
 
     #[test]
     fn test_styled_messages() {
@@ -1096,6 +1098,51 @@ note: mutable variables should use mixedCase
 
 "#]]
         );
+    }
+
+    #[test]
+    fn test_emit_diagnostic_ref_preserves_inline_suggestion() {
+        let (var_span, var_sugg) = (Span::new(BytePos(66), BytePos(72)), "myVar");
+        let mut diag = Diag::new(Level::Note, "mutable variables should use mixedCase");
+        diag.span(var_span).span_suggestion(
+            var_span,
+            "mutable variables should use mixedCase",
+            var_sugg,
+            Applicability::MachineApplicable,
+        );
+
+        let sm = std::sync::Arc::new(source_map::SourceMap::empty());
+        sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
+        let mut emitter = HumanBufferEmitter::new(ColorChoice::Never).source_map(Some(sm));
+        emitter.emit_diagnostic_ref(&diag);
+
+        assert_eq!(diag.suggestions.len(), 1);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+    }
+
+    #[test]
+    fn test_allowed_diagnostic_code_suppresses_warning() {
+        let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
+            .with_allowed_diagnostic_codes(["1234".to_string()]);
+
+        dcx.warn("suppressed warning").code(crate::error_code!(1234)).emit();
+        dcx.warn("emitted warning").code(crate::error_code!(5678)).emit();
+
+        let diagnostics = dcx.emitted_diagnostics().unwrap().to_string();
+        assert_eq!(dcx.warn_count(), 1);
+        assert!(diagnostics.contains("emitted warning"));
+        assert!(!diagnostics.contains("suppressed warning"));
+    }
+
+    #[test]
+    fn test_allowed_diagnostic_code_does_not_suppress_error() {
+        let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
+            .with_allowed_diagnostic_codes(["1234".to_string()]);
+
+        let _ = dcx.err("emitted error").code(crate::error_code!(1234)).emit();
+
+        assert!(dcx.has_errors().is_err());
+        assert!(dcx.emitted_diagnostics().unwrap().to_string().contains("emitted error"));
     }
 
     #[test]
@@ -1286,7 +1333,7 @@ help: consider changing visibility and mutability
     }
   ]
 }
-"#]].is(snapbox::data::DataFormat::Json)
+"#]].is_json()
         );
     }
 
@@ -1406,7 +1453,7 @@ help: consider changing visibility and mutability
     }
   ]
 }
-"#]].is(snapbox::data::DataFormat::Json)
+"#]].is_json()
         );
     }
 

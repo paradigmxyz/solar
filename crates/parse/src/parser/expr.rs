@@ -4,7 +4,7 @@ use solar_ast::{token::*, *};
 
 use solar_interface::kw;
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses an expression.
     #[inline]
     pub fn parse_expr(&mut self) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
@@ -49,10 +49,10 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         while precedence >= min_precedence {
             while token_precedence(self.token) == precedence {
                 // Parse a**b**c as a**(b**c)
-                let next_precedence = if self.token.kind == TokenKind::BinOp(BinOpToken::Star) {
-                    precedence + 1
-                } else {
+                let next_precedence = if self.token.kind == TokenKind::StarStar {
                     precedence
+                } else {
+                    precedence + 1
                 };
 
                 let token = self.token;
@@ -85,7 +85,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         with: Option<Box<'ast, Expr<'ast>>>,
     ) -> PResult<'sess, Box<'ast, Expr<'ast>>> {
         if with.is_none() && self.eat(TokenKind::BinOp(BinOpToken::Plus)) {
-            self.dcx().err("unary plus is not supported").span(self.prev_token.span).emit();
+            self.dcx().emit_err(self.prev_token.span, "unary plus is not supported");
         }
 
         let lo = with.as_ref().map(|e| e.span).unwrap_or(self.token.span);
@@ -186,7 +186,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
                 && *payable
             {
                 let msg = "`address payable` cannot be used in an expression";
-                self.dcx().err(msg).span(ty.span).emit();
+                self.dcx().emit_err(ty.span, msg);
                 *payable = false;
             }
             ExprKind::Type(ty)

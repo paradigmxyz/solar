@@ -1,0 +1,21 @@
+error[9456]: overriding function is missing `override` specifier
+   ╭▸ ROOT/tests/ui/overrides/interface_and_base_override_err.sol:LL:CC
+   │
+LL │     function foo() public view {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overridden function is here
+   ╭▸ ROOT/tests/ui/overrides/interface_and_base_override_err.sol:LL:CC
+   │
+LL │     function foo() public virtual view {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: add `override` to the function signature
+
+error[4327]: Function needs to specify overridden contracts `IBase` and `Base`
+   ╭▸ ROOT/tests/ui/overrides/interface_and_base_override_err.sol:LL:CC
+   │
+LL │     function foo() public view {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

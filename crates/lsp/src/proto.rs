@@ -48,7 +48,7 @@ pub(crate) fn diagnostic(
         lsp_types::Diagnostic {
             range,
             severity: Some(severity(diag.level())),
-            code: diag.code.as_ref().map(|id| NumberOrString::String(id.as_string())),
+            code: diag.code.as_ref().map(|id| NumberOrString::String(id.as_str().to_owned())),
             code_description: None,
             source: Some("solar".into()),
             message: diag.label().into_owned(),

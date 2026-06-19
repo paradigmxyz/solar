@@ -1,0 +1,39 @@
+// === ROOT/tests/ui/codegen/mir/cse_staticcall_environment.mir (after cse) ===
+; module @CseStaticcallEnvironment
+fn @reuse_account_reads_across_staticcall(arg0: address) -> u256 {
+  bb0 (entry):
+    v1 = balance arg0
+    v2 = extcodesize arg0
+    v3 = extcodehash arg0
+    v4 = selfbalance
+    v10 = staticcall 0x186a0, arg0, 0, 0, 0, 0
+    v15 = add v1, v1
+    v16 = add v2, v2
+    v17 = add v3, v3
+    v18 = add v4, v4
+    v19 = add v15, v16
+    v20 = add v17, v18
+    v21 = add v19, v20
+    v22 = add v21, v10
+    ret v22
+}
+
+fn @keep_memory_reads_across_staticcall(arg0: address) -> u256 {
+  bb0 (entry):
+    v2 = mload 128
+    v8 = staticcall 0x186a0, arg0, 0, 0, 128, 32
+    v10 = mload 128
+    v11 = add v2, v10
+    v12 = add v11, v8
+    ret v12
+}
+
+fn @keep_account_reads_across_call(arg0: address) -> u256 {
+  bb0 (entry):
+    v1 = balance arg0
+    v8 = call 0x186a0, arg0, 0, 0, 0, 0, 0
+    v9 = balance arg0
+    v10 = add v1, v9
+    v11 = add v10, v8
+    ret v11
+}

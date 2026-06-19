@@ -37,6 +37,8 @@ pub(crate) fn lower(mut gcx: GcxMut<'_>) {
     let mut rcx = resolve::ResolveContext::new(lcx);
     // Resolve declarations and top-level symbols, and finish lowering to HIR.
     rcx.resolve_symbols();
+    // Resolve `using for` directives after all functions and types are available.
+    rcx.resolve_using_directives();
     // Resolve constructor base args.
     rcx.resolve_base_args();
     let mut lcx = rcx.lcx;
@@ -56,6 +58,7 @@ struct LoweringContext<'gcx> {
     sources: &'gcx Sources<'gcx>,
     /// Mapping from Hir ItemId to AST Item. Does not include function parameters or bodies.
     hir_to_ast: FxHashMap<hir::ItemId, &'gcx ast::Item<'gcx>>,
+    yul_functions: FxHashMap<usize, hir::FunctionId>,
 
     /// Current source being lowered.
     current_source_id: hir::SourceId,
@@ -76,6 +79,7 @@ impl<'gcx> LoweringContext<'gcx> {
             current_source_id: hir::SourceId::MAX,
             current_contract_id: None,
             hir_to_ast: FxHashMap::default(),
+            yul_functions: FxHashMap::default(),
             resolver: SymbolResolver::new(&gcx.sess.dcx),
             next_id: IdCounter::new(),
         }
@@ -100,6 +104,10 @@ impl<'gcx> LoweringContext<'gcx> {
             (this.hir, this.resolver)
         }
     }
+}
+
+fn yul_function_key(function: &ast::yul::Function<'_>) -> usize {
+    function as *const _ as usize
 }
 
 #[inline]

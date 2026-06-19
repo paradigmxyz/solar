@@ -1,0 +1,14 @@
+error: event invocations have to be prefixed by `emit`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/revert_event.sol:LL:CC
+   │
+LL │         revert EmptyEvent();
+   ╰╴        ━━━━━━━━━━━━━━━━━━━━
+
+error: expression has to be an error
+   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/revert_event.sol:LL:CC
+   │
+LL │         revert EmptyEvent();
+   ╰╴               ━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

@@ -7,7 +7,7 @@ use solar_ast::{token::*, *};
 use solar_interface::{ByteSymbol, Session, Symbol, diagnostics::ErrorGuaranteed, kw};
 use std::{borrow::Cow, fmt};
 
-impl<'sess, 'ast> Parser<'sess, 'ast> {
+impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a literal with an optional subdenomination.
     ///
     /// Note that the subdenomination gets applied to the literal directly, and is returned just for
@@ -54,7 +54,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
     pub(super) fn expect_no_subdenomination(&mut self) {
         if let Some(_sub) = self.parse_subdenomination() {
             let span = self.prev_token.span;
-            self.dcx().err("subdenominations aren't allowed here").span(span).emit();
+            self.dcx().emit_err(span, "subdenominations aren't allowed here");
         }
     }
 
@@ -99,7 +99,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         if slot.is_some() {
             *slot = None;
             let msg = "sub-denominations are only allowed on number and rational literals";
-            self.dcx().err(msg).span(span).emit();
+            self.dcx().emit_err(span, msg);
         }
     }
 

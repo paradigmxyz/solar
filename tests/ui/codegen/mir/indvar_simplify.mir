@@ -1,0 +1,52 @@
+//@compile-flags: --pass indvar-simplify
+; module @IndVarSimplify
+fn @strength_reduce_shifted_address(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v6]
+    v2 = lt v1, 4
+    br v2, bb2, bb3
+  bb2:
+    v3 = shl 5, v1
+    v4 = add arg0, v3
+    mstore v4, v1
+    v6 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
+}
+
+fn @strength_reduce_scaled_address_with_offset(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v7]
+    v2 = lt v1, 4
+    br v2, bb2, bb3
+  bb2:
+    v3 = mul v1, 32
+    v4 = add arg0, v3
+    v5 = add v4, 4
+    mstore v5, v1
+    v7 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
+}
+
+fn @strength_reduce_scale_one_address(arg0: u256) -> u256 {
+  bb0 (entry):
+    jump bb1
+  bb1:
+    v1 = phi [bb0: 0], [bb2: v5]
+    v2 = lt v1, 4
+    br v2, bb2, bb3
+  bb2:
+    v3 = add arg0, v1
+    mstore8 v3, v1
+    v5 = add v1, 1
+    jump bb1
+  bb3:
+    ret 0
+}

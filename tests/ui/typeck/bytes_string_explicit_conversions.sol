@@ -1,6 +1,16 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract BytesStringTests {
+    // Valid: string literal -> bytes memory.
+    function testStringLiteralToBytes() public pure returns (bytes memory) {
+        return bytes("abc");
+    }
+
+    // Valid: string literal -> string memory.
+    function testStringLiteralToString() public pure returns (string memory) {
+        return string("abc");
+    }
+
     // Valid: string memory -> bytes memory (via unlocated cast).
     function testStringToBytes(string memory s) public pure returns (bytes memory) {
         return bytes(s);

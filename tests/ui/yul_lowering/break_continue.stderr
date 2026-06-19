@@ -1,0 +1,26 @@
+error: `break` outside of a loop
+   ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
+   │
+LL │             break
+   ╰╴            ━━━━━
+
+error: `continue` outside of a loop
+   ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
+   │
+LL │             continue
+   ╰╴            ━━━━━━━━
+
+error: `break` outside of a loop
+   ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
+   │
+LL │                     break
+   ╰╴                    ━━━━━
+
+error: `continue` outside of a loop
+   ╭▸ ROOT/tests/ui/yul_lowering/break_continue.sol:LL:CC
+   │
+LL │                     continue
+   ╰╴                    ━━━━━━━━
+
+error: aborting due to 4 previous errors
+

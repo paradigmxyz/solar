@@ -1,0 +1,6 @@
+// === ROOT/tests/ui/codegen/mir/dce_chain.mir (after dce) ===
+; module @DceChain
+fn @chain(arg0: u256) -> u256 {
+  bb0 (entry):
+    ret arg0
+}

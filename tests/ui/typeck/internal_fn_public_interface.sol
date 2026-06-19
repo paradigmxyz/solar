@@ -1,4 +1,4 @@
-//@compile-flags: -Ztypeck
+//@ compile-flags: -Ztypeck
 
 contract C {
     // Internal function type as public state variable - should error.

@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/mir/cse_non_commutative.mir (after cse) ===
+; module @CseNonCommutative
+fn @non_commutative(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = sub arg0, arg1
+    v3 = sub arg1, arg0
+    v4 = add v2, v3
+    ret v4
+}

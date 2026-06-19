@@ -1,0 +1,85 @@
+//@compile-flags: --pass load-pre
+// Kill behavior: a may-aliasing sstore or a call in an arm blocks reuse across
+// that edge; staticcall preserves storage so the join reload reuses the
+// dominating load directly; a clobbering diamond arm may be compensated, but
+// the inserted load must stay after the clobber; gas() above the join load
+// blocks the rewrite in all spaces.
+; module @LoadPreClobbers
+fn @kill_blocks_reuse(arg0: bool, arg1: u256) -> u256 {
+  bb0 (entry):
+    v1 = sload 5
+    br arg0, bb1, bb2
+  bb1:
+    sstore arg1, 7
+    br arg0, bb3, bb4
+  bb2:
+    jump bb3
+  bb3:
+    v2 = sload 5
+    ret v2
+  bb4:
+    ret v1
+}
+
+fn @call_kills_storage(arg0: bool, arg1: address) -> u256 {
+  bb0 (entry):
+    v1 = sload 5
+    br arg0, bb1, bb2
+  bb1:
+    v2 = call 100000, arg1, 0, 0, 0, 0, 0
+    br arg0, bb3, bb4
+  bb2:
+    jump bb3
+  bb3:
+    v3 = sload 5
+    ret v3
+  bb4:
+    ret v1
+}
+
+fn @staticcall_preserves_storage(arg0: bool, arg1: address) -> u256 {
+  bb0 (entry):
+    v1 = sload 5
+    br arg0, bb1, bb2
+  bb1:
+    v2 = staticcall 100000, arg1, 0, 0, 0, 0
+    br arg0, bb3, bb4
+  bb2:
+    jump bb3
+  bb3:
+    v3 = sload 5
+    ret v3
+  bb4:
+    ret v1
+}
+
+fn @clobbered_arm_reload_after_store(arg0: bool, arg1: u256) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    v1 = sload 5
+    sstore arg1, 7
+    jump bb3
+  bb2:
+    v2 = sload 5
+    jump bb3
+  bb3:
+    v3 = sload 5
+    ret v3
+}
+
+fn @gas_blocks_rewrite(arg0: bool) -> u256 {
+  bb0 (entry):
+    br arg0, bb1, bb2
+  bb1:
+    v1 = sload 5
+    jump bb3
+  bb2:
+    v2 = sload 5
+    jump bb3
+  bb3:
+    v3 = gas
+    v4 = sload 5
+    v5 = add v3, v4
+    ret v5
+}

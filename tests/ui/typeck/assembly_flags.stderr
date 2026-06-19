@@ -4,7 +4,7 @@ error: inline assembly marked memory-safe multiple times
 LL │         assembly ("memory-safe", "memory-safe") {
    ╰╴                                 ━━━━━━━━━━━━━
 
-warning: unknown inline assembly flag
+warning[4430]: unknown inline assembly flag
    ╭▸ ROOT/tests/ui/typeck/assembly_flags.sol:LL:CC
    │
 LL │         assembly ("unknown-flag") {

@@ -79,7 +79,7 @@ impl GlobalState {
     /// [`salsa`]: https://docs.rs/salsa/latest/salsa/
     pub(crate) fn recompute(&mut self) {
         self.analysis_version += 1;
-        let version = self.analysis_version;
+        let _version = self.analysis_version;
         self.spawn_with_snapshot(move |mut snapshot| {
             // todo: if this errors, we should notify the user
             // todo: set base path to project root

@@ -5,8 +5,8 @@ use solar_config::Opts;
 #[derive(Clone, Debug, Default, Parser)]
 #[command(
     name = "solar",
-    version = crate::version::SHORT_VERSION,
-    long_version = crate::version::LONG_VERSION,
+    version = crate::version::short_version(),
+    long_version = crate::version::version(),
     arg_required_else_help = true,
 )]
 #[allow(clippy::manual_non_exhaustive)]

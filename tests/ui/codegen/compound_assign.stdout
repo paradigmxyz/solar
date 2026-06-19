@@ -1,0 +1,114 @@
+// === ROOT/tests/ui/codegen/compound_assign.sol:CompoundAssign ===
+; module @CompoundAssign
+fn @value() {
+  bb0 (entry):
+    mstore 128, 0
+    v4 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @add_to_value(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = add v8, arg0
+    v10 = lt v9, v8
+    br v10, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v9 !metadata(storage=slot(0))
+    stop
+}
+
+fn @sub_from_value(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = sub v8, arg0
+    v10 = lt v8, arg0
+    br v10, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v9 !metadata(storage=slot(0))
+    stop
+}
+
+fn @mul_value(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = sload 0 !metadata(storage=slot(0))
+    v9 = mul v8, arg0
+    v10 = iszero arg0
+    v11 = div v9, arg0
+    v12 = eq v11, v8
+    v13 = or v10, v12
+    v14 = iszero v13
+    br v14, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    sstore 0, v9 !metadata(storage=slot(0))
+    stop
+}
+
+fn @bump_post() {
+  bb0 (entry):
+    mstore 128, 0
+    v4 = sload 0 !metadata(storage=slot(0))
+    v6 = add v4, 1
+    v7 = lt v6, v4
+    br v7, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    sstore 0, v6 !metadata(storage=slot(0))
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @bump_pre() {
+  bb0 (entry):
+    mstore 128, 0
+    v4 = sload 0 !metadata(storage=slot(0))
+    v6 = add v4, 1
+    v7 = lt v6, v4
+    br v7, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    sstore 0, v6 !metadata(storage=slot(0))
+    mstore 128, v6
+    returndata 128, 32
+}
+

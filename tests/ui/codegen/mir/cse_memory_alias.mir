@@ -1,0 +1,48 @@
+//@compile-flags: --pass cse
+; module @CseMemoryAlias
+fn @reuse_same_memory_load(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = mload arg0
+    v2 = mload arg0
+    v3 = add v1, v2
+    ret v3
+}
+
+fn @reuse_after_disjoint_memory_store(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = mload 64
+    v2 = mload 64
+    mstore 96, arg0
+    v4 = mload 64
+    v5 = add v1, v2
+    v6 = add v5, v4
+    ret v6
+}
+
+fn @keep_after_overlapping_memory_store(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = mload 64
+    mstore 80, arg0
+    v3 = mload 64
+    v4 = add v1, v3
+    ret v4
+}
+
+fn @reuse_keccak_after_disjoint_memory_store(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = keccak256 128, 64
+    mstore 64, arg0
+    v3 = keccak256 128, 64
+    v4 = add v1, v3
+    ret v4
+}
+
+fn @keep_mload_after_external_call(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = mload 64
+    v2 = call 100000, arg0, 0, 0, 0, 96, 32
+    v3 = mload 64
+    v4 = add v1, v3
+    v5 = add v4, v2
+    ret v5
+}

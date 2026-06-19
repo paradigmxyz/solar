@@ -1,0 +1,89 @@
+// === ROOT/tests/ui/codegen/mir/cse_gvn.mir (after cse) ===
+; module @CseGvn
+fn @nested_offsets_across_dominator(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    v3 = add arg0, 16
+    v5 = add v3, 16
+    br arg1, bb1, bb2
+  bb1:
+    v8 = add v5, v5
+    ret v8
+  bb2:
+    ret v5
+}
+
+fn @commuted_nested_offsets(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    v3 = add 16, arg0
+    v5 = add 16, v3
+    br arg1, bb1, bb2
+  bb1:
+    ret v5
+  bb2:
+    ret v5
+}
+
+fn @reuse_keccak_with_equivalent_offset(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    v3 = add arg0, 16
+    v5 = add v3, 16
+    v7 = keccak256 v5, 32
+    br arg1, bb1, bb2
+  bb1:
+    ret v7
+  bb2:
+    ret v7
+}
+
+fn @keep_load_after_equivalent_overlapping_store(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    v3 = add arg0, 16
+    v5 = add v3, 16
+    v6 = mload v5
+    br arg1, bb1, bb2
+  bb1:
+    mstore v5, 7
+    v10 = mload v5
+    ret v10
+  bb2:
+    ret v6
+}
+
+fn @keep_distinct_negative_memory_offsets(arg0: u256) -> u256 {
+  bb0 (entry):
+    v2 = sub arg0, 1
+    v3 = mload v2
+    v5 = sub arg0, 2
+    v6 = mload v5
+    v7 = add v3, v6
+    ret v7
+}
+
+fn @sink_common_phi_expression(arg0: u256, arg1: u256, arg2: bool) -> u256 {
+  bb0 (entry):
+    br arg2, bb1, bb2
+  bb1:
+    jump bb3
+  bb2:
+    jump bb3
+  bb3:
+    v8 = add arg0, arg1
+    v7 = mul v8, 2
+    ret v7
+}
+
+fn @keep_phi_expression_with_branch_local_operands(arg0: u256, arg1: bool) -> u256 {
+  bb0 (entry):
+    br arg1, bb1, bb2
+  bb1:
+    v3 = add arg0, 1
+    v5 = mul v3, 2
+    jump bb3
+  bb2:
+    v7 = add arg0, 1
+    v9 = mul v7, 2
+    jump bb3
+  bb3:
+    v10 = phi [bb1: v5], [bb2: v9]
+    ret v10
+}

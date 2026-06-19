@@ -16,13 +16,18 @@ categories.workspace = true
 workspace = true
 
 [dependencies]
+solar-codegen.workspace = true
 solar-config = { workspace = true, features = ["clap"] }
+solar-data-structures.workspace = true
 solar-interface = { workspace = true, features = ["json"] }
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
+indexmap = { workspace = true, features = ["serde"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 
 tracing.workspace = true
 tracing-subscriber = { workspace = true, optional = true, features = [
@@ -39,7 +44,10 @@ mimalloc = { version = "0.1", optional = true }
 [target.'cfg(unix)'.dependencies]
 libc.workspace = true
 
-tikv-jemallocator = { version = "0.6", optional = true }
+tikv-jemallocator = { version = "0.7", optional = true }
+
+[dev-dependencies]
+snapbox.workspace = true
 
 [features]
 default = ["mimalloc", "tracing"]

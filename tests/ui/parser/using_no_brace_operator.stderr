@@ -1,0 +1,8 @@
+error: expected `for`, found keyword `as`
+   ╭▸ ROOT/tests/ui/parser/using_no_brace_operator.sol:LL:CC
+   │
+LL │ using f as - for uint256 global;
+   ╰╴        ━━ expected `for`
+
+error: aborting due to 1 previous error
+

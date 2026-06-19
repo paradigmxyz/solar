@@ -1,0 +1,36 @@
+// === ROOT/tests/ui/codegen/mir/check_elim_pipeline_loop.mir (after pipeline-default) ===
+; module @CheckElimPipelineLoop
+fn @sum(arg0: u256) {
+  bb0 (entry):
+    mstore 128, 0
+    jump bb1
+  bb1:
+    v5 = phi [bb0: 0], [bb7: v4]
+    v6 = lt v5, arg0
+    br v6, bb4, bb2
+  bb2:
+    v8 = mload 128
+    mstore 128, v8
+    returndata 128, 32
+  bb3:
+    invalid
+  bb4:
+    v15 = mload 128
+    v16 = add v15, v5
+    v17 = lt v16, v15
+    br v17, bb6, bb7
+  bb5:
+    invalid
+  bb6:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb7:
+    mstore 128, v16
+    v4 = add v5, 1
+    jump bb1
+  bb8:
+    invalid
+  bb9:
+    invalid
+}

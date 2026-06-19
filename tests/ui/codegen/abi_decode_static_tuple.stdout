@@ -1,0 +1,66 @@
+// === ROOT/tests/ui/codegen/abi_decode_static_tuple.sol:AbiDecodeStaticTuple ===
+; module @AbiDecodeStaticTuple
+fn @decode(arg0: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v8 = add 4, arg0
+    v9 = calldataload v8
+    v11 = add v9, 31
+    v12 = not 31
+    v13 = and v11, v12
+    v15 = add v13, 32
+    v17 = mload 64 !metadata(memory=scratch)
+    v18 = add v17, v15
+    mstore 64, v18 !metadata(memory=scratch)
+    mstore v17, v9
+    v22 = add v17, 32
+    v23 = add v8, 32
+    calldatacopy v22, v23, v9
+    mstore 128, 0
+    mstore 160, 0
+    mstore 192, 0
+    v35 = mload v17
+    v37 = lt v35, 96
+    br v37, bb3, bb4
+  bb3:
+    revert 0, 0
+  bb4:
+    v40 = add v17, 32
+    v41 = mload v40
+    v43 = add v40, 32
+    v44 = mload v43
+    v45 = iszero v44
+    v46 = iszero v45
+    v47 = eq v44, v46
+    v48 = iszero v47
+    br v48, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    mstore 32, v46 !metadata(memory=scratch)
+    v54 = add v40, 64
+    v55 = mload v54
+    v57 = and v55, 0xffffffffffffffffffffffffffffffffffffffff
+    v58 = eq v55, v57
+    v59 = iszero v58
+    br v59, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    mstore 64, v57 !metadata(memory=scratch)
+    v65 = mload 32 !metadata(memory=scratch)
+    v67 = mload 64 !metadata(memory=scratch)
+    mstore 128, v41
+    v71 = add 128, 32
+    mstore v71, v65
+    v74 = add 128, 64
+    mstore v74, v67
+    returndata 128, 96
+}
+
