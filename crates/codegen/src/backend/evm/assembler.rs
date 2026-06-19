@@ -25,7 +25,7 @@ mod local_interner;
 use local_interner::LocalInterner;
 
 mod program;
-pub(in crate::backend::evm) use program::{EvmAsmProgram, EvmIrProgram};
+pub(in crate::backend::evm) use program::{EvmAsmProgram, StructuredAsmProgram};
 
 /// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
 ///
@@ -65,8 +65,8 @@ pub struct AssemblerConfig {
 pub struct Assembler {
     /// Bytecode assembly configuration.
     config: AssemblerConfig,
-    /// Structured EVM backend IR program to assemble.
-    pub(in crate::backend::evm) program: EvmIrProgram,
+    /// Structured assembler block program to assemble.
+    pub(in crate::backend::evm) program: StructuredAsmProgram,
     /// Interned push immediates too large for inline storage.
     push_values: LocalInterner<U256, PushValueId>,
     /// Next label ID.
@@ -89,7 +89,7 @@ impl Assembler {
     pub fn with_config(config: AssemblerConfig) -> Self {
         Self {
             config,
-            program: EvmIrProgram::default(),
+            program: StructuredAsmProgram::default(),
             push_values: LocalInterner::new(),
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),

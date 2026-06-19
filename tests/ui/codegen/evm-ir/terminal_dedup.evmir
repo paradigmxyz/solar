@@ -1,0 +1,17 @@
+//@compile-flags: --pass terminal-dedup
+; evm module @TerminalDedup
+
+fn @runtime {
+  bb0 (entry) [hotness=hot]:
+    switch 0, default bb3, [1 => bb1, 2 => bb2]
+  bb1 [hotness=cold]:
+    %a = push 0 !meta(stack=0->1)
+    %b = push 32 !meta(stack=0->1)
+    revert %a, %b !meta(stack=2->0)
+  bb2 [hotness=cold]:
+    %x = push 0 !meta(stack=0->1)
+    %y = push 32 !meta(stack=0->1)
+    revert %x, %y !meta(stack=2->0)
+  bb3 [hotness=hot]:
+    stop
+}

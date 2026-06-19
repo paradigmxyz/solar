@@ -1,23 +1,23 @@
-//! Structured EVM backend IR and final linear assembly program.
+//! Structured assembler block program and final linear assembly program.
 
 use super::{AsmInst, AsmInstKind, Label, op};
 use solar_data_structures::map::FxHashSet;
 
-/// Structured EVM backend IR used while MIR lowering emits EVM code.
+/// Structured assembler block program used while MIR lowering emits EVM code.
 ///
 /// This is intentionally still instruction-close to the final assembly layer:
 /// operands such as unresolved labels, deferred constants, and immutable
-/// placeholders are preserved as assembler operands. The value of this layer is
-/// block structure and metadata, which backend layout and peephole passes can
-/// query before final linearization.
+/// placeholders are preserved as assembler operands. The parseable EVM backend
+/// IR lives in [`crate::backend::evm::ir`]; this private layer is the bridge
+/// between that target-specific IR direction and final linear assembly.
 #[derive(Clone, Debug, Default)]
-pub(in crate::backend::evm) struct EvmIrProgram {
-    blocks: Vec<EvmIrAsmBlock>,
+pub(in crate::backend::evm) struct StructuredAsmProgram {
+    blocks: Vec<StructuredAsmBlock>,
     current: Option<usize>,
     cold_labels: FxHashSet<Label>,
 }
 
-impl EvmIrProgram {
+impl StructuredAsmProgram {
     /// Clears all blocks and metadata.
     pub(in crate::backend::evm) fn clear(&mut self) {
         self.blocks.clear();
@@ -25,15 +25,15 @@ impl EvmIrProgram {
         self.cold_labels.clear();
     }
 
-    /// Emits an instruction into the current EVM IR block.
+    /// Emits an instruction into the current structured assembler block.
     pub(in crate::backend::evm) fn push(&mut self, inst: AsmInst) {
         let block = self.current_block_mut();
         block.instructions.push(inst);
     }
 
-    /// Defines a label, starting a new structured EVM IR block.
+    /// Defines a label, starting a new structured assembler block.
     pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {
-        let block = EvmIrAsmBlock {
+        let block = StructuredAsmBlock {
             label: Some(label),
             cold: self.cold_labels.contains(&label),
             instructions: Vec::new(),
@@ -56,7 +56,7 @@ impl EvmIrProgram {
         self.to_asm_program().instructions
     }
 
-    /// Lowers structured EVM IR blocks to the final linear assembly program.
+    /// Lowers structured assembler blocks to the final linear assembly program.
     pub(in crate::backend::evm) fn to_asm_program(&self) -> EvmAsmProgram {
         let mut program = EvmAsmProgram::default();
         for block in &self.blocks {
@@ -68,7 +68,7 @@ impl EvmIrProgram {
         program
     }
 
-    /// Runs block-aware EVM IR optimizations.
+    /// Runs block-aware structured assembler optimizations.
     pub(in crate::backend::evm) fn optimize_blocks<S>(&mut self, estimated_inst_size: S) -> usize
     where
         S: FnMut(AsmInst) -> usize,
@@ -77,11 +77,11 @@ impl EvmIrProgram {
             + self.move_cold_terminal_blocks_to_end()
     }
 
-    fn current_block_mut(&mut self) -> &mut EvmIrAsmBlock {
+    fn current_block_mut(&mut self) -> &mut StructuredAsmBlock {
         let index = match self.current {
             Some(index) => index,
             None => {
-                self.blocks.push(EvmIrAsmBlock::default());
+                self.blocks.push(StructuredAsmBlock::default());
                 let index = self.blocks.len() - 1;
                 self.current = Some(index);
                 index
@@ -161,13 +161,13 @@ impl EvmIrProgram {
 }
 
 #[derive(Clone, Debug, Default)]
-struct EvmIrAsmBlock {
+struct StructuredAsmBlock {
     label: Option<Label>,
     cold: bool,
     instructions: Vec<AsmInst>,
 }
 
-impl EvmIrAsmBlock {
+impl StructuredAsmBlock {
     fn ends_with_terminal(&self) -> bool {
         matches!(self.instructions.last().map(|inst| inst.kind()), Some(AsmInstKind::Op(op)) if op::is_terminal(op))
     }
@@ -175,7 +175,7 @@ impl EvmIrAsmBlock {
 
 /// Linear EVM assembly program used by the final assembler.
 ///
-/// This is the MC-like layer below structured EVM IR: a label-bearing opcode
+/// This is the MC-like layer below structured assembler blocks: a label-bearing opcode
 /// stream with unresolved PUSH operands, ready for final assembly into bytecode.
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct EvmAsmProgram {

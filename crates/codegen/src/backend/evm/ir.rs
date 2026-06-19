@@ -398,6 +398,572 @@ pub fn parse_evm_ir_function(input: &str) -> Result<EvmIrFunction, EvmIrParseErr
     Ok(function)
 }
 
+/// A named EVM IR pass exposed to `solar evm-opt`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EvmIrPass {
+    /// No transform; validate and print the module.
+    None,
+    /// Move cold terminal blocks after hot fallthrough code when this preserves fallthrough edges.
+    ColdLayout,
+    /// Replace duplicate terminal block bodies with jumps to the first copy when profitable.
+    TerminalDedup,
+}
+
+impl EvmIrPass {
+    /// Stable command-line pass name.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::ColdLayout => "cold-layout",
+            Self::TerminalDedup => "terminal-dedup",
+        }
+    }
+
+    /// Runs this pass on an EVM IR module.
+    pub fn run(self, module: &mut EvmIrModule) -> bool {
+        match self {
+            Self::None => false,
+            Self::ColdLayout => move_cold_terminal_blocks(module),
+            Self::TerminalDedup => deduplicate_terminal_blocks(module),
+        }
+    }
+
+    /// Looks up a pass by command-line name.
+    #[must_use]
+    pub fn by_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "none" => Self::None,
+            "cold-layout" => Self::ColdLayout,
+            "terminal-dedup" => Self::TerminalDedup,
+            _ => return None,
+        })
+    }
+}
+
+/// All EVM IR passes exposed by `solar evm-opt`.
+pub const EVM_IR_PASSES: &[EvmIrPass] =
+    &[EvmIrPass::None, EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup];
+
+/// Verifies basic EVM IR invariants.
+///
+/// # Errors
+///
+/// Returns an [`EvmIrVerifyError`] if the module contains invalid references,
+/// duplicate definitions, missing terminators, or malformed identifiers.
+pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError> {
+    if !is_valid_ident(&module.name) {
+        return Err(EvmIrVerifyError::new(format!("invalid module name `{}`", module.name)));
+    }
+    for (function_id, function) in module.functions.iter_enumerated() {
+        verify_evm_ir_function(function_id, function)?;
+    }
+    Ok(())
+}
+
+fn verify_evm_ir_function(
+    function_id: EvmIrFunctionId,
+    function: &EvmIrFunction,
+) -> Result<(), EvmIrVerifyError> {
+    if !is_valid_ident(&function.name) {
+        return Err(EvmIrVerifyError::in_function(
+            function_id,
+            format!("invalid function name `{}`", function.name),
+        ));
+    }
+    if function.blocks.is_empty() {
+        return Err(EvmIrVerifyError::in_function(function_id, "function has no blocks"));
+    }
+    let Some(entry) = function.entry_block else {
+        return Err(EvmIrVerifyError::in_function(function_id, "function has no entry block"));
+    };
+    if !block_exists(function, entry) {
+        return Err(EvmIrVerifyError::in_function(
+            function_id,
+            format!("entry block `{}` is out of range", entry.index()),
+        ));
+    }
+
+    let mut labels = FxHashSet::default();
+    for (block_id, block) in function.blocks.iter_enumerated() {
+        if !is_valid_block_label(&block.label) {
+            return Err(EvmIrVerifyError::in_block(
+                function_id,
+                block_id,
+                format!("invalid block label `{}`", block.label),
+            ));
+        }
+        if !labels.insert(block.label.as_str()) {
+            return Err(EvmIrVerifyError::in_block(
+                function_id,
+                block_id,
+                format!("duplicate block label `{}`", block.label),
+            ));
+        }
+        if block.terminator.is_none() {
+            return Err(EvmIrVerifyError::in_block(function_id, block_id, "missing terminator"));
+        }
+    }
+
+    let mut value_names = FxHashSet::default();
+    for (_, value) in function.values.iter_enumerated() {
+        if !is_valid_value_name(&value.name) {
+            return Err(EvmIrVerifyError::in_function(
+                function_id,
+                format!("invalid value name `%{}`", value.name),
+            ));
+        }
+        if !value_names.insert(value.name.as_str()) {
+            return Err(EvmIrVerifyError::in_function(
+                function_id,
+                format!("duplicate value name `%{}`", value.name),
+            ));
+        }
+    }
+
+    let mut defined_values = FxHashSet::default();
+    for (block_id, block) in function.blocks.iter_enumerated() {
+        for inst in &block.instructions {
+            if let Some(result) = inst.result {
+                if !value_exists(function, result) {
+                    return Err(EvmIrVerifyError::in_block(
+                        function_id,
+                        block_id,
+                        format!("result value `{}` is out of range", result.index()),
+                    ));
+                }
+                if !defined_values.insert(result) {
+                    return Err(EvmIrVerifyError::in_block(
+                        function_id,
+                        block_id,
+                        format!(
+                            "value `%{}` is defined more than once",
+                            function.value(result).name
+                        ),
+                    ));
+                }
+            }
+            for operand in &inst.operands {
+                verify_operand(function_id, block_id, function, operand)?;
+            }
+        }
+        let term = block.terminator.as_ref().expect("checked above");
+        visit_terminator_operands(&term.kind, |operand| {
+            verify_operand(function_id, block_id, function, operand)?;
+            Ok(())
+        })?;
+        visit_terminator_targets(&term.kind, |target| {
+            if !block_exists(function, target) {
+                return Err(EvmIrVerifyError::in_block(
+                    function_id,
+                    block_id,
+                    format!("target block `{}` is out of range", target.index()),
+                ));
+            }
+            Ok(())
+        })?;
+    }
+
+    for (block_id, block) in function.blocks.iter_enumerated() {
+        for inst in &block.instructions {
+            for operand in &inst.operands {
+                verify_value_defined(function_id, block_id, function, operand, &defined_values)?;
+            }
+        }
+        let term = block.terminator.as_ref().expect("checked above");
+        visit_terminator_operands(&term.kind, |operand| {
+            verify_value_defined(function_id, block_id, function, operand, &defined_values)?;
+            Ok(())
+        })?;
+    }
+
+    Ok(())
+}
+
+fn verify_operand(
+    function_id: EvmIrFunctionId,
+    block_id: EvmIrBlockId,
+    function: &EvmIrFunction,
+    operand: &EvmIrOperand,
+) -> Result<(), EvmIrVerifyError> {
+    match operand {
+        EvmIrOperand::Value(value) if !value_exists(function, *value) => {
+            Err(EvmIrVerifyError::in_block(
+                function_id,
+                block_id,
+                format!("value `{}` is out of range", value.index()),
+            ))
+        }
+        EvmIrOperand::Block(block) if !block_exists(function, *block) => {
+            Err(EvmIrVerifyError::in_block(
+                function_id,
+                block_id,
+                format!("block `{}` is out of range", block.index()),
+            ))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn verify_value_defined(
+    function_id: EvmIrFunctionId,
+    block_id: EvmIrBlockId,
+    function: &EvmIrFunction,
+    operand: &EvmIrOperand,
+    defined_values: &FxHashSet<EvmIrValueId>,
+) -> Result<(), EvmIrVerifyError> {
+    if let EvmIrOperand::Value(value) = operand
+        && !defined_values.contains(value)
+    {
+        return Err(EvmIrVerifyError::in_block(
+            function_id,
+            block_id,
+            format!("value `%{}` is used but never defined", function.value(*value).name),
+        ));
+    }
+    Ok(())
+}
+
+fn block_exists(function: &EvmIrFunction, block: EvmIrBlockId) -> bool {
+    block.index() < function.blocks.len()
+}
+
+fn value_exists(function: &EvmIrFunction, value: EvmIrValueId) -> bool {
+    value.index() < function.values.len()
+}
+
+fn visit_terminator_operands<E>(
+    kind: &EvmIrTerminatorKind,
+    mut visit: impl FnMut(&EvmIrOperand) -> Result<(), E>,
+) -> Result<(), E> {
+    match kind {
+        EvmIrTerminatorKind::Jump(_) | EvmIrTerminatorKind::Stop | EvmIrTerminatorKind::Invalid => {
+        }
+        EvmIrTerminatorKind::Branch { condition, .. } => visit(condition)?,
+        EvmIrTerminatorKind::Switch { value, cases, .. } => {
+            visit(value)?;
+            for (case, _) in cases {
+                visit(case)?;
+            }
+        }
+        EvmIrTerminatorKind::Return { offset, size }
+        | EvmIrTerminatorKind::Revert { offset, size } => {
+            visit(offset)?;
+            visit(size)?;
+        }
+        EvmIrTerminatorKind::SelfDestruct { recipient } => visit(recipient)?,
+    }
+    Ok(())
+}
+
+fn visit_terminator_targets<E>(
+    kind: &EvmIrTerminatorKind,
+    mut visit: impl FnMut(EvmIrBlockId) -> Result<(), E>,
+) -> Result<(), E> {
+    match kind {
+        EvmIrTerminatorKind::Jump(target) => visit(*target)?,
+        EvmIrTerminatorKind::Branch { then_block, else_block, .. } => {
+            visit(*then_block)?;
+            visit(*else_block)?;
+        }
+        EvmIrTerminatorKind::Switch { default, cases, .. } => {
+            visit(*default)?;
+            for (_, target) in cases {
+                visit(*target)?;
+            }
+        }
+        EvmIrTerminatorKind::Return { .. }
+        | EvmIrTerminatorKind::Revert { .. }
+        | EvmIrTerminatorKind::Stop
+        | EvmIrTerminatorKind::Invalid
+        | EvmIrTerminatorKind::SelfDestruct { .. } => {}
+    }
+    Ok(())
+}
+
+fn move_cold_terminal_blocks(module: &mut EvmIrModule) -> bool {
+    let mut changed = false;
+    for function in &mut module.functions {
+        changed |= move_cold_terminal_blocks_in_function(function);
+    }
+    changed
+}
+
+fn move_cold_terminal_blocks_in_function(function: &mut EvmIrFunction) -> bool {
+    let mut kept = Vec::with_capacity(function.blocks.len());
+    let mut moved = Vec::new();
+
+    for (block_id, block) in function.blocks.iter_enumerated() {
+        if is_movable_cold_terminal_block(function, block_id, block) {
+            moved.push(block_id);
+        } else {
+            kept.push(block_id);
+        }
+    }
+
+    if moved.is_empty() {
+        return false;
+    }
+
+    kept.extend(moved);
+    remap_block_order(function, &kept);
+    true
+}
+
+fn is_movable_cold_terminal_block(
+    function: &EvmIrFunction,
+    block_id: EvmIrBlockId,
+    block: &EvmIrBlock,
+) -> bool {
+    if function.entry_block == Some(block_id) || block_id.index() == 0 {
+        return false;
+    }
+    if block.metadata.hotness != EvmIrBlockHotness::Cold || block.terminator.is_none() {
+        return false;
+    }
+    let previous = EvmIrBlockId::from_usize(block_id.index() - 1);
+    function.blocks[previous].terminator.is_some()
+}
+
+fn deduplicate_terminal_blocks(module: &mut EvmIrModule) -> bool {
+    let mut changed = false;
+    for function in &mut module.functions {
+        changed |= deduplicate_terminal_blocks_in_function(function);
+    }
+    changed
+}
+
+fn deduplicate_terminal_blocks_in_function(function: &mut EvmIrFunction) -> bool {
+    let mut canonical = Vec::<(TerminalBlockKey, EvmIrBlockId)>::new();
+    let mut changed = false;
+
+    let block_ids: Vec<_> = function.blocks.indices().collect();
+    for block_id in block_ids {
+        let block = &function.blocks[block_id];
+        if !terminal_block_dedup_is_profitable(block) {
+            continue;
+        }
+        let Some(key) = terminal_block_key(block) else { continue };
+        if let Some((_, target)) = canonical.iter().find(|(known, _)| *known == key) {
+            function.blocks[block_id].instructions.clear();
+            function.blocks[block_id].terminator =
+                Some(EvmIrTerminator::new(EvmIrTerminatorKind::Jump(*target)));
+            changed = true;
+        } else {
+            canonical.push((key, block_id));
+        }
+    }
+
+    changed
+}
+
+fn terminal_block_dedup_is_profitable(block: &EvmIrBlock) -> bool {
+    let Some(term) = &block.terminator else { return false };
+    if !is_evm_terminal(&term.kind) {
+        return false;
+    }
+    // A replacement block still needs one jump terminator. Avoid growing tiny
+    // blocks such as `invalid` or `revert 0, 0`; use this pass only when a
+    // repeated block has enough instruction body to amortize the jump.
+    block.instructions.len() >= 2
+}
+
+fn is_evm_terminal(kind: &EvmIrTerminatorKind) -> bool {
+    matches!(
+        kind,
+        EvmIrTerminatorKind::Return { .. }
+            | EvmIrTerminatorKind::Revert { .. }
+            | EvmIrTerminatorKind::Stop
+            | EvmIrTerminatorKind::Invalid
+            | EvmIrTerminatorKind::SelfDestruct { .. }
+    )
+}
+
+fn terminal_block_key(block: &EvmIrBlock) -> Option<TerminalBlockKey> {
+    let mut locals = FxHashMap::default();
+    let mut instructions = Vec::with_capacity(block.instructions.len());
+
+    for inst in &block.instructions {
+        let operands =
+            inst.operands.iter().map(|operand| terminal_operand_key(operand, &locals)).collect();
+        let result = inst.result.map(|value| {
+            let index = locals.len();
+            locals.insert(value, index);
+            index
+        });
+        instructions.push(TerminalInstructionKey {
+            result,
+            mnemonic: inst.mnemonic.clone(),
+            operands,
+        });
+    }
+
+    let term = block.terminator.as_ref()?;
+    Some(TerminalBlockKey {
+        instructions,
+        terminator: terminal_terminator_key(&term.kind, &locals),
+    })
+}
+
+fn terminal_operand_key(
+    operand: &EvmIrOperand,
+    locals: &FxHashMap<EvmIrValueId, usize>,
+) -> TerminalOperandKey {
+    match operand {
+        EvmIrOperand::Value(value) => locals
+            .get(value)
+            .copied()
+            .map(TerminalOperandKey::LocalValue)
+            .unwrap_or(TerminalOperandKey::ExternalValue(*value)),
+        EvmIrOperand::Immediate(value) => TerminalOperandKey::Immediate(*value),
+        EvmIrOperand::Block(block) => TerminalOperandKey::Block(*block),
+        EvmIrOperand::Symbol(symbol) => TerminalOperandKey::Symbol(symbol.clone()),
+    }
+}
+
+fn terminal_terminator_key(
+    kind: &EvmIrTerminatorKind,
+    locals: &FxHashMap<EvmIrValueId, usize>,
+) -> TerminalTerminatorKey {
+    match kind {
+        EvmIrTerminatorKind::Jump(target) => TerminalTerminatorKey::Jump(*target),
+        EvmIrTerminatorKind::Branch { condition, then_block, else_block } => {
+            TerminalTerminatorKey::Branch {
+                condition: terminal_operand_key(condition, locals),
+                then_block: *then_block,
+                else_block: *else_block,
+            }
+        }
+        EvmIrTerminatorKind::Switch { value, default, cases } => TerminalTerminatorKey::Switch {
+            value: terminal_operand_key(value, locals),
+            default: *default,
+            cases: cases
+                .iter()
+                .map(|(case, target)| (terminal_operand_key(case, locals), *target))
+                .collect(),
+        },
+        EvmIrTerminatorKind::Return { offset, size } => TerminalTerminatorKey::Return {
+            offset: terminal_operand_key(offset, locals),
+            size: terminal_operand_key(size, locals),
+        },
+        EvmIrTerminatorKind::Revert { offset, size } => TerminalTerminatorKey::Revert {
+            offset: terminal_operand_key(offset, locals),
+            size: terminal_operand_key(size, locals),
+        },
+        EvmIrTerminatorKind::Stop => TerminalTerminatorKey::Stop,
+        EvmIrTerminatorKind::Invalid => TerminalTerminatorKey::Invalid,
+        EvmIrTerminatorKind::SelfDestruct { recipient } => TerminalTerminatorKey::SelfDestruct {
+            recipient: terminal_operand_key(recipient, locals),
+        },
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TerminalBlockKey {
+    instructions: Vec<TerminalInstructionKey>,
+    terminator: TerminalTerminatorKey,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct TerminalInstructionKey {
+    result: Option<usize>,
+    mnemonic: String,
+    operands: Vec<TerminalOperandKey>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum TerminalTerminatorKey {
+    Jump(EvmIrBlockId),
+    Branch {
+        condition: TerminalOperandKey,
+        then_block: EvmIrBlockId,
+        else_block: EvmIrBlockId,
+    },
+    Switch {
+        value: TerminalOperandKey,
+        default: EvmIrBlockId,
+        cases: Vec<(TerminalOperandKey, EvmIrBlockId)>,
+    },
+    Return {
+        offset: TerminalOperandKey,
+        size: TerminalOperandKey,
+    },
+    Revert {
+        offset: TerminalOperandKey,
+        size: TerminalOperandKey,
+    },
+    Stop,
+    Invalid,
+    SelfDestruct {
+        recipient: TerminalOperandKey,
+    },
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum TerminalOperandKey {
+    LocalValue(usize),
+    ExternalValue(EvmIrValueId),
+    Immediate(U256),
+    Block(EvmIrBlockId),
+    Symbol(String),
+}
+
+fn remap_block_order(function: &mut EvmIrFunction, order: &[EvmIrBlockId]) {
+    debug_assert_eq!(order.len(), function.blocks.len());
+    let mut remap = vec![EvmIrBlockId::from_usize(0); function.blocks.len()];
+    let mut blocks = IndexVec::new();
+    for &old_block in order {
+        let new_block = blocks.push(function.blocks[old_block].clone());
+        remap[old_block.index()] = new_block;
+    }
+    function.blocks = blocks;
+    function.entry_block = function.entry_block.map(|block| remap[block.index()]);
+    for block in &mut function.blocks {
+        for inst in &mut block.instructions {
+            for operand in &mut inst.operands {
+                remap_operand_blocks(operand, &remap);
+            }
+        }
+        if let Some(term) = &mut block.terminator {
+            remap_terminator_blocks(&mut term.kind, &remap);
+        }
+    }
+}
+
+fn remap_operand_blocks(operand: &mut EvmIrOperand, remap: &[EvmIrBlockId]) {
+    if let EvmIrOperand::Block(block) = operand {
+        *block = remap[block.index()];
+    }
+}
+
+fn remap_terminator_blocks(kind: &mut EvmIrTerminatorKind, remap: &[EvmIrBlockId]) {
+    visit_terminator_targets_mut(kind, |target| *target = remap[target.index()]);
+}
+
+fn visit_terminator_targets_mut(
+    kind: &mut EvmIrTerminatorKind,
+    mut visit: impl FnMut(&mut EvmIrBlockId),
+) {
+    match kind {
+        EvmIrTerminatorKind::Jump(target) => visit(target),
+        EvmIrTerminatorKind::Branch { then_block, else_block, .. } => {
+            visit(then_block);
+            visit(else_block);
+        }
+        EvmIrTerminatorKind::Switch { default, cases, .. } => {
+            visit(default);
+            for (_, target) in cases {
+                visit(target);
+            }
+        }
+        EvmIrTerminatorKind::Return { .. }
+        | EvmIrTerminatorKind::Revert { .. }
+        | EvmIrTerminatorKind::Stop
+        | EvmIrTerminatorKind::Invalid
+        | EvmIrTerminatorKind::SelfDestruct { .. } => {}
+    }
+}
+
 /// An error produced while parsing the EVM IR text format.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EvmIrParseError {
@@ -425,6 +991,35 @@ impl std_fmt::Display for EvmIrParseError {
 }
 
 impl std::error::Error for EvmIrParseError {}
+
+/// An error produced while validating EVM IR.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct EvmIrVerifyError {
+    /// Human-readable validation failure.
+    pub msg: String,
+}
+
+impl EvmIrVerifyError {
+    fn new(msg: impl Into<String>) -> Self {
+        Self { msg: msg.into() }
+    }
+
+    fn in_function(function: EvmIrFunctionId, msg: impl Into<String>) -> Self {
+        Self::new(format!("function {}: {}", function.index(), msg.into()))
+    }
+
+    fn in_block(function: EvmIrFunctionId, block: EvmIrBlockId, msg: impl Into<String>) -> Self {
+        Self::new(format!("function {}, block {}: {}", function.index(), block.index(), msg.into()))
+    }
+}
+
+impl std_fmt::Display for EvmIrVerifyError {
+    fn fmt(&self, f: &mut std_fmt::Formatter<'_>) -> std_fmt::Result {
+        write!(f, "EVM IR verification failed: {}", self.msg)
+    }
+}
+
+impl std::error::Error for EvmIrVerifyError {}
 
 fn display_block<'a>(
     func: &'a EvmIrFunction,

@@ -2,25 +2,17 @@
 //! resulting EVM IR.
 //!
 //! This is the backend-IR equivalent of `solar mir-opt`. It currently accepts
-//! textual EVM IR files (`.evmir`) and prints the canonical parser/printer
-//! output. Pass plumbing is intentionally small until backend IR passes grow
-//! beyond parser/layout smoke tests.
+//! EVM IR files (`.evmir`) and prints the canonical parser/printer output.
 
 use clap::ValueHint;
-use solar_codegen::backend::evm::{EvmIrModule, parse_evm_ir_module};
+use solar_codegen::backend::evm::{
+    EVM_IR_PASSES, EvmIrModule, EvmIrPass, parse_evm_ir_module, verify_evm_ir_module,
+};
 use solar_interface::{Ident, Session, Symbol};
 use std::{path::Path, process::ExitCode};
 
 #[derive(clap::Args)]
-#[command(
-    after_help = "\
-Passes:
-  none                 No transform; just parse and print
-
-Input formats:
-  *.evmir  Textual EVM IR",
-    arg_required_else_help = true
-)]
+#[command(after_help = after_help(), arg_required_else_help = true)]
 pub(crate) struct EvmOptArgs {
     /// Comma-separated list of passes to run in order.
     #[arg(
@@ -40,30 +32,15 @@ pub(crate) struct EvmOptArgs {
     input: String,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum EvmIrPass {
-    None,
-}
-
-impl EvmIrPass {
-    const fn name(self) -> &'static str {
-        match self {
-            Self::None => "none",
-        }
-    }
-
-    const fn run(self, _module: &mut EvmIrModule) -> bool {
-        match self {
-            Self::None => false,
-        }
-    }
-}
-
 fn parse_pass(name: &str) -> Result<EvmIrPass, String> {
-    match name {
-        "none" => Ok(EvmIrPass::None),
-        other => Err(format!("unknown EVM IR pass: {other}")),
-    }
+    EvmIrPass::by_name(name).ok_or_else(|| format!("unknown EVM IR pass: {name}"))
+}
+
+fn after_help() -> String {
+    format!(
+        "Passes:\n  {}\n\nInput formats:\n  *.evmir  EVM IR",
+        EVM_IR_PASSES.iter().map(|pass| pass.name()).collect::<Vec<_>>().join("\n  ")
+    )
 }
 
 fn selected_pass_list_label(passes: &[EvmIrPass], separator: &str) -> String {
@@ -76,19 +53,24 @@ fn print_module(module: &EvmIrModule, name: &str, after: &str) {
     print!("{}", module.to_text());
 }
 
-fn run_pipeline(module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) {
+fn run_pipeline(module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) -> Result<(), String> {
     if args.print_after_each {
         for &pass in &args.passes {
             pass.run(module);
+            verify_evm_ir_module(module)
+                .map_err(|e| format!("EVM IR pass `{}` produced invalid IR: {e}", pass.name()))?;
             print_module(module, name, pass.name());
         }
     } else {
         for &pass in &args.passes {
             pass.run(module);
         }
+        verify_evm_ir_module(module)
+            .map_err(|e| format!("EVM IR pipeline produced invalid IR: {e}"))?;
         let label = selected_pass_list_label(&args.passes, ",");
         print_module(module, name, &label);
     }
+    Ok(())
 }
 
 fn process_evmir(args: &EvmOptArgs) -> Result<(), String> {
@@ -107,8 +89,12 @@ fn process_evmir(args: &EvmOptArgs) -> Result<(), String> {
                 return;
             }
         };
+        if let Err(e) = verify_evm_ir_module(&module) {
+            result = Err(format!("{e}"));
+            return;
+        }
         let name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
-        run_pipeline(&mut module, &name, args);
+        result = run_pipeline(&mut module, &name, args);
     });
     result
 }

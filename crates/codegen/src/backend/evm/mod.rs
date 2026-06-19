@@ -12,10 +12,11 @@ pub use codegen::{EvmArtifact, EvmCodegen, EvmCodegenConfig};
 
 pub mod ir;
 pub use ir::{
-    EvmIrBlock, EvmIrBlockHotness, EvmIrBlockId, EvmIrBlockMetadata, EvmIrFunction,
+    EVM_IR_PASSES, EvmIrBlock, EvmIrBlockHotness, EvmIrBlockId, EvmIrBlockMetadata, EvmIrFunction,
     EvmIrFunctionId, EvmIrInstruction, EvmIrMetadata, EvmIrMetadataItem, EvmIrModule, EvmIrOperand,
-    EvmIrParseError, EvmIrStackEffect, EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue,
-    EvmIrValueId, parse_evm_ir_function, parse_evm_ir_module,
+    EvmIrParseError, EvmIrPass, EvmIrStackEffect, EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue,
+    EvmIrValueId, EvmIrVerifyError, parse_evm_ir_function, parse_evm_ir_module,
+    verify_evm_ir_module,
 };
 
 pub mod assembler;
