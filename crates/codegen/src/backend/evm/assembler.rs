@@ -157,19 +157,6 @@ impl Assembler {
         self.program.mark_cold(label);
     }
 
-    fn resolve_deferred_consts(&mut self, program: &mut EvmAsmProgram) {
-        for i in 0..program.instructions.len() {
-            if let AsmInstKind::PushDeferred(id) = program.instructions[i].kind() {
-                let value = self
-                    .deferred_values
-                    .get(&id)
-                    .copied()
-                    .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
-                program.instructions[i] = self.push_inst(value);
-            }
-        }
-    }
-
     fn push_inst(&mut self, value: U256) -> AsmInst {
         if let Ok(value) = u32::try_from(value)
             && let Some(inst) = AsmInst::push_inline(value)
@@ -197,15 +184,22 @@ impl Assembler {
     #[must_use]
     pub fn assemble(&mut self) -> AssembledCode {
         let mut ir_program = std::mem::take(&mut self.program);
-        ir_program.optimize_blocks(|inst| match inst.kind() {
-            // Deferred constants are resolved immediately after block-level IR
-            // passes. Use the worst-case PUSH32 size for pre-resolution
-            // profitability decisions.
-            AsmInstKind::PushDeferred(_) => 33,
-            _ => self.estimated_inst_size(inst),
+        let deferred_values = &self.deferred_values;
+        let push_values = &mut self.push_values;
+        ir_program.resolve_deferred_consts(|id| {
+            let value = deferred_values
+                .get(&id)
+                .copied()
+                .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
+            if let Ok(value) = u32::try_from(value)
+                && let Some(inst) = AsmInst::push_inline(value)
+            {
+                return inst;
+            }
+            AsmInst::push(push_values.intern(value))
         });
+        ir_program.optimize_blocks(|inst| self.estimated_inst_size(inst));
         let mut program = ir_program.to_asm_program();
-        self.resolve_deferred_consts(&mut program);
         self.optimize_instructions(&mut program);
 
         // We need to iterate until PUSH widths stabilize

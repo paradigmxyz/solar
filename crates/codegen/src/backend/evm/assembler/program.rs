@@ -1,6 +1,6 @@
 //! Structured assembler block program and final linear assembly program.
 
-use super::{AsmInst, AsmInstKind, Label, op};
+use super::{AsmInst, AsmInstKind, DeferredConst, Label, op};
 use solar_data_structures::map::FxHashSet;
 
 /// Structured assembler block program used while MIR lowering emits EVM code.
@@ -75,6 +75,20 @@ impl StructuredAsmProgram {
     {
         self.deduplicate_terminal_blocks(estimated_inst_size)
             + self.move_cold_terminal_blocks_to_end()
+    }
+
+    /// Resolves deferred constants while preserving structured block boundaries.
+    pub(in crate::backend::evm) fn resolve_deferred_consts<F>(&mut self, mut resolve: F)
+    where
+        F: FnMut(DeferredConst) -> AsmInst,
+    {
+        for block in &mut self.blocks {
+            for inst in &mut block.instructions {
+                if let AsmInstKind::PushDeferred(id) = inst.kind() {
+                    *inst = resolve(id);
+                }
+            }
+        }
     }
 
     fn current_block_mut(&mut self) -> &mut StructuredAsmBlock {
