@@ -7,7 +7,7 @@ use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
 };
-use tracing::{error, info};
+use tracing::info;
 
 use crate::workspace::manifest::ProjectManifest;
 
@@ -25,14 +25,14 @@ pub(crate) struct Config {
 
 impl Config {
     pub(crate) fn new(root_path: PathBuf, workspace_roots: Vec<PathBuf>) -> Self {
-        Config { root_path, workspace_roots, discovered_projects: Default::default() }
+        Self { root_path, workspace_roots, discovered_projects: Default::default() }
     }
 
     pub(crate) fn rediscover_workspaces(&mut self) {
         let discovered = ProjectManifest::discover_all(&self.workspace_roots);
         info!("discovered projects: {:?}", discovered);
         if discovered.is_empty() {
-            error!("failed to find any projects in {:?}", &self.workspace_roots);
+            info!("no project manifests found in {:?}", &self.workspace_roots);
         }
         self.discovered_projects = discovered;
     }

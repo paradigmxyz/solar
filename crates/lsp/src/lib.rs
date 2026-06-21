@@ -40,7 +40,9 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
 
     // Workspace management
-    router.notification::<notif::DidChangeWorkspaceFolders>(handlers::did_change_workspace_folders);
+    router
+        .notification::<notif::DidChangeWorkspaceFolders>(handlers::did_change_workspace_folders)
+        .notification::<notif::DidChangeWatchedFiles>(handlers::did_change_watched_files);
 
     // Notifications
     router
@@ -55,13 +57,11 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
 /// Start the LSP server over stdin/stdout.
 ///
 /// This future is long running and will not stop until the server exits.
-pub async fn run_server_stdio() -> solar_interface::Result<()> {
+pub async fn run_server_stdio() -> async_lsp::Result<()> {
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
     #[cfg(unix)]
-    let (stdin, stdout) = (
-        async_lsp::stdio::PipeStdin::lock_tokio().unwrap(),
-        async_lsp::stdio::PipeStdout::lock_tokio().unwrap(),
-    );
+    let (stdin, stdout) =
+        (async_lsp::stdio::PipeStdin::lock_tokio()?, async_lsp::stdio::PipeStdout::lock_tokio()?);
 
     // Fallback to spawn blocking read/write otherwise.
     #[cfg(not(unix))]
@@ -80,6 +80,37 @@ pub async fn run_server_stdio() -> solar_interface::Result<()> {
             .service(new_router(client))
     });
 
-    eloop.run_buffered(stdin, stdout).await.unwrap();
-    Ok(())
+    eloop.run_buffered(stdin, stdout).await
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ops::ControlFlow;
+
+    use async_lsp::{AnyNotification, LspService};
+    use lsp_types::{
+        DidChangeWatchedFilesParams, FileChangeType, FileEvent, notification::Notification,
+    };
+
+    use super::*;
+
+    #[test]
+    fn router_handles_watched_file_changes() {
+        tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
+            let mut router = new_router(ClientSocket::new_closed());
+            let params = DidChangeWatchedFilesParams {
+                changes: vec![FileEvent::new(
+                    lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+                    FileChangeType::CHANGED,
+                )],
+            };
+            let notification: AnyNotification = serde_json::from_value(serde_json::json!({
+                "method": notif::DidChangeWatchedFiles::METHOD,
+                "params": params,
+            }))
+            .unwrap();
+
+            assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+        });
+    }
 }

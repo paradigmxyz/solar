@@ -1,9 +1,16 @@
-use std::{collections::HashMap, ops::ControlFlow, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    ops::ControlFlow,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+};
 
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
-    InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
-    PublishDiagnosticsParams, ServerInfo,
+    Diagnostic, InitializeParams, InitializeResult, InitializedParams, LogMessageParams,
+    MessageType, PublishDiagnosticsParams, ServerInfo, Url,
 };
 use solar_config::version::SHORT_VERSION;
 use solar_interface::{
@@ -26,7 +33,8 @@ pub(crate) struct GlobalState {
     client: ClientSocket,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
-    analysis_version: usize,
+    analysis_version: Arc<AtomicUsize>,
+    published_diagnostic_uris: Arc<RwLock<HashSet<Url>>>,
 }
 
 impl GlobalState {
@@ -34,7 +42,8 @@ impl GlobalState {
         Self {
             client,
             vfs: Arc::new(Default::default()),
-            analysis_version: 0,
+            analysis_version: Arc::new(AtomicUsize::new(0)),
+            published_diagnostic_uris: Arc::new(Default::default()),
             config: Arc::new(Default::default()),
         }
     }
@@ -78,9 +87,25 @@ impl GlobalState {
     ///
     /// [`salsa`]: https://docs.rs/salsa/latest/salsa/
     pub(crate) fn recompute(&mut self) {
-        self.analysis_version += 1;
-        let _version = self.analysis_version;
+        let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
         self.spawn_with_snapshot(move |mut snapshot| {
+            let files = snapshot
+                .vfs
+                .read()
+                .iter()
+                .filter_map(|(path, contents)| {
+                    Some((path.as_path()?.to_path_buf(), contents.to_string()))
+                })
+                .collect::<Vec<_>>();
+            let file_uris =
+                files.iter().filter_map(|(path, _)| Url::from_file_path(path).ok()).collect();
+            if files.is_empty() {
+                if snapshot.is_current(version) {
+                    snapshot.publish_diagnostic_set(Vec::new(), HashMap::new());
+                }
+                return;
+            }
+
             // todo: if this errors, we should notify the user
             // todo: set base path to project root
             // todo: remappings
@@ -92,14 +117,11 @@ impl GlobalState {
                 // Parse the files.
                 let mut parsing_context = compiler.parse();
                 // todo: unwraps
-                parsing_context.add_files(snapshot.vfs.read().iter().map(|(path, contents)| {
+                parsing_context.add_files(files.into_iter().map(|(path, contents)| {
                     compiler
                         .sess()
                         .source_map()
-                        .new_source_file(
-                            FileName::real(path.as_path().unwrap()),
-                            contents.to_string(),
-                        )
+                        .new_source_file(FileName::real(path), contents)
                         .unwrap()
                 }));
 
@@ -112,7 +134,6 @@ impl GlobalState {
                 let _ = compiler.lower_asts();
                 let _ = compiler.analysis();
 
-                // todo handle diagnostic clearing
                 // todo clean this mess up boya
                 let diagnostics: HashMap<_, Vec<_>> = diag_buffer
                     .read()
@@ -122,12 +143,8 @@ impl GlobalState {
                         diags.entry(path).or_default().push(diag);
                         diags
                     });
-                for (uri, diagnostics) in diagnostics.into_iter() {
-                    let _ = snapshot.client.publish_diagnostics(PublishDiagnosticsParams::new(
-                        uri,
-                        diagnostics,
-                        None,
-                    ));
+                if snapshot.is_current(version) {
+                    snapshot.publish_diagnostic_set(file_uris, diagnostics);
                 }
 
                 Ok(())
@@ -135,11 +152,19 @@ impl GlobalState {
         });
     }
 
+    pub(crate) fn clear_diagnostics(&self, uri: Url) {
+        self.published_diagnostic_uris.write().remove(&uri);
+        let mut client = self.client.clone();
+        let _ = client.publish_diagnostics(PublishDiagnosticsParams::new(uri, Vec::new(), None));
+    }
+
     fn snapshot(&self) -> GlobalStateSnapshot {
         GlobalStateSnapshot {
             client: self.client.clone(),
             vfs: self.vfs.clone(),
             config: self.config.clone(),
+            analysis_version: self.analysis_version.clone(),
+            published_diagnostic_uris: self.published_diagnostic_uris.clone(),
         }
     }
 
@@ -156,4 +181,89 @@ pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
     config: Arc<Config>,
+    analysis_version: Arc<AtomicUsize>,
+    published_diagnostic_uris: Arc<RwLock<HashSet<Url>>>,
+}
+
+impl GlobalStateSnapshot {
+    fn is_current(&self, version: usize) -> bool {
+        self.analysis_version.load(Ordering::Acquire) == version
+    }
+
+    fn publish_diagnostic_set(
+        &mut self,
+        file_uris: Vec<Url>,
+        mut diagnostics: HashMap<Url, Vec<Diagnostic>>,
+    ) {
+        let mut uris = file_uris.into_iter().collect::<HashSet<_>>();
+        uris.extend(diagnostics.keys().cloned());
+        uris.extend(self.published_diagnostic_uris.read().iter().cloned());
+
+        let mut next_published = HashSet::new();
+        for uri in uris {
+            let uri_diagnostics = diagnostics.remove(&uri).unwrap_or_default();
+            if !uri_diagnostics.is_empty() {
+                next_published.insert(uri.clone());
+            }
+            let _ = self.client.publish_diagnostics(PublishDiagnosticsParams::new(
+                uri,
+                uri_diagnostics,
+                None,
+            ));
+        }
+
+        *self.published_diagnostic_uris.write() = next_published;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use async_lsp::ClientSocket;
+    use lsp_types::{Diagnostic, Position, Range};
+
+    use super::*;
+
+    #[test]
+    fn publish_diagnostic_set_retains_only_non_empty_diagnostics() {
+        let clean_uri = Url::parse("file:///workspace/src/Clean.sol").unwrap();
+        let diagnostic_uri = Url::parse("file:///workspace/src/Error.sol").unwrap();
+        let previous_uri = Url::parse("file:///workspace/src/Previous.sol").unwrap();
+        let published_diagnostic_uris =
+            Arc::new(RwLock::new(HashSet::from([clean_uri.clone(), previous_uri.clone()])));
+        let mut snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(Default::default()),
+            config: Arc::new(Default::default()),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: published_diagnostic_uris.clone(),
+        };
+
+        let diagnostic = Diagnostic::new_simple(
+            Range {
+                start: Position { line: 0, character: 0 },
+                end: Position { line: 0, character: 1 },
+            },
+            "error".into(),
+        );
+        snapshot.publish_diagnostic_set(
+            vec![clean_uri.clone()],
+            HashMap::from([(diagnostic_uri.clone(), vec![diagnostic])]),
+        );
+
+        let published = published_diagnostic_uris.read();
+        assert!(!published.contains(&clean_uri));
+        assert!(published.contains(&diagnostic_uri));
+        assert!(!published.contains(&previous_uri));
+    }
+
+    #[test]
+    fn clear_diagnostics_forgets_uri() {
+        let uri = Url::parse("file:///workspace/src/Clean.sol").unwrap();
+        let state = GlobalState::new(ClientSocket::new_closed());
+        state.published_diagnostic_uris.write().insert(uri.clone());
+
+        state.clear_diagnostics(uri.clone());
+
+        assert!(!state.published_diagnostic_uris.read().contains(&uri));
+    }
 }

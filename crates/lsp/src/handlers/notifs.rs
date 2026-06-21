@@ -2,8 +2,8 @@ use std::{ops::ControlFlow, sync::Arc};
 
 use crop::Rope;
 use lsp_types::{
-    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWorkspaceFoldersParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
+    DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
 };
 use tracing::{error, info};
 
@@ -68,6 +68,7 @@ pub(crate) fn did_close_text_document(
         state.vfs.write().set_file_contents(path, None);
         state.recompute();
     }
+    state.clear_diagnostics(params.text_document.uri);
 
     ControlFlow::Continue(())
 }
@@ -80,6 +81,36 @@ pub(crate) fn did_change_configuration(
     // this notification's parameters should be ignored and the actual config queried separately.
     //
     // For now this is just a stub.
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn did_change_watched_files(
+    state: &mut GlobalState,
+    params: DidChangeWatchedFilesParams,
+) -> NotifyResult {
+    let mut should_recompute = false;
+
+    for event in params.changes {
+        let Ok(path) = event.uri.to_file_path() else {
+            continue;
+        };
+
+        match path.file_name().and_then(|name| name.to_str()) {
+            Some("foundry.toml") => {
+                Arc::make_mut(&mut state.config).rediscover_workspaces();
+                should_recompute = true;
+            }
+            Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
+                should_recompute = true;
+            }
+            _ => {}
+        }
+    }
+
+    if should_recompute {
+        state.recompute();
+    }
+
     ControlFlow::Continue(())
 }
 
