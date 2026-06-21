@@ -104,5 +104,9 @@ mod tests {
         let text = Rope::from("a\nb");
         let text = apply_document_changes(&text, c![0, 1; 1, 0 => "ț\nc", 0, 2; 0, 2 => "c"]);
         assert_eq!(text, "ațc\ncb");
+
+        let text = Rope::from("function increment() public {\n    // 中文😀\n    umber++;\n}");
+        let text = apply_document_changes(&text, c![2, 4; 2, 9 => "number"]);
+        assert_eq!(text, "function increment() public {\n    // 中文😀\n    number++;\n}");
     }
 }

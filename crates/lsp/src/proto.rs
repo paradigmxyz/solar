@@ -19,18 +19,20 @@ pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
 ///
 /// [`Range`]: std::ops::Range
 pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Range<usize> {
-    let start_line = if range.start.line > rope.line_len() as u32 {
+    let start_line_byte = if range.start.line > rope.line_len() as u32 {
         0usize
     } else {
         rope.byte_of_line(range.start.line as usize)
     };
-    let start = rope.byte_of_utf16_code_unit(start_line + range.start.character as usize);
-    let end_line = if range.end.line > rope.line_len() as u32 {
+    let start_line_utf16 = rope.utf16_code_unit_of_byte(start_line_byte);
+    let start = rope.byte_of_utf16_code_unit(start_line_utf16 + range.start.character as usize);
+    let end_line_byte = if range.end.line > rope.line_len() as u32 {
         0usize
     } else {
         rope.byte_of_line(range.end.line as usize)
     };
-    let end = rope.byte_of_utf16_code_unit(end_line + range.end.character as usize);
+    let end_line_utf16 = rope.utf16_code_unit_of_byte(end_line_byte);
+    let end = rope.byte_of_utf16_code_unit(end_line_utf16 + range.end.character as usize);
 
     start..end
 }
