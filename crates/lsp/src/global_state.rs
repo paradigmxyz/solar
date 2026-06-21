@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::ControlFlow,
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -87,21 +88,16 @@ impl GlobalState {
     ///
     /// [`salsa`]: https://docs.rs/salsa/latest/salsa/
     pub(crate) fn recompute(&mut self) {
+        self.recompute_with_disk_files(Vec::new());
+    }
+
+    pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
         let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
         self.spawn_with_snapshot(move |mut snapshot| {
-            let files = snapshot
-                .vfs
-                .read()
-                .iter()
-                .filter_map(|(path, contents)| {
-                    Some((path.as_path()?.to_path_buf(), contents.to_string()))
-                })
-                .collect::<Vec<_>>();
-            let file_uris =
-                files.iter().filter_map(|(path, _)| Url::from_file_path(path).ok()).collect();
+            let (files, file_uris) = snapshot.analysis_inputs(disk_paths);
             if files.is_empty() {
                 if snapshot.is_current(version) {
-                    snapshot.publish_diagnostic_set(Vec::new(), HashMap::new());
+                    snapshot.publish_diagnostic_set(file_uris, HashMap::new());
                 }
                 return;
             }
@@ -152,12 +148,6 @@ impl GlobalState {
         });
     }
 
-    pub(crate) fn clear_diagnostics(&self, uri: Url) {
-        self.published_diagnostic_uris.write().remove(&uri);
-        let mut client = self.client.clone();
-        let _ = client.publish_diagnostics(PublishDiagnosticsParams::new(uri, Vec::new(), None));
-    }
-
     fn snapshot(&self) -> GlobalStateSnapshot {
         GlobalStateSnapshot {
             client: self.client.clone(),
@@ -190,6 +180,36 @@ impl GlobalStateSnapshot {
         self.analysis_version.load(Ordering::Acquire) == version
     }
 
+    fn analysis_inputs(&self, disk_paths: Vec<PathBuf>) -> (Vec<(PathBuf, String)>, Vec<Url>) {
+        let mut files = self
+            .vfs
+            .read()
+            .iter()
+            .filter_map(|(path, contents)| {
+                Some((path.as_path()?.to_path_buf(), contents.to_string()))
+            })
+            .collect::<Vec<_>>();
+        let mut file_uris =
+            files.iter().filter_map(|(path, _)| Url::from_file_path(path).ok()).collect::<Vec<_>>();
+        let mut seen_paths = files.iter().map(|(path, _)| path.clone()).collect::<HashSet<_>>();
+
+        for path in disk_paths {
+            if let Ok(uri) = Url::from_file_path(&path) {
+                file_uris.push(uri);
+            }
+
+            if !seen_paths.insert(path.clone()) {
+                continue;
+            }
+
+            if let Ok(contents) = std::fs::read_to_string(&path) {
+                files.push((path, contents));
+            }
+        }
+
+        (files, file_uris)
+    }
+
     fn publish_diagnostic_set(
         &mut self,
         file_uris: Vec<Url>,
@@ -197,13 +217,14 @@ impl GlobalStateSnapshot {
     ) {
         let mut uris = file_uris.into_iter().collect::<HashSet<_>>();
         uris.extend(diagnostics.keys().cloned());
-        uris.extend(self.published_diagnostic_uris.read().iter().cloned());
 
-        let mut next_published = HashSet::new();
+        let mut published_diagnostic_uris = self.published_diagnostic_uris.write();
         for uri in uris {
             let uri_diagnostics = diagnostics.remove(&uri).unwrap_or_default();
             if !uri_diagnostics.is_empty() {
-                next_published.insert(uri.clone());
+                published_diagnostic_uris.insert(uri.clone());
+            } else {
+                published_diagnostic_uris.remove(&uri);
             }
             let _ = self.client.publish_diagnostics(PublishDiagnosticsParams::new(
                 uri,
@@ -211,8 +232,6 @@ impl GlobalStateSnapshot {
                 None,
             ));
         }
-
-        *self.published_diagnostic_uris.write() = next_published;
     }
 }
 
@@ -224,7 +243,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn publish_diagnostic_set_retains_only_non_empty_diagnostics() {
+    fn publish_diagnostic_set_retains_unrelated_diagnostics() {
         let clean_uri = Url::parse("file:///workspace/src/Clean.sol").unwrap();
         let diagnostic_uri = Url::parse("file:///workspace/src/Error.sol").unwrap();
         let previous_uri = Url::parse("file:///workspace/src/Previous.sol").unwrap();
@@ -253,17 +272,46 @@ mod tests {
         let published = published_diagnostic_uris.read();
         assert!(!published.contains(&clean_uri));
         assert!(published.contains(&diagnostic_uri));
-        assert!(!published.contains(&previous_uri));
+        assert!(published.contains(&previous_uri));
     }
 
     #[test]
-    fn clear_diagnostics_forgets_uri() {
-        let uri = Url::parse("file:///workspace/src/Clean.sol").unwrap();
-        let state = GlobalState::new(ClientSocket::new_closed());
-        state.published_diagnostic_uris.write().insert(uri.clone());
+    fn analysis_inputs_reads_disk_files() {
+        let path = std::env::temp_dir()
+            .join(format!("solar-lsp-analysis-inputs-{}-Saved.sol", std::process::id()));
+        std::fs::write(&path, "contract C { function f() public { number+; } }").unwrap();
+        let uri = Url::from_file_path(&path).unwrap();
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(Default::default()),
+            config: Arc::new(Default::default()),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
 
-        state.clear_diagnostics(uri.clone());
+        let (files, uris) = snapshot.analysis_inputs(vec![path.clone()]);
 
-        assert!(!state.published_diagnostic_uris.read().contains(&uri));
+        std::fs::remove_file(&path).unwrap();
+        assert_eq!(files, vec![(path, "contract C { function f() public { number+; } }".into())]);
+        assert_eq!(uris, vec![uri]);
+    }
+
+    #[test]
+    fn analysis_inputs_keeps_unreadable_disk_uri() {
+        let path = std::env::temp_dir()
+            .join(format!("solar-lsp-analysis-inputs-{}-Missing.sol", std::process::id()));
+        let uri = Url::from_file_path(&path).unwrap();
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(Default::default()),
+            config: Arc::new(Default::default()),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
+
+        let (files, uris) = snapshot.analysis_inputs(vec![path]);
+
+        assert!(files.is_empty());
+        assert_eq!(uris, vec![uri]);
     }
 }

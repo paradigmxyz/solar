@@ -65,10 +65,10 @@ pub(crate) fn did_close_text_document(
             error!(?path, "orphan DidCloseTextDocument");
         }
 
+        let disk_path = path.as_path().map(ToOwned::to_owned);
         state.vfs.write().set_file_contents(path, None);
-        state.recompute();
+        state.recompute_with_disk_files(disk_path.into_iter().collect());
     }
-    state.clear_diagnostics(params.text_document.uri);
 
     ControlFlow::Continue(())
 }
@@ -89,6 +89,7 @@ pub(crate) fn did_change_watched_files(
     params: DidChangeWatchedFilesParams,
 ) -> NotifyResult {
     let mut should_recompute = false;
+    let mut disk_paths = Vec::new();
 
     for event in params.changes {
         let Ok(path) = event.uri.to_file_path() else {
@@ -101,6 +102,7 @@ pub(crate) fn did_change_watched_files(
                 should_recompute = true;
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
+                disk_paths.push(path);
                 should_recompute = true;
             }
             _ => {}
@@ -108,7 +110,7 @@ pub(crate) fn did_change_watched_files(
     }
 
     if should_recompute {
-        state.recompute();
+        state.recompute_with_disk_files(disk_paths);
     }
 
     ControlFlow::Continue(())
