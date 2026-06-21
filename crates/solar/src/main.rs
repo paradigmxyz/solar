@@ -31,7 +31,7 @@ fn main() -> ExitCode {
         Err(e) => e.exit(),
     };
 
-    if let Some(Subcommands::Lsp) = args.commands {
+    if let Some(Subcommands::Lsp { .. }) = args.commands {
         let _guard = utils::init_logger(LogDestination::Stderr);
         let rt = Runtime::new().unwrap();
         return match rt.block_on(solar_lsp::run_server_stdio()) {

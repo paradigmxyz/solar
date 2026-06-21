@@ -20,5 +20,9 @@ pub struct Args {
 #[derive(Debug, Clone, Subcommand)]
 pub enum Subcommands {
     /// Start the language server.
-    Lsp,
+    Lsp {
+        /// Use standard input/output for LSP transport.
+        #[arg(long, hide = true)]
+        stdio: bool,
+    },
 }
