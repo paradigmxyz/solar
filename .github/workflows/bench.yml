@@ -27,24 +27,24 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Solar
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
 
       - name: Checkout benchmark corpus
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           repository: ${{ env.BENCHMARK_REPOSITORY }}
           ref: ${{ env.BENCHMARK_REF }}
           path: ${{ env.BENCHMARK_PATH }}
           submodules: recursive
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
         with:
           version: stable
 
@@ -172,14 +172,14 @@ jobs:
           github.event.pull_request.head.repo.full_name == github.repository &&
           (steps.runtime-report.outputs.should_comment == 'true' ||
           steps.runtime-comment.outputs.exists == 'true')
-        uses: marocchino/sticky-pull-request-comment@v2
+        uses: marocchino/sticky-pull-request-comment@d4d6b0936434b21bc8345ad45a440c5f7d2c40ff # v3.0.3
         with:
           header: codegen-runtime-bench
           message: ${{ steps.runtime-report.outputs.report }}
 
       - name: Upload results as artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: codegen-runtime-results
           path: target/codegen-bench/
@@ -188,7 +188,7 @@ jobs:
 
       - name: Save baseline (main only)
         if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: codegen-runtime-baseline
           path: |
@@ -202,23 +202,23 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: true
       - name: Checkout submodules
         run: git submodule update --checkout
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@9e1e5806d4a4822de933115878265be9aaa786d9 # v2.82.2
         with:
           tool: cargo-codspeed
       - name: Build the benchmark target(s)
         run: cargo codspeed build --profile profiling -p solar-bench --bench criterion
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@v4
+        uses: CodSpeedHQ/action@63f3e98b61959fe67f146a3ff022e4136fe9bb9c # v4.17.6
         with:
           run: cargo codspeed run -p solar-bench criterion
           mode: instrumentation
@@ -233,25 +233,25 @@ jobs:
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
       GUNGRAUN_RUNNER: gungraun-runner
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           submodules: true
       - name: Checkout submodules
         run: git submodule update --checkout
       - name: Install Valgrind
         run: sudo apt update && sudo apt install valgrind
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - name: Install cargo-binstall
-        uses: taiki-e/install-action@cargo-binstall
+        uses: taiki-e/install-action@0a2f2631db4baa30da5fdc366b85127c37d77006 # cargo-binstall
       - name: Checkout base
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           ref: ${{ github.base_ref || 'main' }}
           fetch-depth: 2
       - name: Checkout HEAD^
         if: ${{ !github.base_ref }}
         run: git checkout HEAD^
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
       - name: Install benchmark runner
@@ -273,7 +273,7 @@ jobs:
             mv target/iai target/gungraun
           fi
       - name: Checkout PR
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
           clean: false
       - name: Install benchmark runner
