@@ -1,3 +1,4 @@
+use crate::vfs::{self, VfsPath};
 use crop::Rope;
 use lsp_types::{DiagnosticSeverity, NumberOrString};
 use solar_interface::{
@@ -5,8 +6,6 @@ use solar_interface::{
     diagnostics::{Diag, Level},
     source_map::SpanLoc,
 };
-
-use crate::vfs::{self, VfsPath};
 
 pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
     url.to_file_path().map(VfsPath::from).ok()

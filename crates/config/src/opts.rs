@@ -11,6 +11,7 @@ use clap::{Parser, ValueHint};
 
 // TODO: implement `allow_paths`.
 
+/// Compilation configuration.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "clap", derive(Parser))]
 #[cfg_attr(feature = "clap", command(

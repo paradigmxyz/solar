@@ -5,8 +5,7 @@
 )]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-use std::ops::ControlFlow;
-
+use crate::global_state::GlobalState;
 use async_lsp::{
     ClientSocket, client_monitor::ClientProcessMonitorLayer, concurrency::ConcurrencyLayer,
     router::Router, server::LifecycleLayer, tracing::TracingLayer,
@@ -14,9 +13,8 @@ use async_lsp::{
 use lsp_types::{notification as notif, request as req};
 use serde_json as _;
 use solar_config::LspArgs;
+use std::ops::ControlFlow;
 use tower::ServiceBuilder;
-
-use crate::global_state::GlobalState;
 
 mod config;
 mod global_state;

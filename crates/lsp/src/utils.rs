@@ -1,8 +1,6 @@
-use std::mem;
-
-use crop::Rope;
-
 use crate::proto;
+use crop::Rope;
+use std::mem;
 
 pub(crate) fn apply_document_changes(
     file_contents: &Rope,
