@@ -14,6 +14,7 @@ pub(crate) mod display_fromstr {
         serializer.collect_str(value)
     }
 
+    #[allow(dead_code, reason = "Foundry config deserialization is not wired into LSP config yet")]
     pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     where
         T: FromStr,
@@ -52,6 +53,10 @@ pub(crate) mod display_fromstr {
             seq.end()
         }
 
+        #[allow(
+            dead_code,
+            reason = "Foundry config deserialization is not wired into LSP config yet"
+        )]
         pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<Vec<T>, D::Error>
         where
             T: FromStr,
