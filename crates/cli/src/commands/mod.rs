@@ -2,11 +2,11 @@
 
 use std::process::ExitCode;
 
-use crate::{Args, Subcommands};
+use crate::args::{Args, Subcommands};
 
 pub mod compile;
 mod lsp;
-pub mod mir_opt;
+pub(crate) mod mir_opt;
 
 pub fn run(args: Args) -> ExitCode {
     let Args { commands, compile } = args;

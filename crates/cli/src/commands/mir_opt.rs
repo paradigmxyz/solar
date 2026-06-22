@@ -65,7 +65,7 @@ Input formats:
     after_help = after_help(),
     arg_required_else_help = true
 )]
-pub struct MirOptArgs {
+pub(crate) struct MirOptArgs {
     /// Comma-separated list of passes to run in order.
     #[arg(
         long = "passes",
@@ -236,7 +236,7 @@ fn process_sol(args: &MirOptArgs) -> Result<(), String> {
 }
 
 /// Entry point for the `mir-opt` subcommand.
-pub fn run(args: MirOptArgs) -> ExitCode {
+pub(super) fn run(args: MirOptArgs) -> ExitCode {
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
     let result = match ext {

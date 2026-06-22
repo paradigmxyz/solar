@@ -33,7 +33,7 @@ pub mod signal_handler {
 }
 
 mod args;
-pub use args::{Args, Subcommands};
+pub use args::Args;
 
 pub use commands::compile::run_compiler_args;
 

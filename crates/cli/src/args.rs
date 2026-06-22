@@ -13,13 +13,13 @@ use solar_config::{CompileOpts, LspArgs};
 #[allow(clippy::manual_non_exhaustive)]
 pub struct Args {
     #[command(subcommand)]
-    pub commands: Option<Subcommands>,
+    pub(crate) commands: Option<Subcommands>,
     #[command(flatten)]
-    pub compile: CompileOpts,
+    pub(crate) compile: CompileOpts,
 }
 
 #[derive(Subcommand)]
-pub enum Subcommands {
+pub(crate) enum Subcommands {
     /// Start the language server.
     Lsp(LspArgs),
     /// Run one or more MIR passes on a Solidity or MIR file.
