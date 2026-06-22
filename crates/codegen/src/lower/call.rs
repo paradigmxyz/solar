@@ -603,7 +603,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let ExprKind::Lit(lit) = &first.kind
             && let LitKind::Str(_, bytes, _) = &lit.kind
         {
-            return builder.imm_u256(erc7201_slot(*bytes));
+            return builder.imm_u256(erc7201_slot(bytes.as_byte_str()).into());
         }
 
         let Some(inner_hash) = self.keccak_dynamic_bytes(builder, first) else {

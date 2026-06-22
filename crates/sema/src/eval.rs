@@ -1,8 +1,8 @@
 use crate::{builtins::Builtin, hir, ty::Gcx};
-use alloy_primitives::{U256, keccak256};
+use alloy_primitives::{B256, U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, Signed, Zero};
-use solar_ast::{ElementaryType, LitKind, StrKind};
+use solar_ast::{LitKind, StrKind};
 use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
@@ -12,12 +12,14 @@ const MAX_BITS: u64 = solar_ast::TypeSize::MAX as u64;
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
 
 /// Computes the ERC-7201 storage namespace base slot.
-pub fn erc7201_slot(namespace_id: ByteSymbol) -> U256 {
-    let inner = keccak256(namespace_id.as_byte_str());
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/units-and-global-variables.html#mathematical-and-cryptographic-functions>
+pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
+    let inner = keccak256(namespace_id);
     let inner = U256::from_be_bytes(inner.0).wrapping_sub(U256::from(1));
     let mut outer = keccak256(inner.to_be_bytes::<32>());
     outer.0[31] = 0;
-    U256::from_be_bytes(outer.0)
+    outer
 }
 
 /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
@@ -124,14 +126,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                let value = self
-                    .try_eval_value(v.initializer.expect("constant variable has no initializer"))?;
-                if matches!(value, ConstValue::String(_))
-                    && !matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::String))
-                {
-                    return Err(EE::UnsupportedLiteral.into());
-                }
-                Ok(value)
+                self.try_eval_value(v.initializer.expect("constant variable has no initializer"))
             }
             // hir::ExprKind::Index(_, _) => unimplemented!(),
             // hir::ExprKind::Slice(_, _, _) => unimplemented!(),
@@ -163,22 +158,17 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         args: &hir::CallArgs<'_>,
         opts: Option<&hir::CallOptions<'_>>,
     ) -> EvalResult {
-        if opts.is_some() {
-            return Err(EE::UnsupportedExpr.into());
+        if opts.is_none()
+            && let hir::ExprKind::Ident(res) = callee.peel_parens().kind
+            && matches!(res.first(), Some(hir::Res::Builtin(Builtin::Erc7201)))
+            && let hir::CallArgsKind::Unnamed([arg]) = args.kind
+            && let ConstValue::String(namespace_id) = self.try_eval_value(arg)?
+        {
+            return Ok(ConstValue::Integer(IntScalar::new(
+                erc7201_slot(namespace_id.as_byte_str()).into(),
+            )));
         }
-        let hir::ExprKind::Ident(res) = callee.peel_parens().kind else {
-            return Err(EE::UnsupportedExpr.into());
-        };
-        if !matches!(res.first(), Some(hir::Res::Builtin(Builtin::Erc7201))) {
-            return Err(EE::UnsupportedExpr.into());
-        }
-        let hir::CallArgsKind::Unnamed([arg]) = args.kind else {
-            return Err(EE::UnsupportedExpr.into());
-        };
-        let ConstValue::String(namespace_id) = self.try_eval_value(arg)? else {
-            return Err(EE::UnsupportedExpr.into());
-        };
-        Ok(ConstValue::Integer(IntScalar::new(erc7201_slot(namespace_id))))
+        Err(EE::UnsupportedExpr.into())
     }
 
     fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult {
