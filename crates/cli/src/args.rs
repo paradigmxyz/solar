@@ -1,4 +1,4 @@
-use crate::mir_opt::MirOptArgs;
+use crate::commands::mir_opt::MirOptArgs;
 use clap::{Parser, Subcommand};
 use solar_config::{CompileOpts, LspArgs};
 

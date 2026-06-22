@@ -1,7 +1,7 @@
-use solar_cli::LspArgs;
+use solar_config::LspArgs;
 use std::process::ExitCode;
 
-pub(crate) fn run(args: LspArgs) -> ExitCode {
+pub(super) fn run(args: LspArgs) -> ExitCode {
     match tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()

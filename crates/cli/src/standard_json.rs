@@ -286,10 +286,10 @@ fn compile(
         .opts(opts.clone())
         .build();
 
-    let _ = crate::run_compiler_session_with(
+    let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
-            let compile_result = crate::run_pipeline(
+            let compile_result = crate::commands::compile::run_pipeline(
                 compiler,
                 |pcx| {
                     let mut files = Vec::with_capacity(sources.len());

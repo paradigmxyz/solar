@@ -3166,8 +3166,10 @@ dependencies = [
  "solar-config",
  "solar-data-structures",
  "solar-interface",
+ "solar-lsp",
  "solar-sema",
  "tikv-jemallocator",
+ "tokio",
  "tracing",
  "tracing-chrome",
  "tracing-samply",
@@ -3206,13 +3208,11 @@ dependencies = [
  "solar-config",
  "solar-data-structures",
  "solar-interface",
- "solar-lsp",
  "solar-macros",
  "solar-parse",
  "solar-sema",
  "solar-tester",
  "tempfile",
- "tokio",
 ]
 
 [[package]]
