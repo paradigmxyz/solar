@@ -77,6 +77,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         // TODO: CBA to implement.
         | "unchecked_while_body"
         // TODO: EVM version-aware parsing.
+        | "basefee_pre_london"
         | "basefee_berlin_function"
         | "prevrandao_allowed_function_pre_paris"
         | "blobbasefee_shanghai_function"
