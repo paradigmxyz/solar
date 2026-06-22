@@ -23,7 +23,7 @@ impl VfsPath {
     /// # Panics
     ///
     /// Panics if `path` does not start with `'/'`.
-    #[expect(unused, reason = "We do not use virtual paths yet.")]
+    #[expect(dead_code, reason = "We do not use virtual paths yet")]
     pub(crate) fn new_virtual_path(path: String) -> Self {
         assert!(path.starts_with('/'));
         Self(VfsPathRepr::VirtualPath(VirtualPath(path)))
@@ -36,6 +36,10 @@ impl VfsPath {
     /// # Panics
     ///
     /// Panics if the path is not absolute.
+    #[expect(
+        dead_code,
+        reason = "VFS path operations are scaffolded for workspace import handling"
+    )]
     pub(crate) fn new_real_path(path: String) -> Self {
         let p: PathBuf = path.into();
         if !p.is_absolute() {
@@ -53,6 +57,10 @@ impl VfsPath {
         }
     }
 
+    #[expect(
+        dead_code,
+        reason = "VFS path operations are scaffolded for workspace import handling"
+    )]
     pub(crate) fn into_abs_path(self) -> Option<PathBuf> {
         match self.0 {
             VfsPathRepr::PathBuf(it) => Some(it),
@@ -61,6 +69,10 @@ impl VfsPath {
     }
 
     /// Creates a new `VfsPath` with `path` adjoined to `self`.
+    #[expect(
+        dead_code,
+        reason = "VFS path operations are scaffolded for workspace import handling"
+    )]
     pub(crate) fn join(&self, path: &str) -> Option<Self> {
         match &self.0 {
             VfsPathRepr::PathBuf(it) => {
@@ -96,6 +108,10 @@ impl VfsPath {
     }
 
     /// Returns `true` if `other` is a prefix of `self`.
+    #[expect(
+        dead_code,
+        reason = "VFS path operations are scaffolded for workspace import handling"
+    )]
     pub(crate) fn starts_with(&self, other: &Self) -> bool {
         match (&self.0, &other.0) {
             (VfsPathRepr::PathBuf(lhs), VfsPathRepr::PathBuf(rhs)) => lhs.starts_with(rhs),
@@ -107,6 +123,10 @@ impl VfsPath {
     /// Returns the `VfsPath` without its final component, if there is one.
     ///
     /// Returns [`None`] if the path is a root or prefix.
+    #[expect(
+        dead_code,
+        reason = "VFS path operations are scaffolded for workspace import handling"
+    )]
     pub(crate) fn parent(&self) -> Option<Self> {
         let mut parent = self.clone();
         if parent.pop() { Some(parent) } else { None }
@@ -173,7 +193,6 @@ struct VirtualPath(String);
 
 impl VirtualPath {
     /// Returns `true` if `other` is a prefix of `self` (as strings).
-    #[expect(unused, reason = "We do not use virtual paths yet.")]
     fn starts_with(&self, other: &Self) -> bool {
         self.0.starts_with(&other.0)
     }
@@ -213,7 +232,6 @@ impl VirtualPath {
     /// # Notes
     ///
     /// In practice, appending here means `self/path` as strings.
-    #[expect(unused, reason = "We do not use virtual paths yet.")]
     fn join(&self, mut path: &str) -> Option<Self> {
         let mut res = self.clone();
         while path.starts_with("../") {

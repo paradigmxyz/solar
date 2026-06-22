@@ -1,7 +1,4 @@
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
+use std::{env, path::PathBuf};
 
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
@@ -18,14 +15,13 @@ use crate::workspace::manifest::ProjectManifest;
 /// on-disk config files (e.g. `foundry.toml`).
 #[derive(Default, Clone, Debug)]
 pub(crate) struct Config {
-    root_path: PathBuf,
     workspace_roots: Vec<PathBuf>,
     discovered_projects: Vec<ProjectManifest>,
 }
 
 impl Config {
-    pub(crate) fn new(root_path: PathBuf, workspace_roots: Vec<PathBuf>) -> Self {
-        Self { root_path, workspace_roots, discovered_projects: Default::default() }
+    pub(crate) fn new(workspace_roots: Vec<PathBuf>) -> Self {
+        Self { workspace_roots, discovered_projects: Default::default() }
     }
 
     pub(crate) fn rediscover_workspaces(&mut self) {
@@ -45,10 +41,6 @@ impl Config {
 
     pub(crate) fn add_workspaces(&mut self, paths: impl Iterator<Item = PathBuf>) {
         self.workspace_roots.extend(paths);
-    }
-
-    pub(crate) fn root_path(&self) -> &Path {
-        self.root_path.as_path()
     }
 }
 
@@ -87,6 +79,6 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             )),
             ..Default::default()
         },
-        Config::new(root_path, workspace_roots),
+        Config::new(workspace_roots),
     )
 }

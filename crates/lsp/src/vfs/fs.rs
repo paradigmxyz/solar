@@ -56,6 +56,7 @@ impl Vfs {
     /// Whether the VFS is dirty or not.
     ///
     /// The VFS is considered dirty if a file was modified, changed, or removed.
+    #[expect(dead_code, reason = "VFS dirty state is scaffolded for future incremental analysis")]
     pub(crate) fn is_dirty(&self) -> bool {
         self.dirty
     }

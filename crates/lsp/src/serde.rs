@@ -5,6 +5,7 @@ pub(crate) mod display_fromstr {
 
     use serde::{Deserialize, Deserializer, Serializer, de};
 
+    #[expect(dead_code, reason = "Foundry config deserialization is not wired into LSP config yet")]
     pub(crate) fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
     where
         T: Display,
@@ -35,6 +36,10 @@ pub(crate) mod display_fromstr {
             ser::SerializeSeq,
         };
 
+        #[expect(
+            dead_code,
+            reason = "Foundry config deserialization is not wired into LSP config yet"
+        )]
         pub(crate) fn serialize<T, S>(value: &[T], serializer: S) -> Result<S::Ok, S::Error>
         where
             T: Display,

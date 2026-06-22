@@ -18,7 +18,7 @@ use solar_interface::{
     Session,
     data_structures::sync::RwLock,
     diagnostics::{DiagCtxt, InMemoryEmitter},
-    source_map::FileName,
+    source_map::{FileName, SourceMap},
 };
 use solar_sema::Compiler;
 use tokio::task::JoinHandle;
@@ -152,7 +152,6 @@ impl GlobalState {
         GlobalStateSnapshot {
             client: self.client.clone(),
             vfs: self.vfs.clone(),
-            config: self.config.clone(),
             analysis_version: self.analysis_version.clone(),
             published_diagnostic_uris: self.published_diagnostic_uris.clone(),
         }
@@ -170,7 +169,6 @@ impl GlobalState {
 pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
-    config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
     published_diagnostic_uris: Arc<RwLock<HashSet<Url>>>,
 }
@@ -192,6 +190,7 @@ impl GlobalStateSnapshot {
         let mut file_uris =
             files.iter().filter_map(|(path, _)| Url::from_file_path(path).ok()).collect::<Vec<_>>();
         let mut seen_paths = files.iter().map(|(path, _)| path.clone()).collect::<HashSet<_>>();
+        let source_map = SourceMap::empty();
 
         for path in disk_paths {
             if let Ok(uri) = Url::from_file_path(&path) {
@@ -202,7 +201,7 @@ impl GlobalStateSnapshot {
                 continue;
             }
 
-            if let Ok(contents) = std::fs::read_to_string(&path) {
+            if let Ok(contents) = source_map.file_loader().load_file(&path) {
                 files.push((path, contents));
             }
         }
@@ -252,7 +251,6 @@ mod tests {
         let mut snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
-            config: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             published_diagnostic_uris: published_diagnostic_uris.clone(),
         };
@@ -284,7 +282,6 @@ mod tests {
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
-            config: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
@@ -304,7 +301,6 @@ mod tests {
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
-            config: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             published_diagnostic_uris: Arc::new(Default::default()),
         };

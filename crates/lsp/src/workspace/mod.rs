@@ -8,17 +8,20 @@
 //!
 //! Once a project type is identified, the configuration for that project model is merged into the
 //! overall LSP config.
+
 use crate::workspace::foundry::FoundryConfig;
 
 mod foundry;
 pub(crate) mod manifest;
 
 #[derive(Debug)]
+#[expect(dead_code, reason = "Workspace config model is scaffolded but not loaded yet")]
 pub(crate) struct Workspace {
     pub(crate) kind: WorkspaceKind,
 }
 
 #[derive(Debug)]
+#[expect(dead_code, reason = "Workspace config model is scaffolded but not loaded yet")]
 pub(crate) enum WorkspaceKind {
     Foundry {
         foundry: FoundryConfig,
@@ -31,6 +34,7 @@ pub(crate) enum WorkspaceKind {
 }
 
 impl Workspace {
+    #[expect(dead_code, reason = "Workspace config loading is scaffolded but not implemented yet")]
     pub(crate) fn load() -> Self {
         todo!()
     }

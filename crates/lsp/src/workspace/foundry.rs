@@ -6,6 +6,7 @@ use solar_config::{EvmVersion, ImportRemapping};
 ///
 /// This will be merged into the main configuration.
 #[derive(Debug, Deserialize)]
+#[expect(dead_code, reason = "Foundry config parsing is scaffolded but not loaded yet")]
 pub(crate) struct FoundryConfig {
     #[serde(with = "crate::serde::display_fromstr::vec")]
     remappings: Vec<ImportRemapping>,
