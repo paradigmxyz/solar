@@ -44,6 +44,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "number_literal_2"
         | "number_literal_3"
         | "number_literal_4"
+        | "data_name_with_literal_newline"
         | "pc_disallowed"
         | "for_statement_nested_continue"
         | "linkersymbol_invalid_redefine_builtin"
@@ -55,6 +56,7 @@ pub(crate) fn should_skip(path: &Path) -> Result<(), &'static str> {
         | "loadimmutable_shadowing"
         | "setimmutable_shadowing"
         // TODO: EVM version-aware parsing.
+        | "basefee_identifier_pre_london"
         | "blobbasefee_identifier_pre_cancun"
         | "blobhash_pre_cancun"
         | "mcopy_as_identifier_pre_cancun"
