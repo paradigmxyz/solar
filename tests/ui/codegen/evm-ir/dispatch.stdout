@@ -1,17 +1,13 @@
 // === ROOT/tests/ui/codegen/evm-ir/dispatch.evmir (after none) ===
-; evm module @Dispatch
-
-fn @runtime {
-  bb0 (entry) [hotness=hot]:
-    %selector = calldataload 0 !meta(stack=1->1, source=dispatch)
-    %is_inc = eq %selector, 0x371303c0 !meta(stack=2->1)
-    br %is_inc, bb1, bb2
-  bb1 [hotness=hot]:
-    %slot = push 0 !meta(stack=0->1)
-    %value = sload %slot !meta(stack=1->1, alias=storage0)
-    jump bb3
-  bb2 [hotness=cold]:
-    revert 0, 0 !meta(stack=2->0, source=fallback)
-  bb3 [hotness=unknown]:
-    return 0, 32 !meta(stack=2->0)
-}
+bb0 (entry):
+  %selector = calldataload 0 !meta(stack=1->1, source=dispatch)
+  %is_inc = eq %selector, 0x371303c0 !meta(stack=2->1)
+  br %is_inc, bb1, bb2
+bb1:
+  %slot = push 0 !meta(stack=0->1)
+  %value = sload %slot !meta(stack=1->1, alias=storage0)
+  jump bb3
+bb2 [cold]:
+  revert 0, 0 !meta(stack=2->0, source=fallback)
+bb3:
+  return 0, 32 !meta(stack=2->0)

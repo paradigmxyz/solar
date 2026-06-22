@@ -1,11 +1,7 @@
 // === ROOT/tests/ui/codegen/evm-ir/cold_layout.evmir (after cold-layout) ===
-; evm module @ColdLayout
-
-fn @runtime {
-  bb0 (entry) [hotness=hot]:
-    jump bb2
-  bb2 [hotness=hot]:
-    stop
-  bb1 [hotness=cold]:
-    revert 0, 0 !meta(stack=2->0)
-}
+bb0 (entry):
+  jump bb2
+bb2:
+  stop
+bb1 [cold]:
+  revert 0, 0 !meta(stack=2->0)

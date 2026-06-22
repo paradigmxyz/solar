@@ -16,11 +16,6 @@ use solar_data_structures::{
 use std::fmt as std_fmt;
 
 newtype_index! {
-    /// A unique identifier for a function in EVM IR.
-    pub struct EvmIrFunctionId;
-}
-
-newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub struct EvmIrBlockId;
 }
@@ -33,72 +28,26 @@ newtype_index! {
 /// An EVM IR module.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EvmIrModule {
-    /// Module/contract name.
-    pub name: String,
-    /// Functions in insertion order.
-    pub functions: IndexVec<EvmIrFunctionId, EvmIrFunction>,
-}
-
-impl EvmIrModule {
-    /// Creates an empty EVM IR module.
-    #[must_use]
-    pub fn new(name: impl Into<String>) -> Self {
-        let name = name.into();
-        assert!(is_valid_ident(&name), "invalid EVM IR module name `{name}`");
-        Self { name, functions: IndexVec::new() }
-    }
-
-    /// Adds a function to the module.
-    pub fn add_function(&mut self, function: EvmIrFunction) -> EvmIrFunctionId {
-        self.functions.push(function)
-    }
-
-    /// Returns the function for the given ID.
-    #[must_use]
-    pub fn function(&self, id: EvmIrFunctionId) -> &EvmIrFunction {
-        &self.functions[id]
-    }
-
-    /// Returns a mutable reference to the function for the given ID.
-    pub fn function_mut(&mut self, id: EvmIrFunctionId) -> &mut EvmIrFunction {
-        &mut self.functions[id]
-    }
-
-    /// Returns the canonical EVM IR text-format representation.
-    pub fn to_text(&self) -> impl fmt::Display + '_ {
-        fmt::from_fn(move |f| {
-            writeln!(f, "; evm module @{}", self.name)?;
-            if !self.functions.is_empty() {
-                writeln!(f)?;
-            }
-            write!(f, "{}", self.functions.iter().map(EvmIrFunction::to_text).format("\n"))
-        })
-    }
-}
-
-/// An EVM IR function.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct EvmIrFunction {
-    /// Function name.
+    /// Program name used by tools and diagnostics.
     pub name: String,
     /// Basic blocks in layout order.
     pub blocks: IndexVec<EvmIrBlockId, EvmIrBlock>,
     /// The entry block, if one has been created.
     pub entry_block: Option<EvmIrBlockId>,
-    /// Stack values known to this function.
+    /// Stack values known to this program.
     pub values: IndexVec<EvmIrValueId, EvmIrValue>,
 }
 
-impl EvmIrFunction {
-    /// Creates an empty EVM IR function.
+impl EvmIrModule {
+    /// Creates an empty EVM IR program.
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {
         let name = name.into();
-        assert!(is_valid_ident(&name), "invalid EVM IR function name `{name}`");
+        assert!(is_valid_ident(&name), "invalid EVM IR program name `{name}`");
         Self { name, blocks: IndexVec::new(), entry_block: None, values: IndexVec::new() }
     }
 
-    /// Adds a block to the function.
+    /// Adds a block to the program.
     pub fn add_block(&mut self, block: EvmIrBlock) -> EvmIrBlockId {
         let id = self.blocks.push(block);
         if self.entry_block.is_none() {
@@ -134,15 +83,13 @@ impl EvmIrFunction {
     /// Returns the canonical EVM IR text-format representation.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
-            writeln!(f, "fn @{} {{", self.name)?;
             write!(
                 f,
                 "{}",
                 self.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
                     write!(f, "{}", display_block(self, block_id, block))
                 })
-            )?;
-            writeln!(f, "}}")
+            )
         })
     }
 }
@@ -162,7 +109,7 @@ pub struct EvmIrBlock {
 }
 
 impl EvmIrBlock {
-    /// Creates an empty block with unknown hotness.
+    /// Creates an empty hot block.
     #[must_use]
     pub fn new(label: impl Into<String>) -> Self {
         let label = label.into();
@@ -186,29 +133,16 @@ pub struct EvmIrBlockMetadata {
 /// Block hotness metadata.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum EvmIrBlockHotness {
-    /// No block-frequency information is available.
-    #[default]
-    Unknown,
     /// The block is expected to be frequently executed.
+    #[default]
     Hot,
     /// The block is expected to be infrequently executed.
     Cold,
 }
 
 impl EvmIrBlockHotness {
-    /// Stable textual name.
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::Unknown => "unknown",
-            Self::Hot => "hot",
-            Self::Cold => "cold",
-        }
-    }
-
     fn parse(value: &str) -> Option<Self> {
         Some(match value {
-            "unknown" => Self::Unknown,
             "hot" => Self::Hot,
             "cold" => Self::Cold,
             _ => return None,
@@ -382,22 +316,6 @@ pub fn parse_evm_ir_module(input: &str) -> Result<EvmIrModule, EvmIrParseError> 
     Parser::new(input).parse_module()
 }
 
-/// Parses a single EVM IR function from the text format.
-///
-/// # Errors
-///
-/// Returns an [`EvmIrParseError`] if `input` is malformed.
-pub fn parse_evm_ir_function(input: &str) -> Result<EvmIrFunction, EvmIrParseError> {
-    let mut parser = Parser::new(input);
-    parser.skip_blank_and_comments();
-    let function = parser.parse_function()?;
-    parser.skip_blank_and_comments();
-    if !parser.is_eof() {
-        return Err(parser.error("trailing input after function"));
-    }
-    Ok(function)
-}
-
 /// A named EVM IR pass exposed to `solar evm-opt`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum EvmIrPass {
@@ -453,109 +371,79 @@ pub const EVM_IR_PASSES: &[EvmIrPass] =
 /// duplicate definitions, missing terminators, or malformed identifiers.
 pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError> {
     if !is_valid_ident(&module.name) {
-        return Err(EvmIrVerifyError::new(format!("invalid module name `{}`", module.name)));
+        return Err(EvmIrVerifyError::new(format!("invalid program name `{}`", module.name)));
     }
-    for (function_id, function) in module.functions.iter_enumerated() {
-        verify_evm_ir_function(function_id, function)?;
+    if module.blocks.is_empty() {
+        return Err(EvmIrVerifyError::new("program has no blocks"));
     }
-    Ok(())
-}
-
-fn verify_evm_ir_function(
-    function_id: EvmIrFunctionId,
-    function: &EvmIrFunction,
-) -> Result<(), EvmIrVerifyError> {
-    if !is_valid_ident(&function.name) {
-        return Err(EvmIrVerifyError::in_function(
-            function_id,
-            format!("invalid function name `{}`", function.name),
-        ));
-    }
-    if function.blocks.is_empty() {
-        return Err(EvmIrVerifyError::in_function(function_id, "function has no blocks"));
-    }
-    let Some(entry) = function.entry_block else {
-        return Err(EvmIrVerifyError::in_function(function_id, "function has no entry block"));
+    let Some(entry) = module.entry_block else {
+        return Err(EvmIrVerifyError::new("program has no entry block"));
     };
-    if !block_exists(function, entry) {
-        return Err(EvmIrVerifyError::in_function(
-            function_id,
-            format!("entry block `{}` is out of range", entry.index()),
-        ));
+    if !block_exists(module, entry) {
+        return Err(EvmIrVerifyError::new(format!(
+            "entry block `{}` is out of range",
+            entry.index()
+        )));
     }
 
     let mut labels = FxHashSet::default();
-    for (block_id, block) in function.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks.iter_enumerated() {
         if !is_valid_block_label(&block.label) {
             return Err(EvmIrVerifyError::in_block(
-                function_id,
                 block_id,
                 format!("invalid block label `{}`", block.label),
             ));
         }
         if !labels.insert(block.label.as_str()) {
             return Err(EvmIrVerifyError::in_block(
-                function_id,
                 block_id,
                 format!("duplicate block label `{}`", block.label),
             ));
         }
         if block.terminator.is_none() {
-            return Err(EvmIrVerifyError::in_block(function_id, block_id, "missing terminator"));
+            return Err(EvmIrVerifyError::in_block(block_id, "missing terminator"));
         }
     }
 
     let mut value_names = FxHashSet::default();
-    for (_, value) in function.values.iter_enumerated() {
+    for (_, value) in module.values.iter_enumerated() {
         if !is_valid_value_name(&value.name) {
-            return Err(EvmIrVerifyError::in_function(
-                function_id,
-                format!("invalid value name `%{}`", value.name),
-            ));
+            return Err(EvmIrVerifyError::new(format!("invalid value name `%{}`", value.name)));
         }
         if !value_names.insert(value.name.as_str()) {
-            return Err(EvmIrVerifyError::in_function(
-                function_id,
-                format!("duplicate value name `%{}`", value.name),
-            ));
+            return Err(EvmIrVerifyError::new(format!("duplicate value name `%{}`", value.name)));
         }
     }
 
     let mut defined_values = FxHashSet::default();
-    for (block_id, block) in function.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             if let Some(result) = inst.result {
-                if !value_exists(function, result) {
+                if !value_exists(module, result) {
                     return Err(EvmIrVerifyError::in_block(
-                        function_id,
                         block_id,
                         format!("result value `{}` is out of range", result.index()),
                     ));
                 }
                 if !defined_values.insert(result) {
                     return Err(EvmIrVerifyError::in_block(
-                        function_id,
                         block_id,
-                        format!(
-                            "value `%{}` is defined more than once",
-                            function.value(result).name
-                        ),
+                        format!("value `%{}` is defined more than once", module.value(result).name),
                     ));
                 }
             }
             for operand in &inst.operands {
-                verify_operand(function_id, block_id, function, operand)?;
+                verify_operand(block_id, module, operand)?;
             }
         }
         let term = block.terminator.as_ref().expect("checked above");
         visit_terminator_operands(&term.kind, |operand| {
-            verify_operand(function_id, block_id, function, operand)?;
+            verify_operand(block_id, module, operand)?;
             Ok(())
         })?;
         visit_terminator_targets(&term.kind, |target| {
-            if !block_exists(function, target) {
+            if !block_exists(module, target) {
                 return Err(EvmIrVerifyError::in_block(
-                    function_id,
                     block_id,
                     format!("target block `{}` is out of range", target.index()),
                 ));
@@ -564,15 +452,15 @@ fn verify_evm_ir_function(
         })?;
     }
 
-    for (block_id, block) in function.blocks.iter_enumerated() {
+    for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             for operand in &inst.operands {
-                verify_value_defined(function_id, block_id, function, operand, &defined_values)?;
+                verify_value_defined(block_id, module, operand, &defined_values)?;
             }
         }
         let term = block.terminator.as_ref().expect("checked above");
         visit_terminator_operands(&term.kind, |operand| {
-            verify_value_defined(function_id, block_id, function, operand, &defined_values)?;
+            verify_value_defined(block_id, module, operand, &defined_values)?;
             Ok(())
         })?;
     }
@@ -581,22 +469,19 @@ fn verify_evm_ir_function(
 }
 
 fn verify_operand(
-    function_id: EvmIrFunctionId,
     block_id: EvmIrBlockId,
-    function: &EvmIrFunction,
+    module: &EvmIrModule,
     operand: &EvmIrOperand,
 ) -> Result<(), EvmIrVerifyError> {
     match operand {
-        EvmIrOperand::Value(value) if !value_exists(function, *value) => {
+        EvmIrOperand::Value(value) if !value_exists(module, *value) => {
             Err(EvmIrVerifyError::in_block(
-                function_id,
                 block_id,
                 format!("value `{}` is out of range", value.index()),
             ))
         }
-        EvmIrOperand::Block(block) if !block_exists(function, *block) => {
+        EvmIrOperand::Block(block) if !block_exists(module, *block) => {
             Err(EvmIrVerifyError::in_block(
-                function_id,
                 block_id,
                 format!("block `{}` is out of range", block.index()),
             ))
@@ -606,9 +491,8 @@ fn verify_operand(
 }
 
 fn verify_value_defined(
-    function_id: EvmIrFunctionId,
     block_id: EvmIrBlockId,
-    function: &EvmIrFunction,
+    module: &EvmIrModule,
     operand: &EvmIrOperand,
     defined_values: &FxHashSet<EvmIrValueId>,
 ) -> Result<(), EvmIrVerifyError> {
@@ -616,20 +500,19 @@ fn verify_value_defined(
         && !defined_values.contains(value)
     {
         return Err(EvmIrVerifyError::in_block(
-            function_id,
             block_id,
-            format!("value `%{}` is used but never defined", function.value(*value).name),
+            format!("value `%{}` is used but never defined", module.value(*value).name),
         ));
     }
     Ok(())
 }
 
-fn block_exists(function: &EvmIrFunction, block: EvmIrBlockId) -> bool {
-    block.index() < function.blocks.len()
+fn block_exists(module: &EvmIrModule, block: EvmIrBlockId) -> bool {
+    block.index() < module.blocks.len()
 }
 
-fn value_exists(function: &EvmIrFunction, value: EvmIrValueId) -> bool {
-    value.index() < function.values.len()
+fn value_exists(module: &EvmIrModule, value: EvmIrValueId) -> bool {
+    value.index() < module.values.len()
 }
 
 fn visit_terminator_operands<E>(
@@ -682,19 +565,11 @@ fn visit_terminator_targets<E>(
 }
 
 fn move_cold_terminal_blocks(module: &mut EvmIrModule) -> bool {
-    let mut changed = false;
-    for function in &mut module.functions {
-        changed |= move_cold_terminal_blocks_in_function(function);
-    }
-    changed
-}
-
-fn move_cold_terminal_blocks_in_function(function: &mut EvmIrFunction) -> bool {
-    let mut kept = Vec::with_capacity(function.blocks.len());
+    let mut kept = Vec::with_capacity(module.blocks.len());
     let mut moved = Vec::new();
 
-    for (block_id, block) in function.blocks.iter_enumerated() {
-        if is_movable_cold_terminal_block(function, block_id, block) {
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        if is_movable_cold_terminal_block(module, block_id, block) {
             moved.push(block_id);
         } else {
             kept.push(block_id);
@@ -706,47 +581,39 @@ fn move_cold_terminal_blocks_in_function(function: &mut EvmIrFunction) -> bool {
     }
 
     kept.extend(moved);
-    remap_block_order(function, &kept);
+    remap_block_order(module, &kept);
     true
 }
 
 fn is_movable_cold_terminal_block(
-    function: &EvmIrFunction,
+    module: &EvmIrModule,
     block_id: EvmIrBlockId,
     block: &EvmIrBlock,
 ) -> bool {
-    if function.entry_block == Some(block_id) || block_id.index() == 0 {
+    if module.entry_block == Some(block_id) || block_id.index() == 0 {
         return false;
     }
     if block.metadata.hotness != EvmIrBlockHotness::Cold || block.terminator.is_none() {
         return false;
     }
     let previous = EvmIrBlockId::from_usize(block_id.index() - 1);
-    function.blocks[previous].terminator.is_some()
+    module.blocks[previous].terminator.is_some()
 }
 
 fn deduplicate_terminal_blocks(module: &mut EvmIrModule) -> bool {
-    let mut changed = false;
-    for function in &mut module.functions {
-        changed |= deduplicate_terminal_blocks_in_function(function);
-    }
-    changed
-}
-
-fn deduplicate_terminal_blocks_in_function(function: &mut EvmIrFunction) -> bool {
     let mut canonical = Vec::<(TerminalBlockKey, EvmIrBlockId)>::new();
     let mut changed = false;
 
-    let block_ids: Vec<_> = function.blocks.indices().collect();
+    let block_ids: Vec<_> = module.blocks.indices().collect();
     for block_id in block_ids {
-        let block = &function.blocks[block_id];
+        let block = &module.blocks[block_id];
         if !terminal_block_dedup_is_profitable(block) {
             continue;
         }
         let Some(key) = terminal_block_key(block) else { continue };
         if let Some((_, target)) = canonical.iter().find(|(known, _)| *known == key) {
-            function.blocks[block_id].instructions.clear();
-            function.blocks[block_id].terminator =
+            module.blocks[block_id].instructions.clear();
+            module.blocks[block_id].terminator =
                 Some(EvmIrTerminator::new(EvmIrTerminatorKind::Jump(*target)));
             changed = true;
         } else {
@@ -908,17 +775,17 @@ enum TerminalOperandKey {
     Symbol(String),
 }
 
-fn remap_block_order(function: &mut EvmIrFunction, order: &[EvmIrBlockId]) {
-    debug_assert_eq!(order.len(), function.blocks.len());
-    let mut remap = vec![EvmIrBlockId::from_usize(0); function.blocks.len()];
+fn remap_block_order(module: &mut EvmIrModule, order: &[EvmIrBlockId]) {
+    debug_assert_eq!(order.len(), module.blocks.len());
+    let mut remap = vec![EvmIrBlockId::from_usize(0); module.blocks.len()];
     let mut blocks = IndexVec::new();
     for &old_block in order {
-        let new_block = blocks.push(function.blocks[old_block].clone());
+        let new_block = blocks.push(module.blocks[old_block].clone());
         remap[old_block.index()] = new_block;
     }
-    function.blocks = blocks;
-    function.entry_block = function.entry_block.map(|block| remap[block.index()]);
-    for block in &mut function.blocks {
+    module.blocks = blocks;
+    module.entry_block = module.entry_block.map(|block| remap[block.index()]);
+    for block in &mut module.blocks {
         for inst in &mut block.instructions {
             for operand in &mut inst.operands {
                 remap_operand_blocks(operand, &remap);
@@ -1004,12 +871,8 @@ impl EvmIrVerifyError {
         Self { msg: msg.into() }
     }
 
-    fn in_function(function: EvmIrFunctionId, msg: impl Into<String>) -> Self {
-        Self::new(format!("function {}: {}", function.index(), msg.into()))
-    }
-
-    fn in_block(function: EvmIrFunctionId, block: EvmIrBlockId, msg: impl Into<String>) -> Self {
-        Self::new(format!("function {}, block {}: {}", function.index(), block.index(), msg.into()))
+    fn in_block(block: EvmIrBlockId, msg: impl Into<String>) -> Self {
+        Self::new(format!("block {}: {}", block.index(), msg.into()))
     }
 }
 
@@ -1022,37 +885,38 @@ impl std_fmt::Display for EvmIrVerifyError {
 impl std::error::Error for EvmIrVerifyError {}
 
 fn display_block<'a>(
-    func: &'a EvmIrFunction,
+    module: &'a EvmIrModule,
     block_id: EvmIrBlockId,
     block: &'a EvmIrBlock,
 ) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
-        let entry = if func.entry_block == Some(block_id) { " (entry)" } else { "" };
-        writeln!(f, "  {}{} [hotness={}]:", block.label, entry, block.metadata.hotness.name())?;
+        let entry = if module.entry_block == Some(block_id) { " (entry)" } else { "" };
+        let cold = if block.metadata.hotness == EvmIrBlockHotness::Cold { " [cold]" } else { "" };
+        writeln!(f, "{}{}{}:", block.label, entry, cold)?;
         for inst in &block.instructions {
-            writeln!(f, "    {}", display_instruction(func, inst))?;
+            writeln!(f, "  {}", display_instruction(module, inst))?;
         }
         if let Some(term) = &block.terminator {
-            writeln!(f, "    {}", display_terminator(func, term))?;
+            writeln!(f, "  {}", display_terminator(module, term))?;
         }
         Ok(())
     })
 }
 
 fn display_instruction<'a>(
-    func: &'a EvmIrFunction,
+    module: &'a EvmIrModule,
     inst: &'a EvmIrInstruction,
 ) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         if let Some(result) = inst.result {
-            write!(f, "{} = ", display_value(func, result))?;
+            write!(f, "{} = ", display_value(module, result))?;
         }
         write!(f, "{}", inst.mnemonic)?;
         if !inst.operands.is_empty() {
             write!(
                 f,
                 " {}",
-                inst.operands.iter().map(|operand| display_operand(func, operand)).format(", ")
+                inst.operands.iter().map(|operand| display_operand(module, operand)).format(", ")
             )?;
         }
         write!(f, "{}", display_metadata(&inst.metadata))
@@ -1060,29 +924,29 @@ fn display_instruction<'a>(
 }
 
 fn display_terminator<'a>(
-    func: &'a EvmIrFunction,
+    module: &'a EvmIrModule,
     term: &'a EvmIrTerminator,
 ) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         match &term.kind {
             EvmIrTerminatorKind::Jump(target) => {
-                write!(f, "jump {}", display_block_id(func, *target))?;
+                write!(f, "jump {}", display_block_id(module, *target))?;
             }
             EvmIrTerminatorKind::Branch { condition, then_block, else_block } => {
                 write!(
                     f,
                     "br {}, {}, {}",
-                    display_operand(func, condition),
-                    display_block_id(func, *then_block),
-                    display_block_id(func, *else_block)
+                    display_operand(module, condition),
+                    display_block_id(module, *then_block),
+                    display_block_id(module, *else_block)
                 )?;
             }
             EvmIrTerminatorKind::Switch { value, default, cases } => {
                 write!(
                     f,
                     "switch {}, default {}, [",
-                    display_operand(func, value),
-                    display_block_id(func, *default)
+                    display_operand(module, value),
+                    display_block_id(module, *default)
                 )?;
                 write!(
                     f,
@@ -1091,8 +955,8 @@ fn display_terminator<'a>(
                         write!(
                             f,
                             "{} => {}",
-                            display_operand(func, case),
-                            display_block_id(func, *target)
+                            display_operand(module, case),
+                            display_block_id(module, *target)
                         )
                     })
                 )?;
@@ -1102,22 +966,22 @@ fn display_terminator<'a>(
                 write!(
                     f,
                     "return {}, {}",
-                    display_operand(func, offset),
-                    display_operand(func, size)
+                    display_operand(module, offset),
+                    display_operand(module, size)
                 )?;
             }
             EvmIrTerminatorKind::Revert { offset, size } => {
                 write!(
                     f,
                     "revert {}, {}",
-                    display_operand(func, offset),
-                    display_operand(func, size)
+                    display_operand(module, offset),
+                    display_operand(module, size)
                 )?;
             }
             EvmIrTerminatorKind::Stop => write!(f, "stop")?,
             EvmIrTerminatorKind::Invalid => write!(f, "invalid")?,
             EvmIrTerminatorKind::SelfDestruct { recipient } => {
-                write!(f, "selfdestruct {}", display_operand(func, recipient))?;
+                write!(f, "selfdestruct {}", display_operand(module, recipient))?;
             }
         }
         write!(f, "{}", display_metadata(&term.metadata))
@@ -1158,23 +1022,23 @@ fn display_metadata(metadata: &EvmIrMetadata) -> impl fmt::Display + '_ {
 }
 
 fn display_operand<'a>(
-    func: &'a EvmIrFunction,
+    module: &'a EvmIrModule,
     operand: &'a EvmIrOperand,
 ) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| match operand {
-        EvmIrOperand::Value(value) => write!(f, "{}", display_value(func, *value)),
+        EvmIrOperand::Value(value) => write!(f, "{}", display_value(module, *value)),
         EvmIrOperand::Immediate(value) => write!(f, "{}", display_u256(*value)),
-        EvmIrOperand::Block(block) => write!(f, "{}", display_block_id(func, *block)),
+        EvmIrOperand::Block(block) => write!(f, "{}", display_block_id(module, *block)),
         EvmIrOperand::Symbol(symbol) => write!(f, "{symbol}"),
     })
 }
 
-fn display_value(func: &EvmIrFunction, value: EvmIrValueId) -> impl fmt::Display + '_ {
-    fmt::from_fn(move |f| write!(f, "%{}", func.values[value].name))
+fn display_value(module: &EvmIrModule, value: EvmIrValueId) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| write!(f, "%{}", module.values[value].name))
 }
 
-fn display_block_id(func: &EvmIrFunction, block: EvmIrBlockId) -> impl fmt::Display + '_ {
-    fmt::from_fn(move |f| write!(f, "{}", func.blocks[block].label))
+fn display_block_id(module: &EvmIrModule, block: EvmIrBlockId) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| write!(f, "{}", module.blocks[block].label))
 }
 
 fn display_u256(value: U256) -> impl fmt::Display {
@@ -1194,6 +1058,12 @@ struct ParsedBlockHeader {
     label: String,
     entry: bool,
     hotness: EvmIrBlockHotness,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BodyEnd {
+    Eof,
+    Brace,
 }
 
 struct Parser<'a> {
@@ -1390,25 +1260,26 @@ impl<'a> Parser<'a> {
         };
 
         let mut module = EvmIrModule::new(name);
-        loop {
-            self.skip_blank_and_comments();
-            if self.is_eof() {
-                break;
-            }
-            module.add_function(self.parse_function()?);
+        self.skip_blank_and_comments();
+        let legacy_function_wrapper = self.input[self.pos..].starts_with("fn");
+        if legacy_function_wrapper {
+            self.expect_keyword("fn")?;
+            self.expect_punct('@')?;
+            let _legacy_function_name = self.parse_ident()?;
+            self.expect_punct('{')?;
+            self.parse_program_body(&mut module, BodyEnd::Brace)?;
+        } else {
+            self.parse_program_body(&mut module, BodyEnd::Eof)?;
         }
         Ok(module)
     }
 
-    fn parse_function(&mut self) -> Result<EvmIrFunction, EvmIrParseError> {
+    fn parse_program_body(
+        &mut self,
+        module: &mut EvmIrModule,
+        body_end: BodyEnd,
+    ) -> Result<(), EvmIrParseError> {
         self.skip_blank_and_comments();
-        self.expect_keyword("fn")?;
-        self.expect_punct('@')?;
-        let name = self.parse_ident()?.to_string();
-        self.expect_punct('{')?;
-        self.skip_blank_and_comments();
-
-        let mut func = EvmIrFunction::new(name);
         let body_pos = self.pos;
         let body_line = self.line;
         let body_col = self.col;
@@ -1417,16 +1288,19 @@ impl<'a> Parser<'a> {
         loop {
             self.skip_blank_and_comments();
             if self.is_eof() {
-                return Err(self.error("unterminated function body"));
+                if body_end == BodyEnd::Brace {
+                    return Err(self.error("unterminated EVM IR block body"));
+                }
+                break;
             }
-            if self.peek_char() == Some('}') {
+            if body_end == BodyEnd::Brace && self.peek_char() == Some('}') {
                 break;
             }
             if let Some(header) = self.try_parse_block_header()? {
                 if block_labels.contains_key(&header.label) {
                     return Err(self.error(format!("duplicate block `{}`", header.label)));
                 }
-                let block_id = func.add_block(EvmIrBlock::new(header.label.clone()));
+                let block_id = module.add_block(EvmIrBlock::new(header.label.clone()));
                 block_labels.insert(header.label, block_id);
                 self.skip_to_eol();
             } else {
@@ -1435,7 +1309,7 @@ impl<'a> Parser<'a> {
         }
 
         if block_labels.is_empty() {
-            return Err(self.error("function must contain at least one block"));
+            return Err(self.error("program must contain at least one block"));
         }
 
         self.pos = body_pos;
@@ -1448,17 +1322,20 @@ impl<'a> Parser<'a> {
         loop {
             self.skip_blank_and_comments();
             if self.is_eof() {
-                return Err(self.error("unterminated function body"));
+                if body_end == BodyEnd::Brace {
+                    return Err(self.error("unterminated EVM IR block body"));
+                }
+                break;
             }
-            if self.try_punct('}') {
+            if body_end == BodyEnd::Brace && self.try_punct('}') {
                 break;
             }
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = block_labels[&header.label];
                 if header.entry {
-                    func.entry_block = Some(block_id);
+                    module.entry_block = Some(block_id);
                 }
-                func.blocks[block_id].metadata.hotness = header.hotness;
+                module.blocks[block_id].metadata.hotness = header.hotness;
                 current_block = Some(block_id);
                 self.skip_to_eol();
                 continue;
@@ -1467,7 +1344,7 @@ impl<'a> Parser<'a> {
             let block =
                 current_block.ok_or_else(|| self.error("instruction outside of any block"))?;
             self.parse_instruction_or_terminator(
-                &mut func,
+                module,
                 block,
                 &block_labels,
                 &mut value_labels,
@@ -1475,7 +1352,7 @@ impl<'a> Parser<'a> {
             )?;
         }
 
-        Ok(func)
+        Ok(())
     }
 
     fn try_parse_block_header(&mut self) -> Result<Option<ParsedBlockHeader>, EvmIrParseError> {
@@ -1495,17 +1372,22 @@ impl<'a> Parser<'a> {
             entry = true;
         }
 
-        let mut hotness = EvmIrBlockHotness::Unknown;
+        let mut hotness = EvmIrBlockHotness::Hot;
         self.skip_inline_whitespace();
         if self.try_punct('[') {
-            let key = self.parse_ident()?.to_string();
-            if key != "hotness" {
+            let key = self.parse_ident()?;
+            if key == "cold" {
+                hotness = EvmIrBlockHotness::Cold;
+            } else if key == "hot" {
+                hotness = EvmIrBlockHotness::Hot;
+            } else if key == "hotness" {
+                self.expect_punct('=')?;
+                let value = self.parse_ident()?;
+                hotness = EvmIrBlockHotness::parse(value)
+                    .ok_or_else(|| self.error(format!("unknown block hotness `{value}`")))?;
+            } else {
                 return Err(self.error(format!("unknown block metadata `{key}`")));
             }
-            self.expect_punct('=')?;
-            let value = self.parse_ident()?;
-            hotness = EvmIrBlockHotness::parse(value)
-                .ok_or_else(|| self.error(format!("unknown block hotness `{value}`")))?;
             self.expect_punct(']')?;
         }
 
@@ -1543,37 +1425,42 @@ impl<'a> Parser<'a> {
 
     fn parse_instruction_or_terminator(
         &mut self,
-        func: &mut EvmIrFunction,
+        module: &mut EvmIrModule,
         block: EvmIrBlockId,
         block_labels: &FxHashMap<String, EvmIrBlockId>,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
         defined_values: &mut FxHashSet<EvmIrValueId>,
     ) -> Result<(), EvmIrParseError> {
         self.skip_inline_whitespace();
-        if func.blocks[block].terminator.is_some() {
+        if module.blocks[block].terminator.is_some() {
             return Err(self.error(format!(
                 "instruction after terminator in block `{}`",
-                func.blocks[block].label
+                module.blocks[block].label
             )));
         }
 
-        let result = self.try_parse_result(func, value_labels, defined_values)?;
+        let result = self.try_parse_result(module, value_labels, defined_values)?;
         let mnemonic = self.parse_ident()?.to_string();
-        if let Some(kind) =
-            self.parse_terminator_kind(&mnemonic, func, block_labels, value_labels, defined_values)?
-        {
+        if let Some(kind) = self.parse_terminator_kind(
+            &mnemonic,
+            module,
+            block_labels,
+            value_labels,
+            defined_values,
+        )? {
             if result.is_some() {
                 return Err(self.error("terminator cannot produce a result"));
             }
             let metadata = self.parse_metadata()?;
-            func.blocks[block].terminator = Some(EvmIrTerminator { kind, metadata });
+            module.blocks[block].terminator = Some(EvmIrTerminator { kind, metadata });
             self.skip_to_eol();
             return Ok(());
         }
 
-        let operands = self.parse_operand_list(func, block_labels, value_labels, defined_values)?;
+        let operands =
+            self.parse_operand_list(module, block_labels, value_labels, defined_values)?;
         let metadata = self.parse_metadata()?;
-        func.blocks[block].instructions.push(EvmIrInstruction {
+        module.blocks[block].instructions.push(EvmIrInstruction {
             result,
             mnemonic,
             operands,
@@ -1585,7 +1472,7 @@ impl<'a> Parser<'a> {
 
     fn try_parse_result(
         &mut self,
-        func: &mut EvmIrFunction,
+        module: &mut EvmIrModule,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
         defined_values: &mut FxHashSet<EvmIrValueId>,
     ) -> Result<Option<EvmIrValueId>, EvmIrParseError> {
@@ -1600,7 +1487,7 @@ impl<'a> Parser<'a> {
             return Ok(None);
         }
         self.advance();
-        let value = value_id(func, value_labels, &name);
+        let value = value_id(module, value_labels, &name);
         if !defined_values.insert(value) {
             return Err(self.error(format!("duplicate value `%{name}`")));
         }
@@ -1630,7 +1517,7 @@ impl<'a> Parser<'a> {
     fn parse_terminator_kind(
         &mut self,
         mnemonic: &str,
-        func: &mut EvmIrFunction,
+        module: &mut EvmIrModule,
         block_labels: &FxHashMap<String, EvmIrBlockId>,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
         defined_values: &mut FxHashSet<EvmIrValueId>,
@@ -1639,7 +1526,7 @@ impl<'a> Parser<'a> {
             "jump" => EvmIrTerminatorKind::Jump(self.parse_block_ref(block_labels)?),
             "br" => {
                 let condition =
-                    self.parse_operand(func, block_labels, value_labels, defined_values)?;
+                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 self.expect_punct(',')?;
                 let then_block = self.parse_block_ref(block_labels)?;
                 self.expect_punct(',')?;
@@ -1647,7 +1534,8 @@ impl<'a> Parser<'a> {
                 EvmIrTerminatorKind::Branch { condition, then_block, else_block }
             }
             "switch" => {
-                let value = self.parse_operand(func, block_labels, value_labels, defined_values)?;
+                let value =
+                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 self.expect_punct(',')?;
                 self.expect_keyword("default")?;
                 let default = self.parse_block_ref(block_labels)?;
@@ -1657,7 +1545,7 @@ impl<'a> Parser<'a> {
                 if !self.try_punct(']') {
                     loop {
                         let case =
-                            self.parse_operand(func, block_labels, value_labels, defined_values)?;
+                            self.parse_operand(module, block_labels, value_labels, defined_values)?;
                         self.expect_keyword("=>")?;
                         let target = self.parse_block_ref(block_labels)?;
                         cases.push((case, target));
@@ -1672,23 +1560,25 @@ impl<'a> Parser<'a> {
             }
             "return" => {
                 let offset =
-                    self.parse_operand(func, block_labels, value_labels, defined_values)?;
+                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 self.expect_punct(',')?;
-                let size = self.parse_operand(func, block_labels, value_labels, defined_values)?;
+                let size =
+                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 EvmIrTerminatorKind::Return { offset, size }
             }
             "revert" => {
                 let offset =
-                    self.parse_operand(func, block_labels, value_labels, defined_values)?;
+                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 self.expect_punct(',')?;
-                let size = self.parse_operand(func, block_labels, value_labels, defined_values)?;
+                let size =
+                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 EvmIrTerminatorKind::Revert { offset, size }
             }
             "stop" => EvmIrTerminatorKind::Stop,
             "invalid" => EvmIrTerminatorKind::Invalid,
             "selfdestruct" => {
                 let recipient =
-                    self.parse_operand(func, block_labels, value_labels, defined_values)?;
+                    self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 EvmIrTerminatorKind::SelfDestruct { recipient }
             }
             _ => return Ok(None),
@@ -1698,7 +1588,7 @@ impl<'a> Parser<'a> {
 
     fn parse_operand_list(
         &mut self,
-        func: &mut EvmIrFunction,
+        module: &mut EvmIrModule,
         block_labels: &FxHashMap<String, EvmIrBlockId>,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
         defined_values: &mut FxHashSet<EvmIrValueId>,
@@ -1709,7 +1599,12 @@ impl<'a> Parser<'a> {
             return Ok(operands);
         }
         loop {
-            operands.push(self.parse_operand(func, block_labels, value_labels, defined_values)?);
+            operands.push(self.parse_operand(
+                module,
+                block_labels,
+                value_labels,
+                defined_values,
+            )?);
             self.skip_inline();
             if !self.try_punct(',') {
                 break;
@@ -1720,7 +1615,7 @@ impl<'a> Parser<'a> {
 
     fn parse_operand(
         &mut self,
-        func: &mut EvmIrFunction,
+        module: &mut EvmIrModule,
         block_labels: &FxHashMap<String, EvmIrBlockId>,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
         _defined_values: &mut FxHashSet<EvmIrValueId>,
@@ -1728,7 +1623,7 @@ impl<'a> Parser<'a> {
         self.skip_inline();
         if self.peek_char() == Some('%') {
             let name = self.parse_value_name()?;
-            return Ok(EvmIrOperand::Value(value_id(func, value_labels, &name)));
+            return Ok(EvmIrOperand::Value(value_id(module, value_labels, &name)));
         }
         if matches!(self.peek_char(), Some(c) if c.is_ascii_digit()) {
             return Ok(EvmIrOperand::Immediate(self.parse_uint_literal()?));
@@ -1826,14 +1721,14 @@ impl<'a> Parser<'a> {
 }
 
 fn value_id(
-    func: &mut EvmIrFunction,
+    module: &mut EvmIrModule,
     value_labels: &mut FxHashMap<String, EvmIrValueId>,
     name: &str,
 ) -> EvmIrValueId {
     if let Some(value) = value_labels.get(name).copied() {
         return value;
     }
-    let value = func.add_value(name.to_string());
+    let value = module.add_value(name.to_string());
     value_labels.insert(name.to_string(), value);
     value
 }

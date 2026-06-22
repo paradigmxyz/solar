@@ -1,11 +1,7 @@
 //@compile-flags: --pass cold-layout
-; evm module @ColdLayout
-
-fn @runtime {
-  bb0 (entry) [hotness=hot]:
-    jump bb2
-  bb1 [hotness=cold]:
-    revert 0, 0 !meta(stack=2->0)
-  bb2 [hotness=hot]:
-    stop
-}
+bb0 (entry):
+  jump bb2
+bb1 [cold]:
+  revert 0, 0 !meta(stack=2->0)
+bb2:
+  stop
