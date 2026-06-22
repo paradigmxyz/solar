@@ -326,12 +326,6 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
     };
     config.comment_defaults.base().exit_status = code.map(Spanned::dummy).into();
 
-    if let Some(evm_version) = solc_evm_version(src) {
-        let flags = &mut config.comment_defaults.base().compile_flags;
-        flags.push("--evm-version".into());
-        flags.push(evm_version.into());
-    }
-
     if matches!(cfg.mode, Mode::SolcSolidity) {
         let flags = &mut config.comment_defaults.base().compile_flags;
         let has_delimiters = solc::solidity::handle_delimiters(src, path, cfg.tmp_dir, |arg| {
@@ -343,49 +337,6 @@ fn solc_per_file_config(config: &mut ui_test::Config, src: &str, path: &Path, cf
         }
     }
 }
-
-fn solc_evm_version(src: &str) -> Option<&'static str> {
-    let constraint = src
-        .lines()
-        .find_map(|line| line.trim_start().strip_prefix("// EVMVersion:").map(str::trim))?;
-
-    if let Some(version) = constraint.strip_prefix("<=") {
-        return evm_version(version.trim());
-    }
-    if let Some(version) = constraint.strip_prefix('<') {
-        return evm_version_before(version.trim());
-    }
-    if let Some(version) = constraint.strip_prefix('=') {
-        return evm_version(version.trim());
-    }
-    None
-}
-
-fn evm_version(version: &str) -> Option<&'static str> {
-    EVM_VERSIONS.iter().copied().find(|candidate| *candidate == version)
-}
-
-fn evm_version_before(version: &str) -> Option<&'static str> {
-    let idx = EVM_VERSIONS.iter().position(|candidate| *candidate == version)?;
-    idx.checked_sub(1).map(|prev| EVM_VERSIONS[prev])
-}
-
-const EVM_VERSIONS: &[&str] = &[
-    "homestead",
-    "tangerineWhistle",
-    "spuriousDragon",
-    "byzantium",
-    "constantinople",
-    "petersburg",
-    "istanbul",
-    "berlin",
-    "london",
-    "paris",
-    "shanghai",
-    "cancun",
-    "prague",
-    "osaka",
-];
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mode {
