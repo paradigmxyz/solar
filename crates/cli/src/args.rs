@@ -23,6 +23,5 @@ pub enum Subcommands {
     /// Start the language server.
     Lsp(LspArgs),
     /// Run one or more MIR passes on a Solidity or MIR file.
-    #[command(name = "mir-opt")]
     MirOpt(MirOptArgs),
 }
