@@ -24,11 +24,11 @@ fn main() -> ExitCode {
         Err(e) => e.exit(),
     };
 
-    let solar_cli::Args { commands, default_compile } = args;
+    let solar_cli::Args { commands, compile } = args;
     match commands {
         Some(Subcommands::Lsp(args)) => lsp::run(args),
         Some(Subcommands::MirOpt(args)) => mir_opt::run(args),
-        None => match run_compiler_args(default_compile) {
+        None => match run_compiler_args(compile) {
             Ok(()) => ExitCode::SUCCESS,
             Err(_) => ExitCode::FAILURE,
         },

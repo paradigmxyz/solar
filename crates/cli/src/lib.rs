@@ -50,9 +50,9 @@ where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
 {
-    let mut opts = Args::try_parse_from(itr)?;
-    opts.default_compile.finish()?;
-    Ok(opts)
+    let mut args = Args::try_parse_from(itr)?;
+    args.compile.finish()?;
+    Ok(args)
 }
 
 pub fn run_compiler_args(opts: CompileOpts) -> Result {

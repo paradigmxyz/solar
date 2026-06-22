@@ -15,7 +15,7 @@ pub struct Args {
     #[command(subcommand)]
     pub commands: Option<Subcommands>,
     #[command(flatten)]
-    pub default_compile: CompileOpts,
+    pub compile: CompileOpts,
 }
 
 #[derive(Debug, Clone, Subcommand)]
