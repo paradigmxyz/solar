@@ -8,7 +8,7 @@ use solar_data_structures::{BumpExt, fmt::or_list};
 use solar_interface::{
     BytePos, Ident, Result, Session, Span, Symbol,
     diagnostics::DiagCtxt,
-    error_code,
+    error_code, kw,
     source_map::{FileName, SourceFile},
 };
 use std::{fmt, path::Path};
@@ -914,7 +914,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses either an identifier or a Yul EVM builtin.
     fn parse_yul_path_ident(&mut self) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(true)?;
-        if !ident.is_yul_builtin() && ident.is_reserved(true) {
+        if !ident.is_yul_builtin() && self.is_reserved_ident(ident) {
             self.expected_ident_found_err().emit();
         }
         self.bump();
@@ -970,7 +970,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[track_caller]
     fn parse_ident_common(&mut self, recover: bool) -> PResult<'sess, Ident> {
         let ident = self.ident_or_err(recover)?;
-        if ident.is_reserved(self.in_yul) {
+        if self.is_reserved_ident(ident) {
             let err = self.expected_ident_found_err();
             if recover {
                 err.emit();
@@ -980,6 +980,21 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
         self.bump();
         Ok(ident)
+    }
+
+    fn is_reserved_ident(&self, ident: Ident) -> bool {
+        if self.in_yul {
+            ident.is_yul_keyword() || self.is_reserved_yul_builtin_ident(ident)
+        } else {
+            ident.is_reserved(false)
+        }
+    }
+
+    fn is_reserved_yul_builtin_ident(&self, ident: Ident) -> bool {
+        if ident.name == kw::Basefee && !self.sess.opts.evm_version.has_base_fee() {
+            return false;
+        }
+        ident.is_reserved_yul_builtin()
     }
 
     /// Returns Ok if the current token is an identifier. Does not advance the parser.

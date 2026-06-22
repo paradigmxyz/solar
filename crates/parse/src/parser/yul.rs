@@ -35,7 +35,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     pub fn parse_yul_object(&mut self, docs: DocComments<'ast>) -> PResult<'sess, Object<'ast>> {
         let lo = self.token.span;
         self.expect_keyword(sym::object)?;
-        let name = self.parse_str_lit()?;
+        let name = self.parse_yul_object_name()?;
 
         self.expect(TokenKind::OpenDelim(Delimiter::Brace))?;
         let code = self.parse_yul_code()?;
@@ -72,7 +72,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     fn parse_yul_data(&mut self) -> PResult<'sess, Data<'ast>> {
         let lo = self.token.span;
         self.expect_keyword(sym::data)?;
-        let name = self.parse_str_lit()?;
+        let name = self.parse_yul_object_name()?;
         let data = self.parse_yul_lit()?;
         if !matches!(data.kind, LitKind::Str(StrKind::Str | StrKind::Hex, ..)) {
             let msg = "only string and hex string literals are allowed in `data` segments";
@@ -86,6 +86,18 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let (lit, subdenomination) = self.parse_lit(false)?;
         assert!(subdenomination.is_none());
         Ok(lit)
+    }
+
+    fn parse_yul_object_name(&mut self) -> PResult<'sess, StrLit> {
+        let name = self.parse_str_lit()?;
+        let value = name.value.as_str();
+        if value.contains('\n') || value.contains('\r') {
+            return Err(self
+                .dcx()
+                .err("Yul object names cannot contain line terminators")
+                .span(name.span));
+        }
+        Ok(name)
     }
 
     /// Parses a Yul statement.
@@ -287,7 +299,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
                 // Paths are not allowed in call expressions, but Solc parses them anyway.
                 let ident = self.expect_single_ident_path(path);
                 self.parse_yul_expr_call_with(ident).map(ExprKind::Call)
-            } else if path.segments().len() == 1 && path.first().is_reserved_yul_builtin() {
+            } else if path.segments().len() == 1
+                && self.is_reserved_yul_builtin_ident(*path.first())
+            {
                 let name = path.first();
                 self.dcx()
                     .emit_err(path.span(), format!("builtin function `{name}` must be called"));
@@ -331,7 +345,8 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         // We allow EVM builtins in any position if multiple segments are present:
         // https://github.com/argotorg/solidity/issues/16054
         let first = *path.first();
-        if first.is_yul_keyword() || (path.segments().len() == 1 && first.is_reserved_yul_builtin())
+        if first.is_yul_keyword()
+            || (path.segments().len() == 1 && self.is_reserved_yul_builtin_ident(first))
         {
             self.expected_ident_found_other(first.into(), false).unwrap_err().emit();
         }
