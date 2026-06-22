@@ -35,6 +35,7 @@ smallvec.workspace = true
 [features]
 nightly = [
     "parking_lot/nightly",
+    "rustc-hash/nightly",
     "smallvec/may_dangle",
     "smallvec/specialization",
 ]
