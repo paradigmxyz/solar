@@ -979,6 +979,7 @@ symbols! {
         encodePacked,
         encodeWithSelector,
         encodeWithSignature,
+        erc7201,
         error,
         experimental,
         from,

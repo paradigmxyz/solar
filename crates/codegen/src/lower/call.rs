@@ -8,6 +8,7 @@ use solar_data_structures::map::FxHashSet;
 use solar_interface::{Ident, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
+    eval::erc7201_slot,
     hir::{self, CallArgs, ElementaryType, ExprKind},
     ty::TyKind,
 };
@@ -417,6 +418,7 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 builder.imm_u64(0)
             }
+            Builtin::Erc7201 => self.lower_erc7201_call(builder, args),
             Builtin::Require | Builtin::Assert => {
                 let mut exprs = args.exprs();
                 if let Some(first) = exprs.next() {
@@ -590,6 +592,31 @@ impl<'gcx> Lowerer<'gcx> {
             | Builtin::YulMcopy => self.lower_yul_builtin_call(builder, builtin, args),
             _ => builder.imm_u64(0),
         }
+    }
+
+    fn lower_erc7201_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        args: &CallArgs<'_>,
+    ) -> ValueId {
+        let Some(first) = args.exprs().next() else { return builder.imm_u64(0) };
+        if let ExprKind::Lit(lit) = &first.kind
+            && let LitKind::Str(_, bytes, _) = &lit.kind
+        {
+            return builder.imm_u256(erc7201_slot(*bytes));
+        }
+
+        let Some(inner_hash) = self.keccak_dynamic_bytes(builder, first) else {
+            return builder.imm_u64(0);
+        };
+        let one = builder.imm_u64(1);
+        let inner_hash_minus_one = builder.sub(inner_hash, one);
+        let ptr = builder.imm_u64(0);
+        builder.mstore(ptr, inner_hash_minus_one);
+        let size = builder.imm_u64(32);
+        let outer_hash = builder.keccak256(ptr, size);
+        let mask = builder.imm_u256(!U256::from(0xff));
+        builder.and(outer_hash, mask)
     }
 
     fn lower_yul_builtin_call(

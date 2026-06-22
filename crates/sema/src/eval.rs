@@ -1,15 +1,28 @@
-use crate::{hir, ty::Gcx};
-use alloy_primitives::U256;
+use crate::{
+    builtins::Builtin,
+    hir,
+    ty::{Gcx, TyKind},
+};
+use alloy_primitives::{U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, Signed, Zero};
-use solar_ast::LitKind;
-use solar_interface::{Span, diagnostics::ErrorGuaranteed};
+use solar_ast::{ElementaryType, LitKind, StrKind};
+use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
 const MAX_BITS: u64 = solar_ast::TypeSize::MAX as u64;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
+
+/// Computes the ERC-7201 storage namespace base slot.
+pub fn erc7201_slot(namespace_id: ByteSymbol) -> U256 {
+    let inner = keccak256(namespace_id.as_byte_str());
+    let inner = U256::from_be_bytes(inner.0).wrapping_sub(U256::from(1));
+    let mut outer = keccak256(inner.to_be_bytes::<32>());
+    outer.0[31] = 0;
+    U256::from_be_bytes(outer.0)
+}
 
 /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
@@ -103,8 +116,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 let r = self.try_eval_value(r)?;
                 l.binop(r, bin_op.kind).map_err(Into::into)
             }
-            // hir::ExprKind::Call(_, _) => unimplemented!(),
-            // hir::ExprKind::CallOptions(_, _) => unimplemented!(),
+            hir::ExprKind::Call(callee, ref args, opts) => self.eval_call(callee, args, opts),
             // hir::ExprKind::Delete(_) => unimplemented!(),
             hir::ExprKind::Ident(res) => {
                 // Ignore invalid overloads since they will get correctly detected later.
@@ -136,6 +148,79 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             hir::ExprKind::Unary(un_op, v) => {
                 let v = self.try_eval_value(v)?;
                 v.unop(un_op.kind).map_err(Into::into)
+            }
+            hir::ExprKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
+            _ => Err(EE::UnsupportedExpr.into()),
+        }
+    }
+
+    fn eval_call(
+        &mut self,
+        callee: &hir::Expr<'_>,
+        args: &hir::CallArgs<'_>,
+        opts: Option<&hir::CallOptions<'_>>,
+    ) -> EvalResult {
+        if opts.is_some() {
+            return Err(EE::UnsupportedExpr.into());
+        }
+        let hir::ExprKind::Ident(res) = callee.peel_parens().kind else {
+            return Err(EE::UnsupportedExpr.into());
+        };
+        if !matches!(res.first(), Some(hir::Res::Builtin(Builtin::Erc7201))) {
+            return Err(EE::UnsupportedExpr.into());
+        }
+        let hir::CallArgsKind::Unnamed([arg]) = args.kind else {
+            return Err(EE::UnsupportedExpr.into());
+        };
+        let namespace_id = self.try_eval_string(arg)?;
+        Ok(ConstValue::Integer(IntScalar::new(erc7201_slot(namespace_id))))
+    }
+
+    fn try_eval_string(&mut self, expr: &hir::Expr<'_>) -> Result<ByteSymbol, EvalError> {
+        self.depth += 1;
+        if self.depth > RECURSION_LIMIT {
+            return Err(EE::RecursionLimitReached.spanned(expr.span));
+        }
+        let mut res = self.eval_string_expr(expr);
+        if let Err(e) = &mut res
+            && e.span.is_dummy()
+        {
+            e.span = expr.span;
+        }
+        self.depth = self.depth.checked_sub(1).unwrap();
+        res
+    }
+
+    fn eval_string_expr(&mut self, expr: &hir::Expr<'_>) -> Result<ByteSymbol, EvalError> {
+        let expr = expr.peel_parens();
+        match expr.kind {
+            hir::ExprKind::Ident(res) => {
+                let Some(v) = res.iter().find_map(|res| res.as_variable()) else {
+                    return Err(EE::NonConstantVar.into());
+                };
+                let v = self.gcx.hir.variable(v);
+                if v.mutability != Some(hir::VarMut::Constant) {
+                    return Err(EE::NonConstantVar.into());
+                }
+                if !matches!(
+                    self.gcx.type_of_hir_ty(&v.ty).peel_refs().kind,
+                    TyKind::Elementary(ElementaryType::String)
+                ) {
+                    return Err(EE::UnsupportedExpr.into());
+                }
+                self.try_eval_string(v.initializer.expect("constant variable has no initializer"))
+            }
+            hir::ExprKind::Lit(lit) => match lit.kind {
+                LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(s),
+                LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
+                LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
+                _ => Err(EE::UnsupportedExpr.into()),
+            },
+            hir::ExprKind::Ternary(cond, t, f) => {
+                let ConstValue::Bool(cond) = self.try_eval_value(cond)? else {
+                    return Err(EE::UnsupportedExpr.into());
+                };
+                if cond { self.try_eval_string(t) } else { self.try_eval_string(f) }
             }
             hir::ExprKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
             _ => Err(EE::UnsupportedExpr.into()),
