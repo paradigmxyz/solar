@@ -1,8 +1,4 @@
-use crate::{
-    builtins::Builtin,
-    hir,
-    ty::{Gcx, TyKind},
-};
+use crate::{builtins::Builtin, hir, ty::Gcx};
 use alloy_primitives::{U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, Signed, Zero};
@@ -128,7 +124,14 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 if v.mutability != Some(hir::VarMut::Constant) {
                     return Err(EE::NonConstantVar.into());
                 }
-                self.try_eval_value(v.initializer.expect("constant variable has no initializer"))
+                let value = self
+                    .try_eval_value(v.initializer.expect("constant variable has no initializer"))?;
+                if matches!(value, ConstValue::String(_))
+                    && !matches!(v.ty.kind, hir::TypeKind::Elementary(ElementaryType::String))
+                {
+                    return Err(EE::UnsupportedLiteral.into());
+                }
+                Ok(value)
             }
             // hir::ExprKind::Index(_, _) => unimplemented!(),
             // hir::ExprKind::Slice(_, _, _) => unimplemented!(),
@@ -172,64 +175,16 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         let hir::CallArgsKind::Unnamed([arg]) = args.kind else {
             return Err(EE::UnsupportedExpr.into());
         };
-        let namespace_id = self.try_eval_string(arg)?;
+        let ConstValue::String(namespace_id) = self.try_eval_value(arg)? else {
+            return Err(EE::UnsupportedExpr.into());
+        };
         Ok(ConstValue::Integer(IntScalar::new(erc7201_slot(namespace_id))))
-    }
-
-    fn try_eval_string(&mut self, expr: &hir::Expr<'_>) -> Result<ByteSymbol, EvalError> {
-        self.depth += 1;
-        if self.depth > RECURSION_LIMIT {
-            return Err(EE::RecursionLimitReached.spanned(expr.span));
-        }
-        let mut res = self.eval_string_expr(expr);
-        if let Err(e) = &mut res
-            && e.span.is_dummy()
-        {
-            e.span = expr.span;
-        }
-        self.depth = self.depth.checked_sub(1).unwrap();
-        res
-    }
-
-    fn eval_string_expr(&mut self, expr: &hir::Expr<'_>) -> Result<ByteSymbol, EvalError> {
-        let expr = expr.peel_parens();
-        match expr.kind {
-            hir::ExprKind::Ident(res) => {
-                let Some(v) = res.iter().find_map(|res| res.as_variable()) else {
-                    return Err(EE::NonConstantVar.into());
-                };
-                let v = self.gcx.hir.variable(v);
-                if v.mutability != Some(hir::VarMut::Constant) {
-                    return Err(EE::NonConstantVar.into());
-                }
-                if !matches!(
-                    self.gcx.type_of_hir_ty(&v.ty).peel_refs().kind,
-                    TyKind::Elementary(ElementaryType::String)
-                ) {
-                    return Err(EE::UnsupportedExpr.into());
-                }
-                self.try_eval_string(v.initializer.expect("constant variable has no initializer"))
-            }
-            hir::ExprKind::Lit(lit) => match lit.kind {
-                LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(s),
-                LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
-                LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
-                _ => Err(EE::UnsupportedExpr.into()),
-            },
-            hir::ExprKind::Ternary(cond, t, f) => {
-                let ConstValue::Bool(cond) = self.try_eval_value(cond)? else {
-                    return Err(EE::UnsupportedExpr.into());
-                };
-                if cond { self.try_eval_string(t) } else { self.try_eval_string(f) }
-            }
-            hir::ExprKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
-            _ => Err(EE::UnsupportedExpr.into()),
-        }
     }
 
     fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult {
         match lit.kind {
-            // LitKind::Str(str_kind, arc) => todo!(),
+            LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(ConstValue::String(s)),
+            LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
             LitKind::Number(n) => Ok(ConstValue::Integer(IntScalar::new(n))),
             // LitKind::Rational(ratio) => todo!(),
             LitKind::Address(address) => {
@@ -249,6 +204,8 @@ pub enum ConstValue {
     Integer(IntScalar),
     /// Boolean constant value.
     Bool(bool),
+    /// String constant value.
+    String(ByteSymbol),
 }
 
 impl ConstValue {
@@ -257,6 +214,7 @@ impl ConstValue {
         match self {
             Self::Integer(value) => Ok(value),
             Self::Bool(_) => Err(EE::UnsupportedExpr.into()),
+            Self::String(_) => Err(EE::UnsupportedLiteral.into()),
         }
     }
 
@@ -265,7 +223,7 @@ impl ConstValue {
         Ok(match (self, op) {
             (Self::Integer(value), op) => Self::Integer(value.unop(op)?),
             (Self::Bool(value), hir::UnOpKind::Not) => Self::Bool(!value),
-            (Self::Bool(_), _) => return Err(EE::UnsupportedUnaryOp),
+            (Self::Bool(_) | Self::String(_), _) => return Err(EE::UnsupportedUnaryOp),
         })
     }
 

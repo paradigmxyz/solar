@@ -42,6 +42,7 @@ impl<'gcx> ConstantFolder<'gcx> {
         match ConstantEvaluator::new(self.gcx).try_eval_value(expr) {
             Ok(ConstValue::Integer(value)) => FoldResult::Integer(value.as_evm_word()),
             Ok(ConstValue::Bool(value)) => FoldResult::Bool(value),
+            Ok(ConstValue::String(_)) => FoldResult::NotConstant,
             Err(err) => match err.kind {
                 EvalErrorKind::ArithmeticOverflow | EvalErrorKind::DivisionByZero => {
                     FoldResult::Error
