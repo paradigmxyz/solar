@@ -200,7 +200,7 @@ impl Assembler {
         });
         ir_program.optimize_blocks(|inst| self.estimated_inst_size(inst));
         let mut program = ir_program.to_asm_program();
-        self.optimize_instructions(&mut program);
+        self.run_assembler_passes(&mut program);
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();

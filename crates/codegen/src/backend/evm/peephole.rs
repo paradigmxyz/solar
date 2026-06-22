@@ -3,13 +3,39 @@
 use super::assembler::{AsmInst, AsmInstKind, Assembler, EvmAsmProgram, op};
 use alloy_primitives::U256;
 
+/// Local peephole optimizations over assembler instructions.
+struct PeepholePass;
+
 impl Assembler {
-    /// Runs local peephole optimizations over assembler instructions.
-    ///
-    /// This pass runs before label resolution, so removing instructions cannot
-    /// leave stale jump destinations.
-    pub(super) fn optimize_instructions(&mut self, program: &mut EvmAsmProgram) -> usize {
-        optimize_linear_instructions(program, |inst| self.inst_push_value(inst))
+    /// Runs the default assembler pass pipeline.
+    pub(super) fn run_assembler_passes(&self, program: &mut EvmAsmProgram) -> usize {
+        let pass = PeepholePass;
+        let changed = pass.run(program, |inst| self.inst_push_value(inst));
+        tracing::trace!(pass = pass.name(), rewrites = changed, "ran EVM assembler pass");
+        changed
+    }
+}
+
+trait AssemblerPass {
+    fn name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
+    fn run<P>(&self, program: &mut EvmAsmProgram, inst_push_value: P) -> usize
+    where
+        P: FnMut(AsmInst) -> Option<U256>;
+}
+
+impl AssemblerPass for PeepholePass {
+    fn name(&self) -> &'static str {
+        "peephole"
+    }
+
+    fn run<P>(&self, program: &mut EvmAsmProgram, inst_push_value: P) -> usize
+    where
+        P: FnMut(AsmInst) -> Option<U256>,
+    {
+        optimize_linear_instructions(program, inst_push_value)
     }
 }
 
