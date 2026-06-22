@@ -499,3 +499,25 @@ impl fmt::Display for EvalError {
 }
 
 impl std::error::Error for EvalError {}
+
+#[cfg(test)]
+mod tests {
+    use super::erc7201_slot;
+    use alloy_primitives::b256;
+
+    #[test]
+    fn erc7201_slot_matches_eip_example() {
+        assert_eq!(
+            erc7201_slot(b"example.main"),
+            b256!("183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500")
+        );
+    }
+
+    #[test]
+    fn erc7201_slot_subtracts_from_full_inner_hash() {
+        assert_eq!(
+            erc7201_slot(b"85"),
+            b256!("06d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00")
+        );
+    }
+}
