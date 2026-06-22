@@ -133,6 +133,21 @@ impl<'gcx> TypeChecker<'gcx> {
         self.check_expr_with(expr, Some(expected))
     }
 
+    #[must_use]
+    fn expect_ty_allow_storage_ref_literal(
+        &mut self,
+        expr: &'gcx hir::Expr<'gcx>,
+        expected: Ty<'gcx>,
+    ) -> Ty<'gcx> {
+        let actual = self.check_expr_with_noexpect(expr, Some(expected));
+        let _ = if storage_ref_literal_matches(actual, expected) {
+            Ok(())
+        } else {
+            self.check_expected(expr, actual, expected)
+        };
+        actual
+    }
+
     #[track_caller]
     #[must_use]
     fn check_expr_with(
@@ -234,7 +249,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     );
                     result
                 } else {
-                    let _ = self.expect_ty(rhs, ty);
+                    let _ = if self.lhs_allows_storage_ref_literal(lhs, ty) {
+                        self.expect_ty_allow_storage_ref_literal(rhs, ty)
+                    } else {
+                        self.expect_ty(rhs, ty)
+                    };
                     ty
                 }
             }
@@ -2175,7 +2194,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 );
             } else if expect {
                 let _ = if var.is_state_variable() {
-                    self.with_construction_context(|this| this.expect_ty(init, ty))
+                    self.with_construction_context(|this| {
+                        this.expect_ty_allow_storage_ref_literal(init, ty)
+                    })
                 } else {
                     self.expect_ty(init, ty)
                 };
@@ -2233,6 +2254,29 @@ impl<'gcx> TypeChecker<'gcx> {
             && size >= u32::MAX
         {
             self.dcx().err(format!("type too large for {loc}")).span(var.ty.span).emit();
+        }
+    }
+
+    fn lhs_allows_storage_ref_literal(&self, lhs: &'gcx hir::Expr<'gcx>, lhs_ty: Ty<'gcx>) -> bool {
+        if !storage_ref_literal_target(lhs_ty) {
+            return false;
+        }
+
+        match lhs.kind {
+            hir::ExprKind::Ident(res_slice) => {
+                let res = self.resolve_overloads(res_slice, lhs.span);
+                matches!(
+                    res,
+                    hir::Res::Item(hir::ItemId::Variable(var_id))
+                        if self.gcx.hir.variable(var_id).is_state_variable()
+                )
+            }
+            hir::ExprKind::Index(base, _) => self
+                .results
+                .expr_types
+                .get(&base.id)
+                .is_some_and(|base_ty| matches!(base_ty.peel_refs().kind, TyKind::Mapping(..))),
+            _ => false,
         }
     }
 
@@ -2827,6 +2871,24 @@ fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
             TyKind::Slice(array)
                 if matches!(array.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
         )
+}
+
+fn storage_ref_literal_matches(actual: Ty<'_>, expected: Ty<'_>) -> bool {
+    if !storage_ref_literal_target(expected) {
+        return false;
+    }
+    let TyKind::StringLiteral(utf8, _) = actual.kind else { return false };
+    let TyKind::Ref(inner, DataLocation::Storage) = expected.kind else { return false };
+    match inner.kind {
+        TyKind::Elementary(ElementaryType::Bytes) => true,
+        TyKind::Elementary(ElementaryType::String) => utf8,
+        _ => false,
+    }
+}
+
+fn storage_ref_literal_target(ty: Ty<'_>) -> bool {
+    let TyKind::Ref(inner, DataLocation::Storage) = ty.kind else { return false };
+    matches!(inner.kind, TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String))
 }
 
 fn abi_decode_arg_kind(name: Symbol) -> Option<AbiDecodeArg> {

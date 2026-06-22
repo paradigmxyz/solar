@@ -1089,11 +1089,23 @@ impl<'gcx> Lowerer<'gcx> {
                     && !var.is_constant()
                     && let Some(init) = var.initializer
                 {
-                    let init_val = self.lower_expr(builder, init);
                     if let Some(&offset) = self.immutable_slots.get(&var_id) {
+                        let init_val = self.lower_expr(builder, init);
                         self.store_immutable_value(builder, offset, init_val);
                     } else if let Some(&location) = self.storage_locations.get(&var_id) {
-                        self.store_storage_location(builder, location, init_val);
+                        if matches!(
+                            var.ty.kind,
+                            hir::TypeKind::Elementary(
+                                hir::ElementaryType::String | hir::ElementaryType::Bytes
+                            )
+                        ) {
+                            let init_val = self.lower_expr_as_memory_bytes(builder, init);
+                            let slot = builder.imm_u64(location.slot);
+                            self.copy_memory_bytes_to_storage(builder, slot, init_val);
+                        } else {
+                            let init_val = self.lower_expr(builder, init);
+                            self.store_storage_location(builder, location, init_val);
+                        }
                     }
                 }
             }

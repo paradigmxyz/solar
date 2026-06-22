@@ -1,0 +1,14 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/string_literal_storage_refs.sol:LL:CC
+   │
+LL │     string s = "\xa0\x00";
+   ╰╴               ━━━━━━━━━━ expected `string storage`, found `bytes_string_literal[2]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/string_literal_storage_refs.sol:LL:CC
+   │
+LL │         ref = "abc";
+   ╰╴              ━━━━━ expected `string storage`, found `utf8_string_literal[3]`
+
+error: aborting due to 2 previous errors
+
