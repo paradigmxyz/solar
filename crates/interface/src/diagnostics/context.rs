@@ -5,7 +5,7 @@ use super::{
 };
 use crate::{Result, SourceMap, Span};
 use anstream::ColorChoice;
-use solar_config::{ErrorFormat, Opts};
+use solar_config::{CompileOpts, ErrorFormat};
 use solar_data_structures::{map::FxHashSet, sync::Mutex};
 use std::{borrow::Cow, fmt, hash::BuildHasher, num::NonZeroUsize, sync::Arc};
 
@@ -41,7 +41,7 @@ impl DiagCtxtFlags {
     /// - `unstable.ui_testing`
     /// - `unstable.track_diagnostics`
     /// - `no_warnings`
-    pub fn update_from_opts(&mut self, opts: &Opts) {
+    pub fn update_from_opts(&mut self, opts: &CompileOpts) {
         self.deduplicate_diagnostics &= !opts.unstable.ui_testing;
         self.track_diagnostics &= !opts.unstable.ui_testing;
         self.track_diagnostics |= opts.unstable.track_diagnostics;
@@ -170,7 +170,7 @@ impl DiagCtxt {
     /// The default is human emitter to stderr.
     ///
     /// See also [`DiagCtxtFlags::update_from_opts`].
-    pub fn from_opts(opts: &solar_config::Opts) -> Self {
+    pub fn from_opts(opts: &solar_config::CompileOpts) -> Self {
         let source_map = Arc::new(SourceMap::empty());
         let emitter: Box<DynEmitter> = match opts.error_format {
             ErrorFormat::Human => {

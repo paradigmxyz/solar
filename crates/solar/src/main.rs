@@ -8,7 +8,8 @@ use solar_cli::{
 };
 use solar_interface::panic_hook;
 use std::process::ExitCode;
-use tokio::runtime::Runtime;
+
+mod lsp;
 
 #[global_allocator]
 static ALLOC: utils::Allocator = utils::new_allocator();
@@ -16,33 +17,20 @@ static ALLOC: utils::Allocator = utils::new_allocator();
 fn main() -> ExitCode {
     signal_handler::install();
     panic_hook::install();
+    let _guard = utils::init_logger(LogDestination::Stderr);
 
-    // Unstable `mir-opt` subcommand: run MIR passes on a .sol/.mir file (the
-    // Solar equivalent of LLVM `opt`). Used by the `Mir` test mode.
-    let mut argv = std::env::args_os();
-    let prog = argv.next();
-    let rest: Vec<std::ffi::OsString> = argv.collect();
-    if rest.first().is_some_and(|a| a == "mir-opt") {
-        return mir_opt::run(&rest[1..]);
-    }
-
-    let args = match parse_args(prog.into_iter().chain(rest)) {
+    let args = match parse_args(std::env::args_os()) {
         Ok(args) => args,
         Err(e) => e.exit(),
     };
 
-    if let Some(Subcommands::Lsp { .. }) = args.commands {
-        let _guard = utils::init_logger(LogDestination::Stderr);
-        let rt = Runtime::new().unwrap();
-        return match rt.block_on(solar_lsp::run_server_stdio()) {
+    let solar_cli::Args { commands, default_compile } = args;
+    match commands {
+        Some(Subcommands::Lsp(args)) => lsp::run(args),
+        Some(Subcommands::MirOpt(args)) => mir_opt::run(args),
+        None => match run_compiler_args(default_compile) {
             Ok(()) => ExitCode::SUCCESS,
             Err(_) => ExitCode::FAILURE,
-        };
-    }
-
-    let _guard = utils::init_logger(LogDestination::Stdout);
-    match run_compiler_args(args.default_compile) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(_) => ExitCode::FAILURE,
+        },
     }
 }

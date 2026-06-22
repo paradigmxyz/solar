@@ -3,8 +3,9 @@ Blazingly fast Solidity compiler
 Usage: solar [OPTIONS] [INPUT]... [COMMAND]
 
 Commands:
-  lsp   Start the language server
-  help  Print this message or the help of the given subcommand(s)
+  lsp      Start the language server
+  mir-opt  Run one or more MIR passes on a Solidity or MIR file
+  help     Print this message or the help of the given subcommand(s)
 
 Arguments:
   [INPUT]...  Files to compile, or import remappings

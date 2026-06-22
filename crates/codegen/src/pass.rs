@@ -36,7 +36,7 @@ use std::any::{Any, TypeId};
 type PassFactory = fn() -> Box<dyn ModulePass>;
 
 /// Registry entry for a MIR transform pass.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct PassInfo {
     /// Command-line and pipeline name.
     pub name: &'static str,

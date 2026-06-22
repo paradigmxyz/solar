@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 use solar_cli::{
-    Opts,
+    CompileOpts,
     standard_json::{ReadCallbackResult, StandardJsonReadCallback, compile_standard_json},
 };
 use std::{
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn solidity_compile(
             as std::sync::Arc<dyn StandardJsonReadCallback>
     });
     let mut output = Vec::new();
-    compile_standard_json(input, Opts::default(), read_callback, &mut output);
+    compile_standard_json(input, CompileOpts::default(), read_callback, &mut output);
     alloc::allocate_c_string(&output)
 }
 

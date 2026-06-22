@@ -294,7 +294,7 @@ impl Compiler for Solar {
 fn session() -> Session {
     Session::builder()
         .with_stderr_emitter_and_color(solar::parse::interface::ColorChoice::Always)
-        .opts(solar::config::Opts {
+        .opts(solar::config::CompileOpts {
             threads: solar::config::Threads::resolve(1),
             unstable: solar::config::UnstableOpts {
                 typeck: true,

@@ -11,7 +11,7 @@ use solar_interface::{Result, Session};
 use solar_sema::{CompilerRef, ParsingContext};
 use std::ops::ControlFlow;
 
-pub use solar_config::{self as config, Opts, UnstableOpts, version};
+pub use solar_config::{self as config, CompileOpts, UnstableOpts, version};
 
 mod emit;
 pub mod standard_json;
@@ -37,6 +37,9 @@ pub mod signal_handler {
 mod args;
 pub use args::{Args, Subcommands};
 
+mod lsp;
+pub use lsp::LspArgs;
+
 // `asm` feature.
 use alloy_primitives as _;
 
@@ -49,11 +52,10 @@ where
 {
     let mut opts = Args::try_parse_from(itr)?;
     opts.default_compile.finish()?;
-
     Ok(opts)
 }
 
-pub fn run_compiler_args(opts: Opts) -> Result {
+pub fn run_compiler_args(opts: CompileOpts) -> Result {
     if opts.standard_json {
         standard_json::run(opts)
             .map_err(|_e| solar_interface::diagnostics::ErrorGuaranteed::new_unchecked())?;
@@ -69,7 +71,7 @@ fn run_default(compiler: &mut CompilerRef<'_>) -> Result {
         |pcx| {
             // Partition arguments into three categories:
             // - `stdin`: `-`, occurrences after the first are ignored
-            // - remappings: `[context:]prefix=path`, already parsed as part of `Opts`
+            // - remappings: `[context:]prefix=path`, already parsed as part of `CompileOpts`
             // - paths: everything else
             let mut seen_stdin = false;
             let mut paths = Vec::new();
@@ -145,7 +147,10 @@ pub(crate) fn run_pipeline(
     Ok(ControlFlow::Continue(()))
 }
 
-fn run_compiler_with(opts: Opts, f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send) -> Result {
+fn run_compiler_with(
+    opts: CompileOpts,
+    f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
+) -> Result {
     let mut sess = Session::new(opts);
     sess.infer_language();
     run_compiler_session_with(sess, f, true)

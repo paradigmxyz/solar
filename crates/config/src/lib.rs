@@ -12,7 +12,7 @@ use strum::EnumIs;
 mod macros;
 
 mod opts;
-pub use opts::{Opts, UnstableOpts};
+pub use opts::{CompileOpts, UnstableOpts};
 
 mod utils;
 
