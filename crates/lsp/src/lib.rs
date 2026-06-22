@@ -56,9 +56,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
 /// Start the LSP server over stdin/stdout.
 ///
 /// This future is long running and will not stop until the server exits.
-pub async fn run_server_stdio(args: LspArgs) -> async_lsp::Result<()> {
-    let LspArgs { stdio: _ } = args;
-
+pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
     #[cfg(unix)]
     let (stdin, stdout) =

@@ -60,7 +60,7 @@ Input formats:
     .to_string()
 }
 
-#[derive(Clone, Debug, clap::Args)]
+#[derive(clap::Args)]
 #[command(
     after_help = after_help(),
     arg_required_else_help = true
