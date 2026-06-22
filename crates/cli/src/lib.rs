@@ -11,7 +11,7 @@ use solar_interface::{Result, Session};
 use solar_sema::{CompilerRef, ParsingContext};
 use std::ops::ControlFlow;
 
-pub use solar_config::{self as config, CompileOpts, UnstableOpts, version};
+pub use solar_config::{self as config, CompileOpts, LspArgs, UnstableOpts, version};
 
 mod emit;
 pub mod standard_json;
@@ -36,9 +36,6 @@ pub mod signal_handler {
 
 mod args;
 pub use args::{Args, Subcommands};
-
-mod lsp;
-pub use lsp::LspArgs;
 
 // `asm` feature.
 use alloy_primitives as _;

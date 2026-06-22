@@ -1,6 +1,6 @@
-use crate::{lsp::LspArgs, mir_opt::MirOptArgs};
+use crate::mir_opt::MirOptArgs;
 use clap::{Parser, Subcommand};
-use solar_config::CompileOpts;
+use solar_config::{CompileOpts, LspArgs};
 
 /// Blazingly fast Solidity compiler.
 #[derive(Clone, Debug, Default, Parser)]

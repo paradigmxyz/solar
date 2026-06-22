@@ -14,6 +14,9 @@ mod macros;
 mod opts;
 pub use opts::{CompileOpts, UnstableOpts};
 
+mod lsp;
+pub use lsp::LspArgs;
+
 mod utils;
 
 pub mod version;

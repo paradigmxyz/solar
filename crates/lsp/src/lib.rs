@@ -13,6 +13,7 @@ use async_lsp::{
 };
 use lsp_types::{notification as notif, request as req};
 use serde_json as _;
+use solar_config::LspArgs;
 use tower::ServiceBuilder;
 
 use crate::global_state::GlobalState;
@@ -27,13 +28,6 @@ mod vfs;
 mod workspace;
 
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
-
-/// Options for running the LSP server.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct ServerArgs {
-    /// Use standard input/output for LSP transport.
-    pub stdio: bool,
-}
 
 fn new_router(client: ClientSocket) -> Router<GlobalState> {
     let this = GlobalState::new(client);
@@ -64,8 +58,8 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
 /// Start the LSP server over stdin/stdout.
 ///
 /// This future is long running and will not stop until the server exits.
-pub async fn run_server_stdio(args: ServerArgs) -> async_lsp::Result<()> {
-    let ServerArgs { stdio: _ } = args;
+pub async fn run_server_stdio(args: LspArgs) -> async_lsp::Result<()> {
+    let LspArgs { stdio: _ } = args;
 
     // Prefer truly asynchronous piped stdin/stdout without blocking tasks.
     #[cfg(unix)]
