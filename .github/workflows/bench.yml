@@ -27,10 +27,10 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Solar
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Checkout benchmark corpus
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: ${{ env.BENCHMARK_REPOSITORY }}
           ref: ${{ env.BENCHMARK_REF }}
@@ -202,7 +202,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Checkout submodules
@@ -233,7 +233,7 @@ jobs:
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
       GUNGRAUN_RUNNER: gungraun-runner
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Checkout submodules
@@ -244,7 +244,7 @@ jobs:
       - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
       - name: Checkout base
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.base_ref || 'main' }}
           fetch-depth: 2
@@ -273,7 +273,7 @@ jobs:
             mv target/iai target/gungraun
           fi
       - name: Checkout PR
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           clean: false
       - name: Install benchmark runner
