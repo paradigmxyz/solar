@@ -7,5 +7,5 @@ pub struct LspArgs {
     /// This is the default, and ignored.
     /// This argument is recommended by the LSP specification.
     #[cfg_attr(feature = "clap", arg(long, hide = true))]
-    stdio: bool,
+    pub stdio: bool,
 }
