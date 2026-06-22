@@ -11,7 +11,7 @@ use solar_config::{CompileOpts, LspArgs};
     arg_required_else_help = true,
 )]
 #[allow(clippy::manual_non_exhaustive)]
-pub struct Args {
+pub(crate) struct Args {
     #[command(subcommand)]
     pub(crate) commands: Option<Subcommands>,
     #[command(flatten)]

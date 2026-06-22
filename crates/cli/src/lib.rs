@@ -33,7 +33,7 @@ pub mod signal_handler {
 }
 
 mod args;
-pub use args::Args;
+use args::Args;
 
 pub use commands::compile::run_compiler_args;
 
@@ -54,7 +54,7 @@ pub fn main() -> ExitCode {
     commands::run(args)
 }
 
-pub fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
+fn parse_args<I, T>(itr: I) -> Result<Args, clap::Error>
 where
     I: IntoIterator<Item = T>,
     T: Into<std::ffi::OsString> + Clone,
