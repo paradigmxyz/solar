@@ -1,0 +1,158 @@
+// === ROOT/tests/ui/erc7201/codegen.sol:Erc7201Builtin ===
+; module @Erc7201Builtin
+fn @literal() {
+  bb0 (entry):
+    mstore 128, 0
+    mstore 128, 0x183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500
+    returndata 128, 32
+}
+
+fn @zeroLastByteLiteral() {
+  bb0 (entry):
+    mstore 128, 0
+    mstore 128, 0x6d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00
+    returndata 128, 32
+}
+
+fn @memoryParam() {
+  bb0 (entry):
+    mstore 128, 0
+    v4 = mload 64 !metadata(memory=scratch)
+    v6 = add v4, 64
+    mstore 64, v6 !metadata(memory=scratch)
+    mstore v4, 12
+    v12 = add v4, 32
+    v15 = add v12, 0
+    mstore v15, 0x6578616d706c652e6d61696e0000000000000000000000000000000000000000
+    v18 = mload v4
+    v19 = add v4, 32
+    v20 = keccak256 v19, v18
+    v22 = sub v20, 1
+    mstore 0, v22 !metadata(memory=scratch)
+    v26 = keccak256 0, 32 !metadata(memory=scratch)
+    v28 = and v26, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore 128, v28
+    returndata 128, 32
+}
+
+fn @calldataParam(arg0: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v2 = sub v0, 4
+    v4 = slt v2, 32
+    br v4, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v11 = add 4, arg0
+    v12 = calldataload v11
+    v15 = add v12, 31
+    v16 = lt v15, v12
+    br v16, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v24 = not 31
+    v25 = and v15, v24
+    v26 = iszero v25
+    v27 = select v26, 32, v25
+    v28 = add 32, v27
+    v29 = lt v28, v27
+    br v29, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v38 = mload 64 !metadata(memory=scratch)
+    v39 = add v38, v28
+    mstore 64, v39 !metadata(memory=scratch)
+    mstore v38, v12
+    v43 = add v38, 32
+    v45 = sub v27, 32
+    v46 = add v43, v45
+    mstore v46, 0
+    v48 = add v11, 32
+    calldatacopy v43, v48, v12
+    v51 = mload v38
+    v52 = add v38, 32
+    v53 = keccak256 v52, v51
+    v55 = sub v53, 1
+    mstore 0, v55 !metadata(memory=scratch)
+    v59 = keccak256 0, 32 !metadata(memory=scratch)
+    v61 = and v59, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore 128, v61
+    returndata 128, 32
+}
+
+fn @storageValue() {
+  bb0 (entry):
+    mstore 128, 0
+    v4 = sload 0 !metadata(storage=slot(0))
+    v6 = and v4, 1
+    v7 = eq v6, 1
+    v9 = and v4, 255
+    v11 = shr 1, v9
+    v12 = shr 1, v4
+    v13 = select v7, v12, v11
+    v16 = not 31
+    v17 = add v13, 31
+    v18 = and v17, v16
+    v19 = iszero v18
+    v20 = select v19, 32, v18
+    v21 = add 32, v20
+    v23 = mload 64 !metadata(memory=scratch)
+    v25 = add v23, 96
+    mstore 64, v25 !metadata(memory=scratch)
+    v29 = mload 64 !metadata(memory=scratch)
+    v30 = add v29, v21
+    mstore 64, v30 !metadata(memory=scratch)
+    mstore v29, v13
+    v34 = add v29, 32
+    br v7, bb2, bb1
+  bb1:
+    v36 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v34, v36
+    jump bb3
+  bb2:
+    mstore v23, 0
+    v39 = keccak256 v23, 32
+    v40 = div v18, 32
+    v42 = add v23, 32
+    v44 = add v23, 64
+    mstore v23, v34
+    mstore v42, v40
+    mstore v44, v39
+    jump bb4
+  bb3:
+    v64 = mload v29
+    v65 = add v29, 32
+    v66 = keccak256 v65, v64
+    v68 = sub v66, 1
+    mstore 0, v68 !metadata(memory=scratch)
+    v72 = keccak256 0, 32 !metadata(memory=scratch)
+    v74 = and v72, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore 128, v74
+    returndata 128, 32
+  bb4:
+    v48 = mload v42
+    v50 = gt v48, 0
+    br v50, bb5, bb3
+  bb5:
+    v51 = mload v44
+    v52 = sload v51 !metadata(storage=symbolic(v51))
+    v53 = mload v23
+    mstore v53, v52
+    v55 = add v51, 1
+    mstore v44, v55
+    v58 = add v53, 32
+    mstore v23, v58
+    v60 = mload v42
+    v61 = sub v60, 1
+    mstore v42, v61
+    jump bb4
+}
+

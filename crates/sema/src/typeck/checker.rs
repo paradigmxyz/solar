@@ -1,6 +1,6 @@
 use crate::{
     builtins::{Builtin, members},
-    eval::{ConstValue, ConstantEvaluator},
+    eval::{ConstValue, ConstantEvaluator, EvalErrorKind},
     hir::{self, Visit},
     ty::{
         Gcx, ResolvedCallee, ResolvedMember, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
@@ -112,6 +112,10 @@ impl<'gcx> TypeChecker<'gcx> {
             Ok(ConstValue::Bool(_)) => {
                 self.dcx()
                     .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
+            }
+            Ok(ConstValue::String(_)) => {
+                let err = EvalErrorKind::UnsupportedLiteral.spanned(slot.span);
+                evaluator.emit_eval_error(slot, err);
             }
             Err(err) => {
                 evaluator.emit_eval_error(slot, err);

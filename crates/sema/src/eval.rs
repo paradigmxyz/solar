@@ -1,15 +1,26 @@
-use crate::{hir, ty::Gcx};
-use alloy_primitives::U256;
+use crate::{builtins::Builtin, hir, ty::Gcx};
+use alloy_primitives::{B256, U256, keccak256};
 use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::{One, Signed, Zero};
-use solar_ast::LitKind;
-use solar_interface::{Span, diagnostics::ErrorGuaranteed};
+use solar_ast::{LitKind, StrKind};
+use solar_interface::{ByteSymbol, Span, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 const RECURSION_LIMIT: usize = 64;
 const MAX_BITS: u64 = solar_ast::TypeSize::MAX as u64;
 
 // TODO: `convertType` for truncating and extending correctly: https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/ConstantEvaluator.cpp#L234
+
+/// Computes the ERC-7201 storage namespace base slot.
+///
+/// Reference: <https://docs.soliditylang.org/en/latest/units-and-global-variables.html#mathematical-and-cryptographic-functions>
+pub fn erc7201_slot(namespace_id: &[u8]) -> B256 {
+    let inner = keccak256(namespace_id);
+    let inner = U256::from_be_bytes(inner.0).wrapping_sub(U256::from(1));
+    let mut outer = keccak256(inner.to_be_bytes::<32>());
+    outer.0[31] = 0;
+    outer
+}
 
 /// Evaluates the given array size expression, emitting an error diagnostic if it fails.
 pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorGuaranteed> {
@@ -103,8 +114,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
                 let r = self.try_eval_value(r)?;
                 l.binop(r, bin_op.kind).map_err(Into::into)
             }
-            // hir::ExprKind::Call(_, _) => unimplemented!(),
-            // hir::ExprKind::CallOptions(_, _) => unimplemented!(),
+            hir::ExprKind::Call(callee, ref args, opts) => self.eval_call(callee, args, opts),
             // hir::ExprKind::Delete(_) => unimplemented!(),
             hir::ExprKind::Ident(res) => {
                 // Ignore invalid overloads since they will get correctly detected later.
@@ -142,9 +152,29 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
     }
 
+    fn eval_call(
+        &mut self,
+        callee: &hir::Expr<'_>,
+        args: &hir::CallArgs<'_>,
+        opts: Option<&hir::CallOptions<'_>>,
+    ) -> EvalResult {
+        if opts.is_none()
+            && let hir::ExprKind::Ident(res) = callee.peel_parens().kind
+            && matches!(res.first(), Some(hir::Res::Builtin(Builtin::Erc7201)))
+            && let hir::CallArgsKind::Unnamed([arg]) = args.kind
+            && let ConstValue::String(namespace_id) = self.try_eval_value(arg)?
+        {
+            return Ok(ConstValue::Integer(IntScalar::new(
+                erc7201_slot(namespace_id.as_byte_str()).into(),
+            )));
+        }
+        Err(EE::UnsupportedExpr.into())
+    }
+
     fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult {
         match lit.kind {
-            // LitKind::Str(str_kind, arc) => todo!(),
+            LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(ConstValue::String(s)),
+            LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
             LitKind::Number(n) => Ok(ConstValue::Integer(IntScalar::new(n))),
             // LitKind::Rational(ratio) => todo!(),
             LitKind::Address(address) => {
@@ -164,6 +194,8 @@ pub enum ConstValue {
     Integer(IntScalar),
     /// Boolean constant value.
     Bool(bool),
+    /// String constant value.
+    String(ByteSymbol),
 }
 
 impl ConstValue {
@@ -172,6 +204,7 @@ impl ConstValue {
         match self {
             Self::Integer(value) => Ok(value),
             Self::Bool(_) => Err(EE::UnsupportedExpr.into()),
+            Self::String(_) => Err(EE::UnsupportedLiteral.into()),
         }
     }
 
@@ -180,7 +213,7 @@ impl ConstValue {
         Ok(match (self, op) {
             (Self::Integer(value), op) => Self::Integer(value.unop(op)?),
             (Self::Bool(value), hir::UnOpKind::Not) => Self::Bool(!value),
-            (Self::Bool(_), _) => return Err(EE::UnsupportedUnaryOp),
+            (Self::Bool(_) | Self::String(_), _) => return Err(EE::UnsupportedUnaryOp),
         })
     }
 
@@ -466,3 +499,25 @@ impl fmt::Display for EvalError {
 }
 
 impl std::error::Error for EvalError {}
+
+#[cfg(test)]
+mod tests {
+    use super::erc7201_slot;
+    use alloy_primitives::b256;
+
+    #[test]
+    fn erc7201_slot_matches_eip_example() {
+        assert_eq!(
+            erc7201_slot(b"example.main"),
+            b256!("183a6125c38840424c4a85fa12bab2ab606c4b6d0e7cc73c0c06ba5300eab500")
+        );
+    }
+
+    #[test]
+    fn erc7201_slot_subtracts_from_full_inner_hash() {
+        assert_eq!(
+            erc7201_slot(b"85"),
+            b256!("06d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00")
+        );
+    }
+}

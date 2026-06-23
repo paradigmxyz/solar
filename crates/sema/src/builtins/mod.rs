@@ -113,6 +113,9 @@ declare_builtins! {
     EcRecover              => sym::ecrecover
                            => gcx.mk_builtin_fn(&[gcx.types.fixed_bytes(32), gcx.types.uint(8), gcx.types.fixed_bytes(32), gcx.types.fixed_bytes(32)], SM::Pure, &[gcx.types.address]);
 
+    Erc7201                => sym::erc7201
+                           => gcx.mk_builtin_fn(&[gcx.types.string_ref.memory], SM::Pure, &[gcx.types.uint(256)]);
+
     Block                  => sym::block
                            => gcx.mk_builtin_mod(self);
     Msg                    => sym::msg
