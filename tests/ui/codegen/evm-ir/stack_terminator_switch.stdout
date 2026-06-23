@@ -2,7 +2,7 @@
 bb0 (entry):
   %x = push 3
   dup1
-  %sel = add
+  %sel = add !meta(stack=2->1)
   %junk = push 9
   swap1
   switch %sel, default bb1, [1 => bb2]

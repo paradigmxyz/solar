@@ -4,5 +4,5 @@ bb0 (entry):
   jump bb1
 bb1 (in %a):
   dup1
-  %b = add
+  %b = add !meta(stack=2->1)
   stop

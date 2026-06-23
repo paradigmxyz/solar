@@ -1,0 +1,5 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack_verify_zero_input.evmir (after none) ===
+bb0 (entry):
+  %sender = caller
+  %left = gas
+  stop

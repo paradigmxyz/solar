@@ -24,8 +24,8 @@ bb0 (entry):
   swap1
   swap14
   swap1
-  %r = add
+  %r = add !meta(stack=2->1)
   push 0x1000
   mload !meta(stack=1->1)
-  %s = mul
+  %s = mul !meta(stack=2->1)
   stop

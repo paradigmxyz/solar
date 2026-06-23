@@ -9,8 +9,9 @@
 //! onto the top of the model stack in the order EVM expects (operand 0 on top):
 //! `return`/`revert` offset over size, `br`/`switch` discriminant on top,
 //! `selfdestruct` recipient on top. The terminator keeps those operands as
-//! positioned markers — they are not cleared and not drained — matching the
-//! verifier, which models them as live, un-consumed words on top of the stack.
+//! positioned markers; the verifier then applies the terminator stack effect to
+//! the abstract exit stack, so consumed branch/switch operands cannot be claimed
+//! as successor inputs.
 //!
 //! Scheduling is atomic per block: a block is either fully scheduled or left
 //! exactly as it was. Whenever an operand cannot be placed — a value that is not
@@ -363,11 +364,10 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// when the operands cannot be placed; the caller then restores the block.
     ///
     /// Representation: the terminator keeps its value operands as positioned
-    /// markers — they are not cleared and not drained from the model stack. The
-    /// verifier's terminator simulation already expects live, un-consumed value
-    /// operands sitting on top of the stack (the EVM terminal opcode pops them),
-    /// and the terminator shape check requires them to remain stack values, so
-    /// leaving them in place keeps the scheduled IR consistent with the oracle.
+    /// markers; the verifier checks that those words are live and then applies
+    /// the terminator stack effect to the abstract exit stack. Leaving the
+    /// operands in the terminator keeps the scheduled text readable while the
+    /// verifier still models the runtime pop.
     fn schedule_terminator(
         &mut self,
         block_id: EvmIrBlockId,
@@ -468,6 +468,7 @@ impl<'a> EvmIrStackScheduler<'a> {
             }
             stack.drain(0..target.len());
             inst.operands.clear();
+            inst.metadata.stack.get_or_insert(effect);
             *changed = true;
         } else if (stack.len() as u64) < u64::from(effect.inputs) {
             return false;

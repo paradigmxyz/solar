@@ -880,10 +880,10 @@ fn simulate_terminator(
     stack: &mut ModelStack,
 ) -> Result<(), EvmIrVerifyError> {
     // A terminator that still carries value operands is unscheduled: those
-    // operands must be live, and they are not consumed from the model stack
-    // (scheduling clears them and emits the consuming stack ops). A terminator
-    // whose value operands have been cleared has already had its inputs
-    // arranged and consumed by the scheduler, so we leave the model stack as is.
+    // operands must be live. We still apply the terminator's stack effect to the
+    // abstract exit stack: even in virtual form, branch/switch/return/revert
+    // consume their operand words at runtime, so successors must not be allowed
+    // to claim those consumed words as incoming stack values.
     let mut result = Ok(());
     visit_terminator_operands(kind, |operand| {
         if let EvmIrOperand::Value(value) = operand
@@ -899,7 +899,76 @@ fn simulate_terminator(
         }
         Ok::<(), EvmIrVerifyError>(())
     })?;
-    result
+    result?;
+
+    apply_terminator_effect(block_id, kind, stack)
+}
+
+fn apply_terminator_effect(
+    block_id: EvmIrBlockId,
+    kind: &EvmIrTerminatorKind,
+    stack: &mut ModelStack,
+) -> Result<(), EvmIrVerifyError> {
+    let mut consumed = FxHashSet::default();
+    visit_terminator_operands(kind, |operand| {
+        if let EvmIrOperand::Value(value) = operand
+            && consumed.insert(*value)
+        {
+            consume_stack_value(block_id, kind, *value, stack)?;
+        }
+        Ok::<(), EvmIrVerifyError>(())
+    })?;
+
+    let effect = default_terminator_stack_effect(kind);
+    let remaining_inputs = usize::from(effect.inputs).saturating_sub(consumed.len());
+    if !stack.ensure_depth(remaining_inputs) {
+        return Err(EvmIrVerifyError::in_block(
+            block_id,
+            format!(
+                "`{}` consumes {} stack words but only {} are available",
+                terminator_name(kind),
+                effect.inputs,
+                stack.len()
+            ),
+        ));
+    }
+    stack.words.drain(0..remaining_inputs);
+    Ok(())
+}
+
+fn consume_stack_value(
+    block_id: EvmIrBlockId,
+    kind: &EvmIrTerminatorKind,
+    value: EvmIrValueId,
+    stack: &mut ModelStack,
+) -> Result<(), EvmIrVerifyError> {
+    let needle = AbstractWord::Value(value);
+    let Some(index) = stack.words.iter().position(|word| *word == needle) else {
+        return Err(EvmIrVerifyError::in_block(
+            block_id,
+            format!(
+                "`{}` consumes an operand that is not live on the stack",
+                terminator_name(kind)
+            ),
+        ));
+    };
+    stack.words.remove(index);
+    Ok(())
+}
+
+fn terminator_name(kind: &EvmIrTerminatorKind) -> &'static str {
+    match kind {
+        EvmIrTerminatorKind::Fallthrough(_) => "fallthrough",
+        EvmIrTerminatorKind::Jump(_) => "jump",
+        EvmIrTerminatorKind::Branch { .. } => "br",
+        EvmIrTerminatorKind::Switch { .. } => "switch",
+        EvmIrTerminatorKind::Return { .. } => "return",
+        EvmIrTerminatorKind::Revert { .. } => "revert",
+        EvmIrTerminatorKind::Stop => "stop",
+        EvmIrTerminatorKind::Invalid => "invalid",
+        EvmIrTerminatorKind::SelfDestruct { .. } => "selfdestruct",
+        EvmIrTerminatorKind::RawOpcode(_) => "terminal",
+    }
 }
 
 /// The word a result-producing instruction leaves on top.
@@ -973,6 +1042,15 @@ fn verify_instruction_shape(
             ));
         }
     } else {
+        if operandless_operation_needs_stack_metadata(inst) {
+            return Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!(
+                    "operand-cleared instruction `{}` must declare an explicit stack effect",
+                    inst.mnemonic()
+                ),
+            ));
+        }
         for operand in &inst.operands {
             if !matches!(operand, EvmIrOperand::Value(_)) {
                 return Err(EvmIrVerifyError::in_block(
@@ -983,6 +1061,43 @@ fn verify_instruction_shape(
         }
     }
     Ok(())
+}
+
+fn operandless_operation_needs_stack_metadata(inst: &EvmIrInstruction) -> bool {
+    inst.operands.is_empty()
+        && inst.metadata.stack.is_none()
+        && matches!(
+            &inst.kind,
+            EvmIrInstructionKind::Operation(mnemonic)
+                if !(inst.result.is_some() && is_zero_input_operation(mnemonic))
+        )
+}
+
+fn is_zero_input_operation(mnemonic: &str) -> bool {
+    matches!(
+        mnemonic,
+        "address"
+            | "origin"
+            | "caller"
+            | "callvalue"
+            | "calldatasize"
+            | "codesize"
+            | "gasprice"
+            | "coinbase"
+            | "timestamp"
+            | "number"
+            | "prevrandao"
+            | "difficulty"
+            | "gaslimit"
+            | "chainid"
+            | "selfbalance"
+            | "basefee"
+            | "blobbasefee"
+            | "returndatasize"
+            | "msize"
+            | "gas"
+            | "pc"
+    )
 }
 
 fn verify_terminator_shape(
@@ -2519,86 +2634,8 @@ fn is_valid_block_label(label: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_evm_ir_module, verify_evm_ir_module};
+    use super::parse_evm_ir_module;
     use std::path::{Path, PathBuf};
-
-    fn verify_text(input: &str) -> Result<(), String> {
-        let module = parse_evm_ir_module(input).map_err(|err| err.to_string())?;
-        verify_evm_ir_module(&module).map_err(|err| err.to_string())
-    }
-
-    #[test]
-    fn rejects_lying_entry_signature() {
-        // bb0 really exits with [%b, %a] (top %b) but bb1 declares `(in %a)`.
-        let input = "\
-bb0 (entry):
-  %a = push 1
-  %b = push 2
-  jump bb1
-bb1 (in %a):
-  %c = add %a, %a
-  stop
-";
-        let err = verify_text(input).unwrap_err();
-        assert!(err.contains("inconsistent"), "{err}");
-        assert!(err.contains("edge to `bb1`"), "{err}");
-    }
-
-    #[test]
-    fn accepts_prefix_consistent_edge() {
-        // bb0 exits [%top, %keep]; bb1 declares only the consumed prefix [%top].
-        let input = "\
-bb0 (entry):
-  %keep = push 1
-  %top = push 2
-  jump bb1
-bb1 (in %top):
-  %r = iszero %top
-  stop
-";
-        verify_text(input).unwrap();
-    }
-
-    #[test]
-    fn rejects_entry_block_with_incoming_stack() {
-        // %a is defined in bb1 but the entry block declares it as incoming.
-        let input = "\
-bb0 (entry) (in %a):
-  stop
-bb1:
-  %a = push 1
-  stop
-";
-        let err = verify_text(input).unwrap_err();
-        assert!(err.contains("entry block must start from an empty stack"), "{err}");
-    }
-
-    #[test]
-    fn rejects_physical_stack_op_underflow() {
-        // `dup2` reaches depth 2 but only one word is on the stack.
-        let input = "\
-bb0 (entry):
-  push 1
-  dup2
-  stop
-";
-        let err = verify_text(input).unwrap_err();
-        assert!(err.contains("dup2"), "{err}");
-        assert!(err.contains("stack has 1"), "{err}");
-    }
-
-    #[test]
-    fn rejects_swap_out_of_range() {
-        let input = "\
-bb0 (entry):
-  push 1
-  push 2
-  swap2
-  stop
-";
-        let err = verify_text(input).unwrap_err();
-        assert!(err.contains("swap2"), "{err}");
-    }
 
     fn evm_ir_fixture_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))

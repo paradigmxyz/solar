@@ -3,6 +3,6 @@ bb0 (entry):
   %off = push 64
   dup1
   dup1
-  %size = add
+  %size = add !meta(stack=2->1)
   swap1
   return %off, %size

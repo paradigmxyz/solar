@@ -4,5 +4,5 @@ bb0 (entry):
   %top = push 2
   jump bb1
 bb1 (in %top):
-  %r = iszero
+  %r = iszero !meta(stack=1->1)
   stop

@@ -1,0 +1,7 @@
+//@ failure-status: 1
+// `swap2` requires three stack words.
+bb0 (entry):
+  push 1
+  push 2
+  swap2
+  stop

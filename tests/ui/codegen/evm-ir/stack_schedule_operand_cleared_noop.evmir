@@ -10,9 +10,9 @@ bb0 (entry):
   push 1
   push 2
   swap1
-  sub
+  sub !meta(stack=2->1)
   push 0
   swap1
-  eq
+  eq !meta(stack=2->1)
   pop
   stop
