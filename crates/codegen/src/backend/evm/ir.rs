@@ -245,13 +245,13 @@ pub enum EvmIrStackOp {
 }
 
 impl EvmIrStackOp {
-    /// Creates a `DUPn` operation.
+    /// Creates a `DUP<N>` operation.
     #[must_use]
     pub const fn dup(n: u8) -> Option<Self> {
         if n >= 1 && n <= 16 { Some(Self::Dup(n)) } else { None }
     }
 
-    /// Creates a `SWAPn` operation.
+    /// Creates a `SWAP<N>` operation.
     #[must_use]
     pub const fn swap(n: u8) -> Option<Self> {
         if n >= 1 && n <= 16 { Some(Self::Swap(n)) } else { None }

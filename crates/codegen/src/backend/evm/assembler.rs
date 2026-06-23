@@ -62,7 +62,7 @@ pub struct AssemblerConfig {
     pub optimization: OptimizationMode,
     /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
     ///
-    /// Off by default. See [`StructuredAsmProgram::optimize_with_evm_ir`] for why
+    /// Off by default. See `StructuredAsmProgram::optimize_with_evm_ir` for why
     /// the pass is a verified near no-op on the bridge's operand-cleared IR.
     pub evm_ir_stack_schedule: bool,
 }

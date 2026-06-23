@@ -77,7 +77,7 @@ use super::{
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashMap;
 
-/// Maximum stack depth reachable by `DUPn`/`SWAPn`.
+/// Maximum stack depth reachable by `DUP<N>`/`SWAP<N>`.
 const MAX_STACK_REACH: usize = 16;
 
 pub(super) fn schedule_stack_ops(module: &mut EvmIrModule) -> bool {
