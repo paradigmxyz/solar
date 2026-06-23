@@ -1,7 +1,10 @@
 //@compile-flags: --pass stack-schedule
-// `%v0` sits below the DUP16/SWAP16 reach, so it cannot be scheduled. The pass
-// bails and leaves the block exactly as written rather than emitting a partial,
-// broken schedule.
+// `%v0` sits below the DUP16/SWAP16 reach. This block ends in a linear `jump`,
+// which hands a named value-word stack down to its successor, so spilling is
+// disabled here: a reloaded word is anonymous and would break a successor's
+// declared incoming identities. With spilling off the deep value cannot be
+// reached, so the pass bails and leaves the block exactly as written rather than
+// emitting a partial, broken schedule.
 bb0 (entry):
   %v0 = push 0
   %v1 = push 1
@@ -21,4 +24,6 @@ bb0 (entry):
   %v15 = push 15
   %v16 = push 16
   %r = add %v0, %v16
+  jump bb1
+bb1:
   stop

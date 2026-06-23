@@ -1,0 +1,18 @@
+//@compile-flags: --pass stack-schedule
+// Safe-bail at a disagreeing merge. bb3 has two predecessors that leave
+// different value words on top (bb1 leaves %a, bb2 leaves %b), so the inferred
+// incoming stacks disagree. The scheduler refuses to guess and leaves bb3
+// verbatim (its `add %a, ...` operand stays un-scheduled), while bb1/bb2 still
+// schedule on their own.
+bb0 (entry):
+  %c = push 0
+  br %c, bb1, bb2
+bb1:
+  %a = push 1
+  jump bb3
+bb2:
+  %b = push 2
+  jump bb3
+bb3:
+  %r = iszero %a
+  stop

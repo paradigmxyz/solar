@@ -1,0 +1,9 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack_infer_loop_bail.evmir (after stack-schedule) ===
+bb0 (entry):
+  %a = push 1
+  jump bb1
+bb1:
+  %b = iszero %a
+  br %b, bb2, bb1
+bb2:
+  stop

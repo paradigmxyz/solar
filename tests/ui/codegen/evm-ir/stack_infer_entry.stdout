@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack_infer_entry.evmir (after stack-schedule) ===
+bb0 (entry):
+  %a = push 7
+  jump bb1
+bb1 (in %a):
+  dup1
+  %b = add
+  stop

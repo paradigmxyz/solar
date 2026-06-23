@@ -60,6 +60,11 @@ pub struct AssemblerConfig {
     pub evm_version: EvmVersion,
     /// Optimization mode for alternate byte encodings.
     pub optimization: OptimizationMode,
+    /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
+    ///
+    /// Off by default. See [`StructuredAsmProgram::optimize_with_evm_ir`] for why
+    /// the pass is a verified near no-op on the bridge's operand-cleared IR.
+    pub evm_ir_stack_schedule: bool,
 }
 
 /// Two-pass assembler for EVM bytecode.
@@ -366,6 +371,10 @@ impl StructuredAsmContext for Assembler {
 
     fn new_label(&mut self) -> Label {
         self.new_label()
+    }
+
+    fn run_evm_ir_stack_schedule(&self) -> bool {
+        self.config.evm_ir_stack_schedule
     }
 }
 
@@ -780,6 +789,7 @@ mod tests {
         Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::Size,
+            ..AssemblerConfig::default()
         })
     }
 
@@ -842,6 +852,7 @@ mod tests {
         let mut asm = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::None,
+            ..AssemblerConfig::default()
         });
 
         asm.emit_push(U256::ZERO);
@@ -855,6 +866,7 @@ mod tests {
         let mut asm = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Berlin,
             optimization: OptimizationMode::Gas,
+            ..AssemblerConfig::default()
         });
 
         asm.emit_push(U256::ZERO);
@@ -868,18 +880,21 @@ mod tests {
         let mut size_optimized = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::Size,
+            ..AssemblerConfig::default()
         });
         size_optimized.emit_push(U256::MAX);
 
         let mut gas_optimized = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::Gas,
+            ..AssemblerConfig::default()
         });
         gas_optimized.emit_push(U256::MAX);
 
         let mut unoptimized = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::None,
+            ..AssemblerConfig::default()
         });
         unoptimized.emit_push(U256::MAX);
 
@@ -897,6 +912,7 @@ mod tests {
         let mut asm = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Berlin,
             optimization: OptimizationMode::Size,
+            ..AssemblerConfig::default()
         });
 
         asm.emit_push(U256::MAX);

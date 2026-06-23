@@ -18,6 +18,12 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
     fn push_value(&self, index: super::PushValueId) -> U256;
     fn push_inst(&mut self, value: U256) -> AsmInst;
     fn new_label(&mut self) -> Label;
+    /// Whether the bridge should run the experimental EVM IR `StackSchedule`
+    /// pass before the existing layout passes. Off by default; see
+    /// [`StructuredAsmProgram::optimize_with_evm_ir`].
+    fn run_evm_ir_stack_schedule(&self) -> bool {
+        false
+    }
 }
 
 /// Structured assembler block program used while MIR lowering emits EVM code.
@@ -91,6 +97,29 @@ impl StructuredAsmProgram {
     /// This bridge makes the production backend pass through the same untyped
     /// block IR used by `solar evm-opt` while preserving unresolved assembler
     /// operands such as labels, deferred constants, and immutable placeholders.
+    ///
+    /// # Experimental `StackSchedule` gating
+    ///
+    /// When `context.run_evm_ir_stack_schedule()` is true (off by default) the
+    /// bridge runs [`EvmIrPass::StackSchedule`] *before* the existing layout
+    /// passes. The reality of what the bridge feeds the scheduler matters here:
+    /// MIR lowering has already materialized every virtual stack-word operand
+    /// into physical `dup`/`swap`/`pop` and `push`/opcode instructions, so
+    /// `to_evm_ir_module` produces *operand-cleared* IR — no instruction carries
+    /// an [`EvmIrOperand::Value`], and the only terminators emitted here
+    /// (`jump`/`fallthrough`/raw terminal opcode/`stop`/`invalid`) carry no value
+    /// operands either. `StackSchedule` only rewrites instructions that have
+    /// value operands to materialize, so on this input it has nothing to
+    /// materialize: every instruction is replayed onto its model stack and
+    /// pushed back unchanged, and blocks it cannot model are restored verbatim.
+    /// It is therefore a *near no-op* whose only observable effect is recording
+    /// inferred `(in ...)` entry signatures, which `from_evm_ir_module` ignores.
+    ///
+    /// To make turning the flag on provably safe, the scheduled module is checked
+    /// against the verifier oracle and the bytecode-bearing instruction stream is
+    /// required to be unchanged; if either check fails the scheduled module is
+    /// discarded and the original (pre-schedule) module is used, so enabling the
+    /// flag can never produce invalid or divergent bytecode.
     pub(in crate::backend::evm) fn optimize_with_evm_ir<C>(&mut self, context: &mut C) -> usize
     where
         C: StructuredAsmContext,
@@ -101,6 +130,23 @@ impl StructuredAsmProgram {
 
         debug_assert!(verify_evm_ir_module(&module).is_ok());
         let mut changed = 0;
+
+        if context.run_evm_ir_stack_schedule() {
+            // Differential safety net: schedule a clone, and only adopt it if the
+            // verifier accepts it and its bytecode-bearing instruction stream is
+            // identical to the input. On the bridge's operand-cleared IR this
+            // always holds (the pass is a near no-op), but the guard means an
+            // unexpected rewrite is dropped instead of changing produced code.
+            let mut scheduled = module.clone();
+            if EvmIrPass::StackSchedule.run(&mut scheduled)
+                && verify_evm_ir_module(&scheduled).is_ok()
+                && modules_have_equal_code(&module, &scheduled)
+            {
+                module = scheduled;
+                changed += 1;
+            }
+        }
+
         for pass in [EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup] {
             changed += usize::from(pass.run(&mut module));
         }
@@ -383,6 +429,24 @@ impl StructuredAsmProgram {
             }
         }
     }
+}
+
+/// Whether two modules produce the same bytecode-bearing block stream.
+///
+/// `StackSchedule` records inferred `(in ...)` entry signatures on the blocks it
+/// schedules, but `from_evm_ir_module` never reads `entry_stack`, so it does not
+/// affect produced bytecode. This compares the parts the bridge actually lowers
+/// back to assembly — block labels, hot/cold metadata, instruction streams, and
+/// terminators — while ignoring the entry-signature bookkeeping.
+fn modules_have_equal_code(before: &EvmIrModule, after: &EvmIrModule) -> bool {
+    before.entry_block == after.entry_block
+        && before.blocks.len() == after.blocks.len()
+        && before.blocks.iter().zip(after.blocks.iter()).all(|(a, b)| {
+            a.label == b.label
+                && a.metadata == b.metadata
+                && a.instructions == b.instructions
+                && a.terminator == b.terminator
+        })
 }
 
 fn push_instruction(operand: EvmIrOperand) -> EvmIrInstruction {

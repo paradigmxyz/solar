@@ -598,7 +598,332 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
         })?;
     }
 
+    verify_stack_consistency(module)?;
+
     Ok(())
+}
+
+/// One abstract stack word tracked by the consistency simulator.
+///
+/// Words carry their value identity when known so cross-block edges can compare
+/// the exact words a predecessor leaves with those a successor declares. Words
+/// produced by `push` or by an extra output of a multi-result op have no SSA
+/// name and are modeled as [`AbstractWord::Unknown`]; two `Unknown` words are
+/// never considered equal across an edge.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum AbstractWord {
+    /// A word with a known SSA value identity.
+    Value(EvmIrValueId),
+    /// An anonymous word (a `push` immediate or a synthesized output) whose
+    /// identity is not an SSA value.
+    Unknown,
+}
+
+/// An abstract model stack: known words (top first) over an optional implicit
+/// floor of predecessor-inherited words.
+///
+/// EVM basic blocks share one runtime stack. A block that is reachable from
+/// predecessors may consume words those predecessors left below the portion the
+/// block declares as its `entry_stack`. The production backend exploits this:
+/// it does not declare an `entry_stack` and models opcodes as stack-neutral,
+/// relying on physical `push`/`dup`/`swap`/`pop` to thread an implicitly
+/// inherited stack between blocks. To stay sound without rejecting that
+/// convention, non-entry blocks model an **unbounded floor** of unknown words
+/// below `words`: an op that reaches past the known words draws fresh
+/// [`AbstractWord::Unknown`] floor words instead of underflowing.
+///
+/// The entry block has no predecessors, so its floor is empty (`infinite_floor`
+/// is `false`) and physical-op underflow is a real error and is rejected.
+struct ModelStack {
+    /// Known words, index 0 is the top of stack.
+    words: Vec<AbstractWord>,
+    /// Whether unknown words may be drawn from below `words`.
+    infinite_floor: bool,
+}
+
+impl ModelStack {
+    fn len(&self) -> usize {
+        self.words.len()
+    }
+
+    /// Ensures at least `depth` words are modeled, materializing implicit floor
+    /// words when allowed. Returns `false` if the stack is genuinely too shallow.
+    fn ensure_depth(&mut self, depth: usize) -> bool {
+        if self.words.len() >= depth {
+            return true;
+        }
+        if !self.infinite_floor {
+            return false;
+        }
+        while self.words.len() < depth {
+            self.words.push(AbstractWord::Unknown);
+        }
+        true
+    }
+
+    fn push(&mut self, word: AbstractWord) {
+        self.words.insert(0, word);
+    }
+
+    fn contains(&self, word: AbstractWord) -> bool {
+        // A live word may be sitting in the implicit floor; over-approximate by
+        // treating any value as reachable when a floor is present.
+        self.words.contains(&word) || self.infinite_floor
+    }
+}
+
+/// Simulates each block's stack and checks cross-block edge consistency.
+///
+/// For every block we start from its declared `entry_stack` (top first), apply
+/// each instruction's stack effect to a [`ModelStack`] of word identities, apply
+/// the terminator's effect, and record the resulting exit stack. Physical stack
+/// ops (`dupN`/`swapN`/`pop`) are applied precisely; on the entry block (which
+/// has no implicit floor) underflows and out-of-range depths are rejected.
+///
+/// Then, for every CFG edge `pred -> succ`, the successor's declared
+/// `entry_stack` must be a **prefix** of the predecessor's exit stack (both top
+/// first): the words a successor declares as incoming are exactly the top `k`
+/// words the predecessor leaves, in order. The predecessor may leave additional
+/// words below them — a successor only names the prefix it consumes. The entry
+/// block must start from an empty stack.
+///
+/// Limitation: a *scheduled* operation has its operands cleared and does not
+/// record a stack effect, so its input arity is no longer recoverable from the
+/// instruction alone; such ops fall back to [`default_instruction_stack_effect`]
+/// (inputs = 0). This does not affect the cross-block check, which compares a
+/// successor's declared value identities against the predecessor's exit words.
+fn verify_stack_consistency(module: &EvmIrModule) -> Result<(), EvmIrVerifyError> {
+    if let Some(entry) = module.entry_block
+        && !module.blocks[entry].entry_stack.is_empty()
+    {
+        return Err(EvmIrVerifyError::in_block(
+            entry,
+            "entry block must start from an empty stack",
+        ));
+    }
+
+    let mut exit_stacks: IndexVec<EvmIrBlockId, Vec<AbstractWord>> =
+        IndexVec::with_capacity(module.blocks.len());
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let is_entry = module.entry_block == Some(block_id);
+        exit_stacks.push(simulate_block(module, block_id, block, is_entry)?);
+    }
+
+    for (block_id, block) in module.blocks.iter_enumerated() {
+        let exit = &exit_stacks[block_id];
+        let term = block.terminator.as_ref().expect("checked above");
+        let mut result = Ok(());
+        visit_terminator_targets(&term.kind, |succ| {
+            let succ_entry: Vec<AbstractWord> = module.blocks[succ]
+                .entry_stack
+                .iter()
+                .map(|&value| AbstractWord::Value(value))
+                .collect();
+            if !exit.starts_with(&succ_entry) {
+                result = Err(EvmIrVerifyError::in_block(
+                    block_id,
+                    format!(
+                        "stack on edge to `{}` is inconsistent: successor declares incoming \
+                         stack [{}] but predecessor leaves [{}]",
+                        module.blocks[succ].label,
+                        format_entry_stack(module, &module.blocks[succ].entry_stack),
+                        format_abstract_stack(module, exit),
+                    ),
+                ));
+            }
+            Ok::<(), EvmIrVerifyError>(())
+        })?;
+        result?;
+    }
+
+    Ok(())
+}
+
+/// Computes a block's exit stack, rejecting any entry-block physical-stack-op
+/// underflow or out-of-range depth and any reference to a word not live on the
+/// model stack.
+fn simulate_block(
+    module: &EvmIrModule,
+    block_id: EvmIrBlockId,
+    block: &EvmIrBlock,
+    is_entry: bool,
+) -> Result<Vec<AbstractWord>, EvmIrVerifyError> {
+    let mut stack = ModelStack {
+        words: block.entry_stack.iter().map(|&value| AbstractWord::Value(value)).collect(),
+        infinite_floor: !is_entry,
+    };
+
+    for inst in &block.instructions {
+        simulate_instruction(module, block_id, inst, &mut stack)?;
+    }
+
+    let term = block.terminator.as_ref().expect("checked above");
+    simulate_terminator(module, block_id, &term.kind, &mut stack)?;
+    Ok(stack.words)
+}
+
+fn simulate_instruction(
+    module: &EvmIrModule,
+    block_id: EvmIrBlockId,
+    inst: &EvmIrInstruction,
+    stack: &mut ModelStack,
+) -> Result<(), EvmIrVerifyError> {
+    match &inst.kind {
+        EvmIrInstructionKind::Stack(op) => apply_physical_stack_op(block_id, *op, stack),
+        EvmIrInstructionKind::Operation(_) if is_encoded_push_instruction(inst) => {
+            // An encoded `push` adds one word: its SSA result if it has one,
+            // otherwise an anonymous immediate word.
+            stack.push(result_word(inst));
+            Ok(())
+        }
+        EvmIrInstructionKind::Operation(_) if !inst.operands.is_empty() => {
+            // Unscheduled op: its value operands are still present, so they must
+            // be live on the model stack. They are not consumed (the operands
+            // sit on the stack until scheduling clears them); the result, if
+            // any, is pushed on top.
+            for operand in &inst.operands {
+                if let EvmIrOperand::Value(value) = operand
+                    && !stack.contains(AbstractWord::Value(*value))
+                {
+                    return Err(EvmIrVerifyError::in_block(
+                        block_id,
+                        format!(
+                            "operand `%{}` of `{}` is not live on the stack",
+                            module.value(*value).name,
+                            inst.mnemonic()
+                        ),
+                    ));
+                }
+            }
+            if inst.result.is_some() {
+                stack.push(result_word(inst));
+            }
+            Ok(())
+        }
+        EvmIrInstructionKind::Operation(_) => {
+            // Scheduled op: operands cleared. Pop its declared inputs and push
+            // its outputs.
+            let effect =
+                inst.metadata.stack.unwrap_or_else(|| default_instruction_stack_effect(inst));
+            apply_effect(block_id, inst, effect, stack)
+        }
+    }
+}
+
+fn apply_effect(
+    block_id: EvmIrBlockId,
+    inst: &EvmIrInstruction,
+    effect: EvmIrStackEffect,
+    stack: &mut ModelStack,
+) -> Result<(), EvmIrVerifyError> {
+    let inputs = usize::from(effect.inputs);
+    if !stack.ensure_depth(inputs) {
+        return Err(EvmIrVerifyError::in_block(
+            block_id,
+            format!(
+                "`{}` consumes {} stack words but only {} are available",
+                inst.mnemonic(),
+                effect.inputs,
+                stack.len()
+            ),
+        ));
+    }
+    stack.words.drain(0..inputs);
+    for index in 0..effect.outputs {
+        let word = if index == 0 { result_word(inst) } else { AbstractWord::Unknown };
+        stack.push(word);
+    }
+    Ok(())
+}
+
+fn apply_physical_stack_op(
+    block_id: EvmIrBlockId,
+    op: EvmIrStackOp,
+    stack: &mut ModelStack,
+) -> Result<(), EvmIrVerifyError> {
+    match op {
+        EvmIrStackOp::Dup(n) => {
+            let depth = usize::from(n);
+            if !stack.ensure_depth(depth) {
+                return Err(EvmIrVerifyError::in_block(
+                    block_id,
+                    format!("`dup{n}` reaches depth {n} but the stack has {}", stack.len()),
+                ));
+            }
+            let word = stack.words[depth - 1];
+            stack.push(word);
+        }
+        EvmIrStackOp::Swap(n) => {
+            let depth = usize::from(n);
+            if !stack.ensure_depth(depth + 1) {
+                return Err(EvmIrVerifyError::in_block(
+                    block_id,
+                    format!("`swap{n}` reaches depth {n} but the stack has {}", stack.len()),
+                ));
+            }
+            stack.words.swap(0, depth);
+        }
+        EvmIrStackOp::Pop => {
+            if !stack.ensure_depth(1) {
+                return Err(EvmIrVerifyError::in_block(block_id, "`pop` on an empty stack"));
+            }
+            stack.words.remove(0);
+        }
+    }
+    Ok(())
+}
+
+fn simulate_terminator(
+    module: &EvmIrModule,
+    block_id: EvmIrBlockId,
+    kind: &EvmIrTerminatorKind,
+    stack: &mut ModelStack,
+) -> Result<(), EvmIrVerifyError> {
+    // A terminator that still carries value operands is unscheduled: those
+    // operands must be live, and they are not consumed from the model stack
+    // (scheduling clears them and emits the consuming stack ops). A terminator
+    // whose value operands have been cleared has already had its inputs
+    // arranged and consumed by the scheduler, so we leave the model stack as is.
+    let mut result = Ok(());
+    visit_terminator_operands(kind, |operand| {
+        if let EvmIrOperand::Value(value) = operand
+            && !stack.contains(AbstractWord::Value(*value))
+        {
+            result = Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!(
+                    "terminator operand `%{}` is not live on the stack",
+                    module.value(*value).name
+                ),
+            ));
+        }
+        Ok::<(), EvmIrVerifyError>(())
+    })?;
+    result
+}
+
+/// The word a result-producing instruction leaves on top.
+fn result_word(inst: &EvmIrInstruction) -> AbstractWord {
+    inst.result.map(AbstractWord::Value).unwrap_or(AbstractWord::Unknown)
+}
+
+fn format_entry_stack(module: &EvmIrModule, stack: &[EvmIrValueId]) -> String {
+    stack
+        .iter()
+        .map(|&value| format!("%{}", module.value(value).name))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+fn format_abstract_stack(module: &EvmIrModule, stack: &[AbstractWord]) -> String {
+    stack
+        .iter()
+        .map(|word| match word {
+            AbstractWord::Value(value) => format!("%{}", module.value(*value).name),
+            AbstractWord::Unknown => "<word>".to_string(),
+        })
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn verify_instruction_shape(
@@ -2194,8 +2519,86 @@ fn is_valid_block_label(label: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_evm_ir_module;
+    use super::{parse_evm_ir_module, verify_evm_ir_module};
     use std::path::{Path, PathBuf};
+
+    fn verify_text(input: &str) -> Result<(), String> {
+        let module = parse_evm_ir_module(input).map_err(|err| err.to_string())?;
+        verify_evm_ir_module(&module).map_err(|err| err.to_string())
+    }
+
+    #[test]
+    fn rejects_lying_entry_signature() {
+        // bb0 really exits with [%b, %a] (top %b) but bb1 declares `(in %a)`.
+        let input = "\
+bb0 (entry):
+  %a = push 1
+  %b = push 2
+  jump bb1
+bb1 (in %a):
+  %c = add %a, %a
+  stop
+";
+        let err = verify_text(input).unwrap_err();
+        assert!(err.contains("inconsistent"), "{err}");
+        assert!(err.contains("edge to `bb1`"), "{err}");
+    }
+
+    #[test]
+    fn accepts_prefix_consistent_edge() {
+        // bb0 exits [%top, %keep]; bb1 declares only the consumed prefix [%top].
+        let input = "\
+bb0 (entry):
+  %keep = push 1
+  %top = push 2
+  jump bb1
+bb1 (in %top):
+  %r = iszero %top
+  stop
+";
+        verify_text(input).unwrap();
+    }
+
+    #[test]
+    fn rejects_entry_block_with_incoming_stack() {
+        // %a is defined in bb1 but the entry block declares it as incoming.
+        let input = "\
+bb0 (entry) (in %a):
+  stop
+bb1:
+  %a = push 1
+  stop
+";
+        let err = verify_text(input).unwrap_err();
+        assert!(err.contains("entry block must start from an empty stack"), "{err}");
+    }
+
+    #[test]
+    fn rejects_physical_stack_op_underflow() {
+        // `dup2` reaches depth 2 but only one word is on the stack.
+        let input = "\
+bb0 (entry):
+  push 1
+  dup2
+  stop
+";
+        let err = verify_text(input).unwrap_err();
+        assert!(err.contains("dup2"), "{err}");
+        assert!(err.contains("stack has 1"), "{err}");
+    }
+
+    #[test]
+    fn rejects_swap_out_of_range() {
+        let input = "\
+bb0 (entry):
+  push 1
+  push 2
+  swap2
+  stop
+";
+        let err = verify_text(input).unwrap_err();
+        assert!(err.contains("swap2"), "{err}");
+    }
 
     fn evm_ir_fixture_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))

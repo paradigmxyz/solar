@@ -1,4 +1,4 @@
-// === ROOT/tests/ui/codegen/evm-ir/stack_deep_bail.evmir (after stack-schedule) ===
+// === ROOT/tests/ui/codegen/evm-ir/stack_spill_reload.evmir (after stack-schedule) ===
 bb0 (entry):
   %v0 = push 0
   %v1 = push 1
@@ -17,7 +17,15 @@ bb0 (entry):
   %v14 = push 14
   %v15 = push 15
   %v16 = push 16
-  %r = add %v0, %v16
-  jump bb1
-bb1:
+  swap15
+  push 0x1000
+  mstore !meta(stack=2->0)
+  swap15
+  swap1
+  swap14
+  swap1
+  %r = add
+  push 0x1000
+  mload !meta(stack=1->1)
+  %s = mul
   stop
