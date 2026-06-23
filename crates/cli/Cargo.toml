@@ -35,6 +35,10 @@ tracing-subscriber = { workspace = true, optional = true, features = [
     "env-filter",
 ] }
 
+# LSP
+solar-lsp = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true, features = ["rt", "rt-multi-thread"] }
+
 tracing-chrome = { version = "0.7", optional = true }
 tracing-tracy = { version = "0.11", optional = true, features = ["demangle"] }
 tracing-samply = { version = "0.1.5", optional = true }
@@ -51,10 +55,12 @@ snapbox.workspace = true
 
 [features]
 default = ["mimalloc", "tracing"]
+lsp = ["dep:solar-lsp", "dep:tokio"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-config/nightly",
     "solar-interface/nightly",
+    "solar-lsp?/nightly",
     "solar-sema/nightly",
 ]
 # Faster but less portable algorithm implementations, such as Keccak-256.

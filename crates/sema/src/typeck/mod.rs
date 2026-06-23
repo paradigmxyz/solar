@@ -581,7 +581,7 @@ mod tests {
     use crate::{Compiler, hir::ExprKind};
     use solar_interface::{
         Session,
-        config::{Opts, UnstableOpts},
+        config::{CompileOpts, UnstableOpts},
     };
     use std::path::PathBuf;
 
@@ -622,7 +622,7 @@ contract D {
 
     fn binary_expr_types(typeck: bool) -> Vec<Option<String>> {
         let sess = Session::builder()
-            .opts(Opts {
+            .opts(CompileOpts {
                 unstable: UnstableOpts { typeck, ..Default::default() },
                 ..Default::default()
             })

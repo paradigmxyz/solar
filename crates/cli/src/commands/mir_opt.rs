@@ -9,7 +9,7 @@
 //! It is an unstable, internal tool used by the `Mir` test mode; it is not part
 //! of the stable CLI surface.
 
-use clap::{Parser, ValueHint};
+use clap::ValueHint;
 use solar_codegen::{
     lower,
     mir::{Module, parse_module},
@@ -21,7 +21,7 @@ use solar_codegen::{
 use solar_data_structures::fmt::{self, FmtIteratorExt};
 use solar_interface::{Ident, Session, Symbol};
 use solar_sema::Compiler;
-use std::{ffi::OsString, ops::ControlFlow, path::Path, process::ExitCode};
+use std::{ops::ControlFlow, path::Path, process::ExitCode};
 
 fn after_help() -> String {
     fn display_pass_help(pass: &PassInfo) -> impl fmt::Display + '_ {
@@ -60,14 +60,12 @@ Input formats:
     .to_string()
 }
 
-#[derive(Parser)]
+#[derive(clap::Args)]
 #[command(
-    name = "solar mir-opt",
-    about = "Run one or more MIR passes on a Solidity or MIR file",
     after_help = after_help(),
     arg_required_else_help = true
 )]
-struct Args {
+pub(crate) struct MirOptArgs {
     /// Comma-separated list of passes to run in order.
     #[arg(
         long = "passes",
@@ -90,7 +88,7 @@ struct Args {
     input: String,
 }
 
-impl Args {
+impl MirOptArgs {
     fn selected_passes(&self) -> Vec<Option<&'static PassInfo>> {
         self.passes.clone().expect("clap requires passes unless pipeline-default is set")
     }
@@ -130,7 +128,7 @@ fn print_module(module: &Module, name: &str, after: &str) {
 
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
-fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), String> {
+fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) -> Result<(), String> {
     if args.pipeline_default {
         run_default_pipeline_with_options(
             module,
@@ -166,7 +164,7 @@ fn run_pipeline(module: &mut Module, name: &str, args: &Args) -> Result<(), Stri
 }
 
 /// Process a `.mir` input: read file, parse, run passes, print.
-fn process_mir(args: &Args) -> Result<(), String> {
+fn process_mir(args: &MirOptArgs) -> Result<(), String> {
     let sess = Session::builder().with_stderr_emitter().build();
     let source = sess
         .source_map()
@@ -193,7 +191,7 @@ fn process_mir(args: &Args) -> Result<(), String> {
 }
 
 /// Process a `.sol` input: full Solidity → MIR pipeline.
-fn process_sol(args: &Args) -> Result<(), String> {
+fn process_sol(args: &MirOptArgs) -> Result<(), String> {
     let sess = Session::builder().with_stderr_emitter().build();
     let mut compiler = Compiler::new(sess);
 
@@ -237,13 +235,8 @@ fn process_sol(args: &Args) -> Result<(), String> {
     Ok(())
 }
 
-/// Entry point for the `mir-opt` subcommand. `argv` is the arguments following
-/// `mir-opt` (i.e. excluding the program name and the subcommand itself).
-pub fn run(argv: &[OsString]) -> ExitCode {
-    let args = Args::parse_from(
-        std::iter::once(OsString::from("solar mir-opt")).chain(argv.iter().cloned()),
-    );
-
+/// Entry point for the `mir-opt` subcommand.
+pub(super) fn run(args: MirOptArgs) -> ExitCode {
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
     let result = match ext {

@@ -5,7 +5,9 @@ use serde::{
 };
 use serde_json::{Map, Value, json};
 use solar_codegen::{EvmCodegen, lower};
-use solar_config::{CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode, Opts};
+use solar_config::{
+    CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode,
+};
 use solar_data_structures::map::{FxBuildHasher, FxHashMap, FxHashSet};
 use solar_interface::{
     Result, SourceMap,
@@ -136,7 +138,7 @@ pub trait StandardJsonReadCallback: Send + Sync + 'static {
 /// Compiles Standard JSON input and returns Standard JSON output.
 pub fn compile_standard_json(
     input: &str,
-    mut opts: Opts,
+    mut opts: CompileOpts,
     read_callback: Option<Arc<dyn StandardJsonReadCallback>>,
     out: &mut dyn Write,
 ) {
@@ -185,7 +187,7 @@ pub fn compile_standard_json(
     let _ = result;
 }
 
-pub(crate) fn run(opts: Opts) -> io::Result<()> {
+pub(crate) fn run(opts: CompileOpts) -> io::Result<()> {
     let stdout = io::stdout();
     let mut stdout = io::BufWriter::new(stdout.lock());
     let mut input = String::new();
@@ -219,7 +221,7 @@ fn standard_json_error_output(message: String, out: &mut dyn Write) -> io::Resul
 
 fn compile(
     input: CompilerInput<'_>,
-    opts: &mut Opts,
+    opts: &mut CompileOpts,
     source_map: Arc<SourceMap>,
     dcx: DiagCtxt,
     output: &mut CompilerOutput<'_>,
@@ -284,10 +286,10 @@ fn compile(
         .opts(opts.clone())
         .build();
 
-    let _ = crate::run_compiler_session_with(
+    let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
-            let compile_result = crate::run_pipeline(
+            let compile_result = crate::commands::compile::run_pipeline(
                 compiler,
                 |pcx| {
                     let mut files = Vec::with_capacity(sources.len());
@@ -1053,7 +1055,7 @@ mod tests {
         typeck: bool,
     ) -> String {
         let mut output = Vec::new();
-        let opts = Opts { unstable: test_unstable_opts(typeck), ..test_opts() };
+        let opts = CompileOpts { unstable: test_unstable_opts(typeck), ..test_opts() };
         compile_standard_json(input, opts, callback, &mut output);
         normalize_manifest_dir(String::from_utf8(output).unwrap())
     }
@@ -1063,8 +1065,8 @@ mod tests {
         assert_data_eq!(actual.into_data().is_json(), expected.into_data().is_json());
     }
 
-    fn test_opts() -> Opts {
-        Opts { pretty_json: true, ..Opts::default() }
+    fn test_opts() -> CompileOpts {
+        CompileOpts { pretty_json: true, ..CompileOpts::default() }
     }
 
     fn test_unstable_opts(typeck: bool) -> solar_config::UnstableOpts {

@@ -11,7 +11,7 @@ use clap::{Parser, ValueHint};
 
 // TODO: implement `allow_paths`.
 
-/// Blazingly fast Solidity compiler.
+/// Compilation configuration.
 #[derive(Clone, Debug, Default)]
 #[cfg_attr(feature = "clap", derive(Parser))]
 #[cfg_attr(feature = "clap", command(
@@ -21,7 +21,7 @@ use clap::{Parser, ValueHint};
     arg_required_else_help = true,
 ))]
 #[allow(clippy::manual_non_exhaustive)]
-pub struct Opts {
+pub struct CompileOpts {
     /// Files to compile, or import remappings.
     ///
     /// `-` specifies standard input.
@@ -172,13 +172,13 @@ pub struct Opts {
     #[cfg_attr(feature = "clap", arg(skip))]
     pub unstable: UnstableOpts,
 
-    // Allows `Opts { x: y, ..Default::default() }`.
+    // Allows `CompileOpts { x: y, ..Default::default() }`.
     #[doc(hidden)]
     #[cfg_attr(feature = "clap", arg(skip))]
     pub _non_exhaustive: (),
 }
 
-impl Opts {
+impl CompileOpts {
     /// Returns whether MIR optimization passes should run during codegen.
     #[inline]
     pub const fn optimize_mir(&self) -> bool {
@@ -250,7 +250,7 @@ fn override_clap_message(e: clap::Error, f: impl FnOnce(String) -> String) -> cl
 
 #[cfg(feature = "clap")]
 fn make_clap_error(kind: clap::error::ErrorKind, message: impl std::fmt::Display) -> clap::Error {
-    <Opts as clap::CommandFactory>::command().error(kind, message)
+    <CompileOpts as clap::CommandFactory>::command().error(kind, message)
 }
 
 #[cfg(feature = "clap")]
@@ -387,9 +387,9 @@ mod tests {
 
     #[test]
     fn verify_cli() {
-        Opts::command().debug_assert();
-        let _ = Opts::default();
-        let _ = Opts { evm_version: EvmVersion::Berlin, ..Default::default() };
+        CompileOpts::command().debug_assert();
+        let _ = CompileOpts::default();
+        let _ = CompileOpts { evm_version: EvmVersion::Berlin, ..Default::default() };
 
         UnstableOpts::command().debug_assert();
         let _ = UnstableOpts::default();
@@ -398,7 +398,8 @@ mod tests {
 
     #[test]
     fn allow() {
-        let mut opts = Opts::try_parse_from(["solar", "--allow", "1234,5678", "a.sol"]).unwrap();
+        let mut opts =
+            CompileOpts::try_parse_from(["solar", "--allow", "1234,5678", "a.sol"]).unwrap();
         opts.finish().unwrap();
 
         assert_eq!(opts.allow, ["1234", "5678"]);
@@ -406,15 +407,16 @@ mod tests {
 
     #[test]
     fn standard_json_input() {
-        let mut opts = Opts::try_parse_from(["solar", "--standard-json"]).unwrap();
+        let mut opts = CompileOpts::try_parse_from(["solar", "--standard-json"]).unwrap();
         opts.finish().unwrap();
         assert!(opts.input.is_empty());
 
-        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "-"]).unwrap();
+        let mut opts = CompileOpts::try_parse_from(["solar", "--standard-json", "-"]).unwrap();
         opts.finish().unwrap();
         assert_eq!(opts.input, ["-"]);
 
-        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "input.json"]).unwrap();
+        let mut opts =
+            CompileOpts::try_parse_from(["solar", "--standard-json", "input.json"]).unwrap();
         opts.finish().unwrap();
         assert_eq!(opts.input, ["input.json"]);
     }
@@ -422,7 +424,7 @@ mod tests {
     #[test]
     fn standard_json_rejects_multiple_inputs() {
         let mut opts =
-            Opts::try_parse_from(["solar", "--standard-json", "input1.json", "input2.json"])
+            CompileOpts::try_parse_from(["solar", "--standard-json", "input1.json", "input2.json"])
                 .unwrap();
         let error = opts.finish().unwrap_err().render().ansi().to_string();
         assert!(error.contains("Too many input files for --standard-json."));
@@ -430,7 +432,7 @@ mod tests {
 
     #[test]
     fn standard_json_rejects_remappings() {
-        let mut opts = Opts::try_parse_from(["solar", "--standard-json", "a=b"]).unwrap();
+        let mut opts = CompileOpts::try_parse_from(["solar", "--standard-json", "a=b"]).unwrap();
         let error = opts.finish().unwrap_err().render().ansi().to_string();
         assert!(error.contains("Import remappings are not accepted on the command line"));
     }
@@ -445,7 +447,7 @@ mod tests {
                 }
             }
             (|| {
-                let mut opts = Opts::try_parse_from(args)?;
+                let mut opts = CompileOpts::try_parse_from(args)?;
                 opts.finish()?;
                 Ok::<_, clap::Error>(opts.unstable)
             })()

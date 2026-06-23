@@ -2,7 +2,9 @@ use crate::{
     ByteSymbol, ColorChoice, SessionGlobals, SourceMap, Symbol,
     diagnostics::{DiagCtxt, EmittedDiagnostics},
 };
-use solar_config::{CompilerOutput, CompilerStage, Opts, SINGLE_THREADED_TARGET, UnstableOpts};
+use solar_config::{
+    CompileOpts, CompilerOutput, CompilerStage, SINGLE_THREADED_TARGET, UnstableOpts,
+};
 use std::{
     fmt,
     path::Path,
@@ -12,7 +14,7 @@ use std::{
 /// Information about the current compiler session.
 pub struct Session {
     /// The compiler options.
-    pub opts: Opts,
+    pub opts: CompileOpts,
 
     /// The diagnostics context.
     pub dcx: DiagCtxt,
@@ -25,7 +27,7 @@ pub struct Session {
 
 impl Default for Session {
     fn default() -> Self {
-        Self::new(Opts::default())
+        Self::new(CompileOpts::default())
     }
 }
 
@@ -44,7 +46,7 @@ impl fmt::Debug for Session {
 pub struct SessionBuilder {
     dcx: Option<DiagCtxt>,
     globals: Option<SessionGlobals>,
-    opts: Option<Opts>,
+    opts: Option<CompileOpts>,
 }
 
 impl SessionBuilder {
@@ -65,7 +67,7 @@ impl SessionBuilder {
     }
 
     /// Sets the compiler options.
-    pub fn opts(mut self, opts: Opts) -> Self {
+    pub fn opts(mut self, opts: CompileOpts) -> Self {
         self.opts = Some(opts);
         self
     }
@@ -127,7 +129,7 @@ impl SessionBuilder {
     }
 
     /// Returns a mutable reference to the options.
-    fn opts_mut(&mut self) -> &mut Opts {
+    fn opts_mut(&mut self) -> &mut CompileOpts {
         self.opts.get_or_insert_default()
     }
 
@@ -188,7 +190,7 @@ impl Session {
     /// Creates a new session from the given options.
     ///
     /// See [`builder`](Self::builder) for a more flexible way to create a session.
-    pub fn new(opts: Opts) -> Self {
+    pub fn new(opts: CompileOpts) -> Self {
         Self::builder().opts(opts).build()
     }
 
@@ -565,7 +567,7 @@ mod tests {
 
     #[test]
     fn not_builder() {
-        let _ = Session::new(Opts::default());
+        let _ = Session::new(CompileOpts::default());
         let _ = Session::default();
     }
 
@@ -709,7 +711,7 @@ mod tests {
     fn set_opts() {
         let _ = Session::builder()
             .with_test_emitter()
-            .opts(Opts {
+            .opts(CompileOpts {
                 evm_version: solar_config::EvmVersion::Berlin,
                 unstable: UnstableOpts { ast_stats: false, ..Default::default() },
                 ..Default::default()

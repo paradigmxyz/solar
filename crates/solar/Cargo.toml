@@ -57,10 +57,14 @@ solar-tester.workspace = true
 serde_json.workspace = true
 tempfile.workspace = true
 
+# Pinned dependencies. See /Cargo.toml.
+[target.'cfg(any())'.dependencies]
+idna_adapter.workspace = true
+
 [features]
 default = ["cli", "solar-cli?/default"]
 # Enable the CLI and binary.
-cli = ["dep:solar-cli", "clap"]
+cli = ["dep:solar-cli", "solar-cli/lsp", "clap"]
 # Nightly-only features for faster/smaller builds.
 nightly = [
     "solar-cli?/nightly",
