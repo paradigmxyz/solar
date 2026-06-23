@@ -1,6 +1,8 @@
 use crate::commands::mir_opt::MirOptArgs;
 use clap::{Parser, Subcommand};
-use solar_config::{CompileOpts, LspArgs};
+use solar_config::CompileOpts;
+#[cfg(feature = "lsp")]
+use solar_config::LspArgs;
 
 /// Blazingly fast Solidity compiler.
 #[derive(Parser)]
@@ -21,6 +23,7 @@ pub(crate) struct Args {
 #[derive(Subcommand)]
 pub(crate) enum Subcommands {
     /// Start the language server.
+    #[cfg(feature = "lsp")]
     Lsp(LspArgs),
     /// Run one or more MIR passes on a Solidity or MIR file.
     MirOpt(MirOptArgs),
