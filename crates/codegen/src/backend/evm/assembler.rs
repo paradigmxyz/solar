@@ -205,7 +205,9 @@ impl Assembler {
             }
             AsmInst::push(push_values.intern(value))
         });
-        ir_program.optimize_with_evm_ir(self);
+        if self.config.evm_ir_stack_schedule {
+            ir_program.optimize_with_evm_ir(self);
+        }
         let mut program = ir_program.to_asm_program();
         self.run_assembler_passes(&mut program);
 
@@ -963,7 +965,10 @@ mod tests {
 
     #[test]
     fn cold_terminal_block_moves_after_hot_block() {
-        let mut asm = Assembler::new();
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_ir_stack_schedule: true,
+            ..AssemblerConfig::default()
+        });
         let cold = asm.new_label();
         let hot = asm.new_label();
 
@@ -997,7 +1002,10 @@ mod tests {
 
     #[test]
     fn cold_terminal_block_keeps_fallthrough_position() {
-        let mut asm = Assembler::new();
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_ir_stack_schedule: true,
+            ..AssemblerConfig::default()
+        });
         let cold = asm.new_label();
 
         asm.emit_push(U256::ONE);
