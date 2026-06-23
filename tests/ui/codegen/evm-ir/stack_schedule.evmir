@@ -1,0 +1,8 @@
+//@compile-flags: --pass stack-schedule
+bb0 (entry):
+  %a = push 1
+  %b = push 2
+  %c = sub %a, %b
+  %zero = push 0
+  %d = eq %c, %zero
+  stop

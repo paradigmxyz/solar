@@ -4,4 +4,6 @@ bb0 (entry):
 bb2:
   stop
 bb1 [cold]:
-  revert 0, 0 !meta(stack=2->0)
+  %offset = push 0
+  %size = push 0
+  revert %offset, %size

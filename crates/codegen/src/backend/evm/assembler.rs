@@ -25,7 +25,9 @@ mod local_interner;
 use local_interner::LocalInterner;
 
 mod program;
-pub(in crate::backend::evm) use program::{EvmAsmProgram, StructuredAsmProgram};
+pub(in crate::backend::evm) use program::{
+    EvmAsmProgram, StructuredAsmContext, StructuredAsmProgram,
+};
 
 /// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
 ///
@@ -198,7 +200,7 @@ impl Assembler {
             }
             AsmInst::push(push_values.intern(value))
         });
-        ir_program.optimize_blocks(|inst| self.estimated_inst_size(inst));
+        ir_program.optimize_with_evm_ir(self);
         let mut program = ir_program.to_asm_program();
         self.run_assembler_passes(&mut program);
 
@@ -340,24 +342,6 @@ impl Assembler {
         out.finish(label_offsets)
     }
 
-    pub(super) fn estimated_inst_size(&self, inst: AsmInst) -> usize {
-        match inst.kind() {
-            AsmInstKind::Op(_) => 1,
-            AsmInstKind::PushInline(value) => {
-                BytecodeAssembler::new(self.config).encoded_push_len(U256::from(value))
-            }
-            AsmInstKind::Push(index) => {
-                BytecodeAssembler::new(self.config).encoded_push_len(self.push_value(index))
-            }
-            AsmInstKind::PushLabel(_) => 3,
-            AsmInstKind::PushDeferred(_) => {
-                unreachable!("deferred constants must be resolved before assembly")
-            }
-            AsmInstKind::PushImmutable(_) => 33,
-            AsmInstKind::Label(_) => 1,
-        }
-    }
-
     /// Returns the minimum number of non-zero bytes needed to push a value.
     #[cfg(test)]
     fn push_width(value: U256) -> u8 {
@@ -368,6 +352,20 @@ impl Assembler {
 impl Default for Assembler {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl StructuredAsmContext for Assembler {
+    fn push_value(&self, index: PushValueId) -> U256 {
+        self.push_value(index)
+    }
+
+    fn push_inst(&mut self, value: U256) -> AsmInst {
+        self.push_inst(value)
+    }
+
+    fn new_label(&mut self) -> Label {
+        self.new_label()
     }
 }
 

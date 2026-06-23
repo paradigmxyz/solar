@@ -1,10 +1,12 @@
 //! EVM backend IR.
 //!
 //! This module defines the target-specific Machine-IR-like boundary between
-//! MIR lowering and final EVM assembly. It models backend basic blocks,
-//! stack-value instructions, terminators, and metadata. The parser/printer at
-//! the bottom of the file provide a text format for tests and debugging; the IR
-//! itself is not defined by that serialization.
+//! MIR lowering and final EVM assembly. EVM IR is intentionally untyped: values
+//! are EVM stack words, not Solidity or MIR values with a [`crate::mir::MirType`].
+//! It models backend basic blocks, opcode-like instructions, explicit physical
+//! stack operations, terminators, and metadata. The parser/printer at the bottom
+//! of the file provide a text format for tests and debugging; the IR itself is
+//! not defined by that serialization.
 
 use alloy_primitives::U256;
 use solar_data_structures::{
@@ -21,7 +23,7 @@ newtype_index! {
 }
 
 newtype_index! {
-    /// A unique identifier for a stack value in EVM IR.
+    /// A unique identifier for an untyped stack word in EVM IR.
     pub struct EvmIrValueId;
 }
 
@@ -34,7 +36,7 @@ pub struct EvmIrModule {
     pub blocks: IndexVec<EvmIrBlockId, EvmIrBlock>,
     /// The entry block, if one has been created.
     pub entry_block: Option<EvmIrBlockId>,
-    /// Stack values known to this program.
+    /// Untyped stack words known to this program.
     pub values: IndexVec<EvmIrValueId, EvmIrValue>,
 }
 
@@ -56,7 +58,7 @@ impl EvmIrModule {
         id
     }
 
-    /// Allocates a named stack value.
+    /// Allocates a named untyped stack word.
     pub fn add_value(&mut self, name: impl Into<String>) -> EvmIrValueId {
         let name = name.into();
         assert!(is_valid_value_name(&name), "invalid EVM IR value name `%{name}`");
@@ -106,6 +108,14 @@ pub struct EvmIrBlock {
     pub instructions: Vec<EvmIrInstruction>,
     /// Optional control-flow terminator.
     pub terminator: Option<EvmIrTerminator>,
+    /// Values present on the stack at block entry, top first.
+    ///
+    /// This is the block's incoming stack-word signature: values produced by a
+    /// predecessor and consumed here. It is empty for the entry block and for
+    /// blocks that begin from a clean stack. Stack scheduling seeds its model
+    /// stack from this so blocks that consume predecessor values can be
+    /// scheduled instead of bailing.
+    pub entry_stack: Vec<EvmIrValueId>,
 }
 
 impl EvmIrBlock {
@@ -119,6 +129,7 @@ impl EvmIrBlock {
             metadata: EvmIrBlockMetadata::default(),
             instructions: Vec::new(),
             terminator: None,
+            entry_stack: Vec::new(),
         }
     }
 }
@@ -150,20 +161,20 @@ impl EvmIrBlockHotness {
     }
 }
 
-/// A named stack value.
+/// A named untyped stack word.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EvmIrValue {
-    /// Stable textual value name, without the leading `%`.
+    /// Stable textual stack-word name, without the leading `%`.
     pub name: String,
 }
 
-/// A non-terminating backend instruction.
+/// A non-terminating untyped backend instruction.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EvmIrInstruction {
-    /// Optional stack value produced by this instruction.
+    /// Optional stack word produced by this instruction.
     pub result: Option<EvmIrValueId>,
-    /// EVM opcode or backend pseudo-op mnemonic.
-    pub mnemonic: String,
+    /// EVM opcode, backend pseudo-op, or physical stack operation.
+    pub kind: EvmIrInstructionKind,
     /// Instruction operands.
     pub operands: Vec<EvmIrOperand>,
     /// Instruction metadata.
@@ -176,10 +187,105 @@ impl EvmIrInstruction {
     pub fn new(mnemonic: impl Into<String>, operands: Vec<EvmIrOperand>) -> Self {
         Self {
             result: None,
-            mnemonic: mnemonic.into(),
+            kind: EvmIrInstructionKind::Operation(mnemonic.into()),
             operands,
             metadata: EvmIrMetadata::default(),
         }
+    }
+
+    /// Creates a physical stack operation.
+    #[must_use]
+    pub fn stack_op(op: EvmIrStackOp) -> Self {
+        Self {
+            result: None,
+            kind: EvmIrInstructionKind::Stack(op),
+            operands: Vec::new(),
+            metadata: EvmIrMetadata::default(),
+        }
+    }
+
+    /// Returns the instruction mnemonic as printed in EVM IR.
+    #[must_use]
+    pub fn mnemonic(&self) -> impl fmt::Display + '_ {
+        fmt::from_fn(move |f| match &self.kind {
+            EvmIrInstructionKind::Operation(mnemonic) => write!(f, "{mnemonic}"),
+            EvmIrInstructionKind::Stack(op) => write!(f, "{}", op.mnemonic()),
+        })
+    }
+
+    /// Returns whether this instruction materializes a physical EVM stack op.
+    #[must_use]
+    pub const fn is_physical_stack_op(&self) -> bool {
+        matches!(self.kind, EvmIrInstructionKind::Stack(_))
+    }
+}
+
+/// A non-terminating EVM IR instruction kind.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum EvmIrInstructionKind {
+    /// Untyped EVM opcode or backend pseudo-op mnemonic.
+    Operation(String),
+    /// Materialized physical EVM stack operation.
+    Stack(EvmIrStackOp),
+}
+
+/// A materialized physical EVM stack operation.
+///
+/// These are modeled distinctly from generic operation mnemonics so stack
+/// scheduling can target EVM IR and later EVM IR passes can optimize the exact
+/// `DUP`/`SWAP`/`POP` sequence before final assembly.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum EvmIrStackOp {
+    /// EVM `DUP1` through `DUP16`.
+    Dup(u8),
+    /// EVM `SWAP1` through `SWAP16`.
+    Swap(u8),
+    /// EVM `POP`.
+    Pop,
+}
+
+impl EvmIrStackOp {
+    /// Creates a `DUPn` operation.
+    #[must_use]
+    pub const fn dup(n: u8) -> Option<Self> {
+        if n >= 1 && n <= 16 { Some(Self::Dup(n)) } else { None }
+    }
+
+    /// Creates a `SWAPn` operation.
+    #[must_use]
+    pub const fn swap(n: u8) -> Option<Self> {
+        if n >= 1 && n <= 16 { Some(Self::Swap(n)) } else { None }
+    }
+
+    /// Returns this operation's stack effect.
+    #[must_use]
+    pub const fn stack_effect(self) -> EvmIrStackEffect {
+        match self {
+            Self::Dup(_) => EvmIrStackEffect::new(0, 1),
+            Self::Swap(_) => EvmIrStackEffect::new(0, 0),
+            Self::Pop => EvmIrStackEffect::new(1, 0),
+        }
+    }
+
+    fn parse(mnemonic: &str) -> Option<Self> {
+        if mnemonic == "pop" {
+            return Some(Self::Pop);
+        }
+        if let Some(n) = mnemonic.strip_prefix("dup").and_then(|s| s.parse::<u8>().ok()) {
+            return Self::dup(n);
+        }
+        if let Some(n) = mnemonic.strip_prefix("swap").and_then(|s| s.parse::<u8>().ok()) {
+            return Self::swap(n);
+        }
+        None
+    }
+
+    fn mnemonic(self) -> impl fmt::Display {
+        fmt::from_fn(move |f| match self {
+            Self::Dup(n) => write!(f, "dup{n}"),
+            Self::Swap(n) => write!(f, "swap{n}"),
+            Self::Pop => write!(f, "pop"),
+        })
     }
 }
 
@@ -203,6 +309,8 @@ impl EvmIrTerminator {
 /// Control-flow terminators in EVM IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EvmIrTerminatorKind {
+    /// Physical fallthrough into the next laid-out block.
+    Fallthrough(EvmIrBlockId),
     /// Unconditional jump.
     Jump(EvmIrBlockId),
     /// Conditional branch.
@@ -246,12 +354,14 @@ pub enum EvmIrTerminatorKind {
         /// Beneficiary address.
         recipient: EvmIrOperand,
     },
+    /// Raw terminal opcode for already stack-scheduled machine-level code.
+    RawOpcode(u8),
 }
 
 /// An instruction or terminator operand.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum EvmIrOperand {
-    /// Stack value reference.
+    /// Untyped stack-word reference.
     Value(EvmIrValueId),
     /// Immediate EVM word.
     Immediate(U256),
@@ -321,6 +431,8 @@ pub fn parse_evm_ir_module(input: &str) -> Result<EvmIrModule, EvmIrParseError> 
 pub enum EvmIrPass {
     /// No transform; validate and print the module.
     None,
+    /// Materialize virtual instruction operands with physical stack operations.
+    StackSchedule,
     /// Move cold terminal blocks after hot fallthrough code when this preserves fallthrough edges.
     ColdLayout,
     /// Replace duplicate terminal block bodies with jumps to the first copy when profitable.
@@ -333,6 +445,7 @@ impl EvmIrPass {
     pub const fn name(self) -> &'static str {
         match self {
             Self::None => "none",
+            Self::StackSchedule => "stack-schedule",
             Self::ColdLayout => "cold-layout",
             Self::TerminalDedup => "terminal-dedup",
         }
@@ -342,6 +455,7 @@ impl EvmIrPass {
     pub fn run(self, module: &mut EvmIrModule) -> bool {
         match self {
             Self::None => false,
+            Self::StackSchedule => super::ir_stack_schedule::schedule_stack_ops(module),
             Self::ColdLayout => move_cold_terminal_blocks(module),
             Self::TerminalDedup => deduplicate_terminal_blocks(module),
         }
@@ -352,6 +466,7 @@ impl EvmIrPass {
     pub fn by_name(name: &str) -> Option<Self> {
         Some(match name {
             "none" => Self::None,
+            "stack-schedule" => Self::StackSchedule,
             "cold-layout" => Self::ColdLayout,
             "terminal-dedup" => Self::TerminalDedup,
             _ => return None,
@@ -361,7 +476,7 @@ impl EvmIrPass {
 
 /// All EVM IR passes exposed by `solar evm-opt`.
 pub const EVM_IR_PASSES: &[EvmIrPass] =
-    &[EvmIrPass::None, EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup];
+    &[EvmIrPass::None, EvmIrPass::StackSchedule, EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup];
 
 /// Verifies basic EVM IR invariants.
 ///
@@ -418,6 +533,7 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
     let mut defined_values = FxHashSet::default();
     for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
+            verify_instruction_shape(block_id, inst)?;
             if let Some(result) = inst.result {
                 if !value_exists(module, result) {
                     return Err(EvmIrVerifyError::in_block(
@@ -435,8 +551,10 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
             for operand in &inst.operands {
                 verify_operand(block_id, module, operand)?;
             }
+            verify_metadata_is_untyped(block_id, &inst.metadata)?;
         }
         let term = block.terminator.as_ref().expect("checked above");
+        verify_terminator_shape(block_id, &term.kind)?;
         visit_terminator_operands(&term.kind, |operand| {
             verify_operand(block_id, module, operand)?;
             Ok(())
@@ -450,9 +568,24 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
             }
             Ok(())
         })?;
+        verify_metadata_is_untyped(block_id, &term.metadata)?;
     }
 
     for (block_id, block) in module.blocks.iter_enumerated() {
+        for &value in &block.entry_stack {
+            if !value_exists(module, value) {
+                return Err(EvmIrVerifyError::in_block(
+                    block_id,
+                    format!("entry stack value `{}` is out of range", value.index()),
+                ));
+            }
+            if !defined_values.contains(&value) {
+                return Err(EvmIrVerifyError::in_block(
+                    block_id,
+                    format!("entry stack value `%{}` is never defined", module.value(value).name),
+                ));
+            }
+        }
         for inst in &block.instructions {
             for operand in &inst.operands {
                 verify_value_defined(block_id, module, operand, &defined_values)?;
@@ -465,6 +598,127 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
         })?;
     }
 
+    Ok(())
+}
+
+fn verify_instruction_shape(
+    block_id: EvmIrBlockId,
+    inst: &EvmIrInstruction,
+) -> Result<(), EvmIrVerifyError> {
+    if let EvmIrInstructionKind::Stack(op) = &inst.kind {
+        let expected = op.stack_effect();
+        if inst.result.is_some() {
+            return Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!("physical stack op `{}` cannot define an SSA value", op.mnemonic()),
+            ));
+        }
+        if !inst.operands.is_empty() {
+            return Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!("physical stack op `{}` cannot have operands", op.mnemonic()),
+            ));
+        }
+        if let Some(effect) = inst.metadata.stack
+            && effect != expected
+        {
+            return Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!(
+                    "physical stack op `{}` has stack effect {}->{}, expected {}->{}",
+                    op.mnemonic(),
+                    effect.inputs,
+                    effect.outputs,
+                    expected.inputs,
+                    expected.outputs
+                ),
+            ));
+        }
+    } else if is_encoded_push_instruction(inst) {
+        if inst.operands.len() != 1 {
+            return Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!("`{}` must have one operand", inst.mnemonic()),
+            ));
+        }
+        if matches!(inst.operands[0], EvmIrOperand::Value(_)) {
+            return Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!("`{}` cannot take a stack value operand", inst.mnemonic()),
+            ));
+        }
+    } else {
+        for operand in &inst.operands {
+            if !matches!(operand, EvmIrOperand::Value(_)) {
+                return Err(EvmIrVerifyError::in_block(
+                    block_id,
+                    "non-`push` instruction operands must be stack values",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn verify_terminator_shape(
+    block_id: EvmIrBlockId,
+    kind: &EvmIrTerminatorKind,
+) -> Result<(), EvmIrVerifyError> {
+    match kind {
+        EvmIrTerminatorKind::Branch { condition, .. } => {
+            verify_stack_value_operand(block_id, condition, "branch condition")?
+        }
+        EvmIrTerminatorKind::Switch { value, cases, .. } => {
+            verify_stack_value_operand(block_id, value, "switch value")?;
+            for (case, _) in cases {
+                if !matches!(case, EvmIrOperand::Immediate(_)) {
+                    return Err(EvmIrVerifyError::in_block(
+                        block_id,
+                        "switch case values must be immediates",
+                    ));
+                }
+            }
+        }
+        EvmIrTerminatorKind::Return { offset, size }
+        | EvmIrTerminatorKind::Revert { offset, size } => {
+            verify_stack_value_operand(block_id, offset, "memory offset")?;
+            verify_stack_value_operand(block_id, size, "memory size")?;
+        }
+        EvmIrTerminatorKind::SelfDestruct { recipient } => {
+            verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")?
+        }
+        EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::Jump(_)
+        | EvmIrTerminatorKind::Stop
+        | EvmIrTerminatorKind::Invalid
+        | EvmIrTerminatorKind::RawOpcode(_) => {}
+    }
+    Ok(())
+}
+
+fn verify_stack_value_operand(
+    block_id: EvmIrBlockId,
+    operand: &EvmIrOperand,
+    what: &str,
+) -> Result<(), EvmIrVerifyError> {
+    if matches!(operand, EvmIrOperand::Value(_)) {
+        return Ok(());
+    }
+    Err(EvmIrVerifyError::in_block(block_id, format!("{what} must be a stack value")))
+}
+
+fn verify_metadata_is_untyped(
+    block_id: EvmIrBlockId,
+    metadata: &EvmIrMetadata,
+) -> Result<(), EvmIrVerifyError> {
+    for item in &metadata.attrs {
+        if matches!(item.key.as_str(), "type" | "ty" | "result_ty" | "mir_type") {
+            return Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!("EVM IR is untyped; metadata key `{}` is not allowed", item.key),
+            ));
+        }
+    }
     Ok(())
 }
 
@@ -520,8 +774,11 @@ fn visit_terminator_operands<E>(
     mut visit: impl FnMut(&EvmIrOperand) -> Result<(), E>,
 ) -> Result<(), E> {
     match kind {
-        EvmIrTerminatorKind::Jump(_) | EvmIrTerminatorKind::Stop | EvmIrTerminatorKind::Invalid => {
-        }
+        EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::Jump(_)
+        | EvmIrTerminatorKind::Stop
+        | EvmIrTerminatorKind::Invalid
+        | EvmIrTerminatorKind::RawOpcode(_) => {}
         EvmIrTerminatorKind::Branch { condition, .. } => visit(condition)?,
         EvmIrTerminatorKind::Switch { value, cases, .. } => {
             visit(value)?;
@@ -544,7 +801,9 @@ fn visit_terminator_targets<E>(
     mut visit: impl FnMut(EvmIrBlockId) -> Result<(), E>,
 ) -> Result<(), E> {
     match kind {
-        EvmIrTerminatorKind::Jump(target) => visit(*target)?,
+        EvmIrTerminatorKind::Fallthrough(target) | EvmIrTerminatorKind::Jump(target) => {
+            visit(*target)?
+        }
         EvmIrTerminatorKind::Branch { then_block, else_block, .. } => {
             visit(*then_block)?;
             visit(*else_block)?;
@@ -559,7 +818,8 @@ fn visit_terminator_targets<E>(
         | EvmIrTerminatorKind::Revert { .. }
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::SelfDestruct { .. } => {}
+        | EvmIrTerminatorKind::SelfDestruct { .. }
+        | EvmIrTerminatorKind::RawOpcode(_) => {}
     }
     Ok(())
 }
@@ -593,11 +853,18 @@ fn is_movable_cold_terminal_block(
     if module.entry_block == Some(block_id) || block_id.index() == 0 {
         return false;
     }
-    if block.metadata.hotness != EvmIrBlockHotness::Cold || block.terminator.is_none() {
+    let Some(term) = &block.terminator else {
+        return false;
+    };
+    if block.metadata.hotness != EvmIrBlockHotness::Cold || !is_evm_terminal(&term.kind) {
         return false;
     }
     let previous = EvmIrBlockId::from_usize(block_id.index() - 1);
-    module.blocks[previous].terminator.is_some()
+    module.blocks[previous].terminator.as_ref().is_some_and(|term| is_layout_barrier(&term.kind))
+}
+
+fn is_layout_barrier(kind: &EvmIrTerminatorKind) -> bool {
+    matches!(kind, EvmIrTerminatorKind::Jump(_)) || is_evm_terminal(kind)
 }
 
 fn deduplicate_terminal_blocks(module: &mut EvmIrModule) -> bool {
@@ -629,10 +896,55 @@ fn terminal_block_dedup_is_profitable(block: &EvmIrBlock) -> bool {
     if !is_evm_terminal(&term.kind) {
         return false;
     }
-    // A replacement block still needs one jump terminator. Avoid growing tiny
-    // blocks such as `invalid` or `revert 0, 0`; use this pass only when a
-    // repeated block has enough instruction body to amortize the jump.
-    block.instructions.len() >= 2
+    // A replacement block still needs `JUMPDEST PUSH2(label) JUMP`. Avoid
+    // rewriting tiny revert blocks where size is equal and revert-path gas
+    // would get worse.
+    let current_size = 1
+        + block.instructions.iter().map(estimated_instruction_size).sum::<usize>()
+        + estimated_terminator_size(&term.kind);
+    let replacement_size = 1 + 3 + 1;
+    current_size > replacement_size
+}
+
+fn estimated_instruction_size(inst: &EvmIrInstruction) -> usize {
+    match &inst.kind {
+        EvmIrInstructionKind::Stack(_) => 1,
+        EvmIrInstructionKind::Operation(mnemonic) if mnemonic == "push" => {
+            match inst.operands.as_slice() {
+                [operand] => estimated_push_size(operand),
+                _ => 1,
+            }
+        }
+        EvmIrInstructionKind::Operation(mnemonic) if mnemonic == "push_immutable" => 33,
+        EvmIrInstructionKind::Operation(_) => 1,
+    }
+}
+
+fn estimated_terminator_size(kind: &EvmIrTerminatorKind) -> usize {
+    let operand_pushes = |operands: &[&EvmIrOperand]| {
+        operands.iter().map(|operand| estimated_push_size(operand)).sum::<usize>() + 1
+    };
+    match kind {
+        EvmIrTerminatorKind::Return { offset, size }
+        | EvmIrTerminatorKind::Revert { offset, size } => operand_pushes(&[offset, size]),
+        EvmIrTerminatorKind::SelfDestruct { recipient } => operand_pushes(&[recipient]),
+        EvmIrTerminatorKind::Stop
+        | EvmIrTerminatorKind::Invalid
+        | EvmIrTerminatorKind::RawOpcode(_) => 1,
+        EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::Jump(_)
+        | EvmIrTerminatorKind::Branch { .. }
+        | EvmIrTerminatorKind::Switch { .. } => 0,
+    }
+}
+
+fn estimated_push_size(operand: &EvmIrOperand) -> usize {
+    match operand {
+        EvmIrOperand::Immediate(value) if *value == U256::ZERO => 1,
+        EvmIrOperand::Immediate(value) => value.byte_len() + 1,
+        EvmIrOperand::Block(_) | EvmIrOperand::Symbol(_) => 3,
+        EvmIrOperand::Value(_) => 0,
+    }
 }
 
 fn is_evm_terminal(kind: &EvmIrTerminatorKind) -> bool {
@@ -643,7 +955,7 @@ fn is_evm_terminal(kind: &EvmIrTerminatorKind) -> bool {
             | EvmIrTerminatorKind::Stop
             | EvmIrTerminatorKind::Invalid
             | EvmIrTerminatorKind::SelfDestruct { .. }
-    )
+    ) || matches!(kind, EvmIrTerminatorKind::RawOpcode(opcode) if super::assembler::op::is_terminal(*opcode))
 }
 
 fn terminal_block_key(block: &EvmIrBlock) -> Option<TerminalBlockKey> {
@@ -658,11 +970,7 @@ fn terminal_block_key(block: &EvmIrBlock) -> Option<TerminalBlockKey> {
             locals.insert(value, index);
             index
         });
-        instructions.push(TerminalInstructionKey {
-            result,
-            mnemonic: inst.mnemonic.clone(),
-            operands,
-        });
+        instructions.push(TerminalInstructionKey { result, kind: inst.kind.clone(), operands });
     }
 
     let term = block.terminator.as_ref()?;
@@ -693,6 +1001,7 @@ fn terminal_terminator_key(
     locals: &FxHashMap<EvmIrValueId, usize>,
 ) -> TerminalTerminatorKey {
     match kind {
+        EvmIrTerminatorKind::Fallthrough(target) => TerminalTerminatorKey::Fallthrough(*target),
         EvmIrTerminatorKind::Jump(target) => TerminalTerminatorKey::Jump(*target),
         EvmIrTerminatorKind::Branch { condition, then_block, else_block } => {
             TerminalTerminatorKey::Branch {
@@ -722,6 +1031,7 @@ fn terminal_terminator_key(
         EvmIrTerminatorKind::SelfDestruct { recipient } => TerminalTerminatorKey::SelfDestruct {
             recipient: terminal_operand_key(recipient, locals),
         },
+        EvmIrTerminatorKind::RawOpcode(opcode) => TerminalTerminatorKey::RawOpcode(*opcode),
     }
 }
 
@@ -734,12 +1044,13 @@ struct TerminalBlockKey {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TerminalInstructionKey {
     result: Option<usize>,
-    mnemonic: String,
+    kind: EvmIrInstructionKind,
     operands: Vec<TerminalOperandKey>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TerminalTerminatorKey {
+    Fallthrough(EvmIrBlockId),
     Jump(EvmIrBlockId),
     Branch {
         condition: TerminalOperandKey,
@@ -764,6 +1075,7 @@ enum TerminalTerminatorKey {
     SelfDestruct {
         recipient: TerminalOperandKey,
     },
+    RawOpcode(u8),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -812,7 +1124,9 @@ fn visit_terminator_targets_mut(
     mut visit: impl FnMut(&mut EvmIrBlockId),
 ) {
     match kind {
-        EvmIrTerminatorKind::Jump(target) => visit(target),
+        EvmIrTerminatorKind::Fallthrough(target) | EvmIrTerminatorKind::Jump(target) => {
+            visit(target)
+        }
         EvmIrTerminatorKind::Branch { then_block, else_block, .. } => {
             visit(then_block);
             visit(else_block);
@@ -827,7 +1141,8 @@ fn visit_terminator_targets_mut(
         | EvmIrTerminatorKind::Revert { .. }
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::SelfDestruct { .. } => {}
+        | EvmIrTerminatorKind::SelfDestruct { .. }
+        | EvmIrTerminatorKind::RawOpcode(_) => {}
     }
 }
 
@@ -892,7 +1207,18 @@ fn display_block<'a>(
     fmt::from_fn(move |f| {
         let entry = if module.entry_block == Some(block_id) { " (entry)" } else { "" };
         let cold = if block.metadata.hotness == EvmIrBlockHotness::Cold { " [cold]" } else { "" };
-        writeln!(f, "{}{}{}:", block.label, entry, cold)?;
+        write!(f, "{}{}{}", block.label, entry, cold)?;
+        if !block.entry_stack.is_empty() {
+            write!(f, " (in ")?;
+            for (i, &value) in block.entry_stack.iter().enumerate() {
+                if i != 0 {
+                    write!(f, ", ")?;
+                }
+                write!(f, "{}", display_value(module, value))?;
+            }
+            write!(f, ")")?;
+        }
+        writeln!(f, ":")?;
         for inst in &block.instructions {
             writeln!(f, "  {}", display_instruction(module, inst))?;
         }
@@ -911,7 +1237,7 @@ fn display_instruction<'a>(
         if let Some(result) = inst.result {
             write!(f, "{} = ", display_value(module, result))?;
         }
-        write!(f, "{}", inst.mnemonic)?;
+        write!(f, "{}", inst.mnemonic())?;
         if !inst.operands.is_empty() {
             write!(
                 f,
@@ -919,7 +1245,11 @@ fn display_instruction<'a>(
                 inst.operands.iter().map(|operand| display_operand(module, operand)).format(", ")
             )?;
         }
-        write!(f, "{}", display_metadata(&inst.metadata))
+        write!(
+            f,
+            "{}",
+            display_metadata(&inst.metadata, Some(default_instruction_stack_effect(inst)))
+        )
     })
 }
 
@@ -929,6 +1259,9 @@ fn display_terminator<'a>(
 ) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         match &term.kind {
+            EvmIrTerminatorKind::Fallthrough(target) => {
+                write!(f, "fallthrough {}", display_block_id(module, *target))?;
+            }
             EvmIrTerminatorKind::Jump(target) => {
                 write!(f, "jump {}", display_block_id(module, *target))?;
             }
@@ -983,12 +1316,22 @@ fn display_terminator<'a>(
             EvmIrTerminatorKind::SelfDestruct { recipient } => {
                 write!(f, "selfdestruct {}", display_operand(module, recipient))?;
             }
+            EvmIrTerminatorKind::RawOpcode(opcode) => {
+                write!(f, "terminal 0x{opcode:02x}")?;
+            }
         }
-        write!(f, "{}", display_metadata(&term.metadata))
+        write!(
+            f,
+            "{}",
+            display_metadata(&term.metadata, Some(default_terminator_stack_effect(&term.kind)))
+        )
     })
 }
 
-fn display_metadata(metadata: &EvmIrMetadata) -> impl fmt::Display + '_ {
+fn display_metadata(
+    metadata: &EvmIrMetadata,
+    default_stack: Option<EvmIrStackEffect>,
+) -> impl fmt::Display + '_ {
     enum Field<'a> {
         Stack(EvmIrStackEffect),
         Attr(&'a EvmIrMetadataItem),
@@ -1013,12 +1356,54 @@ fn display_metadata(metadata: &EvmIrMetadata) -> impl fmt::Display + '_ {
         }
         let mut fields =
             Vec::with_capacity(metadata.attrs.len() + usize::from(metadata.stack.is_some()));
-        if let Some(stack) = metadata.stack {
+        if let Some(stack) = metadata.stack
+            && Some(stack) != default_stack
+        {
             fields.push(Field::Stack(stack));
         }
         fields.extend(metadata.attrs.iter().map(Field::Attr));
+        if fields.is_empty() {
+            return Ok(());
+        }
         write!(f, " !meta({})", fields.into_iter().map(display_field).format(", "))
     })
+}
+
+pub(super) fn default_instruction_stack_effect(inst: &EvmIrInstruction) -> EvmIrStackEffect {
+    match &inst.kind {
+        EvmIrInstructionKind::Stack(op) => op.stack_effect(),
+        EvmIrInstructionKind::Operation(_) if is_encoded_push_instruction(inst) => {
+            EvmIrStackEffect::new(0, 1)
+        }
+        EvmIrInstructionKind::Operation(_) => EvmIrStackEffect::new(
+            inst.operands.len().try_into().unwrap_or(u16::MAX),
+            u16::from(inst.result.is_some()),
+        ),
+    }
+}
+
+fn default_terminator_stack_effect(kind: &EvmIrTerminatorKind) -> EvmIrStackEffect {
+    match kind {
+        EvmIrTerminatorKind::Branch { .. } => EvmIrStackEffect::new(1, 0),
+        EvmIrTerminatorKind::Switch { .. } => EvmIrStackEffect::new(1, 0),
+        EvmIrTerminatorKind::Return { .. } | EvmIrTerminatorKind::Revert { .. } => {
+            EvmIrStackEffect::new(2, 0)
+        }
+        EvmIrTerminatorKind::SelfDestruct { .. } => EvmIrStackEffect::new(1, 0),
+        EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::Jump(_)
+        | EvmIrTerminatorKind::Stop
+        | EvmIrTerminatorKind::Invalid
+        | EvmIrTerminatorKind::RawOpcode(_) => EvmIrStackEffect::new(0, 0),
+    }
+}
+
+pub(super) fn is_encoded_push_instruction(inst: &EvmIrInstruction) -> bool {
+    matches!(
+        &inst.kind,
+        EvmIrInstructionKind::Operation(mnemonic)
+            if matches!(mnemonic.as_str(), "push" | "push_deferred" | "push_immutable")
+    )
 }
 
 fn display_operand<'a>(
@@ -1058,6 +1443,8 @@ struct ParsedBlockHeader {
     label: String,
     entry: bool,
     hotness: EvmIrBlockHotness,
+    /// Incoming stack-word names from an `(in %a, %b)` signature, top first.
+    entry_stack: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1336,6 +1723,11 @@ impl<'a> Parser<'a> {
                     module.entry_block = Some(block_id);
                 }
                 module.blocks[block_id].metadata.hotness = header.hotness;
+                let mut entry_stack = Vec::with_capacity(header.entry_stack.len());
+                for name in &header.entry_stack {
+                    entry_stack.push(value_id(module, &mut value_labels, name));
+                }
+                module.blocks[block_id].entry_stack = entry_stack;
                 current_block = Some(block_id);
                 self.skip_to_eol();
                 continue;
@@ -1391,6 +1783,36 @@ impl<'a> Parser<'a> {
             self.expect_punct(']')?;
         }
 
+        // Optional incoming stack signature: `(in %a, %b)`.
+        let mut entry_stack = Vec::new();
+        self.skip_inline_whitespace();
+        let save_in = (self.pos, self.line, self.col);
+        if self.try_punct('(') {
+            self.skip_inline_whitespace();
+            let keyword = if matches!(self.peek_char(), Some(c) if is_ident_start(c)) {
+                Some(self.parse_ident()?)
+            } else {
+                None
+            };
+            if keyword == Some("in") {
+                loop {
+                    self.skip_inline_whitespace();
+                    if self.try_punct(')') {
+                        break;
+                    }
+                    entry_stack.push(self.parse_value_name()?);
+                    self.skip_inline_whitespace();
+                    if self.try_punct(',') {
+                        continue;
+                    }
+                    self.expect_punct(')')?;
+                    break;
+                }
+            } else {
+                self.restore(save_in);
+            }
+        }
+
         self.skip_inline_whitespace();
         if self.peek_char() != Some(':') {
             self.restore(save);
@@ -1398,7 +1820,7 @@ impl<'a> Parser<'a> {
         }
         self.advance();
 
-        Ok(Some(ParsedBlockHeader { label, entry, hotness }))
+        Ok(Some(ParsedBlockHeader { label, entry, hotness, entry_stack }))
     }
 
     fn try_parse_block_label_text(&mut self) -> Result<Option<String>, EvmIrParseError> {
@@ -1460,9 +1882,12 @@ impl<'a> Parser<'a> {
         let operands =
             self.parse_operand_list(module, block_labels, value_labels, defined_values)?;
         let metadata = self.parse_metadata()?;
+        let kind = EvmIrStackOp::parse(&mnemonic)
+            .map(EvmIrInstructionKind::Stack)
+            .unwrap_or(EvmIrInstructionKind::Operation(mnemonic));
         module.blocks[block].instructions.push(EvmIrInstruction {
             result,
-            mnemonic,
+            kind,
             operands,
             metadata,
         });
@@ -1523,6 +1948,7 @@ impl<'a> Parser<'a> {
         defined_values: &mut FxHashSet<EvmIrValueId>,
     ) -> Result<Option<EvmIrTerminatorKind>, EvmIrParseError> {
         let kind = match mnemonic {
+            "fallthrough" => EvmIrTerminatorKind::Fallthrough(self.parse_block_ref(block_labels)?),
             "jump" => EvmIrTerminatorKind::Jump(self.parse_block_ref(block_labels)?),
             "br" => {
                 let condition =
@@ -1580,6 +2006,13 @@ impl<'a> Parser<'a> {
                 let recipient =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 EvmIrTerminatorKind::SelfDestruct { recipient }
+            }
+            "terminal" => {
+                let opcode = self.parse_uint_literal()?;
+                let Ok(opcode) = u8::try_from(opcode) else {
+                    return Err(self.error("raw terminal opcode must fit in one byte"));
+                };
+                EvmIrTerminatorKind::RawOpcode(opcode)
             }
             _ => return Ok(None),
         };

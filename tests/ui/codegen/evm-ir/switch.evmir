@@ -1,10 +1,12 @@
 bb0 (entry):
-  %selector = calldataload 0 !meta(stack=1->1)
+  %calldata_offset = push 0
+  %selector = calldataload %calldata_offset
   switch %selector, default bb3, [1 => bb1, 2 => bb2]
 bb1:
   jump bb4
 bb2:
-  selfdestruct @beneficiary !meta(stack=1->0, source=admin-path)
+  %beneficiary = push @beneficiary
+  selfdestruct %beneficiary !meta(source=admin-path)
 bb3 [cold]:
   invalid
 bb4:

@@ -1,10 +1,12 @@
 // === ROOT/tests/ui/codegen/evm-ir/terminal_dedup.evmir (after terminal-dedup) ===
 bb0 (entry):
-  switch 0, default bb3, [1 => bb1, 2 => bb2]
+  %selector = push 0
+  switch %selector, default bb3, [1 => bb1, 2 => bb2]
 bb1 [cold]:
-  %a = push 0 !meta(stack=0->1)
-  %b = push 32 !meta(stack=0->1)
-  revert %a, %b !meta(stack=2->0)
+  %a = push 0
+  %b = push 32
+  %c = push 64
+  revert %a, %b
 bb2 [cold]:
   jump bb1
 bb3:

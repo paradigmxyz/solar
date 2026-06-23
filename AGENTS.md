@@ -42,10 +42,15 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
   mem2reg/frame-slot promotion, inlining, CSE/GVN/PRE, SCCP, LICM, and loop
   analysis.
 - **EVM IR** is the lower, Machine-IR-like backend layer. It comes after
-  function calls have been lowered away and models asm-like basic blocks with
-  stack-value instructions and explicit terminators such as jumps, returns,
+  function calls have been lowered away and is intentionally untyped: values are
+  EVM stack words, not Solidity or MIR typed values. It models asm-like basic
+  blocks with opcode-like instructions, explicit physical stack operations
+  (`dupN`, `swapN`, `pop`), and explicit terminators such as jumps, returns,
   reverts, and stops. Use it for target-specific block layout, cold/revert-path
   handling, backend peepholes, stack scheduling, and final assembly preparation.
+- Stack scheduling belongs at EVM IR: materialize virtual stack-word operands
+  into `dupN`/`swapN`/`pop` there, then run backend passes over the scheduled
+  machine-like form before final assembly.
 - Keep the layers separate: MIR should not grow EVM stack-layout details, and
   EVM IR should not rediscover high-level Solidity typing or call semantics.
 

@@ -2,6 +2,8 @@
 bb0 (entry):
   jump bb2
 bb1 [cold]:
-  revert 0, 0 !meta(stack=2->0)
+  %offset = push 0
+  %size = push 0
+  revert %offset, %size
 bb2:
   stop
