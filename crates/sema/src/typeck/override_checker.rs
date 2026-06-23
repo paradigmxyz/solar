@@ -21,7 +21,7 @@ use crate::{
 use solar_ast::{FunctionKind, StateMutability, Visibility};
 use solar_data_structures::{
     BumpExt,
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashMap, FxHashSet, FxIndexMap},
 };
 use solar_interface::{
     Ident, Span,
@@ -35,7 +35,7 @@ pub(crate) fn check(gcx: Gcx<'_>, contract_id: ContractId) {
     checker.check();
 }
 
-pub(crate) type InheritedFunctions<'gcx> = FxHashMap<OverrideSignature<'gcx>, Vec<OverrideProxy>>;
+pub(crate) type InheritedFunctions<'gcx> = FxIndexMap<OverrideSignature<'gcx>, Vec<OverrideProxy>>;
 
 struct OverrideChecker<'gcx> {
     gcx: Gcx<'gcx>,
@@ -996,7 +996,7 @@ fn compute_inherited_functions<'gcx>(
     contract_id: ContractId,
 ) -> InheritedFunctions<'gcx> {
     let contract = gcx.hir.contract(contract_id);
-    let mut result: InheritedFunctions<'gcx> = FxHashMap::default();
+    let mut result: InheritedFunctions<'gcx> = FxIndexMap::default();
 
     for &base_id in contract.bases.iter() {
         let base = gcx.hir.contract(base_id);
