@@ -25,18 +25,6 @@ LL │     function f(a) public {}
 error[9914]: function overload clash during conversion to external types for arguments
    ╭▸ ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC
    │
-LL │     function c(address) public pure {}
-   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   ╰╴
-help: other declaration is here
-   ╭▸ ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC
-   │
-LL │     function c(address payable) public pure {}
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error[9914]: function overload clash during conversion to external types for arguments
-   ╭▸ ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC
-   │
 LL │     function f(address) external pure {}
    │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
@@ -45,6 +33,18 @@ help: other declaration is here
    │
 LL │     function f(address payable) external pure {}
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[9914]: function overload clash during conversion to external types for arguments
+   ╭▸ ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC
+   │
+LL │     function c(address) public pure {}
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+help: other declaration is here
+   ╭▸ ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC
+   │
+LL │     function c(address payable) public pure {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[9914]: function overload clash during conversion to external types for arguments
    ╭▸ ROOT/tests/ui/typeck/external_type_clashes.sol:LL:CC

@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
 use solar_data_structures::{
     Never,
-    map::{FxHashMap, FxHashSet},
+    map::{FxHashSet, FxIndexMap},
     parallel,
 };
 use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code};
@@ -219,7 +219,7 @@ fn check_external_type_clashes(gcx: Gcx<'_>, contract_id: hir::ContractId) {
         return;
     }
 
-    let mut external_declarations: FxHashMap<B256, Vec<ItemId>> = FxHashMap::default();
+    let mut external_declarations: FxIndexMap<B256, Vec<ItemId>> = FxIndexMap::default();
 
     for item_id in gcx.hir.contract_item_ids(contract_id) {
         match gcx.hir.item(item_id) {
