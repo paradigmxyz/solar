@@ -58,6 +58,74 @@ contract ArithmeticTest {
         assert(arith.mod(7, 4) == 3);
     }
 
+    // ========== Panic Payloads ==========
+
+    function assertPanic(bytes memory data, uint256 code) internal pure {
+        assert(keccak256(data) == keccak256(abi.encodeWithSignature("Panic(uint256)", code)));
+    }
+
+    function assertArithCallPanic(bytes memory data, uint256 code) internal {
+        (bool success, bytes memory revertData) = address(arith).call(data);
+        assert(!success);
+        assertPanic(revertData, code);
+    }
+
+    function test_PanicAddOverflow() public {
+        assertArithCallPanic(
+            abi.encodeWithSignature("add(uint256,uint256)", type(uint256).max, uint256(1)),
+            0x11
+        );
+    }
+
+    function test_PanicSubUnderflow() public {
+        assertArithCallPanic(
+            abi.encodeWithSignature("sub(uint256,uint256)", uint256(0), uint256(1)),
+            0x11
+        );
+    }
+
+    function test_PanicMulOverflow() public {
+        assertArithCallPanic(
+            abi.encodeWithSignature("mul(uint256,uint256)", type(uint256).max, uint256(2)),
+            0x11
+        );
+    }
+
+    function test_PanicDivByZero() public {
+        assertArithCallPanic(
+            abi.encodeWithSignature("div(uint256,uint256)", uint256(1), uint256(0)),
+            0x12
+        );
+    }
+
+    function test_PanicModByZero() public {
+        assertArithCallPanic(
+            abi.encodeWithSignature("mod(uint256,uint256)", uint256(1), uint256(0)),
+            0x12
+        );
+    }
+
+    function test_PanicSignedAddOverflow() public {
+        assertArithCallPanic(
+            abi.encodeWithSignature("signedAdd(int256,int256)", type(int256).max, int256(1)),
+            0x11
+        );
+    }
+
+    function test_PanicSignedDivOverflow() public {
+        assertArithCallPanic(
+            abi.encodeWithSignature("signedDiv(int256,int256)", type(int256).min, int256(-1)),
+            0x11
+        );
+    }
+
+    function test_PanicStorageSubUnderflow() public {
+        assertArithCallPanic(
+            abi.encodeWithSignature("subAssign(uint256)", uint256(1)),
+            0x11
+        );
+    }
+
     // ========== Comparison Operators ==========
 
     function test_LessThan() public view {
