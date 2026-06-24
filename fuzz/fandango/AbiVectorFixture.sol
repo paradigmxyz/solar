@@ -1,9 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+// The runtime differential suite installs this contract with `anvil_setCode`, so
+// no constructor runs. Do not add constructor logic, `immutable`s, or state that
+// must be initialized at deploy time: it would read as zero on both runtimes and
+// hide real divergence. Storage starts empty and is mutated through the tx paths.
 contract AbiVectorFixture {
     mapping(uint256 => uint256) private values;
     bytes private blob;
+
+    // Emitted by the state-mutating paths so the differential suite also
+    // compares LOG topics and data between solc and solar.
+    event ValueSet(uint256 indexed key, uint256 value);
+    event BlobSet(uint256 length, bytes32 digest);
 
     function f(
         uint256 value,
@@ -62,10 +71,12 @@ contract AbiVectorFixture {
 
     function setValue(uint256 key, uint256 value) external {
         values[key] = value;
+        emit ValueSet(key, value);
     }
 
     function addValue(uint256 key, uint256 delta) external {
         values[key] += delta;
+        emit ValueSet(key, values[key]);
     }
 
     function getValue(uint256 key) external view returns (uint256) {
@@ -74,6 +85,7 @@ contract AbiVectorFixture {
 
     function setBlob(bytes calldata value) external {
         blob = value;
+        emit BlobSet(value.length, keccak256(value));
     }
 
     function blobHash() external view returns (bytes32, uint256) {

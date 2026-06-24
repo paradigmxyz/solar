@@ -44,6 +44,9 @@ def main() -> int:
         })
         if args.seed is not None:
             out["seed"] = args.seed
+        # `index` resets on each invocation (corpus + one run per seed), so build
+        # a globally-unique id by qualifying it with the seed.
+        out["uid"] = f"{args.seed}-{index}" if args.seed is not None else str(index)
         print(json.dumps(out, separators=(",", ":")))
 
     return 0

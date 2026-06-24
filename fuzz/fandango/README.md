@@ -52,7 +52,35 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
       --timeout 20
 ```
 
-Mismatches are saved under `fuzz/fandango/out/failures/`.
+Mismatches are saved under `fuzz/fandango/out/failures/`, including the ordered
+transaction history needed to reproduce a stateful divergence.
+
+## What the runner compares
+
+The runner talks to anvil over JSON-RPC directly (no `cast` in the replay loop).
+For every vector both runtimes are exercised with `eth_call` and the raw
+return-data (on success) or revert-data (on revert) bytes are compared
+byte-for-byte; the JSON-RPC `message` decode is ignored on purpose, so a panic is
+checked as its exact `Panic(uint256)` payload rather than a human string.
+`"mode":"tx"` vectors are additionally sent as transactions and compared on:
+
+- receipt status (mined ok vs reverted),
+- emitted logs by topics + data (the contract address is excluded, since the two
+  runtimes live at different addresses), and
+- the contract's storage-trie root via `eth_getProof` (so a divergent storage
+  write is caught even when no later `eth_call` reads the slot back).
+
+Gas is intentionally not compared: the two code generators legitimately differ.
+
+## Constraints
+
+- Both runtimes are installed with `anvil_setCode`, so no constructor runs. The
+  fixture must not depend on constructor logic, `immutable`s, or preset storage;
+  an added immutable would read as zero on both sides and hide a real divergence.
+- Only the committed `corpus.jsonl` is fully deterministic. The seeded Fandango
+  lane is bounded sampling, reproducible only for a fixed Fandango/Python version
+  and `PYTHONHASHSEED`. Treat it as a source of new cases to *promote into the
+  corpus*, not as a stable gate on its own.
 
 The generator covers:
 
@@ -97,7 +125,11 @@ Keep these lanes separate:
 Fandango mismatches are correctness failures for the fuzz job. Gas or bytecode
 size differences should be reported by benchmark jobs, not by the fuzz runner.
 The benchmark workflow runs the same ABI-vector replay as a deterministic
-runtime differential suite inside the existing codegen runtime job.
+runtime differential suite inside the existing codegen runtime job. The replay
+step uses `set -euo pipefail`, so a mismatch fails the step; for that to *block*
+a merge the `codegen-runtime` check must be marked required in branch protection
+(this lives in the benchmark workflow, separate from the `ci-success` gate, so it
+cannot be enforced from the workflow file alone).
 
 Fandango can also write one generated input per file:
 
