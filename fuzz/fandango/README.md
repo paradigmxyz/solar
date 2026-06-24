@@ -69,6 +69,20 @@ ignored. When a mismatch is confirmed:
 Do not commit bulk generated corpora. Commit only minimized regression tests and
 small hand-written generator specs.
 
+## CI Lanes
+
+Keep these lanes separate:
+
+- PR CI: deterministic runtime checks only, through `cargo nextest run --workspace`
+  and `cargo xtask test runtime`
+- Manual or nightly fuzzing: bounded Fandango runs with explicit `--random-seed`,
+  `--max-vectors`, `--max-calldata-bytes`, and `--timeout`
+- Local debugging: use the commands above and keep generated artifacts under
+  `fuzz/fandango/out/`
+
+Fandango mismatches are correctness failures for the fuzz job. Gas or bytecode
+size differences should be reported by benchmark jobs, not by the fuzz runner.
+
 Fandango can also write one generated input per file:
 
 ```bash
