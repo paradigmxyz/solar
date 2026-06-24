@@ -1,10 +1,8 @@
 use std::{
-    fs::{ReadDir, read_dir},
+    fs::read_dir,
+    io,
     path::{Path, PathBuf},
 };
-
-use solar_interface::data_structures::map::rustc_hash::FxHashSet;
-use tokio::io;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub(crate) enum ProjectManifest {
@@ -15,7 +13,14 @@ pub(crate) enum ProjectManifest {
 }
 
 impl ProjectManifest {
-    fn discover(path: &Path) -> io::Result<Vec<Self>> {
+    pub(crate) fn discover(path: &Path) -> Vec<Self> {
+        let mut manifests = Self::try_discover(path).unwrap_or_default();
+        manifests.sort();
+        manifests.dedup();
+        manifests
+    }
+
+    fn try_discover(path: &Path) -> io::Result<Vec<Self>> {
         if let Some(path) = find_in_parent_dirs(path, "solar.toml") {
             return Ok(vec![Self::Solar(path)]);
         }
@@ -23,30 +28,7 @@ impl ProjectManifest {
             return Ok(vec![Self::Foundry(path)]);
         }
 
-        let mut manifests = Vec::new();
-        for path in find_in_child_dir(read_dir(path)?, "solar.toml") {
-            manifests.push(Self::Solar(path));
-        }
-        for path in find_in_child_dir(read_dir(path)?, "foundry.toml") {
-            manifests.push(Self::Foundry(path));
-        }
-        Ok(manifests)
-    }
-
-    /// Discover all project manifests at the given paths.
-    ///
-    /// Returns a `Vec` of discovered [`ProjectManifest`]s, which is guaranteed to be unique and
-    /// sorted.
-    pub(crate) fn discover_all(paths: &[PathBuf]) -> Vec<Self> {
-        let mut res = paths
-            .iter()
-            .filter_map(|it| Self::discover(it.as_ref()).ok())
-            .flatten()
-            .collect::<FxHashSet<_>>()
-            .into_iter()
-            .collect::<Vec<_>>();
-        res.sort();
-        res
+        find_in_child_dirs(path)
     }
 }
 
@@ -69,10 +51,18 @@ fn find_in_parent_dirs(path: &Path, target_file_name: &str) -> Option<PathBuf> {
     None
 }
 
-fn find_in_child_dir(entities: ReadDir, file_name: &str) -> Vec<PathBuf> {
-    entities
-        .filter_map(Result::ok)
-        .map(|it| it.path().join(file_name))
-        .filter(|it| it.exists())
-        .collect()
+fn find_in_child_dirs(path: &Path) -> io::Result<Vec<ProjectManifest>> {
+    let mut manifests = Vec::new();
+    for entry in read_dir(path)?.filter_map(Result::ok) {
+        let path = entry.path();
+        let solar = path.join("solar.toml");
+        if solar.exists() {
+            manifests.push(ProjectManifest::Solar(solar));
+        }
+        let foundry = path.join("foundry.toml");
+        if foundry.exists() {
+            manifests.push(ProjectManifest::Foundry(foundry));
+        }
+    }
+    Ok(manifests)
 }

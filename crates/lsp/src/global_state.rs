@@ -377,70 +377,35 @@ fn collect_solidity_files(path: &Path, files: &mut Vec<PathBuf>) {
         return;
     };
     if metadata.is_file() {
-        if path.extension().is_some_and(|extension| extension == "sol") {
+        if is_solidity_file(path) {
             files.push(path.to_path_buf());
         }
         return;
     }
-    if !metadata.is_dir() {
-        return;
-    }
-
-    let Ok(entries) = std::fs::read_dir(path) else {
-        return;
-    };
-    for entry in entries.filter_map(Result::ok) {
-        let path = entry.path();
-        let Ok(file_type) = entry.file_type() else {
-            continue;
+    if metadata.is_dir() {
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return;
         };
-        if file_type.is_file() {
-            if path.extension().is_some_and(|extension| extension == "sol") {
-                files.push(path);
-            }
-        } else if file_type.is_dir() {
-            collect_solidity_files(&path, files);
+        for entry in entries.filter_map(Result::ok) {
+            collect_solidity_files(&entry.path(), files);
         }
     }
 }
 
+fn is_solidity_file(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| extension == "sol")
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        path::{Path, PathBuf},
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::fs;
 
     use async_lsp::ClientSocket;
     use crop::Rope;
     use lsp_types::{Diagnostic, Position, Range, WatchKind, notification::Notification};
+    use tempfile::TempDir;
 
     use super::*;
-
-    struct TempProject {
-        root: PathBuf,
-    }
-
-    impl TempProject {
-        fn new(name: &str) -> Self {
-            let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-            let root = std::env::temp_dir()
-                .join(format!("solar-lsp-global-{name}-{}-{nanos}", std::process::id()));
-            fs::create_dir_all(&root).unwrap();
-            Self { root }
-        }
-
-        fn root(&self) -> &Path {
-            &self.root
-        }
-    }
-
-    impl Drop for TempProject {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.root);
-        }
-    }
 
     #[test]
     fn watched_file_registration_watches_solidity_and_foundry_manifests() {
@@ -495,8 +460,8 @@ mod tests {
 
     #[test]
     fn analysis_inputs_reads_disk_files() {
-        let path = std::env::temp_dir()
-            .join(format!("solar-lsp-analysis-inputs-{}-Saved.sol", std::process::id()));
+        let project = TempDir::new().unwrap();
+        let path = project.path().join("Saved.sol");
         std::fs::write(&path, "contract C { function f() public { number+; } }").unwrap();
         let uri = Url::from_file_path(&path).unwrap();
         let snapshot = GlobalStateSnapshot {
@@ -509,21 +474,20 @@ mod tests {
 
         let (files, uris) = snapshot.analysis_inputs(vec![path.clone()]);
 
-        std::fs::remove_file(&path).unwrap();
         assert_eq!(files, vec![(path, "contract C { function f() public { number+; } }".into())]);
         assert_eq!(uris, vec![uri]);
     }
 
     #[test]
     fn analysis_batches_scan_workspace_source_roots_and_apply_vfs_overlay() {
-        let project = TempProject::new("analysis-batches");
-        let src = project.root().join("src");
+        let project = TempDir::new().unwrap();
+        let src = project.path().join("src");
         fs::create_dir_all(&src).unwrap();
         let source_path = src.join("A.sol");
         fs::write(&source_path, "contract A {}").unwrap();
         fs::write(src.join("ignored.txt"), "not solidity").unwrap();
         fs::write(
-            project.root().join("solar.toml"),
+            project.path().join("solar.toml"),
             r#"
                 [compiler]
                 source_paths = ["src"]
@@ -533,7 +497,7 @@ mod tests {
 
         let params = InitializeParams {
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
-                uri: Url::from_file_path(project.root()).unwrap(),
+                uri: Url::from_file_path(project.path()).unwrap(),
                 name: "test".into(),
             }]),
             ..Default::default()
@@ -562,20 +526,20 @@ mod tests {
             batch.files,
             vec![(source_path, "contract A { function f() public { number+; } }".into())]
         );
-        assert_eq!(batch.opts.base_path.as_deref(), Some(project.root()));
+        assert_eq!(batch.opts.base_path.as_deref(), Some(project.path()));
     }
 
     #[test]
     fn analysis_uses_workspace_remappings_for_import_resolution() {
-        let project = TempProject::new("analysis-remappings");
-        let src = project.root().join("src");
-        let lib = project.root().join("lib");
+        let project = TempDir::new().unwrap();
+        let src = project.path().join("src");
+        let lib = project.path().join("lib");
         fs::create_dir_all(&src).unwrap();
         fs::create_dir_all(&lib).unwrap();
         fs::write(src.join("A.sol"), r#"import "@lib/B.sol"; contract A is B {}"#).unwrap();
         fs::write(lib.join("B.sol"), "contract B {}").unwrap();
         fs::write(
-            project.root().join("solar.toml"),
+            project.path().join("solar.toml"),
             r#"
                 [compiler]
                 source_paths = ["src"]
@@ -586,7 +550,7 @@ mod tests {
 
         let params = InitializeParams {
             workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
-                uri: Url::from_file_path(project.root()).unwrap(),
+                uri: Url::from_file_path(project.path()).unwrap(),
                 name: "test".into(),
             }]),
             ..Default::default()
@@ -610,8 +574,8 @@ mod tests {
 
     #[test]
     fn analysis_inputs_keeps_unreadable_disk_uri() {
-        let path = std::env::temp_dir()
-            .join(format!("solar-lsp-analysis-inputs-{}-Missing.sol", std::process::id()));
+        let project = TempDir::new().unwrap();
+        let path = project.path().join("Missing.sol");
         let uri = Url::from_file_path(&path).unwrap();
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),

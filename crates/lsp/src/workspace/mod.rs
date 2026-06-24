@@ -14,7 +14,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use solar_config::CompileOpts;
+use serde::de::DeserializeOwned;
+use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
+use solar_interface::source_map::SourceMap;
 
 use crate::workspace::{foundry::FoundryDocument, manifest::ProjectManifest, solar::SolarDocument};
 
@@ -86,16 +88,13 @@ impl Workspace {
 
     fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?;
-        let profile = FoundryDocument::load(&path)?.default_profile();
-        let mut compile_opts = CompileOpts {
-            base_path: Some(root.clone()),
-            include_paths: profile.include_paths(&root),
-            import_remappings: profile.remappings(),
-            ..Default::default()
-        };
-        if let Some(evm_version) = profile.evm_version() {
-            compile_opts.evm_version = evm_version;
-        }
+        let profile = load_manifest_document::<FoundryDocument>(&path)?.default_profile();
+        let compile_opts = compile_opts(
+            root.clone(),
+            profile.include_paths(&root),
+            profile.remappings(),
+            profile.evm_version(),
+        );
 
         Ok(Self {
             kind: WorkspaceKind::Foundry,
@@ -107,17 +106,14 @@ impl Workspace {
 
     fn load_solar(path: PathBuf) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?;
-        let config = SolarDocument::load(&path)?.compiler();
+        let config = load_manifest_document::<SolarDocument>(&path)?.compiler();
         let base_path = config.base_path(&root);
-        let mut compile_opts = CompileOpts {
-            base_path: Some(base_path.clone()),
-            include_paths: config.include_paths(&base_path),
-            import_remappings: config.remappings(),
-            ..Default::default()
-        };
-        if let Some(evm_version) = config.evm_version() {
-            compile_opts.evm_version = evm_version;
-        }
+        let compile_opts = compile_opts(
+            base_path.clone(),
+            config.include_paths(&base_path),
+            config.remappings(),
+            config.evm_version(),
+        );
 
         Ok(Self {
             kind: WorkspaceKind::Solar,
@@ -152,48 +148,49 @@ fn manifest_root(path: &Path) -> Result<PathBuf, WorkspaceError> {
         .ok_or_else(|| WorkspaceError::MissingManifestParent(path.to_path_buf()))
 }
 
+fn compile_opts(
+    base_path: PathBuf,
+    include_paths: Vec<PathBuf>,
+    import_remappings: Vec<ImportRemapping>,
+    evm_version: Option<EvmVersion>,
+) -> CompileOpts {
+    let mut opts = CompileOpts {
+        base_path: Some(base_path),
+        include_paths,
+        import_remappings,
+        ..Default::default()
+    };
+    if let Some(evm_version) = evm_version {
+        opts.evm_version = evm_version;
+    }
+    opts
+}
+
+fn load_manifest_document<T: DeserializeOwned>(path: &Path) -> Result<T, WorkspaceError> {
+    let source_map = SourceMap::empty();
+    let contents = source_map
+        .file_loader()
+        .load_file(path)
+        .map_err(|source| WorkspaceError::Read { path: path.to_path_buf(), source })?;
+    toml_edit::de::from_str(&contents)
+        .map_err(|source| WorkspaceError::ParseToml { path: path.to_path_buf(), source })
+}
+
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        path::{Path, PathBuf},
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::fs;
 
     use solar_config::EvmVersion;
+    use tempfile::TempDir;
 
     use super::*;
     use crate::workspace::manifest::ProjectManifest;
 
-    struct TempProject {
-        root: PathBuf,
-    }
-
-    impl TempProject {
-        fn new(name: &str) -> Self {
-            let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-            let root = std::env::temp_dir()
-                .join(format!("solar-lsp-{name}-{}-{nanos}", std::process::id()));
-            fs::create_dir_all(&root).unwrap();
-            Self { root }
-        }
-
-        fn root(&self) -> &Path {
-            &self.root
-        }
-    }
-
-    impl Drop for TempProject {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.root);
-        }
-    }
-
     #[test]
     fn foundry_workspace_loads_manifest_compile_config() {
-        let project = TempProject::new("foundry-config");
+        let project = TempDir::new().unwrap();
         fs::write(
-            project.root().join("foundry.toml"),
+            project.path().join("foundry.toml"),
             r#"
                 [profile.default]
                 src = "contracts"
@@ -208,28 +205,28 @@ mod tests {
         .unwrap();
 
         let workspace =
-            Workspace::load_manifest(ProjectManifest::Foundry(project.root().join("foundry.toml")))
+            Workspace::load_manifest(ProjectManifest::Foundry(project.path().join("foundry.toml")))
                 .unwrap();
         let opts = workspace.compile_opts();
 
-        assert_eq!(opts.base_path.as_deref(), Some(project.root()));
+        assert_eq!(opts.base_path.as_deref(), Some(project.path()));
         assert_eq!(
             opts.include_paths,
-            vec![project.root().join("lib"), project.root().join("vendor")]
+            vec![project.path().join("lib"), project.path().join("vendor")]
         );
         assert_eq!(opts.evm_version, EvmVersion::Cancun);
         assert_eq!(
             opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>(),
             vec!["@oz=lib/openzeppelin-contracts/contracts/", "ds-test=lib/ds-test/src/",]
         );
-        assert_eq!(workspace.source_roots(), &[project.root().join("contracts")]);
+        assert_eq!(workspace.source_roots(), &[project.path().join("contracts")]);
     }
 
     #[test]
     fn solar_workspace_loads_manifest_compile_config() {
-        let project = TempProject::new("solar-config");
+        let project = TempDir::new().unwrap();
         fs::write(
-            project.root().join("solar.toml"),
+            project.path().join("solar.toml"),
             r#"
                 [compiler]
                 base_path = "."
@@ -242,12 +239,12 @@ mod tests {
         .unwrap();
 
         let workspace =
-            Workspace::load_manifest(ProjectManifest::Solar(project.root().join("solar.toml")))
+            Workspace::load_manifest(ProjectManifest::Solar(project.path().join("solar.toml")))
                 .unwrap();
         let opts = workspace.compile_opts();
 
-        assert_eq!(opts.base_path.as_deref(), Some(project.root()));
-        assert_eq!(opts.include_paths, vec![project.root().join("lib")]);
+        assert_eq!(opts.base_path.as_deref(), Some(project.path()));
+        assert_eq!(opts.include_paths, vec![project.path().join("lib")]);
         assert_eq!(opts.evm_version, EvmVersion::Osaka);
         assert_eq!(
             opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>(),
@@ -255,7 +252,7 @@ mod tests {
         );
         assert_eq!(
             workspace.source_roots(),
-            &[project.root().join("src"), project.root().join("contracts")]
+            &[project.path().join("src"), project.path().join("contracts")]
         );
     }
 }

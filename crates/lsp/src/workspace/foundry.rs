@@ -2,9 +2,6 @@ use std::path::{Path, PathBuf};
 
 use serde::Deserialize;
 use solar_config::{EvmVersion, ImportRemapping};
-use solar_interface::source_map::SourceMap;
-
-use super::WorkspaceError;
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct FoundryDocument {
@@ -13,16 +10,6 @@ pub(crate) struct FoundryDocument {
 }
 
 impl FoundryDocument {
-    pub(crate) fn load(path: &Path) -> Result<Self, WorkspaceError> {
-        let source_map = SourceMap::empty();
-        let contents = source_map
-            .file_loader()
-            .load_file(path)
-            .map_err(|source| WorkspaceError::Read { path: path.to_path_buf(), source })?;
-        toml_edit::de::from_str(&contents)
-            .map_err(|source| WorkspaceError::ParseToml { path: path.to_path_buf(), source })
-    }
-
     pub(crate) fn default_profile(self) -> FoundryProfile {
         self.profile.and_then(|profiles| profiles.default).or(self.default).unwrap_or_default()
     }
@@ -40,7 +27,7 @@ pub(crate) struct FoundryProfile {
     libs: Option<Vec<PathBuf>>,
     #[serde(default, with = "crate::serde::display_fromstr::vec")]
     remappings: Vec<ImportRemapping>,
-    #[serde(default, with = "optional_display_fromstr")]
+    #[serde(default, with = "crate::serde::optional_display_fromstr")]
     evm_version: Option<EvmVersion>,
 }
 
@@ -62,22 +49,5 @@ impl FoundryProfile {
 
     pub(crate) fn evm_version(&self) -> Option<EvmVersion> {
         self.evm_version
-    }
-}
-
-mod optional_display_fromstr {
-    use std::{fmt::Display, str::FromStr};
-
-    use serde::{Deserialize, Deserializer, de};
-
-    pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
-    where
-        T: FromStr,
-        T::Err: Display,
-        D: Deserializer<'de>,
-    {
-        Option::<String>::deserialize(deserializer)?
-            .map(|value| value.parse().map_err(de::Error::custom))
-            .transpose()
     }
 }

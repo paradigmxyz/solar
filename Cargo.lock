@@ -3299,6 +3299,7 @@ dependencies = [
  "solar-config",
  "solar-interface",
  "solar-sema",
+ "tempfile",
  "thiserror 1.0.69",
  "tokio",
  "tokio-util",

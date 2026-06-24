@@ -1,4 +1,8 @@
-use std::{collections::HashSet, env, path::PathBuf};
+use std::{
+    collections::HashSet,
+    env,
+    path::{Path, PathBuf},
+};
 
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
@@ -33,7 +37,7 @@ impl Config {
         let mut workspaces = Vec::new();
         let mut seen_manifests = HashSet::new();
         for root in &self.workspace_roots {
-            let discovered = ProjectManifest::discover_all(std::slice::from_ref(root));
+            let discovered = ProjectManifest::discover(root);
             info!(?root, ?discovered, "discovered projects");
             if discovered.is_empty() {
                 info!(?root, "no project manifests found");
@@ -65,13 +69,13 @@ impl Config {
         self.workspaces = workspaces;
     }
 
-    pub(crate) fn remove_workspace(&mut self, path: &PathBuf) {
+    pub(crate) fn remove_workspace(&mut self, path: &Path) {
         if let Some(pos) = self.workspace_roots.iter().position(|it| it == path) {
             self.workspace_roots.remove(pos);
         }
     }
 
-    pub(crate) fn add_workspaces(&mut self, paths: impl Iterator<Item = PathBuf>) {
+    pub(crate) fn add_workspaces(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
         self.workspace_roots.extend(paths);
     }
 }
@@ -124,42 +128,15 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        path::{Path, PathBuf},
-        time::{SystemTime, UNIX_EPOCH},
-    };
+    use std::fs;
 
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities, WorkspaceFolder,
     };
+    use tempfile::TempDir;
 
     use super::*;
     use crate::workspace::WorkspaceKind;
-
-    struct TempProject {
-        root: PathBuf,
-    }
-
-    impl TempProject {
-        fn new(name: &str) -> Self {
-            let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-            let root = std::env::temp_dir()
-                .join(format!("solar-lsp-config-{name}-{}-{nanos}", std::process::id()));
-            fs::create_dir_all(&root).unwrap();
-            Self { root }
-        }
-
-        fn root(&self) -> &Path {
-            &self.root
-        }
-    }
-
-    impl Drop for TempProject {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.root);
-        }
-    }
 
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
@@ -182,25 +159,25 @@ mod tests {
 
     #[test]
     fn rediscover_workspaces_loads_manifests_and_falls_back_to_naked_roots() {
-        let configured = TempProject::new("configured");
+        let configured = TempDir::new().unwrap();
         fs::write(
-            configured.root().join("solar.toml"),
+            configured.path().join("solar.toml"),
             r#"
                 [compiler]
                 source_paths = ["contracts"]
             "#,
         )
         .unwrap();
-        let naked = TempProject::new("naked");
+        let naked = TempDir::new().unwrap();
 
         let params = InitializeParams {
             workspace_folders: Some(vec![
                 WorkspaceFolder {
-                    uri: lsp_types::Url::from_file_path(configured.root()).unwrap(),
+                    uri: lsp_types::Url::from_file_path(configured.path()).unwrap(),
                     name: "configured".into(),
                 },
                 WorkspaceFolder {
-                    uri: lsp_types::Url::from_file_path(naked.root()).unwrap(),
+                    uri: lsp_types::Url::from_file_path(naked.path()).unwrap(),
                     name: "naked".into(),
                 },
             ]),
@@ -215,9 +192,9 @@ mod tests {
             .iter()
             .find(|workspace| workspace.kind() == WorkspaceKind::Solar)
             .unwrap();
-        assert_eq!(solar.source_roots(), &[configured.root().join("contracts")]);
+        assert_eq!(solar.source_roots(), &[configured.path().join("contracts")]);
 
-        fs::remove_file(configured.root().join("solar.toml")).unwrap();
+        fs::remove_file(configured.path().join("solar.toml")).unwrap();
         config.rediscover_workspaces();
 
         assert_eq!(config.workspaces().len(), 2);
