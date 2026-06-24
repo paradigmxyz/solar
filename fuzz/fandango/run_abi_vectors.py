@@ -2,8 +2,9 @@
 """Run encoded ABI vectors against solc and this compiler on anvil.
 
 This is a local fuzzing bridge. It expects an anvil RPC to be running and
-compares byte-for-byte `eth_call` output for each JSONL vector produced by
-`encode_abi_vectors.py`.
+compares byte-for-byte `eth_call` output for call vectors produced by
+`encode_abi_vectors.py`. Vectors with `"mode":"tx"` are sent as transactions
+to both runtimes so later call vectors can compare stateful behavior.
 """
 
 from __future__ import annotations
@@ -19,6 +20,10 @@ from typing import Any
 
 SOLC_ADDRESS = "0x1000000000000000000000000000000000000001"
 SOLAR_ADDRESS = "0x1000000000000000000000000000000000000002"
+ANVIL_PRIVATE_KEY = (
+    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478"
+    "cbed5efcae784d7bf4f2ff80"
+)
 
 
 def main() -> int:
@@ -29,8 +34,10 @@ def main() -> int:
     parser.add_argument("--solar", default="target/debug/solar")
     parser.add_argument("--cast", default=shutil.which("cast") or "cast")
     parser.add_argument("--rpc-url", default="http://127.0.0.1:8545")
+    parser.add_argument("--private-key", default=ANVIL_PRIVATE_KEY)
     parser.add_argument("--failure-dir", default="fuzz/fandango/out/failures")
     parser.add_argument("--max-vectors", type=int, default=256)
+    parser.add_argument("--max-transactions", type=int, default=64)
     parser.add_argument("--max-calldata-bytes", type=int, default=4096)
     parser.add_argument("--timeout", type=float, default=20.0)
     args = parser.parse_args()
@@ -42,15 +49,40 @@ def main() -> int:
     _set_code(args.cast, args.rpc_url, SOLAR_ADDRESS, solar_runtime, args.timeout)
 
     vectors = _read_vectors(sys.stdin)
-    _check_vector_budget(vectors, args.max_vectors, args.max_calldata_bytes)
+    _check_vector_budget(
+        vectors, args.max_vectors, args.max_transactions, args.max_calldata_bytes
+    )
     failures = []
+    transactions = 0
     for vector in vectors:
-        solc_result = _eth_call(
-            args.cast, args.rpc_url, SOLC_ADDRESS, vector["calldata"], args.timeout
-        )
-        solar_result = _eth_call(
-            args.cast, args.rpc_url, SOLAR_ADDRESS, vector["calldata"], args.timeout
-        )
+        mode = vector.get("mode", "call")
+        if mode == "tx":
+            transactions += 1
+            solc_result = _send_tx(
+                args.cast,
+                args.rpc_url,
+                args.private_key,
+                SOLC_ADDRESS,
+                vector["calldata"],
+                args.timeout,
+            )
+            solar_result = _send_tx(
+                args.cast,
+                args.rpc_url,
+                args.private_key,
+                SOLAR_ADDRESS,
+                vector["calldata"],
+                args.timeout,
+            )
+        elif mode == "call":
+            solc_result = _eth_call(
+                args.cast, args.rpc_url, SOLC_ADDRESS, vector["calldata"], args.timeout
+            )
+            solar_result = _eth_call(
+                args.cast, args.rpc_url, SOLAR_ADDRESS, vector["calldata"], args.timeout
+            )
+        else:
+            raise ValueError(f"unsupported vector mode `{mode}`")
         if solc_result != solar_result:
             failure = {
                 "vector": vector,
@@ -62,7 +94,12 @@ def main() -> int:
             failures.append(failure)
             _write_failure(pathlib.Path(args.failure_dir), failure)
 
-    summary = {"vectors": len(vectors), "failures": len(failures)}
+    summary = {
+        "vectors": len(vectors),
+        "transactions": transactions,
+        "calls": len(vectors) - transactions,
+        "failures": len(failures),
+    }
     print(json.dumps(summary, separators=(",", ":")))
     return 1 if failures else 0
 
@@ -77,11 +114,17 @@ def _read_vectors(stream: Any) -> list[dict[str, Any]]:
 
 
 def _check_vector_budget(
-    vectors: list[dict[str, Any]], max_vectors: int, max_calldata_bytes: int
+    vectors: list[dict[str, Any]],
+    max_vectors: int,
+    max_transactions: int,
+    max_calldata_bytes: int,
 ) -> None:
     if len(vectors) > max_vectors:
         raise ValueError(f"too many vectors: {len(vectors)} > {max_vectors}")
+    transactions = 0
     for vector in vectors:
+        if vector.get("mode", "call") == "tx":
+            transactions += 1
         calldata = vector["calldata"]
         if not isinstance(calldata, str) or not calldata.startswith("0x"):
             raise ValueError(f"invalid calldata in vector {vector.get('index')}")
@@ -91,6 +134,8 @@ def _check_vector_budget(
                 f"calldata too large in vector {vector.get('index')}: "
                 f"{byte_len} > {max_calldata_bytes}"
             )
+    if transactions > max_transactions:
+        raise ValueError(f"too many transactions: {transactions} > {max_transactions}")
 
 
 def _compile_solc(solc: str, source: pathlib.Path, contract: str, timeout: float) -> str:
@@ -172,11 +217,58 @@ def _eth_call(
     }
 
 
+def _send_tx(
+    cast: str,
+    rpc_url: str,
+    private_key: str,
+    address: str,
+    calldata: str,
+    timeout: float,
+) -> dict[str, Any]:
+    try:
+        result = subprocess.run(
+            [
+                cast,
+                "send",
+                "--rpc-url",
+                rpc_url,
+                "--private-key",
+                private_key,
+                address,
+                "--data",
+                calldata,
+                "--json",
+            ],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as err:
+        return {
+            "status": "timeout",
+            "stdout": (err.stdout or "").strip(),
+            "stderr": (err.stderr or "").strip(),
+        }
+    if result.returncode != 0:
+        return {"status": "error", "stderr": result.stderr.strip()}
+    receipt = json.loads(result.stdout)
+    return {"status": "ok" if receipt.get("status") == "0x1" else "error"}
+
+
 def _write_failure(directory: pathlib.Path, failure: dict[str, Any]) -> None:
     directory.mkdir(parents=True, exist_ok=True)
-    index = failure["vector"].get("index", len(list(directory.glob("*.json"))))
-    path = directory / f"failure-{index}.json"
+    vector = failure["vector"]
+    seed = _safe_filename_part(vector.get("seed", "unknown"))
+    label = _safe_filename_part(vector.get("label", "vector"))
+    index = _safe_filename_part(vector.get("index", len(list(directory.glob("*.json")))))
+    path = directory / f"failure-{seed}-{index}-{label}.json"
     path.write_text(json.dumps(failure, indent=2, sort_keys=True) + "\n")
+
+
+def _safe_filename_part(value: Any) -> str:
+    text = str(value)
+    return "".join(c if c.isalnum() or c in "._-" else "_" for c in text)
 
 
 if __name__ == "__main__":

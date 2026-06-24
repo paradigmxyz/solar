@@ -302,19 +302,23 @@ def report_section(
 
 
 def fandango_section(summary: dict[str, Any] | None) -> str:
-    lines = ["## Fandango ABI runtime smoke", ""]
+    lines = ["## Fandango ABI runtime differential", ""]
     if summary is None:
-        lines.extend(["No Fandango runtime smoke summary was produced.", ""])
+        lines.extend(["No Fandango runtime differential summary was produced.", ""])
         return "\n".join(lines)
 
     vectors = summary.get("vectors", "n/a")
+    calls = summary.get("calls", "n/a")
+    transactions = summary.get("transactions", "n/a")
     failures = summary.get("failures", "n/a")
     status = "ok" if failures == 0 else "failed"
     lines.extend(
         [
-            "| status | vectors | failures |",
-            "| ------ | ------- | -------- |",
-            f"| {markdown_cell(status)} | {markdown_cell(vectors)} | {markdown_cell(failures)} |",
+            "| status | vectors | calls | txs | failures |",
+            "| ------ | ------- | ----- | --- | -------- |",
+            f"| {markdown_cell(status)} | {markdown_cell(vectors)} | "
+            f"{markdown_cell(calls)} | {markdown_cell(transactions)} | "
+            f"{markdown_cell(failures)} |",
             "",
         ]
     )
@@ -337,7 +341,7 @@ def emit_fandango_warnings(summary: dict[str, Any] | None) -> None:
         return
     failures = summary.get("failures")
     if isinstance(failures, int) and failures:
-        warning(f"Fandango ABI runtime smoke recorded {failures} failure(s)")
+        warning(f"Fandango ABI runtime differential recorded {failures} failure(s)")
 
 
 def append_step_summary(markdown: str) -> None:
@@ -368,7 +372,7 @@ def main() -> int:
 
     micro_results = load_results(args.micro, "micro")
     repo_results = load_results(args.repo, "repository")
-    fandango_summary = load_summary(args.fandango, "Fandango runtime smoke")
+    fandango_summary = load_summary(args.fandango, "Fandango runtime differential")
     baseline_micro = load_results(args.baseline_micro, "baseline micro")
     baseline_repo = load_results(args.baseline_repo, "baseline repository")
 

@@ -1,7 +1,8 @@
 # Fandango ABI Prototype
 
-This is a local-only feasibility spike for using Fandango to generate runtime
-differential inputs. It is not part of normal CI.
+This is a bounded runtime differential suite for Fandango-generated ABI inputs.
+The benchmark workflow runs the deterministic corpus plus a small generated
+sample on every PR; larger fuzzing runs stay local or manual.
 
 Install the pinned version in a disposable environment:
 
@@ -16,7 +17,7 @@ Generate deterministic ABI-value vectors:
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
   -f fuzz/fandango/abi-values.fan \
   --random-seed 1 \
-  -n 8 \
+  -n 32 \
   --separator $'\n' \
   --progress-bar off
 ```
@@ -27,7 +28,7 @@ Generate encoded calldata vectors:
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
   -f fuzz/fandango/abi-values.fan \
   --random-seed 1 \
-  -n 8 \
+  -n 32 \
   --separator $'\n' \
   --progress-bar off \
   | python3 fuzz/fandango/encode_abi_vectors.py --seed 1
@@ -41,7 +42,7 @@ anvil
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
   -f fuzz/fandango/abi-values.fan \
   --random-seed 1 \
-  -n 8 \
+  -n 32 \
   --separator $'\n' \
   --progress-bar off \
   | python3 fuzz/fandango/encode_abi_vectors.py --seed 1 \
@@ -52,6 +53,19 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
 ```
 
 Mismatches are saved under `fuzz/fandango/out/failures/`.
+
+The generator covers:
+
+- dynamic ABI values: `uint256`, `bool`, `bytes`, `string`
+- signed integers, fixed bytes, and addresses
+- dynamic and fixed `uint256` arrays
+- checked arithmetic and array-bounds revert paths
+- stateful mapping and storage-bytes calls through transaction vectors
+
+`corpus.jsonl` contains a small deterministic corpus that is encoded before
+generated vectors in CI. Keep it focused on stable edge cases that should run
+on every PR, such as panic payloads, storage mutation/readback, and boundary ABI
+values.
 
 ## Promoting Failures
 
@@ -76,14 +90,14 @@ Keep these lanes separate:
 - PR CI: deterministic runtime checks only, through `cargo nextest run --workspace`
   and `cargo xtask test runtime`
 - Manual or nightly fuzzing: bounded Fandango runs with explicit `--random-seed`,
-  `--max-vectors`, `--max-calldata-bytes`, and `--timeout`
+  `--max-vectors`, `--max-transactions`, `--max-calldata-bytes`, and `--timeout`
 - Local debugging: use the commands above and keep generated artifacts under
   `fuzz/fandango/out/`
 
 Fandango mismatches are correctness failures for the fuzz job. Gas or bytecode
 size differences should be reported by benchmark jobs, not by the fuzz runner.
-The benchmark workflow runs the same ABI-vector replay as a small deterministic
-smoke test inside the existing codegen runtime job.
+The benchmark workflow runs the same ABI-vector replay as a deterministic
+runtime differential suite inside the existing codegen runtime job.
 
 Fandango can also write one generated input per file:
 
@@ -91,7 +105,7 @@ Fandango can also write one generated input per file:
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
   -f fuzz/fandango/abi-values.fan \
   --random-seed 1 \
-  -n 8 \
+  -n 32 \
   --directory fuzz/fandango/out \
   --filename-extension .json \
   --progress-bar off

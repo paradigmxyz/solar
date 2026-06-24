@@ -32,15 +32,16 @@ def main() -> int:
 
         vector = json.loads(line)
         signature = vector["signature"]
-        values = [_cast_arg(value) for value in vector["args"]]
+        values = [_cast_arg(value) for value in vector.get("args", [])]
         calldata = _cast_calldata(args.cast, signature, values)
 
-        out: dict[str, Any] = {
+        out: dict[str, Any] = dict(vector)
+        out.update({
             "index": index,
             "signature": signature,
-            "args": vector["args"],
+            "args": vector.get("args", []),
             "calldata": calldata,
-        }
+        })
         if args.seed is not None:
             out["seed"] = args.seed
         print(json.dumps(out, separators=(",", ":")))
@@ -51,6 +52,8 @@ def main() -> int:
 def _cast_arg(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
+    if isinstance(value, list):
+        return "[" + ",".join(_cast_arg(item) for item in value) + "]"
     return str(value)
 
 

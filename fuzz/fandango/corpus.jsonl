@@ -1,0 +1,17 @@
+{"label":"corpus-dynamic-empty","mode":"call","signature":"f(uint256,bool,bytes,string)","args":["0",false,"0x",""]}
+{"label":"corpus-dynamic-33","mode":"call","signature":"f(uint256,bool,bytes,string)","args":["33",true,"0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021","hello"]}
+{"label":"corpus-numeric-fixed-min","mode":"call","signature":"numericFixed(int8,int256,bytes1,bytes31,bytes32,address)","args":["-128","-57896044618658097711785492504343953926634992332820282019728792003956564819968","0x00","0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f","0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20","0x0000000000000000000000000000000000000000"]}
+{"label":"corpus-numeric-fixed-max","mode":"call","signature":"numericFixed(int8,int256,bytes1,bytes31,bytes32,address)","args":["127","57896044618658097711785492504343953926634992332820282019728792003956564819967","0xff","0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f","0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20","0xffffffffffffffffffffffffffffffffffffffff"]}
+{"label":"corpus-arrays-empty","mode":"call","signature":"arrays(uint256[],uint256[3])","args":[[],["0","0","0"]]}
+{"label":"corpus-arrays-values","mode":"call","signature":"arrays(uint256[],uint256[3])","args":[["1","2","33"],["31","32","33"]]}
+{"label":"corpus-panic-div-zero","mode":"call","signature":"panicDiv(uint256,uint256)","args":["1","0"]}
+{"label":"corpus-panic-sub-underflow","mode":"call","signature":"panicSub(uint256,uint256)","args":["0","1"]}
+{"label":"corpus-array-oob","mode":"call","signature":"arrayAt(uint256[],uint256)","args":[["1","2"],"2"]}
+{"label":"corpus-state-get-empty","mode":"call","signature":"getValue(uint256)","args":["1"]}
+{"label":"corpus-state-set","mode":"tx","signature":"setValue(uint256,uint256)","args":["1","7"]}
+{"label":"corpus-state-get-set","mode":"call","signature":"getValue(uint256)","args":["1"]}
+{"label":"corpus-state-add","mode":"tx","signature":"addValue(uint256,uint256)","args":["1","5"]}
+{"label":"corpus-state-get-add","mode":"call","signature":"getValue(uint256)","args":["1"]}
+{"label":"corpus-blob-empty","mode":"call","signature":"blobHash()","args":[]}
+{"label":"corpus-blob-set-33","mode":"tx","signature":"setBlob(bytes)","args":["0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021"]}
+{"label":"corpus-blob-hash-33","mode":"call","signature":"blobHash()","args":[]}
