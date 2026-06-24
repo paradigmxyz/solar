@@ -17,11 +17,12 @@ use crate::workspace::manifest::ProjectManifest;
 pub(crate) struct Config {
     workspace_roots: Vec<PathBuf>,
     discovered_projects: Vec<ProjectManifest>,
+    watched_file_dynamic_registration: bool,
 }
 
 impl Config {
-    pub(crate) fn new(workspace_roots: Vec<PathBuf>) -> Self {
-        Self { workspace_roots, discovered_projects: Default::default() }
+    pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
+        self.watched_file_dynamic_registration
     }
 
     pub(crate) fn rediscover_workspaces(&mut self) {
@@ -58,13 +59,20 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     // todo: make this absolute guaranteed
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
     // `root_uri`.
+    let watched_file_dynamic_registration = params
+        .capabilities
+        .workspace
+        .and_then(|workspace| workspace.did_change_watched_files)
+        .and_then(|capabilities| capabilities.dynamic_registration)
+        .unwrap_or(false);
+
     let workspace_roots = params
         .workspace_folders
         .map(|workspaces| {
             workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
         })
         .filter(|workspaces| !workspaces.is_empty())
-        .unwrap_or_else(|| vec![root_path.clone()]);
+        .unwrap_or_else(|| vec![root_path]);
 
     (
         ServerCapabilities {
@@ -79,6 +87,32 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             )),
             ..Default::default()
         },
-        Config::new(workspace_roots),
+        Config { workspace_roots, watched_file_dynamic_registration, ..Default::default() },
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use lsp_types::{DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities};
+
+    use super::*;
+
+    #[test]
+    fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_watched_file_dynamic_registration());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+            did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+                dynamic_registration: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_watched_file_dynamic_registration());
+    }
 }
