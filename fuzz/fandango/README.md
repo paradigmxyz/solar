@@ -21,6 +21,18 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
   --progress-bar off
 ```
 
+Generate encoded calldata vectors:
+
+```bash
+PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
+  -f fuzz/fandango/abi-values.fan \
+  --random-seed 1 \
+  -n 8 \
+  --separator $'\n' \
+  --progress-bar off \
+  | python3 fuzz/fandango/encode_abi_vectors.py --seed 1
+```
+
 Fandango can also write one generated input per file:
 
 ```bash
