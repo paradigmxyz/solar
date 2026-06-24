@@ -20,6 +20,12 @@ impl ProjectManifest {
         manifests
     }
 
+    pub(crate) fn root(&self) -> Option<&Path> {
+        match self {
+            Self::Solar(path) | Self::Foundry(path) => path.parent(),
+        }
+    }
+
     fn try_discover(path: &Path) -> io::Result<Vec<Self>> {
         if let Some(path) = find_in_parent_dirs(path, "solar.toml") {
             return Ok(vec![Self::Solar(path)]);
@@ -58,6 +64,7 @@ fn find_in_child_dirs(path: &Path) -> io::Result<Vec<ProjectManifest>> {
         let solar = path.join("solar.toml");
         if solar.exists() {
             manifests.push(ProjectManifest::Solar(solar));
+            continue;
         }
         let foundry = path.join("foundry.toml");
         if foundry.exists() {
@@ -65,4 +72,27 @@ fn find_in_child_dirs(path: &Path) -> io::Result<Vec<ProjectManifest>> {
         }
     }
     Ok(manifests)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+
+    use tempfile::TempDir;
+
+    use super::*;
+
+    #[test]
+    fn child_discovery_prefers_solar_manifest_over_foundry_manifest() {
+        let root = TempDir::new().unwrap();
+        let child = root.path().join("child");
+        fs::create_dir(&child).unwrap();
+        fs::write(child.join("solar.toml"), "").unwrap();
+        fs::write(child.join("foundry.toml"), "").unwrap();
+
+        assert_eq!(
+            ProjectManifest::discover(root.path()),
+            vec![ProjectManifest::Solar(child.join("solar.toml"))],
+        );
+    }
 }

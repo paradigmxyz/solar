@@ -49,9 +49,15 @@ impl Config {
                 if !seen_manifests.insert(manifest.clone()) {
                     continue;
                 }
+                let fallback_root = manifest.root().map(Path::to_path_buf);
                 match Workspace::load_manifest(manifest) {
                     Ok(workspace) => workspaces.push(workspace),
-                    Err(error) => warn!(%error, "failed to load workspace"),
+                    Err(error) => {
+                        warn!(%error, "failed to load workspace");
+                        if let Some(root) = fallback_root {
+                            workspaces.push(Workspace::naked(root));
+                        }
+                    }
                 }
             }
         }
@@ -201,5 +207,47 @@ mod tests {
         assert!(
             config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Naked)
         );
+    }
+
+    #[test]
+    fn rediscover_workspaces_keeps_naked_root_after_manifest_load_error() {
+        let broken = TempDir::new().unwrap();
+        fs::write(broken.path().join("solar.toml"), "not valid toml =").unwrap();
+        let configured = TempDir::new().unwrap();
+        fs::write(
+            configured.path().join("solar.toml"),
+            r#"
+                [compiler]
+                source_paths = ["contracts"]
+            "#,
+        )
+        .unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![
+                WorkspaceFolder {
+                    uri: lsp_types::Url::from_file_path(broken.path()).unwrap(),
+                    name: "broken".into(),
+                },
+                WorkspaceFolder {
+                    uri: lsp_types::Url::from_file_path(configured.path()).unwrap(),
+                    name: "configured".into(),
+                },
+            ]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+
+        config.rediscover_workspaces();
+
+        assert_eq!(config.workspaces().len(), 2);
+        assert!(config.workspaces().iter().any(|workspace| {
+            workspace.kind() == WorkspaceKind::Naked
+                && workspace.compile_opts().base_path.as_deref() == Some(broken.path())
+        }));
+        assert!(config.workspaces().iter().any(|workspace| {
+            workspace.kind() == WorkspaceKind::Solar
+                && workspace.source_roots() == [configured.path().join("contracts")]
+        }));
     }
 }
