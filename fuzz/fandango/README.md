@@ -50,6 +50,22 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
 
 Mismatches are saved under `fuzz/fandango/out/failures/`.
 
+## Promoting Failures
+
+Keep raw generated artifacts under `fuzz/fandango/out/`; that directory is
+ignored. When a mismatch is confirmed:
+
+1. Minimize the vector or source by hand.
+2. Add the minimized case to the deterministic runtime suite when it depends on
+   execution behavior.
+3. Add a `tests/ui/codegen/` case only when the emitted compiler output is the
+   useful regression signal.
+4. Record the Fandango seed, generated vector, compiler flags, and solc version
+   in the promoted test or its nearby comments.
+
+Do not commit bulk generated corpora. Commit only minimized regression tests and
+small hand-written generator specs.
+
 Fandango can also write one generated input per file:
 
 ```bash
