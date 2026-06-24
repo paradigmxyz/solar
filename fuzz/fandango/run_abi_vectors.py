@@ -30,19 +30,27 @@ def main() -> int:
     parser.add_argument("--cast", default=shutil.which("cast") or "cast")
     parser.add_argument("--rpc-url", default="http://127.0.0.1:8545")
     parser.add_argument("--failure-dir", default="fuzz/fandango/out/failures")
+    parser.add_argument("--max-vectors", type=int, default=256)
+    parser.add_argument("--max-calldata-bytes", type=int, default=4096)
+    parser.add_argument("--timeout", type=float, default=20.0)
     args = parser.parse_args()
 
     source = pathlib.Path(args.source)
-    solc_runtime = _compile_solc(args.solc, source, args.contract)
-    solar_runtime = _compile_solar(args.solar, source, args.contract)
-    _set_code(args.cast, args.rpc_url, SOLC_ADDRESS, solc_runtime)
-    _set_code(args.cast, args.rpc_url, SOLAR_ADDRESS, solar_runtime)
+    solc_runtime = _compile_solc(args.solc, source, args.contract, args.timeout)
+    solar_runtime = _compile_solar(args.solar, source, args.contract, args.timeout)
+    _set_code(args.cast, args.rpc_url, SOLC_ADDRESS, solc_runtime, args.timeout)
+    _set_code(args.cast, args.rpc_url, SOLAR_ADDRESS, solar_runtime, args.timeout)
 
     vectors = _read_vectors(sys.stdin)
+    _check_vector_budget(vectors, args.max_vectors, args.max_calldata_bytes)
     failures = []
     for vector in vectors:
-        solc_result = _eth_call(args.cast, args.rpc_url, SOLC_ADDRESS, vector["calldata"])
-        solar_result = _eth_call(args.cast, args.rpc_url, SOLAR_ADDRESS, vector["calldata"])
+        solc_result = _eth_call(
+            args.cast, args.rpc_url, SOLC_ADDRESS, vector["calldata"], args.timeout
+        )
+        solar_result = _eth_call(
+            args.cast, args.rpc_url, SOLAR_ADDRESS, vector["calldata"], args.timeout
+        )
         if solc_result != solar_result:
             failure = {
                 "vector": vector,
@@ -68,7 +76,24 @@ def _read_vectors(stream: Any) -> list[dict[str, Any]]:
     return vectors
 
 
-def _compile_solc(solc: str, source: pathlib.Path, contract: str) -> str:
+def _check_vector_budget(
+    vectors: list[dict[str, Any]], max_vectors: int, max_calldata_bytes: int
+) -> None:
+    if len(vectors) > max_vectors:
+        raise ValueError(f"too many vectors: {len(vectors)} > {max_vectors}")
+    for vector in vectors:
+        calldata = vector["calldata"]
+        if not isinstance(calldata, str) or not calldata.startswith("0x"):
+            raise ValueError(f"invalid calldata in vector {vector.get('index')}")
+        byte_len = (len(calldata) - 2) // 2
+        if byte_len > max_calldata_bytes:
+            raise ValueError(
+                f"calldata too large in vector {vector.get('index')}: "
+                f"{byte_len} > {max_calldata_bytes}"
+            )
+
+
+def _compile_solc(solc: str, source: pathlib.Path, contract: str, timeout: float) -> str:
     result = subprocess.run(
         [
             solc,
@@ -84,17 +109,19 @@ def _compile_solc(solc: str, source: pathlib.Path, contract: str) -> str:
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        timeout=timeout,
     )
     return _runtime_from_contracts(json.loads(result.stdout)["contracts"], contract)
 
 
-def _compile_solar(solar: str, source: pathlib.Path, contract: str) -> str:
+def _compile_solar(solar: str, source: pathlib.Path, contract: str, timeout: float) -> str:
     result = subprocess.run(
         [solar, "-Zcodegen", "--emit=bin-runtime", "--pretty-json", str(source)],
         check=True,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        timeout=timeout,
     )
     return _runtime_from_contracts(json.loads(result.stdout)["contracts"], contract)
 
@@ -110,23 +137,34 @@ def _runtime_from_contracts(contracts: dict[str, Any], contract: str) -> str:
     raise ValueError(f"contract {contract} not found")
 
 
-def _set_code(cast: str, rpc_url: str, address: str, runtime: str) -> None:
+def _set_code(cast: str, rpc_url: str, address: str, runtime: str, timeout: float) -> None:
     subprocess.run(
         [cast, "rpc", "--rpc-url", rpc_url, "anvil_setCode", address, runtime],
         check=True,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
+        timeout=timeout,
     )
 
 
-def _eth_call(cast: str, rpc_url: str, address: str, calldata: str) -> dict[str, Any]:
-    result = subprocess.run(
-        [cast, "call", "--rpc-url", rpc_url, address, "--data", calldata],
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+def _eth_call(
+    cast: str, rpc_url: str, address: str, calldata: str, timeout: float
+) -> dict[str, Any]:
+    try:
+        result = subprocess.run(
+            [cast, "call", "--rpc-url", rpc_url, address, "--data", calldata],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as err:
+        return {
+            "status": "timeout",
+            "stdout": (err.stdout or "").strip(),
+            "stderr": (err.stderr or "").strip(),
+        }
     return {
         "status": "ok" if result.returncode == 0 else "error",
         "stdout": result.stdout.strip(),

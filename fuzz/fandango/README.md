@@ -45,7 +45,10 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
   --separator $'\n' \
   --progress-bar off \
   | python3 fuzz/fandango/encode_abi_vectors.py --seed 1 \
-  | python3 fuzz/fandango/run_abi_vectors.py
+  | python3 fuzz/fandango/run_abi_vectors.py \
+      --max-vectors 256 \
+      --max-calldata-bytes 4096 \
+      --timeout 20
 ```
 
 Mismatches are saved under `fuzz/fandango/out/failures/`.
