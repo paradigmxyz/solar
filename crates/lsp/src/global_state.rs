@@ -1,6 +1,5 @@
 use std::{
     borrow::Cow,
-    collections::{HashMap, HashSet},
     ops::ControlFlow,
     path::PathBuf,
     sync::{
@@ -19,7 +18,10 @@ use lsp_types::{
 use solar_config::{CompileOpts, version::SHORT_VERSION};
 use solar_interface::{
     Session,
-    data_structures::sync::RwLock,
+    data_structures::{
+        map::{FxHashMap, FxHashSet},
+        sync::RwLock,
+    },
     diagnostics::{DiagCtxt, InMemoryEmitter},
     source_map::{FileName, SourceMap},
 };
@@ -39,7 +41,7 @@ pub(crate) struct GlobalState {
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
-    published_diagnostic_uris: Arc<RwLock<HashSet<Url>>>,
+    published_diagnostic_uris: Arc<RwLock<FxHashSet<Url>>>,
 }
 
 impl GlobalState {
@@ -118,7 +120,7 @@ impl GlobalState {
                 return;
             }
 
-            let mut diagnostics: HashMap<Url, Vec<Diagnostic>> = HashMap::new();
+            let mut diagnostics: FxHashMap<Url, Vec<Diagnostic>> = FxHashMap::default();
 
             for batch in batches {
                 if batch.files.is_empty() {
@@ -187,7 +189,7 @@ pub(crate) struct GlobalStateSnapshot {
     vfs: Arc<RwLock<Vfs>>,
     config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
-    published_diagnostic_uris: Arc<RwLock<HashSet<Url>>>,
+    published_diagnostic_uris: Arc<RwLock<FxHashSet<Url>>>,
 }
 
 impl GlobalStateSnapshot {
@@ -211,7 +213,7 @@ impl GlobalStateSnapshot {
             .map(|workspace| AnalysisBatch {
                 opts: workspace.compile_opts().clone(),
                 files: Vec::new(),
-                seen_paths: HashSet::new(),
+                seen_paths: FxHashSet::default(),
             })
             .collect::<Vec<_>>();
         let source_map = SourceMap::empty();
@@ -268,8 +270,8 @@ impl GlobalStateSnapshot {
         files
     }
 
-    fn publish_diagnostic_set(&mut self, mut diagnostics: HashMap<Url, Vec<Diagnostic>>) {
-        let mut uris = diagnostics.keys().cloned().collect::<HashSet<_>>();
+    fn publish_diagnostic_set(&mut self, mut diagnostics: FxHashMap<Url, Vec<Diagnostic>>) {
+        let mut uris = diagnostics.keys().cloned().collect::<FxHashSet<_>>();
 
         let mut published_diagnostic_uris = self.published_diagnostic_uris.write();
         uris.extend(published_diagnostic_uris.iter().cloned());
@@ -292,7 +294,7 @@ impl GlobalStateSnapshot {
 struct AnalysisBatch {
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
-    seen_paths: HashSet<PathBuf>,
+    seen_paths: FxHashSet<PathBuf>,
 }
 
 impl AnalysisBatch {
@@ -307,7 +309,7 @@ impl AnalysisBatch {
     }
 }
 
-fn analyze(batch: AnalysisBatch) -> HashMap<Url, Vec<Diagnostic>> {
+fn analyze(batch: AnalysisBatch) -> FxHashMap<Url, Vec<Diagnostic>> {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
     let sess = Session::builder().opts(batch.opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
 
@@ -342,7 +344,7 @@ fn analyze(batch: AnalysisBatch) -> HashMap<Url, Vec<Diagnostic>> {
             .read()
             .iter()
             .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
-            .fold(HashMap::<Url, Vec<Diagnostic>>::new(), |mut diagnostics, (uri, diag)| {
+            .fold(FxHashMap::<Url, Vec<Diagnostic>>::default(), |mut diagnostics, (uri, diag)| {
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics
             })
@@ -384,7 +386,7 @@ mod tests {
         let diagnostic_uri = Url::parse("file:///workspace/src/Error.sol").unwrap();
         let stale_uri = Url::parse("file:///workspace/src/Stale.sol").unwrap();
         let published_diagnostic_uris =
-            Arc::new(RwLock::new(HashSet::from([clean_uri.clone(), stale_uri.clone()])));
+            Arc::new(RwLock::new(FxHashSet::from_iter([clean_uri.clone(), stale_uri.clone()])));
         let mut snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
@@ -400,8 +402,10 @@ mod tests {
             },
             "error".into(),
         );
-        snapshot
-            .publish_diagnostic_set(HashMap::from([(diagnostic_uri.clone(), vec![diagnostic])]));
+        snapshot.publish_diagnostic_set(FxHashMap::from_iter([(
+            diagnostic_uri.clone(),
+            vec![diagnostic],
+        )]));
 
         let published = published_diagnostic_uris.read();
         assert!(!published.contains(&clean_uri));

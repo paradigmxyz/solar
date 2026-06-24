@@ -1,5 +1,4 @@
 use std::{
-    collections::HashSet,
     env,
     path::{Path, PathBuf},
 };
@@ -8,6 +7,7 @@ use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
 };
+use solar_interface::data_structures::map::FxHashSet;
 use tracing::{info, warn};
 
 use crate::workspace::{Workspace, manifest::ProjectManifest, workspace_idx_for_path};
@@ -35,7 +35,7 @@ impl Config {
 
     pub(crate) fn rediscover_workspaces(&mut self) {
         let mut workspaces = Vec::new();
-        let mut seen_manifests = HashSet::new();
+        let mut seen_manifests = FxHashSet::default();
         for root in &self.workspace_roots {
             let discovered = ProjectManifest::discover(root);
             info!(?root, ?discovered, "discovered projects");
