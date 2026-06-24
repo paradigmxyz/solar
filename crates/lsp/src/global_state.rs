@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     collections::{HashMap, HashSet},
     ops::ControlFlow,
     path::PathBuf,
@@ -247,13 +248,13 @@ impl GlobalStateSnapshot {
         batches
     }
 
-    fn analysis_workspaces(&self) -> Vec<crate::workspace::Workspace> {
+    fn analysis_workspaces(&self) -> Cow<'_, [crate::workspace::Workspace]> {
         let workspaces = self.config.workspaces();
         if !workspaces.is_empty() {
-            return workspaces.to_vec();
+            return Cow::Borrowed(workspaces);
         }
 
-        vec![crate::workspace::Workspace::unconfigured()]
+        Cow::Owned(vec![crate::workspace::Workspace::unconfigured()])
     }
 
     #[cfg(test)]
