@@ -10,8 +10,10 @@ use std::{
 
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
-    Diagnostic, InitializeParams, InitializeResult, InitializedParams, LogMessageParams,
-    MessageType, PublishDiagnosticsParams, ServerInfo, Url,
+    Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
+    InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
+    PublishDiagnosticsParams, Registration, RegistrationParams, ServerInfo, Url, WatchKind,
+    notification::{self, Notification},
 };
 use solar_config::version::SHORT_VERSION;
 use solar_interface::{
@@ -68,6 +70,17 @@ impl GlobalState {
     }
 
     pub(crate) fn on_initialized(&mut self, _: InitializedParams) -> NotifyResult {
+        if self.config.supports_watched_file_dynamic_registration() {
+            let mut client = self.client.clone();
+            tokio::spawn(async move {
+                if let Err(error) =
+                    client.register_capability(watched_file_registration_params()).await
+                {
+                    tracing::warn!(%error, "failed to register watched-file notifications");
+                }
+            });
+        }
+
         let _ = self.client.log_message(LogMessageParams {
             typ: MessageType::INFO,
             message: "solar initialized".into(),
@@ -166,6 +179,24 @@ impl GlobalState {
     }
 }
 
+fn watched_file_registration_params() -> RegistrationParams {
+    let kind = Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete);
+    let options = DidChangeWatchedFilesRegistrationOptions {
+        watchers: vec![
+            FileSystemWatcher { glob_pattern: GlobPattern::String("**/*.sol".into()), kind },
+            FileSystemWatcher { glob_pattern: GlobPattern::String("**/foundry.toml".into()), kind },
+        ],
+    };
+
+    RegistrationParams {
+        registrations: vec![Registration {
+            id: "solar-watched-files".into(),
+            method: notification::DidChangeWatchedFiles::METHOD.into(),
+            register_options: Some(serde_json::to_value(options).unwrap()),
+        }],
+    }
+}
+
 pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
@@ -237,9 +268,39 @@ impl GlobalStateSnapshot {
 #[cfg(test)]
 mod tests {
     use async_lsp::ClientSocket;
-    use lsp_types::{Diagnostic, Position, Range};
+    use lsp_types::{
+        Diagnostic, DidChangeWatchedFilesRegistrationOptions, GlobPattern, Position, Range,
+        RegistrationParams, WatchKind, notification::Notification,
+    };
 
     use super::*;
+
+    #[test]
+    fn watched_file_registration_watches_solidity_and_foundry_manifests() {
+        let params = watched_file_registration_params();
+        let RegistrationParams { registrations } = params;
+        assert_eq!(registrations.len(), 1);
+
+        let registration = registrations.into_iter().next().unwrap();
+        assert_eq!(registration.id, "solar-watched-files");
+        assert_eq!(registration.method, lsp_types::notification::DidChangeWatchedFiles::METHOD);
+
+        let options: DidChangeWatchedFilesRegistrationOptions =
+            serde_json::from_value(registration.register_options.unwrap()).unwrap();
+        let patterns = options
+            .watchers
+            .iter()
+            .map(|watcher| match &watcher.glob_pattern {
+                GlobPattern::String(pattern) => pattern.as_str(),
+                GlobPattern::Relative(_) => panic!("expected string glob pattern"),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(patterns, ["**/*.sol", "**/foundry.toml"]);
+        assert!(options.watchers.iter().all(|watcher| {
+            watcher.kind == Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete)
+        }));
+    }
 
     #[test]
     fn publish_diagnostic_set_retains_unrelated_diagnostics() {

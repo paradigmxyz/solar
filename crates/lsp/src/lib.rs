@@ -86,10 +86,15 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
 mod tests {
     use std::ops::ControlFlow;
 
-    use async_lsp::{AnyNotification, LspService};
+    use async_lsp::{AnyNotification, LanguageServer, LspService, router::Router};
     use lsp_types::{
-        DidChangeWatchedFilesParams, FileChangeType, FileEvent, notification::Notification,
+        ClientCapabilities, DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
+        FileChangeType, FileEvent, InitializeParams, InitializedParams, RegistrationParams,
+        WorkspaceClientCapabilities, notification as notif, notification::Notification, request,
     };
+    use tokio::sync::oneshot;
+    use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+    use tower::ServiceBuilder;
 
     use super::*;
 
@@ -111,5 +116,83 @@ mod tests {
 
             assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
         });
+    }
+
+    #[test]
+    fn initialized_registers_watched_files_when_client_supports_dynamic_registration() {
+        tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap().block_on(
+            async {
+                struct ClientState {
+                    registration_tx: Option<oneshot::Sender<RegistrationParams>>,
+                }
+
+                let (server_main, _client) = async_lsp::MainLoop::new_server(|client| {
+                    ServiceBuilder::new()
+                        .layer(async_lsp::server::LifecycleLayer::default())
+                        .service(new_router(client))
+                });
+                let (registration_tx, registration_rx) = oneshot::channel();
+                let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
+                    let mut router =
+                        Router::new(ClientState { registration_tx: Some(registration_tx) });
+                    router.request::<request::RegisterCapability, _>(|state, params| {
+                        state.registration_tx.take().unwrap().send(params).unwrap();
+                        async move { Ok(()) }
+                    });
+                    router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+                    router
+                });
+
+                let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+                let (server_rx, server_tx) = tokio::io::split(server_stream);
+                let (server_rx, server_tx) = (server_rx.compat(), server_tx.compat_write());
+                let server_main =
+                    tokio::spawn(
+                        async move { server_main.run_buffered(server_rx, server_tx).await },
+                    );
+                let (client_rx, client_tx) = tokio::io::split(client_stream);
+                let (client_rx, client_tx) = (client_rx.compat(), client_tx.compat_write());
+                let client_main =
+                    tokio::spawn(
+                        async move { client_main.run_buffered(client_rx, client_tx).await },
+                    );
+
+                server
+                    .initialize(InitializeParams {
+                        capabilities: ClientCapabilities {
+                            workspace: Some(WorkspaceClientCapabilities {
+                                did_change_watched_files: Some(
+                                    DidChangeWatchedFilesClientCapabilities {
+                                        dynamic_registration: Some(true),
+                                        relative_pattern_support: None,
+                                    },
+                                ),
+                                ..Default::default()
+                            }),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    })
+                    .await
+                    .unwrap();
+                server.initialized(InitializedParams {}).unwrap();
+
+                let registrations =
+                    tokio::time::timeout(std::time::Duration::from_secs(1), registration_rx)
+                        .await
+                        .unwrap()
+                        .unwrap();
+                assert_eq!(registrations.registrations.len(), 1);
+                assert_eq!(
+                    registrations.registrations[0].method,
+                    notif::DidChangeWatchedFiles::METHOD
+                );
+
+                server.shutdown(()).await.unwrap();
+                server.exit(()).unwrap();
+                assert!(server_main.await.unwrap().is_ok());
+                assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
+            },
+        );
     }
 }

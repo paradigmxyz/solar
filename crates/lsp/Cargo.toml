@@ -43,6 +43,10 @@ tracing.workspace = true
 tokio-util = { workspace = true, features = ["compat"] }
 tokio = { workspace = true, features = ["rt", "io-std"] }
 
+[dev-dependencies]
+tokio = { workspace = true, features = ["io-util", "rt", "sync", "time"] }
+tokio-util = { workspace = true, features = ["compat"] }
+
 [features]
 nightly = ["solar-config/nightly"]
 version = ["solar-config/version"]
