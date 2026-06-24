@@ -13,7 +13,7 @@ use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
     InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
     PublishDiagnosticsParams, Registration, RegistrationParams, ServerInfo, Url, WatchKind,
-    notification::{self, Notification},
+    notification::{DidChangeWatchedFiles, Notification},
 };
 use solar_config::version::SHORT_VERSION;
 use solar_interface::{
@@ -191,7 +191,7 @@ fn watched_file_registration_params() -> RegistrationParams {
     RegistrationParams {
         registrations: vec![Registration {
             id: "solar-watched-files".into(),
-            method: notification::DidChangeWatchedFiles::METHOD.into(),
+            method: DidChangeWatchedFiles::METHOD.into(),
             register_options: Some(serde_json::to_value(options).unwrap()),
         }],
     }
@@ -268,38 +268,25 @@ impl GlobalStateSnapshot {
 #[cfg(test)]
 mod tests {
     use async_lsp::ClientSocket;
-    use lsp_types::{
-        Diagnostic, DidChangeWatchedFilesRegistrationOptions, GlobPattern, Position, Range,
-        RegistrationParams, WatchKind, notification::Notification,
-    };
+    use lsp_types::{Diagnostic, Position, Range, WatchKind, notification::Notification};
 
     use super::*;
 
     #[test]
     fn watched_file_registration_watches_solidity_and_foundry_manifests() {
-        let params = watched_file_registration_params();
-        let RegistrationParams { registrations } = params;
-        assert_eq!(registrations.len(), 1);
-
-        let registration = registrations.into_iter().next().unwrap();
+        let [registration] = watched_file_registration_params().registrations.try_into().unwrap();
         assert_eq!(registration.id, "solar-watched-files");
         assert_eq!(registration.method, lsp_types::notification::DidChangeWatchedFiles::METHOD);
 
-        let options: DidChangeWatchedFilesRegistrationOptions =
-            serde_json::from_value(registration.register_options.unwrap()).unwrap();
-        let patterns = options
-            .watchers
-            .iter()
-            .map(|watcher| match &watcher.glob_pattern {
-                GlobPattern::String(pattern) => pattern.as_str(),
-                GlobPattern::Relative(_) => panic!("expected string glob pattern"),
-            })
-            .collect::<Vec<_>>();
-
-        assert_eq!(patterns, ["**/*.sol", "**/foundry.toml"]);
-        assert!(options.watchers.iter().all(|watcher| {
-            watcher.kind == Some(WatchKind::Create | WatchKind::Change | WatchKind::Delete)
-        }));
+        assert_eq!(
+            registration.register_options,
+            Some(serde_json::json!({
+                "watchers": [
+                    { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                    { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                ],
+            }))
+        );
     }
 
     #[test]

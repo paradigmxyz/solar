@@ -21,14 +21,6 @@ pub(crate) struct Config {
 }
 
 impl Config {
-    pub(crate) fn new(workspace_roots: Vec<PathBuf>) -> Self {
-        Self {
-            workspace_roots,
-            discovered_projects: Default::default(),
-            watched_file_dynamic_registration: false,
-        }
-    }
-
     pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
         self.watched_file_dynamic_registration
     }
@@ -80,10 +72,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
         })
         .filter(|workspaces| !workspaces.is_empty())
-        .unwrap_or_else(|| vec![root_path.clone()]);
-
-    let mut config = Config::new(workspace_roots);
-    config.watched_file_dynamic_registration = watched_file_dynamic_registration;
+        .unwrap_or_else(|| vec![root_path]);
 
     (
         ServerCapabilities {
@@ -98,43 +87,32 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             )),
             ..Default::default()
         },
-        config,
+        Config { workspace_roots, watched_file_dynamic_registration, ..Default::default() },
     )
 }
 
 #[cfg(test)]
 mod tests {
-    use lsp_types::{
-        ClientCapabilities, DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities,
-    };
+    use lsp_types::{DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities};
 
     use super::*;
 
     #[test]
-    fn negotiate_capabilities_records_watched_file_dynamic_registration() {
-        let params = InitializeParams {
-            capabilities: ClientCapabilities {
-                workspace: Some(WorkspaceClientCapabilities {
-                    did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-                        dynamic_registration: Some(true),
-                        relative_pattern_support: None,
-                    }),
-                    ..Default::default()
-                }),
+    fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_watched_file_dynamic_registration());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+            did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+                dynamic_registration: Some(true),
                 ..Default::default()
-            },
+            }),
             ..Default::default()
-        };
+        });
 
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_watched_file_dynamic_registration());
-    }
-
-    #[test]
-    fn negotiate_capabilities_defaults_watched_file_dynamic_registration_to_false() {
-        let (_, config) = negotiate_capabilities(InitializeParams::default());
-
-        assert!(!config.supports_watched_file_dynamic_registration());
     }
 }

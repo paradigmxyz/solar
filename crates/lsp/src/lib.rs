@@ -88,13 +88,12 @@ mod tests {
 
     use async_lsp::{AnyNotification, LanguageServer, LspService, router::Router};
     use lsp_types::{
-        ClientCapabilities, DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
-        FileChangeType, FileEvent, InitializeParams, InitializedParams, RegistrationParams,
-        WorkspaceClientCapabilities, notification as notif, notification::Notification, request,
+        DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams, FileChangeType,
+        FileEvent, InitializeParams, InitializedParams, WorkspaceClientCapabilities,
+        notification as notif, notification::Notification, request,
     };
     use tokio::sync::oneshot;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-    use tower::ServiceBuilder;
 
     use super::*;
 
@@ -122,21 +121,12 @@ mod tests {
     fn initialized_registers_watched_files_when_client_supports_dynamic_registration() {
         tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap().block_on(
             async {
-                struct ClientState {
-                    registration_tx: Option<oneshot::Sender<RegistrationParams>>,
-                }
-
-                let (server_main, _client) = async_lsp::MainLoop::new_server(|client| {
-                    ServiceBuilder::new()
-                        .layer(async_lsp::server::LifecycleLayer::default())
-                        .service(new_router(client))
-                });
+                let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
                 let (registration_tx, registration_rx) = oneshot::channel();
                 let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
-                    let mut router =
-                        Router::new(ClientState { registration_tx: Some(registration_tx) });
+                    let mut router = Router::new(Some(registration_tx));
                     router.request::<request::RegisterCapability, _>(|state, params| {
-                        state.registration_tx.take().unwrap().send(params).unwrap();
+                        state.take().unwrap().send(params).unwrap();
                         async move { Ok(()) }
                     });
                     router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
@@ -157,24 +147,15 @@ mod tests {
                         async move { client_main.run_buffered(client_rx, client_tx).await },
                     );
 
-                server
-                    .initialize(InitializeParams {
-                        capabilities: ClientCapabilities {
-                            workspace: Some(WorkspaceClientCapabilities {
-                                did_change_watched_files: Some(
-                                    DidChangeWatchedFilesClientCapabilities {
-                                        dynamic_registration: Some(true),
-                                        relative_pattern_support: None,
-                                    },
-                                ),
-                                ..Default::default()
-                            }),
-                            ..Default::default()
-                        },
+                let mut params = InitializeParams::default();
+                params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+                    did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+                        dynamic_registration: Some(true),
                         ..Default::default()
-                    })
-                    .await
-                    .unwrap();
+                    }),
+                    ..Default::default()
+                });
+                server.initialize(params).await.unwrap();
                 server.initialized(InitializedParams {}).unwrap();
 
                 let registrations =
@@ -182,11 +163,8 @@ mod tests {
                         .await
                         .unwrap()
                         .unwrap();
-                assert_eq!(registrations.registrations.len(), 1);
-                assert_eq!(
-                    registrations.registrations[0].method,
-                    notif::DidChangeWatchedFiles::METHOD
-                );
+                let [registration] = registrations.registrations.try_into().unwrap();
+                assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
 
                 server.shutdown(()).await.unwrap();
                 server.exit(()).unwrap();
