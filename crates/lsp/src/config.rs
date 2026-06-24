@@ -10,7 +10,7 @@ use lsp_types::{
 };
 use tracing::{info, warn};
 
-use crate::workspace::{Workspace, manifest::ProjectManifest};
+use crate::workspace::{Workspace, manifest::ProjectManifest, workspace_idx_for_path};
 
 /// The LSP config.
 ///
@@ -41,7 +41,9 @@ impl Config {
             info!(?root, ?discovered, "discovered projects");
             if discovered.is_empty() {
                 info!(?root, "no project manifests found");
-                workspaces.push(Workspace::naked(root.clone()));
+                let mut workspace = Workspace::naked(root.clone());
+                workspace.refresh_source_files();
+                workspaces.push(workspace);
                 continue;
             }
 
@@ -51,18 +53,27 @@ impl Config {
                 }
                 let fallback_root = manifest.root().map(Path::to_path_buf);
                 match Workspace::load_manifest(manifest) {
-                    Ok(workspace) => workspaces.push(workspace),
+                    Ok(mut workspace) => {
+                        workspace.refresh_source_files();
+                        workspaces.push(workspace);
+                    }
                     Err(error) => {
                         warn!(%error, "failed to load workspace");
                         if let Some(root) = fallback_root {
-                            workspaces.push(Workspace::naked(root));
+                            let mut workspace = Workspace::naked(root);
+                            workspace.refresh_source_files();
+                            workspaces.push(workspace);
                         }
                     }
                 }
             }
         }
         if workspaces.is_empty() {
-            workspaces.extend(self.workspace_roots.iter().cloned().map(Workspace::naked));
+            workspaces.extend(self.workspace_roots.iter().cloned().map(|root| {
+                let mut workspace = Workspace::naked(root);
+                workspace.refresh_source_files();
+                workspace
+            }));
         }
 
         info!(
@@ -83,6 +94,22 @@ impl Config {
 
     pub(crate) fn add_workspaces(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
         self.workspace_roots.extend(paths);
+    }
+
+    pub(crate) fn add_source_file(&mut self, path: PathBuf) {
+        if self.workspaces.is_empty() {
+            return;
+        }
+        let idx = workspace_idx_for_path(&self.workspaces, &path);
+        self.workspaces[idx].add_source_file(path);
+    }
+
+    pub(crate) fn remove_source_file(&mut self, path: &Path) {
+        if self.workspaces.is_empty() {
+            return;
+        }
+        let idx = workspace_idx_for_path(&self.workspaces, path);
+        self.workspaces[idx].remove_source_file(path);
     }
 }
 

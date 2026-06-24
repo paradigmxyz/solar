@@ -30,6 +30,7 @@ use crate::{
     config::{Config, negotiate_capabilities},
     proto,
     vfs::Vfs,
+    workspace::workspace_idx_for_path,
 };
 
 pub(crate) struct GlobalState {
@@ -218,14 +219,12 @@ impl GlobalStateSnapshot {
         }
 
         for (workspace, batch) in workspaces.iter().zip(&mut batches) {
-            for root in workspace.source_roots() {
-                for path in solidity_files(root) {
-                    if batch.seen_paths.contains(&path) {
-                        continue;
-                    }
-                    if let Ok(contents) = source_map.file_loader().load_file(&path) {
-                        batch.push_file(path, contents);
-                    }
+            for path in workspace.source_files() {
+                if batch.seen_paths.contains(path) {
+                    continue;
+                }
+                if let Ok(contents) = source_map.file_loader().load_file(path) {
+                    batch.push_file(path.clone(), contents);
                 }
             }
         }
@@ -351,50 +350,6 @@ fn analyze(batch: AnalysisBatch) -> HashMap<Url, Vec<Diagnostic>> {
                 diagnostics
             })
     })
-}
-
-fn workspace_idx_for_path(workspaces: &[crate::workspace::Workspace], path: &Path) -> usize {
-    workspaces
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, workspace)| {
-            let base_path = workspace.compile_opts().base_path.as_ref()?;
-            path.starts_with(base_path).then_some((idx, base_path.components().count()))
-        })
-        .max_by_key(|&(_, components)| components)
-        .map(|(idx, _)| idx)
-        .unwrap_or(0)
-}
-
-fn solidity_files(root: &Path) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    collect_solidity_files(root, &mut files);
-    files.sort();
-    files
-}
-
-fn collect_solidity_files(path: &Path, files: &mut Vec<PathBuf>) {
-    let Ok(metadata) = std::fs::symlink_metadata(path) else {
-        return;
-    };
-    if metadata.is_file() {
-        if is_solidity_file(path) {
-            files.push(path.to_path_buf());
-        }
-        return;
-    }
-    if metadata.is_dir() {
-        let Ok(entries) = std::fs::read_dir(path) else {
-            return;
-        };
-        for entry in entries.filter_map(Result::ok) {
-            collect_solidity_files(&entry.path(), files);
-        }
-    }
-}
-
-fn is_solidity_file(path: &Path) -> bool {
-    path.extension().is_some_and(|extension| extension == "sol")
 }
 
 #[cfg(test)]
@@ -528,6 +483,65 @@ mod tests {
             vec![(source_path, "contract A { function f() public { number+; } }".into())]
         );
         assert_eq!(batch.opts.base_path.as_deref(), Some(project.path()));
+    }
+
+    #[test]
+    fn analysis_batches_use_cached_workspace_source_files() {
+        let project = TempDir::new().unwrap();
+        let src = project.path().join("src");
+        fs::create_dir_all(&src).unwrap();
+        let cached_path = src.join("Cached.sol");
+        let created_after_discovery = src.join("CreatedAfterDiscovery.sol");
+        fs::write(&cached_path, "contract Cached {}").unwrap();
+        fs::write(
+            project.path().join("solar.toml"),
+            r#"
+                [compiler]
+                source_paths = ["src"]
+            "#,
+        )
+        .unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+                uri: Url::from_file_path(project.path()).unwrap(),
+                name: "test".into(),
+            }]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        fs::write(&created_after_discovery, "contract CreatedAfterDiscovery {}").unwrap();
+
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(Default::default()),
+            config: Arc::new(config.clone()),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
+
+        let mut batches = snapshot.analysis_batches(Vec::new());
+        let batch = batches.pop().unwrap();
+        assert_eq!(batch.files, vec![(cached_path, "contract Cached {}".into())]);
+
+        config.add_source_file(created_after_discovery.clone());
+        let outside_source_root = project.path().join("test/Outside.sol");
+        fs::create_dir_all(outside_source_root.parent().unwrap()).unwrap();
+        fs::write(&outside_source_root, "contract Outside {}").unwrap();
+        config.add_source_file(outside_source_root.clone());
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(Default::default()),
+            config: Arc::new(config),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
+
+        let mut batches = snapshot.analysis_batches(Vec::new());
+        let batch = batches.pop().unwrap();
+        assert!(batch.files.iter().any(|(path, _)| path == &created_after_discovery));
+        assert!(!batch.files.iter().any(|(path, _)| path == &outside_source_root));
     }
 
     #[test]

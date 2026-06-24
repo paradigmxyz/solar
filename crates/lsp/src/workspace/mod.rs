@@ -30,6 +30,7 @@ pub(crate) struct Workspace {
     manifest_path: Option<PathBuf>,
     compile_opts: CompileOpts,
     source_roots: Vec<PathBuf>,
+    source_files: Vec<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,6 +59,7 @@ impl Workspace {
             manifest_path: None,
             compile_opts: CompileOpts { base_path: Some(root), ..Default::default() },
             source_roots,
+            source_files: Vec::new(),
         }
     }
 
@@ -67,6 +69,7 @@ impl Workspace {
             manifest_path: None,
             compile_opts: CompileOpts::default(),
             source_roots: Vec::new(),
+            source_files: Vec::new(),
         }
     }
 
@@ -82,8 +85,41 @@ impl Workspace {
         &self.compile_opts
     }
 
+    #[cfg(test)]
     pub(crate) fn source_roots(&self) -> &[PathBuf] {
         &self.source_roots
+    }
+
+    pub(crate) fn source_files(&self) -> &[PathBuf] {
+        &self.source_files
+    }
+
+    pub(crate) fn refresh_source_files(&mut self) {
+        self.source_files.clear();
+        for root in &self.source_roots {
+            collect_solidity_files(root, &mut self.source_files);
+        }
+        self.source_files.sort();
+        self.source_files.dedup();
+    }
+
+    pub(crate) fn add_source_file(&mut self, path: PathBuf) {
+        if !is_solidity_file(&path) || !self.source_roots.iter().any(|root| path.starts_with(root))
+        {
+            return;
+        }
+        match self.source_files.binary_search(&path) {
+            Ok(_) => {}
+            Err(pos) => self.source_files.insert(pos, path),
+        }
+    }
+
+    pub(crate) fn remove_source_file(&mut self, path: &Path) {
+        if let Ok(pos) =
+            self.source_files.binary_search_by(|candidate| candidate.as_path().cmp(path))
+        {
+            self.source_files.remove(pos);
+        }
     }
 
     fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
@@ -101,6 +137,7 @@ impl Workspace {
             manifest_path: Some(path),
             source_roots: profile.source_roots(&root),
             compile_opts,
+            source_files: Vec::new(),
         })
     }
 
@@ -120,8 +157,46 @@ impl Workspace {
             manifest_path: Some(path),
             source_roots: config.source_roots(&base_path),
             compile_opts,
+            source_files: Vec::new(),
         })
     }
+}
+
+pub(crate) fn workspace_idx_for_path(workspaces: &[Workspace], path: &Path) -> usize {
+    workspaces
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, workspace)| {
+            let base_path = workspace.compile_opts().base_path.as_ref()?;
+            path.starts_with(base_path).then_some((idx, base_path.components().count()))
+        })
+        .max_by_key(|&(_, components)| components)
+        .map(|(idx, _)| idx)
+        .unwrap_or(0)
+}
+
+fn collect_solidity_files(path: &Path, files: &mut Vec<PathBuf>) {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    if metadata.is_file() {
+        if is_solidity_file(path) {
+            files.push(path.to_path_buf());
+        }
+        return;
+    }
+    if metadata.is_dir() {
+        let Ok(entries) = std::fs::read_dir(path) else {
+            return;
+        };
+        for entry in entries.filter_map(Result::ok) {
+            collect_solidity_files(&entry.path(), files);
+        }
+    }
+}
+
+fn is_solidity_file(path: &Path) -> bool {
+    path.extension().is_some_and(|extension| extension == "sol")
 }
 
 #[derive(Debug, thiserror::Error)]

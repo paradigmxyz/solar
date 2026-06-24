@@ -4,6 +4,7 @@ use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    FileChangeType,
 };
 use tracing::{error, info};
 
@@ -101,6 +102,11 @@ pub(crate) fn did_change_watched_files(
                 should_rediscover = true;
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
+                if event.typ == FileChangeType::CREATED {
+                    Arc::make_mut(&mut state.config).add_source_file(path.clone());
+                } else if event.typ == FileChangeType::DELETED {
+                    Arc::make_mut(&mut state.config).remove_source_file(&path);
+                }
                 disk_paths.push(path);
             }
             _ => {}
