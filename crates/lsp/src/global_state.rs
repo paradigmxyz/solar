@@ -108,7 +108,15 @@ impl GlobalState {
     pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
         let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
         self.spawn_with_snapshot(move |mut snapshot| {
+            if !snapshot.is_current(version) {
+                return;
+            }
+
             let batches = snapshot.analysis_batches(disk_paths);
+            if !snapshot.is_current(version) {
+                return;
+            }
+
             let file_uris =
                 batches.iter().flat_map(|batch| batch.file_uris.iter().cloned()).collect();
             let mut diagnostics: HashMap<Url, Vec<Diagnostic>> = HashMap::new();
@@ -118,8 +126,16 @@ impl GlobalState {
                     continue;
                 }
 
+                if !snapshot.is_current(version) {
+                    return;
+                }
+
                 for (uri, mut batch_diagnostics) in analyze(batch) {
                     diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
+                }
+
+                if !snapshot.is_current(version) {
+                    return;
                 }
             }
 
