@@ -27,28 +27,31 @@ impl ProjectManifest {
     }
 
     fn try_discover(path: &Path) -> io::Result<Vec<Self>> {
-        if let Some(path) = find_in_parent_dirs(path, "solar.toml") {
-            return Ok(vec![Self::Solar(path)]);
-        }
-        if let Some(path) = find_in_parent_dirs(path, "foundry.toml") {
-            return Ok(vec![Self::Foundry(path)]);
+        if let Some(manifest) = find_in_parent_dirs(path) {
+            return Ok(vec![manifest]);
         }
 
         find_in_child_dirs(path)
     }
 }
 
-fn find_in_parent_dirs(path: &Path, target_file_name: &str) -> Option<PathBuf> {
-    if path.file_name().unwrap_or_default() == target_file_name {
-        return Some(path.to_path_buf());
+fn find_in_parent_dirs(path: &Path) -> Option<ProjectManifest> {
+    match path.file_name().and_then(|name| name.to_str()) {
+        Some("solar.toml") => return Some(ProjectManifest::Solar(path.to_path_buf())),
+        Some("foundry.toml") => return Some(ProjectManifest::Foundry(path.to_path_buf())),
+        _ => {}
     }
 
     let mut curr = Some(path);
 
     while let Some(path) = curr {
-        let candidate = path.join(target_file_name);
-        if std::fs::metadata(&candidate).is_ok() {
-            return Some(candidate);
+        let solar = path.join("solar.toml");
+        if std::fs::metadata(&solar).is_ok() {
+            return Some(ProjectManifest::Solar(solar));
+        }
+        let foundry = path.join("foundry.toml");
+        if std::fs::metadata(&foundry).is_ok() {
+            return Some(ProjectManifest::Foundry(foundry));
         }
 
         curr = path.parent();
@@ -93,6 +96,20 @@ mod tests {
         assert_eq!(
             ProjectManifest::discover(root.path()),
             vec![ProjectManifest::Solar(child.join("solar.toml"))],
+        );
+    }
+
+    #[test]
+    fn parent_discovery_prefers_nearest_manifest_before_manifest_kind() {
+        let root = TempDir::new().unwrap();
+        let child = root.path().join("child");
+        fs::create_dir(&child).unwrap();
+        fs::write(root.path().join("solar.toml"), "").unwrap();
+        fs::write(child.join("foundry.toml"), "").unwrap();
+
+        assert_eq!(
+            ProjectManifest::discover(&child),
+            vec![ProjectManifest::Foundry(child.join("foundry.toml"))],
         );
     }
 }
