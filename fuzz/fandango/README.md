@@ -82,6 +82,8 @@ Keep these lanes separate:
 
 Fandango mismatches are correctness failures for the fuzz job. Gas or bytecode
 size differences should be reported by benchmark jobs, not by the fuzz runner.
+The benchmark workflow runs the same ABI-vector replay as a small deterministic
+smoke test inside the existing codegen runtime job.
 
 Fandango can also write one generated input per file:
 
