@@ -266,6 +266,7 @@ impl GlobalStateSnapshot {
         uris.extend(diagnostics.keys().cloned());
 
         let mut published_diagnostic_uris = self.published_diagnostic_uris.write();
+        uris.extend(published_diagnostic_uris.iter().cloned());
         for uri in uris {
             let uri_diagnostics = diagnostics.remove(&uri).unwrap_or_default();
             if !uri_diagnostics.is_empty() {
@@ -426,12 +427,12 @@ mod tests {
     }
 
     #[test]
-    fn publish_diagnostic_set_retains_unrelated_diagnostics() {
+    fn publish_diagnostic_set_clears_stale_diagnostics() {
         let clean_uri = Url::parse("file:///workspace/src/Clean.sol").unwrap();
         let diagnostic_uri = Url::parse("file:///workspace/src/Error.sol").unwrap();
-        let previous_uri = Url::parse("file:///workspace/src/Previous.sol").unwrap();
+        let stale_uri = Url::parse("file:///workspace/src/Stale.sol").unwrap();
         let published_diagnostic_uris =
-            Arc::new(RwLock::new(HashSet::from([clean_uri.clone(), previous_uri.clone()])));
+            Arc::new(RwLock::new(HashSet::from([clean_uri.clone(), stale_uri.clone()])));
         let mut snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
@@ -455,7 +456,7 @@ mod tests {
         let published = published_diagnostic_uris.read();
         assert!(!published.contains(&clean_uri));
         assert!(published.contains(&diagnostic_uri));
-        assert!(published.contains(&previous_uri));
+        assert!(!published.contains(&stale_uri));
     }
 
     #[test]
