@@ -77,6 +77,11 @@ Gas is intentionally not compared: the two code generators legitimately differ.
 - Both runtimes are installed with `anvil_setCode`, so no constructor runs. The
   fixture must not depend on constructor logic, `immutable`s, or preset storage;
   an added immutable would read as zero on both sides and hide a real divergence.
+- Keep the fixture independent of block/environment opcodes such as
+  `block.number`, `block.timestamp`, `block.basefee`, and `tx.gasprice`.
+  Transactions are replayed sequentially against two different runtime
+  addresses, so environment-sensitive behavior can differ for reasons unrelated
+  to codegen.
 - Only the committed `corpus.jsonl` is fully deterministic. The seeded Fandango
   lane is bounded sampling, reproducible only for a fixed Fandango/Python version
   and `PYTHONHASHSEED`. Treat it as a source of new cases to *promote into the

@@ -78,11 +78,16 @@ def main() -> int:
 
         # Always exercise `eth_call` so the exact return/revert bytes are
         # compared, including for the panic/revert vectors.
+        call_envelope = {"from": args.sender, "gas": TX_GAS} if mode == "tx" else None
         solc_result: dict[str, Any] = {
-            "call": _eth_call(args.rpc_url, SOLC_ADDRESS, calldata, args.timeout)
+            "call": _eth_call(
+                args.rpc_url, SOLC_ADDRESS, calldata, args.timeout, call_envelope
+            )
         }
         solar_result: dict[str, Any] = {
-            "call": _eth_call(args.rpc_url, SOLAR_ADDRESS, calldata, args.timeout)
+            "call": _eth_call(
+                args.rpc_url, SOLAR_ADDRESS, calldata, args.timeout, call_envelope
+            )
         }
 
         if mode == "tx":
@@ -212,7 +217,7 @@ def _rpc(url: str, method: str, params: list[Any], timeout: float) -> dict[str, 
         with urllib.request.urlopen(request, timeout=timeout) as response:
             return json.loads(response.read().decode())
     except (urllib.error.URLError, TimeoutError) as err:
-        return {"error": {"transport": str(err)}}
+        raise RuntimeError(f"JSON-RPC transport error for {method}: {err}") from err
 
 
 def _set_code(url: str, address: str, runtime: str, timeout: float) -> None:
@@ -221,8 +226,17 @@ def _set_code(url: str, address: str, runtime: str, timeout: float) -> None:
         raise RuntimeError(f"anvil_setCode for {address} failed: {response['error']}")
 
 
-def _eth_call(url: str, address: str, calldata: str, timeout: float) -> dict[str, Any]:
-    response = _rpc(url, "eth_call", [{"to": address, "data": calldata}, "latest"], timeout)
+def _eth_call(
+    url: str,
+    address: str,
+    calldata: str,
+    timeout: float,
+    envelope: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    tx = {"to": address, "data": calldata}
+    if envelope is not None:
+        tx.update(envelope)
+    response = _rpc(url, "eth_call", [tx, "latest"], timeout)
     if "result" in response:
         return {"status": "ok", "data": _normalize_hex(response["result"])}
     return {"status": "revert", "data": _revert_data(response.get("error"))}
@@ -256,10 +270,13 @@ def _send_tx(
 
 
 def _storage_root(url: str, address: str, timeout: float) -> str | None:
-    proof = _rpc(url, "eth_getProof", [address, [], "latest"], timeout).get("result")
+    response = _rpc(url, "eth_getProof", [address, [], "latest"], timeout)
+    if "error" in response:
+        raise RuntimeError(f"eth_getProof for {address} failed: {response['error']}")
+    proof = response.get("result")
     if isinstance(proof, dict) and isinstance(proof.get("storageHash"), str):
         return proof["storageHash"].lower()
-    return None
+    raise RuntimeError(f"eth_getProof for {address} did not return storageHash")
 
 
 def _wait_for_receipt(url: str, tx_hash: str, timeout: float) -> dict[str, Any] | None:

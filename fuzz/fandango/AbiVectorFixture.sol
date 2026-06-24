@@ -4,7 +4,9 @@ pragma solidity ^0.8.0;
 // The runtime differential suite installs this contract with `anvil_setCode`, so
 // no constructor runs. Do not add constructor logic, `immutable`s, or state that
 // must be initialized at deploy time: it would read as zero on both runtimes and
-// hide real divergence. Storage starts empty and is mutated through the tx paths.
+// hide real divergence. Also avoid block/environment opcodes: the suite replays
+// transactions sequentially against two addresses, so those values are outside
+// this fixture's oracle. Storage starts empty and is mutated through the tx paths.
 contract AbiVectorFixture {
     mapping(uint256 => uint256) private values;
     bytes private blob;
