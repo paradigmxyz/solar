@@ -74,13 +74,13 @@ pub(crate) fn did_close_text_document(
 }
 
 pub(crate) fn did_change_configuration(
-    _: &mut GlobalState,
+    state: &mut GlobalState,
     _: DidChangeConfigurationParams,
 ) -> NotifyResult {
     // As stated in https://github.com/microsoft/language-server-protocol/issues/676,
     // this notification's parameters should be ignored and the actual config queried separately.
-    //
-    // For now this is just a stub.
+    Arc::make_mut(&mut state.config).rediscover_workspaces();
+    state.recompute();
     ControlFlow::Continue(())
 }
 
@@ -97,7 +97,7 @@ pub(crate) fn did_change_watched_files(
         };
 
         match path.file_name().and_then(|name| name.to_str()) {
-            Some("foundry.toml") => {
+            Some("foundry.toml" | "solar.toml") => {
                 Arc::make_mut(&mut state.config).rediscover_workspaces();
                 should_recompute = true;
             }
@@ -120,19 +120,22 @@ pub(crate) fn did_change_workspace_folders(
     state: &mut GlobalState,
     params: DidChangeWorkspaceFoldersParams,
 ) -> NotifyResult {
-    let config = Arc::make_mut(&mut state.config);
+    {
+        let config = Arc::make_mut(&mut state.config);
 
-    for workspace in params.event.removed {
-        let Ok(path) = workspace.uri.to_file_path() else {
-            continue;
-        };
-        config.remove_workspace(&path);
+        for workspace in params.event.removed {
+            let Ok(path) = workspace.uri.to_file_path() else {
+                continue;
+            };
+            config.remove_workspace(&path);
+        }
+
+        let added = params.event.added.into_iter().filter_map(|it| it.uri.to_file_path().ok());
+        config.add_workspaces(added);
+
+        config.rediscover_workspaces();
     }
-
-    let added = params.event.added.into_iter().filter_map(|it| it.uri.to_file_path().ok());
-    config.add_workspaces(added);
-
-    // todo: rediscover workspaces & refetch configs
+    state.recompute();
 
     ControlFlow::Continue(())
 }

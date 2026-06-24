@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::ControlFlow,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -15,7 +15,7 @@ use lsp_types::{
     PublishDiagnosticsParams, Registration, RegistrationParams, ServerInfo, Url, WatchKind,
     notification::{DidChangeWatchedFiles, Notification},
 };
-use solar_config::version::SHORT_VERSION;
+use solar_config::{CompileOpts, version::SHORT_VERSION};
 use solar_interface::{
     Session,
     data_structures::sync::RwLock,
@@ -107,57 +107,24 @@ impl GlobalState {
     pub(crate) fn recompute_with_disk_files(&mut self, disk_paths: Vec<PathBuf>) {
         let version = self.analysis_version.fetch_add(1, Ordering::AcqRel) + 1;
         self.spawn_with_snapshot(move |mut snapshot| {
-            let (files, file_uris) = snapshot.analysis_inputs(disk_paths);
-            if files.is_empty() {
-                if snapshot.is_current(version) {
-                    snapshot.publish_diagnostic_set(file_uris, HashMap::new());
+            let batches = snapshot.analysis_batches(disk_paths);
+            let file_uris =
+                batches.iter().flat_map(|batch| batch.file_uris.iter().cloned()).collect();
+            let mut diagnostics: HashMap<Url, Vec<Diagnostic>> = HashMap::new();
+
+            for batch in batches {
+                if batch.files.is_empty() {
+                    continue;
                 }
-                return;
+
+                for (uri, mut batch_diagnostics) in analyze(batch) {
+                    diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
+                }
             }
 
-            // todo: if this errors, we should notify the user
-            // todo: set base path to project root
-            // todo: remappings
-            let (emitter, diag_buffer) = InMemoryEmitter::new();
-            let sess = Session::builder().dcx(DiagCtxt::new(Box::new(emitter))).build();
-
-            let mut compiler = Compiler::new(sess);
-            let _ = compiler.enter_mut(move |compiler| -> solar_interface::Result<_> {
-                // Parse the files.
-                let mut parsing_context = compiler.parse();
-                // todo: unwraps
-                parsing_context.add_files(files.into_iter().map(|(path, contents)| {
-                    compiler
-                        .sess()
-                        .source_map()
-                        .new_source_file(FileName::real(path), contents)
-                        .unwrap()
-                }));
-
-                parsing_context.parse();
-
-                // Perform lowering and analysis.
-                // We should never encounter `ControlFlow::Break` because we do not stop after
-                // parsing, so we ignore the return.
-                // todo: handle errors (currently this always errors?)
-                let _ = compiler.lower_asts();
-                let _ = compiler.analysis();
-
-                // todo clean this mess up boya
-                let diagnostics: HashMap<_, Vec<_>> = diag_buffer
-                    .read()
-                    .iter()
-                    .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
-                    .fold(HashMap::new(), |mut diags, (path, diag)| {
-                        diags.entry(path).or_default().push(diag);
-                        diags
-                    });
-                if snapshot.is_current(version) {
-                    snapshot.publish_diagnostic_set(file_uris, diagnostics);
-                }
-
-                Ok(())
-            });
+            if snapshot.is_current(version) {
+                snapshot.publish_diagnostic_set(file_uris, diagnostics);
+            }
         });
     }
 
@@ -165,6 +132,7 @@ impl GlobalState {
         GlobalStateSnapshot {
             client: self.client.clone(),
             vfs: self.vfs.clone(),
+            config: self.config.clone(),
             analysis_version: self.analysis_version.clone(),
             published_diagnostic_uris: self.published_diagnostic_uris.clone(),
         }
@@ -184,6 +152,7 @@ fn watched_file_registration_params() -> RegistrationParams {
     let options = DidChangeWatchedFilesRegistrationOptions {
         watchers: vec![
             FileSystemWatcher { glob_pattern: GlobPattern::String("**/*.sol".into()), kind },
+            FileSystemWatcher { glob_pattern: GlobPattern::String("**/solar.toml".into()), kind },
             FileSystemWatcher { glob_pattern: GlobPattern::String("**/foundry.toml".into()), kind },
         ],
     };
@@ -200,6 +169,7 @@ fn watched_file_registration_params() -> RegistrationParams {
 pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
+    config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
     published_diagnostic_uris: Arc<RwLock<HashSet<Url>>>,
 }
@@ -209,8 +179,8 @@ impl GlobalStateSnapshot {
         self.analysis_version.load(Ordering::Acquire) == version
     }
 
-    fn analysis_inputs(&self, disk_paths: Vec<PathBuf>) -> (Vec<(PathBuf, String)>, Vec<Url>) {
-        let mut files = self
+    fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
+        let vfs_files = self
             .vfs
             .read()
             .iter()
@@ -218,26 +188,73 @@ impl GlobalStateSnapshot {
                 Some((path.as_path()?.to_path_buf(), contents.to_string()))
             })
             .collect::<Vec<_>>();
-        let mut file_uris =
-            files.iter().filter_map(|(path, _)| Url::from_file_path(path).ok()).collect::<Vec<_>>();
-        let mut seen_paths = files.iter().map(|(path, _)| path.clone()).collect::<HashSet<_>>();
+        let workspaces = self.analysis_workspaces();
+        let mut batches = workspaces
+            .iter()
+            .map(|workspace| AnalysisBatch {
+                opts: workspace.compile_opts().clone(),
+                files: Vec::new(),
+                file_uris: Vec::new(),
+                seen_paths: HashSet::new(),
+            })
+            .collect::<Vec<_>>();
         let source_map = SourceMap::empty();
 
-        for path in disk_paths {
-            if let Ok(uri) = Url::from_file_path(&path) {
-                file_uris.push(uri);
-            }
+        for (path, contents) in vfs_files {
+            let idx = workspace_idx_for_path(&workspaces, &path);
+            batches[idx].push_file(path, contents);
+        }
 
-            if !seen_paths.insert(path.clone()) {
+        for path in disk_paths {
+            let idx = workspace_idx_for_path(&workspaces, &path);
+            batches[idx].push_uri(&path);
+            if batches[idx].seen_paths.contains(&path) {
                 continue;
             }
 
             if let Ok(contents) = source_map.file_loader().load_file(&path) {
-                files.push((path, contents));
+                batches[idx].push_file(path, contents);
             }
         }
 
-        (files, file_uris)
+        for (workspace, batch) in workspaces.iter().zip(&mut batches) {
+            for root in workspace.source_roots() {
+                for path in solidity_files(root) {
+                    if batch.seen_paths.contains(&path) {
+                        continue;
+                    }
+                    if let Ok(contents) = source_map.file_loader().load_file(&path) {
+                        batch.push_file(path, contents);
+                    }
+                }
+            }
+        }
+
+        for batch in &mut batches {
+            batch.finish();
+        }
+        batches
+    }
+
+    fn analysis_workspaces(&self) -> Vec<crate::workspace::Workspace> {
+        let workspaces = self.config.workspaces();
+        if !workspaces.is_empty() {
+            return workspaces.to_vec();
+        }
+
+        vec![crate::workspace::Workspace::unconfigured()]
+    }
+
+    #[cfg(test)]
+    fn analysis_inputs(&self, disk_paths: Vec<PathBuf>) -> (Vec<(PathBuf, String)>, Vec<Url>) {
+        let mut batches = self.analysis_batches(disk_paths);
+        let mut files = Vec::new();
+        let mut uris = Vec::new();
+        for batch in &mut batches {
+            files.append(&mut batch.files);
+            uris.append(&mut batch.file_uris);
+        }
+        (files, uris)
     }
 
     fn publish_diagnostic_set(
@@ -265,12 +282,165 @@ impl GlobalStateSnapshot {
     }
 }
 
+struct AnalysisBatch {
+    opts: CompileOpts,
+    files: Vec<(PathBuf, String)>,
+    file_uris: Vec<Url>,
+    seen_paths: HashSet<PathBuf>,
+}
+
+impl AnalysisBatch {
+    fn push_file(&mut self, path: PathBuf, contents: String) {
+        self.push_uri(&path);
+        if self.seen_paths.insert(path.clone()) {
+            self.files.push((path, contents));
+        }
+    }
+
+    fn push_uri(&mut self, path: &Path) {
+        if let Ok(uri) = Url::from_file_path(path) {
+            self.file_uris.push(uri);
+        }
+    }
+
+    fn finish(&mut self) {
+        self.files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
+        self.file_uris.sort();
+        self.file_uris.dedup();
+    }
+}
+
+fn analyze(batch: AnalysisBatch) -> HashMap<Url, Vec<Diagnostic>> {
+    let (emitter, diag_buffer) = InMemoryEmitter::new();
+    let sess = Session::builder().opts(batch.opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
+
+    let mut compiler = Compiler::new(sess);
+    let _ = compiler.enter_mut(move |compiler| -> solar_interface::Result<_> {
+        let mut parsing_context = compiler.parse();
+        let files = batch
+            .files
+            .into_iter()
+            .map(|(path, contents)| {
+                parsing_context
+                    .sess
+                    .source_map()
+                    .new_source_file(FileName::real(path), contents)
+                    .map_err(|error| {
+                        parsing_context.dcx().err(format!("failed to load source: {error}")).emit()
+                    })
+            })
+            .collect::<solar_interface::Result<Vec<_>>>()?;
+        parsing_context.add_files(files);
+        parsing_context.parse();
+
+        compiler.sources_mut().topo_sort();
+        let _ = compiler.lower_asts();
+        let _ = compiler.analysis();
+
+        Ok(())
+    });
+
+    compiler.enter(|compiler| {
+        diag_buffer
+            .read()
+            .iter()
+            .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
+            .fold(HashMap::<Url, Vec<Diagnostic>>::new(), |mut diagnostics, (uri, diag)| {
+                diagnostics.entry(uri).or_default().push(diag);
+                diagnostics
+            })
+    })
+}
+
+fn workspace_idx_for_path(workspaces: &[crate::workspace::Workspace], path: &Path) -> usize {
+    workspaces
+        .iter()
+        .enumerate()
+        .filter_map(|(idx, workspace)| {
+            let base_path = workspace.compile_opts().base_path.as_ref()?;
+            path.starts_with(base_path).then_some((idx, base_path.components().count()))
+        })
+        .max_by_key(|&(_, components)| components)
+        .map(|(idx, _)| idx)
+        .unwrap_or(0)
+}
+
+fn solidity_files(root: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    collect_solidity_files(root, &mut files);
+    files.sort();
+    files
+}
+
+fn collect_solidity_files(path: &Path, files: &mut Vec<PathBuf>) {
+    let Ok(metadata) = std::fs::symlink_metadata(path) else {
+        return;
+    };
+    if metadata.is_file() {
+        if path.extension().is_some_and(|extension| extension == "sol") {
+            files.push(path.to_path_buf());
+        }
+        return;
+    }
+    if !metadata.is_dir() {
+        return;
+    }
+
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return;
+    };
+    for entry in entries.filter_map(Result::ok) {
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_file() {
+            if path.extension().is_some_and(|extension| extension == "sol") {
+                files.push(path);
+            }
+        } else if file_type.is_dir() {
+            collect_solidity_files(&path, files);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
     use async_lsp::ClientSocket;
+    use crop::Rope;
     use lsp_types::{Diagnostic, Position, Range, WatchKind, notification::Notification};
 
     use super::*;
+
+    struct TempProject {
+        root: PathBuf,
+    }
+
+    impl TempProject {
+        fn new(name: &str) -> Self {
+            let nanos = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+            let root = std::env::temp_dir()
+                .join(format!("solar-lsp-global-{name}-{}-{nanos}", std::process::id()));
+            fs::create_dir_all(&root).unwrap();
+            Self { root }
+        }
+
+        fn root(&self) -> &Path {
+            &self.root
+        }
+    }
+
+    impl Drop for TempProject {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.root);
+        }
+    }
 
     #[test]
     fn watched_file_registration_watches_solidity_and_foundry_manifests() {
@@ -283,6 +453,7 @@ mod tests {
             Some(serde_json::json!({
                 "watchers": [
                     { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
+                    { "globPattern": "**/solar.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                     { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                 ],
             }))
@@ -299,6 +470,7 @@ mod tests {
         let mut snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
+            config: Arc::new(Config::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             published_diagnostic_uris: published_diagnostic_uris.clone(),
         };
@@ -330,6 +502,7 @@ mod tests {
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
+            config: Arc::new(Config::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
@@ -342,6 +515,100 @@ mod tests {
     }
 
     #[test]
+    fn analysis_batches_scan_workspace_source_roots_and_apply_vfs_overlay() {
+        let project = TempProject::new("analysis-batches");
+        let src = project.root().join("src");
+        fs::create_dir_all(&src).unwrap();
+        let source_path = src.join("A.sol");
+        fs::write(&source_path, "contract A {}").unwrap();
+        fs::write(src.join("ignored.txt"), "not solidity").unwrap();
+        fs::write(
+            project.root().join("solar.toml"),
+            r#"
+                [compiler]
+                source_paths = ["src"]
+            "#,
+        )
+        .unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+                uri: Url::from_file_path(project.root()).unwrap(),
+                name: "test".into(),
+            }]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+
+        let mut vfs = Vfs::default();
+        vfs.set_file_contents(
+            crate::vfs::VfsPath::from(source_path.clone()),
+            Some(Rope::from("contract A { function f() public { number+; } }")),
+        );
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(RwLock::new(vfs)),
+            config: Arc::new(config),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
+
+        let mut batches = snapshot.analysis_batches(Vec::new());
+        assert_eq!(batches.len(), 1);
+        let batch = batches.pop().unwrap();
+
+        assert_eq!(
+            batch.files,
+            vec![(source_path, "contract A { function f() public { number+; } }".into())]
+        );
+        assert_eq!(batch.opts.base_path.as_deref(), Some(project.root()));
+    }
+
+    #[test]
+    fn analysis_uses_workspace_remappings_for_import_resolution() {
+        let project = TempProject::new("analysis-remappings");
+        let src = project.root().join("src");
+        let lib = project.root().join("lib");
+        fs::create_dir_all(&src).unwrap();
+        fs::create_dir_all(&lib).unwrap();
+        fs::write(src.join("A.sol"), r#"import "@lib/B.sol"; contract A is B {}"#).unwrap();
+        fs::write(lib.join("B.sol"), "contract B {}").unwrap();
+        fs::write(
+            project.root().join("solar.toml"),
+            r#"
+                [compiler]
+                source_paths = ["src"]
+                remappings = ["@lib=lib/"]
+            "#,
+        )
+        .unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+                uri: Url::from_file_path(project.root()).unwrap(),
+                name: "test".into(),
+            }]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(Default::default()),
+            config: Arc::new(config),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
+
+        let mut batches = snapshot.analysis_batches(Vec::new());
+        assert_eq!(batches.len(), 1);
+        let diagnostics = analyze(batches.pop().unwrap());
+
+        assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+    }
+
+    #[test]
     fn analysis_inputs_keeps_unreadable_disk_uri() {
         let path = std::env::temp_dir()
             .join(format!("solar-lsp-analysis-inputs-{}-Missing.sol", std::process::id()));
@@ -349,6 +616,7 @@ mod tests {
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
+            config: Arc::new(Config::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             published_diagnostic_uris: Arc::new(Default::default()),
         };

@@ -1,62 +1,14 @@
 //! Serde serializers and deserializers.
 
 pub(crate) mod display_fromstr {
-    use std::{fmt::Display, str::FromStr};
-
-    use serde::{Deserialize, Deserializer, Serializer, de};
-
-    #[expect(dead_code, reason = "Foundry config deserialization is not wired into LSP config yet")]
-    pub(crate) fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        T: Display,
-        S: Serializer,
-    {
-        serializer.collect_str(value)
-    }
-
-    #[allow(dead_code, reason = "Foundry config deserialization is not wired into LSP config yet")]
-    pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-    where
-        T: FromStr,
-        T::Err: Display,
-        D: Deserializer<'de>,
-    {
-        String::deserialize(deserializer)?.parse().map_err(de::Error::custom)
-    }
-
     pub(crate) mod vec {
-        use std::{
-            fmt::{self, Display},
-            marker::PhantomData,
-            str::FromStr,
-        };
+        use std::{fmt, marker::PhantomData, str::FromStr};
 
         use serde::{
-            Deserializer, Serializer,
-            de::{SeqAccess, Visitor},
-            ser::SerializeSeq,
+            Deserializer,
+            de::{self, SeqAccess, Visitor},
         };
 
-        #[expect(
-            dead_code,
-            reason = "Foundry config deserialization is not wired into LSP config yet"
-        )]
-        pub(crate) fn serialize<T, S>(value: &[T], serializer: S) -> Result<S::Ok, S::Error>
-        where
-            T: Display,
-            S: Serializer,
-        {
-            let mut seq = serializer.serialize_seq(Some(value.len()))?;
-            for val in value {
-                seq.serialize_element(&val.to_string())?;
-            }
-            seq.end()
-        }
-
-        #[allow(
-            dead_code,
-            reason = "Foundry config deserialization is not wired into LSP config yet"
-        )]
         pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<Vec<T>, D::Error>
         where
             T: FromStr,
@@ -83,8 +35,8 @@ pub(crate) mod display_fromstr {
                     A: SeqAccess<'de>,
                 {
                     let mut values = Vec::<T>::with_capacity(seq.size_hint().unwrap_or(0));
-                    while let Some(value) = seq.next_element::<&str>()? {
-                        values.push(T::from_str(value).map_err(serde::de::Error::custom)?);
+                    while let Some(value) = seq.next_element::<String>()? {
+                        values.push(T::from_str(&value).map_err(de::Error::custom)?);
                     }
                     Ok(values)
                 }

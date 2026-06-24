@@ -34,6 +34,8 @@ lsp-types.workspace = true
 normalize-path.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
+toml_edit = { workspace = true, features = ["serde"] }
 tower.workspace = true
 tokio = { workspace = true, features = ["rt"] }
 tracing.workspace = true
