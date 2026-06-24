@@ -234,8 +234,10 @@ impl GlobalStateSnapshot {
             }
         }
 
-        for (workspace, batch) in workspaces.iter().zip(&mut batches) {
+        for workspace in workspaces.iter() {
             for path in workspace.source_files() {
+                let idx = workspace_path_index.workspace_idx_for_path(path);
+                let batch = &mut batches[idx];
                 if batch.seen_paths.contains(path) {
                     continue;
                 }
@@ -539,6 +541,51 @@ mod tests {
         let batch = batches.pop().unwrap();
         assert!(batch.files.iter().any(|(path, _)| path == &created_after_discovery));
         assert!(!batch.files.iter().any(|(path, _)| path == &outside_source_root));
+    }
+
+    #[test]
+    fn analysis_batches_assign_cached_source_files_to_most_specific_workspace() {
+        let project = TempDir::new().unwrap();
+        let nested = project.path().join("nested");
+        fs::create_dir(&nested).unwrap();
+        let source_path = nested.join("A.sol");
+        fs::write(&source_path, "contract A {}").unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![
+                lsp_types::WorkspaceFolder {
+                    uri: Url::from_file_path(project.path()).unwrap(),
+                    name: "outer".into(),
+                },
+                lsp_types::WorkspaceFolder {
+                    uri: Url::from_file_path(&nested).unwrap(),
+                    name: "inner".into(),
+                },
+            ]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(Default::default()),
+            config: Arc::new(config),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
+
+        let batches = snapshot.analysis_batches(Vec::new());
+        let outer_batch = batches
+            .iter()
+            .find(|batch| batch.opts.base_path.as_deref() == Some(project.path()))
+            .unwrap();
+        let inner_batch = batches
+            .iter()
+            .find(|batch| batch.opts.base_path.as_deref() == Some(nested.as_path()))
+            .unwrap();
+
+        assert!(!outer_batch.files.iter().any(|(path, _)| path == &source_path));
+        assert_eq!(inner_batch.files, vec![(source_path, "contract A {}".into())]);
     }
 
     #[test]
