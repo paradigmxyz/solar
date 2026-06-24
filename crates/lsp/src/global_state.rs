@@ -31,7 +31,7 @@ use crate::{
     config::{Config, negotiate_capabilities},
     proto,
     vfs::Vfs,
-    workspace::workspace_idx_for_path,
+    workspace::WorkspacePathIndex,
 };
 
 pub(crate) struct GlobalState {
@@ -205,6 +205,7 @@ impl GlobalStateSnapshot {
             })
             .collect::<Vec<_>>();
         let workspaces = self.analysis_workspaces();
+        let workspace_path_index = WorkspacePathIndex::new(&workspaces);
         let mut batches = workspaces
             .iter()
             .map(|workspace| AnalysisBatch {
@@ -216,12 +217,12 @@ impl GlobalStateSnapshot {
         let source_map = SourceMap::empty();
 
         for (path, contents) in vfs_files {
-            let idx = workspace_idx_for_path(&workspaces, &path);
+            let idx = workspace_path_index.workspace_idx_for_path(&path);
             batches[idx].push_file(path, contents);
         }
 
         for path in disk_paths {
-            let idx = workspace_idx_for_path(&workspaces, &path);
+            let idx = workspace_path_index.workspace_idx_for_path(&path);
             if batches[idx].seen_paths.contains(&path) {
                 continue;
             }

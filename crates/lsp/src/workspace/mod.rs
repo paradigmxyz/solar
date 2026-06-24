@@ -163,17 +163,45 @@ impl Workspace {
     }
 }
 
+pub(crate) struct WorkspacePathIndex<'a> {
+    entries: Vec<WorkspacePathIndexEntry<'a>>,
+}
+
+struct WorkspacePathIndexEntry<'a> {
+    idx: usize,
+    base_path: &'a Path,
+    depth: usize,
+}
+
+impl<'a> WorkspacePathIndex<'a> {
+    pub(crate) fn new(workspaces: &'a [Workspace]) -> Self {
+        let mut entries = workspaces
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, workspace)| {
+                let base_path = workspace.compile_opts().base_path.as_deref()?;
+                Some(WorkspacePathIndexEntry {
+                    idx,
+                    base_path,
+                    depth: base_path.components().count(),
+                })
+            })
+            .collect::<Vec<_>>();
+        entries.sort_by(|lhs, rhs| rhs.depth.cmp(&lhs.depth).then_with(|| rhs.idx.cmp(&lhs.idx)));
+        Self { entries }
+    }
+
+    pub(crate) fn workspace_idx_for_path(&self, path: &Path) -> usize {
+        self.entries
+            .iter()
+            .find(|entry| path.starts_with(entry.base_path))
+            .map(|entry| entry.idx)
+            .unwrap_or(0)
+    }
+}
+
 pub(crate) fn workspace_idx_for_path(workspaces: &[Workspace], path: &Path) -> usize {
-    workspaces
-        .iter()
-        .enumerate()
-        .filter_map(|(idx, workspace)| {
-            let base_path = workspace.compile_opts().base_path.as_ref()?;
-            path.starts_with(base_path).then_some((idx, base_path.components().count()))
-        })
-        .max_by_key(|&(_, components)| components)
-        .map(|(idx, _)| idx)
-        .unwrap_or(0)
+    WorkspacePathIndex::new(workspaces).workspace_idx_for_path(path)
 }
 
 fn collect_solidity_files(
@@ -345,6 +373,20 @@ mod tests {
             workspace.source_roots(),
             &[project.path().join("src"), project.path().join("contracts")]
         );
+    }
+
+    #[test]
+    fn workspace_path_index_uses_most_specific_base_path() {
+        let project = TempDir::new().unwrap();
+        let nested = project.path().join("nested");
+
+        let outer = Workspace::naked(project.path().to_path_buf());
+        let inner = Workspace::naked(nested.clone());
+        let workspaces = vec![outer, inner];
+        let index = WorkspacePathIndex::new(&workspaces);
+
+        assert_eq!(index.workspace_idx_for_path(&nested.join("A.sol")), 1);
+        assert_eq!(index.workspace_idx_for_path(&project.path().join("B.sol")), 0);
     }
 
     #[test]
