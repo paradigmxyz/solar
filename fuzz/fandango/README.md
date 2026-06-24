@@ -33,6 +33,23 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
   | python3 fuzz/fandango/encode_abi_vectors.py --seed 1
 ```
 
+Run those vectors against solc and this compiler on a local anvil:
+
+```bash
+anvil
+
+PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
+  -f fuzz/fandango/abi-values.fan \
+  --random-seed 1 \
+  -n 8 \
+  --separator $'\n' \
+  --progress-bar off \
+  | python3 fuzz/fandango/encode_abi_vectors.py --seed 1 \
+  | python3 fuzz/fandango/run_abi_vectors.py
+```
+
+Mismatches are saved under `fuzz/fandango/out/failures/`.
+
 Fandango can also write one generated input per file:
 
 ```bash
