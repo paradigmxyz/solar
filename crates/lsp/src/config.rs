@@ -41,9 +41,7 @@ impl Config {
             info!(?root, ?discovered, "discovered projects");
             if discovered.is_empty() {
                 info!(?root, "no project manifests found");
-                let mut workspace = Workspace::naked(root.clone());
-                workspace.refresh_source_files();
-                workspaces.push(workspace);
+                push_workspace(&mut workspaces, Workspace::naked(root.clone()));
                 continue;
             }
 
@@ -53,27 +51,20 @@ impl Config {
                 }
                 let fallback_root = manifest.root().map(Path::to_path_buf);
                 match Workspace::load_manifest(manifest) {
-                    Ok(mut workspace) => {
-                        workspace.refresh_source_files();
-                        workspaces.push(workspace);
-                    }
+                    Ok(workspace) => push_workspace(&mut workspaces, workspace),
                     Err(error) => {
                         warn!(%error, "failed to load workspace");
                         if let Some(root) = fallback_root {
-                            let mut workspace = Workspace::naked(root);
-                            workspace.refresh_source_files();
-                            workspaces.push(workspace);
+                            push_workspace(&mut workspaces, Workspace::naked(root));
                         }
                     }
                 }
             }
         }
         if workspaces.is_empty() {
-            workspaces.extend(self.workspace_roots.iter().cloned().map(|root| {
-                let mut workspace = Workspace::naked(root);
-                workspace.refresh_source_files();
-                workspace
-            }));
+            for root in &self.workspace_roots {
+                push_workspace(&mut workspaces, Workspace::naked(root.clone()));
+            }
         }
 
         info!(
@@ -111,6 +102,11 @@ impl Config {
         let idx = workspace_idx_for_path(&self.workspaces, path);
         self.workspaces[idx].remove_source_file(path);
     }
+}
+
+fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
+    workspace.refresh_source_files();
+    workspaces.push(workspace);
 }
 
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
