@@ -1,0 +1,13 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack_terminator_branch.evmir (after stack-schedule) ===
+bb0 (entry):
+  %a = push 1
+  %b = push 0
+  swap1
+  %cond = eq !meta(stack=2->1)
+  %junk = push 7
+  swap1
+  br %cond, bb1, bb2
+bb1:
+  stop
+bb2:
+  invalid

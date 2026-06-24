@@ -1,0 +1,1 @@
+error: EVM IR verification failed: block 0: `swap2` reaches depth 2 but the stack has 2

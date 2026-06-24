@@ -45,6 +45,15 @@ pub struct EvmCodegenConfig {
     pub optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     pub mir_print_after_each: bool,
+    /// Run the experimental EVM IR `StackSchedule` pass in the production
+    /// assembler bridge before the existing layout passes.
+    ///
+    /// Off by default: the default bytecode path must stay byte-for-byte
+    /// unchanged. When enabled the bridge runs `EvmIrPass::StackSchedule` on the
+    /// operand-cleared block IR before `ColdLayout`/`TerminalDedup`. On that
+    /// already-stack-scheduled input the pass is a verified near no-op in
+    /// `StructuredAsmProgram::optimize_with_evm_ir`.
+    pub evm_ir_stack_schedule: bool,
 }
 
 impl EvmCodegenConfig {
@@ -55,11 +64,18 @@ impl EvmCodegenConfig {
             evm_version: sess.opts.evm_version,
             optimization: sess.opts.optimization,
             mir_print_after_each: sess.opts.unstable.mir_print_after_each,
+            // Keep the experimental EVM IR stack scheduler off in every default
+            // compilation path so produced bytecode is unchanged.
+            evm_ir_stack_schedule: false,
         }
     }
 
     fn assembler_config(self) -> AssemblerConfig {
-        AssemblerConfig { evm_version: self.evm_version, optimization: self.optimization }
+        AssemblerConfig {
+            evm_version: self.evm_version,
+            optimization: self.optimization,
+            evm_ir_stack_schedule: self.evm_ir_stack_schedule,
+        }
     }
 }
 
@@ -736,6 +752,7 @@ impl EvmCodegen {
             func_labels.push(label);
         }
         let revert_label = self.asm.new_label();
+        self.asm.mark_label_cold(revert_label);
         let has_calldata_label = self.asm.new_label();
         let all_external_entries_reject_value =
             module.functions.iter().any(Self::is_external_entry)
@@ -1009,7 +1026,11 @@ impl EvmCodegen {
         // Create labels for each block
         self.block_labels.clear();
         for block_id in func.blocks.indices() {
-            self.block_labels.insert(block_id, self.asm.new_label());
+            let label = self.asm.new_label();
+            if Self::block_is_cold(func, block_id) {
+                self.asm.mark_label_cold(label);
+            }
+            self.block_labels.insert(block_id, label);
         }
 
         // Generate each block.
@@ -3423,6 +3444,15 @@ mod tests {
 
     /// Helper to compile Solidity source to bytecode, returning Result.
     fn compile_source(source: &str) -> Result<Vec<u8>, String> {
+        compile_source_with_stack_schedule(source, false)
+    }
+
+    /// Compiles Solidity source to runtime bytecode, optionally enabling the
+    /// experimental EVM IR `StackSchedule` bridge pass.
+    fn compile_source_with_stack_schedule(
+        source: &str,
+        evm_ir_stack_schedule: bool,
+    ) -> Result<Vec<u8>, String> {
         let sess = Session::builder().with_buffer_emitter(Default::default()).build();
         let mut compiler = Compiler::new(sess);
 
@@ -3455,7 +3485,9 @@ mod tests {
             for (contract_id, contract) in gcx.hir.contracts_enumerated() {
                 if contract.name.name == sym::Test {
                     let mut module = lower::lower_contract(gcx, contract_id);
-                    let mut codegen = EvmCodegen::new(gcx);
+                    let config =
+                        EvmCodegenConfig { evm_ir_stack_schedule, ..EvmCodegenConfig::from(gcx) };
+                    let mut codegen = EvmCodegen::new(config);
                     let bytecode = codegen.generate_module(&mut module);
                     return Ok(bytecode);
                 }
@@ -3559,6 +3591,71 @@ mod tests {
         assert!(result.is_ok(), "Compilation failed: {:?}", result.err());
         let bytecode = result.unwrap();
         assert!(!bytecode.is_empty(), "Bytecode should not be empty");
+    }
+
+    /// Differential check for the experimental EVM IR `StackSchedule` bridge
+    /// flag: for each sample contract, compiling with `evm_ir_stack_schedule`
+    /// OFF (the default) and ON must produce byte-for-byte identical runtime
+    /// bytecode. The bridge feeds the scheduler operand-cleared IR, where the
+    /// pass is a verified near no-op, and `optimize_with_evm_ir` additionally
+    /// guards the scheduled module behind the verifier oracle and a code-equality
+    /// check — so turning the flag on can never diverge or produce invalid code.
+    #[test]
+    fn stack_schedule_bridge_flag_is_bytecode_neutral() {
+        let samples = [
+            // Simple storage read + conditional store.
+            r#"
+                // SPDX-License-Identifier: MIT
+                pragma solidity ^0.8.0;
+                contract Test {
+                    uint256 public value;
+                    function test() public {
+                        uint256 v = value;
+                        if (v != 0) value = v - 1;
+                    }
+                }
+            "#,
+            // Phi merge whose result is used after the if/else.
+            r#"
+                // SPDX-License-Identifier: MIT
+                pragma solidity ^0.8.0;
+                contract Test {
+                    uint256 public totalSupply;
+                    function mint() external returns (uint256 liquidity) {
+                        if (totalSupply == 0) {
+                            liquidity = 1;
+                        } else {
+                            liquidity = 2;
+                        }
+                        totalSupply += liquidity;
+                    }
+                }
+            "#,
+            // A small loop with arithmetic, exercising multiple blocks.
+            r#"
+                // SPDX-License-Identifier: MIT
+                pragma solidity ^0.8.0;
+                contract Test {
+                    function sum(uint256 n) public pure returns (uint256 acc) {
+                        for (uint256 i = 0; i < n; i++) {
+                            acc += i;
+                        }
+                    }
+                }
+            "#,
+        ];
+
+        for source in samples {
+            let off = compile_source_with_stack_schedule(source, false);
+            let on = compile_source_with_stack_schedule(source, true);
+            let off = off.expect("baseline compilation should succeed");
+            let on = on.expect("stack-schedule compilation should succeed");
+            assert!(!off.is_empty(), "baseline bytecode should not be empty");
+            assert_eq!(
+                off, on,
+                "enabling evm_ir_stack_schedule changed produced bytecode for sample:\n{source}"
+            );
+        }
     }
 
     #[test]

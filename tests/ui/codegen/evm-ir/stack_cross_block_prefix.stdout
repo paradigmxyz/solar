@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/evm-ir/stack_cross_block_prefix.evmir (after stack-schedule) ===
+bb0 (entry):
+  %keep = push 1
+  %top = push 2
+  jump bb1
+bb1 (in %top):
+  %r = iszero !meta(stack=1->1)
+  stop

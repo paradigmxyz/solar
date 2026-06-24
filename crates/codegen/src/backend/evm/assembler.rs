@@ -24,6 +24,11 @@ pub use inst::{DeferredConst, Label};
 mod local_interner;
 use local_interner::LocalInterner;
 
+mod program;
+pub(in crate::backend::evm) use program::{
+    EvmAsmProgram, StructuredAsmContext, StructuredAsmProgram,
+};
+
 /// A `PUSH32` immutable placeholder emitted into the assembled bytecode.
 ///
 /// TODO: Track placeholder byte width here when smaller immutable references
@@ -55,6 +60,11 @@ pub struct AssemblerConfig {
     pub evm_version: EvmVersion,
     /// Optimization mode for alternate byte encodings.
     pub optimization: OptimizationMode,
+    /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
+    ///
+    /// Off by default. See `StructuredAsmProgram::optimize_with_evm_ir` for why
+    /// the pass is a verified near no-op on the bridge's operand-cleared IR.
+    pub evm_ir_stack_schedule: bool,
 }
 
 /// Two-pass assembler for EVM bytecode.
@@ -62,8 +72,8 @@ pub struct AssemblerConfig {
 pub struct Assembler {
     /// Bytecode assembly configuration.
     config: AssemblerConfig,
-    /// Instructions to assemble.
-    pub(super) instructions: Vec<AsmInst>,
+    /// Structured assembler block program to assemble.
+    pub(in crate::backend::evm) program: StructuredAsmProgram,
     /// Interned push immediates too large for inline storage.
     push_values: LocalInterner<U256, PushValueId>,
     /// Next label ID.
@@ -86,7 +96,7 @@ impl Assembler {
     pub fn with_config(config: AssemblerConfig) -> Self {
         Self {
             config,
-            instructions: Vec::new(),
+            program: StructuredAsmProgram::default(),
             push_values: LocalInterner::new(),
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
@@ -96,7 +106,7 @@ impl Assembler {
 
     /// Clears all emitted instructions and local identifiers while retaining allocated storage.
     pub fn clear(&mut self) {
-        self.instructions.clear();
+        self.program.clear();
         self.push_values.clear();
         self.next_label.clear();
         self.next_deferred.clear();
@@ -115,23 +125,23 @@ impl Assembler {
 
     /// Emits a raw opcode.
     pub fn emit_op(&mut self, opcode: u8) {
-        self.instructions.push(AsmInst::op(opcode));
+        self.program.push(AsmInst::op(opcode));
     }
 
     /// Emits a push instruction with an immediate value.
     pub fn emit_push(&mut self, value: U256) {
         let inst = self.push_inst(value);
-        self.instructions.push(inst);
+        self.program.push(inst);
     }
 
     /// Emits a push instruction that will be resolved to a label's offset.
     pub fn emit_push_label(&mut self, label: Label) {
-        self.instructions.push(AsmInst::push_label(label));
+        self.program.push(AsmInst::push_label(label));
     }
 
     /// Emits a push instruction for a deferred constant.
     pub fn emit_push_deferred(&mut self, id: DeferredConst) {
-        self.instructions.push(AsmInst::push_deferred(id));
+        self.program.push(AsmInst::push_deferred(id));
     }
 
     /// Sets the value of a deferred constant.
@@ -141,25 +151,17 @@ impl Assembler {
 
     /// Emits a `PUSH32` zero placeholder for the immutable identified by `id`.
     pub fn emit_push_immutable(&mut self, id: u32) {
-        self.instructions.push(AsmInst::push_immutable(id));
+        self.program.push(AsmInst::push_immutable(id));
     }
 
     /// Defines a label and emits a `JUMPDEST` at the current position.
     pub fn define_label(&mut self, label: Label) {
-        self.instructions.push(AsmInst::label(label));
+        self.program.define_label(label);
     }
 
-    fn resolve_deferred_consts(&mut self) {
-        for i in 0..self.instructions.len() {
-            if let AsmInstKind::PushDeferred(id) = self.instructions[i].kind() {
-                let value = self
-                    .deferred_values
-                    .get(&id)
-                    .copied()
-                    .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
-                self.instructions[i] = self.push_inst(value);
-            }
-        }
+    /// Marks a label-started block as cold for EVM IR layout passes.
+    pub(in crate::backend::evm) fn mark_label_cold(&mut self, label: Label) {
+        self.program.mark_cold(label);
     }
 
     fn push_inst(&mut self, value: U256) -> AsmInst {
@@ -188,14 +190,32 @@ impl Assembler {
     /// Uses an iterative two-pass algorithm that handles PUSH width changes.
     #[must_use]
     pub fn assemble(&mut self) -> AssembledCode {
-        self.resolve_deferred_consts();
-        self.optimize_instructions();
+        let mut ir_program = std::mem::take(&mut self.program);
+        let deferred_values = &self.deferred_values;
+        let push_values = &mut self.push_values;
+        ir_program.resolve_deferred_consts(|id| {
+            let value = deferred_values
+                .get(&id)
+                .copied()
+                .unwrap_or_else(|| panic!("deferred constant {id:?} was never resolved"));
+            if let Ok(value) = u32::try_from(value)
+                && let Some(inst) = AsmInst::push_inline(value)
+            {
+                return inst;
+            }
+            AsmInst::push(push_values.intern(value))
+        });
+        if self.config.evm_ir_stack_schedule {
+            ir_program.optimize_with_evm_ir(self);
+        }
+        let mut program = ir_program.to_asm_program();
+        self.run_assembler_passes(&mut program);
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
 
         // Initialize all label pushes to 2 bytes (PUSH2)
-        for (idx, inst) in self.instructions.iter().enumerate() {
+        for (idx, inst) in program.instructions.iter().enumerate() {
             if matches!(inst.kind(), AsmInstKind::PushLabel(_)) {
                 push_widths.insert(idx, 2);
             }
@@ -204,7 +224,7 @@ impl Assembler {
         // Iterate until stable
         let max_iterations = 10;
         for _ in 0..max_iterations {
-            let (label_offsets, new_widths) = self.compute_offsets(&push_widths);
+            let (label_offsets, new_widths) = self.compute_offsets(&program, &push_widths);
 
             let mut changed = false;
             for (idx, &width) in &new_widths {
@@ -215,7 +235,7 @@ impl Assembler {
 
             if !changed {
                 // Stable - emit final bytecode
-                let result = self.emit_bytecode(label_offsets, &push_widths);
+                let result = self.emit_bytecode(&program, label_offsets, &push_widths);
                 self.clear();
                 return result;
             }
@@ -226,8 +246,8 @@ impl Assembler {
         }
 
         // Fallback - just emit with current widths
-        let (label_offsets, _) = self.compute_offsets(&push_widths);
-        let result = self.emit_bytecode(label_offsets, &push_widths);
+        let (label_offsets, _) = self.compute_offsets(&program, &push_widths);
+        let result = self.emit_bytecode(&program, label_offsets, &push_widths);
         self.clear();
         result
     }
@@ -235,6 +255,7 @@ impl Assembler {
     /// Computes label offsets given current PUSH widths.
     fn compute_offsets(
         &self,
+        program: &EvmAsmProgram,
         push_widths: &FxHashMap<usize, u8>,
     ) -> (FxHashMap<Label, usize>, FxHashMap<usize, u8>) {
         let mut offset = 0usize;
@@ -242,7 +263,7 @@ impl Assembler {
         let mut new_widths = FxHashMap::default();
         let out = BytecodeAssembler::new(self.config);
 
-        for (idx, inst) in self.instructions.iter().enumerate() {
+        for (idx, inst) in program.instructions.iter().enumerate() {
             match inst.kind() {
                 AsmInstKind::Op(_) => {
                     offset += 1;
@@ -273,7 +294,7 @@ impl Assembler {
         }
 
         // Compute new widths based on resolved offsets
-        for (idx, inst) in self.instructions.iter().enumerate() {
+        for (idx, inst) in program.instructions.iter().enumerate() {
             if let AsmInstKind::PushLabel(label) = inst.kind()
                 && let Some(&target_offset) = label_offsets.get(&label)
             {
@@ -288,12 +309,13 @@ impl Assembler {
     /// Emits the final bytecode.
     fn emit_bytecode(
         &self,
+        program: &EvmAsmProgram,
         label_offsets: FxHashMap<Label, usize>,
         push_widths: &FxHashMap<usize, u8>,
     ) -> AssembledCode {
         let mut out = BytecodeAssembler::new(self.config);
 
-        for (idx, inst) in self.instructions.iter().enumerate() {
+        for (idx, inst) in program.instructions.iter().enumerate() {
             match inst.kind() {
                 AsmInstKind::Op(opcode) => {
                     out.emit_op(opcode);
@@ -327,24 +349,6 @@ impl Assembler {
         out.finish(label_offsets)
     }
 
-    pub(super) fn estimated_inst_size(&self, inst: AsmInst) -> usize {
-        match inst.kind() {
-            AsmInstKind::Op(_) => 1,
-            AsmInstKind::PushInline(value) => {
-                BytecodeAssembler::new(self.config).encoded_push_len(U256::from(value))
-            }
-            AsmInstKind::Push(index) => {
-                BytecodeAssembler::new(self.config).encoded_push_len(self.push_value(index))
-            }
-            AsmInstKind::PushLabel(_) => 3,
-            AsmInstKind::PushDeferred(_) => {
-                unreachable!("deferred constants must be resolved before assembly")
-            }
-            AsmInstKind::PushImmutable(_) => 33,
-            AsmInstKind::Label(_) => 1,
-        }
-    }
-
     /// Returns the minimum number of non-zero bytes needed to push a value.
     #[cfg(test)]
     fn push_width(value: U256) -> u8 {
@@ -355,6 +359,24 @@ impl Assembler {
 impl Default for Assembler {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl StructuredAsmContext for Assembler {
+    fn push_value(&self, index: PushValueId) -> U256 {
+        self.push_value(index)
+    }
+
+    fn push_inst(&mut self, value: U256) -> AsmInst {
+        self.push_inst(value)
+    }
+
+    fn new_label(&mut self) -> Label {
+        self.new_label()
+    }
+
+    fn run_evm_ir_stack_schedule(&self) -> bool {
+        self.config.evm_ir_stack_schedule
     }
 }
 
@@ -769,6 +791,7 @@ mod tests {
         Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::Size,
+            ..AssemblerConfig::default()
         })
     }
 
@@ -800,9 +823,10 @@ mod tests {
         asm.emit_push(large);
         asm.emit_push(large);
 
-        assert_eq!(asm.instructions[0].kind(), AsmInstKind::PushInline(inline));
-        assert_eq!(asm.instructions[1].kind(), AsmInstKind::Push(PushValueId::from_usize(0)));
-        assert_eq!(asm.instructions[1], asm.instructions[2]);
+        let instructions = asm.program.instructions();
+        assert_eq!(instructions[0].kind(), AsmInstKind::PushInline(inline));
+        assert_eq!(instructions[1].kind(), AsmInstKind::Push(PushValueId::from_usize(0)));
+        assert_eq!(instructions[1], instructions[2]);
         assert_eq!(asm.push_values.len(), 1);
         assert_eq!(*asm.push_values.get(PushValueId::from_usize(0)), large);
     }
@@ -816,7 +840,7 @@ mod tests {
         let first = asm.assemble();
 
         assert_eq!(first.bytecode, vec![0x63, 0x80, 0, 0, 0]);
-        assert!(asm.instructions.is_empty());
+        assert!(asm.program.instructions().is_empty());
         assert_eq!(asm.push_values.len(), 0);
 
         asm.emit_push(U256::from(2));
@@ -830,6 +854,7 @@ mod tests {
         let mut asm = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::None,
+            ..AssemblerConfig::default()
         });
 
         asm.emit_push(U256::ZERO);
@@ -843,6 +868,7 @@ mod tests {
         let mut asm = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Berlin,
             optimization: OptimizationMode::Gas,
+            ..AssemblerConfig::default()
         });
 
         asm.emit_push(U256::ZERO);
@@ -856,18 +882,21 @@ mod tests {
         let mut size_optimized = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::Size,
+            ..AssemblerConfig::default()
         });
         size_optimized.emit_push(U256::MAX);
 
         let mut gas_optimized = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::Gas,
+            ..AssemblerConfig::default()
         });
         gas_optimized.emit_push(U256::MAX);
 
         let mut unoptimized = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Shanghai,
             optimization: OptimizationMode::None,
+            ..AssemblerConfig::default()
         });
         unoptimized.emit_push(U256::MAX);
 
@@ -885,6 +914,7 @@ mod tests {
         let mut asm = Assembler::with_config(AssemblerConfig {
             evm_version: EvmVersion::Berlin,
             optimization: OptimizationMode::Size,
+            ..AssemblerConfig::default()
         });
 
         asm.emit_push(U256::MAX);
@@ -931,6 +961,66 @@ mod tests {
         assert!(result.label_offsets.contains_key(&loop_label));
         assert!(result.label_offsets.contains_key(&end_label));
         assert_eq!(result.label_offsets[&loop_label], 0);
+    }
+
+    #[test]
+    fn cold_terminal_block_moves_after_hot_block() {
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_ir_stack_schedule: true,
+            ..AssemblerConfig::default()
+        });
+        let cold = asm.new_label();
+        let hot = asm.new_label();
+
+        asm.emit_push_label(hot);
+        asm.emit_op(op::JUMP);
+        asm.mark_label_cold(cold);
+        asm.define_label(cold);
+        asm.emit_push(U256::ZERO);
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::REVERT);
+        asm.define_label(hot);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(
+            result.bytecode,
+            vec![
+                op::PUSH1,
+                3,
+                op::JUMP,
+                op::JUMPDEST,
+                op::STOP,
+                op::JUMPDEST,
+                op::PUSH0,
+                op::PUSH0,
+                op::REVERT,
+            ]
+        );
+    }
+
+    #[test]
+    fn cold_terminal_block_keeps_fallthrough_position() {
+        let mut asm = Assembler::with_config(AssemblerConfig {
+            evm_ir_stack_schedule: true,
+            ..AssemblerConfig::default()
+        });
+        let cold = asm.new_label();
+
+        asm.emit_push(U256::ONE);
+        asm.mark_label_cold(cold);
+        asm.define_label(cold);
+        asm.emit_push(U256::ZERO);
+        asm.emit_push(U256::ZERO);
+        asm.emit_op(op::REVERT);
+
+        let result = asm.assemble();
+
+        assert_eq!(
+            result.bytecode,
+            vec![op::PUSH1, 1, op::JUMPDEST, op::PUSH0, op::PUSH0, op::REVERT]
+        );
     }
 
     #[test]

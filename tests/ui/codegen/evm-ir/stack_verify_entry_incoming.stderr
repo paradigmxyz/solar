@@ -1,0 +1,1 @@
+error: EVM IR verification failed: block 0: entry block must start from an empty stack

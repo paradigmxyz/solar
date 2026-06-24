@@ -29,10 +29,30 @@ DO NOT USE `cargo test` DIRECTLY IF YOU CAN AVOID IT.
 - **solar-parse**: Lexer and parser
 - **solar-ast**: AST definitions and visitors
 - **solar-sema**: Semantic analysis (symbol resolution, type checking)
+- **solar-codegen**: MIR construction, MIR optimizations, and EVM backend codegen
 - **solar-interface**: Diagnostics and source management
 - **solar-cli**: Command-line interface
 
-Pipeline: Lexing → Parsing → Semantic Analysis → (IR → Codegen, planned)
+Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> bytecode
+
+### MIR and EVM IR
+
+- **MIR** is the compiler's higher-level codegen IR. It is typed, function-based,
+  and is the right place for Solidity-aware and SSA-style optimizations such as
+  mem2reg/frame-slot promotion, inlining, CSE/GVN/PRE, SCCP, LICM, and loop
+  analysis.
+- **EVM IR** is the lower, Machine-IR-like backend layer. It comes after
+  function calls have been lowered away and is intentionally untyped: values are
+  EVM stack words, not Solidity or MIR typed values. It models asm-like basic
+  blocks with opcode-like instructions, explicit physical stack operations
+  (`dupN`, `swapN`, `pop`), and explicit terminators such as jumps, returns,
+  reverts, and stops. Use it for target-specific block layout, cold/revert-path
+  handling, backend peepholes, stack scheduling, and final assembly preparation.
+- Stack scheduling belongs at EVM IR: materialize virtual stack-word operands
+  into `dupN`/`swapN`/`pop` there, then run backend passes over the scheduled
+  machine-like form before final assembly.
+- Keep the layers separate: MIR should not grow EVM stack-layout details, and
+  EVM IR should not rediscover high-level Solidity typing or call semantics.
 
 ### Visitor Pattern
 

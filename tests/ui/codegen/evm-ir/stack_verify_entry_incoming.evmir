@@ -1,0 +1,7 @@
+//@ failure-status: 1
+// The entry block has no predecessor stack.
+bb0 (entry) (in %a):
+  stop
+bb1:
+  %a = push 1
+  stop

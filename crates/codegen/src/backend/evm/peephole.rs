@@ -1,23 +1,69 @@
 //! Peephole optimization over assembler instructions.
 
-use super::assembler::{AsmInst, AsmInstKind, Assembler, Label, op};
+use super::assembler::{AsmInst, AsmInstKind, Assembler, EvmAsmProgram, op};
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashMap;
+
+/// Local peephole optimizations over assembler instructions.
+struct PeepholePass;
 
 impl Assembler {
-    /// Runs local peephole optimizations over assembler instructions.
-    ///
-    /// This pass runs before label resolution, so removing instructions cannot
-    /// leave stale jump destinations.
-    pub(super) fn optimize_instructions(&mut self) -> usize {
+    /// Runs the default assembler pass pipeline.
+    pub(super) fn run_assembler_passes(&self, program: &mut EvmAsmProgram) -> usize {
+        let pass = PeepholePass;
+        let changed = pass.run(program, |inst| self.inst_push_value(inst));
+        tracing::trace!(pass = pass.name(), rewrites = changed, "ran EVM assembler pass");
+        changed
+    }
+}
+
+trait AssemblerPass {
+    fn name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
+    fn run<P>(&self, program: &mut EvmAsmProgram, inst_push_value: P) -> usize
+    where
+        P: FnMut(AsmInst) -> Option<U256>;
+}
+
+impl AssemblerPass for PeepholePass {
+    fn name(&self) -> &'static str {
+        "peephole"
+    }
+
+    fn run<P>(&self, program: &mut EvmAsmProgram, inst_push_value: P) -> usize
+    where
+        P: FnMut(AsmInst) -> Option<U256>,
+    {
+        optimize_linear_instructions(program, inst_push_value)
+    }
+}
+
+fn optimize_linear_instructions<P>(program: &mut EvmAsmProgram, inst_push_value: P) -> usize
+where
+    P: FnMut(AsmInst) -> Option<U256>,
+{
+    EvmAsmProgramOptimizer { program, inst_push_value }.run()
+}
+
+struct EvmAsmProgramOptimizer<'a, P> {
+    program: &'a mut EvmAsmProgram,
+    inst_push_value: P,
+}
+
+impl<P> EvmAsmProgramOptimizer<'_, P>
+where
+    P: FnMut(AsmInst) -> Option<U256>,
+{
+    fn run(&mut self) -> usize {
         let mut total = 0;
-        let len = self.instructions.len();
+        let len = self.program.instructions.len();
         let mut read = 0;
         let mut write = 0;
 
         while read < len {
             if write != read {
-                self.instructions.swap(write, read);
+                self.program.instructions.swap(write, read);
             }
             read += 1;
             write += 1;
@@ -32,102 +78,19 @@ impl Assembler {
                 debug_assert!(skip <= write);
 
                 let start = write - skip;
-                self.instructions[start..start + replacement_len]
+                self.program.instructions[start..start + replacement_len]
                     .copy_from_slice(&peephole.replacement[..replacement_len]);
                 write = start + replacement_len;
                 total += 1;
             }
         }
-        self.instructions.truncate(write);
+        self.program.instructions.truncate(write);
 
-        total += self.deduplicate_terminal_blocks();
         total
     }
 
-    fn deduplicate_terminal_blocks(&mut self) -> usize {
-        let candidates = self.terminal_block_candidates();
-        if candidates.is_empty() {
-            return 0;
-        }
-
-        let mut canonical: FxHashMap<Vec<AsmInst>, Label> = FxHashMap::default();
-        let mut replacements: FxHashMap<usize, Label> = FxHashMap::default();
-
-        for block in candidates {
-            if let Some(&target) = canonical.get(&block.key) {
-                let replacement_size = 1 + 3 + 1; // JUMPDEST + PUSH2(label) + JUMP.
-                if block.estimated_size > replacement_size {
-                    replacements.insert(block.label_index, target);
-                }
-            } else {
-                canonical.insert(block.key, block.label);
-            }
-        }
-
-        if replacements.is_empty() {
-            return 0;
-        }
-
-        let mut optimized = Vec::with_capacity(self.instructions.len());
-        let mut removed = 0;
-        let mut i = 0;
-        while i < self.instructions.len() {
-            if let Some(&target) = replacements.get(&i)
-                && let AsmInstKind::Label(label) = self.instructions[i].kind()
-                && let Some(end) = self.terminal_block_end(i)
-            {
-                optimized.push(AsmInst::label(label));
-                optimized.push(AsmInst::push_label(target));
-                optimized.push(AsmInst::op(op::JUMP));
-                removed += 1;
-                i = end + 1;
-                continue;
-            }
-            optimized.push(self.instructions[i]);
-            i += 1;
-        }
-
-        self.instructions = optimized;
-        removed
-    }
-
-    fn terminal_block_candidates(&self) -> Vec<TerminalBlock> {
-        let mut candidates = Vec::new();
-        for i in 0..self.instructions.len().saturating_sub(1) {
-            let AsmInstKind::Label(label) = self.instructions[i].kind() else {
-                continue;
-            };
-            let Some(end) = self.terminal_block_end(i) else {
-                continue;
-            };
-            let body = &self.instructions[i..=end];
-            let key = body
-                .iter()
-                .copied()
-                .filter(|inst| !matches!(inst.kind(), AsmInstKind::Label(_)))
-                .collect();
-            let estimated_size = body.iter().map(|&inst| self.estimated_inst_size(inst)).sum();
-            candidates.push(TerminalBlock { label, label_index: i, key, estimated_size });
-        }
-        candidates
-    }
-
-    fn terminal_block_end(&self, start: usize) -> Option<usize> {
-        for i in start..self.instructions.len() {
-            if i != start && matches!(self.instructions[i].kind(), AsmInstKind::Label(_)) {
-                return None;
-            }
-            if let AsmInstKind::Op(op) = self.instructions[i].kind()
-                && op::is_terminal(op)
-            {
-                return Some(i);
-            }
-        }
-        None
-    }
-
     #[inline]
-    fn try_peephole(&self, write: usize) -> Option<Peephole> {
+    fn try_peephole(&mut self, write: usize) -> Option<Peephole> {
         macro_rules! peephole {
             ($skip:expr => []) => {
                 Some(Peephole::delete($skip))
@@ -140,12 +103,12 @@ impl Assembler {
             };
         }
 
-        let stack = InstStack::new(&self.instructions[..write]);
+        let stack = InstStack::new(&self.program.instructions[..write]);
 
         if stack.len() >= 3
-            && Self::is_removable_push(stack[2])
+            && is_removable_push(stack[2])
             && let (Some(value), AsmInstKind::Op(op)) =
-                (self.inst_push_value(stack[1]), stack[0].kind())
+                ((self.inst_push_value)(stack[1]), stack[0].kind())
         {
             // `PUSH<N> PUSH0 MUL -> PUSH0`.
             if value.is_zero()
@@ -165,7 +128,7 @@ impl Assembler {
 
         if stack.len() >= 2
             && let (Some(value), AsmInstKind::Op(op)) =
-                (self.inst_push_value(stack[1]), stack[0].kind())
+                ((self.inst_push_value)(stack[1]), stack[0].kind())
         {
             if value.is_zero() {
                 return match op {
@@ -200,7 +163,7 @@ impl Assembler {
 
         // `PUSH POP -> []`.
         if stack.len() >= 2
-            && Self::is_removable_push(stack[1])
+            && is_removable_push(stack[1])
             && matches!(stack[0].kind(), AsmInstKind::Op(op::POP))
         {
             return peephole!(2 => []);
@@ -237,24 +200,16 @@ impl Assembler {
 
         None
     }
-
-    fn is_removable_push(inst: AsmInst) -> bool {
-        matches!(
-            inst.kind(),
-            AsmInstKind::PushInline(_)
-                | AsmInstKind::Push(_)
-                | AsmInstKind::PushLabel(_)
-                | AsmInstKind::PushImmutable(_)
-        )
-    }
 }
 
-#[derive(Clone, Debug)]
-struct TerminalBlock {
-    label: Label,
-    label_index: usize,
-    key: Vec<AsmInst>,
-    estimated_size: usize,
+fn is_removable_push(inst: AsmInst) -> bool {
+    matches!(
+        inst.kind(),
+        AsmInstKind::PushInline(_)
+            | AsmInstKind::Push(_)
+            | AsmInstKind::PushLabel(_)
+            | AsmInstKind::PushImmutable(_)
+    )
 }
 
 #[derive(Clone, Copy, Debug)]
