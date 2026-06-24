@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     ops::ControlFlow,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{
         Arc,
         atomic::{AtomicUsize, Ordering},
@@ -117,8 +117,6 @@ impl GlobalState {
                 return;
             }
 
-            let file_uris =
-                batches.iter().flat_map(|batch| batch.file_uris.iter().cloned()).collect();
             let mut diagnostics: HashMap<Url, Vec<Diagnostic>> = HashMap::new();
 
             for batch in batches {
@@ -140,7 +138,7 @@ impl GlobalState {
             }
 
             if snapshot.is_current(version) {
-                snapshot.publish_diagnostic_set(file_uris, diagnostics);
+                snapshot.publish_diagnostic_set(diagnostics);
             }
         });
     }
@@ -211,7 +209,6 @@ impl GlobalStateSnapshot {
             .map(|workspace| AnalysisBatch {
                 opts: workspace.compile_opts().clone(),
                 files: Vec::new(),
-                file_uris: Vec::new(),
                 seen_paths: HashSet::new(),
             })
             .collect::<Vec<_>>();
@@ -224,7 +221,6 @@ impl GlobalStateSnapshot {
 
         for path in disk_paths {
             let idx = workspace_idx_for_path(&workspaces, &path);
-            batches[idx].push_uri(&path);
             if batches[idx].seen_paths.contains(&path) {
                 continue;
             }
@@ -261,24 +257,17 @@ impl GlobalStateSnapshot {
     }
 
     #[cfg(test)]
-    fn analysis_inputs(&self, disk_paths: Vec<PathBuf>) -> (Vec<(PathBuf, String)>, Vec<Url>) {
+    fn analysis_inputs(&self, disk_paths: Vec<PathBuf>) -> Vec<(PathBuf, String)> {
         let mut batches = self.analysis_batches(disk_paths);
         let mut files = Vec::new();
-        let mut uris = Vec::new();
         for batch in &mut batches {
             files.append(&mut batch.files);
-            uris.append(&mut batch.file_uris);
         }
-        (files, uris)
+        files
     }
 
-    fn publish_diagnostic_set(
-        &mut self,
-        file_uris: Vec<Url>,
-        mut diagnostics: HashMap<Url, Vec<Diagnostic>>,
-    ) {
-        let mut uris = file_uris.into_iter().collect::<HashSet<_>>();
-        uris.extend(diagnostics.keys().cloned());
+    fn publish_diagnostic_set(&mut self, mut diagnostics: HashMap<Url, Vec<Diagnostic>>) {
+        let mut uris = diagnostics.keys().cloned().collect::<HashSet<_>>();
 
         let mut published_diagnostic_uris = self.published_diagnostic_uris.write();
         uris.extend(published_diagnostic_uris.iter().cloned());
@@ -301,28 +290,18 @@ impl GlobalStateSnapshot {
 struct AnalysisBatch {
     opts: CompileOpts,
     files: Vec<(PathBuf, String)>,
-    file_uris: Vec<Url>,
     seen_paths: HashSet<PathBuf>,
 }
 
 impl AnalysisBatch {
     fn push_file(&mut self, path: PathBuf, contents: String) {
-        self.push_uri(&path);
         if self.seen_paths.insert(path.clone()) {
             self.files.push((path, contents));
         }
     }
 
-    fn push_uri(&mut self, path: &Path) {
-        if let Ok(uri) = Url::from_file_path(path) {
-            self.file_uris.push(uri);
-        }
-    }
-
     fn finish(&mut self) {
         self.files.sort_by(|(lhs, _), (rhs, _)| lhs.cmp(rhs));
-        self.file_uris.sort();
-        self.file_uris.dedup();
     }
 }
 
@@ -419,10 +398,8 @@ mod tests {
             },
             "error".into(),
         );
-        snapshot.publish_diagnostic_set(
-            vec![clean_uri.clone()],
-            HashMap::from([(diagnostic_uri.clone(), vec![diagnostic])]),
-        );
+        snapshot
+            .publish_diagnostic_set(HashMap::from([(diagnostic_uri.clone(), vec![diagnostic])]));
 
         let published = published_diagnostic_uris.read();
         assert!(!published.contains(&clean_uri));
@@ -435,7 +412,6 @@ mod tests {
         let project = TempDir::new().unwrap();
         let path = project.path().join("Saved.sol");
         std::fs::write(&path, "contract C { function f() public { number+; } }").unwrap();
-        let uri = Url::from_file_path(&path).unwrap();
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
@@ -444,10 +420,9 @@ mod tests {
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
-        let (files, uris) = snapshot.analysis_inputs(vec![path.clone()]);
+        let files = snapshot.analysis_inputs(vec![path.clone()]);
 
         assert_eq!(files, vec![(path, "contract C { function f() public { number+; } }".into())]);
-        assert_eq!(uris, vec![uri]);
     }
 
     #[test]
@@ -604,10 +579,9 @@ mod tests {
     }
 
     #[test]
-    fn analysis_inputs_keeps_unreadable_disk_uri() {
+    fn analysis_inputs_skips_unreadable_disk_files() {
         let project = TempDir::new().unwrap();
         let path = project.path().join("Missing.sol");
-        let uri = Url::from_file_path(&path).unwrap();
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
@@ -616,9 +590,8 @@ mod tests {
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
-        let (files, uris) = snapshot.analysis_inputs(vec![path]);
+        let files = snapshot.analysis_inputs(vec![path]);
 
         assert!(files.is_empty());
-        assert_eq!(uris, vec![uri]);
     }
 }
