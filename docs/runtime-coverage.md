@@ -15,6 +15,7 @@ but not used as a hard solc comparison gate.
 | `cargo nextest run --workspace` | Default Rust and integration tests | Includes the `solar-compiler::foundry` integration target when Foundry is available. |
 | `cargo xtask test foundry` | Foundry mode through `crates/solar/tests.rs` | Runs the default Foundry suite through `TESTER_MODE=foundry`. |
 | `cargo test -p solar-compiler --test foundry -- --test-threads=1` | Dedicated Foundry target | Useful for isolating Foundry runtime behavior locally. |
+| `SOLAR_FOUNDRY_REPORT_DIR=target/runtime-reports cargo test -p solar-compiler --test foundry -- --test-threads=1` | Structured Foundry report output | Writes one JSON report per project with filters, per-test pass/gas, bytecode sizes, and rerun metadata. |
 | `.github/workflows/bench.yml` codegen runtime benchmark | Informational repo/micro gas and size comparisons | Compares this compiler to solc and to the latest main artifact when available. It should not fail only because this compiler uses more gas than solc. |
 
 ## Foundry Project Inventory
