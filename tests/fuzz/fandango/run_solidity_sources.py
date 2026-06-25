@@ -33,6 +33,11 @@ def main() -> int:
     )
     parser.add_argument("--max-sources", type=int, default=256)
     parser.add_argument("--timeout", type=float, default=20.0)
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="print each generated source file as it is compiled",
+    )
     args = parser.parse_args()
 
     sources = _read_sources(args.source_dir, sys.stdin, args.max_sources)
@@ -43,10 +48,8 @@ def main() -> int:
 
     if args.source_dir is not None:
         for index, (path, source) in enumerate(sources):
-            solc_result = _compile_solc(args.solc, path, args.timeout)
-            solar_result = _compile_solar(args.solar, path, args.timeout)
-            valid += int(solc_result["status"] == "ok")
-            invalid += int(solc_result["status"] != "ok")
+            solc_result, solar_result = _check_source(args, index, len(sources), path)
+            valid, invalid = _update_counts(valid, invalid, solc_result)
             if solc_result["status"] != solar_result["status"]:
                 failure = _failure(index, source, solc_result, solar_result)
                 failures.append(failure)
@@ -58,10 +61,8 @@ def main() -> int:
                 path = tmpdir / f"source_{index}.sol"
                 path.write_text(source)
 
-                solc_result = _compile_solc(args.solc, path, args.timeout)
-                solar_result = _compile_solar(args.solar, path, args.timeout)
-                valid += int(solc_result["status"] == "ok")
-                invalid += int(solc_result["status"] != "ok")
+                solc_result, solar_result = _check_source(args, index, len(sources), path)
+                valid, invalid = _update_counts(valid, invalid, solc_result)
                 if solc_result["status"] != solar_result["status"]:
                     failure = _failure(index, source, solc_result, solar_result)
                     failures.append(failure)
@@ -75,6 +76,35 @@ def main() -> int:
     }
     print(json.dumps(summary, separators=(",", ":")))
     return 1 if failures else 0
+
+
+def _check_source(
+    args: argparse.Namespace, index: int, total: int, path: pathlib.Path
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    if args.verbose:
+        print(f"[source {index + 1}/{total}] {path}", file=sys.stderr)
+
+    solc_result = _compile_solc(args.solc, path, args.timeout)
+    if args.verbose:
+        print(f"  solc:  {solc_result['status']}", file=sys.stderr)
+        print(
+            f"  solar: {args.solar} -Zcodegen --emit=bin-runtime {path}",
+            file=sys.stderr,
+        )
+
+    solar_result = _compile_solar(args.solar, path, args.timeout)
+    if args.verbose:
+        print(f"  solar: {solar_result['status']}", file=sys.stderr)
+
+    return solc_result, solar_result
+
+
+def _update_counts(
+    valid: int, invalid: int, solc_result: dict[str, Any]
+) -> tuple[int, int]:
+    valid += int(solc_result["status"] == "ok")
+    invalid += int(solc_result["status"] != "ok")
+    return valid, invalid
 
 
 def _failure(

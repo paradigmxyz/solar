@@ -72,7 +72,8 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
 python3 tests/fuzz/fandango/run_solidity_sources.py \
   --source-dir tests/fuzz/fandango/out/sources \
   --max-sources 256 \
-  --timeout 20
+  --timeout 20 \
+  --verbose
 ```
 
 Failures are saved under `tests/fuzz/fandango/out/failures/` or

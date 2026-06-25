@@ -150,6 +150,7 @@ jobs:
             --failure-dir target/runtime-fuzz/source-failures \
             --max-sources 64 \
             --timeout 20 \
+            --verbose \
             | tee target/runtime-fuzz/fandango-sources.json
       - name: test --features nightly
         if: matrix.rust == 'nightly'
