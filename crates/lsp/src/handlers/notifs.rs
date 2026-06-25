@@ -96,7 +96,7 @@ pub(crate) fn did_change_watched_files(
         };
 
         match path.file_name().and_then(|name| name.to_str()) {
-            Some("foundry.toml" | "solar.toml") => {
+            Some("foundry.toml") => {
                 should_rediscover = true;
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {

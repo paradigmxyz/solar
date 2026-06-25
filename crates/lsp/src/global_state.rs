@@ -168,7 +168,6 @@ fn watched_file_registration_params() -> RegistrationParams {
     let options = DidChangeWatchedFilesRegistrationOptions {
         watchers: vec![
             FileSystemWatcher { glob_pattern: GlobPattern::String("**/*.sol".into()), kind },
-            FileSystemWatcher { glob_pattern: GlobPattern::String("**/solar.toml".into()), kind },
             FileSystemWatcher { glob_pattern: GlobPattern::String("**/foundry.toml".into()), kind },
         ],
     };
@@ -371,7 +370,6 @@ mod tests {
             Some(serde_json::json!({
                 "watchers": [
                     { "globPattern": "**/*.sol", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
-                    { "globPattern": "**/solar.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                     { "globPattern": "**/foundry.toml", "kind": WatchKind::Create | WatchKind::Change | WatchKind::Delete },
                 ],
             }))
