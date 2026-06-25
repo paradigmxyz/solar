@@ -1,0 +1,88 @@
+{
+  "name": "solar-lsp",
+  "displayName": "Solar LSP",
+  "description": "Solidity language support with LSP and formatting",
+  "version": "0.1.0",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/paradigmxyz/solar.git",
+    "directory": "editors/vscode"
+  },
+  "bugs": {
+    "url": "https://github.com/paradigmxyz/solar/issues"
+  },
+  "homepage": "https://github.com/paradigmxyz/solar/tree/main/editors/vscode",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Formatters",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:solidity"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "solidity",
+        "aliases": [
+          "Solidity",
+          "solidity"
+        ],
+        "extensions": [
+          ".sol"
+        ],
+        "configuration": "language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Solar LSP Configuration",
+      "properties": {
+        "solarLsp.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Solar LSP"
+        },
+        "solarLsp.serverPath": {
+          "type": "string",
+          "default": "solar",
+          "description": "Path to solar executable"
+        },
+        "solarLsp.forgePath": {
+          "type": "string",
+          "default": "forge",
+          "description": "Path to forge executable"
+        },
+        "solarLsp.formatOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Format files on save using forge fmt"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "solarLsp.formatDocument",
+        "title": "Format Document",
+        "category": "Solar"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^8.0.2"
+  }
+}

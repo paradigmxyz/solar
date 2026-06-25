@@ -125,6 +125,13 @@ EOF
 solar $(forge re) src/Contract.sol
 ```
 
+### Editor integrations
+
+Editor integrations for VS Code and Zed live in [`editors/`](/editors). They
+provide Solidity language support by starting `solar lsp` from the local system
+or, for Zed, by downloading a released binary when one is not available on
+`PATH`.
+
 ### C API, WASM, and JavaScript usage
 
 The `solar-capi` crate exposes the compiler through a Solidity-compatible C API.
