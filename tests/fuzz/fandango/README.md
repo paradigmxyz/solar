@@ -37,7 +37,7 @@ Generate deterministic ABI-value vectors:
 
 ```bash
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
-  -f fuzz/fandango/abi-values.fan \
+  -f tests/fuzz/fandango/abi-values.fan \
   --random-seed 1 \
   -n 32 \
   --separator $'\n' \
@@ -48,12 +48,12 @@ Generate encoded calldata vectors:
 
 ```bash
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
-  -f fuzz/fandango/abi-values.fan \
+  -f tests/fuzz/fandango/abi-values.fan \
   --random-seed 1 \
   -n 32 \
   --separator $'\n' \
   --progress-bar off \
-  | python3 fuzz/fandango/encode_abi_vectors.py --seed 1
+  | python3 tests/fuzz/fandango/encode_abi_vectors.py --seed 1
 ```
 
 Run those vectors against solc and this compiler on a local anvil:
@@ -62,31 +62,31 @@ Run those vectors against solc and this compiler on a local anvil:
 anvil
 
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
-  -f fuzz/fandango/abi-values.fan \
+  -f tests/fuzz/fandango/abi-values.fan \
   --random-seed 1 \
   -n 32 \
   --separator $'\n' \
   --progress-bar off \
-  | python3 fuzz/fandango/encode_abi_vectors.py --seed 1 \
-  | python3 fuzz/fandango/run_abi_vectors.py \
+  | python3 tests/fuzz/fandango/encode_abi_vectors.py --seed 1 \
+  | python3 tests/fuzz/fandango/run_abi_vectors.py \
       --max-vectors 256 \
       --max-calldata-bytes 4096 \
       --timeout 20
 ```
 
-Mismatches are saved under `fuzz/fandango/out/failures/`, including the ordered
+Mismatches are saved under `tests/fuzz/fandango/out/failures/`, including the ordered
 transaction history needed to reproduce a stateful divergence.
 
 Generate Solidity source files:
 
 ```bash
-mkdir -p fuzz/fandango/out/sources
+mkdir -p tests/fuzz/fandango/out/sources
 
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
-  -f fuzz/fandango/solidity-source.fan \
+  -f tests/fuzz/fandango/solidity-source.fan \
   --random-seed 1 \
   -n 32 \
-  --directory fuzz/fandango/out/sources \
+  --directory tests/fuzz/fandango/out/sources \
   --filename-extension .sol \
   --progress-bar off
 ```
@@ -94,13 +94,13 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
 Run generated sources through a compile differential:
 
 ```bash
-python3 fuzz/fandango/run_solidity_sources.py \
-  --source-dir fuzz/fandango/out/sources \
+python3 tests/fuzz/fandango/run_solidity_sources.py \
+  --source-dir tests/fuzz/fandango/out/sources \
   --max-sources 256 \
   --timeout 20
 ```
 
-Source mismatches are saved under `fuzz/fandango/out/source-failures/` as both
+Source mismatches are saved under `tests/fuzz/fandango/out/source-failures/` as both
 JSON and `.sol` files.
 
 ## Extending It
@@ -108,7 +108,7 @@ JSON and `.sol` files.
 Add ABI input shapes to `abi-values.fan`, add fixture methods to
 `AbiVectorFixture.sol`, then update `encode_abi_vectors.py` so generated values
 encode to the target selector and mode (`call` or `tx`). Keep generated output
-under `fuzz/fandango/out/`; commit only minimized stable cases in `corpus.jsonl`
+under `tests/fuzz/fandango/out/`; commit only minimized stable cases in `corpus.jsonl`
 or ordinary `tests/ui/codegen/` tests when compiler output is the useful signal.
 
 For source generation, add language shapes to `solidity-source.fan`. Keep the
@@ -171,7 +171,7 @@ The source generator currently covers:
 
 ## Promoting Failures
 
-Keep raw generated artifacts under `fuzz/fandango/out/`; that directory is
+Keep raw generated artifacts under `tests/fuzz/fandango/out/`; that directory is
 ignored. When a mismatch is confirmed:
 
 1. Minimize the vector or source by hand.
@@ -195,7 +195,7 @@ Keep these lanes separate:
   `--random-seed`, `--max-vectors`, `--max-sources`, `--max-transactions`,
   `--max-calldata-bytes`, and `--timeout`
 - Local debugging: use the commands above and keep generated artifacts under
-  `fuzz/fandango/out/`
+  `tests/fuzz/fandango/out/`
 
 Fandango mismatches are correctness failures for the fuzz job. Gas or bytecode
 size differences should be reported by benchmark jobs, not by the fuzz runner.
@@ -204,13 +204,13 @@ Fandango can also write one generated input per file:
 
 ```bash
 PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
-  -f fuzz/fandango/abi-values.fan \
+  -f tests/fuzz/fandango/abi-values.fan \
   --random-seed 1 \
   -n 32 \
-  --directory fuzz/fandango/out \
+  --directory tests/fuzz/fandango/out \
   --filename-extension .json \
   --progress-bar off
 ```
 
-Keep generated `fuzz/fandango/out/` artifacts out of git; promote only minimized
+Keep generated `tests/fuzz/fandango/out/` artifacts out of git; promote only minimized
 confirmed bugs into deterministic runtime tests.

@@ -45,13 +45,13 @@ TX_GAS = "0x1000000"
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source", default="fuzz/fandango/AbiVectorFixture.sol")
+    parser.add_argument("--source", default="tests/fuzz/fandango/AbiVectorFixture.sol")
     parser.add_argument("--contract", default="AbiVectorFixture")
     parser.add_argument("--solc", default="solc")
     parser.add_argument("--solar", default="target/debug/solar")
     parser.add_argument("--rpc-url", default="http://127.0.0.1:8545")
     parser.add_argument("--sender", default=ANVIL_SENDER)
-    parser.add_argument("--failure-dir", default="fuzz/fandango/out/failures")
+    parser.add_argument("--failure-dir", default="tests/fuzz/fandango/out/failures")
     parser.add_argument("--max-vectors", type=int, default=256)
     parser.add_argument("--max-transactions", type=int, default=64)
     parser.add_argument("--max-calldata-bytes", type=int, default=4096)

@@ -109,22 +109,22 @@ jobs:
           done
           cast block-number --rpc-url http://127.0.0.1:8545 >/dev/null
 
-          python3 fuzz/fandango/encode_abi_vectors.py --seed corpus \
-            < fuzz/fandango/corpus.jsonl \
+          python3 tests/fuzz/fandango/encode_abi_vectors.py --seed corpus \
+            < tests/fuzz/fandango/corpus.jsonl \
             > target/runtime-fuzz/fandango-vectors.jsonl
 
           for seed in 1 2 3; do
             PYTHONHASHSEED=1 "$RUNNER_TEMP/fandango-venv/bin/fandango" fuzz \
-              -f fuzz/fandango/abi-values.fan \
+              -f tests/fuzz/fandango/abi-values.fan \
               --random-seed "$seed" \
               -n 32 \
               --separator $'\n' \
               --progress-bar off \
-              | python3 fuzz/fandango/encode_abi_vectors.py --seed "$seed" \
+              | python3 tests/fuzz/fandango/encode_abi_vectors.py --seed "$seed" \
               >> target/runtime-fuzz/fandango-vectors.jsonl
           done
 
-          python3 fuzz/fandango/run_abi_vectors.py \
+          python3 tests/fuzz/fandango/run_abi_vectors.py \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar "$GITHUB_WORKSPACE/target/debug/solar" \
             --max-vectors 160 \
@@ -136,14 +136,14 @@ jobs:
 
           mkdir -p target/runtime-fuzz/sources
           PYTHONHASHSEED=1 "$RUNNER_TEMP/fandango-venv/bin/fandango" fuzz \
-            -f fuzz/fandango/solidity-source.fan \
+            -f tests/fuzz/fandango/solidity-source.fan \
             --random-seed 1 \
             -n 32 \
             --directory target/runtime-fuzz/sources \
             --filename-extension .sol \
             --progress-bar off
 
-          python3 fuzz/fandango/run_solidity_sources.py \
+          python3 tests/fuzz/fandango/run_solidity_sources.py \
             --source-dir target/runtime-fuzz/sources \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar "$GITHUB_WORKSPACE/target/debug/solar" \

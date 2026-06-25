@@ -1,6 +1,6 @@
 Scripts and tools for fuzzing the compiler.
 
-Run stuff in here by first `cd`ing into this directory (`cd fuzz`).
+Run stuff in here by first `cd`ing into this directory (`cd tests/fuzz`).
 
 See `fandango/` for ABI-value runtime differentials and Solidity source
 generation experiments.
