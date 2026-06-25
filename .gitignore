@@ -1,5 +1,8 @@
 /target
 .vscode
+!editors/vscode/.vscode/
+!editors/vscode/.vscode/launch.json
+!editors/vscode/.vscode/tasks.json
 .idea
 /*.sol
 /*.yul

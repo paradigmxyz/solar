@@ -1,0 +1,15 @@
+id = "solar"
+name = "Solar"
+description = "Solidity support powered by Solar language server."
+version = "0.1.0"
+schema_version = 1
+authors = ["Oliver Nordbjerg <hi@notbjerg.me>"]
+repository = "https://github.com/paradigmxyz/solar"
+
+[language_servers.solar]
+name = "Solar"
+language = "Solidity"
+
+[grammars.solidity]
+repository = "https://github.com/JoranHonig/tree-sitter-solidity"
+commit = "d38dcd0b58b223c43e3f9265914fb3167dc624c6"
