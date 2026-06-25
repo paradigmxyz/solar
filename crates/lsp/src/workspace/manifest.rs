@@ -79,11 +79,9 @@ fn find_in_child_dirs(path: &Path) -> io::Result<Vec<ProjectManifest>> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
-    use tempfile::TempDir;
-
     use super::*;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn child_discovery_prefers_solar_manifest_over_foundry_manifest() {

@@ -1,7 +1,6 @@
-use std::path::{Path, PathBuf};
-
 use serde::Deserialize;
 use solar_config::{EvmVersion, ImportRemapping};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct SolarDocument {

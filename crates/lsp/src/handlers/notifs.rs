@@ -1,14 +1,12 @@
-use std::{ops::ControlFlow, sync::Arc};
-
+use crate::{NotifyResult, global_state::GlobalState, proto, utils::apply_document_changes};
 use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
     FileChangeType,
 };
+use std::{ops::ControlFlow, sync::Arc};
 use tracing::{error, info};
-
-use crate::{NotifyResult, global_state::GlobalState, proto, utils::apply_document_changes};
 
 pub(crate) fn did_open_text_document(
     state: &mut GlobalState,

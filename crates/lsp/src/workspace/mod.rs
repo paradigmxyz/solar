@@ -9,16 +9,14 @@
 //! Once a project type is identified, the configuration for that project model is merged into the
 //! overall LSP config.
 
+use crate::workspace::{foundry::FoundryDocument, manifest::ProjectManifest, solar::SolarDocument};
+use serde::de::DeserializeOwned;
+use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
+use solar_interface::source_map::SourceMap;
 use std::{
     io,
     path::{Path, PathBuf},
 };
-
-use serde::de::DeserializeOwned;
-use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
-use solar_interface::source_map::SourceMap;
-
-use crate::workspace::{foundry::FoundryDocument, manifest::ProjectManifest, solar::SolarDocument};
 
 mod foundry;
 pub(crate) mod manifest;
@@ -304,13 +302,11 @@ fn load_manifest_document<T: DeserializeOwned>(path: &Path) -> Result<T, Workspa
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
-    use solar_config::EvmVersion;
-    use tempfile::TempDir;
-
     use super::*;
     use crate::workspace::manifest::ProjectManifest;
+    use solar_config::EvmVersion;
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn foundry_workspace_loads_manifest_compile_config() {

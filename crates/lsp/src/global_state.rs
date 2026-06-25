@@ -1,13 +1,10 @@
-use std::{
-    borrow::Cow,
-    ops::ControlFlow,
-    path::PathBuf,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+use crate::{
+    NotifyResult,
+    config::{Config, negotiate_capabilities},
+    proto,
+    vfs::Vfs,
+    workspace::WorkspacePathIndex,
 };
-
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
     Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
@@ -26,15 +23,16 @@ use solar_interface::{
     source_map::{FileName, SourceMap},
 };
 use solar_sema::Compiler;
-use tokio::task::JoinHandle;
-
-use crate::{
-    NotifyResult,
-    config::{Config, negotiate_capabilities},
-    proto,
-    vfs::Vfs,
-    workspace::WorkspacePathIndex,
+use std::{
+    borrow::Cow,
+    ops::ControlFlow,
+    path::PathBuf,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
 };
+use tokio::task::JoinHandle;
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
@@ -355,14 +353,12 @@ fn analyze(batch: AnalysisBatch) -> FxHashMap<Url, Vec<Diagnostic>> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
+    use super::*;
     use async_lsp::ClientSocket;
     use crop::Rope;
     use lsp_types::{Diagnostic, Position, Range, WatchKind, notification::Notification};
+    use std::fs;
     use tempfile::TempDir;
-
-    use super::*;
 
     #[test]
     fn watched_file_registration_watches_solidity_and_foundry_manifests() {

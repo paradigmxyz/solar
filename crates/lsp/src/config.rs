@@ -1,16 +1,14 @@
-use std::{
-    env,
-    path::{Path, PathBuf},
-};
-
+use crate::workspace::{Workspace, manifest::ProjectManifest, workspace_idx_for_path};
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 use tracing::{info, warn};
-
-use crate::workspace::{Workspace, manifest::ProjectManifest, workspace_idx_for_path};
 
 /// The LSP config.
 ///
@@ -157,15 +155,13 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 
 #[cfg(test)]
 mod tests {
-    use std::fs;
-
+    use super::*;
+    use crate::workspace::WorkspaceKind;
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities, WorkspaceFolder,
     };
+    use std::fs;
     use tempfile::TempDir;
-
-    use super::*;
-    use crate::workspace::WorkspaceKind;
 
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {

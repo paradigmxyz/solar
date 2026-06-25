@@ -1,9 +1,8 @@
 //! Serde serializers and deserializers.
 
 pub(crate) mod optional_display_fromstr {
-    use std::{fmt::Display, str::FromStr};
-
     use serde::{Deserialize, Deserializer, de};
+    use std::{fmt::Display, str::FromStr};
 
     pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<Option<T>, D::Error>
     where
@@ -19,9 +18,8 @@ pub(crate) mod optional_display_fromstr {
 
 pub(crate) mod display_fromstr {
     pub(crate) mod vec {
-        use std::{fmt, str::FromStr};
-
         use serde::{Deserialize, Deserializer, de};
+        use std::{fmt, str::FromStr};
 
         pub(crate) fn deserialize<'de, T, D>(deserializer: D) -> Result<Vec<T>, D::Error>
         where
