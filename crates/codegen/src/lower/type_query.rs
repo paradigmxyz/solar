@@ -5,7 +5,7 @@ use solar_ast::{DataLocation, LitKind};
 use solar_sema::{
     builtins::Builtin,
     hir::{self, ElementaryType, ExprKind},
-    ty::{ResolvedMember, Ty, TyKind},
+    ty::{ResolvedMember, TyKind},
 };
 
 impl<'gcx> Lowerer<'gcx> {
@@ -20,51 +20,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Gets the type of an expression computed by sema's type checker.
     pub(super) fn get_expr_type(&self, expr: &hir::Expr<'_>) -> Option<solar_sema::ty::Ty<'gcx>> {
-        self.gcx.type_of_expr(expr.id).or_else(|| self.get_expr_type_from_hir(expr))
-    }
-
-    fn get_expr_type_from_hir(&self, expr: &hir::Expr<'_>) -> Option<Ty<'gcx>> {
-        match &expr.kind {
-            ExprKind::Ident(res_slice) => {
-                let hir::Res::Item(hir::ItemId::Variable(var_id)) = res_slice.first()? else {
-                    return None;
-                };
-                Some(self.gcx.type_of_hir_ty(&self.gcx.hir.variable(*var_id).ty))
-            }
-            ExprKind::Index(base, _) => self.index_element_type(self.get_expr_type(base)?),
-            ExprKind::Member(_, _) => {
-                if let Some((struct_id, field_index)) = self.resolved_struct_field(expr) {
-                    return self.gcx.struct_field_types(struct_id).get(field_index).copied();
-                }
-                None
-            }
-            ExprKind::Binary(lhs, op, _) if Self::binary_result_matches_lhs_type(op.kind) => {
-                self.get_expr_type(lhs)
-            }
-            ExprKind::Assign(lhs, Some(_), _) => self.get_expr_type(lhs),
-            ExprKind::Assign(_, None, rhs) => self.get_expr_type(rhs),
-            ExprKind::Tuple(elements) => {
-                elements.iter().flatten().next().and_then(|expr| self.get_expr_type(expr))
-            }
-            _ => None,
-        }
-    }
-
-    fn binary_result_matches_lhs_type(op: hir::BinOpKind) -> bool {
-        use hir::BinOpKind::*;
-        matches!(op, Shl | Shr | Sar | BitAnd | BitOr | BitXor | Add | Sub | Pow | Mul | Div | Rem)
-    }
-
-    fn index_element_type(&self, ty: Ty<'gcx>) -> Option<Ty<'gcx>> {
-        match ty.peel_refs().kind {
-            TyKind::Mapping(_, value) | TyKind::Array(value, _) | TyKind::DynArray(value) => {
-                Some(value)
-            }
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                Some(self.gcx.types.uint(8))
-            }
-            _ => None,
-        }
+        self.gcx.type_of_expr(expr.id)
     }
 
     /// Gets the non-call member target selected by sema's type checker.

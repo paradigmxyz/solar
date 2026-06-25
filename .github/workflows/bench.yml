@@ -11,7 +11,6 @@ on:
 env:
   CARGO_TERM_COLOR: always
   SOLC_VERSION: 0.8.30
-  FANDANGO_VERSION: 1.1.1
   BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
   BENCHMARK_REF: 759b27b596ca6632717465832859863eccbe41a2
   BENCHMARK_PATH: solidity-compiler-benchmarks
@@ -61,55 +60,6 @@ jobs:
 
       - name: Build Solar
         run: cargo build -p solar-compiler --bin solar
-
-      - name: Run Fandango ABI runtime differential
-        run: |
-          set -euo pipefail
-          mkdir -p target/codegen-bench
-
-          python3 -m venv "$RUNNER_TEMP/fandango-venv"
-          "$RUNNER_TEMP/fandango-venv/bin/pip" install "fandango-fuzzer==${FANDANGO_VERSION}"
-
-          anvil --silent --port 8545 > "$RUNNER_TEMP/fandango-anvil.log" 2>&1 &
-          anvil_pid=$!
-          cleanup() {
-            kill "$anvil_pid" 2>/dev/null || true
-            wait "$anvil_pid" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          for _ in {1..30}; do
-            if cast block-number --rpc-url http://127.0.0.1:8545 >/dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-          cast block-number --rpc-url http://127.0.0.1:8545 >/dev/null
-
-          python3 fuzz/fandango/encode_abi_vectors.py --seed corpus \
-            < fuzz/fandango/corpus.jsonl \
-            > target/codegen-bench/fandango-vectors.jsonl
-
-          for seed in 1 2 3; do
-            PYTHONHASHSEED=1 "$RUNNER_TEMP/fandango-venv/bin/fandango" fuzz \
-              -f fuzz/fandango/abi-values.fan \
-              --random-seed "$seed" \
-              -n 32 \
-              --separator $'\n' \
-              --progress-bar off \
-              | python3 fuzz/fandango/encode_abi_vectors.py --seed "$seed" \
-              >> target/codegen-bench/fandango-vectors.jsonl
-          done
-
-          python3 fuzz/fandango/run_abi_vectors.py \
-            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
-            --max-vectors 160 \
-            --max-transactions 64 \
-            --max-calldata-bytes 4096 \
-            --timeout 20 \
-            < target/codegen-bench/fandango-vectors.jsonl \
-            | tee target/codegen-bench/fandango.json
 
       - name: Download baseline (main branch)
         id: baseline
@@ -185,7 +135,6 @@ jobs:
           args=(
             --micro target/codegen-bench/micro.json
             --repo target/codegen-bench/repo.json
-            --fandango target/codegen-bench/fandango.json
           )
           if [[ -f target/codegen-bench/baseline/micro.json ]]; then
             args+=(--baseline-micro target/codegen-bench/baseline/micro.json)

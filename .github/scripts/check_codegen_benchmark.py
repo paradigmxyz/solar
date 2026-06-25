@@ -29,20 +29,6 @@ def load_results(path: Path | None, label: str) -> list[dict[str, Any]]:
     return data
 
 
-def load_summary(path: Path | None, label: str) -> dict[str, Any] | None:
-    if path is None:
-        return None
-    if not path.exists():
-        warning(f"{label} summary not found: {path}")
-        return None
-    with path.open() as f:
-        data = json.load(f)
-    if not isinstance(data, dict):
-        warning(f"{label} summary has unexpected shape: expected object")
-        return None
-    return data
-
-
 def by_test_id(results: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     return {str(result.get("test_id", "<unknown>")): result for result in results}
 
@@ -301,30 +287,6 @@ def report_section(
     return "\n".join(lines)
 
 
-def fandango_section(summary: dict[str, Any] | None) -> str:
-    lines = ["## Fandango ABI runtime differential", ""]
-    if summary is None:
-        lines.extend(["No Fandango runtime differential summary was produced.", ""])
-        return "\n".join(lines)
-
-    vectors = summary.get("vectors", "n/a")
-    calls = summary.get("calls", "n/a")
-    transactions = summary.get("transactions", "n/a")
-    failures = summary.get("failures", "n/a")
-    status = "ok" if failures == 0 else "failed"
-    lines.extend(
-        [
-            "| status | vectors | calls | txs | failures |",
-            "| ------ | ------- | ----- | --- | -------- |",
-            f"| {markdown_cell(status)} | {markdown_cell(vectors)} | "
-            f"{markdown_cell(calls)} | {markdown_cell(transactions)} | "
-            f"{markdown_cell(failures)} |",
-            "",
-        ]
-    )
-    return "\n".join(lines)
-
-
 def emit_warnings(
     label: str, results: list[dict[str, Any]], baseline_results: list[dict[str, Any]]
 ) -> None:
@@ -334,14 +296,6 @@ def emit_warnings(
         warning(f"{label} runtime mismatch recorded: {detail}")
     for detail in baseline_regression_details(results, baseline_results):
         warning(f"{label} benchmark regression recorded: {detail}")
-
-
-def emit_fandango_warnings(summary: dict[str, Any] | None) -> None:
-    if summary is None:
-        return
-    failures = summary.get("failures")
-    if isinstance(failures, int) and failures:
-        warning(f"Fandango ABI runtime differential recorded {failures} failure(s)")
 
 
 def append_step_summary(markdown: str) -> None:
@@ -365,20 +319,17 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--micro", type=Path)
     parser.add_argument("--repo", type=Path)
-    parser.add_argument("--fandango", type=Path)
     parser.add_argument("--baseline-micro", type=Path)
     parser.add_argument("--baseline-repo", type=Path)
     args = parser.parse_args()
 
     micro_results = load_results(args.micro, "micro")
     repo_results = load_results(args.repo, "repository")
-    fandango_summary = load_summary(args.fandango, "Fandango runtime differential")
     baseline_micro = load_results(args.baseline_micro, "baseline micro")
     baseline_repo = load_results(args.baseline_repo, "baseline repository")
 
     emit_warnings("micro", micro_results, baseline_micro)
     emit_warnings("repository", repo_results, baseline_repo)
-    emit_fandango_warnings(fandango_summary)
 
     sections = []
     if args.micro is not None:
@@ -389,8 +340,6 @@ def main() -> int:
         sections.append(
             report_section("Repository codegen benchmark", repo_results, baseline_repo)
         )
-    if args.fandango is not None:
-        sections.append(fandango_section(fandango_summary))
     if not sections:
         sections.append("## Codegen benchmark\n\nNo benchmark inputs were configured.\n")
 
