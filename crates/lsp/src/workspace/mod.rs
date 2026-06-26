@@ -313,6 +313,32 @@ mod tests {
     }
 
     #[test]
+    fn foundry_workspace_respects_disabled_auto_detect_remappings() {
+        let project = TempDir::new().unwrap();
+        fs::create_dir_all(project.path().join("lib/forge-std/src")).unwrap();
+        fs::write(project.path().join("remappings.txt"), "solmate/=lib/solmate/src/\n").unwrap();
+        fs::write(
+            project.path().join("foundry.toml"),
+            r#"
+                [profile.default]
+                auto_detect_remappings = false
+                remappings = ["@oz=lib/openzeppelin-contracts/contracts/"]
+            "#,
+        )
+        .unwrap();
+
+        let workspace =
+            Workspace::load_foundry(FoundryManifest::new(project.path().join("foundry.toml")))
+                .unwrap();
+        let opts = workspace.compile_opts();
+
+        assert_eq!(
+            opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>(),
+            vec!["solmate/=lib/solmate/src/", "@oz=lib/openzeppelin-contracts/contracts/"]
+        );
+    }
+
+    #[test]
     fn workspace_path_index_uses_most_specific_base_path() {
         let project = TempDir::new().unwrap();
         let nested = project.path().join("nested");

@@ -24,6 +24,7 @@ struct FoundryProfiles {
 pub(crate) struct FoundryProfile {
     src: Option<PathBuf>,
     libs: Option<Vec<PathBuf>>,
+    auto_detect_remappings: Option<bool>,
     #[serde(default, with = "crate::serde::display_fromstr::vec")]
     remappings: Vec<ImportRemapping>,
     #[serde(default, with = "crate::serde::optional_display_fromstr")]
@@ -43,7 +44,10 @@ impl FoundryProfile {
     }
 
     pub(crate) fn remappings(&self, root: &Path) -> Vec<ImportRemapping> {
-        let mut remappings = self.discover_lib_remappings(root);
+        let mut remappings = Vec::new();
+        if self.auto_detect_remappings.unwrap_or(true) {
+            remappings.extend(self.discover_lib_remappings(root));
+        }
         remappings.extend(read_remappings_txt(root));
         remappings.extend(self.remappings.clone());
         remappings
