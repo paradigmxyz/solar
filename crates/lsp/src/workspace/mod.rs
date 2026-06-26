@@ -10,7 +10,6 @@
 //! overall LSP config.
 
 use crate::workspace::{foundry::FoundryDocument, manifest::FoundryManifest};
-use serde::de::DeserializeOwned;
 use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
 use solar_interface::source_map::SourceMap;
 use std::{
@@ -24,7 +23,6 @@ pub(crate) mod manifest;
 #[derive(Clone, Debug)]
 pub(crate) struct Workspace {
     kind: WorkspaceKind,
-    manifest_path: Option<PathBuf>,
     compile_opts: CompileOpts,
     source_roots: Vec<PathBuf>,
     source_files: Vec<PathBuf>,
@@ -41,15 +39,10 @@ pub(crate) enum WorkspaceKind {
 }
 
 impl Workspace {
-    pub(crate) fn load_manifest(manifest: FoundryManifest) -> Result<Self, WorkspaceError> {
-        Self::load_foundry(manifest.into_path())
-    }
-
     pub(crate) fn naked(root: PathBuf) -> Self {
         let source_roots = vec![root.clone()];
         Self {
             kind: WorkspaceKind::Naked,
-            manifest_path: None,
             compile_opts: CompileOpts { base_path: Some(root), ..Default::default() },
             source_roots,
             source_files: Vec::new(),
@@ -59,7 +52,6 @@ impl Workspace {
     pub(crate) fn unconfigured() -> Self {
         Self {
             kind: WorkspaceKind::Naked,
-            manifest_path: None,
             compile_opts: CompileOpts::default(),
             source_roots: Vec::new(),
             source_files: Vec::new(),
@@ -68,10 +60,6 @@ impl Workspace {
 
     pub(crate) fn kind(&self) -> WorkspaceKind {
         self.kind
-    }
-
-    pub(crate) fn manifest_path(&self) -> Option<&Path> {
-        self.manifest_path.as_deref()
     }
 
     pub(crate) fn compile_opts(&self) -> &CompileOpts {
@@ -119,9 +107,10 @@ impl Workspace {
         }
     }
 
-    fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
+    pub(crate) fn load_foundry(manifest: FoundryManifest) -> Result<Self, WorkspaceError> {
+        let path = manifest.into_path();
         let root = manifest_root(&path)?;
-        let profile = load_manifest_document::<FoundryDocument>(&path)?.default_profile();
+        let profile = load_foundry_document(&path)?.default_profile();
         let compile_opts = compile_opts(
             root.clone(),
             profile.include_paths(&root),
@@ -131,7 +120,6 @@ impl Workspace {
 
         Ok(Self {
             kind: WorkspaceKind::Foundry,
-            manifest_path: Some(path),
             source_roots: profile.source_roots(&root),
             compile_opts,
             source_files: Vec::new(),
@@ -174,10 +162,6 @@ impl<'a> WorkspacePathIndex<'a> {
             .map(|entry| entry.idx)
             .unwrap_or(0)
     }
-}
-
-pub(crate) fn workspace_idx_for_path(workspaces: &[Workspace], path: &Path) -> usize {
-    WorkspacePathIndex::new(workspaces).workspace_idx_for_path(path)
 }
 
 fn collect_solidity_files(
@@ -265,7 +249,7 @@ fn compile_opts(
     opts
 }
 
-fn load_manifest_document<T: DeserializeOwned>(path: &Path) -> Result<T, WorkspaceError> {
+fn load_foundry_document(path: &Path) -> Result<FoundryDocument, WorkspaceError> {
     let source_map = SourceMap::empty();
     let contents = source_map
         .file_loader()
@@ -302,7 +286,7 @@ mod tests {
         .unwrap();
 
         let workspace =
-            Workspace::load_manifest(FoundryManifest::new(project.path().join("foundry.toml")))
+            Workspace::load_foundry(FoundryManifest::new(project.path().join("foundry.toml")))
                 .unwrap();
         let opts = workspace.compile_opts();
 

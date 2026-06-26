@@ -259,16 +259,6 @@ impl GlobalStateSnapshot {
         Cow::Owned(vec![crate::workspace::Workspace::unconfigured()])
     }
 
-    #[cfg(test)]
-    fn analysis_inputs(&self, disk_paths: Vec<PathBuf>) -> Vec<(PathBuf, String)> {
-        let mut batches = self.analysis_batches(disk_paths);
-        let mut files = Vec::new();
-        for batch in &mut batches {
-            files.append(&mut batch.files);
-        }
-        files
-    }
-
     fn publish_diagnostic_set(&mut self, mut diagnostics: FxHashMap<Url, Vec<Diagnostic>>) {
         let mut uris = diagnostics.keys().cloned().collect::<FxHashSet<_>>();
 
@@ -410,7 +400,7 @@ mod tests {
     }
 
     #[test]
-    fn analysis_inputs_reads_disk_files() {
+    fn analysis_batches_read_disk_files() {
         let project = TempDir::new().unwrap();
         let path = project.path().join("Saved.sol");
         std::fs::write(&path, "contract C { function f() public { number+; } }").unwrap();
@@ -422,9 +412,13 @@ mod tests {
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
-        let files = snapshot.analysis_inputs(vec![path.clone()]);
+        let mut batches = snapshot.analysis_batches(vec![path.clone()]);
+        let batch = batches.pop().unwrap();
 
-        assert_eq!(files, vec![(path, "contract C { function f() public { number+; } }".into())]);
+        assert_eq!(
+            batch.files,
+            vec![(path, "contract C { function f() public { number+; } }".into())]
+        );
     }
 
     #[test]
@@ -626,7 +620,7 @@ mod tests {
     }
 
     #[test]
-    fn analysis_inputs_skips_unreadable_disk_files() {
+    fn analysis_batches_skip_unreadable_disk_files() {
         let project = TempDir::new().unwrap();
         let path = project.path().join("Missing.sol");
         let snapshot = GlobalStateSnapshot {
@@ -637,8 +631,9 @@ mod tests {
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
-        let files = snapshot.analysis_inputs(vec![path]);
+        let mut batches = snapshot.analysis_batches(vec![path]);
+        let batch = batches.pop().unwrap();
 
-        assert!(files.is_empty());
+        assert!(batch.files.is_empty());
     }
 }

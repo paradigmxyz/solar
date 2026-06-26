@@ -1,4 +1,4 @@
-use crate::workspace::{Workspace, manifest::FoundryManifest, workspace_idx_for_path};
+use crate::workspace::{Workspace, WorkspacePathIndex, manifest::FoundryManifest};
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
@@ -48,7 +48,7 @@ impl Config {
                     continue;
                 }
                 let fallback_root = manifest.root().map(Path::to_path_buf);
-                match Workspace::load_manifest(manifest) {
+                match Workspace::load_foundry(manifest) {
                     Ok(workspace) => push_workspace(&mut workspaces, workspace),
                     Err(error) => {
                         warn!(%error, "failed to load workspace");
@@ -59,19 +59,7 @@ impl Config {
                 }
             }
         }
-        if workspaces.is_empty() {
-            for root in &self.workspace_roots {
-                push_workspace(&mut workspaces, Workspace::naked(root.clone()));
-            }
-        }
-
-        info!(
-            workspaces = ?workspaces
-                .iter()
-                .map(|workspace| (workspace.kind(), workspace.manifest_path()))
-                .collect::<Vec<_>>(),
-            "loaded workspaces",
-        );
+        info!(workspaces = ?workspaces.iter().map(Workspace::kind).collect::<Vec<_>>(), "loaded workspaces");
         self.workspaces = workspaces;
     }
 
@@ -89,7 +77,7 @@ impl Config {
         if self.workspaces.is_empty() {
             return;
         }
-        let idx = workspace_idx_for_path(&self.workspaces, &path);
+        let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(&path);
         self.workspaces[idx].add_source_file(path);
     }
 
@@ -97,7 +85,7 @@ impl Config {
         if self.workspaces.is_empty() {
             return;
         }
-        let idx = workspace_idx_for_path(&self.workspaces, path);
+        let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(path);
         self.workspaces[idx].remove_source_file(path);
     }
 }
