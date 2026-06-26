@@ -9,7 +9,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SOLC_VERSION: 0.8.30
+  SOLC_VERSION: 0.8.35
   FANDANGO_VERSION: 1.1.1
 
 jobs:
@@ -76,87 +76,36 @@ jobs:
         run: cargo build
       - name: test
         run: cargo nextest run --workspace
-      - name: Fandango runtime and source differentials
-        if: matrix.os == 'ubuntu-latest' && matrix.rust == 'stable'
-        run: |
-          set -euo pipefail
-          mkdir -p target/runtime-fuzz "$RUNNER_TEMP/solc"
-
-          curl -fsSL \
-            "https://github.com/ethereum/solidity/releases/download/v${SOLC_VERSION}/solc-static-linux" \
-            -o "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
-          chmod +x "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}"
-          "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" --version
-
-          python3 -m venv "$RUNNER_TEMP/fandango-venv"
-          "$RUNNER_TEMP/fandango-venv/bin/pip" install "fandango-fuzzer==${FANDANGO_VERSION}"
-
-          cargo build -p solar-compiler --bin solar
-
-          anvil --silent --port 8545 > "$RUNNER_TEMP/fandango-anvil.log" 2>&1 &
-          anvil_pid=$!
-          cleanup() {
-            kill "$anvil_pid" 2>/dev/null || true
-            wait "$anvil_pid" 2>/dev/null || true
-          }
-          trap cleanup EXIT
-
-          for _ in {1..30}; do
-            if cast block-number --rpc-url http://127.0.0.1:8545 >/dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-          cast block-number --rpc-url http://127.0.0.1:8545 >/dev/null
-
-          python3 tests/fuzz/fandango/encode_abi_vectors.py --seed corpus \
-            < tests/fuzz/fandango/corpus.jsonl \
-            > target/runtime-fuzz/fandango-vectors.jsonl
-
-          for seed in 1 2 3; do
-            PYTHONHASHSEED=1 "$RUNNER_TEMP/fandango-venv/bin/fandango" fuzz \
-              -f tests/fuzz/fandango/abi-values.fan \
-              --random-seed "$seed" \
-              -n 32 \
-              --separator $'\n' \
-              --progress-bar off \
-              | python3 tests/fuzz/fandango/encode_abi_vectors.py --seed "$seed" \
-              >> target/runtime-fuzz/fandango-vectors.jsonl
-          done
-
-          python3 tests/fuzz/fandango/run_abi_vectors.py \
-            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
-            --max-vectors 160 \
-            --max-transactions 64 \
-            --max-calldata-bytes 4096 \
-            --timeout 20 \
-            < target/runtime-fuzz/fandango-vectors.jsonl \
-            | tee target/runtime-fuzz/fandango.json
-
-          mkdir -p target/runtime-fuzz/sources
-          PYTHONHASHSEED=1 "$RUNNER_TEMP/fandango-venv/bin/fandango" fuzz \
-            -f tests/fuzz/fandango/solidity-source.fan \
-            --random-seed 1 \
-            -n 32 \
-            --directory target/runtime-fuzz/sources \
-            --filename-extension .sol \
-            --progress-bar off
-
-          python3 tests/fuzz/fandango/run_solidity_sources.py \
-            --source-dir target/runtime-fuzz/sources \
-            --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
-            --solar "$GITHUB_WORKSPACE/target/debug/solar" \
-            --failure-dir target/runtime-fuzz/source-failures \
-            --max-sources 64 \
-            --timeout 20 \
-            --verbose \
-            | tee target/runtime-fuzz/fandango-sources.json
       - name: test --features nightly
         if: matrix.rust == 'nightly'
         run: cargo nextest run --workspace --features nightly
       - name: doctest
         run: cargo test --doc --workspace
+
+  fandango:
+    name: fandango
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          submodules: true
+      - name: Checkout submodules
+        run: git submodule update --checkout
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+        with:
+          cache-on-failure: true
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
+        with:
+          version: stable
+      - name: Install uv
+        uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
+      - name: Fandango runtime and source differentials
+        run: .github/scripts/run_fandango_checks.sh
 
   feature-checks:
     name: features
@@ -284,6 +233,7 @@ jobs:
     permissions: {}
     needs:
       - test
+      - fandango
       - feature-checks
       - wasm
       - typos

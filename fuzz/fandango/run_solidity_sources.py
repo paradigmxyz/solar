@@ -25,7 +25,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--solc", default="solc")
     parser.add_argument("--solar", default="target/debug/solar")
-    parser.add_argument("--failure-dir", default="tests/fuzz/fandango/out/source-failures")
+    parser.add_argument("--failure-dir", default="fuzz/fandango/out/source-failures")
     parser.add_argument(
         "--source-dir",
         type=pathlib.Path,

@@ -9,12 +9,12 @@ This directory contains bounded Fandango-based differential tests.
   runner compiles each generated `.sol` file with solc and this compiler and
   records compile-result disagreements.
 
-Generated artifacts belong under `tests/fuzz/fandango/out/`, which is ignored.
+Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
 
 ## CI
 
-The normal CI test job runs:
+The `fandango` CI job runs:
 
 - the committed ABI corpus,
 - a small bounded sample from `abi-values.fan`, and
@@ -31,11 +31,10 @@ Gas and bytecode size are not compared here; benchmark jobs report those.
 
 ## Run Locally
 
-Install the pinned Fandango version:
+Use `uv tool run` with the pinned Fandango version:
 
 ```bash
-python3 -m venv /tmp/solar-fandango-venv
-/tmp/solar-fandango-venv/bin/pip install 'fandango-fuzzer==1.1.1'
+uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango --help
 ```
 
 Run ABI runtime differentials against a local anvil:
@@ -43,14 +42,14 @@ Run ABI runtime differentials against a local anvil:
 ```bash
 anvil --silent --port 8545
 
-PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
-  -f tests/fuzz/fandango/abi-values.fan \
+PYTHONHASHSEED=1 uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango fuzz \
+  -f fuzz/fandango/abi-values.fan \
   --random-seed 1 \
   -n 32 \
   --separator $'\n' \
   --progress-bar off \
-  | python3 tests/fuzz/fandango/encode_abi_vectors.py --seed 1 \
-  | python3 tests/fuzz/fandango/run_abi_vectors.py \
+  | python3 fuzz/fandango/encode_abi_vectors.py --seed 1 \
+  | python3 fuzz/fandango/run_abi_vectors.py \
       --max-vectors 256 \
       --max-calldata-bytes 4096 \
       --timeout 20
@@ -59,25 +58,25 @@ PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
 Generate Solidity sources and compile-check each file:
 
 ```bash
-mkdir -p tests/fuzz/fandango/out/sources
+mkdir -p fuzz/fandango/out/sources
 
-PYTHONHASHSEED=1 /tmp/solar-fandango-venv/bin/fandango fuzz \
-  -f tests/fuzz/fandango/solidity-source.fan \
+PYTHONHASHSEED=1 uv tool run --quiet --from 'fandango-fuzzer==1.1.1' fandango fuzz \
+  -f fuzz/fandango/solidity-source.fan \
   --random-seed 1 \
   -n 32 \
-  --directory tests/fuzz/fandango/out/sources \
+  --directory fuzz/fandango/out/sources \
   --filename-extension .sol \
   --progress-bar off
 
-python3 tests/fuzz/fandango/run_solidity_sources.py \
-  --source-dir tests/fuzz/fandango/out/sources \
+python3 fuzz/fandango/run_solidity_sources.py \
+  --source-dir fuzz/fandango/out/sources \
   --max-sources 256 \
   --timeout 20 \
   --verbose
 ```
 
-Failures are saved under `tests/fuzz/fandango/out/failures/` or
-`tests/fuzz/fandango/out/source-failures/`.
+Failures are saved under `fuzz/fandango/out/failures/` or
+`fuzz/fandango/out/source-failures/`.
 
 ## Extend
 
