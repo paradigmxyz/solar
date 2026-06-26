@@ -139,6 +139,7 @@ colorchoice = "1.0"
 # serde
 serde = "1.0"
 serde_json = "1.0"
+toml_edit = "0.25"
 
 # macros
 proc-macro2 = "1.0"

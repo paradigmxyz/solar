@@ -1,13 +1,12 @@
-use std::{ops::ControlFlow, sync::Arc};
-
+use crate::{NotifyResult, global_state::GlobalState, proto, utils::apply_document_changes};
 use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    FileChangeType,
 };
+use std::{ops::ControlFlow, sync::Arc};
 use tracing::{error, info};
-
-use crate::{NotifyResult, global_state::GlobalState, proto, utils::apply_document_changes};
 
 pub(crate) fn did_open_text_document(
     state: &mut GlobalState,
@@ -74,13 +73,13 @@ pub(crate) fn did_close_text_document(
 }
 
 pub(crate) fn did_change_configuration(
-    _: &mut GlobalState,
+    state: &mut GlobalState,
     _: DidChangeConfigurationParams,
 ) -> NotifyResult {
     // As stated in https://github.com/microsoft/language-server-protocol/issues/676,
     // this notification's parameters should be ignored and the actual config queried separately.
-    //
-    // For now this is just a stub.
+    Arc::make_mut(&mut state.config).rediscover_workspaces();
+    state.recompute();
     ControlFlow::Continue(())
 }
 
@@ -88,7 +87,7 @@ pub(crate) fn did_change_watched_files(
     state: &mut GlobalState,
     params: DidChangeWatchedFilesParams,
 ) -> NotifyResult {
-    let mut should_recompute = false;
+    let mut should_rediscover = false;
     let mut disk_paths = Vec::new();
 
     for event in params.changes {
@@ -98,18 +97,24 @@ pub(crate) fn did_change_watched_files(
 
         match path.file_name().and_then(|name| name.to_str()) {
             Some("foundry.toml") => {
-                Arc::make_mut(&mut state.config).rediscover_workspaces();
-                should_recompute = true;
+                should_rediscover = true;
             }
             Some(_) if path.extension().is_some_and(|ext| ext == "sol") => {
+                if event.typ == FileChangeType::CREATED {
+                    Arc::make_mut(&mut state.config).add_source_file(path.clone());
+                } else if event.typ == FileChangeType::DELETED {
+                    Arc::make_mut(&mut state.config).remove_source_file(&path);
+                }
                 disk_paths.push(path);
-                should_recompute = true;
             }
             _ => {}
         }
     }
 
-    if should_recompute {
+    if should_rediscover {
+        Arc::make_mut(&mut state.config).rediscover_workspaces();
+    }
+    if should_rediscover || !disk_paths.is_empty() {
         state.recompute_with_disk_files(disk_paths);
     }
 
@@ -132,7 +137,8 @@ pub(crate) fn did_change_workspace_folders(
     let added = params.event.added.into_iter().filter_map(|it| it.uri.to_file_path().ok());
     config.add_workspaces(added);
 
-    // todo: rediscover workspaces & refetch configs
+    config.rediscover_workspaces();
+    state.recompute();
 
     ControlFlow::Continue(())
 }

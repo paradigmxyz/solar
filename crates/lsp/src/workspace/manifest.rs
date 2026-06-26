@@ -68,3 +68,37 @@ impl ProjectManifest {
         res
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use tempfile::TempDir;
+
+    #[test]
+    fn child_discovery_finds_foundry_manifest() {
+        let root = TempDir::new().unwrap();
+        let child = root.path().join("child");
+        fs::create_dir(&child).unwrap();
+        fs::write(child.join("foundry.toml"), "").unwrap();
+
+        assert_eq!(
+            ProjectManifest::discover_all(&[root.path().to_path_buf()]),
+            vec![ProjectManifest::Foundry(child.join("foundry.toml"))],
+        );
+    }
+
+    #[test]
+    fn parent_discovery_prefers_nearest_foundry_manifest() {
+        let root = TempDir::new().unwrap();
+        let child = root.path().join("child");
+        fs::create_dir(&child).unwrap();
+        fs::write(root.path().join("foundry.toml"), "").unwrap();
+        fs::write(child.join("foundry.toml"), "").unwrap();
+
+        assert_eq!(
+            ProjectManifest::discover_all(std::slice::from_ref(&child)),
+            vec![ProjectManifest::Foundry(child.join("foundry.toml"))],
+        );
+    }
+}
