@@ -21,6 +21,7 @@ mod global_state;
 mod handlers;
 mod proto;
 mod serde;
+mod symbols;
 mod utils;
 mod vfs;
 mod workspace;

@@ -70,7 +70,7 @@ pub(crate) fn diagnostic(
     ))
 }
 
-fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Location> {
+pub(crate) fn span_to_location(source_map: &SourceMap, span: Span) -> Option<lsp_types::Location> {
     let (file, SpanLoc { lo, hi }) = source_map.span_to_location_info(span);
     let file = file?;
 

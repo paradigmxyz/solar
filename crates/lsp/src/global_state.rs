@@ -29,6 +29,7 @@ use crate::{
     NotifyResult,
     config::{Config, negotiate_capabilities},
     proto,
+    symbols::SymbolTables,
     vfs::Vfs,
 };
 
@@ -37,6 +38,7 @@ pub(crate) struct GlobalState {
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
     published_diagnostic_uris: Arc<RwLock<HashSet<Url>>>,
 }
 
@@ -46,6 +48,7 @@ impl GlobalState {
             client,
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
             config: Arc::new(Default::default()),
         }
@@ -110,54 +113,17 @@ impl GlobalState {
             let (files, file_uris) = snapshot.analysis_inputs(disk_paths);
             if files.is_empty() {
                 if snapshot.is_current(version) {
+                    snapshot.set_symbol_tables(SymbolTables::default());
                     snapshot.publish_diagnostic_set(file_uris, HashMap::new());
                 }
                 return;
             }
 
-            // todo: if this errors, we should notify the user
-            // todo: set base path to project root
-            // todo: remappings
-            let (emitter, diag_buffer) = InMemoryEmitter::new();
-            let sess = Session::builder().dcx(DiagCtxt::new(Box::new(emitter))).build();
-
-            let mut compiler = Compiler::new(sess);
-            let _ = compiler.enter_mut(move |compiler| -> solar_interface::Result<_> {
-                // Parse the files.
-                let mut parsing_context = compiler.parse();
-                // todo: unwraps
-                parsing_context.add_files(files.into_iter().map(|(path, contents)| {
-                    compiler
-                        .sess()
-                        .source_map()
-                        .new_source_file(FileName::real(path), contents)
-                        .unwrap()
-                }));
-
-                parsing_context.parse();
-
-                // Perform lowering and analysis.
-                // We should never encounter `ControlFlow::Break` because we do not stop after
-                // parsing, so we ignore the return.
-                // todo: handle errors (currently this always errors?)
-                let _ = compiler.lower_asts();
-                let _ = compiler.analysis();
-
-                // todo clean this mess up boya
-                let diagnostics: HashMap<_, Vec<_>> = diag_buffer
-                    .read()
-                    .iter()
-                    .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
-                    .fold(HashMap::new(), |mut diags, (path, diag)| {
-                        diags.entry(path).or_default().push(diag);
-                        diags
-                    });
-                if snapshot.is_current(version) {
-                    snapshot.publish_diagnostic_set(file_uris, diagnostics);
-                }
-
-                Ok(())
-            });
+            let result = analyze(files);
+            if snapshot.is_current(version) {
+                snapshot.set_symbol_tables(result.symbol_tables);
+                snapshot.publish_diagnostic_set(file_uris, result.diagnostics);
+            }
         });
     }
 
@@ -166,6 +132,7 @@ impl GlobalState {
             client: self.client.clone(),
             vfs: self.vfs.clone(),
             analysis_version: self.analysis_version.clone(),
+            symbol_tables: self.symbol_tables.clone(),
             published_diagnostic_uris: self.published_diagnostic_uris.clone(),
         }
     }
@@ -177,6 +144,59 @@ impl GlobalState {
         let snapshot = self.snapshot();
         tokio::task::spawn_blocking(move || f(snapshot))
     }
+}
+
+struct AnalysisResult {
+    diagnostics: HashMap<Url, Vec<Diagnostic>>,
+    symbol_tables: SymbolTables,
+}
+
+fn analyze(files: Vec<(PathBuf, String)>) -> AnalysisResult {
+    if files.is_empty() {
+        return AnalysisResult {
+            diagnostics: HashMap::new(),
+            symbol_tables: SymbolTables::default(),
+        };
+    }
+
+    // todo: if this errors, we should notify the user
+    // todo: set base path to project root
+    // todo: remappings
+    let (emitter, diag_buffer) = InMemoryEmitter::new();
+    let sess = Session::builder().dcx(DiagCtxt::new(Box::new(emitter))).build();
+
+    let mut compiler = Compiler::new(sess);
+    let _ = compiler.enter_mut(move |compiler| -> solar_interface::Result<_> {
+        let mut parsing_context = compiler.parse();
+        // todo: unwraps
+        parsing_context.add_files(files.into_iter().map(|(path, contents)| {
+            compiler.sess().source_map().new_source_file(FileName::real(path), contents).unwrap()
+        }));
+
+        parsing_context.parse();
+
+        // We should never encounter `ControlFlow::Break` because we do not stop after parsing,
+        // so we ignore the return.
+        // todo: handle errors (currently this always errors?)
+        let _ = compiler.lower_asts();
+        let _ = compiler.analysis();
+
+        Ok(())
+    });
+
+    let symbol_tables = compiler.enter(|compiler| SymbolTables::build(compiler.gcx()));
+    let diagnostics = compiler.enter(|compiler| {
+        diag_buffer
+            .read()
+            .iter()
+            .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
+            .fold(HashMap::<Url, Vec<Diagnostic>>::new(), |mut diags, (path, diag)| {
+                diags.entry(path).or_default().push(diag);
+                diags
+            })
+    });
+
+    AnalysisResult { diagnostics, symbol_tables }
 }
 
 fn watched_file_registration_params() -> RegistrationParams {
@@ -201,6 +221,7 @@ pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
     analysis_version: Arc<AtomicUsize>,
+    symbol_tables: Arc<RwLock<SymbolTables>>,
     published_diagnostic_uris: Arc<RwLock<HashSet<Url>>>,
 }
 
@@ -240,6 +261,10 @@ impl GlobalStateSnapshot {
         (files, file_uris)
     }
 
+    fn set_symbol_tables(&mut self, symbol_tables: SymbolTables) {
+        *self.symbol_tables.write() = symbol_tables;
+    }
+
     fn publish_diagnostic_set(
         &mut self,
         file_uris: Vec<Url>,
@@ -269,6 +294,8 @@ impl GlobalStateSnapshot {
 mod tests {
     use async_lsp::ClientSocket;
     use lsp_types::{Diagnostic, Position, Range, WatchKind, notification::Notification};
+
+    use crate::symbols::DeclarationKind;
 
     use super::*;
 
@@ -300,6 +327,7 @@ mod tests {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: published_diagnostic_uris.clone(),
         };
 
@@ -331,6 +359,7 @@ mod tests {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
@@ -350,6 +379,7 @@ mod tests {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
@@ -357,5 +387,102 @@ mod tests {
 
         assert!(files.is_empty());
         assert_eq!(uris, vec![uri]);
+    }
+
+    #[test]
+    fn analyze_builds_declaration_symbol_table() {
+        let path = std::env::temp_dir()
+            .join(format!("solar-lsp-symbols-{}-Symbols.sol", std::process::id()));
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(vec![(
+            path,
+            r#"
+contract C {
+    uint256 public x;
+    struct S { uint256 field; }
+    constructor() {}
+    fallback() external {}
+    receive() external payable {}
+    function f(uint256 y) public returns (uint256 z) {
+        uint256 local = x + y;
+        return local;
+    }
+}
+enum E { A }
+"#
+            .into(),
+        )]);
+
+        assert!(result.diagnostics.is_empty());
+
+        let declarations = result.symbol_tables.file_declarations(&uri).collect::<Vec<_>>();
+        assert_declaration(&declarations, "C", DeclarationKind::Contract);
+        assert_declaration(&declarations, "x", DeclarationKind::Variable);
+        assert_declaration(&declarations, "S", DeclarationKind::Struct);
+        assert_declaration(&declarations, "field", DeclarationKind::Variable);
+        assert_declaration(&declarations, "constructor", DeclarationKind::Function);
+        assert_declaration(&declarations, "fallback", DeclarationKind::Function);
+        assert_declaration(&declarations, "receive", DeclarationKind::Function);
+        assert_declaration(&declarations, "f", DeclarationKind::Function);
+        assert_declaration(&declarations, "y", DeclarationKind::Variable);
+        assert_declaration(&declarations, "z", DeclarationKind::Variable);
+        assert_declaration(&declarations, "local", DeclarationKind::Variable);
+        assert_declaration(&declarations, "E", DeclarationKind::Enum);
+        assert_declaration(&declarations, "A", DeclarationKind::EnumVariant);
+
+        assert_parent(&declarations, "x", "C");
+        assert_parent(&declarations, "field", "S");
+        assert_parent(&declarations, "constructor", "C");
+        assert_parent(&declarations, "y", "f");
+        assert_parent(&declarations, "z", "f");
+        assert_parent(&declarations, "local", "f");
+        assert_parent(&declarations, "A", "E");
+
+        assert_eq!(
+            declarations
+                .iter()
+                .filter(|symbol| symbol.name == "x" && symbol.kind == DeclarationKind::Variable)
+                .count(),
+            1
+        );
+        assert_eq!(declarations.len(), result.symbol_tables.declarations().len());
+    }
+
+    fn assert_parent(
+        declarations: &[&crate::symbols::DeclarationSymbol],
+        name: &str,
+        parent: &str,
+    ) {
+        let declaration = find_declaration(declarations, name);
+        let parent_id = declaration.parent.unwrap_or_else(|| {
+            panic!("declaration `{name}` has no parent in {declarations:#?}");
+        });
+        let parent_declaration = declarations
+            .iter()
+            .find(|candidate| candidate.id == parent_id)
+            .unwrap_or_else(|| panic!("parent {parent_id:?} for `{name}` not found"));
+        assert_eq!(parent_declaration.name, parent);
+    }
+
+    fn assert_declaration(
+        declarations: &[&crate::symbols::DeclarationSymbol],
+        name: &str,
+        kind: DeclarationKind,
+    ) {
+        assert!(
+            declarations.iter().any(|symbol| symbol.name == name && symbol.kind == kind),
+            "missing {kind:?} declaration `{name}` in {declarations:#?}"
+        );
+    }
+
+    fn find_declaration<'a>(
+        declarations: &'a [&crate::symbols::DeclarationSymbol],
+        name: &str,
+    ) -> &'a crate::symbols::DeclarationSymbol {
+        declarations
+            .iter()
+            .copied()
+            .find(|symbol| symbol.name == name)
+            .unwrap_or_else(|| panic!("missing declaration `{name}` in {declarations:#?}"))
     }
 }
