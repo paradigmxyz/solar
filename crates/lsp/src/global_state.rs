@@ -660,6 +660,49 @@ mod tests {
     }
 
     #[test]
+    fn analysis_uses_foundry_auto_remappings_for_import_resolution() {
+        let project = TempDir::new().unwrap();
+        let src = project.path().join("src");
+        let forge_std = project.path().join("lib/forge-std/src");
+        fs::create_dir_all(&src).unwrap();
+        fs::create_dir_all(&forge_std).unwrap();
+        fs::write(src.join("A.sol"), r#"import "forge-std/Test.sol"; contract A is Test {}"#)
+            .unwrap();
+        fs::write(forge_std.join("Test.sol"), "contract Test {}").unwrap();
+        fs::write(
+            project.path().join("foundry.toml"),
+            r#"
+                [profile.default]
+                src = "src"
+            "#,
+        )
+        .unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+                uri: Url::from_file_path(project.path()).unwrap(),
+                name: "test".into(),
+            }]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(Default::default()),
+            config: Arc::new(config),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
+
+        let mut batches = snapshot.analysis_batches(Vec::new());
+        assert_eq!(batches.len(), 1);
+        let diagnostics = analyze(batches.pop().unwrap());
+
+        assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+    }
+
+    #[test]
     fn analysis_batches_skip_unreadable_disk_files() {
         let project = TempDir::new().unwrap();
         let path = project.path().join("Missing.sol");

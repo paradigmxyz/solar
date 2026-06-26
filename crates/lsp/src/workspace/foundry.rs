@@ -42,11 +42,50 @@ impl FoundryProfile {
         }
     }
 
-    pub(crate) fn remappings(&self) -> Vec<ImportRemapping> {
-        self.remappings.clone()
+    pub(crate) fn remappings(&self, root: &Path) -> Vec<ImportRemapping> {
+        let mut remappings = self.discover_lib_remappings(root);
+        remappings.extend(read_remappings_txt(root));
+        remappings.extend(self.remappings.clone());
+        remappings
     }
 
     pub(crate) fn evm_version(&self) -> Option<EvmVersion> {
         self.evm_version
     }
+
+    fn discover_lib_remappings(&self, root: &Path) -> Vec<ImportRemapping> {
+        let mut remappings: Vec<ImportRemapping> = Vec::new();
+        for lib in self.include_paths(root) {
+            let Ok(entries) = std::fs::read_dir(&lib) else {
+                continue;
+            };
+            for entry in entries.filter_map(Result::ok) {
+                let package = entry.path();
+                let src = package.join("src");
+                if src.is_dir()
+                    && let Some(name) = package.file_name().and_then(|name| name.to_str())
+                    && let Some(path) = src.strip_prefix(root).ok().and_then(Path::to_str)
+                    && let Ok(remapping) = format!("{name}/={path}/").parse()
+                {
+                    remappings.push(remapping);
+                }
+            }
+        }
+        remappings.sort_by(|lhs, rhs| lhs.prefix.cmp(&rhs.prefix));
+        remappings
+    }
+}
+
+fn read_remappings_txt(root: &Path) -> Vec<ImportRemapping> {
+    let path = root.join("remappings.txt");
+    let source_map = solar_interface::source_map::SourceMap::empty();
+    let Ok(contents) = source_map.file_loader().load_file(&path) else {
+        return Vec::new();
+    };
+    contents
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty())
+        .filter_map(|line| line.parse().ok())
+        .collect()
 }

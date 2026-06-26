@@ -114,7 +114,7 @@ impl Workspace {
         let compile_opts = compile_opts(
             root.clone(),
             profile.include_paths(&root),
-            profile.remappings(),
+            profile.remappings(&root),
             profile.evm_version(),
         );
 
@@ -270,6 +270,9 @@ mod tests {
     #[test]
     fn foundry_workspace_loads_manifest_compile_config() {
         let project = TempDir::new().unwrap();
+        fs::create_dir_all(project.path().join("lib/forge-std/src")).unwrap();
+        fs::create_dir_all(project.path().join("vendor/ds-test/src")).unwrap();
+        fs::write(project.path().join("remappings.txt"), "solmate/=lib/solmate/src/\n").unwrap();
         fs::write(
             project.path().join("foundry.toml"),
             r#"
@@ -298,7 +301,13 @@ mod tests {
         assert_eq!(opts.evm_version, EvmVersion::Cancun);
         assert_eq!(
             opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>(),
-            vec!["@oz=lib/openzeppelin-contracts/contracts/", "ds-test=lib/ds-test/src/",]
+            vec![
+                "ds-test/=vendor/ds-test/src/",
+                "forge-std/=lib/forge-std/src/",
+                "solmate/=lib/solmate/src/",
+                "@oz=lib/openzeppelin-contracts/contracts/",
+                "ds-test=lib/ds-test/src/",
+            ]
         );
         assert_eq!(workspace.source_roots(), &[project.path().join("contracts")]);
     }
