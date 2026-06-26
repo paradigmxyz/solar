@@ -10,7 +10,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SOLC_VERSION: 0.8.30
+  SOLC_VERSION: 0.8.35
   BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
   BENCHMARK_REF: 759b27b596ca6632717465832859863eccbe41a2
   BENCHMARK_PATH: solidity-compiler-benchmarks

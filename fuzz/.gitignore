@@ -1,3 +1,5 @@
 corpus
 tree-crasher.out
 erwin
+__pycache__/
+fandango/out

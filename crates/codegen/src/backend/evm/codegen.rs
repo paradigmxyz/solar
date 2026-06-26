@@ -45,15 +45,15 @@ pub struct EvmCodegenConfig {
     pub optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     pub mir_print_after_each: bool,
-    /// Run the experimental EVM IR `StackSchedule` pass in the production
-    /// assembler bridge before the existing layout passes.
+    /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
     ///
     /// Off by default: the default bytecode path must stay byte-for-byte
     /// unchanged. When enabled the bridge runs `EvmIrPass::StackSchedule` on the
-    /// operand-cleared block IR before `ColdLayout`/`TerminalDedup`. On that
-    /// already-stack-scheduled input the pass is a verified near no-op in
-    /// `StructuredAsmProgram::optimize_with_evm_ir`.
+    /// operand-cleared block IR. On that already-stack-scheduled input the pass
+    /// is a verified near no-op in `StructuredAsmProgram::optimize_with_evm_ir`.
     pub evm_ir_stack_schedule: bool,
+    /// Run EVM IR layout/code-size passes in the assembler bridge.
+    pub evm_ir_layout_passes: bool,
 }
 
 impl EvmCodegenConfig {
@@ -67,6 +67,7 @@ impl EvmCodegenConfig {
             // Keep the experimental EVM IR stack scheduler off in every default
             // compilation path so produced bytecode is unchanged.
             evm_ir_stack_schedule: false,
+            evm_ir_layout_passes: false,
         }
     }
 
@@ -75,6 +76,7 @@ impl EvmCodegenConfig {
             evm_version: self.evm_version,
             optimization: self.optimization,
             evm_ir_stack_schedule: self.evm_ir_stack_schedule,
+            evm_ir_layout_passes: self.evm_ir_layout_passes,
         }
     }
 }
@@ -3438,6 +3440,7 @@ impl crate::backend::Backend for EvmCodegen {
 mod tests {
     use super::*;
     use crate::lower;
+    use solar_config::{CompileOpts, UnstableOpts};
     use solar_interface::{Session, sym};
     use solar_sema::Compiler;
     use std::{ops::ControlFlow, path::PathBuf};
@@ -3453,7 +3456,11 @@ mod tests {
         source: &str,
         evm_ir_stack_schedule: bool,
     ) -> Result<Vec<u8>, String> {
-        let sess = Session::builder().with_buffer_emitter(Default::default()).build();
+        let opts = CompileOpts {
+            unstable: UnstableOpts { codegen: true, ..Default::default() },
+            ..Default::default()
+        };
+        let sess = Session::builder().with_buffer_emitter(Default::default()).opts(opts).build();
         let mut compiler = Compiler::new(sess);
 
         // Parse

@@ -288,6 +288,84 @@ fn extract_bytecode_sizes(out_path: &Path) -> HashMap<String, usize> {
     sizes
 }
 
+fn duration_millis(duration: Duration) -> u128 {
+    duration.as_millis()
+}
+
+fn compiler_run_json(run: &CompilerRun) -> serde_json::Value {
+    let tests = run
+        .tests
+        .iter()
+        .map(|test| {
+            serde_json::json!({
+                "name": test.name.as_str(),
+                "contract": test.contract.as_str(),
+                "passed": test.passed,
+                "gas": test.gas,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    serde_json::json!({
+        "compiler": run.compiler,
+        "compile_time_ms": duration_millis(run.compile_time),
+        "total_passed": run.total_passed,
+        "total_failed": run.total_failed,
+        "bytecode_sizes": run.bytecode_sizes,
+        "tests": tests,
+    })
+}
+
+fn report_file_name(name: &str) -> String {
+    let mut out = String::with_capacity(name.len() + ".json".len());
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_') {
+            out.push(ch);
+        } else {
+            out.push('_');
+        }
+    }
+    out.push_str(".json");
+    out
+}
+
+fn write_runtime_report(
+    config: &TestConfig,
+    solar_run: &CompilerRun,
+    solc_run: Option<&CompilerRun>,
+) {
+    let Some(report_dir) = std::env::var_os("SOLAR_FOUNDRY_REPORT_DIR") else {
+        return;
+    };
+
+    let report_dir = PathBuf::from(report_dir);
+    let report_dir =
+        if report_dir.is_absolute() { report_dir } else { workspace_root().join(report_dir) };
+    fs::create_dir_all(&report_dir).expect("failed to create Foundry report directory");
+
+    let report = serde_json::json!({
+        "project": {
+            "name": config.name.as_str(),
+            "path": config.path.as_str(),
+            "test_filter": config.test_filter.as_deref(),
+            "contract_filter": config.contract_filter.as_deref(),
+            "solar_only": config.solar_only,
+        },
+        "rerun": {
+            "command": "cargo test -p solar-compiler --test foundry -- --test-threads=1",
+            "env": {
+                "SOLAR_FOUNDRY_REPORT_DIR": report_dir.display().to_string(),
+            },
+        },
+        "solar": compiler_run_json(solar_run),
+        "solc": solc_run.map(compiler_run_json),
+    });
+
+    let path = report_dir.join(report_file_name(&config.name));
+    let json = serde_json::to_string_pretty(&report).expect("failed to serialize Foundry report");
+    fs::write(&path, json).expect("failed to write Foundry report");
+}
+
 // ============================================================================
 // Forge Execution
 // ============================================================================
@@ -617,11 +695,22 @@ fn run_test_with_config(config: &TestConfig) {
 /// Runs test with Solar only (no solc comparison).
 fn run_test_solar_only(config: &TestConfig) {
     let project_dir = workspace_root().join(&config.path);
-    let (_, tests, _) = run_forge_test_solar(&project_dir, &config.name, config);
+    let (test_time, tests, bytecode_sizes) =
+        run_forge_test_solar(&project_dir, &config.name, config);
     let tests = filter_tests(tests, config);
 
     let total_passed = tests.iter().filter(|t| t.passed).count();
     let total_failed = tests.iter().filter(|t| !t.passed).count();
+
+    let solar_run = CompilerRun {
+        compiler: "solar".to_string(),
+        compile_time: test_time,
+        tests,
+        total_passed,
+        total_failed,
+        bytecode_sizes,
+    };
+    write_runtime_report(config, &solar_run, None);
 
     println!("\n✅ [{}] Solar-only: {} passed, {} failed", config.name, total_passed, total_failed);
 
@@ -632,6 +721,7 @@ fn run_test_solar_only(config: &TestConfig) {
 /// Runs test with Solar vs solc comparison.
 fn run_test_with_comparison(config: &TestConfig) {
     let (solar_run, solc_run) = run_project_comparison(config);
+    write_runtime_report(config, &solar_run, Some(&solc_run));
 
     // Assert Solar tests pass
     assert_eq!(
