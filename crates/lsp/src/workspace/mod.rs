@@ -9,7 +9,7 @@
 //! Once a project type is identified, the configuration for that project model is merged into the
 //! overall LSP config.
 
-use crate::workspace::{foundry::FoundryDocument, manifest::FoundryManifest};
+use crate::workspace::foundry::FoundryDocument;
 use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
 use solar_interface::source_map::SourceMap;
 use std::{
@@ -107,8 +107,7 @@ impl Workspace {
         }
     }
 
-    pub(crate) fn load_foundry(manifest: FoundryManifest) -> Result<Self, WorkspaceError> {
-        let path = manifest.into_path();
+    pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
         let root = manifest_root(&path)?;
         let profile = load_foundry_document(&path)?.default_profile();
         let compile_opts = compile_opts(
@@ -262,7 +261,6 @@ fn load_foundry_document(path: &Path) -> Result<FoundryDocument, WorkspaceError>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workspace::manifest::FoundryManifest;
     use solar_config::EvmVersion;
     use std::fs;
     use tempfile::TempDir;
@@ -288,9 +286,7 @@ mod tests {
         )
         .unwrap();
 
-        let workspace =
-            Workspace::load_foundry(FoundryManifest::new(project.path().join("foundry.toml")))
-                .unwrap();
+        let workspace = Workspace::load_foundry(project.path().join("foundry.toml")).unwrap();
         let opts = workspace.compile_opts();
 
         assert_eq!(opts.base_path.as_deref(), Some(project.path()));
@@ -327,9 +323,7 @@ mod tests {
         )
         .unwrap();
 
-        let workspace =
-            Workspace::load_foundry(FoundryManifest::new(project.path().join("foundry.toml")))
-                .unwrap();
+        let workspace = Workspace::load_foundry(project.path().join("foundry.toml")).unwrap();
         let opts = workspace.compile_opts();
 
         assert_eq!(

@@ -1,4 +1,4 @@
-use crate::workspace::{Workspace, WorkspacePathIndex, manifest::FoundryManifest};
+use crate::workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest};
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
@@ -35,7 +35,7 @@ impl Config {
         let mut workspaces = Vec::new();
         let mut seen_manifests = FxHashSet::default();
         for root in &self.workspace_roots {
-            let discovered = FoundryManifest::discover(root);
+            let discovered = ProjectManifest::discover_all(std::slice::from_ref(root));
             info!(?root, ?discovered, "discovered projects");
             if discovered.is_empty() {
                 info!(?root, "no project manifests found");
@@ -47,13 +47,17 @@ impl Config {
                 if !seen_manifests.insert(manifest.clone()) {
                     continue;
                 }
-                let fallback_root = manifest.root().map(Path::to_path_buf);
-                match Workspace::load_foundry(manifest) {
-                    Ok(workspace) => push_workspace(&mut workspaces, workspace),
-                    Err(error) => {
-                        warn!(%error, "failed to load workspace");
-                        if let Some(root) = fallback_root {
-                            push_workspace(&mut workspaces, Workspace::naked(root));
+                match manifest {
+                    ProjectManifest::Foundry(path) => {
+                        let fallback_root = path.parent().map(PathBuf::from);
+                        match Workspace::load_foundry(path) {
+                            Ok(workspace) => push_workspace(&mut workspaces, workspace),
+                            Err(error) => {
+                                warn!(%error, "failed to load workspace");
+                                if let Some(root) = fallback_root {
+                                    push_workspace(&mut workspaces, Workspace::naked(root));
+                                }
+                            }
                         }
                     }
                 }
