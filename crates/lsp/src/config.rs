@@ -1,4 +1,4 @@
-use crate::workspace::{Workspace, manifest::ProjectManifest, workspace_idx_for_path};
+use crate::workspace::{Workspace, manifest::FoundryManifest, workspace_idx_for_path};
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
@@ -35,7 +35,7 @@ impl Config {
         let mut workspaces = Vec::new();
         let mut seen_manifests = FxHashSet::default();
         for root in &self.workspace_roots {
-            let discovered = ProjectManifest::discover(root);
+            let discovered = FoundryManifest::discover(root);
             info!(?root, ?discovered, "discovered projects");
             if discovered.is_empty() {
                 info!(?root, "no project manifests found");
@@ -186,10 +186,10 @@ mod tests {
     fn rediscover_workspaces_loads_manifests_and_falls_back_to_naked_roots() {
         let configured = TempDir::new().unwrap();
         fs::write(
-            configured.path().join("solar.toml"),
+            configured.path().join("foundry.toml"),
             r#"
-                [compiler]
-                source_paths = ["contracts"]
+                [profile.default]
+                src = "contracts"
             "#,
         )
         .unwrap();
@@ -212,14 +212,14 @@ mod tests {
         config.rediscover_workspaces();
 
         assert_eq!(config.workspaces().len(), 2);
-        let solar = config
+        let foundry = config
             .workspaces()
             .iter()
-            .find(|workspace| workspace.kind() == WorkspaceKind::Solar)
+            .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
             .unwrap();
-        assert_eq!(solar.source_roots(), &[configured.path().join("contracts")]);
+        assert_eq!(foundry.source_roots(), &[configured.path().join("contracts")]);
 
-        fs::remove_file(configured.path().join("solar.toml")).unwrap();
+        fs::remove_file(configured.path().join("foundry.toml")).unwrap();
         config.rediscover_workspaces();
 
         assert_eq!(config.workspaces().len(), 2);
@@ -231,13 +231,13 @@ mod tests {
     #[test]
     fn rediscover_workspaces_keeps_naked_root_after_manifest_load_error() {
         let broken = TempDir::new().unwrap();
-        fs::write(broken.path().join("solar.toml"), "not valid toml =").unwrap();
+        fs::write(broken.path().join("foundry.toml"), "not valid toml =").unwrap();
         let configured = TempDir::new().unwrap();
         fs::write(
-            configured.path().join("solar.toml"),
+            configured.path().join("foundry.toml"),
             r#"
-                [compiler]
-                source_paths = ["contracts"]
+                [profile.default]
+                src = "contracts"
             "#,
         )
         .unwrap();
@@ -265,7 +265,7 @@ mod tests {
                 && workspace.compile_opts().base_path.as_deref() == Some(broken.path())
         }));
         assert!(config.workspaces().iter().any(|workspace| {
-            workspace.kind() == WorkspaceKind::Solar
+            workspace.kind() == WorkspaceKind::Foundry
                 && workspace.source_roots() == [configured.path().join("contracts")]
         }));
     }

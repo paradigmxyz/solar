@@ -436,10 +436,10 @@ mod tests {
         fs::write(&source_path, "contract A {}").unwrap();
         fs::write(src.join("ignored.txt"), "not solidity").unwrap();
         fs::write(
-            project.path().join("solar.toml"),
+            project.path().join("foundry.toml"),
             r#"
-                [compiler]
-                source_paths = ["src"]
+                [profile.default]
+                src = "src"
             "#,
         )
         .unwrap();
@@ -487,10 +487,10 @@ mod tests {
         let created_after_discovery = src.join("CreatedAfterDiscovery.sol");
         fs::write(&cached_path, "contract Cached {}").unwrap();
         fs::write(
-            project.path().join("solar.toml"),
+            project.path().join("foundry.toml"),
             r#"
-                [compiler]
-                source_paths = ["src"]
+                [profile.default]
+                src = "src"
             "#,
         )
         .unwrap();
@@ -592,10 +592,10 @@ mod tests {
         fs::write(src.join("A.sol"), r#"import "@lib/B.sol"; contract A is B {}"#).unwrap();
         fs::write(lib.join("B.sol"), "contract B {}").unwrap();
         fs::write(
-            project.path().join("solar.toml"),
+            project.path().join("foundry.toml"),
             r#"
-                [compiler]
-                source_paths = ["src"]
+                [profile.default]
+                src = "src"
                 remappings = ["@lib=lib/"]
             "#,
         )

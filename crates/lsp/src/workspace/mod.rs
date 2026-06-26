@@ -9,7 +9,7 @@
 //! Once a project type is identified, the configuration for that project model is merged into the
 //! overall LSP config.
 
-use crate::workspace::{foundry::FoundryDocument, manifest::ProjectManifest, solar::SolarDocument};
+use crate::workspace::{foundry::FoundryDocument, manifest::FoundryManifest};
 use serde::de::DeserializeOwned;
 use solar_config::{CompileOpts, EvmVersion, ImportRemapping};
 use solar_interface::source_map::SourceMap;
@@ -20,7 +20,6 @@ use std::{
 
 mod foundry;
 pub(crate) mod manifest;
-mod solar;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Workspace {
@@ -33,7 +32,6 @@ pub(crate) struct Workspace {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum WorkspaceKind {
-    Solar,
     Foundry,
     /// A naked workspace is a workspace with no specific configuration.
     ///
@@ -43,11 +41,8 @@ pub(crate) enum WorkspaceKind {
 }
 
 impl Workspace {
-    pub(crate) fn load_manifest(manifest: ProjectManifest) -> Result<Self, WorkspaceError> {
-        match manifest {
-            ProjectManifest::Solar(path) => Self::load_solar(path),
-            ProjectManifest::Foundry(path) => Self::load_foundry(path),
-        }
+    pub(crate) fn load_manifest(manifest: FoundryManifest) -> Result<Self, WorkspaceError> {
+        Self::load_foundry(manifest.into_path())
     }
 
     pub(crate) fn naked(root: PathBuf) -> Self {
@@ -138,26 +133,6 @@ impl Workspace {
             kind: WorkspaceKind::Foundry,
             manifest_path: Some(path),
             source_roots: profile.source_roots(&root),
-            compile_opts,
-            source_files: Vec::new(),
-        })
-    }
-
-    fn load_solar(path: PathBuf) -> Result<Self, WorkspaceError> {
-        let root = manifest_root(&path)?;
-        let config = load_manifest_document::<SolarDocument>(&path)?.compiler();
-        let base_path = config.base_path(&root);
-        let compile_opts = compile_opts(
-            base_path.clone(),
-            config.include_paths(&base_path),
-            config.remappings(),
-            config.evm_version(),
-        );
-
-        Ok(Self {
-            kind: WorkspaceKind::Solar,
-            manifest_path: Some(path),
-            source_roots: config.source_roots(&base_path),
             compile_opts,
             source_files: Vec::new(),
         })
@@ -303,7 +278,7 @@ fn load_manifest_document<T: DeserializeOwned>(path: &Path) -> Result<T, Workspa
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workspace::manifest::ProjectManifest;
+    use crate::workspace::manifest::FoundryManifest;
     use solar_config::EvmVersion;
     use std::fs;
     use tempfile::TempDir;
@@ -327,7 +302,7 @@ mod tests {
         .unwrap();
 
         let workspace =
-            Workspace::load_manifest(ProjectManifest::Foundry(project.path().join("foundry.toml")))
+            Workspace::load_manifest(FoundryManifest::new(project.path().join("foundry.toml")))
                 .unwrap();
         let opts = workspace.compile_opts();
 
@@ -342,40 +317,6 @@ mod tests {
             vec!["@oz=lib/openzeppelin-contracts/contracts/", "ds-test=lib/ds-test/src/",]
         );
         assert_eq!(workspace.source_roots(), &[project.path().join("contracts")]);
-    }
-
-    #[test]
-    fn solar_workspace_loads_manifest_compile_config() {
-        let project = TempDir::new().unwrap();
-        fs::write(
-            project.path().join("solar.toml"),
-            r#"
-                [compiler]
-                base_path = "."
-                source_paths = ["src", "contracts"]
-                include_paths = ["lib"]
-                evm_version = "osaka"
-                remappings = ["@pkg=lib/pkg/src/"]
-            "#,
-        )
-        .unwrap();
-
-        let workspace =
-            Workspace::load_manifest(ProjectManifest::Solar(project.path().join("solar.toml")))
-                .unwrap();
-        let opts = workspace.compile_opts();
-
-        assert_eq!(opts.base_path.as_deref(), Some(project.path()));
-        assert_eq!(opts.include_paths, vec![project.path().join("lib")]);
-        assert_eq!(opts.evm_version, EvmVersion::Osaka);
-        assert_eq!(
-            opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>(),
-            vec!["@pkg=lib/pkg/src/"]
-        );
-        assert_eq!(
-            workspace.source_roots(),
-            &[project.path().join("src"), project.path().join("contracts")]
-        );
     }
 
     #[test]
