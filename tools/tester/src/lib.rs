@@ -5,8 +5,21 @@
 #![allow(unreachable_pub)]
 
 use eyre::{Result, eyre};
-use std::{ffi::OsString, path::Path};
-use ui_test::{color_eyre::eyre, spanned::Spanned};
+use std::{
+    ffi::OsString,
+    io,
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+    sync::OnceLock,
+};
+use ui_test::{
+    CommentParser, Errored, Revisioned,
+    build_manager::BuildManager,
+    color_eyre::eyre,
+    custom_flags::Flag,
+    per_test_config::TestConfig,
+    spanned::{Span, Spanned},
+};
 
 mod errors;
 mod solc;
@@ -102,19 +115,13 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
          you may need to initialize submodules: `git submodule update --init --checkout`"
     );
 
-    let standard_json_script = root.join("scripts/standard-json-filecheck.py");
-
     let mut config = ui_test::Config {
         // `host` and `target` are used for `//@ ignore-...` comments.
         host: Some(get_host().to_string()),
         target: None,
         root_dir: tests_root,
         program: ui_test::CommandBuilder {
-            program: if matches!(mode, Mode::StandardJson) {
-                if cfg!(windows) { "python".into() } else { "python3".into() }
-            } else {
-                cmd.into()
-            },
+            program: cmd.into(),
             args: {
                 let mut args: Vec<OsString> = match mode {
                     // `Mir` and `EvmIr` modes run subcommands which don't
@@ -122,9 +129,9 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
                     Mode::Mir => vec!["mir-opt".into()],
                     Mode::EvmIr => vec!["evm-opt".into()],
                     Mode::StandardJson => vec![
-                        standard_json_script.into_os_string(),
-                        "solar-standard-json".into(),
-                        cmd.as_os_str().to_os_string(),
+                        "--standard-json".into(),
+                        "--pretty-json".into(),
+                        "-Zui-testing".into(),
                     ],
                     _ => vec!["-j1", "--error-format=rustc-json", "-Zui-testing", "-Zparse-yul"]
                         .into_iter()
@@ -159,7 +166,7 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             )*
         };
     }
-    register_custom_flags![];
+    register_custom_flags![FileCheck];
 
     config.comment_defaults.base().exit_status = None.into();
     config.comment_defaults.base().require_annotations = Spanned::dummy(true).into();
@@ -248,7 +255,7 @@ fn get_host() -> &'static str {
 }
 
 fn mode_from_config(config: &ui_test::Config) -> Mode {
-    if config.program.args.get(1).is_some_and(|arg| arg == "solar-standard-json") {
+    if config.program.args.iter().any(|arg| arg == "--standard-json") {
         Mode::StandardJson
     } else if config.root_dir.ends_with("tests/ui/codegen/mir") {
         Mode::Mir
@@ -302,6 +309,9 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
     if matches!(cfg.mode, Mode::StandardJson) {
         config.comment_defaults.base().require_annotations = Spanned::dummy(false).into();
         config.comment_defaults.base().exit_status = Spanned::dummy(0).into();
+        if path.with_extension("stdout").exists() {
+            config.comment_defaults.base().add_custom(FileCheck::NAME, FileCheck::default());
+        }
         return;
     }
 
@@ -409,4 +419,119 @@ impl std::fmt::Display for Mode {
 struct MyConfig<'a> {
     mode: Mode,
     tmp_dir: &'a Path,
+}
+
+#[derive(Debug, Clone, Default)]
+struct FileCheck {
+    args: Vec<String>,
+}
+
+impl FileCheck {
+    const NAME: &'static str = "filecheck";
+    const DEFAULT: Option<Self> = None;
+
+    fn parse(parser: &mut CommentParser<&mut Revisioned>, args: Spanned<&str>, span: Span) {
+        let args = args.trim();
+        let args = args.split_whitespace().map(str::to_owned).collect();
+        parser.set_custom_once(Self::NAME, Self { args }, span);
+    }
+}
+
+impl Flag for FileCheck {
+    fn clone_inner(&self) -> Box<dyn Flag> {
+        Box::new(self.clone())
+    }
+
+    fn post_test_action(
+        &self,
+        config: &TestConfig,
+        _output: &std::process::Output,
+        _build_manager: &BuildManager,
+    ) -> std::result::Result<(), Errored> {
+        let stdout_path = config.status.path().with_extension(config.extension("stdout"));
+        if !stdout_path.exists() {
+            return Ok(());
+        }
+
+        run_filecheck(config.status.path(), &self.args, &stdout_path)
+    }
+
+    fn must_be_unique(&self) -> bool {
+        true
+    }
+}
+
+fn run_filecheck(
+    check_file: &Path,
+    args: &[String],
+    input_file: &Path,
+) -> std::result::Result<(), Errored> {
+    let filecheck = filecheck_binary().map_err(|msg| Errored {
+        command: "FileCheck".into(),
+        errors: vec![ui_test::Error::ConfigError(msg)],
+        stderr: vec![],
+        stdout: vec![],
+    })?;
+    let mut cmd = Command::new(filecheck);
+    cmd.args(args)
+        .arg(check_file)
+        .arg("--input-file")
+        .arg(input_file)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+
+    let command = format!("{cmd:?}");
+    let output = cmd.output().map_err(|err| command_error(command.clone(), err))?;
+    if output.status.success() {
+        return Ok(());
+    }
+    Err(Errored {
+        command,
+        errors: vec![ui_test::Error::Command { kind: "FileCheck".into(), status: output.status }],
+        stderr: output.stderr,
+        stdout: output.stdout,
+    })
+}
+
+fn filecheck_binary() -> Result<&'static PathBuf, String> {
+    static CACHE: OnceLock<Result<PathBuf, String>> = OnceLock::new();
+    CACHE.get_or_init(find_filecheck).as_ref().map_err(Clone::clone)
+}
+
+fn find_filecheck() -> Result<PathBuf, String> {
+    let mut errors = Vec::new();
+    for candidate in filecheck_candidates() {
+        let status = Command::new(&candidate)
+            .arg("--version")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status();
+        match status {
+            Ok(status) if status.success() => return Ok(candidate),
+            Ok(status) => {
+                errors.push(format!("{} --version exited with {status}", candidate.display()))
+            }
+            Err(err) => errors.push(format!("{} --version failed: {err}", candidate.display())),
+        }
+    }
+    let details =
+        if errors.is_empty() { String::new() } else { format!(" ({})", errors.join("; ")) };
+    Err(format!("FileCheck not found; set FILECHECK or install FileCheck/filecheck{details}"))
+}
+
+fn filecheck_candidates() -> Vec<PathBuf> {
+    if let Some(filecheck) = std::env::var_os("FILECHECK") {
+        vec![filecheck.into()]
+    } else {
+        vec!["FileCheck".into(), "filecheck".into()]
+    }
+}
+
+fn command_error(command: String, err: io::Error) -> Errored {
+    Errored {
+        command,
+        errors: vec![],
+        stderr: err.to_string().into_bytes(),
+        stdout: b"could not run FileCheck".to_vec(),
+    }
 }
