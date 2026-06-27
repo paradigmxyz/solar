@@ -154,6 +154,52 @@ self.dcx()
     .emit();
 ```
 
+## Commit Messages
+
+Default format (conventional commits): `type: description` (feat, fix, perf, chore, docs, test, refactor)
+
+- Optional scope: `type(scope): description`, e.g. `fix(parser): handle empty input`, `chore(deps): bump alloy`
+- Breaking changes: append `!` before colon, e.g. `feat(api)!: change return type`
+
+- Check recent `git log` to match the repo's commit style before committing.
+- Imperative mood, <50 chars, no period
+- Include body for perf (with measurements), bug fixes, complex changes
+
+## PR Titles
+
+- Follow the same conventional format as commit messages: `type: description`.
+
+## PR Descriptions
+
+- Explain what and why in flowing prose
+- Include real measurements only
+- Do not include validation/testing boilerplate like "Validated with", "Tested with", or command lists unless explicitly requested.
+- Link related issues/PRs
+- No templates, no bullet lists, no essays
+- NEVER pass escaped newlines (`\n`) in PR bodies; use real newlines via a file or heredoc.
+
+## Code Style
+
+- Comments end with periods (except URLs)
+- Files end with LF and trailing newline
+- Follow existing patterns
+- Never expose secrets
+
+### Rust
+
+- Put doc comments before attributes, always: `/// ...` comes before `#[derive]`, `#[inline]`, `#[cfg]`, and every other attribute.
+- Put module documentation at the top of the module file with inner doc comments (`//! ...`), not on the `mod` item in the parent module.
+- NEVER put imports inside functions unless required for `#[cfg(...)]` gating. All imports go at the top of the file.
+- Group all `use` imports together. Keep `pub use` imports in a separate group. For local module re-exports, write `mod x;` before `pub use x;`; for re-exporting another module or external crate, use `use x;`, then a blank line, then `pub use y;`, then a blank line before local `mod my_mod; pub use my_mod::*;`.
+- In `Cargo.toml`, generally group optional dependencies for a feature together. Put a comment immediately above the group containing only the feature name, for example `# jit`.
+- Prefer `let Some(x) = x else { return };` / `let Ok(x) = x else { return };` over `match x { Some(x) => x, _ => return }`.
+- Use `let ... else` only for a single early-exit guard. When multiple conditions or patterns gate the same block, prefer a combined `if let` / `let` chain instead of several sequential `let ... else` statements.
+- Use combined `if let` chains (`if let Some(x) = x && let Some(y) = y { ... }`) instead of nesting (`if let Some(x) = x { if let Some(y) = y { ... } }`).
+- In loops, prefer an `if let` chain around the loop body over multiple `let ... else { continue };` statements when the body only runs if all patterns match.
+- NEVER use `ref` / `ref mut` in patterns as the first resort. Always prefer borrowing the expression with `&` / `&mut` instead.
+- Avoid specifying type hints in variables unless absolutely necessary (e.g. `HashMap<_, Vec<_>>` for `x.entry(y).or_default().push(z)` where type inference won't work). Rely on the compiler.
+- When type hints are needed, prefer turbofish (`let x = Type::<X, Y>::new()`) over annotation (`let x: Type<X, Y> = Type::new()`).
+
 ## Notes
 
 - **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to `crates/macros/src/symbols.rs`.

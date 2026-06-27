@@ -134,6 +134,29 @@ impl SymbolTables {
         })
     }
 
+    pub(crate) fn extend(&mut self, mut other: Self) {
+        let remapped_ids = other
+            .declarations
+            .iter()
+            .enumerate()
+            .map(|(index, declaration)| (declaration.id, SymbolId(self.declarations.len() + index)))
+            .collect::<HashMap<_, _>>();
+
+        for declaration in &mut other.declarations {
+            declaration.id = remapped_ids[&declaration.id];
+            declaration.parent = declaration.parent.map(|parent| remapped_ids[&parent]);
+        }
+
+        for (uri, symbols) in other.files {
+            self.files
+                .entry(uri)
+                .or_default()
+                .extend(symbols.into_iter().map(|symbol_id| remapped_ids[&symbol_id]));
+        }
+
+        self.declarations.extend(other.declarations);
+    }
+
     fn push_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
         let id = declaration.id;
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);

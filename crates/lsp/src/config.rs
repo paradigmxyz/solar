@@ -1,12 +1,14 @@
-use std::{env, path::PathBuf};
-
+use crate::workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest};
 use lsp_types::{
     InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
 };
-use tracing::info;
-
-use crate::workspace::manifest::ProjectManifest;
+use solar_interface::data_structures::map::FxHashSet;
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
+use tracing::{info, warn};
 
 /// The LSP config.
 ///
@@ -16,7 +18,7 @@ use crate::workspace::manifest::ProjectManifest;
 #[derive(Default, Clone, Debug)]
 pub(crate) struct Config {
     workspace_roots: Vec<PathBuf>,
-    discovered_projects: Vec<ProjectManifest>,
+    workspaces: Vec<Workspace>,
     watched_file_dynamic_registration: bool,
 }
 
@@ -25,24 +27,76 @@ impl Config {
         self.watched_file_dynamic_registration
     }
 
-    pub(crate) fn rediscover_workspaces(&mut self) {
-        let discovered = ProjectManifest::discover_all(&self.workspace_roots);
-        info!("discovered projects: {:?}", discovered);
-        if discovered.is_empty() {
-            info!("no project manifests found in {:?}", &self.workspace_roots);
-        }
-        self.discovered_projects = discovered;
+    pub(crate) fn workspaces(&self) -> &[Workspace] {
+        &self.workspaces
     }
 
-    pub(crate) fn remove_workspace(&mut self, path: &PathBuf) {
+    pub(crate) fn rediscover_workspaces(&mut self) {
+        let mut workspaces = Vec::new();
+        let mut seen_manifests = FxHashSet::default();
+        for root in &self.workspace_roots {
+            let discovered = ProjectManifest::discover_all(std::slice::from_ref(root));
+            info!(?root, ?discovered, "discovered projects");
+            if discovered.is_empty() {
+                info!(?root, "no project manifests found");
+                push_workspace(&mut workspaces, Workspace::naked(root.clone()));
+                continue;
+            }
+
+            for manifest in discovered {
+                if !seen_manifests.insert(manifest.clone()) {
+                    continue;
+                }
+                match manifest {
+                    ProjectManifest::Foundry(path) => {
+                        let fallback_root = path.parent().map(PathBuf::from);
+                        match Workspace::load_foundry(path) {
+                            Ok(workspace) => push_workspace(&mut workspaces, workspace),
+                            Err(error) => {
+                                warn!(%error, "failed to load workspace");
+                                if let Some(root) = fallback_root {
+                                    push_workspace(&mut workspaces, Workspace::naked(root));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        info!(workspaces = ?workspaces.iter().map(Workspace::kind).collect::<Vec<_>>(), "loaded workspaces");
+        self.workspaces = workspaces;
+    }
+
+    pub(crate) fn remove_workspace(&mut self, path: &Path) {
         if let Some(pos) = self.workspace_roots.iter().position(|it| it == path) {
             self.workspace_roots.remove(pos);
         }
     }
 
-    pub(crate) fn add_workspaces(&mut self, paths: impl Iterator<Item = PathBuf>) {
+    pub(crate) fn add_workspaces(&mut self, paths: impl IntoIterator<Item = PathBuf>) {
         self.workspace_roots.extend(paths);
     }
+
+    pub(crate) fn add_source_file(&mut self, path: PathBuf) {
+        if self.workspaces.is_empty() {
+            return;
+        }
+        let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(&path);
+        self.workspaces[idx].add_source_file(path);
+    }
+
+    pub(crate) fn remove_source_file(&mut self, path: &Path) {
+        if self.workspaces.is_empty() {
+            return;
+        }
+        let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(path);
+        self.workspaces[idx].remove_source_file(path);
+    }
+}
+
+fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
+    workspace.refresh_source_files();
+    workspaces.push(workspace);
 }
 
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
@@ -93,9 +147,13 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 
 #[cfg(test)]
 mod tests {
-    use lsp_types::{DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities};
-
     use super::*;
+    use crate::workspace::WorkspaceKind;
+    use lsp_types::{
+        DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities, WorkspaceFolder,
+    };
+    use std::fs;
+    use tempfile::TempDir;
 
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
@@ -114,5 +172,93 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_watched_file_dynamic_registration());
+    }
+
+    #[test]
+    fn rediscover_workspaces_loads_manifests_and_falls_back_to_naked_roots() {
+        let configured = TempDir::new().unwrap();
+        fs::write(
+            configured.path().join("foundry.toml"),
+            r#"
+                [profile.default]
+                src = "contracts"
+            "#,
+        )
+        .unwrap();
+        let naked = TempDir::new().unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![
+                WorkspaceFolder {
+                    uri: lsp_types::Url::from_file_path(configured.path()).unwrap(),
+                    name: "configured".into(),
+                },
+                WorkspaceFolder {
+                    uri: lsp_types::Url::from_file_path(naked.path()).unwrap(),
+                    name: "naked".into(),
+                },
+            ]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+
+        assert_eq!(config.workspaces().len(), 2);
+        let foundry = config
+            .workspaces()
+            .iter()
+            .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
+            .unwrap();
+        assert_eq!(foundry.source_roots(), &[configured.path().join("contracts")]);
+
+        fs::remove_file(configured.path().join("foundry.toml")).unwrap();
+        config.rediscover_workspaces();
+
+        assert_eq!(config.workspaces().len(), 2);
+        assert!(
+            config.workspaces().iter().all(|workspace| workspace.kind() == WorkspaceKind::Naked)
+        );
+    }
+
+    #[test]
+    fn rediscover_workspaces_keeps_naked_root_after_manifest_load_error() {
+        let broken = TempDir::new().unwrap();
+        fs::write(broken.path().join("foundry.toml"), "not valid toml =").unwrap();
+        let configured = TempDir::new().unwrap();
+        fs::write(
+            configured.path().join("foundry.toml"),
+            r#"
+                [profile.default]
+                src = "contracts"
+            "#,
+        )
+        .unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![
+                WorkspaceFolder {
+                    uri: lsp_types::Url::from_file_path(broken.path()).unwrap(),
+                    name: "broken".into(),
+                },
+                WorkspaceFolder {
+                    uri: lsp_types::Url::from_file_path(configured.path()).unwrap(),
+                    name: "configured".into(),
+                },
+            ]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+
+        config.rediscover_workspaces();
+
+        assert_eq!(config.workspaces().len(), 2);
+        assert!(config.workspaces().iter().any(|workspace| {
+            workspace.kind() == WorkspaceKind::Naked
+                && workspace.compile_opts().base_path.as_deref() == Some(broken.path())
+        }));
+        assert!(config.workspaces().iter().any(|workspace| {
+            workspace.kind() == WorkspaceKind::Foundry
+                && workspace.source_roots() == [configured.path().join("contracts")]
+        }));
     }
 }

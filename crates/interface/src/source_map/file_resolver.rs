@@ -79,6 +79,8 @@ impl<'a> FileResolver<'a> {
                     }
                 };
                 self.set_base_path(base_path);
+                // Source unit names are relative to the base path after parent paths are stripped.
+                self.set_current_dir(base_path);
             }
         }
     }

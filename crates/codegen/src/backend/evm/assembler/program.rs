@@ -19,9 +19,12 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
     fn push_inst(&mut self, value: U256) -> AsmInst;
     fn new_label(&mut self) -> Label;
     /// Whether the bridge should run the experimental EVM IR `StackSchedule`
-    /// pass before the existing layout passes. Off by default; see
-    /// [`StructuredAsmProgram::optimize_with_evm_ir`].
+    /// pass. Off by default; see [`StructuredAsmProgram::optimize_with_evm_ir`].
     fn run_evm_ir_stack_schedule(&self) -> bool {
+        false
+    }
+    /// Whether the bridge should run EVM IR layout/code-size passes.
+    fn run_evm_ir_layout_passes(&self) -> bool {
         false
     }
 }
@@ -101,19 +104,19 @@ impl StructuredAsmProgram {
     /// # Experimental `StackSchedule` gating
     ///
     /// When `context.run_evm_ir_stack_schedule()` is true (off by default) the
-    /// bridge runs [`EvmIrPass::StackSchedule`] *before* the existing layout
-    /// passes. The reality of what the bridge feeds the scheduler matters here:
-    /// MIR lowering has already materialized every virtual stack-word operand
-    /// into physical `dup`/`swap`/`pop` and `push`/opcode instructions, so
-    /// `to_evm_ir_module` produces *operand-cleared* IR — no instruction carries
-    /// an [`EvmIrOperand::Value`], and the only terminators emitted here
-    /// (`jump`/`fallthrough`/raw terminal opcode/`stop`/`invalid`) carry no value
-    /// operands either. `StackSchedule` only rewrites instructions that have
-    /// value operands to materialize, so on this input it has nothing to
-    /// materialize: every instruction is replayed onto its model stack and
-    /// pushed back unchanged, and blocks it cannot model are restored verbatim.
-    /// It is therefore a *near no-op* whose only observable effect is recording
-    /// inferred `(in ...)` entry signatures, which `from_evm_ir_module` ignores.
+    /// bridge runs [`EvmIrPass::StackSchedule`]. The reality of what the bridge
+    /// feeds the scheduler matters here: MIR lowering has already materialized
+    /// every virtual stack-word operand into physical `dup`/`swap`/`pop` and
+    /// `push`/opcode instructions, so `to_evm_ir_module` produces
+    /// *operand-cleared* IR — no instruction carries an [`EvmIrOperand::Value`],
+    /// and the only terminators emitted here (`jump`/`fallthrough`/raw terminal
+    /// opcode/`stop`/`invalid`) carry no value operands either. `StackSchedule`
+    /// only rewrites instructions that have value operands to materialize, so on
+    /// this input it has nothing to materialize: every instruction is replayed
+    /// onto its model stack and pushed back unchanged, and blocks it cannot model
+    /// are restored verbatim. It is therefore a *near no-op* whose only
+    /// observable effect is recording inferred `(in ...)` entry signatures,
+    /// which `from_evm_ir_module` ignores.
     ///
     /// To make turning the flag on provably safe, the scheduled module is checked
     /// against the verifier oracle and the bytecode-bearing instruction stream is
@@ -147,8 +150,10 @@ impl StructuredAsmProgram {
             }
         }
 
-        for pass in [EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup] {
-            changed += usize::from(pass.run(&mut module));
+        if context.run_evm_ir_layout_passes() {
+            for pass in [EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup] {
+                changed += usize::from(pass.run(&mut module));
+            }
         }
         debug_assert!(verify_evm_ir_module(&module).is_ok());
 

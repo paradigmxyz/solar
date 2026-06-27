@@ -21,11 +21,8 @@ fn main() -> anyhow::Result<()> {
 
             let mut cmd = cmd!(sh, "cargo test");
             if let Some(t) = test_name {
-                if matches!(
-                    t.as_str(),
-                    "ui" | "mir" | "standard-json" | "solc-solidity" | "solc-yul" | "foundry"
-                ) {
-                    cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", &t);
+                if let Some(mode) = tester_mode(&t) {
+                    cmd = cmd.args(INT_FLAGS).env("TESTER_MODE", mode);
                 } else {
                     cmd = cmd.arg(t);
                 }
@@ -42,4 +39,12 @@ fn main() -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+fn tester_mode(test_name: &str) -> Option<&str> {
+    match test_name {
+        "ui" | "mir" | "standard-json" | "solc-solidity" | "solc-yul" => Some(test_name),
+        "foundry" | "runtime" => Some("foundry"),
+        _ => None,
+    }
 }

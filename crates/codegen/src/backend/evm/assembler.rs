@@ -65,6 +65,11 @@ pub struct AssemblerConfig {
     /// Off by default. See `StructuredAsmProgram::optimize_with_evm_ir` for why
     /// the pass is a verified near no-op on the bridge's operand-cleared IR.
     pub evm_ir_stack_schedule: bool,
+    /// Run EVM IR layout/code-size passes in the assembler bridge.
+    ///
+    /// Kept separate from `evm_ir_stack_schedule` so the experimental scheduler
+    /// flag remains bytecode-neutral.
+    pub evm_ir_layout_passes: bool,
 }
 
 /// Two-pass assembler for EVM bytecode.
@@ -205,7 +210,7 @@ impl Assembler {
             }
             AsmInst::push(push_values.intern(value))
         });
-        if self.config.evm_ir_stack_schedule {
+        if self.config.evm_ir_stack_schedule || self.config.evm_ir_layout_passes {
             ir_program.optimize_with_evm_ir(self);
         }
         let mut program = ir_program.to_asm_program();
@@ -377,6 +382,10 @@ impl StructuredAsmContext for Assembler {
 
     fn run_evm_ir_stack_schedule(&self) -> bool {
         self.config.evm_ir_stack_schedule
+    }
+
+    fn run_evm_ir_layout_passes(&self) -> bool {
+        self.config.evm_ir_layout_passes
     }
 }
 
@@ -966,7 +975,7 @@ mod tests {
     #[test]
     fn cold_terminal_block_moves_after_hot_block() {
         let mut asm = Assembler::with_config(AssemblerConfig {
-            evm_ir_stack_schedule: true,
+            evm_ir_layout_passes: true,
             ..AssemblerConfig::default()
         });
         let cold = asm.new_label();
@@ -1003,7 +1012,7 @@ mod tests {
     #[test]
     fn cold_terminal_block_keeps_fallthrough_position() {
         let mut asm = Assembler::with_config(AssemblerConfig {
-            evm_ir_stack_schedule: true,
+            evm_ir_layout_passes: true,
             ..AssemblerConfig::default()
         });
         let cold = asm.new_label();
