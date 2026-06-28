@@ -109,6 +109,35 @@ impl FoundrySolc {
     }
 }
 
+#[derive(Clone, Copy)]
+enum ForgeCompiler {
+    Solar,
+    Solc,
+}
+
+impl ForgeCompiler {
+    fn cache_prefix(self) -> &'static str {
+        match self {
+            Self::Solar => "solar-foundry-cache-",
+            Self::Solc => "solc-foundry-cache-",
+        }
+    }
+
+    fn out_prefix(self) -> &'static str {
+        match self {
+            Self::Solar => "solar-foundry-out-",
+            Self::Solc => "solc-foundry-out-",
+        }
+    }
+
+    fn command_failure(self) -> &'static str {
+        match self {
+            Self::Solar => "failed to run forge test for Solar",
+            Self::Solc => "failed to run forge test",
+        }
+    }
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -378,20 +407,25 @@ fn write_runtime_report(
 // Forge Execution
 // ============================================================================
 
-/// Runs forge test with Solar as the compiler.
-fn run_forge_test_solar(
-    project_dir: &PathBuf,
+/// Runs forge test for a compiler.
+fn run_forge_test(
+    project_dir: &Path,
     label: &str,
     config: &TestConfig,
+    compiler: ForgeCompiler,
 ) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
-    let cache_dir = "cache-solar";
-    fs::create_dir_all(project_dir.join(cache_dir))
-        .expect("failed to create Solar cache directory");
-    let out_dir = tempfile::Builder::new()
-        .prefix("solar-foundry-out-")
+    let cache_dir = tempfile::Builder::new()
+        .prefix(compiler.cache_prefix())
         .tempdir()
-        .expect("failed to create Solar output directory");
-    let foundry_solc = foundry_solc();
+        .expect("failed to create Foundry cache directory");
+    let out_dir = tempfile::Builder::new()
+        .prefix(compiler.out_prefix())
+        .tempdir()
+        .expect("failed to create Foundry output directory");
+    let foundry_solc = match compiler {
+        ForgeCompiler::Solar => Some(foundry_solc()),
+        ForgeCompiler::Solc => None,
+    };
 
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir)
@@ -403,10 +437,12 @@ fn run_forge_test_solar(
         .arg("--out")
         .arg(out_dir.path())
         .arg("--cache-path")
-        .arg(cache_dir)
+        .arg(cache_dir.path());
+
+    if let Some(foundry_solc) = &foundry_solc {
         // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
-        .env("SOLC_WRAPPER", "1")
-        .env("FOUNDRY_SOLC", foundry_solc.path());
+        cmd.env("SOLC_WRAPPER", "1").env("FOUNDRY_SOLC", foundry_solc.path());
+    }
 
     // Add forge match filters if specified
     if let Some(ref test_filter) = config.test_filter {
@@ -417,7 +453,8 @@ fn run_forge_test_solar(
     }
 
     let start = Instant::now();
-    let output = cmd.output().expect("failed to run forge test for Solar");
+    let command_failure = compiler.command_failure();
+    let output = cmd.output().unwrap_or_else(|err| panic!("{command_failure}: {err}"));
     let test_time = start.elapsed();
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -428,50 +465,6 @@ fn run_forge_test_solar(
             eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
         }
     }
-
-    let tests = parse_test_results(&stdout);
-    let sizes = extract_bytecode_sizes(out_dir.path());
-
-    (test_time, tests, sizes)
-}
-
-/// Runs forge test with solc (baseline).
-fn run_forge_test_solc(
-    project_dir: &PathBuf,
-    config: &TestConfig,
-) -> (Duration, Vec<TestResult>, HashMap<String, usize>) {
-    let cache_dir = "cache-solc";
-    fs::create_dir_all(project_dir.join(cache_dir)).expect("failed to create solc cache directory");
-    let out_dir = tempfile::Builder::new()
-        .prefix("solc-foundry-out-")
-        .tempdir()
-        .expect("failed to create solc output directory");
-
-    let mut cmd = Command::new("forge");
-    cmd.current_dir(project_dir)
-        .arg("test")
-        .arg("--force")
-        .arg("--json")
-        .arg("-vvvvv")
-        .arg("--decode-internal")
-        .arg("--out")
-        .arg(out_dir.path())
-        .arg("--cache-path")
-        .arg(cache_dir);
-
-    // Add forge match filters if specified
-    if let Some(ref test_filter) = config.test_filter {
-        cmd.arg("--match-test").arg(test_filter);
-    }
-    if let Some(ref contract_filter) = config.contract_filter {
-        cmd.arg("--match-contract").arg(contract_filter);
-    }
-
-    let start = Instant::now();
-    let output = cmd.output().expect("failed to run forge test");
-    let test_time = start.elapsed();
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
 
     let tests = parse_test_results(&stdout);
     let sizes = extract_bytecode_sizes(out_dir.path());
@@ -549,8 +542,12 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
     let project_dir = workspace_root().join(&config.path);
 
     // Step 1: Run tests with Solar
-    let (solar_test_time, solar_tests, solar_sizes) =
-        run_forge_test_solar(&project_dir, &format!("{}-solar", config.name), config);
+    let (solar_test_time, solar_tests, solar_sizes) = run_forge_test(
+        &project_dir,
+        &format!("{}-solar", config.name),
+        config,
+        ForgeCompiler::Solar,
+    );
     let solar_tests = filter_tests(solar_tests, config);
     let solar_passed = solar_tests.iter().filter(|t| t.passed).count();
     let solar_failed = solar_tests.iter().filter(|t| !t.passed).count();
@@ -565,7 +562,8 @@ fn run_project_comparison(config: &TestConfig) -> (CompilerRun, CompilerRun) {
     };
 
     // Step 2: Run tests with solc
-    let (solc_test_time, solc_tests, solc_sizes) = run_forge_test_solc(&project_dir, config);
+    let (solc_test_time, solc_tests, solc_sizes) =
+        run_forge_test(&project_dir, &format!("{}-solc", config.name), config, ForgeCompiler::Solc);
     let solc_tests = filter_tests(solc_tests, config);
     let solc_passed = solc_tests.iter().filter(|t| t.passed).count();
     let solc_failed = solc_tests.iter().filter(|t| !t.passed).count();
@@ -705,7 +703,7 @@ fn run_test_with_config(config: &TestConfig) {
 fn run_test_solar_only(config: &TestConfig) {
     let project_dir = workspace_root().join(&config.path);
     let (test_time, tests, bytecode_sizes) =
-        run_forge_test_solar(&project_dir, &config.name, config);
+        run_forge_test(&project_dir, &config.name, config, ForgeCompiler::Solar);
     let tests = filter_tests(tests, config);
 
     let total_passed = tests.iter().filter(|t| t.passed).count();
@@ -801,7 +799,8 @@ fn run_compilation_smoke() {
 
     let config = TestConfig::new("compilation-test", "tests/foundry/arithmetic");
     let project_dir = workspace_root().join(&config.path);
-    let (test_time, tests, sizes) = run_forge_test_solar(&project_dir, "compilation-test", &config);
+    let (test_time, tests, sizes) =
+        run_forge_test(&project_dir, "compilation-test", &config, ForgeCompiler::Solar);
 
     println!("Test time: {:?}", test_time);
     println!("Tests: {:?}", tests.iter().map(|t| &t.name).collect::<Vec<_>>());
