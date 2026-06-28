@@ -178,9 +178,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.102"
+version = "1.0.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "approx"
@@ -500,19 +500,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e764a1d40d510daf35e07be9eb06e75770908c27d411ee6c92109c9840eaaf7"
 
 [[package]]
-name = "bitcoin-io"
-version = "0.1.4"
+name = "bitcoin-consensus-encoding"
+version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2dee39a0ee5b4095224a0cfc6bf4cc1baf0f9624b96b367e53b66d974e51d953"
+checksum = "b2d6094e2a1ba3c93b5a596fe5a10d1a10c3c6e06785cde89f693a044c01aa40"
+dependencies = [
+ "bitcoin-internals",
+]
+
+[[package]]
+name = "bitcoin-internals"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a30a22d1f112dde8e16be7b45c63645dc165cef254f835b3e1e9553e485cfa64"
+dependencies = [
+ "hex-conservative 0.3.2",
+]
+
+[[package]]
+name = "bitcoin-io"
+version = "0.1.101"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb5de036369d1ac59d3c1819ebc4d850f89466f5401c571a285b6ed564a4cb78"
+dependencies = [
+ "bitcoin-consensus-encoding",
+]
 
 [[package]]
 name = "bitcoin_hashes"
-version = "0.14.2"
+version = "0.14.101"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ed83caece3afc59919481b33b472e1432d1abc4641ed9100be142ef5110b406"
+checksum = "bca4c7abb40c8817d77403c880988cfd484f23ab2365726afb2f798363e2c4a2"
 dependencies = [
  "bitcoin-io",
- "hex-conservative",
+ "hex-conservative 0.2.2",
 ]
 
 [[package]]
@@ -590,13 +611,13 @@ checksum = "36f64beae40a84da1b4b26ff2761a5b895c12adc41dc25aaee1c4f2bbfe97a6e"
 
 [[package]]
 name = "bstr"
-version = "1.12.1"
+version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63044e1ae8e69f3b5a92c736ca6269b8d12fa7efe39bf34ddb06d102cf0e2cab"
+checksum = "5cee35f73844aa3014bb606320a6c1f010249dbdf43342fe54b5a4f6a8ed4b79"
 dependencies = [
  "memchr",
  "regex-automata",
- "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -628,9 +649,9 @@ dependencies = [
 
 [[package]]
 name = "camino"
-version = "1.2.3"
+version = "1.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4ce8d3bd5823c7504d3f579f13e7b2f3da252fcb938c594d5680ee508bf846f"
+checksum = "5f2d30e4173c4026932d51d31d6b0613b1fd3014bf3f9f8943d4ba139c437ba0"
 dependencies = [
  "serde_core",
 ]
@@ -1259,18 +1280,18 @@ checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
 name = "enum-ordinalize"
-version = "4.3.2"
+version = "4.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a1091a7bb1f8f2c4b28f1fe2cef4980ca2d410a3d727d67ecc3178c9b0800f0"
+checksum = "07f808d588c10e464ea6f7d3eaed500049eff30aaac103460f61828c2d65b3eb"
 dependencies = [
  "enum-ordinalize-derive",
 ]
 
 [[package]]
 name = "enum-ordinalize-derive"
-version = "4.3.2"
+version = "4.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ca9601fb2d62598ee17836250842873a413586e5d7ed88b356e38ddbb0ec631"
+checksum = "42e528e2d34ba8a67a1a650b86beae8ef69fc5fdb638016f386b973226590432"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1644,6 +1665,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "hex-conservative"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "830e599c2904b08f0834ee6337d8fe8f0ed4a63b5d9e7a7f49c0ffa06d08d360"
+dependencies = [
+ "arrayvec",
+]
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1654,9 +1684,9 @@ dependencies = [
 
 [[package]]
 name = "hybrid-array"
-version = "0.4.12"
+version = "0.4.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9155a582abd142abc056962c29e3ce5ff2ad5469f4246b537ed42c5deba857da"
+checksum = "818356c5132c1fede50f837ca96afbe78ff42413047f4abb886217845e1b6c8c"
 dependencies = [
  "typenum",
 ]
@@ -1832,9 +1862,9 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "js-sys"
-version = "0.3.102"
+version = "0.3.103"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03d04c30968dffe80775bd4d7fb676131cd04a1fb46d2686dbffbaec2d9dfd31"
+checksum = "53b44bfcdb3f8d5837a46dae1ca9660a837176eee74a28b229bc626816589102"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -2613,9 +2643,9 @@ dependencies = [
 
 [[package]]
 name = "rapidhash"
-version = "4.4.1"
+version = "4.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5e48930979c155e2f33aa36ab3119b5ee81332beb6482199a8ecd6029b80b59"
+checksum = "32b266a82f4aa99bb5c25e28d11cc44ace63d91adbcbcee4d323e2ae3d49ef37"
 dependencies = [
  "rustversion",
 ]
@@ -3300,7 +3330,7 @@ dependencies = [
  "solar-interface",
  "solar-sema",
  "tempfile",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-util",
  "toml_edit",
@@ -4085,9 +4115,9 @@ checksum = "ba73ea9cf16a25df0c8caa16c51acb937d5712a8429db78a3ee29d5dcacd3a65"
 
 [[package]]
 name = "vergen"
-version = "10.0.0"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bdf18a54cf91b4d98a8e8b67f6321606539fbcdcac02536286ad1de37b53fd2"
+checksum = "b5574dd2f922b1a46a06a4b1dc11193a4012108fd54cf725e1816cb8183d8778"
 dependencies = [
  "anyhow",
  "bon",
@@ -4098,9 +4128,9 @@ dependencies = [
 
 [[package]]
 name = "vergen-gitcl"
-version = "10.0.0"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4961429ed12888cb3c6dd20f7dc9508c821091a3ba5fec0156ed5a654c1c4572"
+checksum = "23d9fead6d7c515ac3a658e1a65d36925525d5cfdea414e27eb99b99ffd92bfa"
 dependencies = [
  "anyhow",
  "bon",
@@ -4112,9 +4142,9 @@ dependencies = [
 
 [[package]]
 name = "vergen-lib"
-version = "10.0.0"
+version = "10.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "910e8471e27130bbc019e9bfa6bda16dfc4c6dd7c5d0793da70a9256caeae984"
+checksum = "8cd42fd155c2c2971f6d00face12ec245fbb604fce011ccaf2306d014c2e97ca"
 dependencies = [
  "anyhow",
  "bon",
@@ -4173,9 +4203,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen"
-version = "0.2.125"
+version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ddb3f79143bced6de84270411622a2699cee572fc0875aeaf1e7867cf9fca1a"
+checksum = "4b067c0c11094aef6b7a801c1e34a26affafdf3d051dba08456b868789aaf9a4"
 dependencies = [
  "cfg-if",
  "once_cell",
@@ -4186,9 +4216,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.125"
+version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4e21a184b13fb19e157296e2c46056aec9092264fab83e4ba59e68c61b323c3d"
+checksum = "167ce5e579f6bcf889c4f7175a8a5a585de84e8ff93976ce393efa5f2837aab1"
 dependencies = [
  "quote",
  "wasm-bindgen-macro-support",
@@ -4196,9 +4226,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.125"
+version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fecefd9c35bd935a20fc3fc344b5f29138961e4f47fb03297d88f2587afb5ebd"
+checksum = "f3997c7839262f4ef12cf90b818d6340c18e80f263f1a94bf157d0ec4420380e"
 dependencies = [
  "bumpalo",
  "proc-macro2",
@@ -4209,9 +4239,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.125"
+version = "0.2.126"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "23939e44bb9a5d7576fa2b563dc2e136628f1224e88a8deed09e04858b77871f"
+checksum = "dc1b4cb0cc549fcf58d7dfc081778139b3d283a081644e833e84682ad71cea24"
 dependencies = [
  "unicode-ident",
 ]
