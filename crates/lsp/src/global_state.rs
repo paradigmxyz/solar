@@ -495,6 +495,7 @@ mod tests {
             vfs: Arc::new(RwLock::new(vfs)),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
