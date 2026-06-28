@@ -105,6 +105,16 @@ fn merge_typeck_results<'gcx>(
         }
     }
 
+    for (id, function_id) in new_results.user_defined_operators {
+        if let Some(prev_function_id) = results.user_defined_operators.insert(id, function_id) {
+            gcx.dcx()
+                .bug(format!(
+                    "expression {id:?} already has user-defined operator {prev_function_id:?}; tried to register {function_id:?}",
+                ))
+                .emit();
+        }
+    }
+
     results.unsupported_udvt_operators.extend(new_results.unsupported_udvt_operators);
 }
 

@@ -231,7 +231,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     ty
                 } else if let Some(op) = op {
                     let rhs_ty = self.check_expr(rhs);
-                    let result = self.check_binop(lhs, ty, rhs, rhs_ty, op, true);
+                    let result = self.check_binop(expr, ty, rhs_ty, op, true);
                     debug_assert!(
                         result.references_error() || result == ty,
                         "compound assignment should not consider custom operators: {result:?} != {ty:?}"
@@ -255,7 +255,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     return lit_ty;
                 }
 
-                self.check_binop(lhs_e, lhs, rhs_e, rhs, op, false)
+                self.check_binop(expr, lhs, rhs, op, false)
             }
             hir::ExprKind::Call(callee, ref args, opts) => {
                 let mut callee_ty = if let hir::ExprKind::Member(receiver, ident) = callee.kind {
@@ -694,7 +694,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         return self.gcx.mk_ty(TyKind::IntLiteral(!neg, size, fixed_bytes_size));
                     }
                     ty
-                } else if let Some(ty) = self.check_user_unop(expr.span, ty, op.kind) {
+                } else if let Some(ty) = self.check_user_unop(expr.id, expr.span, ty, op.kind) {
                     ty
                 } else {
                     let msg = format!(
@@ -815,9 +815,8 @@ impl<'gcx> TypeChecker<'gcx> {
 
     fn check_binop(
         &mut self,
-        lhs_e: &'gcx hir::Expr<'gcx>,
+        expr: &'gcx hir::Expr<'gcx>,
         lhs: Ty<'gcx>,
-        rhs_e: &'gcx hir::Expr<'gcx>,
         rhs: Ty<'gcx>,
         op: hir::BinOp,
         assign: bool,
@@ -828,10 +827,15 @@ impl<'gcx> TypeChecker<'gcx> {
         {
             return if op.kind.is_cmp() { self.gcx.types.bool } else { common };
         }
-        if !assign && let Some(ty) = self.check_user_binop(op.span, lhs, rhs, op.kind) {
+        if !assign && let Some(ty) = self.check_user_binop(expr.id, op.span, lhs, rhs, op.kind) {
             return ty;
         }
 
+        let (lhs_e, rhs_e) = match expr.kind {
+            hir::ExprKind::Assign(lhs_e, Some(_), rhs_e)
+            | hir::ExprKind::Binary(lhs_e, _, rhs_e) => (lhs_e, rhs_e),
+            _ => unreachable!(),
+        };
         let msg = format!(
             "cannot apply builtin operator `{op}` to `{}` and `{}`",
             lhs.display(self.gcx),
@@ -843,7 +847,13 @@ impl<'gcx> TypeChecker<'gcx> {
         self.gcx.mk_ty_err(err.emit())
     }
 
-    fn check_user_unop(&self, span: Span, ty: Ty<'gcx>, op: hir::UnOpKind) -> Option<Ty<'gcx>> {
+    fn check_user_unop(
+        &mut self,
+        expr_id: hir::ExprId,
+        span: Span,
+        ty: Ty<'gcx>,
+        op: hir::UnOpKind,
+    ) -> Option<Ty<'gcx>> {
         let op = UserDefinableOperator::from_unop(op)?;
         let mut functions = WantOne::Zero;
         self.gcx.for_each_user_operator(
@@ -856,11 +866,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 functions.push(function);
             },
         );
-        self.check_user_operator(span, functions)
+        self.check_user_operator(expr_id, span, functions)
     }
 
     fn check_user_binop(
-        &self,
+        &mut self,
+        expr_id: hir::ExprId,
         span: Span,
         lhs: Ty<'gcx>,
         rhs: Ty<'gcx>,
@@ -883,11 +894,12 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             },
         );
-        self.check_user_operator(span, functions)
+        self.check_user_operator(expr_id, span, functions)
     }
 
     fn check_user_operator(
-        &self,
+        &mut self,
+        expr_id: hir::ExprId,
         span: Span,
         functions: WantOne<hir::FunctionId>,
     ) -> Option<Ty<'gcx>> {
@@ -897,6 +909,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 let TyKind::Fn(function_ty) = self.gcx.type_of_item(function.into()).kind else {
                     unreachable!()
                 };
+                self.results.user_defined_operators.insert(expr_id, function);
                 Some(self.fn_call_return_type(function_ty.returns))
             }
             WantOne::Many => {

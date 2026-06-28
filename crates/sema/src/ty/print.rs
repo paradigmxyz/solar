@@ -41,14 +41,11 @@ impl<'gcx> Gcx<'gcx> {
         for f in self.interface_functions(id) {
             items.push(self.function_abi(f.id).into());
         }
-        // TODO: Does not include referenced items: https://github.com/paradigmxyz/solar/issues/305
-        // See solc `interfaceEvents` and `interfaceErrors`.
-        for item in self.hir.contract_item_ids(id) {
-            match item {
-                hir::ItemId::Event(id) => items.push(self.event_abi(id).into()),
-                hir::ItemId::Error(id) => items.push(self.error_abi(id).into()),
-                _ => {}
-            }
+        for event in self.interface_events(id) {
+            items.push(self.event_abi(*event).into());
+        }
+        for error in self.interface_errors(id) {
+            items.push(self.error_abi(*error).into());
         }
 
         // https://github.com/argotorg/solidity/blob/87d86bfba64d8b88537a4a85c1d71f521986b614/libsolidity/interface/ABI.cpp#L43-L47

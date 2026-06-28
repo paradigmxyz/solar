@@ -10,7 +10,7 @@ use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, 
 use solar_data_structures::{
     BumpExt,
     fmt::{from_fn, or_list},
-    map::{FxBuildHasher, FxHashMap, FxHashSet},
+    map::{FxBuildHasher, FxHashMap, FxHashSet, FxIndexSet},
     smallvec::SmallVec,
     trustme,
 };
@@ -33,6 +33,9 @@ use thread_local::ThreadLocal;
 
 mod print;
 pub use print::{TyAbiPrinter, TyAbiPrinterMode};
+
+mod call_graph;
+pub use call_graph::{CallGraph, ContractCallGraph};
 
 mod common;
 pub use common::{CommonTypes, EachDataLoc};
@@ -77,6 +80,7 @@ pub struct TypeckResults<'gcx> {
     pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
     pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
     pub(crate) resolved_members: FxHashMap<hir::ExprId, ResolvedMember>,
+    pub(crate) user_defined_operators: FxHashMap<hir::ExprId, hir::FunctionId>,
     pub(crate) unsupported_udvt_operators: FxHashSet<hir::ExprId>,
 }
 
@@ -123,6 +127,12 @@ impl<'gcx> TypeckResults<'gcx> {
     #[inline]
     pub fn resolved_member(&self, id: hir::ExprId) -> Option<ResolvedMember> {
         self.resolved_members.get(&id).copied()
+    }
+
+    /// Returns the function selected for the given user-defined operator expression, if available.
+    #[inline]
+    pub fn user_defined_operator(&self, id: hir::ExprId) -> Option<hir::FunctionId> {
+        self.user_defined_operators.get(&id).copied()
     }
 
     /// Returns the selected builtin target for a non-call member access expression, if available.
@@ -493,6 +503,12 @@ impl<'gcx> Gcx<'gcx> {
     #[inline]
     pub fn resolved_member(self, id: hir::ExprId) -> Option<ResolvedMember> {
         self.typeck_results.get()?.resolved_member(id)
+    }
+
+    /// Returns the function selected for the given user-defined operator expression, if available.
+    #[inline]
+    pub fn user_defined_operator(self, id: hir::ExprId) -> Option<hir::FunctionId> {
+        self.typeck_results.get()?.user_defined_operator(id)
     }
 
     /// Returns the selected builtin target for a non-call member access expression, if available.
@@ -1123,6 +1139,42 @@ pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
     assert!(kind.is_interface(), "{kind} {id:?} is not an interface");
     let selectors = gcx.interface_functions(id).own().iter().map(|f| f.selector);
     selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor)
+}
+
+/// Returns the events in the interface of the given contract.
+pub fn interface_events(gcx: _, id: hir::ContractId) -> &'gcx [hir::EventId] {
+    let mut events = FxIndexSet::default();
+    for item in gcx.hir.contract_item_ids(id) {
+        if let hir::ItemId::Event(id) = item {
+            events.insert(id);
+        }
+    }
+    if let Some(graph) = gcx.call_graph(id) {
+        events.extend(graph.creation.emitted_events.iter().copied());
+        events.extend(graph.deployed.emitted_events.iter().copied());
+    }
+    gcx.arena().alloc_slice_copy(&events.into_iter().collect::<Vec<_>>())
+}
+
+/// Returns the errors in the interface of the given contract.
+pub fn interface_errors(gcx: _, id: hir::ContractId) -> &'gcx [hir::ErrorId] {
+    let mut errors = FxIndexSet::default();
+    for item in gcx.hir.contract_item_ids(id) {
+        if let hir::ItemId::Error(id) = item {
+            errors.insert(id);
+        }
+    }
+    if let Some(graph) = gcx.call_graph(id) {
+        errors.extend(graph.creation.used_errors.iter().copied());
+        errors.extend(graph.deployed.used_errors.iter().copied());
+    }
+    gcx.arena().alloc_slice_copy(&errors.into_iter().collect::<Vec<_>>())
+}
+
+/// Returns call graph information for the given contract, if sparse type-checker
+/// results are available.
+pub fn call_graph(gcx: _, id: hir::ContractId) -> Option<&'gcx ContractCallGraph> {
+    gcx.has_typeck_results().then(|| gcx.alloc(ContractCallGraph::build(gcx, id)))
 }
 
 /// Returns all the exported functions of the given contract.
