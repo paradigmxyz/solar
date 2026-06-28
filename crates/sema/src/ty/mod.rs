@@ -535,10 +535,56 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get().is_some()
     }
 
+    pub(crate) fn ensure_analyzed(self) {
+        if !self.has_typeck_results() {
+            panic!("analysis and -Ztypeck is required for this query");
+        }
+    }
+
+    /// Returns call graph information for the given contract.
+    pub fn call_graph(self, id: hir::ContractId) -> &'gcx ContractCallGraph {
+        self.ensure_analyzed();
+        cache_insert(&self.cache.call_graph, id, |&id| {
+            self.alloc(ContractCallGraph::build(self, id))
+        })
+    }
+
     pub(crate) fn set_typeck_results(self, results: TypeckResults<'gcx>) {
         if self.typeck_results.set(results).is_err() {
             self.dcx().bug("typeck results are already initialized").emit();
         }
+    }
+
+    /// Returns the events in the interface of the given contract.
+    pub fn interface_events(self, id: hir::ContractId) -> Vec<hir::EventId> {
+        let mut events = FxIndexSet::default();
+        for item in self.hir.contract_item_ids(id) {
+            if let hir::ItemId::Event(id) = item {
+                events.insert(id);
+            }
+        }
+        if self.has_typeck_results() {
+            let graph = self.call_graph(id);
+            events.extend(graph.creation.emitted_events.iter().copied());
+            events.extend(graph.deployed.emitted_events.iter().copied());
+        }
+        events.into_iter().collect()
+    }
+
+    /// Returns the errors in the interface of the given contract.
+    pub fn interface_errors(self, id: hir::ContractId) -> Vec<hir::ErrorId> {
+        let mut errors = FxIndexSet::default();
+        for item in self.hir.contract_item_ids(id) {
+            if let hir::ItemId::Error(id) = item {
+                errors.insert(id);
+            }
+        }
+        if self.has_typeck_results() {
+            let graph = self.call_graph(id);
+            errors.extend(graph.creation.used_errors.iter().copied());
+            errors.extend(graph.deployed.used_errors.iter().copied());
+        }
+        errors.into_iter().collect()
     }
 
     pub fn mk_ty_variadic(self) -> Ty<'gcx> {
@@ -1094,6 +1140,7 @@ macro_rules! cached {
     ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
+            call_graph: FxOnceMap<hir::ContractId, &'gcx ContractCallGraph>,
             $(
                 $name: FxOnceMap<$key_type, $value>,
             )*
@@ -1139,42 +1186,6 @@ pub fn interface_id(gcx: _, id: hir::ContractId) -> Selector {
     assert!(kind.is_interface(), "{kind} {id:?} is not an interface");
     let selectors = gcx.interface_functions(id).own().iter().map(|f| f.selector);
     selectors.fold(Selector::ZERO, std::ops::BitXor::bitxor)
-}
-
-/// Returns the events in the interface of the given contract.
-pub fn interface_events(gcx: _, id: hir::ContractId) -> &'gcx [hir::EventId] {
-    let mut events = FxIndexSet::default();
-    for item in gcx.hir.contract_item_ids(id) {
-        if let hir::ItemId::Event(id) = item {
-            events.insert(id);
-        }
-    }
-    if let Some(graph) = gcx.call_graph(id) {
-        events.extend(graph.creation.emitted_events.iter().copied());
-        events.extend(graph.deployed.emitted_events.iter().copied());
-    }
-    gcx.arena().alloc_slice_copy(&events.into_iter().collect::<Vec<_>>())
-}
-
-/// Returns the errors in the interface of the given contract.
-pub fn interface_errors(gcx: _, id: hir::ContractId) -> &'gcx [hir::ErrorId] {
-    let mut errors = FxIndexSet::default();
-    for item in gcx.hir.contract_item_ids(id) {
-        if let hir::ItemId::Error(id) = item {
-            errors.insert(id);
-        }
-    }
-    if let Some(graph) = gcx.call_graph(id) {
-        errors.extend(graph.creation.used_errors.iter().copied());
-        errors.extend(graph.deployed.used_errors.iter().copied());
-    }
-    gcx.arena().alloc_slice_copy(&errors.into_iter().collect::<Vec<_>>())
-}
-
-/// Returns call graph information for the given contract, if sparse type-checker
-/// results are available.
-pub fn call_graph(gcx: _, id: hir::ContractId) -> Option<&'gcx ContractCallGraph> {
-    gcx.has_typeck_results().then(|| gcx.alloc(ContractCallGraph::build(gcx, id)))
 }
 
 /// Returns all the exported functions of the given contract.

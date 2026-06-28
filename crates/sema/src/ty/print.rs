@@ -42,10 +42,10 @@ impl<'gcx> Gcx<'gcx> {
             items.push(self.function_abi(f.id).into());
         }
         for event in self.interface_events(id) {
-            items.push(self.event_abi(*event).into());
+            items.push(self.event_abi(event).into());
         }
         for error in self.interface_errors(id) {
-            items.push(self.error_abi(*error).into());
+            items.push(self.error_abi(error).into());
         }
 
         // https://github.com/argotorg/solidity/blob/87d86bfba64d8b88537a4a85c1d71f521986b614/libsolidity/interface/ABI.cpp#L43-L47
