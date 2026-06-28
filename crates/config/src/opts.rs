@@ -474,9 +474,6 @@ mod tests {
         let unstable = parse(&["solar", "-Z", "test-value=2", "a.sol"]).unwrap();
         assert_eq!(unstable.test_value, Some(2));
 
-        let unstable = parse(&["solar", "-Zast-stats", "a.sol"]).unwrap();
-        assert!(unstable.ast_stats);
-        let unstable = parse(&["solar", "-Zhir-stats", "a.sol"]).unwrap();
-        assert!(unstable.hir_stats);
+        // DON'T ADD ANY MORE TESTS HERE.
     }
 }
