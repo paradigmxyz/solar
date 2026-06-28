@@ -23,6 +23,7 @@ solar-macros.workspace = true
 solar-parse.workspace = true
 
 bitflags.workspace = true
+comfy-table.workspace = true
 derive_more.workspace = true
 paste.workspace = true
 strum.workspace = true
