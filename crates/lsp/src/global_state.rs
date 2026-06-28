@@ -321,44 +321,48 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     let sess = Session::builder().opts(batch.opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
 
     let mut compiler = Compiler::new(sess);
-    let _ = compiler.enter_mut(move |compiler| -> solar_interface::Result<_> {
-        let mut parsing_context = compiler.parse();
-        let files = batch
-            .files
-            .into_iter()
-            .map(|(path, contents)| {
-                parsing_context
-                    .sess
-                    .source_map()
-                    .new_source_file(FileName::real(path), contents)
-                    .map_err(|error| {
-                        parsing_context.dcx().err(format!("failed to load source: {error}")).emit()
-                    })
-            })
-            .collect::<solar_interface::Result<Vec<_>>>()?;
-        parsing_context.add_files(files);
-        parsing_context.parse();
+    compiler.enter_mut(move |compiler| {
+        {
+            let mut parsing_context = compiler.parse();
+            let files = batch
+                .files
+                .into_iter()
+                .map(|(path, contents)| {
+                    parsing_context
+                        .sess
+                        .source_map()
+                        .new_source_file(FileName::real(path), contents)
+                        .map_err(|error| {
+                            parsing_context
+                                .dcx()
+                                .err(format!("failed to load source: {error}"))
+                                .emit()
+                        })
+                })
+                .collect::<solar_interface::Result<Vec<_>>>();
 
-        compiler.sources_mut().topo_sort();
-        let _ = compiler.lower_asts();
-        let _ = compiler.analysis();
+            if let Ok(files) = files {
+                parsing_context.add_files(files);
+                parsing_context.parse();
 
-        Ok(())
-    });
+                compiler.sources_mut().topo_sort();
+                let _ = compiler.lower_asts();
+                let _ = compiler.analysis();
+            }
+        }
 
-    let symbol_tables = compiler.enter(|compiler| SymbolTables::build(compiler.gcx()));
-    let diagnostics = compiler.enter(|compiler| {
-        diag_buffer
+        let symbol_tables = SymbolTables::build(compiler.gcx());
+        let diagnostics = diag_buffer
             .read()
             .iter()
             .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
             .fold(FxHashMap::<Url, Vec<Diagnostic>>::default(), |mut diagnostics, (uri, diag)| {
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics
-            })
-    });
+            });
 
-    AnalysisResult { diagnostics, symbol_tables }
+        AnalysisResult { diagnostics, symbol_tables }
+    })
 }
 
 #[cfg(test)]
@@ -754,8 +758,8 @@ mod tests {
 
     #[test]
     fn analyze_builds_declaration_symbol_table() {
-        let path = std::env::temp_dir()
-            .join(format!("solar-lsp-symbols-{}-Symbols.sol", std::process::id()));
+        let file = tempfile::Builder::new().suffix("-Symbols.sol").tempfile().unwrap();
+        let path = file.path().to_path_buf();
         let uri = Url::from_file_path(&path).unwrap();
         let result = analyze(AnalysisBatch {
             opts: CompileOpts::default(),

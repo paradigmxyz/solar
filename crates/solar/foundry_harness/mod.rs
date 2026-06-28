@@ -11,6 +11,7 @@
 use std::{
     collections::HashMap,
     fs,
+    io::Write,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant},
@@ -146,26 +147,43 @@ fn foundry_solc() -> PathBuf {
                 if #[cfg(unix)] {
                     use std::os::unix::fs::PermissionsExt;
 
-                    let path = std::env::temp_dir()
-                        .join(format!("solar-zcodegen-{}.sh", std::process::id()));
+                    let file = tempfile::Builder::new()
+                        .prefix("solar-zcodegen-")
+                        .suffix(".sh")
+                        .tempfile()
+                        .expect("failed to create solar codegen wrapper");
+                    let mut file = file;
+                    let path = file.path().to_path_buf();
                     let script = format!(
                         "#!/bin/sh\nexec \"{}\" -Zcodegen \"$@\"\n",
                         solar.display()
                     );
-                    fs::write(&path, script).expect("failed to write solar codegen wrapper");
+                    file.write_all(script.as_bytes())
+                        .expect("failed to write solar codegen wrapper");
+                    file.flush().expect("failed to flush solar codegen wrapper");
                     let mut perms = fs::metadata(&path).unwrap().permissions();
                     perms.set_mode(0o755);
                     fs::set_permissions(&path, perms).unwrap();
-                    path
+                    file.keep()
+                        .expect("failed to keep solar codegen wrapper")
+                        .1
                 } else if #[cfg(windows)] {
-                    let path = std::env::temp_dir()
-                        .join(format!("solar-zcodegen-{}.cmd", std::process::id()));
+                    let file = tempfile::Builder::new()
+                        .prefix("solar-zcodegen-")
+                        .suffix(".cmd")
+                        .tempfile()
+                        .expect("failed to create solar codegen wrapper");
+                    let mut file = file;
                     let script = format!(
                         "@echo off\r\n\"{}\" -Zcodegen %*\r\nexit /b %ERRORLEVEL%\r\n",
                         solar.display()
                     );
-                    fs::write(&path, script).expect("failed to write Solar codegen wrapper");
-                    path
+                    file.write_all(script.as_bytes())
+                        .expect("failed to write Solar codegen wrapper");
+                    file.flush().expect("failed to flush solar codegen wrapper");
+                    file.keep()
+                        .expect("failed to keep solar codegen wrapper")
+                        .1
                 } else {
                     solar
                 }
