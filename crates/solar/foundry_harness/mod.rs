@@ -11,7 +11,6 @@
 use std::{
     collections::HashMap,
     fs,
-    io::Write,
     path::{Path, PathBuf},
     process::Command,
     time::{Duration, Instant},
@@ -99,6 +98,17 @@ struct CompilerRun {
     bytecode_sizes: HashMap<String, usize>,
 }
 
+struct FoundrySolc {
+    path: PathBuf,
+    _temp_dir: tempfile::TempDir,
+}
+
+impl FoundrySolc {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -137,59 +147,39 @@ fn workspace_root() -> PathBuf {
 /// We therefore point it at a tiny wrapper script that forwards every call to
 /// Solar with `-Zcodegen` prepended; otherwise Forge would receive empty
 /// bytecode.
-fn foundry_solc() -> PathBuf {
-    use std::sync::OnceLock;
-    static WRAPPER: OnceLock<PathBuf> = OnceLock::new();
-    WRAPPER
-        .get_or_init(|| {
-            let solar = get_solar_binary();
-            cfg_if::cfg_if! {
-                if #[cfg(unix)] {
-                    use std::os::unix::fs::PermissionsExt;
+fn foundry_solc() -> FoundrySolc {
+    let solar = get_solar_binary();
+    let temp_dir = tempfile::Builder::new()
+        .prefix("solar-zcodegen-")
+        .tempdir()
+        .expect("failed to create Solar codegen wrapper directory");
 
-                    let file = tempfile::Builder::new()
-                        .prefix("solar-zcodegen-")
-                        .suffix(".sh")
-                        .tempfile()
-                        .expect("failed to create solar codegen wrapper");
-                    let mut file = file;
-                    let path = file.path().to_path_buf();
-                    let script = format!(
-                        "#!/bin/sh\nexec \"{}\" -Zcodegen \"$@\"\n",
-                        solar.display()
-                    );
-                    file.write_all(script.as_bytes())
-                        .expect("failed to write solar codegen wrapper");
-                    file.flush().expect("failed to flush solar codegen wrapper");
-                    let mut perms = fs::metadata(&path).unwrap().permissions();
-                    perms.set_mode(0o755);
-                    fs::set_permissions(&path, perms).unwrap();
-                    file.keep()
-                        .expect("failed to keep solar codegen wrapper")
-                        .1
-                } else if #[cfg(windows)] {
-                    let file = tempfile::Builder::new()
-                        .prefix("solar-zcodegen-")
-                        .suffix(".cmd")
-                        .tempfile()
-                        .expect("failed to create solar codegen wrapper");
-                    let mut file = file;
-                    let script = format!(
-                        "@echo off\r\n\"{}\" -Zcodegen %*\r\nexit /b %ERRORLEVEL%\r\n",
-                        solar.display()
-                    );
-                    file.write_all(script.as_bytes())
-                        .expect("failed to write Solar codegen wrapper");
-                    file.flush().expect("failed to flush solar codegen wrapper");
-                    file.keep()
-                        .expect("failed to keep solar codegen wrapper")
-                        .1
-                } else {
-                    solar
-                }
-            }
-        })
-        .clone()
+    cfg_if::cfg_if! {
+        if #[cfg(unix)] {
+            use std::os::unix::fs::PermissionsExt;
+
+            let path = temp_dir.path().join("solar-zcodegen.sh");
+            let script = format!(
+                "#!/bin/sh\nexec \"{}\" -Zcodegen \"$@\"\n",
+                solar.display()
+            );
+            fs::write(&path, script).expect("failed to write solar codegen wrapper");
+            let mut perms = fs::metadata(&path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&path, perms).unwrap();
+            FoundrySolc { path, _temp_dir: temp_dir }
+        } else if #[cfg(windows)] {
+            let path = temp_dir.path().join("solar-zcodegen.cmd");
+            let script = format!(
+                "@echo off\r\n\"{}\" -Zcodegen %*\r\nexit /b %ERRORLEVEL%\r\n",
+                solar.display()
+            );
+            fs::write(&path, script).expect("failed to write Solar codegen wrapper");
+            FoundrySolc { path, _temp_dir: temp_dir }
+        } else {
+            FoundrySolc { path: solar, _temp_dir: temp_dir }
+        }
+    }
 }
 
 /// Checks if forge is available.
@@ -401,6 +391,7 @@ fn run_forge_test_solar(
         .prefix("solar-foundry-out-")
         .tempdir()
         .expect("failed to create Solar output directory");
+    let foundry_solc = foundry_solc();
 
     let mut cmd = Command::new("forge");
     cmd.current_dir(project_dir)
@@ -415,7 +406,7 @@ fn run_forge_test_solar(
         .arg(cache_dir)
         // Foundry expects solc-compatible `--version` output when probing `FOUNDRY_SOLC`.
         .env("SOLC_WRAPPER", "1")
-        .env("FOUNDRY_SOLC", foundry_solc());
+        .env("FOUNDRY_SOLC", foundry_solc.path());
 
     // Add forge match filters if specified
     if let Some(ref test_filter) = config.test_filter {
