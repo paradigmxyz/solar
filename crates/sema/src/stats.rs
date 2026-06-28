@@ -3,7 +3,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use std::ops::ControlFlow;
+use std::{alloc::Layout, mem::size_of_val, ops::ControlFlow};
 
 struct NodeStats {
     count: usize,
@@ -37,6 +37,135 @@ struct StatCollector {
     seen: FxHashSet<ItemId>,
 }
 
+trait EnumVariantSize {
+    fn variant_payload_size(&self) -> usize;
+}
+
+fn layout_of<T>(x: &T) -> Layout {
+    Layout::for_value(x)
+}
+
+fn fields_layout_size(this: Layout, fields: &[Layout]) -> usize {
+    let mut layout = Layout::from_size_align(0, this.align()).unwrap();
+    for field in fields {
+        let (next, _) = layout.extend(*field).expect("variant layout should fit in usize");
+        layout = next;
+    }
+    layout.pad_to_align().size()
+}
+
+macro_rules! variant_payload_size {
+    ($self:expr, $($field:expr),* $(,)?) => {
+        fields_layout_size(layout_of($self), &[$(layout_of($field)),*])
+    };
+}
+
+impl EnumVariantSize for ast::ItemKind<'_> {
+    fn variant_payload_size(&self) -> usize {
+        match self {
+            Self::Pragma(pragma) => variant_payload_size!(self, pragma),
+            Self::Import(import) => variant_payload_size!(self, import),
+            Self::Using(using) => variant_payload_size!(self, using),
+            Self::Contract(contract) => variant_payload_size!(self, contract),
+            Self::Function(function) => variant_payload_size!(self, function),
+            Self::Variable(var) => variant_payload_size!(self, var),
+            Self::Struct(strukt) => variant_payload_size!(self, strukt),
+            Self::Enum(enum_) => variant_payload_size!(self, enum_),
+            Self::Udvt(udvt) => variant_payload_size!(self, udvt),
+            Self::Error(error) => variant_payload_size!(self, error),
+            Self::Event(event) => variant_payload_size!(self, event),
+        }
+    }
+}
+
+impl EnumVariantSize for ast::TypeKind<'_> {
+    fn variant_payload_size(&self) -> usize {
+        match self {
+            Self::Elementary(ty) => variant_payload_size!(self, ty),
+            Self::Array(ty) => variant_payload_size!(self, ty),
+            Self::Function(ty) => variant_payload_size!(self, ty),
+            Self::Mapping(ty) => variant_payload_size!(self, ty),
+            Self::Custom(path) => variant_payload_size!(self, path),
+        }
+    }
+}
+
+impl EnumVariantSize for ast::StmtKind<'_> {
+    fn variant_payload_size(&self) -> usize {
+        match self {
+            Self::Assembly(assembly) => variant_payload_size!(self, assembly),
+            Self::DeclSingle(var) => variant_payload_size!(self, var),
+            Self::DeclMulti(vars, expr) => variant_payload_size!(self, vars, expr),
+            Self::Block(block) => variant_payload_size!(self, block),
+            Self::Break | Self::Continue | Self::Placeholder => variant_payload_size!(self,),
+            Self::DoWhile(body, cond) => variant_payload_size!(self, body, cond),
+            Self::Emit(path, args) => variant_payload_size!(self, path, args),
+            Self::Expr(expr) => variant_payload_size!(self, expr),
+            Self::For { init, cond, next, body } => {
+                variant_payload_size!(self, init, cond, next, body)
+            }
+            Self::If(cond, body, else_) => variant_payload_size!(self, cond, body, else_),
+            Self::Return(expr) => variant_payload_size!(self, expr),
+            Self::Revert(path, args) => variant_payload_size!(self, path, args),
+            Self::Try(try_) => variant_payload_size!(self, try_),
+            Self::UncheckedBlock(block) => variant_payload_size!(self, block),
+            Self::While(cond, body) => variant_payload_size!(self, cond, body),
+        }
+    }
+}
+
+impl EnumVariantSize for ast::ExprKind<'_> {
+    fn variant_payload_size(&self) -> usize {
+        match self {
+            Self::Array(exprs) => variant_payload_size!(self, exprs),
+            Self::Assign(lhs, op, rhs) => variant_payload_size!(self, lhs, op, rhs),
+            Self::Binary(lhs, op, rhs) => variant_payload_size!(self, lhs, op, rhs),
+            Self::Call(expr, args) => variant_payload_size!(self, expr, args),
+            Self::CallOptions(expr, args) => variant_payload_size!(self, expr, args),
+            Self::Delete(expr) => variant_payload_size!(self, expr),
+            Self::Ident(ident) => variant_payload_size!(self, ident),
+            Self::Index(expr, index) => variant_payload_size!(self, expr, index),
+            Self::Lit(lit, denomination) => variant_payload_size!(self, lit, denomination),
+            Self::Member(expr, ident) => variant_payload_size!(self, expr, ident),
+            Self::New(ty) => variant_payload_size!(self, ty),
+            Self::Payable(args) => variant_payload_size!(self, args),
+            Self::Ternary(cond, true_expr, false_expr) => {
+                variant_payload_size!(self, cond, true_expr, false_expr)
+            }
+            Self::Tuple(exprs) => variant_payload_size!(self, exprs),
+            Self::TypeCall(ty) | Self::Type(ty) => variant_payload_size!(self, ty),
+            Self::Unary(op, expr) => variant_payload_size!(self, op, expr),
+        }
+    }
+}
+
+impl EnumVariantSize for yul::StmtKind<'_> {
+    fn variant_payload_size(&self) -> usize {
+        match self {
+            Self::Block(block) => variant_payload_size!(self, block),
+            Self::AssignSingle(path, expr) => variant_payload_size!(self, path, expr),
+            Self::AssignMulti(paths, expr) => variant_payload_size!(self, paths, expr),
+            Self::Expr(expr) => variant_payload_size!(self, expr),
+            Self::If(expr, block) => variant_payload_size!(self, expr, block),
+            Self::For(for_) => variant_payload_size!(self, for_),
+            Self::Switch(switch) => variant_payload_size!(self, switch),
+            Self::Leave | Self::Break | Self::Continue => variant_payload_size!(self,),
+            Self::FunctionDef(function) => variant_payload_size!(self, function),
+            Self::VarDecl(vars, init) => variant_payload_size!(self, vars, init),
+        }
+    }
+}
+
+impl EnumVariantSize for yul::ExprKind<'_> {
+    fn variant_payload_size(&self) -> usize {
+        match self {
+            Self::Path(path) => variant_payload_size!(self, path),
+            Self::Call(call) => variant_payload_size!(self, call),
+            Self::Lit(lit) => variant_payload_size!(self, lit),
+        }
+    }
+}
+
 pub fn print_ast_stats<'ast>(ast: &'ast ast::SourceUnit<'ast>, title: &str, prefix: &str) {
     let mut collector = StatCollector { nodes: FxHashMap::default(), seen: FxHashSet::default() };
     let _ = collector.visit_source_unit(ast);
@@ -46,7 +175,7 @@ pub fn print_ast_stats<'ast>(ast: &'ast ast::SourceUnit<'ast>, title: &str, pref
 impl StatCollector {
     // Record a top-level node.
     fn record<T: ?Sized>(&mut self, label: &'static str, id: Option<ItemId>, val: &T) {
-        self.record_inner(label, None, id, val);
+        self.record_inner(label, None, id, val, 0);
     }
 
     // Record a two-level entry, with a top-level enum type and a variant.
@@ -56,8 +185,9 @@ impl StatCollector {
         label2: &'static str,
         id: Option<ItemId>,
         val: &T,
+        variant_size: usize,
     ) {
-        self.record_inner(label1, Some(label2), id, val);
+        self.record_inner(label1, Some(label2), id, val, variant_size);
     }
 
     fn record_inner<T: ?Sized>(
@@ -66,6 +196,7 @@ impl StatCollector {
         label2: Option<&'static str>,
         id: Option<ItemId>,
         val: &T,
+        variant_size: usize,
     ) {
         if id.is_some_and(|x| !self.seen.insert(x)) {
             return;
@@ -78,7 +209,7 @@ impl StatCollector {
         if let Some(label2) = label2 {
             let subnode = node.subnodes.entry(label2).or_insert(NodeStats::new());
             subnode.count += 1;
-            subnode.size = size_of_val(val);
+            subnode.size = variant_size;
         }
     }
 
@@ -117,12 +248,13 @@ impl StatCollector {
                 for (label, subnode) in subnodes {
                     let size = subnode.accum_size();
                     eprintln!(
-                        "{} - {:<16}{:>10} ({:4.1}%){:>14}",
+                        "{} - {:<16}{:>10} ({:4.1}%){:>14}{:>14}",
                         prefix,
                         label,
                         to_readable_str(size),
                         percent(size, total_size),
                         to_readable_str(subnode.count),
+                        to_readable_str(subnode.size),
                     );
                 }
             }
@@ -139,10 +271,17 @@ macro_rules! record_variants {
         ($self:ident, $val:expr, $kind:expr, $id:expr, $mod:ident, $ty:ty, $tykind:ident),
         [$($variant:ident),*]
     ) => {
+        let variant_size = EnumVariantSize::variant_payload_size(&$kind);
         match $kind {
             $(
                 $mod::$tykind::$variant { .. } => {
-                    $self.record_variant(stringify!($ty), stringify!($variant), $id, $val)
+                    $self.record_variant(
+                        stringify!($ty),
+                        stringify!($variant),
+                        $id,
+                        $val,
+                        variant_size,
+                    )
                 }
             )*
         }
