@@ -209,6 +209,3 @@ vergen = { package = "vergen-gitcl", version = "10.0.0-beta.5" }
 # by the `url` crate.
 # See the `idna_adapter` README.md for more details: https://docs.rs/crate/idna_adapter/latest
 idna_adapter = "=1.1.0"
-
-[patch.crates-io]
-ui_test = { git = "https://github.com/DaniPopes/ui_test", branch = "fork" }
