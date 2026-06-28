@@ -246,39 +246,39 @@ fn load_foundry_document(path: &Path) -> Result<FoundryDocument, WorkspaceError>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_support::TestProject;
     use solar_config::EvmVersion;
-    use std::fs;
-    use tempfile::TempDir;
 
     #[test]
     fn foundry_workspace_loads_manifest_compile_config() {
-        let project = TempDir::new().unwrap();
-        fs::create_dir_all(project.path().join("lib/forge-std/src")).unwrap();
-        fs::create_dir_all(project.path().join("vendor/ds-test/src")).unwrap();
-        fs::write(project.path().join("remappings.txt"), "solmate/=lib/solmate/src/\n").unwrap();
-        fs::write(
-            project.path().join("foundry.toml"),
+        let project = TestProject::from_fixture(
             r#"
-                [profile.default]
-                src = "contracts"
-                libs = ["lib", "vendor"]
-                evm_version = "cancun"
-                remappings = [
-                    "@oz=lib/openzeppelin-contracts/contracts/",
-                    "ds-test=lib/ds-test/src/",
-                ]
-            "#,
-        )
-        .unwrap();
+            //- /lib/forge-std/src/Test.sol
+            contract Test {}
 
-        let workspace = Workspace::load_foundry(project.path().join("foundry.toml")).unwrap();
+            //- /vendor/ds-test/src/Test.sol
+            contract Test {}
+
+            //- /remappings.txt
+            solmate/=lib/solmate/src/
+
+            //- /foundry.toml
+            [profile.default]
+            src = "contracts"
+            libs = ["lib", "vendor"]
+            evm_version = "cancun"
+            remappings = [
+                "@oz=lib/openzeppelin-contracts/contracts/",
+                "ds-test=lib/ds-test/src/",
+            ]
+            "#,
+        );
+
+        let workspace = Workspace::load_foundry(project.path("/foundry.toml")).unwrap();
         let opts = workspace.compile_opts();
 
-        assert_eq!(opts.base_path.as_deref(), Some(project.path()));
-        assert_eq!(
-            opts.include_paths,
-            vec![project.path().join("lib"), project.path().join("vendor")]
-        );
+        assert_eq!(opts.base_path.as_deref(), Some(project.root()));
+        assert_eq!(opts.include_paths, vec![project.path("/lib"), project.path("/vendor")]);
         assert_eq!(opts.evm_version, EvmVersion::Cancun);
         assert_eq!(
             opts.import_remappings.iter().map(ToString::to_string).collect::<Vec<_>>(),
@@ -290,25 +290,27 @@ mod tests {
                 "ds-test=lib/ds-test/src/",
             ]
         );
-        assert_eq!(workspace.source_roots(), &[project.path().join("contracts")]);
+        assert_eq!(workspace.source_roots(), &[project.path("/contracts")]);
     }
 
     #[test]
     fn foundry_workspace_respects_disabled_auto_detect_remappings() {
-        let project = TempDir::new().unwrap();
-        fs::create_dir_all(project.path().join("lib/forge-std/src")).unwrap();
-        fs::write(project.path().join("remappings.txt"), "solmate/=lib/solmate/src/\n").unwrap();
-        fs::write(
-            project.path().join("foundry.toml"),
+        let project = TestProject::from_fixture(
             r#"
-                [profile.default]
-                auto_detect_remappings = false
-                remappings = ["@oz=lib/openzeppelin-contracts/contracts/"]
-            "#,
-        )
-        .unwrap();
+            //- /lib/forge-std/src/Test.sol
+            contract Test {}
 
-        let workspace = Workspace::load_foundry(project.path().join("foundry.toml")).unwrap();
+            //- /remappings.txt
+            solmate/=lib/solmate/src/
+
+            //- /foundry.toml
+            [profile.default]
+            auto_detect_remappings = false
+            remappings = ["@oz=lib/openzeppelin-contracts/contracts/"]
+            "#,
+        );
+
+        let workspace = Workspace::load_foundry(project.path("/foundry.toml")).unwrap();
         let opts = workspace.compile_opts();
 
         assert_eq!(
@@ -319,26 +321,28 @@ mod tests {
 
     #[test]
     fn workspace_path_index_uses_most_specific_base_path() {
-        let project = TempDir::new().unwrap();
-        let nested = project.path().join("nested");
+        let project = TestProject::new();
+        let nested = project.path("/nested");
 
-        let outer = Workspace::naked(project.path().to_path_buf());
-        let inner = Workspace::naked(nested.clone());
+        let outer = Workspace::naked(project.root().to_path_buf());
+        let inner = Workspace::naked(nested);
         let workspaces = vec![outer, inner];
         let index = WorkspacePathIndex::new(&workspaces);
 
-        assert_eq!(index.workspace_idx_for_path(&nested.join("A.sol")), 1);
-        assert_eq!(index.workspace_idx_for_path(&project.path().join("B.sol")), 0);
+        assert_eq!(index.workspace_idx_for_path(&project.path("/nested/A.sol")), 1);
+        assert_eq!(index.workspace_idx_for_path(&project.path("/B.sol")), 0);
     }
 
     #[test]
     fn naked_workspace_does_not_collect_disk_source_files() {
-        let project = TempDir::new().unwrap();
-        let source = project.path().join("src");
-        fs::create_dir(&source).unwrap();
-        fs::write(source.join("A.sol"), "contract A {}").unwrap();
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/A.sol
+            contract A {}
+            "#,
+        );
 
-        let mut workspace = Workspace::naked(project.path().to_path_buf());
+        let mut workspace = Workspace::naked(project.root().to_path_buf());
         workspace.refresh_source_files();
 
         assert!(workspace.source_files().is_empty());
@@ -346,14 +350,15 @@ mod tests {
 
     #[test]
     fn naked_workspace_does_not_add_created_disk_source_files() {
-        let project = TempDir::new().unwrap();
-        let source = project.path().join("src");
-        fs::create_dir(&source).unwrap();
-        let source_file = source.join("A.sol");
-        fs::write(&source_file, "contract A {}").unwrap();
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/A.sol
+            contract A {}
+            "#,
+        );
 
-        let mut workspace = Workspace::naked(project.path().to_path_buf());
-        workspace.add_source_file(source_file);
+        let mut workspace = Workspace::naked(project.root().to_path_buf());
+        workspace.add_source_file(project.path("/src/A.sol"));
 
         assert!(workspace.source_files().is_empty());
     }

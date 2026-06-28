@@ -26,6 +26,9 @@ mod utils;
 mod vfs;
 mod workspace;
 
+#[cfg(test)]
+mod test_support;
+
 pub(crate) type NotifyResult = ControlFlow<async_lsp::Result<()>>;
 
 fn new_router(client: ClientSocket) -> Router<GlobalState> {
