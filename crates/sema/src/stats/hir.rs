@@ -1,15 +1,12 @@
-use super::{EnumVariantSize, Node, NodeStats, print_stats};
+use super::{EnumVariantSize, Stats};
 use crate::hir::{self, Visit as HirVisit};
-use solar_data_structures::{
-    Never,
-    map::{FxHashMap, FxHashSet},
-};
-use std::{mem::size_of_val, ops::ControlFlow};
+use solar_data_structures::{Never, map::FxHashSet};
+use std::ops::ControlFlow;
 
 /// HIR stat collector.
 struct HirStatCollector<'hir> {
     hir: &'hir hir::Hir<'hir>,
-    nodes: FxHashMap<&'static str, Node>,
+    stats: Stats,
     seen_items: FxHashSet<hir::ItemId>,
     seen_vars: FxHashSet<hir::VariableId>,
 }
@@ -82,16 +79,18 @@ impl EnumVariantSize for hir::TypeKind<'_> {
         }
     }
 }
+
 pub fn print_hir_stats<'hir>(hir: &'hir hir::Hir<'hir>, title: &str, prefix: &str) {
     let mut collector = HirStatCollector {
         hir,
-        nodes: FxHashMap::default(),
+        stats: Stats::new(),
         seen_items: FxHashSet::default(),
         seen_vars: FxHashSet::default(),
     };
     collector.collect();
     collector.print(title, prefix);
 }
+
 impl<'hir> HirStatCollector<'hir> {
     fn collect(&mut self) {
         self.record("Hir", self.hir);
@@ -114,9 +113,7 @@ impl<'hir> HirStatCollector<'hir> {
     }
 
     fn record<T: ?Sized>(&mut self, label: &'static str, val: &T) {
-        let node = self.nodes.entry(label).or_insert(Node::new());
-        node.stats.count += 1;
-        node.stats.size = size_of_val(val);
+        self.stats.record(label, val);
     }
 
     fn record_variant<T: ?Sized>(
@@ -126,13 +123,7 @@ impl<'hir> HirStatCollector<'hir> {
         val: &T,
         variant_size: usize,
     ) {
-        let node = self.nodes.entry(label1).or_insert(Node::new());
-        node.stats.count += 1;
-        node.stats.size = size_of_val(val);
-
-        let subnode = node.subnodes.entry(label2).or_insert(NodeStats::new());
-        subnode.count += 1;
-        subnode.size = variant_size;
+        self.stats.record_variant(label1, label2, val, variant_size);
     }
 
     fn visit_using_directive(&mut self, using: &'hir hir::UsingDirective<'hir>) {
@@ -216,9 +207,10 @@ impl<'hir> HirStatCollector<'hir> {
     }
 
     fn print(&self, title: &str, prefix: &str) {
-        print_stats(&self.nodes, title, prefix);
+        self.stats.print(title, prefix);
     }
 }
+
 macro_rules! record_hir_variants {
     (
         ($self:ident, $val:expr, $kind:expr, $mod:ident, $ty:ty, $tykind:ident),
@@ -240,6 +232,7 @@ macro_rules! record_hir_variants {
         }
     };
 }
+
 impl<'hir> HirVisit<'hir> for HirStatCollector<'hir> {
     type BreakValue = Never;
 

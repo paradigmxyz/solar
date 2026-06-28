@@ -1,5 +1,5 @@
 use solar_data_structures::map::FxHashMap;
-use std::alloc::Layout;
+use std::{alloc::Layout, mem::size_of_val};
 
 struct NodeStats {
     count: usize,
@@ -24,6 +24,42 @@ struct Node {
 impl Node {
     fn new() -> Self {
         Self { stats: NodeStats::new(), subnodes: FxHashMap::default() }
+    }
+}
+
+struct Stats {
+    nodes: FxHashMap<&'static str, Node>,
+}
+
+impl Stats {
+    fn new() -> Self {
+        Self { nodes: FxHashMap::default() }
+    }
+
+    fn record<T: ?Sized>(&mut self, label: &'static str, val: &T) {
+        let node = self.nodes.entry(label).or_insert(Node::new());
+        node.stats.count += 1;
+        node.stats.size = size_of_val(val);
+    }
+
+    fn record_variant<T: ?Sized>(
+        &mut self,
+        label1: &'static str,
+        label2: &'static str,
+        val: &T,
+        variant_size: usize,
+    ) {
+        let node = self.nodes.entry(label1).or_insert(Node::new());
+        node.stats.count += 1;
+        node.stats.size = size_of_val(val);
+
+        let subnode = node.subnodes.entry(label2).or_insert(NodeStats::new());
+        subnode.count += 1;
+        subnode.size = variant_size;
+    }
+
+    fn print(&self, title: &str, prefix: &str) {
+        print_stats(&self.nodes, title, prefix);
     }
 }
 

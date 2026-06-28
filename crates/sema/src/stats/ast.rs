@@ -1,14 +1,11 @@
-use super::{EnumVariantSize, Node, NodeStats, print_stats};
+use super::{EnumVariantSize, Stats};
 use solar_ast::{self as ast, ItemId, visit::Visit, yul};
-use solar_data_structures::{
-    Never,
-    map::{FxHashMap, FxHashSet},
-};
-use std::{mem::size_of_val, ops::ControlFlow};
+use solar_data_structures::{Never, map::FxHashSet};
+use std::ops::ControlFlow;
 
 /// AST stat collector.
 struct StatCollector {
-    nodes: FxHashMap<&'static str, Node>,
+    stats: Stats,
     seen: FxHashSet<ItemId>,
 }
 
@@ -117,11 +114,13 @@ impl EnumVariantSize for yul::ExprKind<'_> {
         }
     }
 }
+
 pub fn print_ast_stats<'ast>(ast: &'ast ast::SourceUnit<'ast>, title: &str, prefix: &str) {
-    let mut collector = StatCollector { nodes: FxHashMap::default(), seen: FxHashSet::default() };
+    let mut collector = StatCollector { stats: Stats::new(), seen: FxHashSet::default() };
     let _ = collector.visit_source_unit(ast);
     collector.print(title, prefix)
 }
+
 impl StatCollector {
     // Record a top-level node.
     fn record<T: ?Sized>(&mut self, label: &'static str, id: Option<ItemId>, val: &T) {
@@ -152,21 +151,17 @@ impl StatCollector {
             return;
         }
 
-        let node = self.nodes.entry(label1).or_insert(Node::new());
-        node.stats.count += 1;
-        node.stats.size = size_of_val(val);
-
-        if let Some(label2) = label2 {
-            let subnode = node.subnodes.entry(label2).or_insert(NodeStats::new());
-            subnode.count += 1;
-            subnode.size = variant_size;
+        match label2 {
+            Some(label2) => self.stats.record_variant(label1, label2, val, variant_size),
+            None => self.stats.record(label1, val),
         }
     }
 
     fn print(&self, title: &str, prefix: &str) {
-        print_stats(&self.nodes, title, prefix);
+        self.stats.print(title, prefix);
     }
 }
+
 // Used to avoid boilerplate for types with many variants.
 macro_rules! record_variants {
     (
@@ -190,6 +185,7 @@ macro_rules! record_variants {
         }
     };
 }
+
 impl<'ast> Visit<'ast> for StatCollector {
     type BreakValue = Never;
 
