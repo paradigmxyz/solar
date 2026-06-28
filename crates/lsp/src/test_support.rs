@@ -6,6 +6,7 @@ use crop::Rope;
 use lsp_types::{InitializeParams, Url, WorkspaceFolder};
 use std::{
     fs,
+    io::Read,
     path::{Path, PathBuf},
 };
 use tempfile::TempDir;
@@ -48,7 +49,9 @@ impl TestProject {
     }
 
     pub(crate) fn read_file(&self, path: &str) -> String {
-        fs::read_to_string(self.path(path)).unwrap()
+        let mut contents = String::new();
+        fs::File::open(self.path(path)).unwrap().read_to_string(&mut contents).unwrap();
+        contents
     }
 
     pub(crate) fn open_file(&mut self, path: &str, contents: &str) {
