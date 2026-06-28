@@ -2,6 +2,7 @@ use crate::{
     NotifyResult,
     config::{Config, negotiate_capabilities},
     proto,
+    symbols::SymbolTables,
     vfs::Vfs,
     workspace::WorkspacePathIndex,
 };
@@ -39,6 +40,7 @@ pub(crate) struct GlobalState {
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
     published_diagnostic_uris: Arc<RwLock<FxHashSet<Url>>>,
 }
 
@@ -48,6 +50,7 @@ impl GlobalState {
             client,
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
             config: Arc::new(Default::default()),
         }
@@ -119,6 +122,7 @@ impl GlobalState {
             }
 
             let mut diagnostics: FxHashMap<Url, Vec<Diagnostic>> = FxHashMap::default();
+            let mut symbol_tables = SymbolTables::default();
 
             for batch in batches {
                 if batch.files.is_empty() {
@@ -129,7 +133,9 @@ impl GlobalState {
                     return;
                 }
 
-                for (uri, mut batch_diagnostics) in analyze(batch) {
+                let result = analyze(batch);
+                symbol_tables.extend(result.symbol_tables);
+                for (uri, mut batch_diagnostics) in result.diagnostics {
                     diagnostics.entry(uri).or_default().append(&mut batch_diagnostics);
                 }
 
@@ -139,6 +145,7 @@ impl GlobalState {
             }
 
             if snapshot.is_current(version) {
+                snapshot.set_symbol_tables(symbol_tables);
                 snapshot.publish_diagnostic_set(diagnostics);
             }
         });
@@ -150,6 +157,7 @@ impl GlobalState {
             vfs: self.vfs.clone(),
             config: self.config.clone(),
             analysis_version: self.analysis_version.clone(),
+            symbol_tables: self.symbol_tables.clone(),
             published_diagnostic_uris: self.published_diagnostic_uris.clone(),
         }
     }
@@ -161,6 +169,11 @@ impl GlobalState {
         let snapshot = self.snapshot();
         tokio::task::spawn_blocking(move || f(snapshot))
     }
+}
+
+struct AnalysisResult {
+    diagnostics: FxHashMap<Url, Vec<Diagnostic>>,
+    symbol_tables: SymbolTables,
 }
 
 fn watched_file_registration_params() -> RegistrationParams {
@@ -186,6 +199,7 @@ pub(crate) struct GlobalStateSnapshot {
     vfs: Arc<RwLock<Vfs>>,
     config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    symbol_tables: Arc<RwLock<SymbolTables>>,
     published_diagnostic_uris: Arc<RwLock<FxHashSet<Url>>>,
 }
 
@@ -253,6 +267,10 @@ impl GlobalStateSnapshot {
         batches
     }
 
+    fn set_symbol_tables(&mut self, symbol_tables: SymbolTables) {
+        *self.symbol_tables.write() = symbol_tables;
+    }
+
     fn analysis_workspaces(&self) -> Cow<'_, [crate::workspace::Workspace]> {
         let workspaces = self.config.workspaces();
         if !workspaces.is_empty() {
@@ -301,51 +319,59 @@ impl AnalysisBatch {
     }
 }
 
-fn analyze(batch: AnalysisBatch) -> FxHashMap<Url, Vec<Diagnostic>> {
+fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
     let sess = Session::builder().opts(batch.opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
 
     let mut compiler = Compiler::new(sess);
-    let _ = compiler.enter_mut(move |compiler| -> solar_interface::Result<_> {
-        let mut parsing_context = compiler.parse();
-        let files = batch
-            .files
-            .into_iter()
-            .map(|(path, contents)| {
-                parsing_context
-                    .sess
-                    .source_map()
-                    .new_source_file(FileName::real(path), contents)
-                    .map_err(|error| {
-                        parsing_context.dcx().err(format!("failed to load source: {error}")).emit()
-                    })
-            })
-            .collect::<solar_interface::Result<Vec<_>>>()?;
-        parsing_context.add_files(files);
-        parsing_context.parse();
+    compiler.enter_mut(move |compiler| {
+        {
+            let mut parsing_context = compiler.parse();
+            let files = batch
+                .files
+                .into_iter()
+                .map(|(path, contents)| {
+                    parsing_context
+                        .sess
+                        .source_map()
+                        .new_source_file(FileName::real(path), contents)
+                        .map_err(|error| {
+                            parsing_context
+                                .dcx()
+                                .err(format!("failed to load source: {error}"))
+                                .emit()
+                        })
+                })
+                .collect::<solar_interface::Result<Vec<_>>>();
 
-        compiler.sources_mut().topo_sort();
-        let _ = compiler.lower_asts();
-        let _ = compiler.analysis();
+            if let Ok(files) = files {
+                parsing_context.add_files(files);
+                parsing_context.parse();
 
-        Ok(())
-    });
+                compiler.sources_mut().topo_sort();
+                let _ = compiler.lower_asts();
+                let _ = compiler.analysis();
+            }
+        }
 
-    compiler.enter(|compiler| {
-        diag_buffer
+        let symbol_tables = SymbolTables::build(compiler.gcx());
+        let diagnostics = diag_buffer
             .read()
             .iter()
             .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
             .fold(FxHashMap::<Url, Vec<Diagnostic>>::default(), |mut diagnostics, (uri, diag)| {
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics
-            })
+            });
+
+        AnalysisResult { diagnostics, symbol_tables }
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::symbols::DeclarationKind;
     use async_lsp::ClientSocket;
     use crop::Rope;
     use lsp_types::{Diagnostic, Position, Range, WatchKind, notification::Notification};
@@ -381,6 +407,7 @@ mod tests {
             vfs: Arc::new(Default::default()),
             config: Arc::new(Config::default()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: published_diagnostic_uris.clone(),
         };
 
@@ -427,6 +454,7 @@ mod tests {
             vfs: Arc::new(Default::default()),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
@@ -516,6 +544,7 @@ mod tests {
             vfs: Arc::new(RwLock::new(vfs)),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
@@ -563,6 +592,7 @@ mod tests {
             vfs: Arc::new(Default::default()),
             config: Arc::new(config.clone()),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
@@ -580,6 +610,7 @@ mod tests {
             vfs: Arc::new(Default::default()),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
@@ -622,6 +653,7 @@ mod tests {
             vfs: Arc::new(RwLock::new(vfs)),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
@@ -672,14 +704,15 @@ mod tests {
             vfs: Arc::new(Default::default()),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
         let mut batches = snapshot.analysis_batches(Vec::new());
         assert_eq!(batches.len(), 1);
-        let diagnostics = analyze(batches.pop().unwrap());
+        let result = analyze(batches.pop().unwrap());
 
-        assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
     }
 
     #[test]
@@ -712,14 +745,15 @@ mod tests {
             vfs: Arc::new(Default::default()),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
         let mut batches = snapshot.analysis_batches(Vec::new());
         assert_eq!(batches.len(), 1);
-        let diagnostics = analyze(batches.pop().unwrap());
+        let result = analyze(batches.pop().unwrap());
 
-        assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
     }
 
     #[test]
@@ -755,14 +789,15 @@ mod tests {
             vfs: Arc::new(Default::default()),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
         let mut batches = snapshot.analysis_batches(Vec::new());
         assert_eq!(batches.len(), 1);
-        let diagnostics = analyze(batches.pop().unwrap());
+        let result = analyze(batches.pop().unwrap());
 
-        assert!(diagnostics.is_empty(), "{diagnostics:#?}");
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
     }
 
     #[test]
@@ -789,6 +824,7 @@ mod tests {
             vfs: Arc::new(Default::default()),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
         };
 
@@ -796,5 +832,143 @@ mod tests {
         let batch = batches.pop().unwrap();
 
         assert!(batch.files.is_empty());
+    }
+
+    #[test]
+    fn analyze_builds_declaration_symbol_table() {
+        let file = tempfile::Builder::new().suffix("-Symbols.sol").tempfile().unwrap();
+        let path = file.path().to_path_buf();
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(
+                path,
+                r#"
+contract C {
+    uint256 public x;
+    struct S { uint256 field; }
+    struct GetterValue {
+        uint256 visible;
+        uint256 other;
+        mapping(uint256 => uint256) hidden;
+    }
+    mapping(uint256 key => uint256 value) public getterMap;
+    mapping(uint256 key => GetterValue value) public getterValues;
+    constructor() {}
+    fallback() external {}
+    receive() external payable {}
+    function f(uint256 y) public returns (uint256 z) {
+        uint256 local = x + y;
+        return local;
+    }
+}
+enum E { A }
+"#
+                .into(),
+            )],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty());
+
+        let declarations = result.symbol_tables.file_declarations(&uri).collect::<Vec<_>>();
+        assert_declaration(&declarations, "C", DeclarationKind::Contract);
+        assert_declaration(&declarations, "x", DeclarationKind::Variable);
+        assert_declaration(&declarations, "S", DeclarationKind::Struct);
+        assert_declaration(&declarations, "field", DeclarationKind::Variable);
+        assert_declaration(&declarations, "GetterValue", DeclarationKind::Struct);
+        assert_declaration(&declarations, "visible", DeclarationKind::Variable);
+        assert_declaration(&declarations, "other", DeclarationKind::Variable);
+        assert_declaration(&declarations, "hidden", DeclarationKind::Variable);
+        assert_declaration(&declarations, "getterMap", DeclarationKind::Variable);
+        assert_declaration(&declarations, "getterValues", DeclarationKind::Variable);
+        assert_declaration(&declarations, "constructor", DeclarationKind::Function);
+        assert_declaration(&declarations, "fallback", DeclarationKind::Function);
+        assert_declaration(&declarations, "receive", DeclarationKind::Function);
+        assert_declaration(&declarations, "f", DeclarationKind::Function);
+        assert_declaration(&declarations, "y", DeclarationKind::Variable);
+        assert_declaration(&declarations, "z", DeclarationKind::Variable);
+        assert_declaration(&declarations, "local", DeclarationKind::Variable);
+        assert_declaration(&declarations, "E", DeclarationKind::Enum);
+        assert_declaration(&declarations, "A", DeclarationKind::EnumVariant);
+
+        assert_parent(&declarations, "x", "C");
+        assert_parent(&declarations, "field", "S");
+        assert_parent(&declarations, "visible", "GetterValue");
+        assert_parent(&declarations, "other", "GetterValue");
+        assert_parent(&declarations, "hidden", "GetterValue");
+        assert_parent(&declarations, "getterMap", "C");
+        assert_parent(&declarations, "getterValues", "C");
+        assert_parent(&declarations, "constructor", "C");
+        assert_parent(&declarations, "y", "f");
+        assert_parent(&declarations, "z", "f");
+        assert_parent(&declarations, "local", "f");
+        assert_parent(&declarations, "A", "E");
+
+        assert_declaration_count(&declarations, "x", DeclarationKind::Variable, 1);
+        assert_declaration_count(&declarations, "visible", DeclarationKind::Variable, 1);
+        assert_declaration_count(&declarations, "other", DeclarationKind::Variable, 1);
+        assert_no_declaration(&declarations, "key");
+        assert_no_declaration(&declarations, "value");
+        assert_no_declaration(&declarations, "__tmp_struct");
+        assert_eq!(declarations.len(), result.symbol_tables.declarations().len());
+    }
+
+    fn assert_parent(
+        declarations: &[&crate::symbols::DeclarationSymbol],
+        name: &str,
+        parent: &str,
+    ) {
+        let declaration = find_declaration(declarations, name);
+        let parent_id = declaration.parent.unwrap_or_else(|| {
+            panic!("declaration `{name}` has no parent in {declarations:#?}");
+        });
+        let parent_declaration = declarations
+            .iter()
+            .find(|candidate| candidate.id == parent_id)
+            .unwrap_or_else(|| panic!("parent {parent_id:?} for `{name}` not found"));
+        assert_eq!(parent_declaration.name, parent);
+    }
+
+    fn assert_declaration(
+        declarations: &[&crate::symbols::DeclarationSymbol],
+        name: &str,
+        kind: DeclarationKind,
+    ) {
+        assert!(
+            declarations.iter().any(|symbol| symbol.name == name && symbol.kind == kind),
+            "missing {kind:?} declaration `{name}` in {declarations:#?}"
+        );
+    }
+
+    fn assert_declaration_count(
+        declarations: &[&crate::symbols::DeclarationSymbol],
+        name: &str,
+        kind: DeclarationKind,
+        expected: usize,
+    ) {
+        assert_eq!(
+            declarations.iter().filter(|symbol| symbol.name == name && symbol.kind == kind).count(),
+            expected,
+            "unexpected count for {kind:?} declaration `{name}` in {declarations:#?}",
+        );
+    }
+
+    fn assert_no_declaration(declarations: &[&crate::symbols::DeclarationSymbol], name: &str) {
+        assert!(
+            declarations.iter().all(|symbol| symbol.name != name),
+            "unexpected declaration `{name}` in {declarations:#?}",
+        );
+    }
+
+    fn find_declaration<'a>(
+        declarations: &'a [&crate::symbols::DeclarationSymbol],
+        name: &str,
+    ) -> &'a crate::symbols::DeclarationSymbol {
+        declarations
+            .iter()
+            .copied()
+            .find(|symbol| symbol.name == name)
+            .unwrap_or_else(|| panic!("missing declaration `{name}` in {declarations:#?}"))
     }
 }

@@ -92,6 +92,9 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         };
         let kind =
             result.unwrap_or_else(|e| LitKind::Err(e.span(lo.to(self.prev_token.span)).emit()));
+        if matches!(kind, LitKind::Err(_)) {
+            subdenomination = None;
+        }
         Ok((lit.symbol, kind, subdenomination))
     }
 

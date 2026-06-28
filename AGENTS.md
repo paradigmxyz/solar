@@ -112,6 +112,17 @@ Common file-level UI directives:
 - `//@ ignore-host: windows`: Skip a test on a specific host.
 - `//@[name] compile-flags: ...`: Define revision-specific flags for tests with
   multiple revisions.
+- `//@ filecheck: ...`: Run LLVM FileCheck against the generated `.stdout` file
+  after the UI test. Arguments after `filecheck:` are passed directly to
+  FileCheck, for example `--check-prefix=ABI` or
+  `--implicit-check-not=UnusedSymbol`.
+
+Use FileCheck when exact full-output snapshots are too brittle or when a test
+needs to assert selected output properties such as ordering, presence, or
+absence. Put `// CHECK:`, `// CHECK-LABEL:`, `// CHECK-NOT:`, and related
+directives in the test source. Keep checks specific enough to fail for the bug
+being covered, and prefer `CHECK-LABEL` to anchor checks to the relevant
+contract/module section when the output contains multiple sections.
 
 ### Porting Tests from Solc
 

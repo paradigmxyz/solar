@@ -129,6 +129,7 @@ num-traits = "0.2"
 
 # CLI
 clap = "4.4"
+comfy-table = { version = "7.2", default-features = false }
 
 # diagnostics
 anstream = "1.0.0"
@@ -201,7 +202,7 @@ thread_local = "1.1"
 tokio = { version = "1.47", default-features = false }
 tokio-util = { version = "0.7", default-features = false }
 unicode-width = "0.2"
-vergen = { package = "vergen-gitcl", version = "10.0.0-beta.5" }
+vergen = { package = "vergen-gitcl", version = "10" }
 
 ## Pinned dependencies. Enabled for the workspace in crates/solar.
 
@@ -209,6 +210,3 @@ vergen = { package = "vergen-gitcl", version = "10.0.0-beta.5" }
 # by the `url` crate.
 # See the `idna_adapter` README.md for more details: https://docs.rs/crate/idna_adapter/latest
 idna_adapter = "=1.1.0"
-
-[patch.crates-io]
-ui_test = { git = "https://github.com/DaniPopes/ui_test", branch = "fork" }

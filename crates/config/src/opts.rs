@@ -327,6 +327,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub ast_stats: bool,
 
+    /// Print HIR stats.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub hir_stats: bool,
+
     /// Print Standard JSON input stats.
     #[cfg_attr(feature = "clap", arg(long))]
     pub standard_json_stats: bool,
@@ -470,7 +474,6 @@ mod tests {
         let unstable = parse(&["solar", "-Z", "test-value=2", "a.sol"]).unwrap();
         assert_eq!(unstable.test_value, Some(2));
 
-        let unstable = parse(&["solar", "-Zast-stats", "a.sol"]).unwrap();
-        assert!(unstable.ast_stats);
+        // DON'T ADD ANY MORE TESTS HERE.
     }
 }

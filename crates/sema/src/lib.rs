@@ -61,7 +61,7 @@ pub(crate) fn lower(compiler: &mut CompilerRef<'_>) -> Result<ControlFlow<()>> {
 
     if sess.opts.unstable.ast_stats {
         for source in gcx.sources.asts() {
-            stats::print_ast_stats(source, "AST STATS", "ast-stats");
+            stats::print_ast_stats(source, "AST STATS");
         }
     }
 
@@ -102,6 +102,10 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
         && dump.kind.is_hir()
     {
         dump_hir(gcx, dump.paths.as_deref())?;
+    }
+
+    if gcx.sess.opts.unstable.hir_stats {
+        stats::print_hir_stats(&gcx.hir, "HIR STATS");
     }
 
     // Lower HIR types.
