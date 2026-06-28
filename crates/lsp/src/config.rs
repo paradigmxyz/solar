@@ -148,12 +148,8 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workspace::WorkspaceKind;
-    use lsp_types::{
-        DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities, WorkspaceFolder,
-    };
-    use std::fs;
-    use tempfile::TempDir;
+    use crate::{test_support::TestProject, workspace::WorkspaceKind};
+    use lsp_types::{DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities};
 
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
@@ -176,32 +172,16 @@ mod tests {
 
     #[test]
     fn rediscover_workspaces_loads_manifests_and_falls_back_to_naked_roots() {
-        let configured = TempDir::new().unwrap();
-        fs::write(
-            configured.path().join("foundry.toml"),
+        let project = TestProject::from_fixture(
             r#"
-                [profile.default]
-                src = "contracts"
-            "#,
-        )
-        .unwrap();
-        let naked = TempDir::new().unwrap();
+            //- /configured/foundry.toml
+            [profile.default]
+            src = "contracts"
 
-        let params = InitializeParams {
-            workspace_folders: Some(vec![
-                WorkspaceFolder {
-                    uri: lsp_types::Url::from_file_path(configured.path()).unwrap(),
-                    name: "configured".into(),
-                },
-                WorkspaceFolder {
-                    uri: lsp_types::Url::from_file_path(naked.path()).unwrap(),
-                    name: "naked".into(),
-                },
-            ]),
-            ..Default::default()
-        };
-        let (_, mut config) = negotiate_capabilities(params);
-        config.rediscover_workspaces();
+            //- /naked/.keep
+            "#,
+        );
+        let mut config = project.config_with_roots(&["/configured", "/naked"]);
 
         assert_eq!(config.workspaces().len(), 2);
         let foundry = config
@@ -209,9 +189,9 @@ mod tests {
             .iter()
             .find(|workspace| workspace.kind() == WorkspaceKind::Foundry)
             .unwrap();
-        assert_eq!(foundry.source_roots(), &[configured.path().join("contracts")]);
+        assert_eq!(foundry.source_roots(), &[project.path("/configured/contracts")]);
 
-        fs::remove_file(configured.path().join("foundry.toml")).unwrap();
+        project.remove_file("/configured/foundry.toml");
         config.rediscover_workspaces();
 
         assert_eq!(config.workspaces().len(), 2);
@@ -222,43 +202,27 @@ mod tests {
 
     #[test]
     fn rediscover_workspaces_keeps_naked_root_after_manifest_load_error() {
-        let broken = TempDir::new().unwrap();
-        fs::write(broken.path().join("foundry.toml"), "not valid toml =").unwrap();
-        let configured = TempDir::new().unwrap();
-        fs::write(
-            configured.path().join("foundry.toml"),
+        let project = TestProject::from_fixture(
             r#"
-                [profile.default]
-                src = "contracts"
+            //- /broken/foundry.toml
+            not valid toml =
+
+            //- /configured/foundry.toml
+            [profile.default]
+            src = "contracts"
             "#,
-        )
-        .unwrap();
-
-        let params = InitializeParams {
-            workspace_folders: Some(vec![
-                WorkspaceFolder {
-                    uri: lsp_types::Url::from_file_path(broken.path()).unwrap(),
-                    name: "broken".into(),
-                },
-                WorkspaceFolder {
-                    uri: lsp_types::Url::from_file_path(configured.path()).unwrap(),
-                    name: "configured".into(),
-                },
-            ]),
-            ..Default::default()
-        };
-        let (_, mut config) = negotiate_capabilities(params);
-
-        config.rediscover_workspaces();
+        );
+        let config = project.config_with_roots(&["/broken", "/configured"]);
 
         assert_eq!(config.workspaces().len(), 2);
         assert!(config.workspaces().iter().any(|workspace| {
             workspace.kind() == WorkspaceKind::Naked
-                && workspace.compile_opts().base_path.as_deref() == Some(broken.path())
+                && workspace.compile_opts().base_path.as_deref()
+                    == Some(project.path("/broken").as_path())
         }));
         assert!(config.workspaces().iter().any(|workspace| {
             workspace.kind() == WorkspaceKind::Foundry
-                && workspace.source_roots() == [configured.path().join("contracts")]
+                && workspace.source_roots() == [project.path("/configured/contracts")]
         }));
     }
 }

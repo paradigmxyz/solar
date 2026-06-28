@@ -72,29 +72,32 @@ impl ProjectManifest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
-    use tempfile::TempDir;
+    use crate::test_support::TestProject;
 
     #[test]
     fn child_discovery_finds_foundry_manifest() {
-        let root = TempDir::new().unwrap();
-        let child = root.path().join("child");
-        fs::create_dir(&child).unwrap();
-        fs::write(child.join("foundry.toml"), "").unwrap();
+        let project = TestProject::from_fixture(
+            r#"
+            //- /child/foundry.toml
+            "#,
+        );
 
         assert_eq!(
-            ProjectManifest::discover_all(&[root.path().to_path_buf()]),
-            vec![ProjectManifest::Foundry(child.join("foundry.toml"))],
+            ProjectManifest::discover_all(&[project.root().to_path_buf()]),
+            vec![ProjectManifest::Foundry(project.path("/child/foundry.toml"))],
         );
     }
 
     #[test]
     fn parent_discovery_prefers_nearest_foundry_manifest() {
-        let root = TempDir::new().unwrap();
-        let child = root.path().join("child");
-        fs::create_dir(&child).unwrap();
-        fs::write(root.path().join("foundry.toml"), "").unwrap();
-        fs::write(child.join("foundry.toml"), "").unwrap();
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+
+            //- /child/foundry.toml
+            "#,
+        );
+        let child = project.path("/child");
 
         assert_eq!(
             ProjectManifest::discover_all(std::slice::from_ref(&child)),
