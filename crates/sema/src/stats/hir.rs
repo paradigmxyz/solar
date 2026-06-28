@@ -80,7 +80,7 @@ impl EnumVariantSize for hir::TypeKind<'_> {
     }
 }
 
-pub fn print_hir_stats<'hir>(hir: &'hir hir::Hir<'hir>, title: &str, prefix: &str) {
+pub fn print_hir_stats<'hir>(hir: &'hir hir::Hir<'hir>, title: &str) {
     let mut collector = HirStatCollector {
         hir,
         stats: Stats::new(),
@@ -88,7 +88,7 @@ pub fn print_hir_stats<'hir>(hir: &'hir hir::Hir<'hir>, title: &str, prefix: &st
         seen_vars: FxHashSet::default(),
     };
     collector.collect();
-    collector.print(title, prefix);
+    collector.print(title);
 }
 
 impl<'hir> HirStatCollector<'hir> {
@@ -206,8 +206,8 @@ impl<'hir> HirStatCollector<'hir> {
         ControlFlow::Continue(())
     }
 
-    fn print(&self, title: &str, prefix: &str) {
-        self.stats.print(title, prefix);
+    fn print(&self, title: &str) {
+        self.stats.print(title);
     }
 }
 

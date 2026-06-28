@@ -1,4 +1,4 @@
-use comfy_table::{Cell, CellAlignment, Table, presets::NOTHING};
+use comfy_table::{Cell, CellAlignment, Table, presets::ASCII_FULL_CONDENSED};
 use solar_data_structures::map::FxHashMap;
 use std::{alloc::Layout, mem::size_of_val};
 
@@ -59,8 +59,8 @@ impl Stats {
         subnode.size = variant_size;
     }
 
-    fn print(&self, title: &str, prefix: &str) {
-        print_stats(&self.nodes, title, prefix);
+    fn print(&self, title: &str) {
+        print_stats(&self.nodes, title);
     }
 }
 
@@ -93,13 +93,13 @@ mod hir;
 pub use ast::print_ast_stats;
 pub use hir::print_hir_stats;
 
-fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str, prefix: &str) {
+fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str) {
     let mut nodes: Vec<_> = nodes.iter().collect();
     nodes.sort_by_cached_key(|(label, node)| (node.stats.accum_size(), label.to_string()));
 
     let total_size = nodes.iter().map(|(_, node)| node.stats.accum_size()).sum();
 
-    eprintln!("{prefix} {title}");
+    eprintln!("{title}");
 
     let percent = |m, n| (m * 100) as f64 / n as f64;
     fn right(value: impl ToString) -> Cell {
@@ -107,7 +107,7 @@ fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str, prefix: &str)
     }
 
     let mut table = Table::new();
-    table.load_preset(NOTHING);
+    table.load_preset(ASCII_FULL_CONDENSED);
     table.set_header([
         Cell::new("Name"),
         right("Accumulated Size"),
@@ -151,10 +151,7 @@ fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str, prefix: &str)
         right(""),
     ]);
 
-    for line in table.to_string().lines() {
-        eprintln!("{prefix}{}", line.trim_end());
-    }
-    eprintln!("{prefix}");
+    eprintln!("{table}");
 }
 
 pub fn to_readable_str(mut val: usize) -> String {

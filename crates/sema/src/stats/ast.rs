@@ -115,10 +115,10 @@ impl EnumVariantSize for yul::ExprKind<'_> {
     }
 }
 
-pub fn print_ast_stats<'ast>(ast: &'ast ast::SourceUnit<'ast>, title: &str, prefix: &str) {
+pub fn print_ast_stats<'ast>(ast: &'ast ast::SourceUnit<'ast>, title: &str) {
     let mut collector = StatCollector { stats: Stats::new(), seen: FxHashSet::default() };
     let _ = collector.visit_source_unit(ast);
-    collector.print(title, prefix)
+    collector.print(title)
 }
 
 impl StatCollector {
@@ -157,8 +157,8 @@ impl StatCollector {
         }
     }
 
-    fn print(&self, title: &str, prefix: &str) {
-        self.stats.print(title, prefix);
+    fn print(&self, title: &str) {
+        self.stats.print(title);
     }
 }
 
