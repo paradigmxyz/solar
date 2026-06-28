@@ -129,6 +129,7 @@ num-traits = "0.2"
 
 # CLI
 clap = "4.4"
+comfy-table = { version = "7.2", default-features = false }
 
 # diagnostics
 anstream = "1.0.0"

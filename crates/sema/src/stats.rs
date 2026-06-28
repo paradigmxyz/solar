@@ -1,5 +1,6 @@
+use comfy_table::{Cell, CellAlignment, Table, presets::UTF8_FULL_CONDENSED};
 use solar_data_structures::map::FxHashMap;
-use std::{alloc::Layout, mem::size_of_val};
+use std::{alloc::Layout, cmp::Reverse, mem::size_of_val};
 
 struct NodeStats {
     count: usize,
@@ -58,8 +59,8 @@ impl Stats {
         subnode.size = variant_size;
     }
 
-    fn print(&self, title: &str, prefix: &str) {
-        print_stats(&self.nodes, title, prefix);
+    fn print(&self, title: &str) {
+        print_stats(&self.nodes, title);
     }
 }
 
@@ -92,54 +93,66 @@ mod hir;
 pub use ast::print_ast_stats;
 pub use hir::print_hir_stats;
 
-fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str, prefix: &str) {
+fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str) {
     let mut nodes: Vec<_> = nodes.iter().collect();
-    nodes.sort_by_cached_key(|(label, node)| (node.stats.accum_size(), label.to_string()));
+    nodes.sort_by_cached_key(|(label, node)| (Reverse(node.stats.accum_size()), label.to_string()));
 
     let total_size = nodes.iter().map(|(_, node)| node.stats.accum_size()).sum();
 
-    eprintln!("{prefix} {title}");
-    eprintln!(
-        "{} {:<18}{:>18}{:>14}{:>14}",
-        prefix, "Name", "Accumulated Size", "Count", "Item Size"
-    );
-    eprintln!("{prefix} ----------------------------------------------------------------");
+    eprintln!("{title}");
 
     let percent = |m, n| (m * 100) as f64 / n as f64;
+    fn right(value: impl ToString) -> Cell {
+        Cell::new(value).set_alignment(CellAlignment::Right)
+    }
+
+    let mut table = Table::new();
+    table.load_preset(UTF8_FULL_CONDENSED);
+    table.set_header([
+        Cell::new("Name"),
+        right("Accumulated Size"),
+        right("%"),
+        right("Count"),
+        right("Item Size"),
+    ]);
 
     for (label, node) in nodes {
         let size = node.stats.accum_size();
-        eprintln!(
-            "{} {:<18}{:>10} ({:4.1}%){:>14}{:>14}",
-            prefix,
-            label,
-            to_readable_str(size),
-            percent(size, total_size),
-            to_readable_str(node.stats.count),
-            to_readable_str(node.stats.size)
-        );
+        table.add_row([
+            Cell::new(label),
+            right(to_readable_str(size)),
+            right(format!("{:.1}", percent(size, total_size))),
+            right(to_readable_str(node.stats.count)),
+            right(to_readable_str(node.stats.size)),
+        ]);
         if !node.subnodes.is_empty() {
             let mut subnodes: Vec<_> = node.subnodes.iter().collect();
-            subnodes
-                .sort_by_cached_key(|(label, subnode)| (subnode.accum_size(), label.to_string()));
+            subnodes.sort_by_cached_key(|(label, subnode)| {
+                (Reverse(subnode.accum_size()), label.to_string())
+            });
 
             for (label, subnode) in subnodes {
                 let size = subnode.accum_size();
-                eprintln!(
-                    "{} - {:<16}{:>10} ({:4.1}%){:>14}{:>14}",
-                    prefix,
-                    label,
-                    to_readable_str(size),
-                    percent(size, total_size),
-                    to_readable_str(subnode.count),
-                    to_readable_str(subnode.size),
-                );
+                table.add_row([
+                    Cell::new(format!("- {label}")),
+                    right(to_readable_str(size)),
+                    right(format!("{:.1}", percent(size, total_size))),
+                    right(to_readable_str(subnode.count)),
+                    right(to_readable_str(subnode.size)),
+                ]);
             }
         }
     }
-    eprintln!("{prefix} ----------------------------------------------------------------");
-    eprintln!("{} {:<18}{:>10}", prefix, "Total", to_readable_str(total_size));
-    eprintln!("{prefix}");
+
+    table.add_row([
+        Cell::new("Total"),
+        right(to_readable_str(total_size)),
+        right(""),
+        right(""),
+        right(""),
+    ]);
+
+    eprintln!("{table}");
 }
 
 pub fn to_readable_str(mut val: usize) -> String {
