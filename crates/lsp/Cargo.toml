@@ -47,7 +47,7 @@ tokio = { workspace = true, features = ["rt", "io-std"] }
 
 [dev-dependencies]
 tempfile.workspace = true
-tokio = { workspace = true, features = ["io-util", "rt", "sync", "time"] }
+tokio = { workspace = true, features = ["io-util", "macros", "rt", "sync", "time"] }
 tokio-util = { workspace = true, features = ["compat"] }
 
 [features]

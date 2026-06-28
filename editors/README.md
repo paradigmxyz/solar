@@ -11,7 +11,7 @@ so the normal compiler build and test commands do not build editor tooling.
 Build or install the `solar` binary before using the editor integrations:
 
 ```bash
-cargo build -p solar-compiler --bin solar
+cargo build --bin solar
 ```
 
 For local development, either add `target/debug` to `PATH` or configure the

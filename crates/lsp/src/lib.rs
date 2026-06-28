@@ -21,6 +21,7 @@ mod global_state;
 mod handlers;
 mod proto;
 mod serde;
+mod symbols;
 mod utils;
 mod vfs;
 mod workspace;
@@ -97,80 +98,70 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn router_handles_watched_file_changes() {
-        tokio::runtime::Builder::new_current_thread().build().unwrap().block_on(async {
-            let mut router = new_router(ClientSocket::new_closed());
-            let params = DidChangeWatchedFilesParams {
-                changes: vec![FileEvent::new(
-                    lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
-                    FileChangeType::CHANGED,
-                )],
-            };
-            let notification: AnyNotification = serde_json::from_value(serde_json::json!({
-                "method": notif::DidChangeWatchedFiles::METHOD,
-                "params": params,
-            }))
-            .unwrap();
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_watched_file_changes() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = DidChangeWatchedFilesParams {
+            changes: vec![FileEvent::new(
+                lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+                FileChangeType::CHANGED,
+            )],
+        };
+        let notification: AnyNotification = serde_json::from_value(serde_json::json!({
+            "method": notif::DidChangeWatchedFiles::METHOD,
+            "params": params,
+        }))
+        .unwrap();
 
-            assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
-        });
+        assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
     }
 
-    #[test]
-    fn initialized_registers_watched_files_when_client_supports_dynamic_registration() {
-        tokio::runtime::Builder::new_current_thread().enable_time().build().unwrap().block_on(
-            async {
-                let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
-                let (registration_tx, registration_rx) = oneshot::channel();
-                let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
-                    let mut router = Router::new(Some(registration_tx));
-                    router.request::<request::RegisterCapability, _>(|state, params| {
-                        state.take().unwrap().send(params).unwrap();
-                        async move { Ok(()) }
-                    });
-                    router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
-                    router
-                });
+    #[tokio::test(flavor = "current_thread")]
+    async fn initialized_registers_watched_files_when_client_supports_dynamic_registration() {
+        let (server_main, _client) = async_lsp::MainLoop::new_server(new_router);
+        let (registration_tx, registration_rx) = oneshot::channel();
+        let (client_main, mut server) = async_lsp::MainLoop::new_client(|_| {
+            let mut router = Router::new(Some(registration_tx));
+            router.request::<request::RegisterCapability, _>(|state, params| {
+                state.take().unwrap().send(params).unwrap();
+                async move { Ok(()) }
+            });
+            router.notification::<notif::LogMessage>(|_, _| ControlFlow::Continue(()));
+            router
+        });
 
-                let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
-                let (server_rx, server_tx) = tokio::io::split(server_stream);
-                let (server_rx, server_tx) = (server_rx.compat(), server_tx.compat_write());
-                let server_main =
-                    tokio::spawn(
-                        async move { server_main.run_buffered(server_rx, server_tx).await },
-                    );
-                let (client_rx, client_tx) = tokio::io::split(client_stream);
-                let (client_rx, client_tx) = (client_rx.compat(), client_tx.compat_write());
-                let client_main =
-                    tokio::spawn(
-                        async move { client_main.run_buffered(client_rx, client_tx).await },
-                    );
+        let (server_stream, client_stream) = tokio::io::duplex(64 << 10);
+        let (server_rx, server_tx) = tokio::io::split(server_stream);
+        let (server_rx, server_tx) = (server_rx.compat(), server_tx.compat_write());
+        let server_main =
+            tokio::spawn(async move { server_main.run_buffered(server_rx, server_tx).await });
+        let (client_rx, client_tx) = tokio::io::split(client_stream);
+        let (client_rx, client_tx) = (client_rx.compat(), client_tx.compat_write());
+        let client_main =
+            tokio::spawn(async move { client_main.run_buffered(client_rx, client_tx).await });
 
-                let mut params = InitializeParams::default();
-                params.capabilities.workspace = Some(WorkspaceClientCapabilities {
-                    did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
-                        dynamic_registration: Some(true),
-                        ..Default::default()
-                    }),
-                    ..Default::default()
-                });
-                server.initialize(params).await.unwrap();
-                server.initialized(InitializedParams {}).unwrap();
+        let mut params = InitializeParams::default();
+        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+            did_change_watched_files: Some(DidChangeWatchedFilesClientCapabilities {
+                dynamic_registration: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        server.initialize(params).await.unwrap();
+        server.initialized(InitializedParams {}).unwrap();
 
-                let registrations =
-                    tokio::time::timeout(std::time::Duration::from_secs(1), registration_rx)
-                        .await
-                        .unwrap()
-                        .unwrap();
-                let [registration] = registrations.registrations.try_into().unwrap();
-                assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
+        let registrations =
+            tokio::time::timeout(std::time::Duration::from_secs(1), registration_rx)
+                .await
+                .unwrap()
+                .unwrap();
+        let [registration] = registrations.registrations.try_into().unwrap();
+        assert_eq!(registration.method, notif::DidChangeWatchedFiles::METHOD);
 
-                server.shutdown(()).await.unwrap();
-                server.exit(()).unwrap();
-                assert!(server_main.await.unwrap().is_ok());
-                assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
-            },
-        );
+        server.shutdown(()).await.unwrap();
+        server.exit(()).unwrap();
+        assert!(server_main.await.unwrap().is_ok());
+        assert!(matches!(client_main.await.unwrap(), Err(async_lsp::Error::Eof)));
     }
 }
