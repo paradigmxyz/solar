@@ -8,11 +8,3 @@
 /tmp
 .DS_Store
 __pycache__/
-**/cache/
-**/cache-*/
-tests/foundry/**/out-solar/
-tests/foundry/**/out-solc/
-tests/foundry/**/*-test-output-*.json
-crates/codegen/testdata/**/out-solar/
-crates/codegen/testdata/**/out-solc/
-crates/codegen/testdata/**/*-test-output-*.json
