@@ -77,20 +77,18 @@ impl Workspace {
 
     pub(crate) fn refresh_source_files(&mut self) {
         self.source_files.clear();
-        let skip_heavy_dirs = self.kind == WorkspaceKind::Naked;
+        if self.kind == WorkspaceKind::Naked {
+            return;
+        }
         for root in &self.source_roots {
-            collect_solidity_files(root, &mut self.source_files, skip_heavy_dirs, true);
+            collect_solidity_files(root, &mut self.source_files);
         }
         self.source_files.sort();
         self.source_files.dedup();
     }
 
     pub(crate) fn add_source_file(&mut self, path: PathBuf) {
-        if !is_solidity_file(&path)
-            || !self.source_roots.iter().any(|root| path.starts_with(root))
-            || (self.kind == WorkspaceKind::Naked
-                && self.source_roots.iter().any(|root| is_in_heavy_dir(root, &path)))
-        {
+        if !self.tracks_disk_file(&path) {
             return;
         }
         match self.source_files.binary_search(&path) {
@@ -105,6 +103,12 @@ impl Workspace {
         {
             self.source_files.remove(pos);
         }
+    }
+
+    pub(crate) fn tracks_disk_file(&self, path: &Path) -> bool {
+        self.kind != WorkspaceKind::Naked
+            && is_solidity_file(path)
+            && self.source_roots.iter().any(|root| path.starts_with(root))
     }
 
     pub(crate) fn load_foundry(path: PathBuf) -> Result<Self, WorkspaceError> {
@@ -163,12 +167,7 @@ impl<'a> WorkspacePathIndex<'a> {
     }
 }
 
-fn collect_solidity_files(
-    path: &Path,
-    files: &mut Vec<PathBuf>,
-    skip_heavy_dirs: bool,
-    is_root: bool,
-) {
+fn collect_solidity_files(path: &Path, files: &mut Vec<PathBuf>) {
     let Ok(metadata) = std::fs::symlink_metadata(path) else {
         return;
     };
@@ -179,31 +178,17 @@ fn collect_solidity_files(
         return;
     }
     if metadata.is_dir() {
-        if !is_root && skip_heavy_dirs && is_heavy_dir(path) {
-            return;
-        }
         let Ok(entries) = std::fs::read_dir(path) else {
             return;
         };
         for entry in entries.filter_map(Result::ok) {
-            collect_solidity_files(&entry.path(), files, skip_heavy_dirs, false);
+            collect_solidity_files(&entry.path(), files);
         }
     }
 }
 
 fn is_solidity_file(path: &Path) -> bool {
     path.extension().is_some_and(|extension| extension == "sol")
-}
-
-fn is_heavy_dir(path: &Path) -> bool {
-    matches!(
-        path.file_name().and_then(|name| name.to_str()),
-        Some(".git" | "cache" | "lib" | "node_modules" | "out")
-    )
-}
-
-fn is_in_heavy_dir(root: &Path, path: &Path) -> bool {
-    path.strip_prefix(root).is_ok_and(|path| path.ancestors().skip(1).any(is_heavy_dir))
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -347,52 +332,29 @@ mod tests {
     }
 
     #[test]
-    fn naked_workspace_skips_common_heavy_dirs() {
+    fn naked_workspace_does_not_collect_disk_source_files() {
         let project = TempDir::new().unwrap();
         let source = project.path().join("src");
         fs::create_dir(&source).unwrap();
         fs::write(source.join("A.sol"), "contract A {}").unwrap();
 
-        for dir in [".git", "cache", "lib", "node_modules", "out"] {
-            let dir = project.path().join(dir);
-            fs::create_dir(&dir).unwrap();
-            fs::write(dir.join("Ignored.sol"), "contract Ignored {}").unwrap();
-        }
-
         let mut workspace = Workspace::naked(project.path().to_path_buf());
         workspace.refresh_source_files();
 
-        assert_eq!(workspace.source_files(), &[source.join("A.sol")]);
+        assert!(workspace.source_files().is_empty());
     }
 
     #[test]
-    fn naked_workspace_does_not_add_created_files_in_heavy_dirs() {
+    fn naked_workspace_does_not_add_created_disk_source_files() {
         let project = TempDir::new().unwrap();
         let source = project.path().join("src");
         fs::create_dir(&source).unwrap();
         let source_file = source.join("A.sol");
         fs::write(&source_file, "contract A {}").unwrap();
-        let ignored_file = project.path().join("node_modules/Ignored.sol");
-        fs::create_dir(ignored_file.parent().unwrap()).unwrap();
-        fs::write(&ignored_file, "contract Ignored {}").unwrap();
 
         let mut workspace = Workspace::naked(project.path().to_path_buf());
-        workspace.add_source_file(source_file.clone());
-        workspace.add_source_file(ignored_file);
+        workspace.add_source_file(source_file);
 
-        assert_eq!(workspace.source_files(), &[source_file]);
-    }
-
-    #[test]
-    fn naked_workspace_does_not_skip_root_named_like_heavy_dir() {
-        let project = TempDir::new().unwrap();
-        let root = project.path().join("lib");
-        fs::create_dir(&root).unwrap();
-        fs::write(root.join("A.sol"), "contract A {}").unwrap();
-
-        let mut workspace = Workspace::naked(root.clone());
-        workspace.refresh_source_files();
-
-        assert_eq!(workspace.source_files(), &[root.join("A.sol")]);
+        assert!(workspace.source_files().is_empty());
     }
 }

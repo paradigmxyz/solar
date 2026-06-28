@@ -236,6 +236,9 @@ impl GlobalStateSnapshot {
 
         for path in disk_paths {
             let idx = workspace_path_index.workspace_idx_for_path(&path);
+            if !workspaces[idx].tracks_disk_file(&path) {
+                continue;
+            }
             if batches[idx].seen_paths.contains(&path) {
                 continue;
             }
@@ -427,14 +430,29 @@ mod tests {
     }
 
     #[test]
-    fn analysis_batches_read_disk_files() {
+    fn analysis_batches_read_tracked_disk_files() {
         let project = TempDir::new().unwrap();
-        let path = project.path().join("Saved.sol");
+        let src = project.path().join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(project.path().join("foundry.toml"), "[profile.default]\nsrc = \"src\"\n")
+            .unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+                uri: Url::from_file_path(project.path()).unwrap(),
+                name: "test".into(),
+            }]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+
+        let path = src.join("Saved.sol");
         std::fs::write(&path, "contract C { function f() public { number+; } }").unwrap();
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
-            config: Arc::new(Config::default()),
+            config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
@@ -446,6 +464,47 @@ mod tests {
         assert_eq!(
             batch.files,
             vec![(path, "contract C { function f() public { number+; } }".into())]
+        );
+    }
+
+    #[test]
+    fn analysis_batches_ignore_naked_workspace_disk_files() {
+        let project = TempDir::new().unwrap();
+        let disk_path = project.path().join("Disk.sol");
+        let open_path = project.path().join("Open.sol");
+        fs::write(&disk_path, "contract Disk {}").unwrap();
+        fs::write(&open_path, "contract Open {}").unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+                uri: Url::from_file_path(project.path()).unwrap(),
+                name: "test".into(),
+            }]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+
+        let mut vfs = Vfs::default();
+        vfs.set_file_contents(
+            crate::vfs::VfsPath::from(open_path.clone()),
+            Some(Rope::from("contract Open { function f() public { number+; } }")),
+        );
+        let snapshot = GlobalStateSnapshot {
+            client: ClientSocket::new_closed(),
+            vfs: Arc::new(RwLock::new(vfs)),
+            config: Arc::new(config),
+            analysis_version: Arc::new(AtomicUsize::new(1)),
+            symbol_tables: Arc::new(Default::default()),
+            published_diagnostic_uris: Arc::new(Default::default()),
+        };
+
+        let mut batches = snapshot.analysis_batches(vec![disk_path]);
+        let batch = batches.pop().unwrap();
+
+        assert_eq!(
+            batch.files,
+            vec![(open_path, "contract Open { function f() public { number+; } }".into())]
         );
     }
 
@@ -563,7 +622,7 @@ mod tests {
     }
 
     #[test]
-    fn analysis_batches_assign_cached_source_files_to_most_specific_workspace() {
+    fn analysis_batches_assign_open_files_to_most_specific_workspace() {
         let project = TempDir::new().unwrap();
         let nested = project.path().join("nested");
         fs::create_dir(&nested).unwrap();
@@ -585,9 +644,14 @@ mod tests {
         };
         let (_, mut config) = negotiate_capabilities(params);
         config.rediscover_workspaces();
+        let mut vfs = Vfs::default();
+        vfs.set_file_contents(
+            crate::vfs::VfsPath::from(source_path.clone()),
+            Some(Rope::from("contract A {}")),
+        );
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
-            vfs: Arc::new(Default::default()),
+            vfs: Arc::new(RwLock::new(vfs)),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             symbol_tables: Arc::new(Default::default()),
@@ -740,11 +804,26 @@ mod tests {
     #[test]
     fn analysis_batches_skip_unreadable_disk_files() {
         let project = TempDir::new().unwrap();
-        let path = project.path().join("Missing.sol");
+        let src = project.path().join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(project.path().join("foundry.toml"), "[profile.default]\nsrc = \"src\"\n")
+            .unwrap();
+
+        let params = InitializeParams {
+            workspace_folders: Some(vec![lsp_types::WorkspaceFolder {
+                uri: Url::from_file_path(project.path()).unwrap(),
+                name: "test".into(),
+            }]),
+            ..Default::default()
+        };
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+
+        let path = src.join("Missing.sol");
         let snapshot = GlobalStateSnapshot {
             client: ClientSocket::new_closed(),
             vfs: Arc::new(Default::default()),
-            config: Arc::new(Config::default()),
+            config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
             symbol_tables: Arc::new(Default::default()),
             published_diagnostic_uris: Arc::new(Default::default()),
