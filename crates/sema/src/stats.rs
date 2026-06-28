@@ -1,6 +1,6 @@
-use comfy_table::{Cell, CellAlignment, Table, presets::ASCII_FULL_CONDENSED};
+use comfy_table::{Cell, CellAlignment, Table, presets::UTF8_FULL_CONDENSED};
 use solar_data_structures::map::FxHashMap;
-use std::{alloc::Layout, mem::size_of_val};
+use std::{alloc::Layout, cmp::Reverse, mem::size_of_val};
 
 struct NodeStats {
     count: usize,
@@ -95,7 +95,7 @@ pub use hir::print_hir_stats;
 
 fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str) {
     let mut nodes: Vec<_> = nodes.iter().collect();
-    nodes.sort_by_cached_key(|(label, node)| (node.stats.accum_size(), label.to_string()));
+    nodes.sort_by_cached_key(|(label, node)| (Reverse(node.stats.accum_size()), label.to_string()));
 
     let total_size = nodes.iter().map(|(_, node)| node.stats.accum_size()).sum();
 
@@ -107,7 +107,7 @@ fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str) {
     }
 
     let mut table = Table::new();
-    table.load_preset(ASCII_FULL_CONDENSED);
+    table.load_preset(UTF8_FULL_CONDENSED);
     table.set_header([
         Cell::new("Name"),
         right("Accumulated Size"),
@@ -127,8 +127,9 @@ fn print_stats(nodes: &FxHashMap<&'static str, Node>, title: &str) {
         ]);
         if !node.subnodes.is_empty() {
             let mut subnodes: Vec<_> = node.subnodes.iter().collect();
-            subnodes
-                .sort_by_cached_key(|(label, subnode)| (subnode.accum_size(), label.to_string()));
+            subnodes.sort_by_cached_key(|(label, subnode)| {
+                (Reverse(subnode.accum_size()), label.to_string())
+            });
 
             for (label, subnode) in subnodes {
                 let size = subnode.accum_size();
