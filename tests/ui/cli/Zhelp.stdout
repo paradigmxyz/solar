@@ -24,6 +24,9 @@ Options:
       -Zast-stats
           Print AST stats
 
+      -Zhir-stats
+          Print HIR stats
+
       -Zstandard-json-stats
           Print Standard JSON input stats
 

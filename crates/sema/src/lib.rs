@@ -104,6 +104,10 @@ fn analysis(gcx: Gcx<'_>) -> Result<ControlFlow<()>> {
         dump_hir(gcx, dump.paths.as_deref())?;
     }
 
+    if gcx.sess.opts.unstable.hir_stats {
+        stats::print_hir_stats(&gcx.hir, "HIR STATS", "hir-stats");
+    }
+
     // Lower HIR types.
     gcx.hir.par_item_ids().for_each(|id| {
         let _ = gcx.type_of_item(id);
