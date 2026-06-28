@@ -769,6 +769,13 @@ mod tests {
 contract C {
     uint256 public x;
     struct S { uint256 field; }
+    struct GetterValue {
+        uint256 visible;
+        uint256 other;
+        mapping(uint256 => uint256) hidden;
+    }
+    mapping(uint256 key => uint256 value) public getterMap;
+    mapping(uint256 key => GetterValue value) public getterValues;
     constructor() {}
     fallback() external {}
     receive() external payable {}
@@ -791,6 +798,12 @@ enum E { A }
         assert_declaration(&declarations, "x", DeclarationKind::Variable);
         assert_declaration(&declarations, "S", DeclarationKind::Struct);
         assert_declaration(&declarations, "field", DeclarationKind::Variable);
+        assert_declaration(&declarations, "GetterValue", DeclarationKind::Struct);
+        assert_declaration(&declarations, "visible", DeclarationKind::Variable);
+        assert_declaration(&declarations, "other", DeclarationKind::Variable);
+        assert_declaration(&declarations, "hidden", DeclarationKind::Variable);
+        assert_declaration(&declarations, "getterMap", DeclarationKind::Variable);
+        assert_declaration(&declarations, "getterValues", DeclarationKind::Variable);
         assert_declaration(&declarations, "constructor", DeclarationKind::Function);
         assert_declaration(&declarations, "fallback", DeclarationKind::Function);
         assert_declaration(&declarations, "receive", DeclarationKind::Function);
@@ -803,19 +816,23 @@ enum E { A }
 
         assert_parent(&declarations, "x", "C");
         assert_parent(&declarations, "field", "S");
+        assert_parent(&declarations, "visible", "GetterValue");
+        assert_parent(&declarations, "other", "GetterValue");
+        assert_parent(&declarations, "hidden", "GetterValue");
+        assert_parent(&declarations, "getterMap", "C");
+        assert_parent(&declarations, "getterValues", "C");
         assert_parent(&declarations, "constructor", "C");
         assert_parent(&declarations, "y", "f");
         assert_parent(&declarations, "z", "f");
         assert_parent(&declarations, "local", "f");
         assert_parent(&declarations, "A", "E");
 
-        assert_eq!(
-            declarations
-                .iter()
-                .filter(|symbol| symbol.name == "x" && symbol.kind == DeclarationKind::Variable)
-                .count(),
-            1
-        );
+        assert_declaration_count(&declarations, "x", DeclarationKind::Variable, 1);
+        assert_declaration_count(&declarations, "visible", DeclarationKind::Variable, 1);
+        assert_declaration_count(&declarations, "other", DeclarationKind::Variable, 1);
+        assert_no_declaration(&declarations, "key");
+        assert_no_declaration(&declarations, "value");
+        assert_no_declaration(&declarations, "__tmp_struct");
         assert_eq!(declarations.len(), result.symbol_tables.declarations().len());
     }
 
@@ -843,6 +860,26 @@ enum E { A }
         assert!(
             declarations.iter().any(|symbol| symbol.name == name && symbol.kind == kind),
             "missing {kind:?} declaration `{name}` in {declarations:#?}"
+        );
+    }
+
+    fn assert_declaration_count(
+        declarations: &[&crate::symbols::DeclarationSymbol],
+        name: &str,
+        kind: DeclarationKind,
+        expected: usize,
+    ) {
+        assert_eq!(
+            declarations.iter().filter(|symbol| symbol.name == name && symbol.kind == kind).count(),
+            expected,
+            "unexpected count for {kind:?} declaration `{name}` in {declarations:#?}",
+        );
+    }
+
+    fn assert_no_declaration(declarations: &[&crate::symbols::DeclarationSymbol], name: &str) {
+        assert!(
+            declarations.iter().all(|symbol| symbol.name != name),
+            "unexpected declaration `{name}` in {declarations:#?}",
         );
     }
 

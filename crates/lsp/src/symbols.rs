@@ -196,10 +196,15 @@ fn declaration_kind(item_id: ItemId) -> DeclarationKind {
 ///
 /// Generated items are useful to the compiler, but LSP queries should describe declarations the
 /// user can see and navigate in source. For example, a public state variable already has a variable
-/// declaration, so its compiler-generated getter function would be a duplicate editor symbol.
+/// declaration, so its compiler-generated getter function and getter-local variables would be
+/// duplicate editor symbols.
 fn is_generated_item(gcx: Gcx<'_>, item_id: ItemId) -> bool {
     match item_id {
         ItemId::Function(id) => gcx.hir.function(id).is_getter(),
+        ItemId::Variable(id) => {
+            let variable = gcx.hir.variable(id);
+            matches!(variable.parent, Some(ItemId::Function(function)) if gcx.hir.function(function).is_getter())
+        }
         _ => false,
     }
 }
