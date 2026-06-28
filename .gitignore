@@ -1,7 +1,4 @@
 /target
-/.vscode/*
-!/.vscode/
-!/.vscode/settings.json
 .idea
 /*.sol
 /*.yul
