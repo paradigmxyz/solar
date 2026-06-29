@@ -36,6 +36,27 @@
           ".sol"
         ],
         "configuration": "language-configuration.json"
+      },
+      {
+        "id": "solidity-markdown-injection"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "solidity",
+        "scopeName": "source.solidity",
+        "path": "./syntaxes/solidity.json"
+      },
+      {
+        "language": "solidity-markdown-injection",
+        "scopeName": "markdown.solidity.codeblock",
+        "path": "./syntaxes/solidity-markdown-injection.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.solidity": "solidity"
+        }
       }
     ],
     "configuration": {
