@@ -373,7 +373,10 @@ mod tests {
     use super::*;
     use crate::{symbols::DeclarationKind, test_support::TestProject};
     use async_lsp::ClientSocket;
-    use lsp_types::{Diagnostic, Position, Range, WatchKind, notification::Notification};
+    use lsp_types::{
+        Diagnostic, DocumentSymbol, Position, Range, SymbolKind, WatchKind, WorkspaceSymbol,
+        notification::Notification,
+    };
 
     fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
         snapshot_with_config(project.config(), project.vfs())
@@ -753,6 +756,76 @@ mod tests {
         assert_eq!(declarations.len(), result.symbol_tables.declarations().len());
     }
 
+    #[test]
+    fn analyze_builds_lsp_symbol_responses() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Symbols.sol
+            interface I {
+                function iface(uint256 value) external;
+            }
+            library L {
+                event Logged(uint256 value);
+                function helper(uint256 value) internal pure returns (uint256 result) {
+                    return value;
+                }
+            }
+            contract C {
+                enum E { A, B }
+                struct S { uint256 field; }
+                uint256 public x;
+                constructor() {}
+                function f(uint256 y) public returns (uint256 z) {
+                    uint256 local = y;
+                    return local;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Symbols.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Symbols.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let document_symbols = result.symbol_tables.document_symbols(&uri);
+        assert_eq!(
+            document_symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
+            ["I", "L", "C"]
+        );
+        assert_eq!(document_symbols[0].kind, SymbolKind::INTERFACE);
+        assert_eq!(document_symbols[1].kind, SymbolKind::MODULE);
+        assert_eq!(document_symbols[2].kind, SymbolKind::CLASS);
+
+        let contract = find_document_symbol(&document_symbols, "C");
+        assert_eq!(child_names(contract), ["E", "S", "x", "constructor", "f"]);
+
+        let enumm = find_document_child(contract, "E");
+        assert_eq!(enumm.kind, SymbolKind::ENUM);
+        assert_eq!(child_names(enumm), ["A", "B"]);
+
+        let function = find_document_child(contract, "f");
+        assert_eq!(function.kind, SymbolKind::METHOD);
+        assert_eq!(child_names(function), ["y", "z", "local"]);
+
+        let workspace_symbols = result.symbol_tables.workspace_symbols("helper");
+        assert_eq!(
+            workspace_symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
+            ["helper"]
+        );
+        assert_eq!(workspace_symbols[0].kind, SymbolKind::METHOD);
+        assert_eq!(workspace_symbols[0].container_name.as_deref(), Some("L"));
+
+        let all_workspace_symbols = result.symbol_tables.workspace_symbols("");
+        assert_eq!(find_workspace_symbol(&all_workspace_symbols, "I").kind, SymbolKind::INTERFACE);
+        assert_eq!(find_workspace_symbol(&all_workspace_symbols, "L").kind, SymbolKind::MODULE);
+        assert_eq!(find_workspace_symbol(&all_workspace_symbols, "C").kind, SymbolKind::CLASS);
+    }
+
     fn assert_parent(
         declarations: &[&crate::symbols::DeclarationSymbol],
         name: &str,
@@ -809,5 +882,39 @@ mod tests {
             .copied()
             .find(|symbol| symbol.name == name)
             .unwrap_or_else(|| panic!("missing declaration `{name}` in {declarations:#?}"))
+    }
+
+    fn find_document_symbol<'a>(symbols: &'a [DocumentSymbol], name: &str) -> &'a DocumentSymbol {
+        symbols
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .unwrap_or_else(|| panic!("missing document symbol `{name}` in {symbols:#?}"))
+    }
+
+    fn find_document_child<'a>(symbol: &'a DocumentSymbol, child_name: &str) -> &'a DocumentSymbol {
+        let children = symbol.children.as_deref().unwrap_or_else(|| {
+            panic!("document symbol `{}` has no children", symbol.name);
+        });
+        find_document_symbol(children, child_name)
+    }
+
+    fn child_names(symbol: &DocumentSymbol) -> Vec<&str> {
+        symbol
+            .children
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|child| child.name.as_str())
+            .collect()
+    }
+
+    fn find_workspace_symbol<'a>(
+        symbols: &'a [WorkspaceSymbol],
+        name: &str,
+    ) -> &'a WorkspaceSymbol {
+        symbols
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .unwrap_or_else(|| panic!("missing workspace symbol `{name}` in {symbols:#?}"))
     }
 }

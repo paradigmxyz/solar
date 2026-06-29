@@ -42,6 +42,11 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
 
+    // Requests
+    router
+        .request::<req::DocumentSymbolRequest, _>(handlers::document_symbol)
+        .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol);
+
     // Workspace management
     router
         .notification::<notif::DidChangeWorkspaceFolders>(handlers::did_change_workspace_folders)

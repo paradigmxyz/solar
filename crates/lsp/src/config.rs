@@ -1,6 +1,6 @@
 use crate::workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest};
 use lsp_types::{
-    InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    InitializeParams, OneOf, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
@@ -130,6 +130,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 
     (
         ServerCapabilities {
+            document_symbol_provider: Some(OneOf::Left(true)),
             text_document_sync: Some(TextDocumentSyncCapability::Options(
                 TextDocumentSyncOptions {
                     open_close: Some(true),
@@ -139,6 +140,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                     ..Default::default()
                 },
             )),
+            workspace_symbol_provider: Some(OneOf::Left(true)),
             ..Default::default()
         },
         Config { workspace_roots, watched_file_dynamic_registration, ..Default::default() },
@@ -149,7 +151,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 mod tests {
     use super::*;
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
-    use lsp_types::{DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities};
+    use lsp_types::{DidChangeWatchedFilesClientCapabilities, OneOf, WorkspaceClientCapabilities};
 
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
@@ -168,6 +170,14 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_watched_file_dynamic_registration());
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_symbol_providers() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+
+        assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
+        assert_eq!(capabilities.workspace_symbol_provider, Some(OneOf::Left(true)));
     }
 
     #[test]
