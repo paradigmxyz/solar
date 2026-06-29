@@ -23,7 +23,6 @@ impl SymbolId {
 
 #[derive(Clone, Debug)]
 pub(crate) struct DeclarationSymbol {
-    pub(crate) id: SymbolId,
     pub(crate) name: String,
     pub(crate) kind: DeclarationKind,
     pub(crate) location: Location,
@@ -78,7 +77,6 @@ impl SymbolTables {
             };
 
             let symbol_id = tables.push_declaration(DeclarationSymbol {
-                id: SymbolId(tables.declarations.len()),
                 name,
                 kind: declaration_kind(gcx, item_id),
                 location,
@@ -107,7 +105,6 @@ impl SymbolTables {
                     continue;
                 };
                 tables.push_declaration(DeclarationSymbol {
-                    id: SymbolId(tables.declarations.len()),
                     name: variant.to_string(),
                     kind: DeclarationKind::EnumVariant,
                     name_range: location.range,
@@ -143,7 +140,6 @@ impl SymbolTables {
 
         let offset = self.declarations.len();
         for declaration in &mut other.declarations {
-            declaration.id = remap_symbol_id(declaration.id, offset);
             declaration.parent = declaration.parent.map(|parent| remap_symbol_id(parent, offset));
         }
 
@@ -215,7 +211,7 @@ impl SymbolTables {
     }
 
     fn push_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
-        let id = declaration.id;
+        let id = SymbolId(self.declarations.len());
         self.lowercase_names.push(declaration.name.to_lowercase());
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
         self.declarations.push(declaration);
@@ -232,9 +228,7 @@ impl SymbolTables {
         name_range: Range,
         parent: Option<SymbolId>,
     ) -> SymbolId {
-        let symbol_id = SymbolId(self.declarations.len());
         let symbol_id = self.push_declaration(DeclarationSymbol {
-            id: symbol_id,
             name: name.into(),
             kind,
             location: Location { uri: uri.clone(), range: location },
@@ -292,7 +286,7 @@ impl SymbolTables {
             DeclarationKind::Function if symbol.name == "constructor" => SymbolKind::CONSTRUCTOR,
             DeclarationKind::Function
                 if matches!(
-                    self.parent_kind(symbol),
+                    symbol.parent.map(|parent| self.declarations[parent.index()].kind),
                     Some(
                         DeclarationKind::Contract
                             | DeclarationKind::Interface
@@ -305,7 +299,7 @@ impl SymbolTables {
             DeclarationKind::Function => SymbolKind::FUNCTION,
             DeclarationKind::Variable
                 if matches!(
-                    self.parent_kind(symbol),
+                    symbol.parent.map(|parent| self.declarations[parent.index()].kind),
                     Some(
                         DeclarationKind::Contract
                             | DeclarationKind::Library
@@ -324,10 +318,6 @@ impl SymbolTables {
             DeclarationKind::EnumVariant => SymbolKind::ENUM_MEMBER,
         }
     }
-
-    fn parent_kind(&self, symbol: &DeclarationSymbol) -> Option<DeclarationKind> {
-        Some(self.declarations[symbol.parent?.index()].kind)
-    }
 }
 
 fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
@@ -344,6 +334,30 @@ fn sort_symbol_ids(declarations: &[DeclarationSymbol], symbol_ids: &mut [SymbolI
             symbol_id.index(),
         )
     });
+}
+
+#[cfg(test)]
+pub(crate) fn push_symbol_for_test(
+    tables: &mut SymbolTables,
+    uri: &Url,
+    name: &str,
+    kind: DeclarationKind,
+    line: u32,
+    character: u32,
+    parent: Option<SymbolId>,
+) -> SymbolId {
+    let range = |start_line, start_col, end_line, end_col| Range {
+        start: lsp_types::Position { line: start_line, character: start_col },
+        end: lsp_types::Position { line: end_line, character: end_col },
+    };
+    tables.push_for_test(
+        uri,
+        name,
+        kind,
+        range(line, character, line, character + 10),
+        range(line, character, line, character + name.len() as u32),
+        parent,
+    )
 }
 
 fn declaration_name(gcx: Gcx<'_>, item_id: ItemId) -> Option<(String, Span)> {
@@ -407,25 +421,19 @@ fn is_generated_item(gcx: Gcx<'_>, item_id: ItemId) -> bool {
 /// link so LSP features can traverse the declaration scope tree without holding HIR references.
 fn parent_item(gcx: Gcx<'_>, item_id: ItemId) -> Option<ItemId> {
     match item_id {
-        ItemId::Contract(_) => None,
-        ItemId::Function(id) => gcx.hir.function(id).contract.map(ItemId::Contract),
         ItemId::Variable(id) => {
             let variable = gcx.hir.variable(id);
             variable.parent.or_else(|| variable.contract.map(ItemId::Contract))
         }
-        ItemId::Struct(id) => gcx.hir.strukt(id).contract.map(ItemId::Contract),
-        ItemId::Enum(id) => gcx.hir.enumm(id).contract.map(ItemId::Contract),
-        ItemId::Udvt(id) => gcx.hir.udvt(id).contract.map(ItemId::Contract),
-        ItemId::Error(id) => gcx.hir.error(id).contract.map(ItemId::Contract),
-        ItemId::Event(id) => gcx.hir.event(id).contract.map(ItemId::Contract),
+        _ => gcx.hir.item(item_id).contract().map(ItemId::Contract),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use lsp_types::{Position, Range};
+    use lsp_types::Position;
 
-    use super::*;
+    use super::{push_symbol_for_test as push, *};
 
     #[test]
     fn document_symbols_are_nested_by_parent_and_ordered_by_source() {
@@ -487,9 +495,9 @@ mod tests {
     fn workspace_symbols_preserve_solidity_contract_categories() {
         let uri = parse_uri("file:///workspace/src/Contract.sol");
         let mut tables = SymbolTables::default();
-        tables.push(&uri, "Regular", DeclarationKind::Contract, 0, 0, None);
-        tables.push(&uri, "Iface", DeclarationKind::Interface, 1, 0, None);
-        tables.push(&uri, "Lib", DeclarationKind::Library, 2, 0, None);
+        push(&mut tables, &uri, "Regular", DeclarationKind::Contract, 0, 0, None);
+        push(&mut tables, &uri, "Iface", DeclarationKind::Interface, 1, 0, None);
+        push(&mut tables, &uri, "Lib", DeclarationKind::Library, 2, 0, None);
 
         let symbols = tables.workspace_symbols("");
 
@@ -506,50 +514,17 @@ mod tests {
     fn sample_tables(uri: &Url, other_uri: &Url) -> SymbolTables {
         let mut tables = SymbolTables::default();
 
-        let contract = tables.push(uri, "C", DeclarationKind::Contract, 0, 0, None);
-        tables.push(uri, "x", DeclarationKind::Variable, 1, 4, Some(contract));
-        let strukt = tables.push(uri, "S", DeclarationKind::Struct, 2, 4, Some(contract));
-        tables.push(uri, "field", DeclarationKind::Variable, 2, 15, Some(strukt));
-        tables.push(uri, "constructor", DeclarationKind::Function, 3, 4, Some(contract));
-        let function = tables.push(uri, "f", DeclarationKind::Function, 4, 4, Some(contract));
-        tables.push(uri, "arg", DeclarationKind::Variable, 4, 15, Some(function));
-        tables.push(uri, "local", DeclarationKind::Variable, 5, 8, Some(function));
-        tables.push(other_uri, "OtherFunction", DeclarationKind::Function, 0, 0, None);
+        let contract = push(&mut tables, uri, "C", DeclarationKind::Contract, 0, 0, None);
+        push(&mut tables, uri, "x", DeclarationKind::Variable, 1, 4, Some(contract));
+        let strukt = push(&mut tables, uri, "S", DeclarationKind::Struct, 2, 4, Some(contract));
+        push(&mut tables, uri, "field", DeclarationKind::Variable, 2, 15, Some(strukt));
+        push(&mut tables, uri, "constructor", DeclarationKind::Function, 3, 4, Some(contract));
+        let function = push(&mut tables, uri, "f", DeclarationKind::Function, 4, 4, Some(contract));
+        push(&mut tables, uri, "arg", DeclarationKind::Variable, 4, 15, Some(function));
+        push(&mut tables, uri, "local", DeclarationKind::Variable, 5, 8, Some(function));
+        push(&mut tables, other_uri, "OtherFunction", DeclarationKind::Function, 0, 0, None);
 
         tables
-    }
-
-    trait SymbolTablesTestExt {
-        fn push(
-            &mut self,
-            uri: &Url,
-            name: &str,
-            kind: DeclarationKind,
-            line: u32,
-            character: u32,
-            parent: Option<SymbolId>,
-        ) -> SymbolId;
-    }
-
-    impl SymbolTablesTestExt for SymbolTables {
-        fn push(
-            &mut self,
-            uri: &Url,
-            name: &str,
-            kind: DeclarationKind,
-            line: u32,
-            character: u32,
-            parent: Option<SymbolId>,
-        ) -> SymbolId {
-            self.push_for_test(
-                uri,
-                name,
-                kind,
-                range(line, character, line, character + 10),
-                range(line, character, line, character + name.len() as u32),
-                parent,
-            )
-        }
     }
 
     fn parse_uri(uri: &str) -> Url {

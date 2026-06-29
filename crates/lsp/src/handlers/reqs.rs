@@ -25,11 +25,11 @@ pub(crate) fn workspace_symbol(
 mod tests {
     use async_lsp::ClientSocket;
     use lsp_types::{
-        DocumentSymbolResponse, PartialResultParams, Position, Range, TextDocumentIdentifier,
+        DocumentSymbolResponse, PartialResultParams, TextDocumentIdentifier,
         WorkDoneProgressParams, WorkspaceSymbolResponse,
     };
 
-    use crate::symbols::{DeclarationKind, SymbolId, SymbolTables};
+    use crate::symbols::{DeclarationKind, SymbolTables, push_symbol_for_test as push};
 
     use super::*;
 
@@ -102,54 +102,14 @@ mod tests {
 
     fn symbol_tables(uri: &lsp_types::Url, other_uri: &lsp_types::Url) -> SymbolTables {
         let mut tables = SymbolTables::default();
-        let contract = tables.push(uri, "C", DeclarationKind::Contract, 0, 0, None);
-        tables.push(uri, "x", DeclarationKind::Variable, 1, 4, Some(contract));
-        tables.push(uri, "f", DeclarationKind::Function, 2, 4, Some(contract));
-        tables.push(other_uri, "Other", DeclarationKind::Contract, 0, 0, None);
+        let contract = push(&mut tables, uri, "C", DeclarationKind::Contract, 0, 0, None);
+        push(&mut tables, uri, "x", DeclarationKind::Variable, 1, 4, Some(contract));
+        push(&mut tables, uri, "f", DeclarationKind::Function, 2, 4, Some(contract));
+        push(&mut tables, other_uri, "Other", DeclarationKind::Contract, 0, 0, None);
         tables
-    }
-
-    trait SymbolTablesTestExt {
-        fn push(
-            &mut self,
-            uri: &lsp_types::Url,
-            name: &str,
-            kind: DeclarationKind,
-            line: u32,
-            character: u32,
-            parent: Option<SymbolId>,
-        ) -> SymbolId;
-    }
-
-    impl SymbolTablesTestExt for SymbolTables {
-        fn push(
-            &mut self,
-            uri: &lsp_types::Url,
-            name: &str,
-            kind: DeclarationKind,
-            line: u32,
-            character: u32,
-            parent: Option<SymbolId>,
-        ) -> SymbolId {
-            self.push_for_test(
-                uri,
-                name,
-                kind,
-                range(line, character, line, character + 10),
-                range(line, character, line, character + name.len() as u32),
-                parent,
-            )
-        }
     }
 
     fn parse_uri(uri: &str) -> lsp_types::Url {
         lsp_types::Url::parse(uri).unwrap()
-    }
-
-    fn range(start_line: u32, start_col: u32, end_line: u32, end_col: u32) -> Range {
-        Range {
-            start: Position { line: start_line, character: start_col },
-            end: Position { line: end_line, character: end_col },
-        }
     }
 }
