@@ -27,17 +27,19 @@ jobs:
       pull-requests: write
     steps:
       - name: Checkout Solar
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Checkout benchmark corpus
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           repository: ${{ env.BENCHMARK_REPOSITORY }}
           ref: ${{ env.BENCHMARK_REF }}
           path: ${{ env.BENCHMARK_PATH }}
           submodules: recursive
 
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # master
+        with:
+          toolchain: stable
 
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
@@ -172,7 +174,7 @@ jobs:
           github.event.pull_request.head.repo.full_name == github.repository &&
           (steps.runtime-report.outputs.should_comment == 'true' ||
           steps.runtime-comment.outputs.exists == 'true')
-        uses: marocchino/sticky-pull-request-comment@d4d6b0936434b21bc8345ad45a440c5f7d2c40ff # v3.0.3
+        uses: marocchino/sticky-pull-request-comment@0ea0beb66eb9baf113663a64ec522f60e49231c0 # v3.0.4
         with:
           header: codegen-runtime-bench
           message: ${{ steps.runtime-report.outputs.report }}
@@ -202,12 +204,14 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: true
       - name: Checkout submodules
         run: git submodule update --checkout
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # master
+        with:
+          toolchain: stable
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           cache-on-failure: true
@@ -233,18 +237,20 @@ jobs:
       IAI_CALLGRIND_RUNNER: iai-callgrind-runner
       GUNGRAUN_RUNNER: gungraun-runner
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           submodules: true
       - name: Checkout submodules
         run: git submodule update --checkout
       - name: Install Valgrind
         run: sudo apt update && sudo apt install valgrind
-      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
+      - uses: dtolnay/rust-toolchain@67ef31d5b988238dd797d409d6f9574278e20537 # master
+        with:
+          toolchain: stable
       - name: Install cargo-binstall
         uses: taiki-e/install-action@0a2f2631db4baa30da5fdc366b85127c37d77006 # cargo-binstall
       - name: Checkout base
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.base_ref || 'main' }}
           fetch-depth: 2
@@ -273,7 +279,7 @@ jobs:
             mv target/iai target/gungraun
           fi
       - name: Checkout PR
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           clean: false
       - name: Install benchmark runner
