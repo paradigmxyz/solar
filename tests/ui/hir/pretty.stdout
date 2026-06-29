@@ -1,0 +1,128 @@
+source 0 "ROOT/tests/ui/hir/pretty.sol" {
+    using {bump} for uint256;
+
+    function bump(uint256 value) internal pure returns (uint256 _var12) {
+        return (value + 1);
+    }
+
+    uint256 constant TOP = 7;
+
+    error TopError(uint256 value);
+
+    event TopEvent(address indexed who, uint256 value);
+
+    contract Complex {
+        struct Entry {
+            uint256 total;
+            mapping(uint256 => uint256) skipped;
+            uint256 count;
+        }
+
+        mapping(uint256 key => Entry[] values) public entries;
+
+        // getter for entries
+        function entries(uint256 key, uint256 _var14) external view returns (uint256 total, uint256 count) {
+            Entry storage __tmp_struct = entries[key][_var14];
+            return (__tmp_struct.total, __tmp_struct.count);
+        }
+
+        uint256 public number = 1;
+
+        // getter for number
+        function number() external view returns (uint256 _var18) {
+            return number;
+        }
+
+        event Seen(uint256 indexed value);
+
+        error TooLarge(uint256 value);
+
+        function run(uint256 limit) public returns (uint256 sum) {
+            {
+                uint256 i = 0;
+                hir.loop(for) {
+                    if (i < limit) {
+                        {
+                            if (i == 2) {
+                                continue;
+                            }
+                            sum += i;
+                        }
+                        i++;
+                    }
+                    else {
+                        break;
+                    }
+                }
+            }
+            hir.loop(while) {
+                if (sum < 100) {
+                    sum++;
+                    if (sum > limit) {
+                        break;
+                    }
+                }
+                else {
+                    break;
+                }
+            }
+            hir.loop(do while) {
+                {
+                    sum--;
+                }
+                if (sum > limit) {
+                    continue;
+                }
+                else {
+                    break;
+                }
+            }
+            assembly {
+                uint256 doubled = double(sum);
+                {
+                    {
+                        uint256 j = 0;
+                    }
+                    hir.loop(for) {
+                        if (lt(j, 2) != 0) {
+                            {
+                                doubled = add(doubled, j);
+                            }
+                            {
+                                j = add(j, 1);
+                            }
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                }
+                switch gt(doubled, limit) {
+                    case 1 {
+                        sum = doubled;
+                    }
+                    default {
+                        sum = limit;
+                    }
+                }
+            }
+            sum = bump(sum);
+            if (sum == TOP) {
+                emit TopEvent(msg.sender, sum);
+            }
+            if (sum > 1000) {
+                revert TopError(sum);
+            }
+            if (sum > 500) {
+                revert TooLarge(sum);
+            }
+            emit Seen(sum);
+        }
+
+        yul function double(uint256 x) private returns (uint256 y) {
+            assembly {
+                y = add(x, x);
+            }
+        }
+    }
+}

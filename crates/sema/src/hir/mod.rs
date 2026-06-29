@@ -19,6 +19,9 @@ pub use ast::{
     NatSpecKind, StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
+mod print;
+pub use print::HirPrinter;
+
 mod visit;
 pub use visit::Visit;
 
