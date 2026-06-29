@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-
 use lsp_types::{DocumentSymbol, Location, OneOf, Range, SymbolKind, Url, WorkspaceSymbol};
-use solar_interface::Span;
+use solar_interface::{Span, data_structures::map::FxHashMap};
 use solar_sema::{Gcx, hir::ItemId};
 
 use crate::proto;
@@ -9,7 +7,9 @@ use crate::proto;
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
     declarations: Vec<DeclarationSymbol>,
-    files: HashMap<Url, Vec<SymbolId>>,
+    lowercase_names: Vec<String>,
+    files: FxHashMap<Url, Vec<SymbolId>>,
+    workspace_symbol_ids: Vec<SymbolId>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
@@ -53,12 +53,14 @@ impl SymbolTables {
     /// source-level declarations that LSP requests can query after that run has finished.
     pub(crate) fn build(gcx: Gcx<'_>) -> Self {
         let mut tables = Self::default();
-        let mut item_symbols = HashMap::new();
+        let item_ids = gcx.hir.item_ids();
+        let mut item_symbols =
+            FxHashMap::with_capacity_and_hasher(item_ids.size_hint().0, Default::default());
 
         // First collect HIR items that correspond to source declarations. Parent links are
         // resolved in a second pass because HIR item iteration is grouped by item kind, so a
         // child can be visited before its parent declaration has a SymbolId.
-        for item_id in gcx.hir.item_ids() {
+        for item_id in item_ids {
             if is_generated_item(gcx, item_id) {
                 continue;
             }
@@ -115,6 +117,7 @@ impl SymbolTables {
             }
         }
 
+        tables.rebuild_indexes();
         tables
     }
 
@@ -134,34 +137,38 @@ impl SymbolTables {
     }
 
     pub(crate) fn extend(&mut self, mut other: Self) {
-        let remapped_ids = other
-            .declarations
-            .iter()
-            .enumerate()
-            .map(|(index, declaration)| (declaration.id, SymbolId(self.declarations.len() + index)))
-            .collect::<HashMap<_, _>>();
+        if other.declarations.is_empty() {
+            return;
+        }
 
+        let offset = self.declarations.len();
         for declaration in &mut other.declarations {
-            declaration.id = remapped_ids[&declaration.id];
-            declaration.parent = declaration.parent.map(|parent| remapped_ids[&parent]);
+            declaration.id = remap_symbol_id(declaration.id, offset);
+            declaration.parent = declaration.parent.map(|parent| remap_symbol_id(parent, offset));
         }
 
         for (uri, symbols) in other.files {
             self.files
                 .entry(uri)
                 .or_default()
-                .extend(symbols.into_iter().map(|symbol_id| remapped_ids[&symbol_id]));
+                .extend(symbols.into_iter().map(|symbol_id| remap_symbol_id(symbol_id, offset)));
         }
 
+        self.lowercase_names.extend(other.lowercase_names);
         self.declarations.extend(other.declarations);
+        self.rebuild_indexes();
     }
 
     pub(crate) fn document_symbols(&self, uri: &Url) -> Vec<DocumentSymbol> {
-        let mut file_symbol_ids = self.files.get(uri).cloned().unwrap_or_default();
-        self.sort_symbol_ids(&mut file_symbol_ids);
+        let Some(file_symbol_ids) = self.files.get(uri) else {
+            return Vec::new();
+        };
 
-        let mut child_symbols = HashMap::<SymbolId, Vec<SymbolId>>::new();
-        for &symbol_id in &file_symbol_ids {
+        let mut child_symbols = FxHashMap::<SymbolId, Vec<SymbolId>>::with_capacity_and_hasher(
+            file_symbol_ids.len(),
+            Default::default(),
+        );
+        for &symbol_id in file_symbol_ids {
             if let Some(parent) = self.declarations[symbol_id.index()].parent
                 && self.declarations[parent.index()].location.uri == *uri
             {
@@ -169,12 +176,9 @@ impl SymbolTables {
             }
         }
 
-        for children in child_symbols.values_mut() {
-            self.sort_symbol_ids(children);
-        }
-
         file_symbol_ids
-            .into_iter()
+            .iter()
+            .copied()
             .filter(|symbol_id| {
                 self.declarations[symbol_id.index()]
                     .parent
@@ -185,32 +189,34 @@ impl SymbolTables {
     }
 
     pub(crate) fn workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbol> {
-        let query = query.to_lowercase();
-        let mut symbol_ids = (0..self.declarations.len()).map(SymbolId).collect::<Vec<_>>();
-        self.sort_symbol_ids(&mut symbol_ids);
+        let query = (!query.is_empty()).then(|| query.to_lowercase());
+        let mut symbols =
+            Vec::with_capacity(query.as_ref().map_or(self.workspace_symbol_ids.len(), |_| 0));
 
-        symbol_ids
-            .into_iter()
-            .filter_map(|symbol_id| {
-                let symbol = &self.declarations[symbol_id.index()];
-                if !query.is_empty() && !symbol.name.to_lowercase().contains(&query) {
-                    return None;
-                }
+        for &symbol_id in &self.workspace_symbol_ids {
+            let symbol = &self.declarations[symbol_id.index()];
+            if let Some(query) = &query
+                && !self.lowercase_names[symbol_id.index()].contains(query.as_str())
+            {
+                continue;
+            }
 
-                Some(WorkspaceSymbol {
-                    name: symbol.name.clone(),
-                    kind: self.symbol_kind(symbol),
-                    tags: None,
-                    container_name: self.container_name(symbol),
-                    location: OneOf::Left(symbol.location.clone()),
-                    data: None,
-                })
-            })
-            .collect()
+            symbols.push(WorkspaceSymbol {
+                name: symbol.name.clone(),
+                kind: self.symbol_kind(symbol),
+                tags: None,
+                container_name: self.container_name(symbol),
+                location: OneOf::Left(symbol.location.clone()),
+                data: None,
+            });
+        }
+
+        symbols
     }
 
     fn push_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
         let id = declaration.id;
+        self.lowercase_names.push(declaration.name.to_lowercase());
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
         self.declarations.push(declaration);
         id
@@ -227,26 +233,27 @@ impl SymbolTables {
         parent: Option<SymbolId>,
     ) -> SymbolId {
         let symbol_id = SymbolId(self.declarations.len());
-        self.push_declaration(DeclarationSymbol {
+        let symbol_id = self.push_declaration(DeclarationSymbol {
             id: symbol_id,
             name: name.into(),
             kind,
             location: Location { uri: uri.clone(), range: location },
             name_range,
             parent,
-        })
+        });
+        self.rebuild_indexes();
+        symbol_id
     }
 
     fn document_symbol(
         &self,
         symbol_id: SymbolId,
-        child_symbols: &HashMap<SymbolId, Vec<SymbolId>>,
+        child_symbols: &FxHashMap<SymbolId, Vec<SymbolId>>,
     ) -> DocumentSymbol {
         let symbol = &self.declarations[symbol_id.index()];
-        let children = child_symbols.get(&symbol_id).into_iter().flat_map(|children| {
-            children.iter().map(|&child| self.document_symbol(child, child_symbols))
+        let children = child_symbols.get(&symbol_id).map(|children| {
+            children.iter().map(|&child| self.document_symbol(child, child_symbols)).collect()
         });
-        let children = children.collect::<Vec<_>>();
 
         DocumentSymbol {
             name: symbol.name.clone(),
@@ -257,7 +264,7 @@ impl SymbolTables {
             deprecated: None,
             range: symbol.location.range,
             selection_range: symbol.name_range,
-            children: (!children.is_empty()).then_some(children),
+            children,
         }
     }
 
@@ -266,16 +273,15 @@ impl SymbolTables {
         Some(self.declarations[parent.index()].name.clone())
     }
 
-    fn sort_symbol_ids(&self, symbol_ids: &mut [SymbolId]) {
-        symbol_ids.sort_by_key(|symbol_id| {
-            let location = &self.declarations[symbol_id.index()].location;
-            (
-                location.uri.as_str(),
-                location.range.start.line,
-                location.range.start.character,
-                symbol_id.index(),
-            )
-        });
+    fn rebuild_indexes(&mut self) {
+        for symbols in self.files.values_mut() {
+            sort_symbol_ids(&self.declarations, symbols);
+        }
+
+        self.workspace_symbol_ids.clear();
+        self.workspace_symbol_ids.reserve(self.declarations.len());
+        self.workspace_symbol_ids.extend((0..self.declarations.len()).map(SymbolId));
+        sort_symbol_ids(&self.declarations, &mut self.workspace_symbol_ids);
     }
 
     fn symbol_kind(&self, symbol: &DeclarationSymbol) -> SymbolKind {
@@ -322,6 +328,22 @@ impl SymbolTables {
     fn parent_kind(&self, symbol: &DeclarationSymbol) -> Option<DeclarationKind> {
         Some(self.declarations[symbol.parent?.index()].kind)
     }
+}
+
+fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
+    SymbolId(symbol_id.index() + offset)
+}
+
+fn sort_symbol_ids(declarations: &[DeclarationSymbol], symbol_ids: &mut [SymbolId]) {
+    symbol_ids.sort_by_key(|symbol_id| {
+        let location = &declarations[symbol_id.index()].location;
+        (
+            location.uri.as_str(),
+            location.range.start.line,
+            location.range.start.character,
+            symbol_id.index(),
+        )
+    });
 }
 
 fn declaration_name(gcx: Gcx<'_>, item_id: ItemId) -> Option<(String, Span)> {
