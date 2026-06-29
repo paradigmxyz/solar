@@ -77,6 +77,35 @@ source 0 "ROOT/tests/ui/hir/pretty.sol" {
                     break;
                 }
             }
+            assembly {
+                uint256 doubled = double(sum);
+                {
+                    {
+                        uint256 j = 0;
+                    }
+                    hir.loop(for) {
+                        if (lt(j, 2) != 0) {
+                            {
+                                doubled = add(doubled, j);
+                            }
+                            {
+                                j = add(j, 1);
+                            }
+                        }
+                        else {
+                            break;
+                        }
+                    }
+                }
+                switch gt(doubled, limit) {
+                    case 1 {
+                        sum = doubled;
+                    }
+                    default {
+                        sum = limit;
+                    }
+                }
+            }
             sum = bump(sum);
             if (sum == TOP) {
                 emit TopEvent(msg.sender, sum);
@@ -88,6 +117,12 @@ source 0 "ROOT/tests/ui/hir/pretty.sol" {
                 revert TooLarge(sum);
             }
             emit Seen(sum);
+        }
+
+        yul function double(uint256 x) private returns (uint256 y) {
+            assembly {
+                y = add(x, x);
+            }
         }
     }
 }

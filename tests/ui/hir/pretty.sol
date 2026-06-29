@@ -41,6 +41,20 @@ contract Complex {
             sum--;
         } while (sum > limit);
 
+        assembly {
+            function double(x) -> y {
+                y := add(x, x)
+            }
+
+            let doubled := double(sum)
+            for { let j := 0 } lt(j, 2) { j := add(j, 1) } {
+                doubled := add(doubled, j)
+            }
+            switch gt(doubled, limit)
+            case 1 { sum := doubled }
+            default { sum := limit }
+        }
+
         sum = bump(sum);
 
         if (sum == TOP) {

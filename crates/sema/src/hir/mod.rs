@@ -19,10 +19,10 @@ pub use ast::{
     NatSpecKind, StateMutability, UnOp, UnOpKind, VarMut, Visibility,
 };
 
-pub mod print;
-mod visit;
-
+mod print;
 pub use print::HirPrinter;
+
+mod visit;
 pub use visit::Visit;
 
 /// HIR arena allocator.
