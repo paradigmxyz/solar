@@ -713,48 +713,47 @@ mod tests {
 
         assert!(result.diagnostics.is_empty());
 
-        let file_declarations = result.symbol_tables.file_declarations(&uri).collect::<Vec<_>>();
-        let declarations = result.symbol_tables.declarations();
-        assert_declaration(&file_declarations, "C", DeclarationKind::Contract);
-        assert_declaration(&file_declarations, "x", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "S", DeclarationKind::Struct);
-        assert_declaration(&file_declarations, "field", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "GetterValue", DeclarationKind::Struct);
-        assert_declaration(&file_declarations, "visible", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "other", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "hidden", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "getterMap", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "getterValues", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "constructor", DeclarationKind::Function);
-        assert_declaration(&file_declarations, "fallback", DeclarationKind::Function);
-        assert_declaration(&file_declarations, "receive", DeclarationKind::Function);
-        assert_declaration(&file_declarations, "f", DeclarationKind::Function);
-        assert_declaration(&file_declarations, "y", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "z", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "local", DeclarationKind::Variable);
-        assert_declaration(&file_declarations, "E", DeclarationKind::Enum);
-        assert_declaration(&file_declarations, "A", DeclarationKind::EnumVariant);
+        let declarations = result.symbol_tables.file_declarations(&uri).collect::<Vec<_>>();
+        assert_declaration(&declarations, "C", DeclarationKind::Contract);
+        assert_declaration(&declarations, "x", DeclarationKind::Variable);
+        assert_declaration(&declarations, "S", DeclarationKind::Struct);
+        assert_declaration(&declarations, "field", DeclarationKind::Variable);
+        assert_declaration(&declarations, "GetterValue", DeclarationKind::Struct);
+        assert_declaration(&declarations, "visible", DeclarationKind::Variable);
+        assert_declaration(&declarations, "other", DeclarationKind::Variable);
+        assert_declaration(&declarations, "hidden", DeclarationKind::Variable);
+        assert_declaration(&declarations, "getterMap", DeclarationKind::Variable);
+        assert_declaration(&declarations, "getterValues", DeclarationKind::Variable);
+        assert_declaration(&declarations, "constructor", DeclarationKind::Function);
+        assert_declaration(&declarations, "fallback", DeclarationKind::Function);
+        assert_declaration(&declarations, "receive", DeclarationKind::Function);
+        assert_declaration(&declarations, "f", DeclarationKind::Function);
+        assert_declaration(&declarations, "y", DeclarationKind::Variable);
+        assert_declaration(&declarations, "z", DeclarationKind::Variable);
+        assert_declaration(&declarations, "local", DeclarationKind::Variable);
+        assert_declaration(&declarations, "E", DeclarationKind::Enum);
+        assert_declaration(&declarations, "A", DeclarationKind::EnumVariant);
 
-        assert_parent(declarations, &file_declarations, "x", "C");
-        assert_parent(declarations, &file_declarations, "field", "S");
-        assert_parent(declarations, &file_declarations, "visible", "GetterValue");
-        assert_parent(declarations, &file_declarations, "other", "GetterValue");
-        assert_parent(declarations, &file_declarations, "hidden", "GetterValue");
-        assert_parent(declarations, &file_declarations, "getterMap", "C");
-        assert_parent(declarations, &file_declarations, "getterValues", "C");
-        assert_parent(declarations, &file_declarations, "constructor", "C");
-        assert_parent(declarations, &file_declarations, "y", "f");
-        assert_parent(declarations, &file_declarations, "z", "f");
-        assert_parent(declarations, &file_declarations, "local", "f");
-        assert_parent(declarations, &file_declarations, "A", "E");
+        assert_parent(&declarations, "x", "C");
+        assert_parent(&declarations, "field", "S");
+        assert_parent(&declarations, "visible", "GetterValue");
+        assert_parent(&declarations, "other", "GetterValue");
+        assert_parent(&declarations, "hidden", "GetterValue");
+        assert_parent(&declarations, "getterMap", "C");
+        assert_parent(&declarations, "getterValues", "C");
+        assert_parent(&declarations, "constructor", "C");
+        assert_parent(&declarations, "y", "f");
+        assert_parent(&declarations, "z", "f");
+        assert_parent(&declarations, "local", "f");
+        assert_parent(&declarations, "A", "E");
 
-        assert_declaration_count(&file_declarations, "x", DeclarationKind::Variable, 1);
-        assert_declaration_count(&file_declarations, "visible", DeclarationKind::Variable, 1);
-        assert_declaration_count(&file_declarations, "other", DeclarationKind::Variable, 1);
-        assert_no_declaration(&file_declarations, "key");
-        assert_no_declaration(&file_declarations, "value");
-        assert_no_declaration(&file_declarations, "__tmp_struct");
-        assert_eq!(file_declarations.len(), declarations.len());
+        assert_declaration_count(&declarations, "x", DeclarationKind::Variable, 1);
+        assert_declaration_count(&declarations, "visible", DeclarationKind::Variable, 1);
+        assert_declaration_count(&declarations, "other", DeclarationKind::Variable, 1);
+        assert_no_declaration(&declarations, "key");
+        assert_no_declaration(&declarations, "value");
+        assert_no_declaration(&declarations, "__tmp_struct");
+        assert_eq!(declarations.len(), result.symbol_tables.declarations().len());
     }
 
     #[test]
@@ -828,18 +827,18 @@ mod tests {
     }
 
     fn assert_parent(
-        declarations: &[crate::symbols::DeclarationSymbol],
-        file_declarations: &[&crate::symbols::DeclarationSymbol],
+        declarations: &[&crate::symbols::DeclarationSymbol],
         name: &str,
         parent: &str,
     ) {
-        let declaration = find_declaration(file_declarations, name);
+        let declaration = find_declaration(declarations, name);
         let parent_id = declaration.parent.unwrap_or_else(|| {
-            panic!("declaration `{name}` has no parent in {file_declarations:#?}");
+            panic!("declaration `{name}` has no parent in {declarations:#?}");
         });
-        let parent_declaration = declarations.get(parent_id.index()).unwrap_or_else(|| {
-            panic!("parent {parent_id:?} for `{name}` not found in {declarations:#?}");
-        });
+        let parent_declaration = declarations
+            .iter()
+            .find(|candidate| candidate.id == parent_id)
+            .unwrap_or_else(|| panic!("parent {parent_id:?} for `{name}` not found"));
         assert_eq!(parent_declaration.name, parent);
     }
 

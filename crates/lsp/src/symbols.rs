@@ -23,6 +23,7 @@ impl SymbolId {
 
 #[derive(Clone, Debug)]
 pub(crate) struct DeclarationSymbol {
+    pub(crate) id: SymbolId,
     pub(crate) name: String,
     pub(crate) kind: DeclarationKind,
     pub(crate) location: Location,
@@ -77,6 +78,7 @@ impl SymbolTables {
             };
 
             let symbol_id = tables.push_declaration(DeclarationSymbol {
+                id: SymbolId(tables.declarations.len()),
                 name,
                 kind: declaration_kind(gcx, item_id),
                 location,
@@ -105,6 +107,7 @@ impl SymbolTables {
                     continue;
                 };
                 tables.push_declaration(DeclarationSymbol {
+                    id: SymbolId(tables.declarations.len()),
                     name: variant.to_string(),
                     kind: DeclarationKind::EnumVariant,
                     name_range: location.range,
@@ -140,6 +143,7 @@ impl SymbolTables {
 
         let offset = self.declarations.len();
         for declaration in &mut other.declarations {
+            declaration.id = remap_symbol_id(declaration.id, offset);
             declaration.parent = declaration.parent.map(|parent| remap_symbol_id(parent, offset));
         }
 
@@ -211,7 +215,7 @@ impl SymbolTables {
     }
 
     fn push_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
-        let id = SymbolId(self.declarations.len());
+        let id = declaration.id;
         self.lowercase_names.push(declaration.name.to_lowercase());
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
         self.declarations.push(declaration);
@@ -228,7 +232,9 @@ impl SymbolTables {
         name_range: Range,
         parent: Option<SymbolId>,
     ) -> SymbolId {
-        let symbol_id = self.push_declaration(DeclarationSymbol {
+        let symbol_id = SymbolId(self.declarations.len());
+        let pushed_id = self.push_declaration(DeclarationSymbol {
+            id: symbol_id,
             name: name.into(),
             kind,
             location: Location { uri: uri.clone(), range: location },
@@ -236,7 +242,7 @@ impl SymbolTables {
             parent,
         });
         self.rebuild_indexes();
-        symbol_id
+        pushed_id
     }
 
     fn document_symbol(
