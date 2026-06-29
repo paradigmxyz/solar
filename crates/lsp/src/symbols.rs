@@ -1,4 +1,6 @@
-use lsp_types::{DocumentSymbol, Location, OneOf, Range, SymbolKind, Url, WorkspaceSymbol};
+use lsp_types::{
+    DocumentSymbol, Location, OneOf, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
+};
 use solar_interface::{Span, data_structures::map::FxHashMap};
 use solar_sema::{Gcx, hir::ItemId};
 
@@ -185,6 +187,29 @@ impl SymbolTables {
                     .is_none_or(|parent| self.declarations[parent.index()].location.uri != *uri)
             })
             .map(|symbol_id| self.document_symbol(symbol_id, &child_symbols))
+            .collect()
+    }
+
+    pub(crate) fn flat_document_symbols(&self, uri: &Url) -> Vec<SymbolInformation> {
+        let Some(file_symbol_ids) = self.files.get(uri) else {
+            return Vec::new();
+        };
+
+        file_symbol_ids
+            .iter()
+            .copied()
+            .map(|symbol_id| {
+                let symbol = &self.declarations[symbol_id.index()];
+                SymbolInformation {
+                    name: symbol.name.clone(),
+                    kind: self.symbol_kind(symbol),
+                    tags: None,
+                    #[allow(deprecated)]
+                    deprecated: None,
+                    location: symbol.location.clone(),
+                    container_name: self.container_name(symbol),
+                }
+            })
             .collect()
     }
 

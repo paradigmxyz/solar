@@ -9,8 +9,13 @@ pub(crate) fn document_symbol(
     state: &mut GlobalState,
     params: DocumentSymbolParams,
 ) -> impl Future<Output = Result<Option<DocumentSymbolResponse>, ResponseError>> + use<> {
-    let symbols = state.symbol_tables.read().document_symbols(&params.text_document.uri);
-    std::future::ready(Ok(Some(DocumentSymbolResponse::Nested(symbols))))
+    let symbol_tables = state.symbol_tables.read();
+    let response = if state.config.supports_hierarchical_document_symbols() {
+        DocumentSymbolResponse::Nested(symbol_tables.document_symbols(&params.text_document.uri))
+    } else {
+        DocumentSymbolResponse::Flat(symbol_tables.flat_document_symbols(&params.text_document.uri))
+    };
+    std::future::ready(Ok(Some(response)))
 }
 
 pub(crate) fn workspace_symbol(
@@ -23,33 +28,54 @@ pub(crate) fn workspace_symbol(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use async_lsp::ClientSocket;
     use lsp_types::{
-        DocumentSymbolResponse, PartialResultParams, TextDocumentIdentifier,
+        DocumentSymbolClientCapabilities, DocumentSymbolResponse, InitializeParams,
+        PartialResultParams, TextDocumentClientCapabilities, TextDocumentIdentifier, Url,
         WorkDoneProgressParams, WorkspaceSymbolResponse,
     };
 
-    use crate::symbols::{DeclarationKind, SymbolTables, push_symbol_for_test as push};
+    use crate::{
+        config::negotiate_capabilities,
+        symbols::{DeclarationKind, SymbolTables, push_symbol_for_test as push},
+    };
 
     use super::*;
 
     #[tokio::test(flavor = "current_thread")]
-    async fn document_symbol_returns_symbols_for_requested_document() {
+    async fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
         let uri = parse_uri("file:///workspace/src/Test.sol");
         let other_uri = parse_uri("file:///workspace/src/Other.sol");
-        let mut state = state_with_symbols(symbol_tables(&uri, &other_uri));
+        let mut state =
+            state_with_symbols(symbol_tables(&uri, &other_uri), InitializeParams::default());
 
-        let response = document_symbol(
-            &mut state,
-            DocumentSymbolParams {
-                text_document: TextDocumentIdentifier { uri },
-                work_done_progress_params: WorkDoneProgressParams::default(),
-                partial_result_params: PartialResultParams::default(),
-            },
-        )
-        .await
-        .unwrap()
-        .unwrap();
+        let response =
+            document_symbol(&mut state, document_symbol_params(uri)).await.unwrap().unwrap();
+
+        let DocumentSymbolResponse::Flat(symbols) = response else {
+            panic!("expected flat document symbols");
+        };
+        assert_eq!(
+            symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
+            ["C", "x", "f"]
+        );
+        assert_eq!(symbols[0].container_name, None);
+        assert_eq!(symbols[1].container_name.as_deref(), Some("C"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn document_symbol_returns_nested_symbols_with_hierarchical_client_support() {
+        let uri = parse_uri("file:///workspace/src/Test.sol");
+        let other_uri = parse_uri("file:///workspace/src/Other.sol");
+        let mut state = state_with_symbols(
+            symbol_tables(&uri, &other_uri),
+            initialize_params_with_hierarchical_document_symbols(),
+        );
+
+        let response =
+            document_symbol(&mut state, document_symbol_params(uri)).await.unwrap().unwrap();
 
         let DocumentSymbolResponse::Nested(symbols) = response else {
             panic!("expected nested document symbols");
@@ -71,7 +97,8 @@ mod tests {
     async fn workspace_symbol_returns_matching_symbols() {
         let uri = parse_uri("file:///workspace/src/Test.sol");
         let other_uri = parse_uri("file:///workspace/src/Other.sol");
-        let mut state = state_with_symbols(symbol_tables(&uri, &other_uri));
+        let mut state =
+            state_with_symbols(symbol_tables(&uri, &other_uri), InitializeParams::default());
 
         let response = workspace_symbol(
             &mut state,
@@ -94,10 +121,32 @@ mod tests {
         );
     }
 
-    fn state_with_symbols(symbol_tables: SymbolTables) -> GlobalState {
-        let state = GlobalState::new(ClientSocket::new_closed());
+    fn state_with_symbols(symbol_tables: SymbolTables, params: InitializeParams) -> GlobalState {
+        let (_, config) = negotiate_capabilities(params);
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
         *state.symbol_tables.write() = symbol_tables;
         state
+    }
+
+    fn initialize_params_with_hierarchical_document_symbols() -> InitializeParams {
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            document_symbol: Some(DocumentSymbolClientCapabilities {
+                hierarchical_document_symbol_support: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        params
+    }
+
+    fn document_symbol_params(uri: Url) -> DocumentSymbolParams {
+        DocumentSymbolParams {
+            text_document: TextDocumentIdentifier { uri },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+        }
     }
 
     fn symbol_tables(uri: &lsp_types::Url, other_uri: &lsp_types::Url) -> SymbolTables {
