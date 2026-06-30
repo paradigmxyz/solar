@@ -321,7 +321,9 @@ impl AnalysisBatch {
 
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
-    let sess = Session::builder().opts(batch.opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
+    let mut opts = batch.opts;
+    opts.unstable.typeck = true;
+    let sess = Session::builder().opts(opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
 
     let mut compiler = Compiler::new(sess);
     compiler.enter_mut(move |compiler| {
@@ -1017,6 +1019,59 @@ mod tests {
         assert_eq!(
             references.iter().map(|location| location.range.start).collect::<Vec<_>>(),
             [position(1, 19), position(3, 15)]
+        );
+    }
+
+    #[test]
+    fn analyze_resolves_overloaded_call_references() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Overload.sol
+            contract C {
+                function f(uint256) public {}
+                function f(string memory) public {}
+                function g() public {
+                    f(uint256(1));
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Overload.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Overload.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let definition = result
+            .symbol_tables
+            .goto_definition(&uri, position(4, 8))
+            .expect("missing overloaded call definition response");
+        let GotoDefinitionResponse::Array(locations) = definition else {
+            panic!("expected definition array");
+        };
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].range.start, position(1, 13));
+
+        let uint_references = result
+            .symbol_tables
+            .references(&uri, position(1, 13), true)
+            .expect("missing uint overload references response");
+        assert_eq!(
+            uint_references.iter().map(|location| location.range.start).collect::<Vec<_>>(),
+            [position(1, 13), position(4, 8)]
+        );
+
+        let string_references = result
+            .symbol_tables
+            .references(&uri, position(2, 13), true)
+            .expect("missing string overload references response");
+        assert_eq!(
+            string_references.iter().map(|location| location.range.start).collect::<Vec<_>>(),
+            [position(2, 13)]
         );
     }
 
