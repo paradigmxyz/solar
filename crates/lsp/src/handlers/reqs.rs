@@ -1,9 +1,8 @@
+use crate::global_state::GlobalState;
 use async_lsp::ResponseError;
 use lsp_types::{
     DocumentSymbolParams, DocumentSymbolResponse, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
-
-use crate::global_state::GlobalState;
 
 pub(crate) fn document_symbol(
     state: &mut GlobalState,
@@ -28,21 +27,18 @@ pub(crate) fn workspace_symbol(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
+    use super::*;
+    use crate::{
+        config::negotiate_capabilities,
+        symbols::{SymbolTables, push_symbol_for_test as push},
+    };
     use async_lsp::ClientSocket;
     use lsp_types::{
         DocumentSymbolClientCapabilities, DocumentSymbolResponse, InitializeParams,
-        PartialResultParams, TextDocumentClientCapabilities, TextDocumentIdentifier, Url,
-        WorkDoneProgressParams, WorkspaceSymbolResponse,
+        PartialResultParams, SymbolKind, TextDocumentClientCapabilities, TextDocumentIdentifier,
+        Url, WorkDoneProgressParams, WorkspaceSymbolResponse,
     };
-
-    use crate::{
-        config::negotiate_capabilities,
-        symbols::{DeclarationKind, SymbolTables, push_symbol_for_test as push},
-    };
-
-    use super::*;
+    use std::sync::Arc;
 
     #[tokio::test(flavor = "current_thread")]
     async fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
@@ -151,10 +147,10 @@ mod tests {
 
     fn symbol_tables(uri: &lsp_types::Url, other_uri: &lsp_types::Url) -> SymbolTables {
         let mut tables = SymbolTables::default();
-        let contract = push(&mut tables, uri, "C", DeclarationKind::Contract, 0, 0, None);
-        push(&mut tables, uri, "x", DeclarationKind::Variable, 1, 4, Some(contract));
-        push(&mut tables, uri, "f", DeclarationKind::Function, 2, 4, Some(contract));
-        push(&mut tables, other_uri, "Other", DeclarationKind::Contract, 0, 0, None);
+        let contract = push(&mut tables, uri, "C", SymbolKind::CLASS, 0, 0, None);
+        push(&mut tables, uri, "x", SymbolKind::PROPERTY, 1, 4, Some(contract));
+        push(&mut tables, uri, "f", SymbolKind::METHOD, 2, 4, Some(contract));
+        push(&mut tables, other_uri, "Other", SymbolKind::CLASS, 0, 0, None);
         tables
     }
 

@@ -371,7 +371,7 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{symbols::DeclarationKind, test_support::TestProject};
+    use crate::test_support::TestProject;
     use async_lsp::ClientSocket;
     use lsp_types::{
         Diagnostic, DocumentSymbol, Position, Range, SymbolKind, WatchKind, WorkspaceSymbol,
@@ -682,8 +682,10 @@ mod tests {
         let project = TestProject::from_fixture(
             r#"
             //- /Symbols.sol
+            uint256 constant TOP = 1;
             contract C {
                 uint256 public x;
+                uint256 public constant K = 1;
                 struct S { uint256 field; }
                 struct GetterValue {
                     uint256 visible;
@@ -714,27 +716,30 @@ mod tests {
         assert!(result.diagnostics.is_empty());
 
         let declarations = result.symbol_tables.file_declarations(&uri).collect::<Vec<_>>();
-        assert_declaration(&declarations, "C", DeclarationKind::Contract);
-        assert_declaration(&declarations, "x", DeclarationKind::Variable);
-        assert_declaration(&declarations, "S", DeclarationKind::Struct);
-        assert_declaration(&declarations, "field", DeclarationKind::Variable);
-        assert_declaration(&declarations, "GetterValue", DeclarationKind::Struct);
-        assert_declaration(&declarations, "visible", DeclarationKind::Variable);
-        assert_declaration(&declarations, "other", DeclarationKind::Variable);
-        assert_declaration(&declarations, "hidden", DeclarationKind::Variable);
-        assert_declaration(&declarations, "getterMap", DeclarationKind::Variable);
-        assert_declaration(&declarations, "getterValues", DeclarationKind::Variable);
-        assert_declaration(&declarations, "constructor", DeclarationKind::Function);
-        assert_declaration(&declarations, "fallback", DeclarationKind::Function);
-        assert_declaration(&declarations, "receive", DeclarationKind::Function);
-        assert_declaration(&declarations, "f", DeclarationKind::Function);
-        assert_declaration(&declarations, "y", DeclarationKind::Variable);
-        assert_declaration(&declarations, "z", DeclarationKind::Variable);
-        assert_declaration(&declarations, "local", DeclarationKind::Variable);
-        assert_declaration(&declarations, "E", DeclarationKind::Enum);
-        assert_declaration(&declarations, "A", DeclarationKind::EnumVariant);
+        assert_declaration(&declarations, "TOP", SymbolKind::CONSTANT);
+        assert_declaration(&declarations, "C", SymbolKind::CLASS);
+        assert_declaration(&declarations, "x", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "K", SymbolKind::CONSTANT);
+        assert_declaration(&declarations, "S", SymbolKind::STRUCT);
+        assert_declaration(&declarations, "field", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "GetterValue", SymbolKind::STRUCT);
+        assert_declaration(&declarations, "visible", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "other", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "hidden", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "getterMap", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "getterValues", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "constructor", SymbolKind::CONSTRUCTOR);
+        assert_declaration(&declarations, "fallback", SymbolKind::FUNCTION);
+        assert_declaration(&declarations, "receive", SymbolKind::FUNCTION);
+        assert_declaration(&declarations, "f", SymbolKind::METHOD);
+        assert_declaration(&declarations, "y", SymbolKind::VARIABLE);
+        assert_declaration(&declarations, "z", SymbolKind::VARIABLE);
+        assert_declaration(&declarations, "local", SymbolKind::VARIABLE);
+        assert_declaration(&declarations, "E", SymbolKind::ENUM);
+        assert_declaration(&declarations, "A", SymbolKind::ENUM_MEMBER);
 
         assert_parent(&declarations, "x", "C");
+        assert_parent(&declarations, "K", "C");
         assert_parent(&declarations, "field", "S");
         assert_parent(&declarations, "visible", "GetterValue");
         assert_parent(&declarations, "other", "GetterValue");
@@ -747,9 +752,9 @@ mod tests {
         assert_parent(&declarations, "local", "f");
         assert_parent(&declarations, "A", "E");
 
-        assert_declaration_count(&declarations, "x", DeclarationKind::Variable, 1);
-        assert_declaration_count(&declarations, "visible", DeclarationKind::Variable, 1);
-        assert_declaration_count(&declarations, "other", DeclarationKind::Variable, 1);
+        assert_declaration_count(&declarations, "x", SymbolKind::PROPERTY, 1);
+        assert_declaration_count(&declarations, "visible", SymbolKind::PROPERTY, 1);
+        assert_declaration_count(&declarations, "other", SymbolKind::PROPERTY, 1);
         assert_no_declaration(&declarations, "key");
         assert_no_declaration(&declarations, "value");
         assert_no_declaration(&declarations, "__tmp_struct");
@@ -845,7 +850,7 @@ mod tests {
     fn assert_declaration(
         declarations: &[&crate::symbols::DeclarationSymbol],
         name: &str,
-        kind: DeclarationKind,
+        kind: SymbolKind,
     ) {
         assert!(
             declarations.iter().any(|symbol| symbol.name == name && symbol.kind == kind),
@@ -856,7 +861,7 @@ mod tests {
     fn assert_declaration_count(
         declarations: &[&crate::symbols::DeclarationSymbol],
         name: &str,
-        kind: DeclarationKind,
+        kind: SymbolKind,
         expected: usize,
     ) {
         assert_eq!(

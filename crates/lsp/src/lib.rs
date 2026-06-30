@@ -93,18 +93,16 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::ControlFlow;
-
+    use super::*;
     use async_lsp::{AnyNotification, LanguageServer, LspService, router::Router};
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams, FileChangeType,
         FileEvent, InitializeParams, InitializedParams, WorkspaceClientCapabilities,
         notification as notif, notification::Notification, request,
     };
+    use std::ops::ControlFlow;
     use tokio::sync::oneshot;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-
-    use super::*;
 
     #[tokio::test(flavor = "current_thread")]
     async fn router_handles_watched_file_changes() {

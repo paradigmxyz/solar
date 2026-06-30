@@ -1,54 +1,38 @@
 use lsp_types::{
     DocumentSymbol, Location, OneOf, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
 };
-use solar_interface::{Span, data_structures::map::FxHashMap};
+use solar_interface::{
+    Span,
+    data_structures::{index::IndexVec, map::FxHashMap, newtype_index},
+};
 use solar_sema::{
     Gcx,
-    hir::{ContractKind, ItemId},
+    hir::{self, ContractKind, FunctionKind, ItemId, VarKind},
 };
 
 use crate::proto;
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
-    declarations: Vec<DeclarationSymbol>,
-    lowercase_names: Vec<String>,
+    declarations: IndexVec<SymbolId, DeclarationSymbol>,
     files: FxHashMap<Url, Vec<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub(crate) struct SymbolId(usize);
-
-impl SymbolId {
-    pub(crate) fn index(self) -> usize {
-        self.0
-    }
+newtype_index! {
+    /// A declaration symbol ID in the LSP symbol table.
+    pub(crate) struct SymbolId;
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct DeclarationSymbol {
     pub(crate) id: SymbolId,
     pub(crate) name: String,
-    pub(crate) kind: DeclarationKind,
+    search_name: String,
+    pub(crate) kind: SymbolKind,
     pub(crate) location: Location,
     pub(crate) name_range: Range,
     pub(crate) parent: Option<SymbolId>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DeclarationKind {
-    Contract,
-    Interface,
-    Library,
-    Function,
-    Variable,
-    Struct,
-    Enum,
-    UserDefinedValueType,
-    Error,
-    Event,
-    EnumVariant,
 }
 
 impl SymbolTables {
@@ -83,9 +67,10 @@ impl SymbolTables {
             };
 
             let symbol_id = tables.push_declaration(DeclarationSymbol {
-                id: SymbolId(tables.declarations.len()),
+                id: tables.declarations.next_idx(),
+                search_name: search_name(&name),
                 name,
-                kind: declaration_kind(gcx, item_id),
+                kind: item_symbol_kind(gcx, item_id),
                 location,
                 name_range: name_location.range,
                 parent: None,
@@ -96,7 +81,7 @@ impl SymbolTables {
         // Convert HIR ownership (`contract`, `parent`) into SymbolId links. These links are the
         // minimal scope structure needed by document symbols, completion, and cursor lookups.
         for (&item_id, &symbol_id) in &item_symbols {
-            tables.declarations[symbol_id.index()].parent =
+            tables.declarations[symbol_id].parent =
                 item_id.parent(&gcx.hir).and_then(|parent| item_symbols.get(&parent).copied());
         }
 
@@ -111,10 +96,12 @@ impl SymbolTables {
                 else {
                     continue;
                 };
+                let name = variant.to_string();
                 tables.push_declaration(DeclarationSymbol {
-                    id: SymbolId(tables.declarations.len()),
-                    name: variant.to_string(),
-                    kind: DeclarationKind::EnumVariant,
+                    id: tables.declarations.next_idx(),
+                    search_name: search_name(&name),
+                    name,
+                    kind: SymbolKind::ENUM_MEMBER,
                     name_range: location.range,
                     location,
                     parent,
@@ -128,7 +115,7 @@ impl SymbolTables {
 
     #[cfg(test)]
     pub(crate) fn declarations(&self) -> &[DeclarationSymbol] {
-        &self.declarations
+        self.declarations.as_raw_slice()
     }
 
     #[cfg(test)]
@@ -136,9 +123,10 @@ impl SymbolTables {
         &'a self,
         uri: &'a Url,
     ) -> impl Iterator<Item = &'a DeclarationSymbol> + 'a {
-        self.files.get(uri).into_iter().flat_map(|symbols| {
-            symbols.iter().map(|symbol_id| &self.declarations[symbol_id.index()])
-        })
+        self.files
+            .get(uri)
+            .into_iter()
+            .flat_map(|symbols| symbols.iter().map(|&symbol_id| &self.declarations[symbol_id]))
     }
 
     pub(crate) fn extend(&mut self, mut other: Self) {
@@ -159,7 +147,6 @@ impl SymbolTables {
                 .extend(symbols.into_iter().map(|symbol_id| remap_symbol_id(symbol_id, offset)));
         }
 
-        self.lowercase_names.extend(other.lowercase_names);
         self.declarations.extend(other.declarations);
         self.rebuild_indexes();
     }
@@ -174,8 +161,8 @@ impl SymbolTables {
             Default::default(),
         );
         for &symbol_id in file_symbol_ids {
-            if let Some(parent) = self.declarations[symbol_id.index()].parent
-                && self.declarations[parent.index()].location.uri == *uri
+            if let Some(parent) = self.declarations[symbol_id].parent
+                && self.declarations[parent].location.uri == *uri
             {
                 child_symbols.entry(parent).or_default().push(symbol_id);
             }
@@ -185,9 +172,9 @@ impl SymbolTables {
             .iter()
             .copied()
             .filter(|symbol_id| {
-                self.declarations[symbol_id.index()]
+                self.declarations[*symbol_id]
                     .parent
-                    .is_none_or(|parent| self.declarations[parent.index()].location.uri != *uri)
+                    .is_none_or(|parent| self.declarations[parent].location.uri != *uri)
             })
             .map(|symbol_id| self.document_symbol(symbol_id, &child_symbols))
             .collect()
@@ -202,10 +189,10 @@ impl SymbolTables {
             .iter()
             .copied()
             .map(|symbol_id| {
-                let symbol = &self.declarations[symbol_id.index()];
+                let symbol = &self.declarations[symbol_id];
                 SymbolInformation {
                     name: symbol.name.clone(),
-                    kind: self.symbol_kind(symbol),
+                    kind: symbol.kind,
                     tags: None,
                     #[allow(deprecated)]
                     deprecated: None,
@@ -217,21 +204,21 @@ impl SymbolTables {
     }
 
     pub(crate) fn workspace_symbols(&self, query: &str) -> Vec<WorkspaceSymbol> {
-        let query = (!query.is_empty()).then(|| query.to_lowercase());
+        let query = (!query.is_empty()).then(|| search_name(query));
         let mut symbols =
             Vec::with_capacity(query.as_ref().map_or(self.workspace_symbol_ids.len(), |_| 0));
 
         for &symbol_id in &self.workspace_symbol_ids {
-            let symbol = &self.declarations[symbol_id.index()];
+            let symbol = &self.declarations[symbol_id];
             if let Some(query) = &query
-                && !self.lowercase_names[symbol_id.index()].contains(query.as_str())
+                && !symbol.search_name.contains(query)
             {
                 continue;
             }
 
             symbols.push(WorkspaceSymbol {
                 name: symbol.name.clone(),
-                kind: self.symbol_kind(symbol),
+                kind: symbol.kind,
                 tags: None,
                 container_name: self.container_name(symbol),
                 location: OneOf::Left(symbol.location.clone()),
@@ -244,9 +231,9 @@ impl SymbolTables {
 
     fn push_declaration(&mut self, declaration: DeclarationSymbol) -> SymbolId {
         let id = declaration.id;
-        self.lowercase_names.push(declaration.name.to_lowercase());
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
-        self.declarations.push(declaration);
+        let pushed_id = self.declarations.push(declaration);
+        debug_assert_eq!(id, pushed_id);
         id
     }
 
@@ -255,15 +242,16 @@ impl SymbolTables {
         &mut self,
         uri: &Url,
         name: &str,
-        kind: DeclarationKind,
+        kind: SymbolKind,
         location: Range,
         name_range: Range,
         parent: Option<SymbolId>,
     ) -> SymbolId {
-        let symbol_id = SymbolId(self.declarations.len());
+        let symbol_id = self.declarations.next_idx();
         let pushed_id = self.push_declaration(DeclarationSymbol {
             id: symbol_id,
             name: name.into(),
+            search_name: search_name(name),
             kind,
             location: Location { uri: uri.clone(), range: location },
             name_range,
@@ -278,7 +266,7 @@ impl SymbolTables {
         symbol_id: SymbolId,
         child_symbols: &FxHashMap<SymbolId, Vec<SymbolId>>,
     ) -> DocumentSymbol {
-        let symbol = &self.declarations[symbol_id.index()];
+        let symbol = &self.declarations[symbol_id];
         let children = child_symbols.get(&symbol_id).map(|children| {
             children.iter().map(|&child| self.document_symbol(child, child_symbols)).collect()
         });
@@ -286,7 +274,7 @@ impl SymbolTables {
         DocumentSymbol {
             name: symbol.name.clone(),
             detail: None,
-            kind: self.symbol_kind(symbol),
+            kind: symbol.kind,
             tags: None,
             #[allow(deprecated)]
             deprecated: None,
@@ -298,7 +286,7 @@ impl SymbolTables {
 
     fn container_name(&self, symbol: &DeclarationSymbol) -> Option<String> {
         let parent = symbol.parent?;
-        Some(self.declarations[parent.index()].name.clone())
+        Some(self.declarations[parent].name.clone())
     }
 
     fn rebuild_indexes(&mut self) {
@@ -308,59 +296,21 @@ impl SymbolTables {
 
         self.workspace_symbol_ids.clear();
         self.workspace_symbol_ids.reserve(self.declarations.len());
-        self.workspace_symbol_ids.extend((0..self.declarations.len()).map(SymbolId));
+        self.workspace_symbol_ids.extend(self.declarations.indices());
         sort_symbol_ids(&self.declarations, &mut self.workspace_symbol_ids);
-    }
-
-    fn symbol_kind(&self, symbol: &DeclarationSymbol) -> SymbolKind {
-        match symbol.kind {
-            DeclarationKind::Contract => SymbolKind::CLASS,
-            DeclarationKind::Interface => SymbolKind::INTERFACE,
-            DeclarationKind::Library => SymbolKind::MODULE,
-            DeclarationKind::Function if symbol.name == "constructor" => SymbolKind::CONSTRUCTOR,
-            DeclarationKind::Function
-                if matches!(
-                    symbol.parent.map(|parent| self.declarations[parent.index()].kind),
-                    Some(
-                        DeclarationKind::Contract
-                            | DeclarationKind::Interface
-                            | DeclarationKind::Library
-                    )
-                ) =>
-            {
-                SymbolKind::METHOD
-            }
-            DeclarationKind::Function => SymbolKind::FUNCTION,
-            DeclarationKind::Variable
-                if matches!(
-                    symbol.parent.map(|parent| self.declarations[parent.index()].kind),
-                    Some(
-                        DeclarationKind::Contract
-                            | DeclarationKind::Library
-                            | DeclarationKind::Struct
-                    )
-                ) =>
-            {
-                SymbolKind::FIELD
-            }
-            DeclarationKind::Variable => SymbolKind::VARIABLE,
-            DeclarationKind::Struct => SymbolKind::STRUCT,
-            DeclarationKind::Enum => SymbolKind::ENUM,
-            DeclarationKind::UserDefinedValueType => SymbolKind::STRUCT,
-            DeclarationKind::Error => SymbolKind::FUNCTION,
-            DeclarationKind::Event => SymbolKind::EVENT,
-            DeclarationKind::EnumVariant => SymbolKind::ENUM_MEMBER,
-        }
     }
 }
 
 fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
-    SymbolId(symbol_id.index() + offset)
+    SymbolId::from_usize(symbol_id.index() + offset)
 }
 
-fn sort_symbol_ids(declarations: &[DeclarationSymbol], symbol_ids: &mut [SymbolId]) {
+fn sort_symbol_ids(
+    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+    symbol_ids: &mut [SymbolId],
+) {
     symbol_ids.sort_by_key(|symbol_id| {
-        let location = &declarations[symbol_id.index()].location;
+        let location = &declarations[*symbol_id].location;
         (
             location.uri.as_str(),
             location.range.start.line,
@@ -370,12 +320,16 @@ fn sort_symbol_ids(declarations: &[DeclarationSymbol], symbol_ids: &mut [SymbolI
     });
 }
 
+fn search_name(name: &str) -> String {
+    name.to_lowercase()
+}
+
 #[cfg(test)]
 pub(crate) fn push_symbol_for_test(
     tables: &mut SymbolTables,
     uri: &Url,
     name: &str,
-    kind: DeclarationKind,
+    kind: SymbolKind,
     line: u32,
     character: u32,
     parent: Option<SymbolId>,
@@ -404,24 +358,50 @@ fn declaration_name(gcx: Gcx<'_>, item_id: ItemId) -> Option<(String, Span)> {
     Some((function.kind.to_string(), function.keyword_span()))
 }
 
-/// Maps a HIR item to the declaration category stored in the LSP table.
-///
-/// This keeps the LSP-facing kind independent from the compiler's HIR enum while preserving the
-/// source declaration category needed by document symbols, workspace symbols, and completion.
-fn declaration_kind(gcx: Gcx<'_>, item_id: ItemId) -> DeclarationKind {
+fn item_symbol_kind(gcx: Gcx<'_>, item_id: ItemId) -> SymbolKind {
     match item_id {
         ItemId::Contract(id) => match gcx.hir.contract(id).kind {
-            ContractKind::Contract | ContractKind::AbstractContract => DeclarationKind::Contract,
-            ContractKind::Interface => DeclarationKind::Interface,
-            ContractKind::Library => DeclarationKind::Library,
+            ContractKind::Contract | ContractKind::AbstractContract => SymbolKind::CLASS,
+            ContractKind::Interface => SymbolKind::INTERFACE,
+            ContractKind::Library => SymbolKind::MODULE,
         },
-        ItemId::Function(_) => DeclarationKind::Function,
-        ItemId::Variable(_) => DeclarationKind::Variable,
-        ItemId::Struct(_) => DeclarationKind::Struct,
-        ItemId::Enum(_) => DeclarationKind::Enum,
-        ItemId::Udvt(_) => DeclarationKind::UserDefinedValueType,
-        ItemId::Error(_) => DeclarationKind::Error,
-        ItemId::Event(_) => DeclarationKind::Event,
+        ItemId::Function(id) => function_symbol_kind(gcx.hir.function(id)),
+        ItemId::Variable(id) => variable_symbol_kind(gcx.hir.variable(id)),
+        ItemId::Struct(_) => SymbolKind::STRUCT,
+        ItemId::Enum(_) => SymbolKind::ENUM,
+        ItemId::Udvt(_) => SymbolKind::TYPE_PARAMETER,
+        ItemId::Error(_) | ItemId::Event(_) => SymbolKind::EVENT,
+    }
+}
+
+fn function_symbol_kind(function: &hir::Function<'_>) -> SymbolKind {
+    match function.kind {
+        FunctionKind::Constructor => SymbolKind::CONSTRUCTOR,
+        FunctionKind::Function if function.is_yul => SymbolKind::FUNCTION,
+        FunctionKind::Function if function.contract.is_some() => SymbolKind::METHOD,
+        FunctionKind::Function
+        | FunctionKind::Fallback
+        | FunctionKind::Receive
+        | FunctionKind::Modifier => SymbolKind::FUNCTION,
+    }
+}
+
+fn variable_symbol_kind(variable: &hir::Variable<'_>) -> SymbolKind {
+    if variable.is_constant() {
+        return SymbolKind::CONSTANT;
+    }
+
+    match variable.kind {
+        VarKind::State | VarKind::Struct => SymbolKind::PROPERTY,
+        VarKind::Global
+        | VarKind::Event
+        | VarKind::Error
+        | VarKind::FunctionParam
+        | VarKind::FunctionReturn
+        | VarKind::FunctionTyParam
+        | VarKind::FunctionTyReturn
+        | VarKind::Statement
+        | VarKind::TryCatch => SymbolKind::VARIABLE,
     }
 }
 
@@ -444,9 +424,8 @@ fn is_generated_item(gcx: Gcx<'_>, item_id: ItemId) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use lsp_types::Position;
-
     use super::{push_symbol_for_test as push, *};
+    use lsp_types::Position;
 
     #[test]
     fn document_symbols_are_nested_by_parent_and_ordered_by_source() {
@@ -464,7 +443,7 @@ mod tests {
             contract_children.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
             ["x", "S", "constructor", "f"]
         );
-        assert_eq!(contract_children[0].kind, SymbolKind::FIELD);
+        assert_eq!(contract_children[0].kind, SymbolKind::PROPERTY);
         assert_eq!(contract_children[1].kind, SymbolKind::STRUCT);
         assert_eq!(contract_children[2].kind, SymbolKind::CONSTRUCTOR);
         assert_eq!(contract_children[3].kind, SymbolKind::METHOD);
@@ -474,7 +453,7 @@ mod tests {
             struct_children.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
             ["field"]
         );
-        assert_eq!(struct_children[0].kind, SymbolKind::FIELD);
+        assert_eq!(struct_children[0].kind, SymbolKind::PROPERTY);
 
         let function_children = contract_children[3].children.as_ref().unwrap();
         assert_eq!(
@@ -497,20 +476,26 @@ mod tests {
             ["field", "f", "OtherFunction"]
         );
         assert_eq!(symbols[0].container_name.as_deref(), Some("S"));
-        assert_eq!(symbols[0].kind, SymbolKind::FIELD);
+        assert_eq!(symbols[0].kind, SymbolKind::PROPERTY);
         assert_eq!(symbols[1].container_name.as_deref(), Some("C"));
         assert_eq!(symbols[1].kind, SymbolKind::METHOD);
         assert_eq!(symbols[2].container_name, None);
         assert_eq!(symbols[2].kind, SymbolKind::FUNCTION);
+
+        let symbols = tables.workspace_symbols("OTHER");
+        assert_eq!(
+            symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
+            ["OtherFunction"]
+        );
     }
 
     #[test]
     fn workspace_symbols_preserve_solidity_contract_categories() {
         let uri = parse_uri("file:///workspace/src/Contract.sol");
         let mut tables = SymbolTables::default();
-        push(&mut tables, &uri, "Regular", DeclarationKind::Contract, 0, 0, None);
-        push(&mut tables, &uri, "Iface", DeclarationKind::Interface, 1, 0, None);
-        push(&mut tables, &uri, "Lib", DeclarationKind::Library, 2, 0, None);
+        push(&mut tables, &uri, "Regular", SymbolKind::CLASS, 0, 0, None);
+        push(&mut tables, &uri, "Iface", SymbolKind::INTERFACE, 1, 0, None);
+        push(&mut tables, &uri, "Lib", SymbolKind::MODULE, 2, 0, None);
 
         let symbols = tables.workspace_symbols("");
 
@@ -527,15 +512,15 @@ mod tests {
     fn sample_tables(uri: &Url, other_uri: &Url) -> SymbolTables {
         let mut tables = SymbolTables::default();
 
-        let contract = push(&mut tables, uri, "C", DeclarationKind::Contract, 0, 0, None);
-        push(&mut tables, uri, "x", DeclarationKind::Variable, 1, 4, Some(contract));
-        let strukt = push(&mut tables, uri, "S", DeclarationKind::Struct, 2, 4, Some(contract));
-        push(&mut tables, uri, "field", DeclarationKind::Variable, 2, 15, Some(strukt));
-        push(&mut tables, uri, "constructor", DeclarationKind::Function, 3, 4, Some(contract));
-        let function = push(&mut tables, uri, "f", DeclarationKind::Function, 4, 4, Some(contract));
-        push(&mut tables, uri, "arg", DeclarationKind::Variable, 4, 15, Some(function));
-        push(&mut tables, uri, "local", DeclarationKind::Variable, 5, 8, Some(function));
-        push(&mut tables, other_uri, "OtherFunction", DeclarationKind::Function, 0, 0, None);
+        let contract = push(&mut tables, uri, "C", SymbolKind::CLASS, 0, 0, None);
+        push(&mut tables, uri, "x", SymbolKind::PROPERTY, 1, 4, Some(contract));
+        let strukt = push(&mut tables, uri, "S", SymbolKind::STRUCT, 2, 4, Some(contract));
+        push(&mut tables, uri, "field", SymbolKind::PROPERTY, 2, 15, Some(strukt));
+        push(&mut tables, uri, "constructor", SymbolKind::CONSTRUCTOR, 3, 4, Some(contract));
+        let function = push(&mut tables, uri, "f", SymbolKind::METHOD, 4, 4, Some(contract));
+        push(&mut tables, uri, "arg", SymbolKind::VARIABLE, 4, 15, Some(function));
+        push(&mut tables, uri, "local", SymbolKind::VARIABLE, 5, 8, Some(function));
+        push(&mut tables, other_uri, "OtherFunction", SymbolKind::FUNCTION, 0, 0, None);
 
         tables
     }

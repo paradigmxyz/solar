@@ -28,10 +28,9 @@ pub(crate) fn apply_document_changes(
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::apply_document_changes;
     use crop::Rope;
     use lsp_types::{Position, Range, TextDocumentContentChangeEvent};
-
-    use crate::utils::apply_document_changes;
 
     #[test]
     fn test_apply_document_changes() {
