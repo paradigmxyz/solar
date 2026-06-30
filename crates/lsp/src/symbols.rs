@@ -1142,6 +1142,9 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
             self.visit_using_directive(using);
         }
         for &item in contract.items {
+            if is_generated_item(self.gcx, item) {
+                continue;
+            }
             self.visit_nested_item(item)?;
         }
         ControlFlow::Continue(())

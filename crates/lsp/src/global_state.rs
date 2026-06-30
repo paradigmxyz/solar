@@ -987,6 +987,40 @@ mod tests {
     }
 
     #[test]
+    fn analyze_skips_generated_getter_references() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Getter.sol
+            contract C {
+                uint256 public x;
+
+                function read() external view returns (uint256) {
+                    return x;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Getter.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Getter.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let references = result
+            .symbol_tables
+            .references(&uri, position(1, 19), true)
+            .expect("missing references response");
+        assert_eq!(
+            references.iter().map(|location| location.range.start).collect::<Vec<_>>(),
+            [position(1, 19), position(3, 15)]
+        );
+    }
+
+    #[test]
     fn analyze_indexes_using_directive_references() {
         let project = TestProject::from_fixture(
             r#"
