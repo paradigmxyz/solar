@@ -58,7 +58,7 @@ impl FoundryProfile {
     }
 
     fn discover_lib_remappings(&self, root: &Path) -> Vec<ImportRemapping> {
-        let mut remappings: Vec<ImportRemapping> = Vec::new();
+        let mut remappings = Vec::<ImportRemapping>::new();
         for lib in self.include_paths(root) {
             let Ok(entries) = std::fs::read_dir(&lib) else {
                 continue;

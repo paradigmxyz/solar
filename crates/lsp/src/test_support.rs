@@ -126,7 +126,7 @@ struct FixtureFile {
 fn parse_fixture(fixture: &str) -> Vec<FixtureFile> {
     let fixture = trim_indent(fixture);
     let mut files = Vec::new();
-    let mut current: Option<FixtureFile> = None;
+    let mut current = Option::<FixtureFile>::None;
 
     for line in fixture.split_inclusive('\n') {
         let marker_line = line.trim_end_matches(['\r', '\n']).trim_start();

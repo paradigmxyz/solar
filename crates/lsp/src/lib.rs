@@ -115,7 +115,7 @@ mod tests {
                 FileChangeType::CHANGED,
             )],
         };
-        let notification: AnyNotification = serde_json::from_value(serde_json::json!({
+        let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
             "method": notif::DidChangeWatchedFiles::METHOD,
             "params": params,
         }))

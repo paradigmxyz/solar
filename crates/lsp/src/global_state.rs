@@ -121,7 +121,7 @@ impl GlobalState {
                 return;
             }
 
-            let mut diagnostics: FxHashMap<Url, Vec<Diagnostic>> = FxHashMap::default();
+            let mut diagnostics = FxHashMap::<Url, Vec<Diagnostic>>::default();
             let mut symbol_tables = SymbolTables::default();
 
             for batch in batches {
