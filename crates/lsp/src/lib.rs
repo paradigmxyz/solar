@@ -42,6 +42,11 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::Shutdown, _>(|_, _| std::future::ready(Ok(())))
         .notification::<notif::Exit>(|_, _| ControlFlow::Break(Ok(())));
 
+    // Requests
+    router
+        .request::<req::DocumentSymbolRequest, _>(handlers::document_symbol)
+        .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol);
+
     // Workspace management
     router
         .notification::<notif::DidChangeWorkspaceFolders>(handlers::did_change_workspace_folders)
@@ -88,18 +93,16 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::ops::ControlFlow;
-
+    use super::*;
     use async_lsp::{AnyNotification, LanguageServer, LspService, router::Router};
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams, FileChangeType,
         FileEvent, InitializeParams, InitializedParams, WorkspaceClientCapabilities,
         notification as notif, notification::Notification, request,
     };
+    use std::ops::ControlFlow;
     use tokio::sync::oneshot;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
-
-    use super::*;
 
     #[tokio::test(flavor = "current_thread")]
     async fn router_handles_watched_file_changes() {
@@ -110,7 +113,7 @@ mod tests {
                 FileChangeType::CHANGED,
             )],
         };
-        let notification: AnyNotification = serde_json::from_value(serde_json::json!({
+        let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
             "method": notif::DidChangeWatchedFiles::METHOD,
             "params": params,
         }))

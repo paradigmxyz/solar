@@ -121,7 +121,7 @@ impl GlobalState {
                 return;
             }
 
-            let mut diagnostics: FxHashMap<Url, Vec<Diagnostic>> = FxHashMap::default();
+            let mut diagnostics = FxHashMap::<Url, Vec<Diagnostic>>::default();
             let mut symbol_tables = SymbolTables::default();
 
             for batch in batches {
@@ -371,9 +371,12 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{symbols::DeclarationKind, test_support::TestProject};
+    use crate::test_support::TestProject;
     use async_lsp::ClientSocket;
-    use lsp_types::{Diagnostic, Position, Range, WatchKind, notification::Notification};
+    use lsp_types::{
+        Diagnostic, DocumentSymbol, Position, Range, SymbolKind, WatchKind, WorkspaceSymbol,
+        notification::Notification,
+    };
 
     fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
         snapshot_with_config(project.config(), project.vfs())
@@ -679,8 +682,10 @@ mod tests {
         let project = TestProject::from_fixture(
             r#"
             //- /Symbols.sol
+            uint256 constant TOP = 1;
             contract C {
                 uint256 public x;
+                uint256 public constant K = 1;
                 struct S { uint256 field; }
                 struct GetterValue {
                     uint256 visible;
@@ -711,27 +716,30 @@ mod tests {
         assert!(result.diagnostics.is_empty());
 
         let declarations = result.symbol_tables.file_declarations(&uri).collect::<Vec<_>>();
-        assert_declaration(&declarations, "C", DeclarationKind::Contract);
-        assert_declaration(&declarations, "x", DeclarationKind::Variable);
-        assert_declaration(&declarations, "S", DeclarationKind::Struct);
-        assert_declaration(&declarations, "field", DeclarationKind::Variable);
-        assert_declaration(&declarations, "GetterValue", DeclarationKind::Struct);
-        assert_declaration(&declarations, "visible", DeclarationKind::Variable);
-        assert_declaration(&declarations, "other", DeclarationKind::Variable);
-        assert_declaration(&declarations, "hidden", DeclarationKind::Variable);
-        assert_declaration(&declarations, "getterMap", DeclarationKind::Variable);
-        assert_declaration(&declarations, "getterValues", DeclarationKind::Variable);
-        assert_declaration(&declarations, "constructor", DeclarationKind::Function);
-        assert_declaration(&declarations, "fallback", DeclarationKind::Function);
-        assert_declaration(&declarations, "receive", DeclarationKind::Function);
-        assert_declaration(&declarations, "f", DeclarationKind::Function);
-        assert_declaration(&declarations, "y", DeclarationKind::Variable);
-        assert_declaration(&declarations, "z", DeclarationKind::Variable);
-        assert_declaration(&declarations, "local", DeclarationKind::Variable);
-        assert_declaration(&declarations, "E", DeclarationKind::Enum);
-        assert_declaration(&declarations, "A", DeclarationKind::EnumVariant);
+        assert_declaration(&declarations, "TOP", SymbolKind::CONSTANT);
+        assert_declaration(&declarations, "C", SymbolKind::CLASS);
+        assert_declaration(&declarations, "x", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "K", SymbolKind::CONSTANT);
+        assert_declaration(&declarations, "S", SymbolKind::STRUCT);
+        assert_declaration(&declarations, "field", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "GetterValue", SymbolKind::STRUCT);
+        assert_declaration(&declarations, "visible", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "other", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "hidden", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "getterMap", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "getterValues", SymbolKind::PROPERTY);
+        assert_declaration(&declarations, "constructor", SymbolKind::CONSTRUCTOR);
+        assert_declaration(&declarations, "fallback", SymbolKind::FUNCTION);
+        assert_declaration(&declarations, "receive", SymbolKind::FUNCTION);
+        assert_declaration(&declarations, "f", SymbolKind::METHOD);
+        assert_declaration(&declarations, "y", SymbolKind::VARIABLE);
+        assert_declaration(&declarations, "z", SymbolKind::VARIABLE);
+        assert_declaration(&declarations, "local", SymbolKind::VARIABLE);
+        assert_declaration(&declarations, "E", SymbolKind::ENUM);
+        assert_declaration(&declarations, "A", SymbolKind::ENUM_MEMBER);
 
         assert_parent(&declarations, "x", "C");
+        assert_parent(&declarations, "K", "C");
         assert_parent(&declarations, "field", "S");
         assert_parent(&declarations, "visible", "GetterValue");
         assert_parent(&declarations, "other", "GetterValue");
@@ -744,13 +752,83 @@ mod tests {
         assert_parent(&declarations, "local", "f");
         assert_parent(&declarations, "A", "E");
 
-        assert_declaration_count(&declarations, "x", DeclarationKind::Variable, 1);
-        assert_declaration_count(&declarations, "visible", DeclarationKind::Variable, 1);
-        assert_declaration_count(&declarations, "other", DeclarationKind::Variable, 1);
+        assert_declaration_count(&declarations, "x", SymbolKind::PROPERTY, 1);
+        assert_declaration_count(&declarations, "visible", SymbolKind::PROPERTY, 1);
+        assert_declaration_count(&declarations, "other", SymbolKind::PROPERTY, 1);
         assert_no_declaration(&declarations, "key");
         assert_no_declaration(&declarations, "value");
         assert_no_declaration(&declarations, "__tmp_struct");
         assert_eq!(declarations.len(), result.symbol_tables.declarations().len());
+    }
+
+    #[test]
+    fn analyze_builds_lsp_symbol_responses() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Symbols.sol
+            interface I {
+                function iface(uint256 value) external;
+            }
+            library L {
+                event Logged(uint256 value);
+                function helper(uint256 value) internal pure returns (uint256 result) {
+                    return value;
+                }
+            }
+            contract C {
+                enum E { A, B }
+                struct S { uint256 field; }
+                uint256 public x;
+                constructor() {}
+                function f(uint256 y) public returns (uint256 z) {
+                    uint256 local = y;
+                    return local;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Symbols.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Symbols.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let document_symbols = result.symbol_tables.document_symbols(&uri);
+        assert_eq!(
+            document_symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
+            ["I", "L", "C"]
+        );
+        assert_eq!(document_symbols[0].kind, SymbolKind::INTERFACE);
+        assert_eq!(document_symbols[1].kind, SymbolKind::MODULE);
+        assert_eq!(document_symbols[2].kind, SymbolKind::CLASS);
+
+        let contract = find_document_symbol(&document_symbols, "C");
+        assert_eq!(child_names(contract), ["E", "S", "x", "constructor", "f"]);
+
+        let enumm = find_document_child(contract, "E");
+        assert_eq!(enumm.kind, SymbolKind::ENUM);
+        assert_eq!(child_names(enumm), ["A", "B"]);
+
+        let function = find_document_child(contract, "f");
+        assert_eq!(function.kind, SymbolKind::METHOD);
+        assert_eq!(child_names(function), ["y", "z", "local"]);
+
+        let workspace_symbols = result.symbol_tables.workspace_symbols("helper");
+        assert_eq!(
+            workspace_symbols.iter().map(|symbol| symbol.name.as_str()).collect::<Vec<_>>(),
+            ["helper"]
+        );
+        assert_eq!(workspace_symbols[0].kind, SymbolKind::METHOD);
+        assert_eq!(workspace_symbols[0].container_name.as_deref(), Some("L"));
+
+        let all_workspace_symbols = result.symbol_tables.workspace_symbols("");
+        assert_eq!(find_workspace_symbol(&all_workspace_symbols, "I").kind, SymbolKind::INTERFACE);
+        assert_eq!(find_workspace_symbol(&all_workspace_symbols, "L").kind, SymbolKind::MODULE);
+        assert_eq!(find_workspace_symbol(&all_workspace_symbols, "C").kind, SymbolKind::CLASS);
     }
 
     fn assert_parent(
@@ -772,7 +850,7 @@ mod tests {
     fn assert_declaration(
         declarations: &[&crate::symbols::DeclarationSymbol],
         name: &str,
-        kind: DeclarationKind,
+        kind: SymbolKind,
     ) {
         assert!(
             declarations.iter().any(|symbol| symbol.name == name && symbol.kind == kind),
@@ -783,7 +861,7 @@ mod tests {
     fn assert_declaration_count(
         declarations: &[&crate::symbols::DeclarationSymbol],
         name: &str,
-        kind: DeclarationKind,
+        kind: SymbolKind,
         expected: usize,
     ) {
         assert_eq!(
@@ -809,5 +887,39 @@ mod tests {
             .copied()
             .find(|symbol| symbol.name == name)
             .unwrap_or_else(|| panic!("missing declaration `{name}` in {declarations:#?}"))
+    }
+
+    fn find_document_symbol<'a>(symbols: &'a [DocumentSymbol], name: &str) -> &'a DocumentSymbol {
+        symbols
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .unwrap_or_else(|| panic!("missing document symbol `{name}` in {symbols:#?}"))
+    }
+
+    fn find_document_child<'a>(symbol: &'a DocumentSymbol, child_name: &str) -> &'a DocumentSymbol {
+        let children = symbol.children.as_deref().unwrap_or_else(|| {
+            panic!("document symbol `{}` has no children", symbol.name);
+        });
+        find_document_symbol(children, child_name)
+    }
+
+    fn child_names(symbol: &DocumentSymbol) -> Vec<&str> {
+        symbol
+            .children
+            .as_deref()
+            .unwrap_or_default()
+            .iter()
+            .map(|child| child.name.as_str())
+            .collect()
+    }
+
+    fn find_workspace_symbol<'a>(
+        symbols: &'a [WorkspaceSymbol],
+        name: &str,
+    ) -> &'a WorkspaceSymbol {
+        symbols
+            .iter()
+            .find(|symbol| symbol.name == name)
+            .unwrap_or_else(|| panic!("missing workspace symbol `{name}` in {symbols:#?}"))
     }
 }

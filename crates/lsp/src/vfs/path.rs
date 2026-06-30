@@ -41,7 +41,7 @@ impl VfsPath {
         reason = "VFS path operations are scaffolded for workspace import handling"
     )]
     pub(crate) fn new_real_path(path: String) -> Self {
-        let p: PathBuf = path.into();
+        let p = PathBuf::from(path);
         if !p.is_absolute() {
             panic!("expected an absolute path, got {}", p.to_string_lossy())
         }
@@ -164,7 +164,7 @@ impl fmt::Debug for VfsPath {
 
 impl fmt::Debug for VfsPathRepr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self {
+        match self {
             Self::PathBuf(it) => it.fmt(f),
             Self::VirtualPath(VirtualPath(it)) => it.fmt(f),
         }

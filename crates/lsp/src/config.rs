@@ -1,6 +1,6 @@
 use crate::workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest};
 use lsp_types::{
-    InitializeParams, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
+    InitializeParams, OneOf, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
     TextDocumentSyncOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
@@ -20,11 +20,16 @@ pub(crate) struct Config {
     workspace_roots: Vec<PathBuf>,
     workspaces: Vec<Workspace>,
     watched_file_dynamic_registration: bool,
+    hierarchical_document_symbol_support: bool,
 }
 
 impl Config {
     pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
         self.watched_file_dynamic_registration
+    }
+
+    pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
+        self.hierarchical_document_symbol_support
     }
 
     pub(crate) fn workspaces(&self) -> &[Workspace] {
@@ -113,11 +118,17 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     // todo: make this absolute guaranteed
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
     // `root_uri`.
-    let watched_file_dynamic_registration = params
-        .capabilities
+    let capabilities = params.capabilities;
+
+    let watched_file_dynamic_registration = capabilities
         .workspace
         .and_then(|workspace| workspace.did_change_watched_files)
         .and_then(|capabilities| capabilities.dynamic_registration)
+        .unwrap_or(false);
+    let hierarchical_document_symbol_support = capabilities
+        .text_document
+        .and_then(|text_document| text_document.document_symbol)
+        .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
         .unwrap_or(false);
 
     let workspace_roots = params
@@ -130,6 +141,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 
     (
         ServerCapabilities {
+            document_symbol_provider: Some(OneOf::Left(true)),
             text_document_sync: Some(TextDocumentSyncCapability::Options(
                 TextDocumentSyncOptions {
                     open_close: Some(true),
@@ -139,9 +151,15 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                     ..Default::default()
                 },
             )),
+            workspace_symbol_provider: Some(OneOf::Left(true)),
             ..Default::default()
         },
-        Config { workspace_roots, watched_file_dynamic_registration, ..Default::default() },
+        Config {
+            workspace_roots,
+            watched_file_dynamic_registration,
+            hierarchical_document_symbol_support,
+            ..Default::default()
+        },
     )
 }
 
@@ -149,7 +167,10 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 mod tests {
     use super::*;
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
-    use lsp_types::{DidChangeWatchedFilesClientCapabilities, WorkspaceClientCapabilities};
+    use lsp_types::{
+        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, OneOf,
+        TextDocumentClientCapabilities, WorkspaceClientCapabilities,
+    };
 
     #[test]
     fn negotiate_capabilities_records_watched_file_dynamic_registration_support() {
@@ -168,6 +189,33 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_watched_file_dynamic_registration());
+    }
+
+    #[test]
+    fn negotiate_capabilities_advertises_symbol_providers() {
+        let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
+
+        assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
+        assert_eq!(capabilities.workspace_symbol_provider, Some(OneOf::Left(true)));
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_hierarchical_document_symbol_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_hierarchical_document_symbols());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            document_symbol: Some(DocumentSymbolClientCapabilities {
+                hierarchical_document_symbol_support: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_hierarchical_document_symbols());
     }
 
     #[test]

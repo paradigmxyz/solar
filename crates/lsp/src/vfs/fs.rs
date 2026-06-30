@@ -22,10 +22,9 @@
 //!
 //! [`SourceFile`]: solar_interface::source_map::SourceFile
 
+use super::VfsPath;
 use crop::Rope;
 use solar_interface::data_structures::map::rustc_hash::FxHashMap;
-
-use super::VfsPath;
 
 #[derive(Default)]
 pub(crate) struct Vfs {
