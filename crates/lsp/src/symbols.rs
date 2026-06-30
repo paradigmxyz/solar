@@ -1061,48 +1061,6 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             self.visit_ty(ty);
         }
     }
-
-    fn visit_call_args_value(&mut self, args: hir::CallArgs<'gcx>) -> ControlFlow<Never> {
-        match args.kind {
-            hir::CallArgsKind::Unnamed(exprs) => {
-                for expr in exprs {
-                    self.visit_expr(expr)?;
-                }
-            }
-            hir::CallArgsKind::Named(args) => {
-                for arg in args {
-                    self.visit_expr(&arg.value)?;
-                }
-            }
-        }
-        ControlFlow::Continue(())
-    }
-
-    fn visit_ty_value(&mut self, ty: hir::Type<'gcx>) -> ControlFlow<Never> {
-        self.push_type_reference(&ty);
-        match ty.kind {
-            TypeKind::Elementary(_) | TypeKind::Custom(_) | TypeKind::Err(_) => {}
-            TypeKind::Array(array) => {
-                self.visit_ty(&array.element)?;
-                if let Some(size) = array.size {
-                    self.visit_expr(size)?;
-                }
-            }
-            TypeKind::Function(function) => {
-                for &param in function.parameters {
-                    self.visit_nested_var(param)?;
-                }
-                for &ret in function.returns {
-                    self.visit_nested_var(ret)?;
-                }
-            }
-            TypeKind::Mapping(mapping) => {
-                self.visit_ty(&mapping.key)?;
-                self.visit_ty(&mapping.value)?;
-            }
-        }
-        ControlFlow::Continue(())
-    }
 }
 
 impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
@@ -1209,7 +1167,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                         self.visit_expr(&arg.value)?;
                     }
                 }
-                self.visit_call_args_value(*args)?;
+                self.visit_call_args(args)?;
             }
             hir::ExprKind::Delete(inner)
             | hir::ExprKind::Payable(inner)
@@ -1249,7 +1207,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
                 }
             }
             hir::ExprKind::New(ty) | hir::ExprKind::TypeCall(ty) | hir::ExprKind::Type(ty) => {
-                self.visit_ty_value(ty.clone())?;
+                self.visit_ty(ty)?;
             }
             hir::ExprKind::Ident(_)
             | hir::ExprKind::Member(_, _)
