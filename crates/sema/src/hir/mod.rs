@@ -576,6 +576,15 @@ impl<'hir> Item<'_, 'hir> {
         }
     }
 
+    /// Returns the parent item that owns this item's lexical scope, if any.
+    #[inline]
+    pub fn parent(self) -> Option<ItemId> {
+        match self {
+            Item::Variable(v) => v.parent.or_else(|| v.contract.map(ItemId::Contract)),
+            _ => self.contract().map(ItemId::Contract),
+        }
+    }
+
     /// Returns the source ID where this item is defined.
     #[inline]
     pub fn source(self) -> SourceId {
@@ -721,6 +730,12 @@ impl ItemId {
     #[inline]
     pub fn matches(&self, other: &Self) -> bool {
         std::mem::discriminant(self) == std::mem::discriminant(other)
+    }
+
+    /// Returns the parent item that owns this item's lexical scope, if any.
+    #[inline]
+    pub fn parent(self, hir: &Hir<'_>) -> Option<Self> {
+        hir.item(self).parent()
     }
 
     /// Returns the contract ID if this is a contract.

@@ -97,7 +97,7 @@ impl SymbolTables {
         // minimal scope structure needed by document symbols, completion, and cursor lookups.
         for (&item_id, &symbol_id) in &item_symbols {
             tables.declarations[symbol_id.index()].parent =
-                parent_item(gcx, item_id).and_then(|parent| item_symbols.get(&parent).copied());
+                item_id.parent(&gcx.hir).and_then(|parent| item_symbols.get(&parent).copied());
         }
 
         // Enum variants are declarations, but they are not HIR ItemIds. Add them explicitly and
@@ -439,22 +439,6 @@ fn is_generated_item(gcx: Gcx<'_>, item_id: ItemId) -> bool {
             matches!(variable.parent, Some(ItemId::Function(function)) if gcx.hir.function(function).is_getter())
         }
         _ => false,
-    }
-}
-
-/// Returns the HIR item that owns this declaration's lexical scope, if any.
-///
-/// Most declarations are owned by their enclosing contract. Variables are more specific because HIR
-/// records parameters, return variables, local variables, struct fields, and event/error parameters
-/// with their immediate parent item. The returned item is later translated into a SymbolId parent
-/// link so LSP features can traverse the declaration scope tree without holding HIR references.
-fn parent_item(gcx: Gcx<'_>, item_id: ItemId) -> Option<ItemId> {
-    match item_id {
-        ItemId::Variable(id) => {
-            let variable = gcx.hir.variable(id);
-            variable.parent.or_else(|| variable.contract.map(ItemId::Contract))
-        }
-        _ => gcx.hir.item(item_id).contract().map(ItemId::Contract),
     }
 }
 
