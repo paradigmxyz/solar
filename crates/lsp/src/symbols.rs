@@ -997,7 +997,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
                 self.push_reference(ident.span, targets);
             }
             _ => {
-                self.walk_expr(expr)?;
+                hir::Visit::walk_expr(self, expr)?;
             }
         }
         ControlFlow::Continue(())
@@ -1025,68 +1025,6 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
                 self.visit_ty(&mapping.key)?;
                 self.visit_ty(&mapping.value)?;
             }
-        }
-        ControlFlow::Continue(())
-    }
-}
-
-impl<'gcx> ReferenceCollector<'_, 'gcx> {
-    fn walk_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Never> {
-        match &expr.kind {
-            hir::ExprKind::Call(callee, args, opts) => {
-                self.visit_expr(callee)?;
-                if let Some(opts) = opts {
-                    for arg in opts.args {
-                        self.visit_expr(&arg.value)?;
-                    }
-                }
-                self.visit_call_args(args)?;
-            }
-            hir::ExprKind::Delete(inner)
-            | hir::ExprKind::Payable(inner)
-            | hir::ExprKind::Unary(_, inner) => self.visit_expr(inner)?,
-            hir::ExprKind::Assign(lhs, _, rhs) | hir::ExprKind::Binary(lhs, _, rhs) => {
-                self.visit_expr(lhs)?;
-                self.visit_expr(rhs)?;
-            }
-            hir::ExprKind::Index(inner, index) => {
-                self.visit_expr(inner)?;
-                if let Some(index) = index {
-                    self.visit_expr(index)?;
-                }
-            }
-            hir::ExprKind::Slice(inner, start, end) => {
-                self.visit_expr(inner)?;
-                if let Some(start) = start {
-                    self.visit_expr(start)?;
-                }
-                if let Some(end) = end {
-                    self.visit_expr(end)?;
-                }
-            }
-            hir::ExprKind::Ternary(cond, true_, false_) => {
-                self.visit_expr(cond)?;
-                self.visit_expr(true_)?;
-                self.visit_expr(false_)?;
-            }
-            hir::ExprKind::Array(exprs) => {
-                for expr in *exprs {
-                    self.visit_expr(expr)?;
-                }
-            }
-            hir::ExprKind::Tuple(exprs) => {
-                for expr in exprs.iter().copied().flatten() {
-                    self.visit_expr(expr)?;
-                }
-            }
-            hir::ExprKind::New(ty) | hir::ExprKind::TypeCall(ty) | hir::ExprKind::Type(ty) => {
-                self.visit_ty(ty)?;
-            }
-            hir::ExprKind::Ident(_)
-            | hir::ExprKind::Member(_, _)
-            | hir::ExprKind::YulMember(_, _)
-            | hir::ExprKind::Lit(_)
-            | hir::ExprKind::Err(_) => {}
         }
         ControlFlow::Continue(())
     }
