@@ -1044,6 +1044,40 @@ mod tests {
         assert_eq!(locations[0].range.start, position(1, 13));
     }
 
+    #[test]
+    fn analyze_distinguishes_function_declarations_from_definitions() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Navigation.sol
+            interface I {
+                function f() external returns (uint256);
+            }
+            "#,
+        );
+        let path = project.path("/Navigation.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Navigation.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let declaration = result
+            .symbol_tables
+            .goto_declaration(&uri, position(1, 13))
+            .expect("missing declaration response");
+        let GotoDefinitionResponse::Array(locations) = declaration else {
+            panic!("expected declaration array");
+        };
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].range.start, position(1, 13));
+
+        let definition = result.symbol_tables.goto_definition(&uri, position(1, 13));
+        assert!(definition.is_none(), "interface-only function should not have a definition");
+    }
+
     fn assert_parent(
         declarations: &[&crate::symbols::DeclarationSymbol],
         name: &str,

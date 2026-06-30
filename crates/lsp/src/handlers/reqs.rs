@@ -41,7 +41,10 @@ pub(crate) fn goto_declaration(
     state: &mut GlobalState,
     params: GotoDefinitionParams,
 ) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
-    goto_definition(state, params)
+    let params = params.text_document_position_params;
+    let response =
+        state.symbol_tables.read().goto_declaration(&params.text_document.uri, params.position);
+    std::future::ready(Ok(response))
 }
 
 pub(crate) fn references(

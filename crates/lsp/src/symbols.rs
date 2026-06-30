@@ -48,6 +48,7 @@ pub(crate) struct DeclarationSymbol {
     pub(crate) location: Location,
     pub(crate) name_range: Range,
     pub(crate) parent: Option<SymbolId>,
+    has_definition: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -74,6 +75,21 @@ struct ScopedDeclaration {
 struct SymbolReference {
     location: Location,
     targets: Vec<SymbolId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum NavigationTarget {
+    Declaration,
+    Definition,
+}
+
+impl NavigationTarget {
+    fn includes(self, tables: &SymbolTables, symbol_id: SymbolId) -> bool {
+        match self {
+            Self::Declaration => true,
+            Self::Definition => tables.declarations[symbol_id].has_definition,
+        }
+    }
 }
 
 impl SymbolTables {
@@ -117,6 +133,7 @@ impl SymbolTables {
                     location,
                     name_range: name_location.range,
                     parent: None,
+                    has_definition: item_has_definition(gcx, item_id),
                 },
             );
             item_symbols.insert(item_id, symbol_id);
@@ -151,6 +168,7 @@ impl SymbolTables {
                         name_range: location.range,
                         location,
                         parent,
+                        has_definition: true,
                     },
                 );
             }
@@ -299,7 +317,17 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
     ) -> Option<GotoDefinitionResponse> {
-        let locations = self.locations_for_position(uri, position)?;
+        let locations = self.locations_for_position(uri, position, NavigationTarget::Definition)?;
+        Some(GotoDefinitionResponse::Array(locations))
+    }
+
+    pub(crate) fn goto_declaration(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<GotoDefinitionResponse> {
+        let locations =
+            self.locations_for_position(uri, position, NavigationTarget::Declaration)?;
         Some(GotoDefinitionResponse::Array(locations))
     }
 
@@ -634,6 +662,7 @@ impl SymbolTables {
             location: Location { uri: uri.clone(), range: location },
             name_range,
             parent,
+            has_definition: true,
         });
         self.rebuild_indexes();
         pushed_id
@@ -667,12 +696,21 @@ impl SymbolTables {
         Some(self.declarations[parent].name.clone())
     }
 
-    fn locations_for_position(&self, uri: &Url, position: Position) -> Option<Vec<Location>> {
+    fn locations_for_position(
+        &self,
+        uri: &Url,
+        position: Position,
+        target: NavigationTarget,
+    ) -> Option<Vec<Location>> {
         let symbol_ids = self.symbol_ids_at_position(uri, position)?;
         let mut locations = symbol_ids
             .into_iter()
+            .filter(|&symbol_id| target.includes(self, symbol_id))
             .map(|symbol_id| self.selection_location(symbol_id))
             .collect::<Vec<_>>();
+        if locations.is_empty() {
+            return None;
+        }
         sort_locations(&mut locations);
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         Some(locations)
@@ -1376,6 +1414,13 @@ fn variable_symbol_kind(variable: &hir::Variable<'_>) -> SymbolKind {
         | VarKind::FunctionTyReturn
         | VarKind::Statement
         | VarKind::TryCatch => SymbolKind::VARIABLE,
+    }
+}
+
+fn item_has_definition(gcx: Gcx<'_>, item_id: ItemId) -> bool {
+    match item_id {
+        ItemId::Function(id) => gcx.hir.function(id).body.is_some(),
+        _ => true,
     }
 }
 
