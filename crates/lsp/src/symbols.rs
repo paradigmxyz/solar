@@ -2,7 +2,10 @@ use lsp_types::{
     DocumentSymbol, Location, OneOf, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
 };
 use solar_interface::{Span, data_structures::map::FxHashMap};
-use solar_sema::{Gcx, hir::ItemId};
+use solar_sema::{
+    Gcx,
+    hir::{ContractKind, ItemId},
+};
 
 use crate::proto;
 
@@ -407,16 +410,11 @@ fn declaration_name(gcx: Gcx<'_>, item_id: ItemId) -> Option<(String, Span)> {
 /// source declaration category needed by document symbols, workspace symbols, and completion.
 fn declaration_kind(gcx: Gcx<'_>, item_id: ItemId) -> DeclarationKind {
     match item_id {
-        ItemId::Contract(id) => {
-            let contract = gcx.hir.contract(id);
-            if contract.kind.is_interface() {
-                DeclarationKind::Interface
-            } else if contract.kind.is_library() {
-                DeclarationKind::Library
-            } else {
-                DeclarationKind::Contract
-            }
-        }
+        ItemId::Contract(id) => match gcx.hir.contract(id).kind {
+            ContractKind::Contract | ContractKind::AbstractContract => DeclarationKind::Contract,
+            ContractKind::Interface => DeclarationKind::Interface,
+            ContractKind::Library => DeclarationKind::Library,
+        },
         ItemId::Function(_) => DeclarationKind::Function,
         ItemId::Variable(_) => DeclarationKind::Variable,
         ItemId::Struct(_) => DeclarationKind::Struct,
