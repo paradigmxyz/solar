@@ -156,9 +156,27 @@ fn dump_ast(sess: &Session, sources: &Sources<'_>, paths: Option<&[String]>) -> 
 }
 
 fn dump_hir(gcx: Gcx<'_>, paths: Option<&[String]>) -> Result<()> {
-    println!("{:#?}", gcx.hir);
     if let Some(paths) = paths {
-        println!("\nPaths not yet implemented: {paths:#?}");
+        let mut printer = hir::HirPrinter::new(gcx);
+        for path in paths {
+            if let Some((id, source)) = gcx.get_hir_source(path.clone()) {
+                printer.print_source(id, source);
+            } else {
+                let msg = format!("`-Zdump=hir={path}` did not match any source file");
+                let note = format!(
+                    "available source files: {}",
+                    gcx.hir
+                        .sources()
+                        .map(|s| s.file.name.display().to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                );
+                return Err(gcx.sess.dcx.err(msg).note(note).emit());
+            }
+        }
+        print!("{}", printer.finish());
+    } else {
+        print!("{}", hir::HirPrinter::new(gcx).print_all());
     }
     Ok(())
 }
