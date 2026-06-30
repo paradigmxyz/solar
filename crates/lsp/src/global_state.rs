@@ -374,8 +374,8 @@ mod tests {
     use crate::test_support::TestProject;
     use async_lsp::ClientSocket;
     use lsp_types::{
-        Diagnostic, DocumentSymbol, Position, Range, SymbolKind, WatchKind, WorkspaceSymbol,
-        notification::Notification,
+        CompletionItemKind, Diagnostic, DocumentSymbol, GotoDefinitionResponse, Position, Range,
+        SymbolKind, WatchKind, WorkspaceSymbol, notification::Notification,
     };
 
     fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
@@ -831,6 +831,219 @@ mod tests {
         assert_eq!(find_workspace_symbol(&all_workspace_symbols, "C").kind, SymbolKind::CLASS);
     }
 
+    #[test]
+    fn analyze_builds_lsp_navigation_and_completion_indexes() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Symbols.sol
+            contract C {
+                uint256 stateValue;
+
+                function target(uint256 input) public returns (uint256 output) {
+                    uint256 localValue = input + stateValue;
+                    output = localValue;
+                }
+
+                function caller() public {
+                    uint256 callerLocal = target(stateValue);
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Symbols.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Symbols.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let definition = result
+            .symbol_tables
+            .goto_definition(&uri, position(7, 32))
+            .expect("missing definition response");
+        let GotoDefinitionResponse::Array(locations) = definition else {
+            panic!("expected definition array");
+        };
+        assert_eq!(locations.len(), 1);
+        assert_eq!(locations[0].range.start, position(2, 13));
+
+        let references = result
+            .symbol_tables
+            .references(&uri, position(2, 15), true)
+            .expect("missing references response");
+        assert_eq!(
+            references.iter().map(|location| location.range.start).collect::<Vec<_>>(),
+            [position(2, 13), position(7, 30)]
+        );
+
+        let references = result
+            .symbol_tables
+            .references(&uri, position(1, 14), true)
+            .expect("missing references response");
+        assert_eq!(
+            references.iter().map(|location| location.range.start).collect::<Vec<_>>(),
+            [position(1, 12), position(3, 37), position(7, 37)]
+        );
+
+        let completions = result.symbol_tables.completion_items(&uri, position(4, 17));
+        let labels = completions.iter().map(|item| item.label.as_str()).collect::<Vec<_>>();
+        assert!(labels.contains(&"input"), "{labels:?}");
+        assert!(labels.contains(&"localValue"), "{labels:?}");
+        assert!(labels.contains(&"output"), "{labels:?}");
+        assert!(labels.contains(&"stateValue"), "{labels:?}");
+        let local = completions.iter().find(|item| item.label == "localValue").unwrap();
+        assert_eq!(local.kind, Some(CompletionItemKind::VARIABLE));
+    }
+
+    #[test]
+    fn analyze_does_not_complete_local_before_declaration_is_in_scope() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Completion.sol
+            contract C {
+                function f(uint256 input) public pure {
+                    uint256 localValue = input + 1;
+                    uint256 nextValue = localValue;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Completion.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Completion.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let before_initializer = result.symbol_tables.completion_items(&uri, position(2, 31));
+        let labels = before_initializer.iter().map(|item| item.label.as_str()).collect::<Vec<_>>();
+        assert!(labels.contains(&"input"), "{labels:?}");
+        assert!(!labels.contains(&"localValue"), "{labels:?}");
+
+        let after_declaration = result.symbol_tables.completion_items(&uri, position(3, 30));
+        let labels = after_declaration.iter().map(|item| item.label.as_str()).collect::<Vec<_>>();
+        assert!(labels.contains(&"localValue"), "{labels:?}");
+        assert!(!labels.contains(&"nextValue"), "{labels:?}");
+    }
+
+    #[test]
+    fn analyze_indexes_member_references() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Members.sol
+            contract C {
+                enum Choice { A, B }
+                struct Data { uint256 field; }
+
+                function read(Data memory data) public pure returns (uint256) {
+                    Choice choice = Choice.A;
+                    return data.field;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Members.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Members.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let field_definition = result
+            .symbol_tables
+            .goto_definition(&uri, position(5, 22))
+            .expect("missing field definition response");
+        let GotoDefinitionResponse::Array(locations) = field_definition else {
+            panic!("expected definition array");
+        };
+        assert_eq!(locations[0].range.start, position(2, 26));
+
+        let variant_definition = result
+            .symbol_tables
+            .goto_definition(&uri, position(4, 31))
+            .expect("missing variant definition response");
+        let GotoDefinitionResponse::Array(locations) = variant_definition else {
+            panic!("expected definition array");
+        };
+        assert_eq!(locations[0].range.start, position(1, 18));
+
+        let field_references = result
+            .symbol_tables
+            .references(&uri, position(2, 28), true)
+            .expect("missing field references response");
+        assert_eq!(
+            field_references.iter().map(|location| location.range.start).collect::<Vec<_>>(),
+            [position(2, 26), position(5, 20)]
+        );
+    }
+
+    #[test]
+    fn analyze_indexes_using_directive_references() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Using.sol
+            library L {
+                function inc(uint256 value) internal pure returns (uint256) {
+                    return value + 1;
+                }
+            }
+
+            using L for uint256;
+
+            contract C {
+                function f(uint256 value) public pure returns (uint256) {
+                    return value.inc();
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Using.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Using.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let library_definition = result
+            .symbol_tables
+            .goto_definition(&uri, position(5, 6))
+            .expect("missing library definition response");
+        let GotoDefinitionResponse::Array(locations) = library_definition else {
+            panic!("expected definition array");
+        };
+        assert_eq!(locations[0].range.start, position(0, 8));
+
+        let library_references = result
+            .symbol_tables
+            .references(&uri, position(0, 8), true)
+            .expect("missing library references response");
+        assert_eq!(
+            library_references.iter().map(|location| location.range.start).collect::<Vec<_>>(),
+            [position(0, 8), position(5, 6)]
+        );
+
+        let function_definition = result
+            .symbol_tables
+            .goto_definition(&uri, position(8, 21))
+            .expect("missing function definition response");
+        let GotoDefinitionResponse::Array(locations) = function_definition else {
+            panic!("expected definition array");
+        };
+        assert_eq!(locations[0].range.start, position(1, 13));
+    }
+
     fn assert_parent(
         declarations: &[&crate::symbols::DeclarationSymbol],
         name: &str,
@@ -921,5 +1134,9 @@ mod tests {
             .iter()
             .find(|symbol| symbol.name == name)
             .unwrap_or_else(|| panic!("missing workspace symbol `{name}` in {symbols:#?}"))
+    }
+
+    fn position(line: u32, character: u32) -> Position {
+        Position { line, character }
     }
 }

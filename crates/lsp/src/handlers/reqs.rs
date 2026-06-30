@@ -1,7 +1,9 @@
 use crate::global_state::GlobalState;
 use async_lsp::ResponseError;
 use lsp_types::{
-    DocumentSymbolParams, DocumentSymbolResponse, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
+    GotoDefinitionParams, GotoDefinitionResponse, ReferenceParams, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse,
 };
 
 pub(crate) fn document_symbol(
@@ -23,6 +25,47 @@ pub(crate) fn workspace_symbol(
 ) -> impl Future<Output = Result<Option<WorkspaceSymbolResponse>, ResponseError>> + use<> {
     let symbols = state.symbol_tables.read().workspace_symbols(&params.query);
     std::future::ready(Ok(Some(WorkspaceSymbolResponse::Nested(symbols))))
+}
+
+pub(crate) fn goto_definition(
+    state: &mut GlobalState,
+    params: GotoDefinitionParams,
+) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let response =
+        state.symbol_tables.read().goto_definition(&params.text_document.uri, params.position);
+    std::future::ready(Ok(response))
+}
+
+pub(crate) fn goto_declaration(
+    state: &mut GlobalState,
+    params: GotoDefinitionParams,
+) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
+    goto_definition(state, params)
+}
+
+pub(crate) fn references(
+    state: &mut GlobalState,
+    params: ReferenceParams,
+) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
+    let include_declaration = params.context.include_declaration;
+    let params = params.text_document_position;
+    let response = state.symbol_tables.read().references(
+        &params.text_document.uri,
+        params.position,
+        include_declaration,
+    );
+    std::future::ready(Ok(response))
+}
+
+pub(crate) fn completion(
+    state: &mut GlobalState,
+    params: CompletionParams,
+) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
+    let params = params.text_document_position;
+    let items =
+        state.symbol_tables.read().completion_items(&params.text_document.uri, params.position);
+    std::future::ready(Ok(Some(CompletionResponse::Array(items))))
 }
 
 #[cfg(test)]
