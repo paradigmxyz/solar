@@ -12,7 +12,7 @@ use solar_sema::{
         self, ContractKind, EnumId, FunctionKind, ItemId, Res, StmtKind, TypeKind, UsingEntryKind,
         VarKind, Visit,
     },
-    ty::{ResolvedMember, TyKind},
+    ty::ResolvedMember,
 };
 use std::ops::ControlFlow;
 
@@ -888,134 +888,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         }
     }
 
-    fn symbol_id_for_member_fallback(
-        &self,
-        receiver: &hir::Expr<'gcx>,
-        member: solar_interface::Ident,
-    ) -> Option<SymbolId> {
-        if let Some(symbol_id) = self.symbol_id_for_hir_member(receiver, member) {
-            return Some(symbol_id);
-        }
-
-        if let Some(symbol_id) = self.symbol_id_for_attached_hir_member(receiver, member) {
-            return Some(symbol_id);
-        }
-
-        let receiver_ty = self.gcx.type_of_expr(receiver.id)?.peel_refs();
-        match receiver_ty.kind {
-            TyKind::Struct(struct_id) => self.symbol_id_for_struct_field(struct_id, member),
-            TyKind::Type(ty) => {
-                let TyKind::Enum(enum_id) = ty.kind else { return None };
-                self.symbol_id_for_enum_variant(enum_id, member)
-            }
-            _ => self.symbol_id_for_attached_member(receiver_ty, member),
-        }
-    }
-
-    fn symbol_id_for_attached_hir_member(
-        &self,
-        receiver: &hir::Expr<'gcx>,
-        member: solar_interface::Ident,
-    ) -> Option<SymbolId> {
-        let receiver_ty = match &receiver.kind {
-            hir::ExprKind::Ident(res) => res.iter().find_map(|res| match res {
-                Res::Item(ItemId::Variable(var_id)) => {
-                    Some(self.gcx.type_of_hir_ty(&self.gcx.hir.variable(*var_id).ty))
-                }
-                Res::Item(item_id) => Some(self.gcx.type_of_item(*item_id)),
-                _ => None,
-            })?,
-            hir::ExprKind::Type(ty) => self.gcx.mk_ty(TyKind::Type(self.gcx.type_of_hir_ty(ty))),
-            _ => return None,
-        };
-        self.symbol_id_for_attached_member(receiver_ty.peel_refs(), member)
-    }
-
-    fn symbol_id_for_attached_member(
-        &self,
-        receiver_ty: solar_sema::ty::Ty<'gcx>,
-        member: solar_interface::Ident,
-    ) -> Option<SymbolId> {
-        let source = self.source?;
-        let member = self
-            .gcx
-            .members_of(receiver_ty, source, self.contract)
-            .find(|candidate| candidate.name == member.name)?;
-        let res = member.res?;
-        self.symbol_ids_for_res([res]).into_iter().next()
-    }
-
-    fn symbol_id_for_hir_member(
-        &self,
-        receiver: &hir::Expr<'gcx>,
-        member: solar_interface::Ident,
-    ) -> Option<SymbolId> {
-        match &receiver.kind {
-            hir::ExprKind::Ident(res) => res.iter().find_map(|res| match res {
-                Res::Item(ItemId::Variable(var_id)) => {
-                    self.symbol_id_for_type_member(&self.gcx.hir.variable(*var_id).ty, member)
-                }
-                Res::Item(ItemId::Enum(enum_id)) => {
-                    self.symbol_id_for_enum_variant(*enum_id, member)
-                }
-                Res::Item(ItemId::Struct(struct_id)) => {
-                    self.symbol_id_for_struct_field(*struct_id, member)
-                }
-                _ => None,
-            }),
-            hir::ExprKind::Type(ty) => self.symbol_id_for_type_member(ty, member),
-            _ => None,
-        }
-    }
-
-    fn symbol_id_for_type_member(
-        &self,
-        ty: &hir::Type<'gcx>,
-        member: solar_interface::Ident,
-    ) -> Option<SymbolId> {
-        match ty.kind {
-            TypeKind::Custom(ItemId::Struct(struct_id)) => {
-                self.symbol_id_for_struct_field(struct_id, member)
-            }
-            TypeKind::Custom(ItemId::Enum(enum_id)) => {
-                self.symbol_id_for_enum_variant(enum_id, member)
-            }
-            _ => None,
-        }
-    }
-
-    fn symbol_id_for_struct_field(
-        &self,
-        struct_id: hir::StructId,
-        member: solar_interface::Ident,
-    ) -> Option<SymbolId> {
-        let field_id = self.gcx.hir.strukt(struct_id).fields.iter().copied().find(|&field_id| {
-            self.gcx.hir.variable(field_id).name.is_some_and(|field| field.name == member.name)
-        })?;
-        self.tables.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(field_id))).copied()
-    }
-
-    fn symbol_id_for_enum_variant(
-        &self,
-        enum_id: EnumId,
-        member: solar_interface::Ident,
-    ) -> Option<SymbolId> {
-        let variant_index = self
-            .gcx
-            .hir
-            .enumm(enum_id)
-            .variants
-            .iter()
-            .position(|variant| variant.name == member.name)?;
-        self.tables.symbols_by_key.get(&SymbolKey::EnumVariant(enum_id, variant_index)).copied()
-    }
-
-    fn symbol_ids_for_member_expr(
-        &self,
-        expr: &hir::Expr<'gcx>,
-        receiver: &hir::Expr<'gcx>,
-        ident: solar_interface::Ident,
-    ) -> Vec<SymbolId> {
+    fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> Vec<SymbolId> {
         if let Some(member) = self.gcx.resolved_member(expr.id)
             && let Some(symbol_id) = self.symbol_id_for_member(member)
         {
@@ -1029,7 +902,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             }
         }
 
-        self.symbol_id_for_member_fallback(receiver, ident).into_iter().collect()
+        Vec::new()
     }
 
     fn push_type_reference(&mut self, ty: &hir::Type<'gcx>) {
@@ -1120,7 +993,7 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
             }
             hir::ExprKind::Member(receiver, ident) | hir::ExprKind::YulMember(receiver, ident) => {
                 self.visit_expr(receiver)?;
-                let targets = self.symbol_ids_for_member_expr(expr, receiver, ident);
+                let targets = self.symbol_ids_for_member_expr(expr);
                 self.push_reference(ident.span, targets);
             }
             _ => {
