@@ -120,15 +120,13 @@ Failures are saved under `fuzz/fandango/out/failures/` or
 Use these from the repository root:
 
 ```bash
-cargo build -p solar-compiler --bin solar
 fuzz/bin/solsmith --help
 fuzz/bin/solreduce --help
 ```
 
-They are generated into ignored `fuzz/bin/` by the build and are thin wrappers
-around the implementation scripts in this directory. That gives us command-like
-UX without tracking generated files or breaking direct script usage in existing
-automation.
+They are committed thin wrappers around the implementation scripts in this
+directory. That gives us command-like UX without breaking direct script usage
+in existing automation.
 
 Generate Solidity runtime harnesses and compare side effects:
 

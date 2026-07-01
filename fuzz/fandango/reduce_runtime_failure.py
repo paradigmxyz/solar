@@ -187,10 +187,13 @@ class Reducer:
             candidate = dict(self.failure)
             candidate["source_text"] = source
             failure_path.write_text(json.dumps(candidate, sort_keys=True) + "\n")
+            # Resolve the runner next to this file so the reducer also works
+            # through the `fuzz/bin/solreduce` wrapper regardless of cwd.
+            runner = pathlib.Path(__file__).resolve().parent / "run_source_runtime.py"
             result = subprocess.run(
                 [
                     "python3",
-                    "fuzz/fandango/run_source_runtime.py",
+                    str(runner),
                     "--replay-failure",
                     str(failure_path),
                     "--solc",

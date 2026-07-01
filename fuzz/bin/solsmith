@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Run the SolSmith generator from a stable repository-local entrypoint."""
+
+from __future__ import annotations
+
+import importlib.util
+import sys
+from pathlib import Path
+
+
+SCRIPT_DIR = Path(__file__).resolve().parents[1] / "fandango"
+sys.path.insert(0, str(SCRIPT_DIR))
+sys.argv[0] = "solsmith"
+
+spec = importlib.util.spec_from_file_location(
+    "_solar_solsmith",
+    SCRIPT_DIR / "solsmith.py",
+)
+if spec is None or spec.loader is None:
+    raise RuntimeError("could not load SolSmith")
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+raise SystemExit(module.main())

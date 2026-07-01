@@ -217,6 +217,10 @@ def _check_source(args: argparse.Namespace, source: pathlib.Path) -> dict[str, A
             if failure is not None:
                 return failure
         return None
+    except evm.InfraError:
+        # Transient transport failure, not a compiler finding: let the retry
+        # wrapper handle and classify it instead of recording a `setup` failure.
+        raise
     except RuntimeError as err:
         return {
             "kind": "setup",

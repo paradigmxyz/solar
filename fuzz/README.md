@@ -2,8 +2,7 @@ Scripts and tools for fuzzing the compiler.
 
 Run commands from the repository root unless a tool says otherwise.
 
-Convenience entrypoints are generated under ignored `fuzz/bin/` during
-`cargo build -p solar-compiler --bin solar`:
+Convenience entrypoints live under `fuzz/bin/`:
 
 - `fuzz/bin/solsmith`: generates typed Solidity runtime harnesses.
 - `fuzz/bin/solreduce`: reduces a replayable runtime mismatch.
