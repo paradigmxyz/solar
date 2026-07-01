@@ -141,7 +141,10 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 
     (
         ServerCapabilities {
-            completion_provider: Some(CompletionOptions::default()),
+            completion_provider: Some(CompletionOptions {
+                trigger_characters: Some(vec![".".into()]),
+                ..Default::default()
+            }),
             declaration_provider: Some(DeclarationCapability::Simple(true)),
             definition_provider: Some(OneOf::Left(true)),
             document_symbol_provider: Some(OneOf::Left(true)),
@@ -199,7 +202,8 @@ mod tests {
     fn negotiate_capabilities_advertises_symbol_providers() {
         let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
 
-        assert!(capabilities.completion_provider.is_some());
+        let completion = capabilities.completion_provider.unwrap();
+        assert_eq!(completion.trigger_characters.as_deref(), Some(&[".".to_string()][..]));
         assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
         assert_eq!(capabilities.definition_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));

@@ -106,6 +106,22 @@ pub enum ResolvedMember {
     EnumVariant { enum_id: hir::EnumId, variant_index: usize },
 }
 
+/// A source-level declaration visible from semantic resolution.
+#[derive(Clone, Copy, Debug)]
+pub struct ScopeDeclaration {
+    pub name: Symbol,
+    pub res: hir::Res,
+}
+
+/// A completion candidate for a member visible on a receiver type.
+#[derive(Clone, Copy, Debug)]
+pub struct MemberCompletion {
+    pub name: Symbol,
+    pub res: Option<hir::Res>,
+    pub resolved: Option<ResolvedMember>,
+    pub attached: bool,
+}
+
 impl<'gcx> TypeckResults<'gcx> {
     /// Returns the type inferred for the given expression, if available.
     #[inline]
@@ -856,6 +872,86 @@ impl<'gcx> Gcx<'gcx> {
             self.native_members_in_context(ty, contract).unwrap_or_else(|| self.native_members(ty));
         let attached = self.attached_functions(ty, source, contract);
         native.iter().copied().chain(attached)
+    }
+
+    pub fn member_completions_of(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Vec<MemberCompletion> {
+        self.members_of(ty, source, contract)
+            .map(|member| MemberCompletion {
+                name: member.name,
+                res: member.res,
+                resolved: self.resolved_member_for_completion(ty, member.name, member.res),
+                attached: member.attached,
+            })
+            .collect()
+    }
+
+    fn resolved_member_for_completion(
+        self,
+        receiver_ty: Ty<'gcx>,
+        name: Symbol,
+        res: Option<hir::Res>,
+    ) -> Option<ResolvedMember> {
+        if let Some(res) = res {
+            return Some(ResolvedMember::Res(res));
+        }
+        match receiver_ty.kind {
+            TyKind::Ref(inner, _) => match inner.kind {
+                TyKind::Struct(struct_id) => {
+                    let fields = self.hir.strukt(struct_id).fields;
+                    fields
+                        .iter()
+                        .position(|&field| self.item_name(field).name == name)
+                        .map(|field_index| ResolvedMember::StructField { struct_id, field_index })
+                }
+                _ => None,
+            },
+            TyKind::Type(ty) => match ty.kind {
+                TyKind::Enum(enum_id) => self
+                    .hir
+                    .enumm(enum_id)
+                    .variants
+                    .iter()
+                    .position(|variant| variant.name == name)
+                    .map(|variant_index| ResolvedMember::EnumVariant { enum_id, variant_index }),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    pub fn source_scope_declarations(
+        self,
+        source_id: hir::SourceId,
+    ) -> impl Iterator<Item = ScopeDeclaration> + 'gcx {
+        self.symbol_resolver.source_scopes[source_id].iter().flat_map(|(name, declarations)| {
+            declarations
+                .iter()
+                .map(move |declaration| ScopeDeclaration { name, res: declaration.res })
+        })
+    }
+
+    pub fn contract_scope_declarations(
+        self,
+        contract_id: hir::ContractId,
+    ) -> impl Iterator<Item = ScopeDeclaration> + 'gcx {
+        self.symbol_resolver.contract_scopes[contract_id].iter().flat_map(|(name, declarations)| {
+            declarations
+                .iter()
+                .map(move |declaration| ScopeDeclaration { name, res: declaration.res })
+        })
+    }
+
+    pub fn global_scope_declarations(self) -> impl Iterator<Item = ScopeDeclaration> + 'gcx {
+        self.symbol_resolver.global_scope().iter().flat_map(|(name, declarations)| {
+            declarations
+                .iter()
+                .map(move |declaration| ScopeDeclaration { name, res: declaration.res })
+        })
     }
 
     fn native_members_in_context(

@@ -2126,6 +2126,10 @@ impl<'gcx> SymbolResolver<'gcx> {
         }
     }
 
+    pub(crate) fn global_scope(&self) -> &Declarations {
+        &self.global_builtin_scope
+    }
+
     fn report_expected(&self, expected: &str, found: &str, span: Span) -> ErrorGuaranteed {
         self.dcx.emit_err(span, format!("expected {expected}, found {found}"))
     }

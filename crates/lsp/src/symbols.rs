@@ -3,7 +3,7 @@ use lsp_types::{
     Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
 };
 use solar_interface::{
-    Span,
+    Span, Symbol,
     data_structures::{Never, index::IndexVec, map::FxHashMap, newtype_index},
 };
 use solar_sema::{
@@ -12,7 +12,7 @@ use solar_sema::{
         self, ContractKind, EnumId, FunctionKind, ItemId, Res, StmtKind, TypeKind, UsingEntryKind,
         VarKind, Visit,
     },
-    ty::ResolvedMember,
+    ty::{MemberCompletion, ResolvedMember, ScopeDeclaration},
 };
 use std::ops::ControlFlow;
 
@@ -21,10 +21,14 @@ use crate::proto;
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
     declarations: IndexVec<SymbolId, DeclarationSymbol>,
+    completion_entries: IndexVec<CompletionEntryId, CompletionEntry>,
+    declaration_completion_ids: IndexVec<SymbolId, CompletionEntryId>,
     files: FxHashMap<Url, Vec<SymbolId>>,
     workspace_symbol_ids: Vec<SymbolId>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
+    member_completion_sets: IndexVec<MemberCompletionSetId, MemberCompletionSet>,
+    member_completions: Vec<MemberCompletionScope>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, Vec<usize>>,
@@ -35,8 +39,14 @@ newtype_index! {
     /// A declaration symbol ID in the LSP symbol table.
     pub(crate) struct SymbolId;
 
+    /// A completion entry ID in the LSP symbol table.
+    pub(crate) struct CompletionEntryId;
+
     /// A lexical scope ID in the LSP symbol table.
     pub(crate) struct ScopeId;
+
+    /// A typed receiver member completion set in the LSP symbol table.
+    pub(crate) struct MemberCompletionSetId;
 }
 
 #[derive(Clone, Debug)]
@@ -67,14 +77,41 @@ struct Scope {
 
 #[derive(Clone, Copy, Debug)]
 struct ScopedDeclaration {
-    symbol_id: SymbolId,
+    completion_id: CompletionEntryId,
+    member_completion_ids: Option<MemberCompletionSetId>,
     available_from: Option<Position>,
+}
+
+#[derive(Clone, Debug)]
+struct CompletionEntry {
+    label: String,
+    kind: CompletionItemKind,
+    detail: Option<String>,
+    symbol_id: Option<SymbolId>,
+}
+
+#[derive(Clone, Debug)]
+struct MemberCompletionScope {
+    uri: Url,
+    range: Range,
+    entries: Vec<CompletionEntryId>,
+}
+
+#[derive(Clone, Debug)]
+struct MemberCompletionSet {
+    entries: Vec<CompletionEntryId>,
 }
 
 #[derive(Clone, Debug)]
 struct SymbolReference {
     location: Location,
     targets: Vec<SymbolId>,
+}
+
+#[derive(Clone, Copy, Debug)]
+struct CompletionContext {
+    source: Option<hir::SourceId>,
+    contract: Option<hir::ContractId>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -175,6 +212,7 @@ impl SymbolTables {
         }
 
         tables.build_scopes(gcx);
+        tables.build_member_completions(gcx);
         tables.build_references(gcx);
         tables.rebuild_indexes();
         tables
@@ -197,21 +235,44 @@ impl SymbolTables {
     }
 
     pub(crate) fn extend(&mut self, mut other: Self) {
-        if other.declarations.is_empty() {
+        if other.declarations.is_empty() && other.completion_entries.is_empty() {
             return;
         }
 
         let symbol_offset = self.declarations.len();
+        let completion_offset = self.completion_entries.len();
         let scope_offset = self.scopes.len();
+        let member_completion_set_offset = self.member_completion_sets.len();
         for declaration in &mut other.declarations {
             declaration.id = remap_symbol_id(declaration.id, symbol_offset);
             declaration.parent =
                 declaration.parent.map(|parent| remap_symbol_id(parent, symbol_offset));
         }
+        for entry in &mut other.completion_entries {
+            entry.symbol_id =
+                entry.symbol_id.map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset));
+        }
+        for completion_id in &mut other.declaration_completion_ids {
+            *completion_id = remap_completion_entry_id(*completion_id, completion_offset);
+        }
         for scope in &mut other.scopes {
             scope.parent = scope.parent.map(|parent| remap_scope_id(parent, scope_offset));
             for declaration in &mut scope.declarations {
-                declaration.symbol_id = remap_symbol_id(declaration.symbol_id, symbol_offset);
+                declaration.completion_id =
+                    remap_completion_entry_id(declaration.completion_id, completion_offset);
+                declaration.member_completion_ids = declaration
+                    .member_completion_ids
+                    .map(|id| remap_member_completion_set_id(id, member_completion_set_offset));
+            }
+        }
+        for completion_set in &mut other.member_completion_sets {
+            for entry in &mut completion_set.entries {
+                *entry = remap_completion_entry_id(*entry, completion_offset);
+            }
+        }
+        for completion in &mut other.member_completions {
+            for entry in &mut completion.entries {
+                *entry = remap_completion_entry_id(*entry, completion_offset);
             }
         }
         for reference in &mut other.references {
@@ -226,7 +287,11 @@ impl SymbolTables {
             );
         }
         self.declarations.extend(other.declarations);
+        self.completion_entries.extend(other.completion_entries);
+        self.declaration_completion_ids.extend(other.declaration_completion_ids);
         self.scopes.extend(other.scopes);
+        self.member_completion_sets.extend(other.member_completion_sets);
+        self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
         // HIR IDs are scoped to one compiler run, so this build-time map is not meaningful after
         // merging symbol tables from separate analysis batches.
@@ -356,11 +421,35 @@ impl SymbolTables {
     }
 
     pub(crate) fn completion_items(&self, uri: &Url, position: Position) -> Vec<CompletionItem> {
+        if let Some(items) = self.member_completion_items(uri, position) {
+            return items;
+        }
+        self.lexical_completion_items(uri, position)
+    }
+
+    pub(crate) fn completion_items_with_source(
+        &self,
+        uri: &Url,
+        position: Position,
+        source: &str,
+    ) -> Vec<CompletionItem> {
+        if let Some(items) = self.member_completion_items(uri, position) {
+            return items;
+        }
+        if let Some(receiver) = trailing_member_receiver(source, position)
+            && let Some(items) = self.member_completion_items_for_receiver(uri, position, receiver)
+        {
+            return items;
+        }
+        self.lexical_completion_items(uri, position)
+    }
+
+    fn lexical_completion_items(&self, uri: &Url, position: Position) -> Vec<CompletionItem> {
         let Some(scope_id) = self.scope_at_position(uri, position) else {
             return Vec::new();
         };
 
-        let mut seen = FxHashMap::<String, SymbolId>::default();
+        let mut seen = FxHashMap::<String, CompletionEntryId>::default();
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
             let current = &self.scopes[scope_id];
@@ -371,15 +460,15 @@ impl SymbolTables {
                 {
                     continue;
                 }
-                let symbol = &self.declarations[declaration.symbol_id];
-                seen.entry(symbol.name.clone()).or_insert(declaration.symbol_id);
+                let entry = &self.completion_entries[declaration.completion_id];
+                seen.entry(entry.label.clone()).or_insert(declaration.completion_id);
             }
             scope = current.parent;
         }
 
         let mut items =
-            seen.into_values().map(|symbol_id| self.completion_item(symbol_id)).collect::<Vec<_>>();
-        items.sort_by(|a, b| a.label.cmp(&b.label));
+            seen.into_values().map(|entry_id| self.completion_item(entry_id)).collect::<Vec<_>>();
+        sort_completion_items(&mut items);
         items
     }
 
@@ -389,6 +478,7 @@ impl SymbolTables {
         self.symbols_by_key.insert(key, id);
         let pushed_id = self.declarations.push(declaration);
         debug_assert_eq!(id, pushed_id);
+        self.push_declaration_completion_entry(id);
         id
     }
 
@@ -398,13 +488,75 @@ impl SymbolTables {
         self.files.entry(declaration.location.uri.clone()).or_default().push(id);
         let pushed_id = self.declarations.push(declaration);
         debug_assert_eq!(id, pushed_id);
+        self.push_declaration_completion_entry(id);
         id
     }
 
+    fn push_declaration_completion_entry(&mut self, symbol_id: SymbolId) -> CompletionEntryId {
+        let symbol = &self.declarations[symbol_id];
+        let completion_id = self.push_completion_entry(CompletionEntry {
+            label: symbol.name.clone(),
+            kind: completion_item_kind(symbol.kind),
+            detail: self.container_name(symbol),
+            symbol_id: Some(symbol_id),
+        });
+        let pushed_id = self.declaration_completion_ids.push(completion_id);
+        debug_assert_eq!(symbol_id, pushed_id);
+        completion_id
+    }
+
+    fn push_completion_entry(&mut self, entry: CompletionEntry) -> CompletionEntryId {
+        self.completion_entries.push(entry)
+    }
+
+    fn push_res_completion_entry(
+        &mut self,
+        gcx: Gcx<'_>,
+        name: Symbol,
+        res: Res,
+    ) -> CompletionEntryId {
+        self.push_completion_entry(CompletionEntry {
+            label: name.to_string(),
+            kind: completion_item_kind(res_symbol_kind(gcx, res)),
+            detail: completion_detail(gcx, res),
+            symbol_id: self.symbol_id_for_res(res),
+        })
+    }
+
+    fn push_alias_completion_entry(
+        &mut self,
+        name: Symbol,
+        symbol_id: SymbolId,
+    ) -> CompletionEntryId {
+        let symbol = &self.declarations[symbol_id];
+        self.push_completion_entry(CompletionEntry {
+            label: name.to_string(),
+            kind: completion_item_kind(symbol.kind),
+            detail: Some(symbol.name.clone()),
+            symbol_id: Some(symbol_id),
+        })
+    }
+
     fn build_scopes(&mut self, gcx: Gcx<'_>) {
-        let mut builder = ScopeBuilder { tables: self, gcx, scope: None };
+        let mut builder = ScopeBuilder {
+            tables: self,
+            gcx,
+            scope: None,
+            context: CompletionContext { source: None, contract: None },
+        };
         for source_id in gcx.hir.source_ids() {
             builder.visit_source_scope(source_id);
+        }
+    }
+
+    fn build_member_completions(&mut self, gcx: Gcx<'_>) {
+        let mut collector =
+            MemberCompletionCollector { tables: self, gcx, source: None, contract: None };
+        for source_id in gcx.hir.source_ids() {
+            collector.source = Some(source_id);
+            collector.contract = None;
+            let _ = collector.visit_nested_source(source_id);
+            collector.source = None;
         }
     }
 
@@ -417,10 +569,61 @@ impl SymbolTables {
         self.scopes.push(Scope { parent, uri, range, declarations: Vec::new() })
     }
 
-    fn add_scope_declaration(&mut self, scope: ScopeId, item_id: ItemId) {
+    fn add_scope_declaration(
+        &mut self,
+        gcx: Gcx<'_>,
+        scope: ScopeId,
+        item_id: ItemId,
+        context: CompletionContext,
+    ) {
         if let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) {
-            self.add_symbol_to_scope(scope, symbol_id);
+            let completion_id = self.declaration_completion_id(symbol_id);
+            let member_completion_ids =
+                self.member_completion_set_for_res(gcx, Res::Item(item_id), context);
+            self.add_completion_entry_to_scope(scope, completion_id, member_completion_ids);
         }
+    }
+
+    fn add_resolved_scope_declarations(
+        &mut self,
+        gcx: Gcx<'_>,
+        scope: ScopeId,
+        context: CompletionContext,
+        declarations: impl IntoIterator<Item = ScopeDeclaration>,
+    ) {
+        for declaration in declarations {
+            self.add_resolved_scope_declaration(gcx, scope, context, declaration);
+        }
+    }
+
+    fn add_resolved_scope_declaration(
+        &mut self,
+        gcx: Gcx<'_>,
+        scope: ScopeId,
+        context: CompletionContext,
+        declaration: ScopeDeclaration,
+    ) {
+        let completion_id = match declaration.res {
+            Res::Item(item_id) => {
+                if let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) {
+                    let symbol = &self.declarations[symbol_id];
+                    if symbol.name == declaration.name.as_str() {
+                        self.declaration_completion_id(symbol_id)
+                    } else {
+                        self.push_alias_completion_entry(declaration.name, symbol_id)
+                    }
+                } else {
+                    self.push_res_completion_entry(gcx, declaration.name, declaration.res)
+                }
+            }
+            Res::Builtin(_) | Res::Namespace(_) => {
+                self.push_res_completion_entry(gcx, declaration.name, declaration.res)
+            }
+            Res::Err(_) => return,
+        };
+        let member_completion_ids =
+            self.member_completion_set_for_res(gcx, declaration.res, context);
+        self.add_completion_entry_to_scope(scope, completion_id, member_completion_ids);
     }
 
     fn add_local_scope_declaration(
@@ -429,29 +632,76 @@ impl SymbolTables {
         scope: ScopeId,
         item_id: ItemId,
         span: Span,
+        context: CompletionContext,
     ) {
         if let Some(&symbol_id) = self.symbols_by_key.get(&SymbolKey::Item(item_id)) {
-            self.add_local_symbol_to_scope(gcx, scope, symbol_id, span);
+            self.add_local_symbol_to_scope(gcx, scope, item_id, symbol_id, span, context);
         }
     }
 
     fn add_symbol_to_scope(&mut self, scope: ScopeId, symbol_id: SymbolId) {
-        self.scopes[scope].declarations.push(ScopedDeclaration { symbol_id, available_from: None });
+        let completion_id = self.declaration_completion_id(symbol_id);
+        self.add_completion_entry_to_scope(scope, completion_id, None);
     }
 
     fn add_local_symbol_to_scope(
         &mut self,
         gcx: Gcx<'_>,
         scope: ScopeId,
+        item_id: ItemId,
         symbol_id: SymbolId,
         span: Span,
+        context: CompletionContext,
     ) {
         let available_from = proto::span_to_location(gcx.sess.source_map(), span)
             .map(|location| location.range.end)
             .unwrap_or(self.declarations[symbol_id].location.range.end);
-        self.scopes[scope]
-            .declarations
-            .push(ScopedDeclaration { symbol_id, available_from: Some(available_from) });
+        let completion_id = self.declaration_completion_id(symbol_id);
+        let member_completion_ids =
+            self.member_completion_set_for_res(gcx, Res::Item(item_id), context);
+        self.scopes[scope].declarations.push(ScopedDeclaration {
+            completion_id,
+            member_completion_ids,
+            available_from: Some(available_from),
+        });
+    }
+
+    fn add_completion_entry_to_scope(
+        &mut self,
+        scope: ScopeId,
+        completion_id: CompletionEntryId,
+        member_completion_ids: Option<MemberCompletionSetId>,
+    ) {
+        self.scopes[scope].declarations.push(ScopedDeclaration {
+            completion_id,
+            member_completion_ids,
+            available_from: None,
+        });
+    }
+
+    fn member_completion_set_for_res(
+        &mut self,
+        gcx: Gcx<'_>,
+        res: Res,
+        context: CompletionContext,
+    ) -> Option<MemberCompletionSetId> {
+        let source = context.source?;
+        if !matches!(res, Res::Item(_) | Res::Namespace(_)) {
+            return None;
+        }
+        let entries = gcx
+            .member_completions_of(gcx.type_of_res(res), source, context.contract)
+            .into_iter()
+            .map(|member| self.member_completion_entry(gcx, member))
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
+            return None;
+        }
+        Some(self.member_completion_sets.push(MemberCompletionSet { entries }))
+    }
+
+    fn declaration_completion_id(&self, symbol_id: SymbolId) -> CompletionEntryId {
+        self.declaration_completion_ids[symbol_id]
     }
 
     fn build_references(&mut self, gcx: Gcx<'_>) {
@@ -590,12 +840,116 @@ impl SymbolTables {
         depth
     }
 
-    fn completion_item(&self, symbol_id: SymbolId) -> CompletionItem {
-        let symbol = &self.declarations[symbol_id];
+    fn member_completion_items(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<CompletionItem>> {
+        let completion = self
+            .member_completions
+            .iter()
+            .filter(|completion| {
+                completion.uri == *uri && range_contains(completion.range, position)
+            })
+            .min_by_key(|completion| range_size_key(completion.range))?;
+        self.completion_items_from_entries(&completion.entries)
+    }
+
+    fn member_completion_items_for_receiver(
+        &self,
+        uri: &Url,
+        position: Position,
+        receiver: &str,
+    ) -> Option<Vec<CompletionItem>> {
+        let mut scope = Some(self.scope_at_position(uri, position)?);
+        while let Some(scope_id) = scope {
+            let current = &self.scopes[scope_id];
+            for declaration in &current.declarations {
+                if declaration
+                    .available_from
+                    .is_some_and(|available_from| available_from > position)
+                {
+                    continue;
+                }
+                let entry = &self.completion_entries[declaration.completion_id];
+                if entry.label != receiver {
+                    continue;
+                }
+                let completion_set = declaration.member_completion_ids?;
+                return self.completion_items_from_entries(
+                    &self.member_completion_sets[completion_set].entries,
+                );
+            }
+            scope = current.parent;
+        }
+        None
+    }
+
+    fn completion_items_from_entries(
+        &self,
+        entries: &[CompletionEntryId],
+    ) -> Option<Vec<CompletionItem>> {
+        let mut seen = FxHashMap::<String, CompletionEntryId>::default();
+        for &entry_id in entries {
+            let entry = &self.completion_entries[entry_id];
+            seen.entry(entry.label.clone()).or_insert(entry_id);
+        }
+        if seen.is_empty() {
+            return None;
+        }
+        let mut items =
+            seen.into_values().map(|entry_id| self.completion_item(entry_id)).collect::<Vec<_>>();
+        sort_completion_items(&mut items);
+        Some(items)
+    }
+
+    fn member_completion_entry(
+        &mut self,
+        gcx: Gcx<'_>,
+        member: MemberCompletion,
+    ) -> CompletionEntryId {
+        if let Some(symbol_id) = self.symbol_id_for_member_completion(gcx, member) {
+            return self.declaration_completion_id(symbol_id);
+        }
+        self.push_completion_entry(CompletionEntry {
+            label: member.name.to_string(),
+            kind: member_completion_item_kind(member),
+            detail: member.attached.then_some("using for".to_string()),
+            symbol_id: member.res.and_then(|res| self.symbol_id_for_res(res)),
+        })
+    }
+
+    fn symbol_id_for_member_completion(
+        &self,
+        gcx: Gcx<'_>,
+        member: MemberCompletion,
+    ) -> Option<SymbolId> {
+        match member.resolved {
+            Some(ResolvedMember::Res(res)) => self.symbol_id_for_res(res),
+            Some(ResolvedMember::StructField { struct_id, field_index }) => {
+                let field_id = gcx.hir.strukt(struct_id).fields.get(field_index).copied()?;
+                self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(field_id))).copied()
+            }
+            Some(ResolvedMember::EnumVariant { enum_id, variant_index }) => {
+                self.symbols_by_key.get(&SymbolKey::EnumVariant(enum_id, variant_index)).copied()
+            }
+            None => member.res.and_then(|res| self.symbol_id_for_res(res)),
+        }
+    }
+
+    fn symbol_id_for_res(&self, res: Res) -> Option<SymbolId> {
+        match res {
+            Res::Item(item_id) => self.symbols_by_key.get(&SymbolKey::Item(item_id)).copied(),
+            Res::Namespace(_) | Res::Builtin(_) | Res::Err(_) => None,
+        }
+    }
+
+    fn completion_item(&self, entry_id: CompletionEntryId) -> CompletionItem {
+        let entry = &self.completion_entries[entry_id];
         CompletionItem {
-            label: symbol.name.clone(),
-            kind: Some(completion_item_kind(symbol.kind)),
-            detail: self.container_name(symbol),
+            label: entry.label.clone(),
+            kind: Some(entry.kind),
+            detail: entry.detail.clone(),
             ..Default::default()
         }
     }
@@ -658,14 +1012,26 @@ fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
     SymbolId::from_usize(symbol_id.index() + offset)
 }
 
+fn remap_completion_entry_id(completion_id: CompletionEntryId, offset: usize) -> CompletionEntryId {
+    CompletionEntryId::from_usize(completion_id.index() + offset)
+}
+
 fn remap_scope_id(scope_id: ScopeId, offset: usize) -> ScopeId {
     ScopeId::from_usize(scope_id.index() + offset)
+}
+
+fn remap_member_completion_set_id(
+    id: MemberCompletionSetId,
+    offset: usize,
+) -> MemberCompletionSetId {
+    MemberCompletionSetId::from_usize(id.index() + offset)
 }
 
 struct ScopeBuilder<'a, 'gcx> {
     tables: &'a mut SymbolTables,
     gcx: Gcx<'gcx>,
     scope: Option<ScopeId>,
+    context: CompletionContext,
 }
 
 impl<'gcx> ScopeBuilder<'_, 'gcx> {
@@ -686,12 +1052,26 @@ impl<'gcx> ScopeBuilder<'_, 'gcx> {
         };
 
         let root = self.tables.push_scope(uri, range, None);
+        let previous_context = self.context;
+        self.context = CompletionContext { source: Some(source_id), contract: None };
+        self.tables.add_resolved_scope_declarations(
+            self.gcx,
+            root,
+            self.context,
+            self.gcx.source_scope_declarations(source_id),
+        );
+        self.tables.add_resolved_scope_declarations(
+            self.gcx,
+            root,
+            self.context,
+            self.gcx.global_scope_declarations(),
+        );
         self.with_scope(root, |this| {
             for &item_id in source.items {
-                this.tables.add_scope_declaration(root, item_id);
                 let _ = this.visit_nested_item(item_id);
             }
         });
+        self.context = previous_context;
     }
 
     fn push_child_scope(&mut self, span: Span) -> Option<ScopeId> {
@@ -741,12 +1121,20 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
         let Some(scope) = self.push_child_scope(contract.span) else {
             return ControlFlow::Continue(());
         };
+        let previous_context = self.context;
+        self.context.contract = Some(id);
+        self.tables.add_resolved_scope_declarations(
+            self.gcx,
+            scope,
+            self.context,
+            self.gcx.contract_scope_declarations(id),
+        );
         self.with_scope(scope, |this| {
             for &item_id in contract.items {
-                this.tables.add_scope_declaration(scope, item_id);
                 let _ = this.visit_nested_item(item_id);
             }
         });
+        self.context = previous_context;
         ControlFlow::Continue(())
     }
 
@@ -759,10 +1147,20 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
         };
         self.with_scope(scope, |this| {
             for &param in function.parameters {
-                this.tables.add_scope_declaration(scope, ItemId::Variable(param));
+                this.tables.add_scope_declaration(
+                    this.gcx,
+                    scope,
+                    ItemId::Variable(param),
+                    this.context,
+                );
             }
             for &ret in function.returns {
-                this.tables.add_scope_declaration(scope, ItemId::Variable(ret));
+                this.tables.add_scope_declaration(
+                    this.gcx,
+                    scope,
+                    ItemId::Variable(ret),
+                    this.context,
+                );
             }
             if let Some(body) = function.body {
                 this.visit_block_scope(body);
@@ -776,7 +1174,12 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
             return ControlFlow::Continue(());
         };
         for &field in strukt.fields {
-            self.tables.add_scope_declaration(scope, ItemId::Variable(field));
+            self.tables.add_scope_declaration(
+                self.gcx,
+                scope,
+                ItemId::Variable(field),
+                self.context,
+            );
         }
         ControlFlow::Continue(())
     }
@@ -801,7 +1204,12 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
             return ControlFlow::Continue(());
         };
         for &param in error.parameters {
-            self.tables.add_scope_declaration(scope, ItemId::Variable(param));
+            self.tables.add_scope_declaration(
+                self.gcx,
+                scope,
+                ItemId::Variable(param),
+                self.context,
+            );
         }
         ControlFlow::Continue(())
     }
@@ -811,7 +1219,12 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
             return ControlFlow::Continue(());
         };
         for &param in event.parameters {
-            self.tables.add_scope_declaration(scope, ItemId::Variable(param));
+            self.tables.add_scope_declaration(
+                self.gcx,
+                scope,
+                ItemId::Variable(param),
+                self.context,
+            );
         }
         ControlFlow::Continue(())
     }
@@ -827,6 +1240,7 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
                     scope,
                     ItemId::Variable(var),
                     stmt.span,
+                    self.context,
                 );
             }
             StmtKind::DeclMulti(vars, _) => {
@@ -836,6 +1250,7 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
                         scope,
                         ItemId::Variable(var),
                         stmt.span,
+                        self.context,
                     );
                 }
             }
@@ -861,7 +1276,12 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
                     };
                     self.with_scope(clause_scope, |this| {
                         for &arg in clause.args {
-                            this.tables.add_scope_declaration(clause_scope, ItemId::Variable(arg));
+                            this.tables.add_scope_declaration(
+                                this.gcx,
+                                clause_scope,
+                                ItemId::Variable(arg),
+                                this.context,
+                            );
                         }
                         this.visit_block_scope(clause.block);
                     });
@@ -875,6 +1295,75 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
             | StmtKind::Expr(_)
             | StmtKind::Placeholder
             | StmtKind::Err(_) => {}
+        }
+        ControlFlow::Continue(())
+    }
+}
+
+struct MemberCompletionCollector<'a, 'gcx> {
+    tables: &'a mut SymbolTables,
+    gcx: Gcx<'gcx>,
+    source: Option<hir::SourceId>,
+    contract: Option<hir::ContractId>,
+}
+
+impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
+    fn push_member_completions(
+        &mut self,
+        receiver: &'gcx hir::Expr<'gcx>,
+        member: solar_interface::Ident,
+    ) {
+        let Some(source) = self.source else {
+            return;
+        };
+        let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else {
+            return;
+        };
+        let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), member.span)
+        else {
+            return;
+        };
+        let entries = self
+            .gcx
+            .member_completions_of(receiver_ty, source, self.contract)
+            .into_iter()
+            .map(|member| self.tables.member_completion_entry(self.gcx, member))
+            .collect::<Vec<_>>();
+        if entries.is_empty() {
+            return;
+        }
+        self.tables.member_completions.push(MemberCompletionScope {
+            uri: location.uri,
+            range: location.range,
+            entries,
+        });
+    }
+}
+
+impl<'gcx> hir::Visit<'gcx> for MemberCompletionCollector<'_, 'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_nested_contract(&mut self, id: hir::ContractId) -> ControlFlow<Self::BreakValue> {
+        let previous_contract = self.contract.replace(id);
+        let result = self.visit_contract(self.hir().contract(id));
+        self.contract = previous_contract;
+        result
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        match expr.kind {
+            hir::ExprKind::Member(receiver, member)
+            | hir::ExprKind::YulMember(receiver, member) => {
+                self.visit_expr(receiver)?;
+                self.push_member_completions(receiver, member);
+            }
+            _ => {
+                hir::Visit::walk_expr(self, expr)?;
+            }
         }
         ControlFlow::Continue(())
     }
@@ -1101,6 +1590,10 @@ fn sort_locations(locations: &mut [Location]) {
     });
 }
 
+fn sort_completion_items(items: &mut [CompletionItem]) {
+    items.sort_by(|a, b| a.label.cmp(&b.label));
+}
+
 fn range_contains(range: Range, position: Position) -> bool {
     if range.start == range.end {
         return position == range.start;
@@ -1113,6 +1606,48 @@ fn range_size_key(range: Range) -> (u32, u32) {
         range.end.line.saturating_sub(range.start.line),
         range.end.character.saturating_sub(range.start.character),
     )
+}
+
+fn trailing_member_receiver(source: &str, position: Position) -> Option<&str> {
+    let line = source.lines().nth(position.line as usize)?;
+    let line_prefix = utf16_prefix(line, position.character)?;
+    let trimmed = line_prefix.trim_end();
+    let before_dot = trimmed.strip_suffix('.')?.trim_end();
+    let receiver_end = before_dot.len();
+    let receiver_start = before_dot[..receiver_end]
+        .char_indices()
+        .rev()
+        .find_map(|(index, ch)| (!is_identifier_continue(ch)).then_some(index + ch.len_utf8()))
+        .unwrap_or(0);
+    let receiver = &before_dot[receiver_start..receiver_end];
+    (!receiver.is_empty() && receiver.chars().next().is_some_and(is_identifier_start))
+        .then_some(receiver)
+}
+
+fn utf16_prefix(line: &str, character: u32) -> Option<&str> {
+    if character == 0 {
+        return Some("");
+    }
+
+    let mut utf16_len = 0;
+    for (index, ch) in line.char_indices() {
+        if utf16_len == character {
+            return Some(&line[..index]);
+        }
+        utf16_len += ch.len_utf16() as u32;
+        if utf16_len > character {
+            return None;
+        }
+    }
+    (utf16_len == character).then_some(line)
+}
+
+fn is_identifier_start(ch: char) -> bool {
+    ch == '_' || ch == '$' || ch.is_ascii_alphabetic()
+}
+
+fn is_identifier_continue(ch: char) -> bool {
+    is_identifier_start(ch) || ch.is_ascii_digit()
 }
 
 fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
@@ -1143,6 +1678,53 @@ fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
         SymbolKind::OPERATOR => CompletionItemKind::OPERATOR,
         SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
         _ => CompletionItemKind::TEXT,
+    }
+}
+
+fn res_symbol_kind(gcx: Gcx<'_>, res: Res) -> SymbolKind {
+    match res {
+        Res::Item(item_id) => item_symbol_kind(gcx, item_id),
+        Res::Namespace(_) => SymbolKind::MODULE,
+        Res::Builtin(builtin) => {
+            if builtin.members().is_some() {
+                SymbolKind::MODULE
+            } else {
+                SymbolKind::FUNCTION
+            }
+        }
+        Res::Err(_) => SymbolKind::NULL,
+    }
+}
+
+fn completion_detail(gcx: Gcx<'_>, res: Res) -> Option<String> {
+    match res {
+        Res::Item(item_id) => Some(gcx.hir.item(item_id).description().to_string()),
+        Res::Namespace(_) => Some("import namespace".to_string()),
+        Res::Builtin(_) => Some("builtin".to_string()),
+        Res::Err(_) => None,
+    }
+}
+
+fn member_completion_item_kind(member: MemberCompletion) -> CompletionItemKind {
+    if matches!(member.resolved, Some(ResolvedMember::EnumVariant { .. })) {
+        return CompletionItemKind::ENUM_MEMBER;
+    }
+    if matches!(member.resolved, Some(ResolvedMember::StructField { .. })) {
+        return CompletionItemKind::FIELD;
+    }
+
+    match member.res {
+        Some(Res::Item(ItemId::Function(_))) => CompletionItemKind::METHOD,
+        Some(Res::Item(ItemId::Variable(_))) | None => CompletionItemKind::FIELD,
+        Some(Res::Item(ItemId::Contract(_))) | Some(Res::Namespace(_)) => {
+            CompletionItemKind::MODULE
+        }
+        Some(Res::Item(ItemId::Struct(_))) => CompletionItemKind::STRUCT,
+        Some(Res::Item(ItemId::Enum(_))) => CompletionItemKind::ENUM,
+        Some(Res::Item(ItemId::Udvt(_))) => CompletionItemKind::TYPE_PARAMETER,
+        Some(Res::Item(ItemId::Error(_) | ItemId::Event(_))) => CompletionItemKind::EVENT,
+        Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
+        Some(Res::Err(_)) => CompletionItemKind::TEXT,
     }
 }
 

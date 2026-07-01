@@ -935,6 +935,196 @@ mod tests {
     }
 
     #[test]
+    fn analyze_completes_imported_symbols_and_builtins_in_scope() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /lib/Library.sol
+            library MathLib {
+                function inc(uint256 value) internal pure returns (uint256) {
+                    return value + 1;
+                }
+            }
+
+            contract Base {
+                function inherited() internal pure {}
+            }
+
+            //- /Completion.sol
+            import {MathLib as Lib, Base} from "./lib/Library.sol";
+
+            contract C is Base {
+                using Lib for uint256;
+
+                function f(uint256 value) public pure {
+                    uint256 localValue = value;
+                    localValue;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Completion.sol");
+        let lib_path = project.path("/lib/Library.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![
+                (path, project.read_file("/Completion.sol")),
+                (lib_path, project.read_file("/lib/Library.sol")),
+            ],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let completions = result.symbol_tables.completion_items(&uri, position(5, 18));
+        let labels = completion_labels(&completions);
+        assert!(labels.contains(&"Lib"), "{labels:?}");
+        assert!(labels.contains(&"Base"), "{labels:?}");
+        assert!(labels.contains(&"this"), "{labels:?}");
+        assert!(labels.contains(&"super"), "{labels:?}");
+        assert!(labels.contains(&"abi"), "{labels:?}");
+        assert!(labels.contains(&"value"), "{labels:?}");
+        assert!(labels.contains(&"localValue"), "{labels:?}");
+    }
+
+    #[test]
+    fn analyze_completes_members_from_receiver_type() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Members.sol
+            library UIntLib {
+                function inc(uint256 value) internal pure returns (uint256) {
+                    return value + 1;
+                }
+            }
+
+            contract C {
+                using UIntLib for uint256;
+
+                enum Choice { A, B }
+                struct Data { uint256 field; uint256 other; }
+
+                function read(Data memory data, uint256 value) public pure returns (uint256) {
+                    return data.field + value.inc() + uint256(Choice.A);
+                }
+
+                function readAgain(Data memory data, uint256 value) public pure returns (uint256) {
+                    return data.field + value.inc() + uint256(Choice.A);
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Members.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Members.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
+
+        let struct_completions = result.symbol_tables.completion_items(&uri, position(10, 20));
+        let labels = completion_labels(&struct_completions);
+        assert!(labels.contains(&"field"), "{labels:?}");
+        assert!(labels.contains(&"other"), "{labels:?}");
+        assert!(!labels.contains(&"data"), "{labels:?}");
+
+        let using_completions = result.symbol_tables.completion_items(&uri, position(10, 34));
+        let labels = completion_labels(&using_completions);
+        assert!(labels.contains(&"inc"), "{labels:?}");
+        assert!(!labels.contains(&"value"), "{labels:?}");
+
+        let enum_completions = result.symbol_tables.completion_items(&uri, position(10, 57));
+        let labels = completion_labels(&enum_completions);
+        assert!(labels.contains(&"A"), "{labels:?}");
+        assert!(labels.contains(&"B"), "{labels:?}");
+        assert!(!labels.contains(&"Choice"), "{labels:?}");
+
+        let struct_completions = result.symbol_tables.completion_items(&uri, position(13, 20));
+        let labels = completion_labels(&struct_completions);
+        assert!(labels.contains(&"field"), "{labels:?}");
+        assert!(labels.contains(&"other"), "{labels:?}");
+
+        let using_completions = result.symbol_tables.completion_items(&uri, position(13, 34));
+        let labels = completion_labels(&using_completions);
+        assert!(labels.contains(&"inc"), "{labels:?}");
+
+        let enum_completions = result.symbol_tables.completion_items(&uri, position(13, 57));
+        let labels = completion_labels(&enum_completions);
+        assert!(labels.contains(&"A"), "{labels:?}");
+        assert!(labels.contains(&"B"), "{labels:?}");
+    }
+
+    #[test]
+    fn analyze_completes_members_after_trailing_dot_in_open_document() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Members.sol
+            library UIntLib {
+                function inc(uint256 value) internal pure returns (uint256) {
+                    return value + 1;
+                }
+            }
+
+            contract C {
+                using UIntLib for uint256;
+
+                enum Choice { A, B }
+                struct Data { uint256 field; uint256 other; }
+
+                function read(Data memory data, uint256 value) public pure returns (uint256) {
+                    data.field;
+                    value.inc();
+                    Choice.A;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Members.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let contents = project.read_file("/Members.sol");
+        let dirty_contents = contents
+            .replace("data.field;", "data.")
+            .replace("value.inc();", "value.")
+            .replace("Choice.A;", "Choice.");
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, contents)],
+            seen_paths: FxHashSet::default(),
+        });
+
+        let struct_completions = result.symbol_tables.completion_items_with_source(
+            &uri,
+            position_after(&dirty_contents, "data."),
+            &dirty_contents,
+        );
+        let labels = completion_labels(&struct_completions);
+        assert!(labels.contains(&"field"), "{labels:?}");
+        assert!(labels.contains(&"other"), "{labels:?}");
+        assert!(!labels.contains(&"data"), "{labels:?}");
+
+        let using_completions = result.symbol_tables.completion_items_with_source(
+            &uri,
+            position_after(&dirty_contents, "value."),
+            &dirty_contents,
+        );
+        let labels = completion_labels(&using_completions);
+        assert!(labels.contains(&"inc"), "{labels:?}");
+        assert!(!labels.contains(&"value"), "{labels:?}");
+
+        let enum_completions = result.symbol_tables.completion_items_with_source(
+            &uri,
+            position_after(&dirty_contents, "Choice."),
+            &dirty_contents,
+        );
+        let labels = completion_labels(&enum_completions);
+        assert!(labels.contains(&"A"), "{labels:?}");
+        assert!(labels.contains(&"B"), "{labels:?}");
+        assert!(!labels.contains(&"Choice"), "{labels:?}");
+    }
+
+    #[test]
     fn analyze_indexes_member_references() {
         let project = TestProject::from_fixture(
             r#"
@@ -1249,6 +1439,10 @@ mod tests {
             .collect()
     }
 
+    fn completion_labels(completions: &[lsp_types::CompletionItem]) -> Vec<&str> {
+        completions.iter().map(|item| item.label.as_str()).collect()
+    }
+
     fn find_workspace_symbol<'a>(
         symbols: &'a [WorkspaceSymbol],
         name: &str,
@@ -1260,6 +1454,15 @@ mod tests {
     }
 
     fn position(line: u32, character: u32) -> Position {
+        Position { line, character }
+    }
+
+    fn position_after(source: &str, needle: &str) -> Position {
+        let offset = source.find(needle).unwrap() + needle.len();
+        let prefix = &source[..offset];
+        let line = prefix.bytes().filter(|&byte| byte == b'\n').count() as u32;
+        let character =
+            prefix.rsplit_once('\n').map_or(prefix, |(_, line)| line).encode_utf16().count() as u32;
         Position { line, character }
     }
 }

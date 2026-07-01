@@ -1,4 +1,4 @@
-use crate::global_state::GlobalState;
+use crate::{global_state::GlobalState, proto};
 use async_lsp::ResponseError;
 use lsp_types::{
     CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
@@ -67,8 +67,19 @@ pub(crate) fn completion(
     params: CompletionParams,
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position;
-    let items =
-        state.symbol_tables.read().completion_items(&params.text_document.uri, params.position);
+    let source = proto::vfs_path(&params.text_document.uri).and_then(|path| {
+        state.vfs.read().get_file_contents(&path).map(|contents| contents.to_string())
+    });
+    let symbol_tables = state.symbol_tables.read();
+    let items = if let Some(source) = source.as_deref() {
+        symbol_tables.completion_items_with_source(
+            &params.text_document.uri,
+            params.position,
+            source,
+        )
+    } else {
+        symbol_tables.completion_items(&params.text_document.uri, params.position)
+    };
     ready(Ok(Some(CompletionResponse::Array(items))))
 }
 
