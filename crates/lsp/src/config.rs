@@ -1,7 +1,7 @@
 use crate::workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest};
 use lsp_types::{
-    InitializeParams, OneOf, ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind,
-    TextDocumentSyncOptions,
+    CompletionOptions, DeclarationCapability, InitializeParams, OneOf, ServerCapabilities,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -141,7 +141,11 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
 
     (
         ServerCapabilities {
+            completion_provider: Some(CompletionOptions::default()),
+            declaration_provider: Some(DeclarationCapability::Simple(true)),
+            definition_provider: Some(OneOf::Left(true)),
             document_symbol_provider: Some(OneOf::Left(true)),
+            references_provider: Some(OneOf::Left(true)),
             text_document_sync: Some(TextDocumentSyncCapability::Options(
                 TextDocumentSyncOptions {
                     open_close: Some(true),
@@ -195,7 +199,11 @@ mod tests {
     fn negotiate_capabilities_advertises_symbol_providers() {
         let (capabilities, _) = negotiate_capabilities(InitializeParams::default());
 
+        assert!(capabilities.completion_provider.is_some());
+        assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
+        assert_eq!(capabilities.definition_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
+        assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.workspace_symbol_provider, Some(OneOf::Left(true)));
     }
 

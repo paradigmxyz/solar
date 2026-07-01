@@ -1,8 +1,11 @@
 use crate::global_state::GlobalState;
 use async_lsp::ResponseError;
 use lsp_types::{
-    DocumentSymbolParams, DocumentSymbolResponse, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
+    GotoDefinitionParams, GotoDefinitionResponse, ReferenceParams, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse,
 };
+use std::future::ready;
 
 pub(crate) fn document_symbol(
     state: &mut GlobalState,
@@ -14,7 +17,7 @@ pub(crate) fn document_symbol(
     } else {
         DocumentSymbolResponse::Flat(symbol_tables.flat_document_symbols(&params.text_document.uri))
     };
-    std::future::ready(Ok(Some(response)))
+    ready(Ok(Some(response)))
 }
 
 pub(crate) fn workspace_symbol(
@@ -22,7 +25,51 @@ pub(crate) fn workspace_symbol(
     params: WorkspaceSymbolParams,
 ) -> impl Future<Output = Result<Option<WorkspaceSymbolResponse>, ResponseError>> + use<> {
     let symbols = state.symbol_tables.read().workspace_symbols(&params.query);
-    std::future::ready(Ok(Some(WorkspaceSymbolResponse::Nested(symbols))))
+    ready(Ok(Some(WorkspaceSymbolResponse::Nested(symbols))))
+}
+
+pub(crate) fn goto_definition(
+    state: &mut GlobalState,
+    params: GotoDefinitionParams,
+) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let response =
+        state.symbol_tables.read().goto_definition(&params.text_document.uri, params.position);
+    ready(Ok(response))
+}
+
+pub(crate) fn goto_declaration(
+    state: &mut GlobalState,
+    params: GotoDefinitionParams,
+) -> impl Future<Output = Result<Option<GotoDefinitionResponse>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let response =
+        state.symbol_tables.read().goto_declaration(&params.text_document.uri, params.position);
+    ready(Ok(response))
+}
+
+pub(crate) fn references(
+    state: &mut GlobalState,
+    params: ReferenceParams,
+) -> impl Future<Output = Result<Option<Vec<lsp_types::Location>>, ResponseError>> + use<> {
+    let include_declaration = params.context.include_declaration;
+    let params = params.text_document_position;
+    let response = state.symbol_tables.read().references(
+        &params.text_document.uri,
+        params.position,
+        include_declaration,
+    );
+    ready(Ok(response))
+}
+
+pub(crate) fn completion(
+    state: &mut GlobalState,
+    params: CompletionParams,
+) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
+    let params = params.text_document_position;
+    let items =
+        state.symbol_tables.read().completion_items(&params.text_document.uri, params.position);
+    ready(Ok(Some(CompletionResponse::Array(items))))
 }
 
 #[cfg(test)]

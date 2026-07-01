@@ -45,7 +45,11 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
     // Requests
     router
         .request::<req::DocumentSymbolRequest, _>(handlers::document_symbol)
-        .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol);
+        .request::<req::WorkspaceSymbolRequest, _>(handlers::workspace_symbol)
+        .request::<req::GotoDefinition, _>(handlers::goto_definition)
+        .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
+        .request::<req::References, _>(handlers::references)
+        .request::<req::Completion, _>(handlers::completion);
 
     // Workspace management
     router
