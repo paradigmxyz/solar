@@ -67,16 +67,15 @@ pub(crate) fn completion(
     params: CompletionParams,
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position;
-    let source = proto::vfs_path(&params.text_document.uri).and_then(|path| {
-        state.vfs.read().get_file_contents(&path).map(|contents| contents.to_string())
+    let line = proto::vfs_path(&params.text_document.uri).and_then(|path| {
+        state.vfs.read().get_file_contents(&path).and_then(|contents| {
+            (params.position.line < contents.line_len() as u32)
+                .then(|| contents.line(params.position.line as usize).to_string())
+        })
     });
     let symbol_tables = state.symbol_tables.read();
-    let items = if let Some(source) = source.as_deref() {
-        symbol_tables.completion_items_with_source(
-            &params.text_document.uri,
-            params.position,
-            source,
-        )
+    let items = if let Some(line) = line.as_deref() {
+        symbol_tables.completion_items_with_line(&params.text_document.uri, params.position, line)
     } else {
         symbol_tables.completion_items(&params.text_document.uri, params.position)
     };

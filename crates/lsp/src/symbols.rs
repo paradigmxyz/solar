@@ -422,16 +422,29 @@ impl SymbolTables {
         self.lexical_completion_items(uri, position)
     }
 
+    #[cfg(test)]
     pub(crate) fn completion_items_with_source(
         &self,
         uri: &Url,
         position: Position,
         source: &str,
     ) -> Vec<CompletionItem> {
+        let Some(line) = source.lines().nth(position.line as usize) else {
+            return self.completion_items(uri, position);
+        };
+        self.completion_items_with_line(uri, position, line)
+    }
+
+    pub(crate) fn completion_items_with_line(
+        &self,
+        uri: &Url,
+        position: Position,
+        line: &str,
+    ) -> Vec<CompletionItem> {
         if let Some(items) = self.member_completion_items(uri, position) {
             return items;
         }
-        if let Some(receiver) = trailing_member_receiver(source, position)
+        if let Some(receiver) = trailing_member_receiver(line, position.character)
             && let Some(items) = self.member_completion_items_for_receiver(uri, position, receiver)
         {
             return items;
@@ -444,7 +457,7 @@ impl SymbolTables {
             return Vec::new();
         };
 
-        let mut seen = FxHashMap::<String, CompletionEntryId>::default();
+        let mut seen = FxHashMap::<&str, CompletionEntryId>::default();
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
             let current = &self.scopes[scope_id];
@@ -456,7 +469,7 @@ impl SymbolTables {
                     continue;
                 }
                 let entry = &self.completion_entries[declaration.completion_id];
-                seen.entry(entry.label.clone()).or_insert(declaration.completion_id);
+                seen.entry(entry.label.as_str()).or_insert(declaration.completion_id);
             }
             scope = current.parent;
         }
@@ -881,10 +894,10 @@ impl SymbolTables {
         &self,
         entries: &[CompletionEntryId],
     ) -> Option<Vec<CompletionItem>> {
-        let mut seen = FxHashMap::<String, CompletionEntryId>::default();
+        let mut seen = FxHashMap::<&str, CompletionEntryId>::default();
         for &entry_id in entries {
             let entry = &self.completion_entries[entry_id];
-            seen.entry(entry.label.clone()).or_insert(entry_id);
+            seen.entry(entry.label.as_str()).or_insert(entry_id);
         }
         if seen.is_empty() {
             return None;
@@ -1599,9 +1612,8 @@ fn range_size_key(range: Range) -> (u32, u32) {
     )
 }
 
-fn trailing_member_receiver(source: &str, position: Position) -> Option<&str> {
-    let line = source.lines().nth(position.line as usize)?;
-    let line_prefix = utf16_prefix(line, position.character)?;
+fn trailing_member_receiver(line: &str, character: u32) -> Option<&str> {
+    let line_prefix = utf16_prefix(line, character)?;
     let trimmed = line_prefix.trim_end();
     let before_dot = trimmed.strip_suffix('.')?.trim_end();
     let receiver_end = before_dot.len();
