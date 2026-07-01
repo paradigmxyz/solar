@@ -87,7 +87,6 @@ struct CompletionEntry {
     label: String,
     kind: CompletionItemKind,
     detail: Option<String>,
-    symbol_id: Option<SymbolId>,
 }
 
 #[derive(Clone, Debug)]
@@ -247,10 +246,6 @@ impl SymbolTables {
             declaration.id = remap_symbol_id(declaration.id, symbol_offset);
             declaration.parent =
                 declaration.parent.map(|parent| remap_symbol_id(parent, symbol_offset));
-        }
-        for entry in &mut other.completion_entries {
-            entry.symbol_id =
-                entry.symbol_id.map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset));
         }
         for completion_id in &mut other.declaration_completion_ids {
             *completion_id = remap_completion_entry_id(*completion_id, completion_offset);
@@ -498,7 +493,6 @@ impl SymbolTables {
             label: symbol.name.clone(),
             kind: completion_item_kind(symbol.kind),
             detail: self.container_name(symbol),
-            symbol_id: Some(symbol_id),
         });
         let pushed_id = self.declaration_completion_ids.push(completion_id);
         debug_assert_eq!(symbol_id, pushed_id);
@@ -519,7 +513,6 @@ impl SymbolTables {
             label: name.to_string(),
             kind: completion_item_kind(res_symbol_kind(gcx, res)),
             detail: completion_detail(gcx, res),
-            symbol_id: self.symbol_id_for_res(res),
         })
     }
 
@@ -533,7 +526,6 @@ impl SymbolTables {
             label: name.to_string(),
             kind: completion_item_kind(symbol.kind),
             detail: Some(symbol.name.clone()),
-            symbol_id: Some(symbol_id),
         })
     }
 
@@ -915,7 +907,6 @@ impl SymbolTables {
             label: member.name.to_string(),
             kind: member_completion_item_kind(member),
             detail: member.attached.then_some("using for".to_string()),
-            symbol_id: member.res.and_then(|res| self.symbol_id_for_res(res)),
         })
     }
 
