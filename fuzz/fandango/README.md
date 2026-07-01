@@ -1,6 +1,9 @@
 # Fandango Fuzzing
 
-This directory contains bounded Fandango-based differential tests.
+This directory contains bounded Fandango-based and Foundry-based differential
+tests. Fandango and SolSmith generate ABI values and Solidity programs; Foundry
+then fuzzes selected generated programs with cheatcodes for logs and state
+diffs.
 
 - `abi-values.fan` generates ABI values for `AbiVectorFixture.sol`. The runner
   compiles the fixture with solc and this compiler, installs both runtimes into
@@ -18,17 +21,19 @@ This directory contains bounded Fandango-based differential tests.
 - `solsmith.py` is the first typed generator layer. It emits the same runtime
   harness from type-aware statement builders and records feature metadata for
   each generated source.
-- `write_foundry_target.py` and `run_foundry_target.py` build a Foundry fuzz
-  differential for generated runtime harnesses. The target installs solc and
-  compiler runtimes with `vm.etch`, then compares returndata, logs, and
-  normalized state diffs with cheatcodes.
+- `write_foundry_target.py` and `run_foundry_target.py` bridge generated
+  Fandango/SolSmith harnesses into Foundry. The generated target installs solc
+  and compiler runtimes with `vm.etch`, lets Foundry's builtin fuzzer drive the
+  calls, then compares returndata, logs, and normalized state diffs with
+  cheatcodes.
 
 Generated artifacts belong under `fuzz/fandango/out/`, which is ignored.
 Promote only minimized, stable failures into `corpus.jsonl` or `tests/ui/`.
 
 ## CI
 
-The `fandango` CI job is report-only. It runs:
+The `fandango` CI job is report-only. It uses Fandango/SolSmith for generation
+and Foundry for the builtin-fuzzer differential lane. It runs:
 
 - the committed ABI corpus,
 - a small bounded sample from `abi-values.fan`, and
@@ -132,7 +137,12 @@ python3 fuzz/fandango/run_source_runtime.py \
   --verbose
 ```
 
-Generate typed SolSmith sources and compare side effects:
+### Use SolSmith
+
+SolSmith generates typed Solidity programs with the fixed `setup/run/observe`
+runtime harness. The usual loop is: generate sources, run the anvil runtime
+differential, then optionally run the generated Foundry target for builtin
+fuzzer + cheatcode coverage.
 
 ```bash
 mkdir -p fuzz/fandango/out/solsmith-sources
@@ -151,6 +161,9 @@ python3 fuzz/fandango/run_source_runtime.py \
   --timeout 20 \
   --verbose
 ```
+
+Use `run_foundry_target.py` below to run one generated source through the
+Foundry differential target.
 
 Replay a runtime failure JSON:
 
