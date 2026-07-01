@@ -20,7 +20,10 @@ diffs.
   runtime harnesses.
 - `solsmith.py` is the first typed generator layer. It emits the same runtime
   harness from type-aware statement builders and records feature metadata for
-  each generated source.
+  each generated source. Prefer the `fuzz/bin/solsmith` wrapper for local use.
+- `reduce_runtime_failure.py` is the runtime reducer behind the
+  `fuzz/bin/solreduce` wrapper. It shrinks replayable source-runtime failures
+  while preserving the original oracle mismatch.
 - `write_foundry_target.py` and `run_foundry_target.py` bridge generated
   Fandango/SolSmith harnesses into Foundry. The generated target installs solc
   and compiler runtimes with `vm.etch`, lets Foundry's builtin fuzzer drive the
@@ -112,6 +115,21 @@ python3 fuzz/fandango/run_solidity_sources.py \
 Failures are saved under `fuzz/fandango/out/failures/` or
 `fuzz/fandango/out/source-failures/`.
 
+### Tool Entrypoints
+
+Use these from the repository root:
+
+```bash
+cargo build -p solar-compiler --bin solar
+fuzz/bin/solsmith --help
+fuzz/bin/solreduce --help
+```
+
+They are generated into ignored `fuzz/bin/` by the build and are thin wrappers
+around the implementation scripts in this directory. That gives us command-like
+UX without tracking generated files or breaking direct script usage in existing
+automation.
+
 Generate Solidity runtime harnesses and compare side effects:
 
 ```bash
@@ -139,15 +157,51 @@ python3 fuzz/fandango/run_source_runtime.py \
 
 ### Use SolSmith
 
-SolSmith generates typed Solidity programs with the fixed `setup/run/observe`
-runtime harness. The usual loop is: generate sources, run the anvil runtime
-differential, then optionally run the generated Foundry target for builtin
-fuzzer + cheatcode coverage.
+SolSmith is the type-aware Solidity generator. It is the CSmith/Yarpgen-style
+path in this directory: instead of sampling raw text from a grammar, it builds
+small valid programs from typed fragments and emits the fixed
+`setup/run/observe` harness expected by the runtime oracle.
+
+The normal workflow is:
+
+1. Generate SolSmith sources with a fixed seed.
+2. Run the anvil runtime differential on every generated source.
+3. Optionally hand one generated source to Foundry, where Foundry's builtin
+   fuzzer drives calldata, caller, and environment values while cheatcodes
+   compare returndata, logs, and normalized state diffs.
+
+Fandango remains useful for ABI-value sampling and grammar/corpus mutation.
+SolSmith is the stronger path when we need valid-by-construction Solidity
+programs with explicit feature coverage.
+
+Quick CSmith-style loop:
+
+```bash
+cargo build -p solar-compiler --bin solar
+
+fuzz/bin/solsmith \
+  --seed 1 \
+  --count 16 \
+  --require-default-features \
+  --out-dir fuzz/fandango/out/solsmith-sources
+
+python3 fuzz/fandango/run_source_runtime.py \
+  --source-dir fuzz/fandango/out/solsmith-sources \
+  --cases-per-source 8 \
+  --timeout 20
+
+fuzz/bin/solreduce \
+  --failure fuzz/fandango/out/runtime-failures/runtime-0-example.json \
+  --out fuzz/fandango/out/reduced/example.sol
+```
+
+The reducer command is only needed after the runtime runner saves a failure
+JSON.
 
 ```bash
 mkdir -p fuzz/fandango/out/solsmith-sources
 
-python3 fuzz/fandango/solsmith.py \
+fuzz/bin/solsmith \
   --seed 1 \
   --count 16 \
   --require-default-features \
@@ -177,7 +231,7 @@ python3 fuzz/fandango/run_source_runtime.py \
 Reduce a replayable runtime failure:
 
 ```bash
-python3 fuzz/fandango/reduce_runtime_failure.py \
+fuzz/bin/solreduce \
   --failure fuzz/fandango/out/runtime-failures/runtime-0-example.json \
   --out fuzz/fandango/out/reduced/example.sol \
   --max-attempts 512 \
@@ -262,7 +316,8 @@ For source fuzzing:
 3. Add small, stable runtime seed programs to `runtime-corpus/` when they should
    guide Fandango's initial population.
 4. Add type-aware generation features to `solsmith.py` when grammar snippets are
-   not precise enough.
+   not precise enough, then expose them through `fuzz/bin/solsmith` options if
+   they need user-facing controls.
 5. Extend the Foundry differential target when a new runtime effect is better
    compared inside Foundry than through JSON-RPC replay.
 6. Keep grammars inside the subset both solc and this compiler are expected to
@@ -280,7 +335,7 @@ For source fuzzing:
   non-payable. Add payable harness support before fuzzing nonzero value.
 - Keep the ABI fixture independent of block and transaction environment values
   such as `block.timestamp`, `block.number`, `block.basefee`, and `tx.gasprice`.
-- `corpus.jsonl`, `runtime-corpus/`, `runtime-regressions/`, and `solsmith.py`
-  with a fixed seed are deterministic. Seeded Fandango samples are bounded
-  sampling and may drift with Fandango or Python behavior; use them to find
-  cases worth promoting.
+- `corpus.jsonl`, `runtime-corpus/`, `runtime-regressions/`, and SolSmith with
+  a fixed seed are deterministic. Seeded Fandango samples are bounded sampling
+  and may drift with Fandango or Python behavior; use them to find cases worth
+  promoting.

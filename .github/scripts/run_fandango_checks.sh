@@ -170,7 +170,7 @@ run_runtime_diff \
   "$max_runtime_sources" \
   target/runtime-fuzz/fandango-runtime-sources.json
 
-python3 fuzz/fandango/solsmith.py \
+fuzz/bin/solsmith \
   --seed 1 \
   --count "$solsmith_count" \
   --require-default-features \

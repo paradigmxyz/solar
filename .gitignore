@@ -5,3 +5,4 @@
 /tmp
 .DS_Store
 __pycache__/
+fuzz/bin/

@@ -1,6 +1,12 @@
 Scripts and tools for fuzzing the compiler.
 
-Run stuff in here by first `cd`ing into this directory (`cd fuzz`).
+Run commands from the repository root unless a tool says otherwise.
+
+Convenience entrypoints are generated under ignored `fuzz/bin/` during
+`cargo build -p solar-compiler --bin solar`:
+
+- `fuzz/bin/solsmith`: generates typed Solidity runtime harnesses.
+- `fuzz/bin/solreduce`: reduces a replayable runtime mismatch.
 
 See `fandango/` for the combined Fandango + Foundry fuzzing flow. Fandango
 and SolSmith generate ABI values and Solidity programs; Foundry's builtin
