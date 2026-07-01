@@ -402,185 +402,9 @@ impl SymbolTables {
     }
 
     fn build_scopes(&mut self, gcx: Gcx<'_>) {
+        let mut builder = ScopeBuilder { tables: self, gcx, scope: None };
         for source_id in gcx.hir.source_ids() {
-            let source = gcx.hir.source(source_id);
-            let Some(path) = source.file.name.as_real() else {
-                continue;
-            };
-            let Some(uri) = Url::from_file_path(path).ok() else {
-                continue;
-            };
-            let Some(range) = proto::span_to_location(
-                gcx.sess.source_map(),
-                Span::new(source.file.start_pos, source.file.end_position()),
-            )
-            .map(|location| location.range) else {
-                continue;
-            };
-
-            let root = self.push_scope(uri, range, None);
-            for &item_id in source.items {
-                self.add_scope_declaration(root, item_id);
-                self.add_child_scopes(gcx, item_id, root);
-            }
-        }
-    }
-
-    fn add_child_scopes(&mut self, gcx: Gcx<'_>, item_id: ItemId, parent: ScopeId) {
-        match item_id {
-            ItemId::Contract(id) => {
-                let contract = gcx.hir.contract(id);
-                let Some(scope) = self.scope_for_span(gcx, contract.span, parent) else {
-                    return;
-                };
-                for &child in contract.items {
-                    self.add_scope_declaration(scope, child);
-                    self.add_child_scopes(gcx, child, scope);
-                }
-            }
-            ItemId::Function(id) => {
-                let function = gcx.hir.function(id);
-                let Some(scope) = self.scope_for_span(gcx, function.body_span, parent) else {
-                    return;
-                };
-                for &param in function.parameters {
-                    self.add_scope_declaration(scope, ItemId::Variable(param));
-                }
-                for &ret in function.returns {
-                    self.add_scope_declaration(scope, ItemId::Variable(ret));
-                }
-                if let Some(body) = function.body {
-                    self.add_block_scopes(gcx, body, scope);
-                }
-            }
-            ItemId::Struct(id) => {
-                let strukt = gcx.hir.strukt(id);
-                let Some(scope) = self.scope_for_span(gcx, strukt.span, parent) else {
-                    return;
-                };
-                for &field in strukt.fields {
-                    self.add_scope_declaration(scope, ItemId::Variable(field));
-                }
-            }
-            ItemId::Enum(id) => {
-                let enumm = gcx.hir.enumm(id);
-                let Some(scope) = self.scope_for_span(gcx, enumm.span, parent) else {
-                    return;
-                };
-                for variant_index in 0..enumm.variants.len() {
-                    if let Some(symbol_id) =
-                        self.symbols_by_key.get(&SymbolKey::EnumVariant(id, variant_index))
-                    {
-                        self.add_symbol_to_scope(scope, *symbol_id);
-                    }
-                }
-            }
-            ItemId::Error(id) => {
-                let error = gcx.hir.error(id);
-                let Some(scope) = self.scope_for_span(gcx, error.span, parent) else {
-                    return;
-                };
-                for &param in error.parameters {
-                    self.add_scope_declaration(scope, ItemId::Variable(param));
-                }
-            }
-            ItemId::Event(id) => {
-                let event = gcx.hir.event(id);
-                let Some(scope) = self.scope_for_span(gcx, event.span, parent) else {
-                    return;
-                };
-                for &param in event.parameters {
-                    self.add_scope_declaration(scope, ItemId::Variable(param));
-                }
-            }
-            ItemId::Udvt(_) | ItemId::Variable(_) => {}
-        }
-    }
-
-    fn add_block_scopes(&mut self, gcx: Gcx<'_>, block: hir::Block<'_>, parent: ScopeId) {
-        let Some(scope) = self.scope_for_span(gcx, block.span, parent) else {
-            return;
-        };
-        self.add_statements_to_scope(gcx, block.stmts, scope);
-    }
-
-    fn add_statements_to_scope(
-        &mut self,
-        gcx: Gcx<'_>,
-        statements: &[hir::Stmt<'_>],
-        scope: ScopeId,
-    ) {
-        for statement in statements {
-            match statement.kind {
-                StmtKind::DeclSingle(var) => {
-                    self.add_local_scope_declaration(
-                        gcx,
-                        scope,
-                        ItemId::Variable(var),
-                        statement.span,
-                    );
-                }
-                StmtKind::DeclMulti(vars, _) => {
-                    for var in vars.iter().copied().flatten() {
-                        self.add_local_scope_declaration(
-                            gcx,
-                            scope,
-                            ItemId::Variable(var),
-                            statement.span,
-                        );
-                    }
-                }
-                StmtKind::Block(block)
-                | StmtKind::UncheckedBlock(block)
-                | StmtKind::AssemblyBlock(block)
-                | StmtKind::Loop(block, _) => self.add_block_scopes(gcx, block, scope),
-                StmtKind::If(_, true_, false_) => {
-                    self.add_statement_child_scopes(gcx, true_, scope);
-                    if let Some(false_) = false_ {
-                        self.add_statement_child_scopes(gcx, false_, scope);
-                    }
-                }
-                StmtKind::Switch(switch) => {
-                    for case in switch.cases {
-                        self.add_block_scopes(gcx, case.body, scope);
-                    }
-                }
-                StmtKind::Try(try_) => {
-                    for clause in try_.clauses {
-                        let Some(clause_scope) = self.scope_for_span(gcx, clause.span, scope)
-                        else {
-                            continue;
-                        };
-                        for &arg in clause.args {
-                            self.add_scope_declaration(clause_scope, ItemId::Variable(arg));
-                        }
-                        self.add_block_scopes(gcx, clause.block, clause_scope);
-                    }
-                }
-                StmtKind::Emit(_)
-                | StmtKind::Revert(_)
-                | StmtKind::Return(_)
-                | StmtKind::Break
-                | StmtKind::Continue
-                | StmtKind::Expr(_)
-                | StmtKind::Placeholder
-                | StmtKind::Err(_) => {}
-            }
-        }
-    }
-
-    fn add_statement_child_scopes(
-        &mut self,
-        gcx: Gcx<'_>,
-        statement: &hir::Stmt<'_>,
-        parent: ScopeId,
-    ) {
-        match statement.kind {
-            StmtKind::Block(block)
-            | StmtKind::UncheckedBlock(block)
-            | StmtKind::AssemblyBlock(block)
-            | StmtKind::Loop(block, _) => self.add_block_scopes(gcx, block, parent),
-            _ => self.add_statements_to_scope(gcx, std::slice::from_ref(statement), parent),
+            builder.visit_source_scope(source_id);
         }
     }
 
@@ -836,6 +660,224 @@ fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
 
 fn remap_scope_id(scope_id: ScopeId, offset: usize) -> ScopeId {
     ScopeId::from_usize(scope_id.index() + offset)
+}
+
+struct ScopeBuilder<'a, 'gcx> {
+    tables: &'a mut SymbolTables,
+    gcx: Gcx<'gcx>,
+    scope: Option<ScopeId>,
+}
+
+impl<'gcx> ScopeBuilder<'_, 'gcx> {
+    fn visit_source_scope(&mut self, source_id: hir::SourceId) {
+        let source = self.gcx.hir.source(source_id);
+        let Some(path) = source.file.name.as_real() else {
+            return;
+        };
+        let Some(uri) = Url::from_file_path(path).ok() else {
+            return;
+        };
+        let Some(range) = proto::span_to_location(
+            self.gcx.sess.source_map(),
+            Span::new(source.file.start_pos, source.file.end_position()),
+        )
+        .map(|location| location.range) else {
+            return;
+        };
+
+        let root = self.tables.push_scope(uri, range, None);
+        self.with_scope(root, |this| {
+            for &item_id in source.items {
+                this.tables.add_scope_declaration(root, item_id);
+                let _ = this.visit_nested_item(item_id);
+            }
+        });
+    }
+
+    fn push_child_scope(&mut self, span: Span) -> Option<ScopeId> {
+        let parent = self.scope?;
+        self.tables.scope_for_span(self.gcx, span, parent)
+    }
+
+    fn with_scope(&mut self, scope: ScopeId, f: impl FnOnce(&mut Self)) {
+        let previous = self.scope.replace(scope);
+        f(self);
+        self.scope = previous;
+    }
+
+    fn visit_block_scope(&mut self, block: hir::Block<'gcx>) {
+        let Some(scope) = self.push_child_scope(block.span) else {
+            return;
+        };
+        self.with_scope(scope, |this| {
+            for stmt in block.stmts {
+                let _ = this.visit_stmt(stmt);
+            }
+        });
+    }
+
+    fn visit_statement_child_scope(&mut self, stmt: &'gcx hir::Stmt<'gcx>) {
+        match stmt.kind {
+            StmtKind::Block(block)
+            | StmtKind::UncheckedBlock(block)
+            | StmtKind::AssemblyBlock(block)
+            | StmtKind::Loop(block, _) => self.visit_block_scope(block),
+            _ => {
+                let _ = self.visit_stmt(stmt);
+            }
+        }
+    }
+}
+
+impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_nested_contract(&mut self, id: hir::ContractId) -> ControlFlow<Self::BreakValue> {
+        let contract = self.hir().contract(id);
+        let Some(scope) = self.push_child_scope(contract.span) else {
+            return ControlFlow::Continue(());
+        };
+        self.with_scope(scope, |this| {
+            for &item_id in contract.items {
+                this.tables.add_scope_declaration(scope, item_id);
+                let _ = this.visit_nested_item(item_id);
+            }
+        });
+        ControlFlow::Continue(())
+    }
+
+    fn visit_function(
+        &mut self,
+        function: &'gcx hir::Function<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let Some(scope) = self.push_child_scope(function.body_span) else {
+            return ControlFlow::Continue(());
+        };
+        self.with_scope(scope, |this| {
+            for &param in function.parameters {
+                this.tables.add_scope_declaration(scope, ItemId::Variable(param));
+            }
+            for &ret in function.returns {
+                this.tables.add_scope_declaration(scope, ItemId::Variable(ret));
+            }
+            if let Some(body) = function.body {
+                this.visit_block_scope(body);
+            }
+        });
+        ControlFlow::Continue(())
+    }
+
+    fn visit_struct(&mut self, strukt: &'gcx hir::Struct<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let Some(scope) = self.push_child_scope(strukt.span) else {
+            return ControlFlow::Continue(());
+        };
+        for &field in strukt.fields {
+            self.tables.add_scope_declaration(scope, ItemId::Variable(field));
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_nested_enum(&mut self, id: hir::EnumId) -> ControlFlow<Self::BreakValue> {
+        let enumm = self.hir().enumm(id);
+        let Some(scope) = self.push_child_scope(enumm.span) else {
+            return ControlFlow::Continue(());
+        };
+        for variant_index in 0..enumm.variants.len() {
+            if let Some(symbol_id) =
+                self.tables.symbols_by_key.get(&SymbolKey::EnumVariant(id, variant_index))
+            {
+                self.tables.add_symbol_to_scope(scope, *symbol_id);
+            }
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_error(&mut self, error: &'gcx hir::Error<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let Some(scope) = self.push_child_scope(error.span) else {
+            return ControlFlow::Continue(());
+        };
+        for &param in error.parameters {
+            self.tables.add_scope_declaration(scope, ItemId::Variable(param));
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_event(&mut self, event: &'gcx hir::Event<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let Some(scope) = self.push_child_scope(event.span) else {
+            return ControlFlow::Continue(());
+        };
+        for &param in event.parameters {
+            self.tables.add_scope_declaration(scope, ItemId::Variable(param));
+        }
+        ControlFlow::Continue(())
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let Some(scope) = self.scope else {
+            return ControlFlow::Continue(());
+        };
+        match stmt.kind {
+            StmtKind::DeclSingle(var) => {
+                self.tables.add_local_scope_declaration(
+                    self.gcx,
+                    scope,
+                    ItemId::Variable(var),
+                    stmt.span,
+                );
+            }
+            StmtKind::DeclMulti(vars, _) => {
+                for var in vars.iter().copied().flatten() {
+                    self.tables.add_local_scope_declaration(
+                        self.gcx,
+                        scope,
+                        ItemId::Variable(var),
+                        stmt.span,
+                    );
+                }
+            }
+            StmtKind::Block(block)
+            | StmtKind::UncheckedBlock(block)
+            | StmtKind::AssemblyBlock(block)
+            | StmtKind::Loop(block, _) => self.visit_block_scope(block),
+            StmtKind::If(_, true_, false_) => {
+                self.visit_statement_child_scope(true_);
+                if let Some(false_) = false_ {
+                    self.visit_statement_child_scope(false_);
+                }
+            }
+            StmtKind::Switch(switch) => {
+                for case in switch.cases {
+                    self.visit_block_scope(case.body);
+                }
+            }
+            StmtKind::Try(try_) => {
+                for clause in try_.clauses {
+                    let Some(clause_scope) = self.push_child_scope(clause.span) else {
+                        continue;
+                    };
+                    self.with_scope(clause_scope, |this| {
+                        for &arg in clause.args {
+                            this.tables.add_scope_declaration(clause_scope, ItemId::Variable(arg));
+                        }
+                        this.visit_block_scope(clause.block);
+                    });
+                }
+            }
+            StmtKind::Emit(_)
+            | StmtKind::Revert(_)
+            | StmtKind::Return(_)
+            | StmtKind::Break
+            | StmtKind::Continue
+            | StmtKind::Expr(_)
+            | StmtKind::Placeholder
+            | StmtKind::Err(_) => {}
+        }
+        ControlFlow::Continue(())
+    }
 }
 
 struct ReferenceCollector<'a, 'gcx> {

@@ -5,6 +5,7 @@ use lsp_types::{
     GotoDefinitionParams, GotoDefinitionResponse, ReferenceParams, WorkspaceSymbolParams,
     WorkspaceSymbolResponse,
 };
+use std::future::ready;
 
 pub(crate) fn document_symbol(
     state: &mut GlobalState,
@@ -16,7 +17,7 @@ pub(crate) fn document_symbol(
     } else {
         DocumentSymbolResponse::Flat(symbol_tables.flat_document_symbols(&params.text_document.uri))
     };
-    std::future::ready(Ok(Some(response)))
+    ready(Ok(Some(response)))
 }
 
 pub(crate) fn workspace_symbol(
@@ -24,7 +25,7 @@ pub(crate) fn workspace_symbol(
     params: WorkspaceSymbolParams,
 ) -> impl Future<Output = Result<Option<WorkspaceSymbolResponse>, ResponseError>> + use<> {
     let symbols = state.symbol_tables.read().workspace_symbols(&params.query);
-    std::future::ready(Ok(Some(WorkspaceSymbolResponse::Nested(symbols))))
+    ready(Ok(Some(WorkspaceSymbolResponse::Nested(symbols))))
 }
 
 pub(crate) fn goto_definition(
@@ -34,7 +35,7 @@ pub(crate) fn goto_definition(
     let params = params.text_document_position_params;
     let response =
         state.symbol_tables.read().goto_definition(&params.text_document.uri, params.position);
-    std::future::ready(Ok(response))
+    ready(Ok(response))
 }
 
 pub(crate) fn goto_declaration(
@@ -44,7 +45,7 @@ pub(crate) fn goto_declaration(
     let params = params.text_document_position_params;
     let response =
         state.symbol_tables.read().goto_declaration(&params.text_document.uri, params.position);
-    std::future::ready(Ok(response))
+    ready(Ok(response))
 }
 
 pub(crate) fn references(
@@ -58,7 +59,7 @@ pub(crate) fn references(
         params.position,
         include_declaration,
     );
-    std::future::ready(Ok(response))
+    ready(Ok(response))
 }
 
 pub(crate) fn completion(
@@ -68,7 +69,7 @@ pub(crate) fn completion(
     let params = params.text_document_position;
     let items =
         state.symbol_tables.read().completion_items(&params.text_document.uri, params.position);
-    std::future::ready(Ok(Some(CompletionResponse::Array(items))))
+    ready(Ok(Some(CompletionResponse::Array(items))))
 }
 
 #[cfg(test)]
