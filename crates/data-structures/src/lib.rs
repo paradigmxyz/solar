@@ -38,6 +38,7 @@ pub use interned::Interned;
 mod thin_slice;
 pub use thin_slice::{RawThinSlice, ThinSlice};
 
+#[doc(no_inline)]
 pub use smallvec;
 
 /// Pluralize a word based on a count.
