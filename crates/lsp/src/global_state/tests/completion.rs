@@ -7,10 +7,7 @@ use lsp_types::{
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
-use solar_interface::{
-    SourceMap,
-    data_structures::{map::FxHashSet, sync::RwLock},
-};
+use solar_interface::data_structures::{map::FxHashSet, sync::RwLock};
 use std::{fmt::Write, sync::Arc};
 
 #[test]
@@ -395,25 +392,24 @@ B | enum member | Choice
 
 fn check_completion(fixture: &str, expected: impl IntoData) {
     let fixture = TestProject::from_fixture_with_cursor(fixture);
-    let source_map = SourceMap::empty();
-    let result = analyze_fixture(fixture.files.iter().map(|path| {
-        let contents = source_map.file_loader().load_file(path).unwrap();
-        (path.clone(), contents)
-    }));
+    let cursor = fixture.cursor;
+    let result = analyze_fixture(fixture.files);
 
-    let completions =
-        result.symbol_tables.completion_items(&fixture.cursor.uri, fixture.cursor.position);
+    let completions = result.symbol_tables.completion_items(&cursor.uri, cursor.position);
     assert_data_eq!(format_completion_items(&completions), expected);
 }
 
 async fn check_dirty_completion(
     fixture: &str,
-    clean_source: impl FnOnce(String) -> String,
+    clean_source: impl FnOnce(&str) -> String,
     expected: impl IntoData,
 ) {
     let fixture = TestProject::from_fixture_with_cursor(fixture);
-    let source_map = SourceMap::empty();
-    let dirty_source = source_map.file_loader().load_file(&fixture.cursor.path).unwrap();
+    let dirty_source = fixture
+        .files
+        .iter()
+        .find_map(|(path, contents)| (path == &fixture.cursor.path).then_some(contents.as_str()))
+        .expect("cursor file must be present in fixture");
     let clean_source = clean_source(dirty_source);
     let result = analyze_fixture([(fixture.cursor.path.clone(), clean_source)]);
 

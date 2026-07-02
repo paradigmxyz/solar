@@ -25,7 +25,7 @@ pub(crate) struct FixtureCursor {
 pub(crate) struct FixtureWithCursor {
     pub(crate) project: TestProject,
     pub(crate) cursor: FixtureCursor,
-    pub(crate) files: Vec<PathBuf>,
+    pub(crate) files: Vec<(PathBuf, String)>,
 }
 
 impl TestProject {
@@ -50,13 +50,12 @@ impl TestProject {
         let mut files = Vec::new();
         for mut file in parse_fixture(fixture) {
             let path = project.path(&file.path);
-            files.push(path.clone());
             if let Some((text, position)) = strip_cursor_marker(&file.text) {
                 assert!(cursor.is_none(), "fixture contains multiple `$1` cursor markers");
                 file.text = text;
                 cursor = Some(FixtureCursor {
                     uri: Url::from_file_path(&path).unwrap(),
-                    path,
+                    path: path.clone(),
                     position,
                 });
             }
@@ -64,6 +63,7 @@ impl TestProject {
             if file.open {
                 project.open_file(&file.path, &file.text);
             }
+            files.push((path, file.text));
         }
 
         FixtureWithCursor {
