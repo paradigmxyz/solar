@@ -682,7 +682,6 @@ impl SymbolTables {
         }
         let entries = gcx
             .member_completions_of(gcx.type_of_res(res), source, context.contract)
-            .into_iter()
             .map(|member| self.member_completion_entry(gcx, member))
             .collect::<Vec<_>>();
         if entries.is_empty() {
@@ -1316,7 +1315,6 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
         let entries = self
             .gcx
             .member_completions_of(receiver_ty, source, self.contract)
-            .into_iter()
             .map(|member| self.tables.member_completion_entry(self.gcx, member))
             .collect::<Vec<_>>();
         if entries.is_empty() {

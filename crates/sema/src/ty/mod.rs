@@ -877,13 +877,11 @@ impl<'gcx> Gcx<'gcx> {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> Vec<MemberCompletion<'gcx>> {
-        self.members_of(ty, source, contract)
-            .map(|member| MemberCompletion {
-                resolved: self.resolved_member_for_completion(ty, member.name, member.res),
-                member,
-            })
-            .collect()
+    ) -> impl Iterator<Item = MemberCompletion<'gcx>> + 'gcx {
+        self.members_of(ty, source, contract).map(move |member| MemberCompletion {
+            resolved: self.resolved_member_for_completion(ty, member.name, member.res),
+            member,
+        })
     }
 
     fn resolved_member_for_completion(
