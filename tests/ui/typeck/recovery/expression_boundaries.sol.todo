@@ -1,0 +1,63 @@
+//@ compile-flags: -Ztypeck
+
+// TODO: These expression-boundary failures should recover by inserting
+// ExprKind::Err at the malformed subexpression and synchronizing at `,`, `;`,
+// `)`, `]`, `}`, or `:` as appropriate.
+
+contract C {
+    uint256[] xs;
+
+    function f(uint256 a, uint256 b) public pure returns (uint256) {
+        return a + b;
+    }
+
+    function missingInitializer() public {
+        uint256 x = ;
+        uint8 y = 300;
+    }
+
+    function missingBinaryRhs() public {
+        uint256 x = 1 + ;
+        uint8 y = 300;
+    }
+
+    function missingParenBinaryRhs() public {
+        uint256 x = (1 + );
+        uint8 y = 300;
+    }
+
+    function missingCallArg() public {
+        uint256 x = f(1, , 2);
+        uint8 y = 300;
+    }
+
+    function missingCallArgAfterBinary() public {
+        uint256 x = f(1 +, 2);
+        uint8 y = 300;
+    }
+
+    function missingArrayElement() public {
+        uint256 x = [1, , 2][0];
+        uint8 y = 300;
+    }
+
+    function missingIndexExpression() public {
+        uint256 x = xs[;
+        uint8 y = 300;
+    }
+
+    function missingIndexBinaryRhs() public {
+        uint256 x = xs[1 + ];
+        uint8 y = 300;
+    }
+
+    function missingTernaryThen() public {
+        uint256 x = true ? : 1;
+        uint8 y = 300;
+    }
+
+    function missingTernaryElse() public {
+        uint256 x = true ? 1 : ;
+        uint8 y = 300;
+    }
+}

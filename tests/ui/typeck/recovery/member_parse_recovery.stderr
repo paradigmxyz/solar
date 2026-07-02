@@ -1,0 +1,50 @@
+error: expected identifier, found `;`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_parse_recovery.sol:LL:CC
+   │
+LL │         s.;
+   ╰╴          ━
+
+error: expected identifier, found `;`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_parse_recovery.sol:LL:CC
+   │
+LL │         uint256 x = s.;
+   ╰╴                      ━
+
+error: expected identifier, found `.`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_parse_recovery.sol:LL:CC
+   │
+LL │         uint256 x = s..a;
+   ╰╴                      ━
+
+error: expected identifier, found `(`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_parse_recovery.sol:LL:CC
+   │
+LL │         s.();
+   ╰╴          ━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_parse_recovery.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_parse_recovery.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_parse_recovery.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_parse_recovery.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 8 previous errors
+

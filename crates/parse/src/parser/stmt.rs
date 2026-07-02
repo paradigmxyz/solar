@@ -3,7 +3,7 @@ use crate::{PResult, Parser, parser::SeqSep};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 use solar_data_structures::CollectAndApply;
-use solar_interface::{Ident, Span, SpannedOption, kw, sym};
+use solar_interface::{Ident, Span, SpannedOption, diagnostics::ErrorGuaranteed, kw, sym};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses a statement.
@@ -387,7 +387,14 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         if self.check_nr_ident() {
             path.push(IapKind::Member(self.parse_ident()?));
             while self.eat(TokenKind::Dot) {
-                let id = self.ident_or_err(true)?;
+                let id = match self.ident_or_err(true) {
+                    Ok(id) => id,
+                    Err(err) => {
+                        let guar = err.emit();
+                        path.push(IapKind::Err(self.prev_token.span.to(self.token.span), guar));
+                        break;
+                    }
+                };
                 if id.name != kw::Address && id.is_reserved(self.in_yul) {
                     self.expected_ident_found_err().emit();
                 }
@@ -400,7 +407,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         } else {
             return self.unexpected();
         }
-        let n_idents = path.len();
+        let n_idents = path
+            .iter()
+            .take_while(|kind| matches!(kind, IapKind::Member(_) | IapKind::MemberTy(..)))
+            .count();
 
         while self.check(TokenKind::OpenDelim(Delimiter::Bracket)) {
             let (span, kind) = self.parse_spanned(Self::parse_expr_index_kind)?;
@@ -427,6 +437,8 @@ enum IapKind<'ast> {
     Member(Ident),
     /// `<ty>`
     MemberTy(Span, ElementaryType),
+    /// An erroneous expression emitted during parser recovery.
+    Err(Span, ErrorGuaranteed),
 }
 
 #[derive(Debug, Default)]
@@ -460,7 +472,11 @@ impl<'ast> IndexAccessedPath<'ast> {
         };
 
         for index in path.skip(self.n_idents - 1) {
-            let IapKind::Index(span, kind) = index else { panic!("parsed too much") };
+            let (span, kind) = match index {
+                IapKind::Index(span, kind) => (span, kind),
+                IapKind::Member(_) | IapKind::MemberTy(..) => panic!("parsed too much"),
+                IapKind::Err(..) => return Some(ty),
+            };
             let size = match kind {
                 IndexKind::Index(expr) => expr,
                 IndexKind::Range(l, r) => {
@@ -487,6 +503,7 @@ impl<'ast> IndexAccessedPath<'ast> {
                 Expr { span, kind: ExprKind::Type(Type { span, kind: TypeKind::Elementary(kind) }) }
             }
             IapKind::Index(..) => panic!("should not happen"),
+            IapKind::Err(span, guar) => Expr { span, kind: ExprKind::Err(guar) },
         });
         for index in path {
             expr = parser.alloc(match index {
@@ -497,6 +514,7 @@ impl<'ast> IndexAccessedPath<'ast> {
                 IapKind::Index(span, kind) => {
                     Expr { span: expr.span.to(span), kind: ExprKind::Index(expr, kind) }
                 }
+                IapKind::Err(span, guar) => Expr { span, kind: ExprKind::Err(guar) },
             });
         }
         Some(expr)

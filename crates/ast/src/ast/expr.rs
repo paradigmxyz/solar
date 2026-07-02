@@ -2,7 +2,7 @@ use super::{Box, Lit, SubDenomination, Type};
 use crate::BoxSlice;
 use either::Either;
 use solar_data_structures::trustme;
-use solar_interface::{Ident, Span, SpannedOption};
+use solar_interface::{Ident, Span, SpannedOption, diagnostics::ErrorGuaranteed};
 use std::fmt;
 
 /// A list of named arguments: `{a: "1", b: 2}`.
@@ -117,6 +117,9 @@ pub enum ExprKind<'ast> {
 
     /// A unary operation: `!x`, `-x`, `x++`.
     Unary(UnOp, Box<'ast, Expr<'ast>>),
+
+    /// An erroneous expression emitted during parser recovery.
+    Err(ErrorGuaranteed),
 }
 
 /// A binary operation: `a + b`, `a += b`.

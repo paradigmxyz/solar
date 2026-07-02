@@ -1,0 +1,52 @@
+error: tuple components cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/recovery/malformed_exprs.sol:LL:CC
+   │
+LL │         uint256 x = (1,, true);
+   ╰╴                    ━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/recovery/malformed_exprs.sol:LL:CC
+   │
+LL │         uint256 x = (1,, true);
+   │         ━━━━━━━━━━━━┬─────────━
+   │                     │
+   ╰╴                    expected a tuple with 1 element, found one with 3 elements
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/malformed_exprs.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: index expression cannot be omitted
+   ╭▸ ROOT/tests/ui/typeck/recovery/malformed_exprs.sol:LL:CC
+   │
+LL │         uint256 x = xs[];
+   ╰╴                    ━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/malformed_exprs.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: can only slice dynamic calldata arrays
+   ╭▸ ROOT/tests/ui/typeck/recovery/malformed_exprs.sol:LL:CC
+   │
+LL │         uint256 x = xs[:];
+   ╰╴                    ━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/malformed_exprs.sol:LL:CC
+   │
+LL │         uint256 x = xs[:];
+   ╰╴                    ━━━━━ expected `uint256`, found `uint256[] memory slice`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/malformed_exprs.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 8 previous errors
+

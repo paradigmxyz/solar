@@ -1,0 +1,36 @@
+//@ compile-flags: -Ztypeck
+
+// TODO: Statement conditions and loop components should recover malformed
+// expressions without losing the following block or statement.
+
+contract C {
+    function missingIfCondition() public {
+        if () {
+            uint8 y = 300;
+        }
+    }
+
+    function badIfCondition() public {
+        if (1 + ) {
+            uint8 y = 300;
+        }
+    }
+
+    function missingWhileCondition() public {
+        while () {
+            uint8 y = 300;
+        }
+    }
+
+    function badForCondition() public {
+        for (; 1 + ; ) {
+            uint8 y = 300;
+        }
+    }
+
+    function badForNextExpression() public {
+        for (; true; 1 + ) {
+            uint8 y = 300;
+        }
+    }
+}

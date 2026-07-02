@@ -1,0 +1,74 @@
+error: unresolved symbol `missing`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint256 x = missing.member;
+   ╰╴                    ━━━━━━━
+
+error: member `else` not found on type `struct C.S memory`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint256 x = s.else;
+   ╰╴                      ━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: member `else` not found on type `struct C.S memory`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint256 x = s.else();
+   ╰╴                      ━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: member `foo` not found on type `int_literal[1]`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint256 x = (1).foo;
+   ╰╴                        ━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: member `foo` not found on type `tuple(int_literal[1],int_literal[2])`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint256 x = (1, 2).foo;
+   ╰╴                           ━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: member `missing` not found on type `type(contract C)`
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint256 x = type(C).missing;
+   ╰╴                            ━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/member_access.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 12 previous errors
+

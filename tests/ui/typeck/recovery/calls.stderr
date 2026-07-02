@@ -1,0 +1,60 @@
+error: expected identifier, found `,`
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         this.g({a: 1,, b: 2});
+   │                      ━
+   ╰╴
+help: remove this comma
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         this.g({a: 1,, b: 2});
+   ╰╴                     ━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: `abi.decode` type tuple components cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         uint256 x = abi.decode(data, (, uint256));
+   ╰╴                                     ━━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         uint256 x = abi.decode(data, (, uint256));
+   │         ━━━━━━━━━━━━┬────────────────────────────━
+   │                     │
+   ╰╴                    expected a tuple with 1 element, found one with 2 elements
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: `abi.decode` type tuple components cannot be empty
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         uint256 x = abi.decode(data, (uint256,));
+   ╰╴                                     ━━━━━━━━━━
+
+error: mismatched number of components
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         uint256 x = abi.decode(data, (uint256,));
+   │         ━━━━━━━━━━━━┬───────────────────────────━
+   │                     │
+   ╰╴                    expected a tuple with 1 element, found one with 2 elements
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/recovery/calls.sol:LL:CC
+   │
+LL │         uint8 y = 300;
+   ╰╴                  ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 8 previous errors
+
