@@ -45,9 +45,19 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Ident(res_slice) => {
-                if let Some(res) = res_slice.first() {
-                    self.lower_ident(builder, res)
+                if res_slice.is_empty() {
+                    builder.imm_u64(0)
+                } else if let Some(res) = self.ident_res(expr) {
+                    self.lower_ident(builder, &res)
                 } else {
+                    // The raw resolution set is ambiguous (an overloaded
+                    // function or event referenced as a value); the type
+                    // checker records disambiguation only for callees.
+                    self.gcx
+                        .dcx()
+                        .err("codegen cannot resolve an overloaded identifier used as a value")
+                        .span(expr.span)
+                        .emit();
                     builder.imm_u64(0)
                 }
             }
@@ -455,12 +465,11 @@ impl<'gcx> Lowerer<'gcx> {
                 // Deleting a memory fixed-size array zeroes its elements in
                 // place; nulling the pointer would alias scratch memory on the
                 // next access. Storage targets keep the assignment path.
-                if let ExprKind::Ident(res_slice) = &target.kind
-                    && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-                    && !self.storage_ref_locals.contains(var_id)
-                    && !self.storage_slots.contains_key(var_id)
+                if let Some(var_id) = self.ident_variable(target)
+                    && !self.storage_ref_locals.contains(&var_id)
+                    && !self.storage_slots.contains_key(&var_id)
                 {
-                    let var = self.gcx.hir.variable(*var_id);
+                    let var = self.gcx.hir.variable(var_id);
                     if self.is_fixed_memory_array_type(&var.ty, var.data_location)
                         && let Some(len) = self.fixed_memory_array_len(&var.ty)
                         && let hir::TypeKind::Array(array) = &var.ty.kind
