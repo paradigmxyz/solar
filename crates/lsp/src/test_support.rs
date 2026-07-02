@@ -3,7 +3,7 @@ use crate::{
     vfs::{Vfs, VfsPath},
 };
 use crop::Rope;
-use lsp_types::{InitializeParams, Url, WorkspaceFolder};
+use lsp_types::{InitializeParams, Position, Url, WorkspaceFolder};
 use std::{
     fs,
     io::Read,
@@ -14,6 +14,18 @@ use tempfile::TempDir;
 pub(crate) struct TestProject {
     tmp: TempDir,
     open_files: Vec<(PathBuf, String)>,
+}
+
+pub(crate) struct FixtureCursor {
+    pub(crate) path: PathBuf,
+    pub(crate) position: Position,
+    pub(crate) uri: Url,
+}
+
+pub(crate) struct FixtureWithCursor {
+    pub(crate) project: TestProject,
+    pub(crate) cursor: FixtureCursor,
+    pub(crate) files: Vec<PathBuf>,
 }
 
 impl TestProject {
@@ -30,6 +42,35 @@ impl TestProject {
             }
         }
         project
+    }
+
+    pub(crate) fn from_fixture_with_cursor(fixture: &str) -> FixtureWithCursor {
+        let mut project = Self::new();
+        let mut cursor = None;
+        let mut files = Vec::new();
+        for mut file in parse_fixture(fixture) {
+            let path = project.path(&file.path);
+            files.push(path.clone());
+            if let Some((text, position)) = strip_cursor_marker(&file.text) {
+                assert!(cursor.is_none(), "fixture contains multiple `$1` cursor markers");
+                file.text = text;
+                cursor = Some(FixtureCursor {
+                    uri: Url::from_file_path(&path).unwrap(),
+                    path,
+                    position,
+                });
+            }
+            project.write_file(&file.path, &file.text);
+            if file.open {
+                project.open_file(&file.path, &file.text);
+            }
+        }
+
+        FixtureWithCursor {
+            project,
+            cursor: cursor.expect("fixture must contain one `$1` cursor marker"),
+            files,
+        }
     }
 
     pub(crate) fn root(&self) -> &Path {
@@ -146,6 +187,30 @@ fn parse_fixture(fixture: &str) -> Vec<FixtureFile> {
         files.push(finish_file(file));
     }
     files
+}
+
+fn strip_cursor_marker(text: &str) -> Option<(String, Position)> {
+    let marker = "$1";
+    let offset = text.find(marker)?;
+    assert!(
+        !text[offset + marker.len()..].contains(marker),
+        "fixture contains multiple `$1` cursor markers",
+    );
+
+    let position = position_at_offset(text, offset);
+    let mut stripped = String::with_capacity(text.len() - marker.len());
+    stripped.push_str(&text[..offset]);
+    stripped.push_str(&text[offset + marker.len()..]);
+    Some((stripped, position))
+}
+
+fn position_at_offset(text: &str, offset: usize) -> Position {
+    assert!(text.is_char_boundary(offset), "cursor marker must be at a character boundary");
+    let prefix = &text[..offset];
+    let line = prefix.bytes().filter(|&byte| byte == b'\n').count() as u32;
+    let line_start = prefix.rfind('\n').map_or(0, |index| index + 1);
+    let character = prefix[line_start..].encode_utf16().count() as u32;
+    Position { line, character }
 }
 
 fn finish_file(mut file: FixtureFile) -> FixtureFile {

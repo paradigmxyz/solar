@@ -422,19 +422,6 @@ impl SymbolTables {
         self.lexical_completion_items(uri, position)
     }
 
-    #[cfg(test)]
-    pub(crate) fn completion_items_with_source(
-        &self,
-        uri: &Url,
-        position: Position,
-        source: &str,
-    ) -> Vec<CompletionItem> {
-        let Some(line) = source.lines().nth(position.line as usize) else {
-            return self.completion_items(uri, position);
-        };
-        self.completion_items_with_line(uri, position, line)
-    }
-
     pub(crate) fn completion_items_with_line(
         &self,
         uri: &Url,

@@ -3336,6 +3336,7 @@ dependencies = [
  "normalize-path",
  "serde",
  "serde_json",
+ "snapbox",
  "solar-config",
  "solar-interface",
  "solar-sema",
