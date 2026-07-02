@@ -95,21 +95,6 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
-    pub(super) fn signed_binary_fold_is_unsafe(op: hir::BinOpKind, is_signed: bool) -> bool {
-        is_signed
-            && matches!(
-                op,
-                hir::BinOpKind::Div
-                    | hir::BinOpKind::Rem
-                    | hir::BinOpKind::Shr
-                    | hir::BinOpKind::Sar
-                    | hir::BinOpKind::Lt
-                    | hir::BinOpKind::Le
-                    | hir::BinOpKind::Gt
-                    | hir::BinOpKind::Ge
-            )
-    }
-
     /// Lowers a binary operation.
     pub(super) fn lower_binary_op(
         &mut self,

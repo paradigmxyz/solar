@@ -4,10 +4,7 @@ use super::{
     Lowerer,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
-use crate::{
-    mir::{FunctionBuilder, MirType, ValueId},
-    utils::{ConstantFolder, FoldResult},
-};
+use crate::mir::{FunctionBuilder, MirType, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
 use solar_interface::{Ident, Span, Symbol, kw, sym};
@@ -62,20 +59,14 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Binary(lhs, op, rhs) => {
-                // Try constant folding first
-                let folder = ConstantFolder::new(self.gcx);
+                // Constant operations are not special-cased here: lowering
+                // emits the plain instruction and the MIR pass pipeline folds
+                // it uniformly, with checked-arithmetic semantics intact.
                 let int_info =
                     self.integer_info_for_expr(expr).or_else(|| self.integer_info_for_expr(lhs));
                 let is_signed =
                     int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
                 let unsupported_udvt_operator = self.gcx.unsupported_udvt_operator(expr.id);
-                if !Self::signed_binary_fold_is_unsafe(op.kind, is_signed) {
-                    match folder.try_fold(expr) {
-                        FoldResult::Integer(folded) => return builder.imm_u256(folded),
-                        FoldResult::Bool(b) => return builder.imm_bool(b),
-                        FoldResult::NotConstant | FoldResult::Error => {}
-                    }
-                }
 
                 // `&&`/`||` must short-circuit: the right operand may have
                 // side effects (external calls, reverts, ...).
@@ -161,14 +152,6 @@ impl<'gcx> Lowerer<'gcx> {
                         }
                     }
                     _ => {
-                        // Try constant folding for non-mutating unary ops
-                        let folder = ConstantFolder::new(self.gcx);
-                        match folder.try_fold(expr) {
-                            FoldResult::Integer(folded) => return builder.imm_u256(folded),
-                            FoldResult::Bool(b) => return builder.imm_bool(b),
-                            FoldResult::NotConstant | FoldResult::Error => {}
-                        }
-
                         let operand_val = self.lower_expr(builder, operand);
                         let int_info = self
                             .integer_info_for_expr(expr)

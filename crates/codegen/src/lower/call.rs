@@ -388,6 +388,11 @@ impl<'gcx> Lowerer<'gcx> {
             Builtin::Keccak256 => {
                 let mut exprs = args.exprs();
                 if let Some(first) = exprs.next() {
+                    // TODO(OSS-413): syntax-directed special case. A string
+                    // literal argument is hashed at compile time, but the same
+                    // constant reaching here through a variable is not; folding
+                    // keccak over known memory contents belongs in a MIR pass
+                    // so both spellings are handled uniformly.
                     if let ExprKind::Lit(lit) = &first.kind
                         && let LitKind::Str(_, bytes, _) = &lit.kind
                     {

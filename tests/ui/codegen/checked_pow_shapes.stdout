@@ -514,16 +514,128 @@ fn @const_neg2(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = gt arg0, 255
-    br v11, bb3, bb4
+    v12 = eq 2, 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe
+    br v12, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v17 = exp 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe, arg0
-    mstore 128, v17
+    v18 = sub 0, 2
+    v23 = iszero arg0
+    br v23, bb5, bb6
+  bb5:
+    v104 = phi [bb4: 1], [bb6: v18], [bb7: 0], [bb9: 1], [bb16: v39], [bb19: v56], [bb31: v103]
+    mstore 128, v104
     returndata 128, 32
+  bb6:
+    v24 = eq arg0, 1
+    br v24, bb5, bb7
+  bb7:
+    v25 = iszero v18
+    br v25, bb5, bb8
+  bb8:
+    v26 = sgt v18, 0
+    br v26, bb9, bb10
+  bb9:
+    v27 = eq v18, 1
+    br v27, bb5, bb12
+  bb10:
+    v54 = eq v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    br v54, bb19, bb20
+  bb11:
+    v64 = and arg0, 1
+    v65 = select v64, v18, 1
+    v66 = mul v18, v18
+    v67 = shr 1, arg0
+    jump bb23
+  bb12:
+    v29 = lt v18, 11
+    v31 = lt arg0, 78
+    v32 = and v29, v31
+    v34 = lt v18, 307
+    v36 = lt arg0, 32
+    v37 = and v34, v36
+    v38 = or v32, v37
+    br v38, bb13, bb14
+  bb13:
+    v39 = exp v18, arg0
+    v40 = gt v39, 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    br v40, bb15, bb16
+  bb14:
+    v46 = div 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v18
+    v47 = gt v18, v46
+    br v47, bb17, bb18
+  bb15:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb16:
+    jump bb5
+  bb17:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb18:
+    jump bb11
+  bb19:
+    v55 = and arg0, 1
+    v56 = select v55, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1
+    jump bb5
+  bb20:
+    v57 = sdiv 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v18
+    v58 = slt v18, v57
+    br v58, bb21, bb22
+  bb21:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb22:
+    jump bb11
+  bb23:
+    v68 = phi [bb11: v65], [bb27: v82]
+    v69 = phi [bb11: v66], [bb27: v83]
+    v70 = phi [bb11: v67], [bb27: v84]
+    v72 = gt v70, 1
+    br v72, bb24, bb25
+  bb24:
+    v73 = div 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v69
+    v74 = gt v69, v73
+    br v74, bb26, bb27
+  bb25:
+    v85 = sgt v68, 0
+    v86 = div 0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v69
+    v87 = gt v68, v86
+    v88 = and v85, v87
+    br v88, bb28, bb29
+  bb26:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb27:
+    v80 = and v70, 1
+    v81 = mul v68, v69
+    v82 = select v80, v81, v68
+    v83 = mul v69, v69
+    v84 = shr 1, v70
+    jump bb23
+  bb28:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb29:
+    v94 = slt v68, 0
+    v95 = sdiv 0x8000000000000000000000000000000000000000000000000000000000000000, v69
+    v96 = slt v68, v95
+    v97 = and v94, v96
+    br v97, bb30, bb31
+  bb30:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb31:
+    v103 = mul v68, v69
+    jump bb5
 }
 
 fn @unchecked_pow8(arg0: u8, arg1: u8) {
