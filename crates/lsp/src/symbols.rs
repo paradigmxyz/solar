@@ -903,22 +903,22 @@ impl SymbolTables {
     fn member_completion_entry(
         &mut self,
         gcx: Gcx<'_>,
-        member: MemberCompletion,
+        member: MemberCompletion<'_>,
     ) -> CompletionEntryId {
         if let Some(symbol_id) = self.symbol_id_for_member_completion(gcx, member) {
             return self.declaration_completion_id(symbol_id);
         }
         self.push_completion_entry(CompletionEntry {
-            label: member.name.to_string(),
+            label: member.member.name.to_string(),
             kind: member_completion_item_kind(member),
-            detail: member.attached.then_some("using for".to_string()),
+            detail: member.member.attached.then_some("using for".to_string()),
         })
     }
 
     fn symbol_id_for_member_completion(
         &self,
         gcx: Gcx<'_>,
-        member: MemberCompletion,
+        member: MemberCompletion<'_>,
     ) -> Option<SymbolId> {
         match member.resolved {
             Some(ResolvedMember::Res(res)) => self.symbol_id_for_res(res),
@@ -929,7 +929,7 @@ impl SymbolTables {
             Some(ResolvedMember::EnumVariant { enum_id, variant_index }) => {
                 self.symbols_by_key.get(&SymbolKey::EnumVariant(enum_id, variant_index)).copied()
             }
-            None => member.res.and_then(|res| self.symbol_id_for_res(res)),
+            None => member.member.res.and_then(|res| self.symbol_id_for_res(res)),
         }
     }
 
@@ -1711,7 +1711,7 @@ fn completion_detail(gcx: Gcx<'_>, res: Res) -> Option<String> {
     }
 }
 
-fn member_completion_item_kind(member: MemberCompletion) -> CompletionItemKind {
+fn member_completion_item_kind(member: MemberCompletion<'_>) -> CompletionItemKind {
     if matches!(member.resolved, Some(ResolvedMember::EnumVariant { .. })) {
         return CompletionItemKind::ENUM_MEMBER;
     }
@@ -1719,7 +1719,7 @@ fn member_completion_item_kind(member: MemberCompletion) -> CompletionItemKind {
         return CompletionItemKind::FIELD;
     }
 
-    match member.res {
+    match member.member.res {
         Some(Res::Item(ItemId::Function(_))) => CompletionItemKind::METHOD,
         Some(Res::Item(ItemId::Variable(_))) | None => CompletionItemKind::FIELD,
         Some(Res::Item(ItemId::Contract(_))) | Some(Res::Namespace(_)) => {

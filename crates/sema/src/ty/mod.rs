@@ -115,11 +115,9 @@ pub struct ScopeDeclaration {
 
 /// A completion candidate for a member visible on a receiver type.
 #[derive(Clone, Copy, Debug)]
-pub struct MemberCompletion {
-    pub name: Symbol,
-    pub res: Option<hir::Res>,
+pub struct MemberCompletion<'gcx> {
+    pub member: members::Member<'gcx>,
     pub resolved: Option<ResolvedMember>,
-    pub attached: bool,
 }
 
 impl<'gcx> TypeckResults<'gcx> {
@@ -879,13 +877,11 @@ impl<'gcx> Gcx<'gcx> {
         ty: Ty<'gcx>,
         source: hir::SourceId,
         contract: Option<hir::ContractId>,
-    ) -> Vec<MemberCompletion> {
+    ) -> Vec<MemberCompletion<'gcx>> {
         self.members_of(ty, source, contract)
             .map(|member| MemberCompletion {
-                name: member.name,
-                res: member.res,
                 resolved: self.resolved_member_for_completion(ty, member.name, member.res),
-                attached: member.attached,
+                member,
             })
             .collect()
     }
