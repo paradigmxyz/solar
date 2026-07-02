@@ -25,13 +25,13 @@ fn @promote_checked_sum_loop(arg0: u256) {
     v2 = add v3, 1
     jump bb1
   bb6:
-    v21 = mload 160
-    br v21, bb8, bb7
+    v18 = mload 160
+    br v18, bb8, bb7
   bb7:
     stop
   bb8:
-    v22 = mload 128
-    sstore 0, v22
+    v19 = mload 128
+    sstore 0, v19
     jump bb7
 }
 

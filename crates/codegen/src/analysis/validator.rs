@@ -113,6 +113,14 @@ impl Validator {
                     inst_id.index()
                 )));
             }
+            // Only value-producing instructions may have a result value.
+            if inst_id.index() < num_insts && func.instructions[*inst_id].result_ty.is_none() {
+                errors.push(ValidationError::new(format!(
+                    "instruction inst{} (`{:?}`) has a result Value entry but no result type",
+                    inst_id.index(),
+                    func.instructions[*inst_id].kind
+                )));
+            }
         }
 
         // ----- Walk every block -----

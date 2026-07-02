@@ -10,8 +10,8 @@ fn @am(arg0: u256, arg1: u256, arg2: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = addmod arg0, arg1, arg2
-    mstore 128, v12
+    v11 = addmod arg0, arg1, arg2
+    mstore 128, v11
     returndata 128, 32
 }
 
@@ -25,8 +25,8 @@ fn @mm(arg0: u256, arg1: u256, arg2: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = mulmod arg0, arg1, arg2
-    mstore 128, v12
+    v11 = mulmod arg0, arg1, arg2
+    mstore 128, v11
     returndata 128, 32
 }
 

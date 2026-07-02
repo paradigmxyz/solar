@@ -1110,7 +1110,7 @@ mod tests {
         let frame = builder.internal_frame_addr(128);
         let value = builder.imm_u64(42);
         builder.mstore(frame, value);
-        builder.internal_call(FunctionId::from_usize(0), Vec::new(), None, 0);
+        builder.internal_call_void(FunctionId::from_usize(0), Vec::new(), 0);
         let loaded = builder.mload(frame);
         builder.ret([loaded]);
 

@@ -11,17 +11,17 @@ fn @branchLocal(arg0: u256) {
   bb2:
     mstore 128, 0
     mstore 160, 1
-    v14 = eq arg0, 0
-    v15 = iszero v14
-    br v15, bb3, bb4
+    v12 = eq arg0, 0
+    v13 = iszero v12
+    br v13, bb3, bb4
   bb3:
     mstore 160, 2
     jump bb4
   bb4:
-    v20 = mload 160
+    v17 = mload 160
+    mstore 128, v17
+    v20 = mload 128
     mstore 128, v20
-    v24 = mload 128
-    mstore 128, v24
     returndata 128, 32
 }
 

@@ -2,8 +2,8 @@
 ; module @StoragePromotionNested
 fn @promote_outer_after_inner_flush_split() {
   bb0 (entry):
-    v20 = sload 0
-    mstore 192, v20
+    v18 = sload 0
+    mstore 192, v18
     mstore 224, 0
     jump bb6
   bb1:
@@ -15,8 +15,8 @@ fn @promote_outer_after_inner_flush_split() {
   bb3:
     jump bb1
   bb4:
-    v15 = mload 160
-    br v15, bb10, bb9
+    v13 = mload 160
+    br v13, bb10, bb9
   bb5:
     v4 = mload 192
     v6 = add v4, 1
@@ -29,20 +29,20 @@ fn @promote_outer_after_inner_flush_split() {
     mstore 160, 0
     jump bb1
   bb8:
-    v26 = mload 224
-    br v26, bb12, bb11
+    v20 = mload 224
+    br v20, bb12, bb11
   bb9:
     jump bb5
   bb10:
-    v16 = mload 128
-    mstore 192, v16
+    v14 = mload 128
+    mstore 192, v14
     mstore 224, 1
     jump bb9
   bb11:
     stop
   bb12:
-    v27 = mload 192
-    sstore 0, v27
+    v21 = mload 192
+    sstore 0, v21
     jump bb11
 }
 
@@ -58,8 +58,8 @@ fn @reject_outer_when_inner_flush_may_alias(arg0: u256) {
   bb3:
     jump bb1
   bb4:
-    v15 = mload 160
-    br v15, bb10, bb9
+    v13 = mload 160
+    br v13, bb10, bb9
   bb5:
     v4 = sload 0 !metadata(storage=slot(0))
     v6 = add v4, 1
@@ -75,7 +75,7 @@ fn @reject_outer_when_inner_flush_may_alias(arg0: u256) {
   bb9:
     jump bb5
   bb10:
-    v16 = mload 128
-    sstore arg0, v16
+    v14 = mload 128
+    sstore arg0, v14
     jump bb9
 }

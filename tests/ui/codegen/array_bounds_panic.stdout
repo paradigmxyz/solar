@@ -10,73 +10,73 @@ fn @memFix(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = mload 64 !metadata(memory=scratch)
-    v13 = add v11, 96
-    mstore 64, v13 !metadata(memory=scratch)
-    mstore v11, 0
-    v20 = add v11, 32
+    v10 = mload 64 !metadata(memory=scratch)
+    v12 = add v10, 96
+    mstore 64, v12 !metadata(memory=scratch)
+    mstore v10, 0
+    v17 = add v10, 32
+    mstore v17, 0
+    v20 = add v10, 64
     mstore v20, 0
-    v24 = add v11, 64
-    mstore v24, 0
-    v29 = mul 1, 32
-    v31 = add v11, v29
-    mstore v31, 20
-    v34 = mul arg0, 32
-    v36 = lt arg0, 3
-    br v36, bb4, bb3
+    v24 = mul 1, 32
+    v26 = add v10, v24
+    mstore v26, 20
+    v28 = mul arg0, 32
+    v30 = lt arg0, 3
+    br v30, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v44 = add v11, v34
-    v45 = mload v44
-    mstore 128, v45
+    v36 = add v10, v28
+    v37 = mload v36
+    mstore 128, v37
     returndata 128, 32
 }
 
 fn @memFixConst() {
   bb0 (entry):
     mstore 128, 0
-    v4 = mload 64 !metadata(memory=scratch)
-    v6 = add v4, 96
-    mstore 64, v6 !metadata(memory=scratch)
-    mstore v4, 0
-    v13 = add v4, 32
+    v3 = mload 64 !metadata(memory=scratch)
+    v5 = add v3, 96
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v3, 0
+    v10 = add v3, 32
+    mstore v10, 0
+    v13 = add v3, 64
     mstore v13, 0
-    v17 = add v4, 64
-    mstore v17, 0
+    v17 = mul 2, 32
+    v19 = add v3, v17
+    mstore v19, 30
     v22 = mul 2, 32
-    v24 = add v4, v22
-    mstore v24, 30
-    v28 = mul 2, 32
-    v30 = add v4, v28
-    v31 = mload v30
-    mstore 128, v31
+    v24 = add v3, v22
+    v25 = mload v24
+    mstore 128, v25
     returndata 128, 32
 }
 
 fn @memFixConstOob() {
   bb0 (entry):
     mstore 128, 0
-    v4 = mload 64 !metadata(memory=scratch)
-    v6 = add v4, 96
-    mstore 64, v6 !metadata(memory=scratch)
-    mstore v4, 0
-    v13 = add v4, 32
+    v3 = mload 64 !metadata(memory=scratch)
+    v5 = add v3, 96
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v3, 0
+    v10 = add v3, 32
+    mstore v10, 0
+    v13 = add v3, 64
     mstore v13, 0
-    v17 = add v4, 64
-    mstore v17, 0
-    v21 = mul 5, 32
+    v16 = mul 5, 32
     br 1, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v31 = add v4, v21
-    v32 = mload v31
-    mstore 128, v32
+    v24 = add v3, v16
+    v25 = mload v24
+    mstore 128, v25
     returndata 128, 32
 }
 
@@ -90,57 +90,57 @@ fn @memDyn(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = mload 64 !metadata(memory=scratch)
-    mstore v12, arg0
-    v15 = mul arg0, 32
-    v16 = div v15, 32
-    v17 = eq v16, arg0
-    br v17, bb4, bb3
+    v11 = mload 64 !metadata(memory=scratch)
+    mstore v11, arg0
+    v13 = mul arg0, 32
+    v14 = div v13, 32
+    v15 = eq v14, arg0
+    br v15, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v25 = add v15, 32
-    v26 = lt v25, v15
-    br v26, bb5, bb6
+    v21 = add v13, 32
+    v22 = lt v21, v13
+    br v22, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v34 = add v12, v25
-    v35 = lt v34, v12
-    br v35, bb7, bb8
+    v28 = add v11, v21
+    v29 = lt v28, v11
+    br v29, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v44 = gt v34, 0xffffffffffffffff
-    br v44, bb9, bb10
+    v36 = gt v28, 0xffffffffffffffff
+    br v36, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v34 !metadata(memory=scratch)
-    v54 = add v12, 32
-    v55 = calldatasize
-    calldatacopy v54, v55, v15
-    v58 = mul arg1, 32
-    v59 = mload v12
-    v60 = lt arg1, v59
-    br v60, bb12, bb11
+    mstore 64, v28 !metadata(memory=scratch)
+    v43 = add v11, 32
+    v44 = calldatasize
+    calldatacopy v43, v44, v13
+    v46 = mul arg1, 32
+    v47 = mload v11
+    v48 = lt arg1, v47
+    br v48, bb12, bb11
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    v68 = add v12, 32
-    v69 = add v68, v58
-    v70 = mload v69
-    mstore 128, v70
+    v54 = add v11, 32
+    v55 = add v54, v46
+    v56 = mload v55
+    mstore 128, v56
     returndata 128, 32
 }
 
@@ -154,19 +154,19 @@ fn @stDyn(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = sload 0 !metadata(storage=slot(0))
-    v12 = lt arg0, v11
-    br v12, bb4, bb3
+    v10 = sload 0 !metadata(storage=slot(0))
+    v11 = lt arg0, v10
+    br v11, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
     mstore 0, 0 !metadata(memory=scratch)
-    v23 = keccak256 0, 32 !metadata(memory=scratch)
-    v24 = add v23, arg0
-    v25 = sload v24 !metadata(storage=symbolic(v24))
-    mstore 128, v25
+    v19 = keccak256 0, 32 !metadata(memory=scratch)
+    v20 = add v19, arg0
+    v21 = sload v20 !metadata(storage=symbolic(v20))
+    mstore 128, v21
     returndata 128, 32
 }
 
@@ -188,9 +188,9 @@ fn @stDynWrite(arg0: u256, arg1: u256) {
     revert 0, 36
   bb4:
     mstore 0, 0 !metadata(memory=scratch)
-    v21 = keccak256 0, 32 !metadata(memory=scratch)
-    v22 = add v21, arg0
-    sstore v22, arg1 !metadata(storage=symbolic(v22))
+    v18 = keccak256 0, 32 !metadata(memory=scratch)
+    v19 = add v18, arg0
+    sstore v19, arg1 !metadata(storage=symbolic(v19))
     stop
 }
 
@@ -204,16 +204,16 @@ fn @stFix(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = lt arg0, 3
-    br v12, bb4, bb3
+    v11 = lt arg0, 3
+    br v11, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v20 = add 1, arg0
-    v21 = sload v20 !metadata(storage=offset(arg0, 1))
-    mstore 128, v21
+    v17 = add 1, arg0
+    v18 = sload v17 !metadata(storage=offset(arg0, 1))
+    mstore 128, v18
     returndata 128, 32
 }
 
@@ -227,20 +227,20 @@ fn @cdDyn(arg0: memptr, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = add 4, arg0
-    v13 = calldataload v12
-    v14 = lt arg1, v13
-    br v14, bb4, bb3
+    v11 = add 4, arg0
+    v12 = calldataload v11
+    v13 = lt arg1, v12
+    br v13, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v23 = add v12, 32
-    v24 = mul arg1, 32
-    v25 = add v23, v24
-    v26 = calldataload v25
-    mstore 128, v26
+    v20 = add v11, 32
+    v21 = mul arg1, 32
+    v22 = add v20, v21
+    v23 = calldataload v22
+    mstore 128, v23
     returndata 128, 32
 }
 
@@ -257,22 +257,22 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
     v9 = add v7, 96
     mstore 64, v9 !metadata(memory=scratch)
     mstore v7, arg0
-    v16 = add v7, 32
-    mstore v16, arg1
-    v20 = add v7, 64
-    mstore v20, arg2
+    v14 = add v7, 32
+    mstore v14, arg1
+    v17 = add v7, 64
+    mstore v17, arg2
     mstore 128, 0
-    v27 = mul arg3, 32
-    v29 = lt arg3, 3
-    br v29, bb4, bb3
+    v22 = mul arg3, 32
+    v24 = lt arg3, 3
+    br v24, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v37 = add v7, v27
-    v38 = mload v37
-    mstore 128, v38
+    v30 = add v7, v22
+    v31 = mload v30
+    mstore 128, v31
     returndata 128, 32
 }
 
@@ -286,20 +286,20 @@ fn @cdBytes(arg0: memptr, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = add 4, arg0
-    v13 = calldataload v12
-    v14 = lt arg1, v13
-    br v14, bb4, bb3
+    v11 = add 4, arg0
+    v12 = calldataload v11
+    v13 = lt arg1, v12
+    br v13, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v23 = add v12, 32
-    v24 = add v23, arg1
-    v25 = calldataload v24
-    v27 = and v25, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v27
+    v20 = add v11, 32
+    v21 = add v20, arg1
+    v22 = calldataload v21
+    v24 = and v22, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v24
     returndata 128, 32
 }
 

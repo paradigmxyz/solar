@@ -16,20 +16,20 @@ fn @setS(arg0: u256, arg1: u256, arg2: u256) {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v20 = mul arg0, 2
-    v21 = add 0, v20
-    sstore v21, arg1 !metadata(storage=symbolic(v20))
-    v25 = lt arg0, 3
-    br v25, bb6, bb5
+    v18 = mul arg0, 2
+    v19 = add 0, v18
+    sstore v19, arg1 !metadata(storage=symbolic(v18))
+    v22 = lt arg0, 3
+    br v22, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v34 = mul arg0, 2
-    v35 = add 0, v34
-    v37 = add v35, 1
-    sstore v37, arg2 !metadata(storage=offset(v34, 1))
+    v29 = mul arg0, 2
+    v30 = add 0, v29
+    v32 = add v30, 1
+    sstore v32, arg2 !metadata(storage=offset(v29, 1))
     stop
 }
 
@@ -44,30 +44,30 @@ fn @getS(arg0: u256) {
   bb2:
     mstore 128, 0
     mstore 160, 0
-    v15 = lt arg0, 3
-    br v15, bb4, bb3
+    v13 = lt arg0, 3
+    br v13, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v24 = mul arg0, 2
-    v25 = add 0, v24
-    v26 = sload v25 !metadata(storage=symbolic(v24))
-    v29 = lt arg0, 3
-    br v29, bb6, bb5
+    v20 = mul arg0, 2
+    v21 = add 0, v20
+    v22 = sload v21 !metadata(storage=symbolic(v20))
+    v25 = lt arg0, 3
+    br v25, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v38 = mul arg0, 2
-    v39 = add 0, v38
-    v41 = add v39, 1
-    v42 = sload v41 !metadata(storage=offset(v38, 1))
-    mstore 128, v26
-    v46 = add 128, 32
-    mstore v46, v42
+    v32 = mul arg0, 2
+    v33 = add 0, v32
+    v35 = add v33, 1
+    v36 = sload v35 !metadata(storage=offset(v32, 1))
+    mstore 128, v22
+    v39 = add 128, 32
+    mstore v39, v36
     returndata 128, 64
 }
 

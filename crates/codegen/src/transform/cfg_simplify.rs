@@ -746,7 +746,7 @@ mod tests {
         entry.attributes.visibility = Visibility::Public;
         {
             let mut builder = FunctionBuilder::new(&mut entry);
-            let value = builder.internal_call(live_helper, Vec::new(), Some(MirType::uint256()), 1);
+            let value = builder.internal_call(live_helper, Vec::new(), MirType::uint256(), 1);
             builder.ret([value]);
         }
         let entry = module.add_function(entry);

@@ -1643,7 +1643,7 @@ mod tests {
         {
             let mut builder = FunctionBuilder::new(&mut caller);
             let limit = builder.imm_u64(4);
-            let value = builder.internal_call(callee_id, vec![limit], Some(MirType::uint256()), 1);
+            let value = builder.internal_call(callee_id, vec![limit], MirType::uint256(), 1);
             let one = builder.imm_u64(1);
             let result = builder.add(value, one);
             builder.ret([result]);

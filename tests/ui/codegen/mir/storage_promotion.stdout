@@ -52,13 +52,13 @@ fn @promote_store_only_without_initial_load() {
   bb3:
     jump bb1
   bb4:
-    v9 = mload 160
-    br v9, bb6, bb5
+    v7 = mload 160
+    br v7, bb6, bb5
   bb5:
     stop
   bb6:
-    v10 = mload 128
-    sstore 0, v10
+    v8 = mload 128
+    sstore 0, v8
     jump bb5
 }
 
@@ -104,8 +104,8 @@ fn @promote_without_init_rewrites_successor_phi() -> u256 {
   bb3:
     jump bb1
   bb4:
-    v17 = mload 160
-    br v17, bb8, bb7
+    v14 = mload 160
+    br v14, bb8, bb7
   bb5:
     v8 = phi [bb7: 7], [bb6: 9]
     ret v8
@@ -114,7 +114,7 @@ fn @promote_without_init_rewrites_successor_phi() -> u256 {
   bb7:
     jump bb5
   bb8:
-    v18 = mload 128
-    sstore 0, v18
+    v15 = mload 128
+    sstore 0, v15
     jump bb7
 }

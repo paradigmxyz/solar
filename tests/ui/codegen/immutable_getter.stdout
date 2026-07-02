@@ -3,8 +3,8 @@
 fn @owner() {
   bb0 (entry):
     mstore 128, 0
-    v3 = loadimmutable 0
-    mstore 128, v3
+    v2 = loadimmutable 0
+    mstore 128, v2
     returndata 128, 32
 }
 

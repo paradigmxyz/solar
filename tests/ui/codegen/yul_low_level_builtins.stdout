@@ -24,33 +24,33 @@ fn @safeCall(arg0: address, arg1: bytes4) {
     revert 0, 0
   bb6:
     mstore 128, 0
-    v24 = mload 64 !metadata(memory=scratch)
+    v23 = mload 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    v28 = gas
-    v34 = call v28, arg0, 0, 0, 4, 0, 32
-    mstore 128, v34
-    v38 = mload 128
-    v40 = mload 0 !metadata(memory=scratch)
-    v42 = eq v40, 1
-    v43 = and v38, v42
+    v26 = gas
+    v32 = call v26, arg0, 0, 0, 4, 0, 32
+    mstore 128, v32
+    v35 = mload 128
+    v37 = mload 0 !metadata(memory=scratch)
+    v39 = eq v37, 1
+    v40 = and v35, v39
+    v41 = iszero v40
+    v43 = eq v41, 0
     v44 = iszero v43
-    v46 = eq v44, 0
-    v47 = iszero v46
-    br v47, bb7, bb8
+    br v44, bb7, bb8
   bb7:
-    v49 = returndatasize
-    returndatacopy v24, 0, v49
-    v52 = returndatasize
-    revert v24, v52
+    v46 = returndatasize
+    returndatacopy v23, 0, v46
+    v48 = returndatasize
+    revert v23, v48
   bb8:
-    v55 = mload 128
-    v56 = extcodesize arg0
-    v58 = gt v56, 0
-    v59 = and v55, v58
-    mstore 128, v59
-    mstore 64, v24 !metadata(memory=scratch)
-    v66 = mload 128
-    mstore 128, v66
+    v51 = mload 128
+    v52 = extcodesize arg0
+    v54 = gt v52, 0
+    v55 = and v51, v54
+    mstore 128, v55
+    mstore 64, v23 !metadata(memory=scratch)
+    v60 = mload 128
+    mstore 128, v60
     returndata 128, 32
 }
 

@@ -10,17 +10,17 @@ fn @sadd(arg0: i256, arg1: i256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = add arg0, arg1
-    v13 = slt arg0, 0
-    v14 = slt v11, arg1
-    v15 = xor v13, v14
-    br v15, bb3, bb4
+    v10 = add arg0, arg1
+    v12 = slt arg0, 0
+    v13 = slt v10, arg1
+    v14 = xor v12, v13
+    br v14, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -34,17 +34,17 @@ fn @ssub(arg0: i256, arg1: i256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = sub arg0, arg1
-    v13 = slt arg1, 0
-    v14 = sgt v11, arg0
-    v15 = xor v13, v14
-    br v15, bb3, bb4
+    v10 = sub arg0, arg1
+    v12 = slt arg1, 0
+    v13 = sgt v10, arg0
+    v14 = xor v12, v13
+    br v14, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -58,23 +58,23 @@ fn @smul(arg0: i256, arg1: i256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = mul arg0, arg1
-    v12 = iszero arg1
-    v13 = sdiv v11, arg1
-    v14 = eq v13, arg0
-    v15 = or v12, v14
-    v16 = iszero v15
-    v18 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v20 = slt arg1, 0
-    v21 = and v18, v20
-    v22 = or v16, v21
-    br v22, bb3, bb4
+    v10 = mul arg0, arg1
+    v11 = iszero arg1
+    v12 = sdiv v10, arg1
+    v13 = eq v12, arg0
+    v14 = or v11, v13
+    v15 = iszero v14
+    v17 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v19 = slt arg1, 0
+    v20 = and v17, v19
+    v21 = or v15, v20
+    br v21, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -94,17 +94,17 @@ fn @sdiv(arg0: i256, arg1: i256) {
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v20 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    v21 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v22 = and v20, v21
-    br v22, bb5, bb6
+    v17 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    v18 = eq arg1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v19 = and v17, v18
+    br v19, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v30 = sdiv arg0, arg1
-    mstore 128, v30
+    v25 = sdiv arg0, arg1
+    mstore 128, v25
     returndata 128, 32
 }
 
@@ -124,8 +124,8 @@ fn @smod(arg0: i256, arg1: i256) {
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v18 = smod arg0, arg1
-    mstore 128, v18
+    v15 = smod arg0, arg1
+    mstore 128, v15
     returndata 128, 32
 }
 
@@ -139,15 +139,15 @@ fn @neg(arg0: i256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    br v12, bb3, bb4
+    v11 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    br v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v20 = sub 0, arg0
-    mstore 128, v20
+    v17 = sub 0, arg0
+    mstore 128, v17
     returndata 128, 32
 }
 
@@ -161,15 +161,15 @@ fn @inc(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = add arg0, 1
-    v12 = lt v11, arg0
-    br v12, bb3, bb4
+    v10 = add arg0, 1
+    v11 = lt v10, arg0
+    br v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -183,15 +183,15 @@ fn @dec(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = sub arg0, 1
-    v12 = lt arg0, 1
-    br v12, bb3, bb4
+    v10 = sub arg0, 1
+    v11 = lt arg0, 1
+    br v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -219,15 +219,15 @@ fn @uadd128(arg0: u128, arg1: u128) {
     revert 0, 0
   bb6:
     mstore 128, 0
-    v23 = add arg0, arg1
-    v25 = gt v23, 0xffffffffffffffffffffffffffffffff
-    br v25, bb7, bb8
+    v22 = add arg0, arg1
+    v24 = gt v22, 0xffffffffffffffffffffffffffffffff
+    br v24, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v23
+    mstore 128, v22
     returndata 128, 32
 }
 
@@ -255,15 +255,15 @@ fn @umul128(arg0: u128, arg1: u128) {
     revert 0, 0
   bb6:
     mstore 128, 0
-    v23 = mul arg0, arg1
-    v25 = gt v23, 0xffffffffffffffffffffffffffffffff
-    br v25, bb7, bb8
+    v22 = mul arg0, arg1
+    v24 = gt v22, 0xffffffffffffffffffffffffffffffff
+    br v24, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v23
+    mstore 128, v22
     returndata 128, 32
 }
 
@@ -291,17 +291,17 @@ fn @smul128(arg0: i128, arg1: i128) {
     revert 0, 0
   bb6:
     mstore 128, 0
-    v23 = mul arg0, arg1
-    v26 = slt v23, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
-    v27 = sgt v23, 0x7fffffffffffffffffffffffffffffff
-    v28 = or v26, v27
-    br v28, bb7, bb8
+    v22 = mul arg0, arg1
+    v25 = slt v22, 0xffffffffffffffffffffffffffffffff80000000000000000000000000000000
+    v26 = sgt v22, 0x7fffffffffffffffffffffffffffffff
+    v27 = or v25, v26
+    br v27, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v23
+    mstore 128, v22
     returndata 128, 32
 }
 
@@ -329,21 +329,21 @@ fn @umul192(arg0: u192, arg1: u192) {
     revert 0, 0
   bb6:
     mstore 128, 0
-    v23 = mul arg0, arg1
-    v24 = iszero arg1
-    v25 = div v23, arg1
-    v26 = eq v25, arg0
-    v27 = or v24, v26
-    v28 = iszero v27
-    v30 = gt v23, 0xffffffffffffffffffffffffffffffffffffffffffffffff
-    v31 = or v28, v30
-    br v31, bb7, bb8
+    v22 = mul arg0, arg1
+    v23 = iszero arg1
+    v24 = div v22, arg1
+    v25 = eq v24, arg0
+    v26 = or v23, v25
+    v27 = iszero v26
+    v29 = gt v22, 0xffffffffffffffffffffffffffffffffffffffffffffffff
+    v30 = or v27, v29
+    br v30, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v23
+    mstore 128, v22
     returndata 128, 32
 }
 

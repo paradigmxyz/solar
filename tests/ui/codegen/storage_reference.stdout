@@ -11,8 +11,8 @@ fn @setDirect(arg0: u256, arg1: u256) {
   bb2:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v14 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v14, arg1 !metadata(storage=symbolic(v14))
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v12, arg1 !metadata(storage=symbolic(v12))
     stop
 }
 
@@ -28,9 +28,9 @@ fn @getViaRef(arg0: u256) {
     mstore 128, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v16 = keccak256 0, 64 !metadata(memory=scratch)
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    mstore 128, v17
+    v13 = keccak256 0, 64 !metadata(memory=scratch)
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    mstore 128, v14
     returndata 128, 32
 }
 
@@ -45,19 +45,19 @@ fn @bump(arg0: u256) {
   bb2:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
-    v15 = add v13, 1
-    v16 = sload v15 !metadata(storage=offset(v13, 1))
-    v18 = add v16, 1
-    v19 = lt v18, v16
-    br v19, bb3, bb4
+    v11 = keccak256 0, 64 !metadata(memory=scratch)
+    v13 = add v11, 1
+    v14 = sload v13 !metadata(storage=offset(v11, 1))
+    v16 = add v14, 1
+    v17 = lt v16, v14
+    br v17, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v28 = add v13, 1
-    sstore v28, v18 !metadata(storage=offset(v13, 1))
+    v24 = add v11, 1
+    sstore v24, v16 !metadata(storage=offset(v11, 1))
     stop
 }
 

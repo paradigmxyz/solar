@@ -10,15 +10,15 @@ fn @add(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = add arg0, arg1
-    v12 = lt v11, arg0
-    br v12, bb3, bb4
+    v10 = add arg0, arg1
+    v11 = lt v10, arg0
+    br v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -32,15 +32,15 @@ fn @sub(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = sub arg0, arg1
-    v12 = lt arg0, arg1
-    br v12, bb3, bb4
+    v10 = sub arg0, arg1
+    v11 = lt arg0, arg1
+    br v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -54,15 +54,15 @@ fn @add_one(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = add arg0, 1
-    v12 = lt v11, arg0
-    br v12, bb3, bb4
+    v10 = add arg0, 1
+    v11 = lt v10, arg0
+    br v11, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v10
     returndata 128, 32
 }
 

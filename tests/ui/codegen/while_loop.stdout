@@ -13,18 +13,18 @@ fn @count_down(arg0: u256) {
     mstore 160, arg0
     jump bb3
   bb3:
-    v13 = mload 160
-    v15 = gt v13, 0
-    br v15, bb5, bb7
+    v11 = mload 160
+    v13 = gt v11, 0
+    br v13, bb5, bb7
   bb4:
-    v31 = mload 160
-    mstore 128, v31
+    v26 = mload 160
+    mstore 128, v26
     returndata 128, 32
   bb5:
-    v17 = mload 160
-    v19 = sub v17, 1
-    v20 = lt v17, 1
-    br v20, bb8, bb9
+    v15 = mload 160
+    v17 = sub v15, 1
+    v18 = lt v15, 1
+    br v18, bb8, bb9
   bb6:
     jump bb3
   bb7:
@@ -34,7 +34,7 @@ fn @count_down(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    mstore 160, v19
+    mstore 160, v17
     jump bb6
 }
 
@@ -51,23 +51,23 @@ fn @do_at_least_once(arg0: u256) {
     mstore 160, 0
     jump bb3
   bb3:
-    v14 = mload 160
-    v16 = add v14, 1
-    v17 = lt v16, v14
-    br v17, bb5, bb6
+    v12 = mload 160
+    v14 = add v12, 1
+    v15 = lt v14, v12
+    br v15, bb5, bb6
   bb4:
-    v31 = mload 160
-    mstore 128, v31
+    v26 = mload 160
+    mstore 128, v26
     returndata 128, 32
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 160, v16
-    v28 = mload 160
-    v29 = lt v28, arg0
-    br v29, bb7, bb9
+    mstore 160, v14
+    v23 = mload 160
+    v24 = lt v23, arg0
+    br v24, bb7, bb9
   bb7:
     jump bb3
   bb8:
@@ -89,17 +89,17 @@ fn @break_when_found(arg0: u256, arg1: u256) {
     mstore 160, 0
     jump bb3
   bb3:
-    v15 = mload 160
-    v16 = lt v15, arg0
-    br v16, bb5, bb7
+    v13 = mload 160
+    v14 = lt v13, arg0
+    br v14, bb5, bb7
   bb4:
-    v35 = mload 160
-    mstore 128, v35
+    v30 = mload 160
+    mstore 128, v30
     returndata 128, 32
   bb5:
-    v18 = mload 160
-    v19 = eq v18, arg1
-    br v19, bb8, bb9
+    v16 = mload 160
+    v17 = eq v16, arg1
+    br v17, bb8, bb9
   bb6:
     jump bb3
   bb7:
@@ -107,16 +107,16 @@ fn @break_when_found(arg0: u256, arg1: u256) {
   bb8:
     jump bb4
   bb9:
-    v21 = mload 160
-    v23 = add v21, 1
-    v24 = lt v23, v21
-    br v24, bb10, bb11
+    v19 = mload 160
+    v21 = add v19, 1
+    v22 = lt v21, v19
+    br v22, bb10, bb11
   bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb11:
-    mstore 160, v23
+    mstore 160, v21
     jump bb6
 }
 

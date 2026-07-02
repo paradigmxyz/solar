@@ -10,35 +10,35 @@ fn @fact(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = gt arg0, 1
-    v12 = iszero v11
-    br v12, bb3, bb4
+    v10 = gt arg0, 1
+    v11 = iszero v10
+    br v11, bb3, bb4
   bb3:
     mstore 128, 1
     returndata 128, 32
   bb4:
-    v18 = sub arg0, 1
-    v19 = lt arg0, 1
-    br v19, bb5, bb6
+    v16 = sub arg0, 1
+    v17 = lt arg0, 1
+    br v17, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v27 = internal_call fn1, 1, v18
-    v28 = mul arg0, v27
-    v29 = iszero v27
-    v30 = div v28, v27
-    v31 = eq v30, arg0
-    v32 = or v29, v31
-    v33 = iszero v32
-    br v33, bb7, bb8
+    v23 = internal_call fn1, 1, v16
+    v24 = mul arg0, v23
+    v25 = iszero v23
+    v26 = div v24, v23
+    v27 = eq v26, arg0
+    v28 = or v25, v27
+    v29 = iszero v28
+    br v29, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v28
+    mstore 128, v24
     returndata 128, 32
 }
 
@@ -46,34 +46,34 @@ fn @fact(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
     mstore v1, 0 !metadata(memory=internal_frame)
-    v5 = gt arg0, 1
-    v6 = iszero v5
-    br v6, bb1, bb2
+    v4 = gt arg0, 1
+    v5 = iszero v4
+    br v5, bb1, bb2
   bb1:
     ret 1
   bb2:
-    v9 = sub arg0, 1
-    v10 = lt arg0, 1
-    br v10, bb3, bb4
+    v8 = sub arg0, 1
+    v9 = lt arg0, 1
+    br v9, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v18 = internal_call fn1, 1, v9
-    v19 = mul arg0, v18
-    v20 = iszero v18
-    v21 = div v19, v18
-    v22 = eq v21, arg0
-    v23 = or v20, v22
-    v24 = iszero v23
-    br v24, bb5, bb6
+    v15 = internal_call fn1, 1, v8
+    v16 = mul arg0, v15
+    v17 = iszero v15
+    v18 = div v16, v15
+    v19 = eq v18, arg0
+    v20 = or v17, v19
+    v21 = iszero v20
+    br v21, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    ret v19
+    ret v16
 }
 
 fn @fib(arg0: u256) {
@@ -86,40 +86,40 @@ fn @fib(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = gt arg0, 1
-    v12 = iszero v11
-    br v12, bb3, bb4
+    v10 = gt arg0, 1
+    v11 = iszero v10
+    br v11, bb3, bb4
   bb3:
     mstore 128, arg0
     returndata 128, 32
   bb4:
-    v17 = sub arg0, 1
-    v18 = lt arg0, 1
-    br v18, bb5, bb6
+    v15 = sub arg0, 1
+    v16 = lt arg0, 1
+    br v16, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v26 = internal_call fn3, 1, v17
-    v28 = sub arg0, 2
-    v29 = lt arg0, 2
-    br v29, bb7, bb8
+    v22 = internal_call fn3, 1, v15
+    v24 = sub arg0, 2
+    v25 = lt arg0, 2
+    br v25, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v37 = internal_call fn3, 1, v28
-    v38 = add v26, v37
-    v39 = lt v38, v26
-    br v39, bb9, bb10
+    v31 = internal_call fn3, 1, v24
+    v32 = add v22, v31
+    v33 = lt v32, v22
+    br v33, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 128, v38
+    mstore 128, v32
     returndata 128, 32
 }
 
@@ -127,39 +127,39 @@ fn @fib(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
     mstore v1, 0 !metadata(memory=internal_frame)
-    v5 = gt arg0, 1
-    v6 = iszero v5
-    br v6, bb1, bb2
+    v4 = gt arg0, 1
+    v5 = iszero v4
+    br v5, bb1, bb2
   bb1:
     ret arg0
   bb2:
-    v8 = sub arg0, 1
-    v9 = lt arg0, 1
-    br v9, bb3, bb4
+    v7 = sub arg0, 1
+    v8 = lt arg0, 1
+    br v8, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v17 = internal_call fn3, 1, v8
-    v19 = sub arg0, 2
-    v20 = lt arg0, 2
-    br v20, bb5, bb6
+    v14 = internal_call fn3, 1, v7
+    v16 = sub arg0, 2
+    v17 = lt arg0, 2
+    br v17, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v28 = internal_call fn3, 1, v19
-    v29 = add v17, v28
-    v30 = lt v29, v17
-    br v30, bb7, bb8
+    v23 = internal_call fn3, 1, v16
+    v24 = add v14, v23
+    v25 = lt v24, v14
+    br v25, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v29
+    ret v24
 }
 
 fn @isEven(arg0: u256) {
@@ -172,22 +172,22 @@ fn @isEven(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = eq arg0, 0
-    br v11, bb3, bb4
+    v10 = eq arg0, 0
+    br v10, bb3, bb4
   bb3:
     mstore 128, 1
     returndata 128, 32
   bb4:
-    v17 = sub arg0, 1
-    v18 = lt arg0, 1
-    br v18, bb5, bb6
+    v15 = sub arg0, 1
+    v16 = lt arg0, 1
+    br v16, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v26 = internal_call fn5, 1, v17
-    mstore 128, v26
+    v22 = internal_call fn5, 1, v15
+    mstore 128, v22
     returndata 128, 32
 }
 
@@ -195,42 +195,42 @@ fn @isOdd(arg0: u256) -> bool {
   bb0 (entry):
     v1 = internal_frame_addr 128
     mstore v1, 0 !metadata(memory=internal_frame)
-    v5 = eq arg0, 0
-    br v5, bb1, bb2
+    v4 = eq arg0, 0
+    br v4, bb1, bb2
   bb1:
     ret 0
   bb2:
-    v8 = sub arg0, 1
-    v9 = lt arg0, 1
-    br v9, bb3, bb4
+    v7 = sub arg0, 1
+    v8 = lt arg0, 1
+    br v8, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v17 = internal_call fn6, 1, v8
-    ret v17
+    v14 = internal_call fn6, 1, v7
+    ret v14
 }
 
 fn @isEven(arg0: u256) -> bool {
   bb0 (entry):
     v1 = internal_frame_addr 128
     mstore v1, 0 !metadata(memory=internal_frame)
-    v5 = eq arg0, 0
-    br v5, bb1, bb2
+    v4 = eq arg0, 0
+    br v4, bb1, bb2
   bb1:
     ret 1
   bb2:
-    v8 = sub arg0, 1
-    v9 = lt arg0, 1
-    br v9, bb3, bb4
+    v7 = sub arg0, 1
+    v8 = lt arg0, 1
+    br v8, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v17 = internal_call fn5, 1, v8
-    ret v17
+    v14 = internal_call fn5, 1, v7
+    ret v14
 }
 
 fn @isOdd(arg0: u256) {
@@ -243,22 +243,22 @@ fn @isOdd(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = eq arg0, 0
-    br v11, bb3, bb4
+    v10 = eq arg0, 0
+    br v10, bb3, bb4
   bb3:
     mstore 128, 0
     returndata 128, 32
   bb4:
-    v17 = sub arg0, 1
-    v18 = lt arg0, 1
-    br v18, bb5, bb6
+    v15 = sub arg0, 1
+    v16 = lt arg0, 1
+    br v16, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v26 = internal_call fn6, 1, v17
-    mstore 128, v26
+    v22 = internal_call fn6, 1, v15
+    mstore 128, v22
     returndata 128, 32
 }
 

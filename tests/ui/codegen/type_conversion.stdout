@@ -17,9 +17,9 @@ fn @narrowAddress(arg0: address) {
     revert 0, 0
   bb4:
     mstore 128, 0
-    v17 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = and v17, 0xffff
-    mstore 128, v19
+    v16 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v18 = and v16, 0xffff
+    mstore 128, v18
     returndata 128, 32
 }
 
@@ -33,8 +33,8 @@ fn @narrowUint(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = and arg0, 0xffff
-    mstore 128, v11
+    v10 = and arg0, 0xffff
+    mstore 128, v10
     returndata 128, 32
 }
 
@@ -48,9 +48,9 @@ fn @narrowSigned(arg0: i256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = shl 248, arg0
-    v12 = sar 248, v11
-    mstore 128, v12
+    v10 = shl 248, arg0
+    v11 = sar 248, v10
+    mstore 128, v11
     returndata 128, 32
 }
 

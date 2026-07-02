@@ -4,22 +4,22 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
   bb0 (entry):
     v2 = internal_frame_addr 160
     mstore v2, 0 !metadata(memory=internal_frame)
-    v5 = internal_frame_addr 224
-    mstore v5, 0 !metadata(memory=internal_frame)
-    v8 = add arg0, arg1
-    v9 = internal_frame_addr 224
-    mstore v9, v8 !metadata(memory=internal_frame)
-    v11 = internal_frame_addr 224
-    v12 = mload v11 !metadata(memory=internal_frame)
-    v13 = lt v12, arg0
-    v14 = iszero v13
-    v15 = internal_frame_addr 192
-    mstore v15, v14 !metadata(memory=internal_frame)
-    v17 = internal_frame_addr 192
-    v18 = mload v17 !metadata(memory=internal_frame)
-    v19 = internal_frame_addr 224
-    v20 = mload v19 !metadata(memory=internal_frame)
-    ret v18, v20
+    v4 = internal_frame_addr 224
+    mstore v4, 0 !metadata(memory=internal_frame)
+    v6 = add arg0, arg1
+    v7 = internal_frame_addr 224
+    mstore v7, v6 !metadata(memory=internal_frame)
+    v8 = internal_frame_addr 224
+    v9 = mload v8 !metadata(memory=internal_frame)
+    v10 = lt v9, arg0
+    v11 = iszero v10
+    v12 = internal_frame_addr 192
+    mstore v12, v11 !metadata(memory=internal_frame)
+    v13 = internal_frame_addr 192
+    v14 = mload v13 !metadata(memory=internal_frame)
+    v15 = internal_frame_addr 224
+    v16 = mload v15 !metadata(memory=internal_frame)
+    ret v14, v16
 }
 
 // === ROOT/tests/ui/codegen/multi_return_call.sol:C ===
@@ -34,19 +34,19 @@ fn @sat(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = internal_call fn1, 2, arg0, arg1
-    mstore 160, v11
-    v15 = mload 32 !metadata(memory=scratch)
-    mstore 192, v15
-    v19 = mload 160
-    v20 = iszero v19
-    br v20, bb3, bb4
+    v10 = internal_call fn1, 2, arg0, arg1
+    mstore 160, v10
+    v13 = mload 32 !metadata(memory=scratch)
+    mstore 192, v13
+    v16 = mload 160
+    v17 = iszero v16
+    br v17, bb3, bb4
   bb3:
     mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     returndata 128, 32
   bb4:
-    v26 = mload 192
-    mstore 128, v26
+    v22 = mload 192
+    mstore 128, v22
     returndata 128, 32
 }
 
@@ -54,22 +54,22 @@ fn @tryAdd(arg0: u256, arg1: u256) -> (bool, u256) {
   bb0 (entry):
     v2 = internal_frame_addr 160
     mstore v2, 0 !metadata(memory=internal_frame)
-    v5 = internal_frame_addr 224
-    mstore v5, 0 !metadata(memory=internal_frame)
-    v8 = add arg0, arg1
-    v9 = internal_frame_addr 224
-    mstore v9, v8 !metadata(memory=internal_frame)
-    v11 = internal_frame_addr 224
-    v12 = mload v11 !metadata(memory=internal_frame)
-    v13 = lt v12, arg0
-    v14 = iszero v13
-    v15 = internal_frame_addr 192
-    mstore v15, v14 !metadata(memory=internal_frame)
-    v17 = internal_frame_addr 192
-    v18 = mload v17 !metadata(memory=internal_frame)
-    v19 = internal_frame_addr 224
-    v20 = mload v19 !metadata(memory=internal_frame)
-    ret v18, v20
+    v4 = internal_frame_addr 224
+    mstore v4, 0 !metadata(memory=internal_frame)
+    v6 = add arg0, arg1
+    v7 = internal_frame_addr 224
+    mstore v7, v6 !metadata(memory=internal_frame)
+    v8 = internal_frame_addr 224
+    v9 = mload v8 !metadata(memory=internal_frame)
+    v10 = lt v9, arg0
+    v11 = iszero v10
+    v12 = internal_frame_addr 192
+    mstore v12, v11 !metadata(memory=internal_frame)
+    v13 = internal_frame_addr 192
+    v14 = mload v13 !metadata(memory=internal_frame)
+    v15 = internal_frame_addr 224
+    v16 = mload v15 !metadata(memory=internal_frame)
+    ret v14, v16
 }
 
 fn @tryA(arg0: u256, arg1: u256) {
@@ -83,11 +83,11 @@ fn @tryA(arg0: u256, arg1: u256) {
   bb2:
     mstore 128, 0
     mstore 160, 0
-    v14 = internal_call fn1, 2, arg0, arg1
-    v16 = mload 32 !metadata(memory=scratch)
-    mstore 128, v14
-    v20 = add 128, 32
-    mstore v20, v16
+    v12 = internal_call fn1, 2, arg0, arg1
+    v14 = mload 32 !metadata(memory=scratch)
+    mstore 128, v12
+    v17 = add 128, 32
+    mstore v17, v14
     returndata 128, 64
 }
 

@@ -51,30 +51,30 @@ fn @require_message(arg0: bool) {
     v17 = add v15, 64
     mstore 64, v17 !metadata(memory=scratch)
     mstore v15, 3
-    v23 = add v15, 32
-    v26 = add v23, 0
-    mstore v26, 0x6261640000000000000000000000000000000000000000000000000000000000
+    v21 = add v15, 32
+    v24 = add v21, 0
+    mstore v24, 0x6261640000000000000000000000000000000000000000000000000000000000
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)
-    v34 = mload v15
-    mstore 36, v34 !metadata(memory=scratch)
-    v38 = add v34, 31
-    v40 = and v38, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v42 = iszero v40
-    v43 = iszero v42
-    br v43, bb7, bb8
+    v29 = mload v15
+    mstore 36, v29 !metadata(memory=scratch)
+    v32 = add v29, 31
+    v34 = and v32, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v36 = iszero v34
+    v37 = iszero v36
+    br v37, bb7, bb8
   bb6:
     stop
   bb7:
-    v45 = sub v40, 32
-    v46 = add 68, v45
-    mstore v46, 0
+    v39 = sub v34, 32
+    v40 = add 68, v39
+    mstore v40, 0
     jump bb8
   bb8:
-    v48 = add v15, 32
-    mcopy 68, v48, v34 !metadata(memory=scratch)
-    v50 = add 68, v40
-    revert 0, v50
+    v41 = add v15, 32
+    mcopy 68, v41, v29 !metadata(memory=scratch)
+    v42 = add 68, v34
+    revert 0, v42
 }
 
 fn @revert_message() {
@@ -83,27 +83,27 @@ fn @revert_message() {
     v3 = add v1, 64
     mstore 64, v3 !metadata(memory=scratch)
     mstore v1, 3
-    v9 = add v1, 32
-    v12 = add v9, 0
-    mstore v12, 0x6261640000000000000000000000000000000000000000000000000000000000
+    v7 = add v1, 32
+    v10 = add v7, 0
+    mstore v10, 0x6261640000000000000000000000000000000000000000000000000000000000
     mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 32 !metadata(memory=scratch)
-    v20 = mload v1
-    mstore 36, v20 !metadata(memory=scratch)
-    v24 = add v20, 31
-    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v28 = iszero v26
-    v29 = iszero v28
-    br v29, bb1, bb2
+    v15 = mload v1
+    mstore 36, v15 !metadata(memory=scratch)
+    v18 = add v15, 31
+    v20 = and v18, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+    v22 = iszero v20
+    v23 = iszero v22
+    br v23, bb1, bb2
   bb1:
-    v31 = sub v26, 32
-    v32 = add 68, v31
-    mstore v32, 0
+    v25 = sub v20, 32
+    v26 = add 68, v25
+    mstore v26, 0
     jump bb2
   bb2:
-    v34 = add v1, 32
-    mcopy 68, v34, v20 !metadata(memory=scratch)
-    v36 = add 68, v26
-    revert 0, v36
+    v27 = add v1, 32
+    mcopy 68, v27, v15 !metadata(memory=scratch)
+    v28 = add 68, v20
+    revert 0, v28
 }
 

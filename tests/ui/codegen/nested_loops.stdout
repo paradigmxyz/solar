@@ -14,45 +14,45 @@ fn @sum_grid(arg0: u256, arg1: u256) {
     mstore 192, 0
     jump bb3
   bb3:
-    v18 = mload 192
-    v19 = lt v18, arg0
-    br v19, bb6, bb7
+    v15 = mload 192
+    v16 = lt v15, arg0
+    br v16, bb6, bb7
   bb4:
-    v85 = mload 160
-    mstore 128, v85
+    v70 = mload 160
+    mstore 128, v70
     returndata 128, 32
   bb5:
-    v71 = mload 192
-    v73 = add v71, 1
-    v74 = lt v73, v71
-    br v74, bb19, bb20
+    v59 = mload 192
+    v61 = add v59, 1
+    v62 = lt v61, v59
+    br v62, bb19, bb20
   bb6:
     mstore 224, 0
     jump bb8
   bb7:
     jump bb4
   bb8:
-    v24 = mload 224
-    v25 = lt v24, arg1
-    br v25, bb11, bb12
+    v20 = mload 224
+    v21 = lt v20, arg1
+    br v21, bb11, bb12
   bb9:
     jump bb5
   bb10:
-    v57 = mload 224
-    v59 = add v57, 1
-    v60 = lt v59, v57
-    br v60, bb17, bb18
+    v48 = mload 224
+    v50 = add v48, 1
+    v51 = lt v50, v48
+    br v51, bb17, bb18
   bb11:
-    v27 = mload 160
-    v29 = mload 192
-    v31 = mload 224
-    v32 = mul v29, v31
-    v33 = iszero v31
-    v34 = div v32, v31
-    v35 = eq v34, v29
-    v36 = or v33, v35
-    v37 = iszero v36
-    br v37, bb13, bb14
+    v23 = mload 160
+    v25 = mload 192
+    v27 = mload 224
+    v28 = mul v25, v27
+    v29 = iszero v27
+    v30 = div v28, v27
+    v31 = eq v30, v25
+    v32 = or v29, v31
+    v33 = iszero v32
+    br v33, bb13, bb14
   bb12:
     jump bb9
   bb13:
@@ -60,29 +60,29 @@ fn @sum_grid(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v45 = add v27, v32
-    v46 = lt v45, v27
-    br v46, bb15, bb16
+    v39 = add v23, v28
+    v40 = lt v39, v23
+    br v40, bb15, bb16
   bb15:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb16:
-    mstore 160, v45
+    mstore 160, v39
     jump bb10
   bb17:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb18:
-    mstore 224, v59
+    mstore 224, v50
     jump bb8
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb20:
-    mstore 192, v73
+    mstore 192, v61
     jump bb3
 }
 
@@ -99,39 +99,39 @@ fn @find_first(arg0: u256, arg1: u256) {
     mstore 160, 0
     jump bb3
   bb3:
-    v15 = mload 160
-    v16 = lt v15, arg0
-    br v16, bb6, bb7
+    v13 = mload 160
+    v14 = lt v13, arg0
+    br v14, bb6, bb7
   bb4:
     mstore 128, arg0
     returndata 128, 32
   bb5:
-    v57 = mload 160
-    v59 = add v57, 1
-    v60 = lt v59, v57
-    br v60, bb19, bb20
+    v48 = mload 160
+    v50 = add v48, 1
+    v51 = lt v50, v48
+    br v51, bb19, bb20
   bb6:
     mstore 192, 0
     jump bb8
   bb7:
     jump bb4
   bb8:
-    v21 = mload 192
-    v22 = lt v21, arg0
-    br v22, bb11, bb12
+    v18 = mload 192
+    v19 = lt v18, arg0
+    br v19, bb11, bb12
   bb9:
     jump bb5
   bb10:
-    v43 = mload 192
-    v45 = add v43, 1
-    v46 = lt v45, v43
-    br v46, bb17, bb18
+    v37 = mload 192
+    v39 = add v37, 1
+    v40 = lt v39, v37
+    br v40, bb17, bb18
   bb11:
-    v24 = mload 160
-    v26 = mload 192
-    v27 = add v24, v26
-    v28 = lt v27, v24
-    br v28, bb13, bb14
+    v21 = mload 160
+    v23 = mload 192
+    v24 = add v21, v23
+    v25 = lt v24, v21
+    br v25, bb13, bb14
   bb12:
     jump bb9
   bb13:
@@ -139,11 +139,11 @@ fn @find_first(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v36 = eq v27, arg1
-    br v36, bb15, bb16
+    v31 = eq v24, arg1
+    br v31, bb15, bb16
   bb15:
-    v38 = mload 160
-    mstore 128, v38
+    v33 = mload 160
+    mstore 128, v33
     returndata 128, 32
   bb16:
     jump bb10
@@ -152,14 +152,14 @@ fn @find_first(arg0: u256, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb18:
-    mstore 192, v45
+    mstore 192, v39
     jump bb8
   bb19:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb20:
-    mstore 160, v59
+    mstore 160, v50
     jump bb3
 }
 

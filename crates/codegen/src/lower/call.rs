@@ -1573,6 +1573,12 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             self.ensure_internal_mir_function(func_id)
         };
+        let Some(result_ty) = result_ty else {
+            // Void call: the instruction produces no value, so hand back a
+            // placeholder for the expression position, which is never read.
+            builder.internal_call_void(mir_id, arg_vals, func.returns.len());
+            return builder.imm_u64(0);
+        };
         builder.internal_call(mir_id, arg_vals, result_ty, func.returns.len())
     }
 

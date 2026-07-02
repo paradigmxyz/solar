@@ -10,8 +10,8 @@ fn @max(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = gt arg0, arg1
-    br v11, bb3, bb4
+    v10 = gt arg0, arg1
+    br v10, bb3, bb4
   bb3:
     mstore 0, arg0 !metadata(memory=scratch)
     jump bb5
@@ -19,8 +19,8 @@ fn @max(arg0: u256, arg1: u256) {
     mstore 0, arg1 !metadata(memory=scratch)
     jump bb5
   bb5:
-    v17 = mload 0 !metadata(memory=scratch)
-    mstore 128, v17
+    v14 = mload 0 !metadata(memory=scratch)
+    mstore 128, v14
     returndata 128, 32
 }
 
@@ -34,18 +34,18 @@ fn @clamp(arg0: u256, arg1: u256, arg2: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = lt arg0, arg1
-    br v12, bb3, bb4
+    v11 = lt arg0, arg1
+    br v11, bb3, bb4
   bb3:
     mstore 0, arg1 !metadata(memory=scratch)
     jump bb5
   bb4:
-    v15 = gt arg0, arg2
-    br v15, bb6, bb7
+    v13 = gt arg0, arg2
+    br v13, bb6, bb7
   bb5:
-    v25 = mload 0 !metadata(memory=scratch)
-    v27 = mload 0 !metadata(memory=scratch)
-    mstore 128, v27
+    v20 = mload 0 !metadata(memory=scratch)
+    v22 = mload 0 !metadata(memory=scratch)
+    mstore 128, v22
     returndata 128, 32
   bb6:
     mstore 0, arg2 !metadata(memory=scratch)
@@ -54,8 +54,8 @@ fn @clamp(arg0: u256, arg1: u256, arg2: u256) {
     mstore 0, arg0 !metadata(memory=scratch)
     jump bb8
   bb8:
-    v21 = mload 0 !metadata(memory=scratch)
-    mstore 0, v21 !metadata(memory=scratch)
+    v17 = mload 0 !metadata(memory=scratch)
+    mstore 0, v17 !metadata(memory=scratch)
     jump bb5
 }
 
@@ -69,34 +69,34 @@ fn @abs_diff(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = lt arg0, arg1
-    v12 = iszero v11
-    br v12, bb3, bb4
+    v10 = lt arg0, arg1
+    v11 = iszero v10
+    br v11, bb3, bb4
   bb3:
-    v13 = sub arg0, arg1
-    v14 = lt arg0, arg1
-    br v14, bb6, bb7
+    v12 = sub arg0, arg1
+    v13 = lt arg0, arg1
+    br v13, bb6, bb7
   bb4:
-    v24 = sub arg1, arg0
-    v25 = lt arg1, arg0
-    br v25, bb8, bb9
+    v20 = sub arg1, arg0
+    v21 = lt arg1, arg0
+    br v21, bb8, bb9
   bb5:
-    v36 = mload 0 !metadata(memory=scratch)
-    mstore 128, v36
+    v29 = mload 0 !metadata(memory=scratch)
+    mstore 128, v29
     returndata 128, 32
   bb6:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    mstore 0, v13 !metadata(memory=scratch)
+    mstore 0, v12 !metadata(memory=scratch)
     jump bb5
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    mstore 0, v24 !metadata(memory=scratch)
+    mstore 0, v20 !metadata(memory=scratch)
     jump bb5
 }
 

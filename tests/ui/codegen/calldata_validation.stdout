@@ -150,19 +150,19 @@ fn @vMulti(arg0: u32, arg1: i8) {
     revert 0, 0
   bb6:
     mstore 128, 0
-    v24 = and arg0, 0xffffffff
-    v26 = shl 248, arg1
-    v27 = sar 248, v26
-    v29 = and v27, 255
-    v30 = add v24, v29
-    v31 = lt v30, v24
-    br v31, bb7, bb8
+    v23 = and arg0, 0xffffffff
+    v25 = shl 248, arg1
+    v26 = sar 248, v25
+    v28 = and v26, 255
+    v29 = add v23, v28
+    v30 = lt v29, v23
+    br v30, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v30
+    mstore 128, v29
     returndata 128, 32
 }
 
@@ -176,23 +176,23 @@ fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = add arg0, arg1
-    v13 = lt v12, arg0
-    br v13, bb3, bb4
+    v11 = add arg0, arg1
+    v12 = lt v11, arg0
+    br v12, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v21 = add v12, arg2
-    v22 = lt v21, v12
-    br v22, bb5, bb6
+    v18 = add v11, arg2
+    v19 = lt v18, v11
+    br v19, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 128, v21
+    mstore 128, v18
     returndata 128, 32
 }
 

@@ -10,14 +10,14 @@ fn @hash3(arg0: u256, arg1: u256, arg2: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v13 = mload 64 !metadata(memory=scratch)
-    mstore v13, arg0
-    v16 = add v13, 32
-    mstore v16, arg1
-    v19 = add v13, 64
-    mstore v19, arg2
-    v22 = keccak256 v13, 96
-    mstore 128, v22
+    v12 = mload 64 !metadata(memory=scratch)
+    mstore v12, arg0
+    v14 = add v12, 32
+    mstore v14, arg1
+    v16 = add v12, 64
+    mstore v16, arg2
+    v18 = keccak256 v12, 96
+    mstore 128, v18
     returndata 128, 32
 }
 
@@ -31,42 +31,42 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v13 = mload 64 !metadata(memory=scratch)
-    v15 = add v13, 32
-    mstore v15, arg0
-    v18 = add v15, 32
-    mstore v18, arg1
-    v21 = add v15, 64
-    mstore v21, arg2
-    mstore v13, 96
-    v25 = add 96, 32
-    v26 = add v13, v25
+    v12 = mload 64 !metadata(memory=scratch)
+    v14 = add v12, 32
+    mstore v14, arg0
+    v16 = add v14, 32
+    mstore v16, arg1
+    v18 = add v14, 64
+    mstore v18, arg2
+    mstore v12, 96
+    v20 = add 96, 32
+    v21 = add v12, v20
+    mstore 64, v21 !metadata(memory=scratch)
+    v24 = mload 64 !metadata(memory=scratch)
+    v26 = add v24, 32
     mstore 64, v26 !metadata(memory=scratch)
-    v30 = mload 64 !metadata(memory=scratch)
-    v32 = add v30, 32
-    mstore 64, v32 !metadata(memory=scratch)
-    v36 = add v30, 32
-    v37 = sub v36, v30
-    mstore v30, v37
-    v39 = mload v13
-    mstore v36, v39
-    v43 = not 31
-    v44 = add v39, 31
-    v45 = and v44, v43
-    v46 = add v36, 32
-    v47 = iszero v45
-    br v47, bb4, bb3
+    v29 = add v24, 32
+    v30 = sub v29, v24
+    mstore v24, v30
+    v31 = mload v12
+    mstore v29, v31
+    v34 = not 31
+    v35 = add v31, 31
+    v36 = and v35, v34
+    v37 = add v29, 32
+    v38 = iszero v36
+    br v38, bb4, bb3
   bb3:
-    v48 = sub v45, 32
-    v49 = add v46, v48
-    mstore v49, 0
+    v39 = sub v36, 32
+    v40 = add v37, v39
+    mstore v40, 0
     jump bb4
   bb4:
-    v52 = add v13, 32
-    v53 = add v46, v45
-    mcopy v46, v52, v39
-    v55 = sub v53, v30
-    returndata v30, v55
+    v42 = add v12, 32
+    v43 = add v37, v36
+    mcopy v37, v42, v31
+    v44 = sub v43, v24
+    returndata v24, v44
 }
 
 fn @encodeDynamic(arg0: u256, arg1: memptr) {
@@ -88,64 +88,64 @@ fn @encodeDynamic(arg0: u256, arg1: memptr) {
     v19 = add v18, v16
     mstore 64, v19 !metadata(memory=scratch)
     mstore v18, v10
-    v23 = add v18, 32
-    v24 = add v9, 32
-    calldatacopy v23, v24, v10
+    v21 = add v18, 32
+    v22 = add v9, 32
+    calldatacopy v21, v22, v10
     mstore 128, 0
-    v30 = mload 64 !metadata(memory=scratch)
-    v32 = add v30, 32
-    v34 = add v32, 64
-    mstore v32, arg0
-    v37 = add v32, 32
-    v38 = sub v34, v32
-    mstore v37, v38
-    v40 = mload v18
-    mstore v34, v40
-    v44 = not 31
-    v45 = add v40, 31
-    v46 = and v45, v44
-    v47 = add v34, 32
-    v48 = iszero v46
-    br v48, bb4, bb3
+    v26 = mload 64 !metadata(memory=scratch)
+    v28 = add v26, 32
+    v30 = add v28, 64
+    mstore v28, arg0
+    v32 = add v28, 32
+    v33 = sub v30, v28
+    mstore v32, v33
+    v34 = mload v18
+    mstore v30, v34
+    v37 = not 31
+    v38 = add v34, 31
+    v39 = and v38, v37
+    v40 = add v30, 32
+    v41 = iszero v39
+    br v41, bb4, bb3
   bb3:
-    v49 = sub v46, 32
-    v50 = add v47, v49
-    mstore v50, 0
+    v42 = sub v39, 32
+    v43 = add v40, v42
+    mstore v43, 0
     jump bb4
   bb4:
-    v53 = add v18, 32
-    v54 = add v47, v46
-    mcopy v47, v53, v40
-    v56 = sub v54, v32
-    mstore v30, v56
-    v58 = add v56, 32
-    v59 = add v30, v58
-    mstore 64, v59 !metadata(memory=scratch)
-    v63 = mload 64 !metadata(memory=scratch)
-    v65 = add v63, 32
-    mstore 64, v65 !metadata(memory=scratch)
-    v69 = add v63, 32
-    v70 = sub v69, v63
-    mstore v63, v70
-    v72 = mload v30
-    mstore v69, v72
-    v76 = not 31
-    v77 = add v72, 31
-    v78 = and v77, v76
-    v79 = add v69, 32
-    v80 = iszero v78
-    br v80, bb6, bb5
+    v45 = add v18, 32
+    v46 = add v40, v39
+    mcopy v40, v45, v34
+    v47 = sub v46, v28
+    mstore v26, v47
+    v48 = add v47, 32
+    v49 = add v26, v48
+    mstore 64, v49 !metadata(memory=scratch)
+    v52 = mload 64 !metadata(memory=scratch)
+    v54 = add v52, 32
+    mstore 64, v54 !metadata(memory=scratch)
+    v57 = add v52, 32
+    v58 = sub v57, v52
+    mstore v52, v58
+    v59 = mload v26
+    mstore v57, v59
+    v62 = not 31
+    v63 = add v59, 31
+    v64 = and v63, v62
+    v65 = add v57, 32
+    v66 = iszero v64
+    br v66, bb6, bb5
   bb5:
-    v81 = sub v78, 32
-    v82 = add v79, v81
-    mstore v82, 0
+    v67 = sub v64, 32
+    v68 = add v65, v67
+    mstore v68, 0
     jump bb6
   bb6:
-    v85 = add v30, 32
-    v86 = add v79, v78
-    mcopy v79, v85, v72
-    v88 = sub v86, v63
-    returndata v63, v88
+    v70 = add v26, 32
+    v71 = add v65, v64
+    mcopy v65, v70, v59
+    v72 = sub v71, v52
+    returndata v52, v72
 }
 
 fn @hashDynamic(arg0: u256, arg1: memptr) {
@@ -167,36 +167,36 @@ fn @hashDynamic(arg0: u256, arg1: memptr) {
     v19 = add v18, v16
     mstore 64, v19 !metadata(memory=scratch)
     mstore v18, v10
-    v23 = add v18, 32
-    v24 = add v9, 32
-    calldatacopy v23, v24, v10
+    v21 = add v18, 32
+    v22 = add v9, 32
+    calldatacopy v21, v22, v10
     mstore 128, 0
-    v30 = mload 64 !metadata(memory=scratch)
-    v32 = add v30, 64
-    mstore v30, arg0
-    v35 = add v30, 32
-    v36 = sub v32, v30
-    mstore v35, v36
-    v38 = mload v18
-    mstore v32, v38
-    v42 = not 31
-    v43 = add v38, 31
-    v44 = and v43, v42
-    v45 = add v32, 32
-    v46 = iszero v44
-    br v46, bb4, bb3
+    v26 = mload 64 !metadata(memory=scratch)
+    v28 = add v26, 64
+    mstore v26, arg0
+    v30 = add v26, 32
+    v31 = sub v28, v26
+    mstore v30, v31
+    v32 = mload v18
+    mstore v28, v32
+    v35 = not 31
+    v36 = add v32, 31
+    v37 = and v36, v35
+    v38 = add v28, 32
+    v39 = iszero v37
+    br v39, bb4, bb3
   bb3:
-    v47 = sub v44, 32
-    v48 = add v45, v47
-    mstore v48, 0
+    v40 = sub v37, 32
+    v41 = add v38, v40
+    mstore v41, 0
     jump bb4
   bb4:
-    v51 = add v18, 32
-    v52 = add v45, v44
-    mcopy v45, v51, v38
-    v54 = sub v52, v30
-    v55 = keccak256 v30, v54
-    mstore 128, v55
+    v43 = add v18, 32
+    v44 = add v38, v37
+    mcopy v38, v43, v32
+    v45 = sub v44, v26
+    v46 = keccak256 v26, v45
+    mstore 128, v46
     returndata 128, 32
 }
 
@@ -210,22 +210,22 @@ fn @roundtrip(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = mload 64 !metadata(memory=scratch)
-    v13 = add v11, 32
-    mstore v13, arg0
-    mstore v11, 32
-    v17 = add 32, 32
-    v18 = add v11, v17
-    mstore 64, v18 !metadata(memory=scratch)
-    v22 = mload v11
-    v24 = lt v22, 32
-    br v24, bb3, bb4
+    v10 = mload 64 !metadata(memory=scratch)
+    v12 = add v10, 32
+    mstore v12, arg0
+    mstore v10, 32
+    v14 = add 32, 32
+    v15 = add v10, v14
+    mstore 64, v15 !metadata(memory=scratch)
+    v18 = mload v10
+    v20 = lt v18, 32
+    br v20, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v27 = add v11, 32
-    v28 = mload v27
-    mstore 128, v28
+    v23 = add v10, 32
+    v24 = mload v23
+    mstore 128, v24
     returndata 128, 32
 }
 

@@ -4,26 +4,26 @@ fn @hashLib(arg0: memptr) -> bytes32 {
   bb0 (entry):
     v1 = internal_frame_addr 128
     mstore v1, 0 !metadata(memory=internal_frame)
-    v4 = mload arg0
-    v6 = add arg0, 32
-    v7 = mload v6
-    v9 = add arg0, 64
-    v10 = mload v9
-    v12 = add arg0, 96
-    v13 = mload v12
-    v15 = mload 64 !metadata(memory=scratch)
-    mstore v15, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v19 = add v15, 1
-    mstore v19, v4
-    v22 = shl 224, v7
-    v24 = add v15, 33
-    mstore v24, v22
-    v27 = add v15, 37
-    mstore v27, v10
-    v30 = add v15, 69
-    mstore v30, v13
-    v33 = keccak256 v15, 101
-    ret v33
+    v3 = mload arg0
+    v5 = add arg0, 32
+    v6 = mload v5
+    v8 = add arg0, 64
+    v9 = mload v8
+    v11 = add arg0, 96
+    v12 = mload v11
+    v14 = mload 64 !metadata(memory=scratch)
+    mstore v14, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v17 = add v14, 1
+    mstore v17, v3
+    v19 = shl 224, v6
+    v21 = add v14, 33
+    mstore v21, v19
+    v23 = add v14, 37
+    mstore v23, v9
+    v25 = add v14, 69
+    mstore v25, v12
+    v27 = keccak256 v14, 101
+    ret v27
 }
 
 // === ROOT/tests/ui/codegen/using_for_struct.sol:C ===
@@ -38,36 +38,36 @@ fn @viaMethod(arg0: bytes32, arg1: bytes32) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = mload 64 !metadata(memory=scratch)
-    v14 = add v12, 128
-    mstore 64, v14 !metadata(memory=scratch)
-    mstore v12, arg0
-    v20 = add v12, 32
+    v11 = mload 64 !metadata(memory=scratch)
+    v13 = add v11, 128
+    mstore 64, v13 !metadata(memory=scratch)
+    mstore v11, arg0
+    v17 = add v11, 32
+    mstore v17, 0
+    v20 = add v11, 64
     mstore v20, 0
-    v24 = add v12, 64
-    mstore v24, 0
-    v27 = add v12, 96
-    mstore v27, arg1
-    v30 = mload v12
-    v32 = add v12, 32
+    v22 = add v11, 96
+    mstore v22, arg1
+    v24 = mload v11
+    v26 = add v11, 32
+    v27 = mload v26
+    v29 = add v11, 64
+    v30 = mload v29
+    v32 = add v11, 96
     v33 = mload v32
-    v35 = add v12, 64
-    v36 = mload v35
-    v38 = add v12, 96
-    v39 = mload v38
-    v41 = mload 64 !metadata(memory=scratch)
-    mstore v41, 0x7800000000000000000000000000000000000000000000000000000000000000
-    v45 = add v41, 1
-    mstore v45, v30
-    v48 = shl 224, v33
-    v50 = add v41, 33
-    mstore v50, v48
-    v53 = add v41, 37
-    mstore v53, v36
-    v56 = add v41, 69
-    mstore v56, v39
-    v59 = keccak256 v41, 101
-    mstore 128, v59
+    v35 = mload 64 !metadata(memory=scratch)
+    mstore v35, 0x7800000000000000000000000000000000000000000000000000000000000000
+    v38 = add v35, 1
+    mstore v38, v24
+    v40 = shl 224, v27
+    v42 = add v35, 33
+    mstore v42, v40
+    v44 = add v35, 37
+    mstore v44, v30
+    v46 = add v35, 69
+    mstore v46, v33
+    v48 = keccak256 v35, 101
+    mstore 128, v48
     returndata 128, 32
 }
 

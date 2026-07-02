@@ -4,32 +4,32 @@ fn @sumTo(arg0: u256) -> u256 {
   bb0 (entry):
     v1 = internal_frame_addr 128
     mstore v1, 0 !metadata(memory=internal_frame)
-    v5 = internal_frame_addr 160
-    mstore v5, 0 !metadata(memory=internal_frame)
+    v4 = internal_frame_addr 160
+    mstore v4, 0 !metadata(memory=internal_frame)
     jump bb1
   bb1:
-    v7 = internal_frame_addr 160
-    v8 = mload v7 !metadata(memory=internal_frame)
-    v9 = lt v8, arg0
-    br v9, bb4, bb5
+    v5 = internal_frame_addr 160
+    v6 = mload v5 !metadata(memory=internal_frame)
+    v7 = lt v6, arg0
+    br v7, bb4, bb5
   bb2:
-    v39 = internal_frame_addr 128
-    v40 = mload v39 !metadata(memory=internal_frame)
-    ret v40
+    v31 = internal_frame_addr 128
+    v32 = mload v31 !metadata(memory=internal_frame)
+    ret v32
   bb3:
-    v25 = internal_frame_addr 160
-    v26 = mload v25 !metadata(memory=internal_frame)
-    v28 = add v26, 1
-    v29 = lt v28, v26
-    br v29, bb8, bb9
+    v20 = internal_frame_addr 160
+    v21 = mload v20 !metadata(memory=internal_frame)
+    v23 = add v21, 1
+    v24 = lt v23, v21
+    br v24, bb8, bb9
   bb4:
-    v10 = internal_frame_addr 160
+    v8 = internal_frame_addr 160
+    v9 = mload v8 !metadata(memory=internal_frame)
+    v10 = internal_frame_addr 128
     v11 = mload v10 !metadata(memory=internal_frame)
-    v12 = internal_frame_addr 128
-    v13 = mload v12 !metadata(memory=internal_frame)
-    v14 = add v13, v11
-    v15 = lt v14, v13
-    br v15, bb6, bb7
+    v12 = add v11, v9
+    v13 = lt v12, v11
+    br v13, bb6, bb7
   bb5:
     jump bb2
   bb6:
@@ -37,16 +37,16 @@ fn @sumTo(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    v23 = internal_frame_addr 128
-    mstore v23, v14 !metadata(memory=internal_frame)
+    v19 = internal_frame_addr 128
+    mstore v19, v12 !metadata(memory=internal_frame)
     jump bb3
   bb8:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    v37 = internal_frame_addr 160
-    mstore v37, v28 !metadata(memory=internal_frame)
+    v30 = internal_frame_addr 160
+    mstore v30, v23 !metadata(memory=internal_frame)
     jump bb1
 }
 
@@ -60,8 +60,8 @@ fn @run(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = internal_call fn0, 1, arg0
-    mstore 128, v10
+    v9 = internal_call fn0, 1, arg0
+    mstore 128, v9
     returndata 128, 32
 }
 

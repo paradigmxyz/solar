@@ -17,17 +17,17 @@ fn @div_mod(arg0: u256, arg1: u256) {
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v21 = div arg0, arg1
+    v17 = div arg0, arg1
     br arg1, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v29 = mod arg0, arg1
-    mstore 128, v21
-    v33 = add 128, 32
-    mstore v33, v29
+    v23 = mod arg0, arg1
+    mstore 128, v17
+    v26 = add 128, 32
+    mstore v26, v23
     returndata 128, 64
 }
 
@@ -42,17 +42,17 @@ fn @min_max(arg0: u256, arg1: u256) {
   bb2:
     mstore 128, 0
     mstore 160, 0
-    v14 = lt arg0, arg1
-    br v14, bb3, bb4
+    v12 = lt arg0, arg1
+    br v12, bb3, bb4
   bb3:
     mstore 128, arg0
-    v18 = add 128, 32
-    mstore v18, arg1
+    v15 = add 128, 32
+    mstore v15, arg1
     returndata 128, 64
   bb4:
     mstore 128, arg1
-    v24 = add 128, 32
-    mstore v24, arg0
+    v19 = add 128, 32
+    mstore v19, arg0
     returndata 128, 64
 }
 
@@ -68,35 +68,35 @@ fn @triple(arg0: u256) {
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
-    v16 = add arg0, arg0
-    v17 = lt v16, arg0
-    br v17, bb3, bb4
+    v13 = add arg0, arg0
+    v14 = lt v13, arg0
+    br v14, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v25 = add arg0, arg0
-    v26 = lt v25, arg0
-    br v26, bb5, bb6
+    v20 = add arg0, arg0
+    v21 = lt v20, arg0
+    br v21, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v34 = add v25, arg0
-    v35 = lt v34, v25
-    br v35, bb7, bb8
+    v27 = add v20, arg0
+    v28 = lt v27, v20
+    br v28, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
     mstore 128, arg0
-    v46 = add 128, 32
-    mstore v46, v16
-    v49 = add 128, 64
-    mstore v49, v34
+    v36 = add 128, 32
+    mstore v36, v13
+    v38 = add 128, 64
+    mstore v38, v27
     returndata 128, 96
 }
 

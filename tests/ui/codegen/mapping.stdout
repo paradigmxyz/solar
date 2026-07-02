@@ -12,9 +12,9 @@ fn @balances(arg0: u256) {
     mstore 128, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v16 = keccak256 0, 64 !metadata(memory=scratch)
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    mstore 128, v17
+    v13 = keccak256 0, 64 !metadata(memory=scratch)
+    v14 = sload v13 !metadata(storage=symbolic(v13))
+    mstore 128, v14
     returndata 128, 32
 }
 
@@ -44,12 +44,12 @@ fn @allowances(arg0: address, arg1: address) {
     mstore 128, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v29 = keccak256 0, 64 !metadata(memory=scratch)
+    v26 = keccak256 0, 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v29 !metadata(memory=scratch)
-    v35 = keccak256 0, 64 !metadata(memory=scratch)
-    v36 = sload v35 !metadata(storage=symbolic(v35))
-    mstore 128, v36
+    mstore 32, v26 !metadata(memory=scratch)
+    v30 = keccak256 0, 64 !metadata(memory=scratch)
+    v31 = sload v30 !metadata(storage=symbolic(v30))
+    mstore 128, v31
     returndata 128, 32
 }
 
@@ -64,8 +64,8 @@ fn @set_balance(arg0: u256, arg1: u256) {
   bb2:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v14 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v14, arg1 !metadata(storage=symbolic(v14))
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v12, arg1 !metadata(storage=symbolic(v12))
     stop
 }
 
@@ -80,11 +80,11 @@ fn @add_balance(arg0: u256, arg1: u256) {
   bb2:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v14 = keccak256 0, 64 !metadata(memory=scratch)
-    v15 = sload v14 !metadata(storage=symbolic(v14))
-    v16 = add v15, arg1
-    v17 = lt v16, v15
-    br v17, bb3, bb4
+    v12 = keccak256 0, 64 !metadata(memory=scratch)
+    v13 = sload v12 !metadata(storage=symbolic(v12))
+    v14 = add v13, arg1
+    v15 = lt v14, v13
+    br v15, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -92,8 +92,8 @@ fn @add_balance(arg0: u256, arg1: u256) {
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v31 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v31, v16 !metadata(storage=symbolic(v31))
+    v25 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v25, v14 !metadata(storage=symbolic(v25))
     stop
 }
 
@@ -122,11 +122,11 @@ fn @approve(arg0: address, arg1: address, arg2: u256) {
   bb6:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v27 = keccak256 0, 64 !metadata(memory=scratch)
+    v25 = keccak256 0, 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v27 !metadata(memory=scratch)
-    v33 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v33, arg2 !metadata(storage=symbolic(v33))
+    mstore 32, v25 !metadata(memory=scratch)
+    v29 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v29, arg2 !metadata(storage=symbolic(v29))
     stop
 }
 
@@ -156,12 +156,12 @@ fn @get_allowance(arg0: address, arg1: address) {
     mstore 128, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v29 = keccak256 0, 64 !metadata(memory=scratch)
+    v26 = keccak256 0, 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v29 !metadata(memory=scratch)
-    v35 = keccak256 0, 64 !metadata(memory=scratch)
-    v36 = sload v35 !metadata(storage=symbolic(v35))
-    mstore 128, v36
+    mstore 32, v26 !metadata(memory=scratch)
+    v30 = keccak256 0, 64 !metadata(memory=scratch)
+    v31 = sload v30 !metadata(storage=symbolic(v30))
+    mstore 128, v31
     returndata 128, 32
 }
 

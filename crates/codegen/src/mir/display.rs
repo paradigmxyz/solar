@@ -571,8 +571,8 @@ digraph "display_test" {
 fn @display_test(arg0: u256, arg1: u256) {
   bb0 (entry):
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
-    v3 = sload arg0 !metadata(storage=symbolic(arg0))
-    ret v3
+    v2 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v2
 }
 
 "#]]
@@ -585,7 +585,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  sstore arg0, arg1\l  v3 = sload arg0\l  ret v3\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0 (entry):\l  sstore arg0, arg1\l  v2 = sload arg0\l  ret v2\l", fillcolor="#e0ffe0", style=filled];
 
 }
 

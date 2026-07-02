@@ -17,9 +17,9 @@ fn @fromUint(arg0: u8) {
     revert 0, 0
   bb4:
     mstore 128, 0
-    v17 = shl 248, arg0
-    v19 = and v17, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v19
+    v16 = shl 248, arg0
+    v18 = and v16, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v18
     returndata 128, 32
 }
 
@@ -49,27 +49,27 @@ fn @compareElement(arg0: memptr) {
     v18 = add v17, v15
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
+    v20 = add v17, 32
+    v21 = add v8, 32
+    calldatacopy v20, v21, v9
     mstore 128, 0
-    v29 = mload v17
-    v30 = lt 0, v29
-    br v30, bb4, bb3
+    v25 = mload v17
+    v26 = lt 0, v25
+    br v26, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v39 = add v17, 32
-    v40 = add v39, 0
-    v41 = mload v40
-    v43 = and v41, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v46 = and 1, 255
-    v48 = shl 248, v46
-    v50 = and v48, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v51 = eq v43, v50
-    mstore 128, v51
+    v33 = add v17, 32
+    v34 = add v33, 0
+    v35 = mload v34
+    v37 = and v35, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v40 = and 1, 255
+    v42 = shl 248, v40
+    v44 = and v42, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v45 = eq v37, v44
+    mstore 128, v45
     returndata 128, 32
 }
 
@@ -90,8 +90,8 @@ fn @narrow(arg0: bytes4) {
     revert 0, 0
   bb4:
     mstore 128, 0
-    v17 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v17
+    v16 = and arg0, 0xffff000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v16
     returndata 128, 32
 }
 

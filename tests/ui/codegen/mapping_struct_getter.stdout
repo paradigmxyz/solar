@@ -20,17 +20,17 @@ fn @items(arg0: u256) {
     mstore 192, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v22 = keccak256 0, 64 !metadata(memory=scratch)
-    v23 = sload v22 !metadata(storage=symbolic(v22))
-    v25 = add v22, 1
-    v26 = sload v25 !metadata(storage=offset(v22, 1))
-    v28 = add v22, 2
-    v29 = sload v28 !metadata(storage=offset(v22, 2))
-    mstore 128, v23
-    v33 = add 128, 32
-    mstore v33, v26
-    v36 = add 128, 64
-    mstore v36, v29
+    v17 = keccak256 0, 64 !metadata(memory=scratch)
+    v18 = sload v17 !metadata(storage=symbolic(v17))
+    v20 = add v17, 1
+    v21 = sload v20 !metadata(storage=offset(v17, 1))
+    v23 = add v17, 2
+    v24 = sload v23 !metadata(storage=offset(v17, 2))
+    mstore 128, v18
+    v27 = add 128, 32
+    mstore v27, v21
+    v29 = add 128, 64
+    mstore v29, v24
     returndata 128, 96
 }
 

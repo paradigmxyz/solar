@@ -11,17 +11,17 @@ fn @probe(arg0: memptr) {
   bb2:
     mstore 128, 0
     mstore 160, 0
-    v14 = add 4, arg0
-    v15 = calldataload v14
-    mstore 128, v15
-    v19 = add 36, arg0
-    v20 = calldataload v19
-    mstore 160, v20
-    v24 = mload 128
-    v26 = mload 160
-    mstore 128, v24
-    v30 = add 128, 32
-    mstore v30, v26
+    v12 = add 4, arg0
+    v13 = calldataload v12
+    mstore 128, v13
+    v16 = add 36, arg0
+    v17 = calldataload v16
+    mstore 160, v17
+    v20 = mload 128
+    v22 = mload 160
+    mstore 128, v20
+    v25 = add 128, 32
+    mstore v25, v22
     returndata 128, 64
 }
 

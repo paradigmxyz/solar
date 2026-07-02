@@ -3,8 +3,8 @@
 fn @value() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v4
+    v3 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v3
     returndata 128, 32
 }
 
@@ -81,34 +81,34 @@ fn @mul_value(arg0: u256) {
 fn @bump_post() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v6 = add v4, 1
-    v7 = lt v6, v4
-    br v7, bb1, bb2
+    v3 = sload 0 !metadata(storage=slot(0))
+    v5 = add v3, 1
+    v6 = lt v5, v3
+    br v6, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    sstore 0, v6 !metadata(storage=slot(0))
-    mstore 128, v4
+    sstore 0, v5 !metadata(storage=slot(0))
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @bump_pre() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0 !metadata(storage=slot(0))
-    v6 = add v4, 1
-    v7 = lt v6, v4
-    br v7, bb1, bb2
+    v3 = sload 0 !metadata(storage=slot(0))
+    v5 = add v3, 1
+    v6 = lt v5, v3
+    br v6, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    sstore 0, v6 !metadata(storage=slot(0))
-    mstore 128, v6
+    sstore 0, v5 !metadata(storage=slot(0))
+    mstore 128, v5
     returndata 128, 32
 }
 

@@ -1167,7 +1167,7 @@ mod tests {
         let addr = builder.imm_u64(128);
         let value = builder.imm_u64(42);
         builder.mstore(addr, value);
-        builder.internal_call(FunctionId::from_usize(0), Vec::new(), None, 0);
+        builder.internal_call_void(FunctionId::from_usize(0), Vec::new(), 0);
         let loaded = builder.mload(addr);
         builder.ret(vec![loaded]);
 

@@ -19,39 +19,39 @@ fn @text(arg0: memptr) {
     v18 = add v17, v15
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
-    v30 = mload 64 !metadata(memory=scratch)
-    v32 = add v30, 64
-    v33 = sub v32, v30
-    mstore v30, v33
-    v35 = mload v17
-    mstore v32, v35
-    v39 = not 31
-    v40 = add v35, 31
-    v41 = and v40, v39
-    v42 = add v32, 32
-    v43 = iszero v41
-    br v43, bb4, bb3
+    v20 = add v17, 32
+    v21 = add v8, 32
+    calldatacopy v20, v21, v9
+    v27 = mload 64 !metadata(memory=scratch)
+    v29 = add v27, 64
+    v30 = sub v29, v27
+    mstore v27, v30
+    v31 = mload v17
+    mstore v29, v31
+    v34 = not 31
+    v35 = add v31, 31
+    v36 = and v35, v34
+    v37 = add v29, 32
+    v38 = iszero v36
+    br v38, bb4, bb3
   bb3:
-    v44 = sub v41, 32
-    v45 = add v42, v44
-    mstore v45, 0
+    v39 = sub v36, 32
+    v40 = add v37, v39
+    mstore v40, 0
     jump bb4
   bb4:
-    v48 = add v17, 32
-    v49 = add v42, v41
-    mcopy v42, v48, v35
-    v52 = add v30, 32
-    mstore v52, 7
-    v54 = sub v49, v30
-    v56 = add v54, 31
-    v57 = not 31
-    v58 = and v56, v57
-    v59 = add v30, v58
-    mstore 64, v59 !metadata(memory=scratch)
-    log2 v30, v54, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 1
+    v42 = add v17, 32
+    v43 = add v37, v36
+    mcopy v37, v42, v31
+    v45 = add v27, 32
+    mstore v45, 7
+    v46 = sub v43, v27
+    v48 = add v46, 31
+    v49 = not 31
+    v50 = and v48, v49
+    v51 = add v27, v50
+    mstore 64, v51 !metadata(memory=scratch)
+    log2 v27, v46, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 1
     stop
 }
 
@@ -61,39 +61,39 @@ fn @literal() {
     v5 = add v3, 64
     mstore 64, v5 !metadata(memory=scratch)
     mstore v3, 5
-    v11 = add v3, 32
-    v14 = add v11, 0
-    mstore v14, 0x736f6c6172000000000000000000000000000000000000000000000000000000
-    v19 = mload 64 !metadata(memory=scratch)
-    v21 = add v19, 64
-    v22 = sub v21, v19
-    mstore v19, v22
-    v24 = mload v3
-    mstore v21, v24
-    v28 = not 31
-    v29 = add v24, 31
-    v30 = and v29, v28
-    v31 = add v21, 32
-    v32 = iszero v30
-    br v32, bb2, bb1
+    v9 = add v3, 32
+    v12 = add v9, 0
+    mstore v12, 0x736f6c6172000000000000000000000000000000000000000000000000000000
+    v16 = mload 64 !metadata(memory=scratch)
+    v18 = add v16, 64
+    v19 = sub v18, v16
+    mstore v16, v19
+    v20 = mload v3
+    mstore v18, v20
+    v23 = not 31
+    v24 = add v20, 31
+    v25 = and v24, v23
+    v26 = add v18, 32
+    v27 = iszero v25
+    br v27, bb2, bb1
   bb1:
-    v33 = sub v30, 32
-    v34 = add v31, v33
-    mstore v34, 0
+    v28 = sub v25, 32
+    v29 = add v26, v28
+    mstore v29, 0
     jump bb2
   bb2:
-    v37 = add v3, 32
-    v38 = add v31, v30
-    mcopy v31, v37, v24
-    v41 = add v19, 32
-    mstore v41, 9
-    v43 = sub v38, v19
-    v45 = add v43, 31
-    v46 = not 31
-    v47 = and v45, v46
-    v48 = add v19, v47
-    mstore 64, v48 !metadata(memory=scratch)
-    log2 v19, v43, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
+    v31 = add v3, 32
+    v32 = add v26, v25
+    mcopy v26, v31, v20
+    v34 = add v16, 32
+    mstore v34, 9
+    v35 = sub v32, v16
+    v37 = add v35, 31
+    v38 = not 31
+    v39 = and v37, v38
+    v40 = add v16, v39
+    mstore 64, v40 !metadata(memory=scratch)
+    log2 v16, v35, 0x1ec47f6be8a8bf4aa7aa1659aceb7cef3b607892101a00e4afd57e2ae4fbf3c4, 2
     stop
 }
 
@@ -116,37 +116,37 @@ fn @blob(arg0: memptr) {
     v18 = add v17, v15
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
-    v28 = mload 64 !metadata(memory=scratch)
-    v30 = add v28, 32
-    v31 = sub v30, v28
-    mstore v28, v31
-    v33 = mload v17
-    mstore v30, v33
-    v37 = not 31
-    v38 = add v33, 31
-    v39 = and v38, v37
-    v40 = add v30, 32
-    v41 = iszero v39
-    br v41, bb4, bb3
+    v20 = add v17, 32
+    v21 = add v8, 32
+    calldatacopy v20, v21, v9
+    v25 = mload 64 !metadata(memory=scratch)
+    v27 = add v25, 32
+    v28 = sub v27, v25
+    mstore v25, v28
+    v29 = mload v17
+    mstore v27, v29
+    v32 = not 31
+    v33 = add v29, 31
+    v34 = and v33, v32
+    v35 = add v27, 32
+    v36 = iszero v34
+    br v36, bb4, bb3
   bb3:
-    v42 = sub v39, 32
-    v43 = add v40, v42
-    mstore v43, 0
+    v37 = sub v34, 32
+    v38 = add v35, v37
+    mstore v38, 0
     jump bb4
   bb4:
-    v46 = add v17, 32
-    v47 = add v40, v39
-    mcopy v40, v46, v33
-    v49 = sub v47, v28
-    v51 = add v49, 31
-    v52 = not 31
-    v53 = and v51, v52
-    v54 = add v28, v53
-    mstore 64, v54 !metadata(memory=scratch)
-    log1 v28, v49, 0xd05ce3dc4caf4a4b252e3323bde615dc3b9d54623e1859c892f0b4ecf5e45164
+    v40 = add v17, 32
+    v41 = add v35, v34
+    mcopy v35, v40, v29
+    v42 = sub v41, v25
+    v44 = add v42, 31
+    v45 = not 31
+    v46 = and v44, v45
+    v47 = add v25, v46
+    mstore 64, v47 !metadata(memory=scratch)
+    log1 v25, v42, 0xd05ce3dc4caf4a4b252e3323bde615dc3b9d54623e1859c892f0b4ecf5e45164
     stop
 }
 

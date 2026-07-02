@@ -10,17 +10,17 @@ fn @lookup(arg0: memptr) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = add arg0, 4
-    v13 = calldataload v12
-    v15 = add v12, 32
-    v17 = mload 64 !metadata(memory=scratch)
-    calldatacopy v17, v15, v13
-    v19 = add v17, v13
-    mstore v19, 0
-    v21 = add v13, 32
-    v22 = keccak256 v17, v21
-    v23 = sload v22 !metadata(storage=symbolic(v22))
-    mstore 128, v23
+    v11 = add arg0, 4
+    v12 = calldataload v11
+    v14 = add v11, 32
+    v16 = mload 64 !metadata(memory=scratch)
+    calldatacopy v16, v14, v12
+    v17 = add v16, v12
+    mstore v17, 0
+    v18 = add v12, 32
+    v19 = keccak256 v16, v18
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    mstore 128, v20
     returndata 128, 32
 }
 
@@ -43,25 +43,25 @@ fn @set(arg0: memptr, arg1: address) {
     v18 = add v17, v15
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
-    v27 = calldataload 36
-    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-    v30 = eq v27, v29
-    br v30, bb4, bb3
+    v20 = add v17, 32
+    v21 = add v8, 32
+    calldatacopy v20, v21, v9
+    v24 = calldataload 36
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = eq v24, v26
+    br v27, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v33 = mload v17
-    v35 = add v17, 32
-    v37 = mload 64 !metadata(memory=scratch)
-    mcopy v37, v35, v33
-    v39 = add v37, v33
-    mstore v39, 0
-    v41 = add v33, 32
-    v42 = keccak256 v37, v41
-    sstore v42, arg1 !metadata(storage=symbolic(v42))
+    v30 = mload v17
+    v32 = add v17, 32
+    v34 = mload 64 !metadata(memory=scratch)
+    mcopy v34, v32, v30
+    v35 = add v34, v30
+    mstore v35, 0
+    v36 = add v30, 32
+    v37 = keccak256 v34, v36
+    sstore v37, arg1 !metadata(storage=symbolic(v37))
     stop
 }
 
@@ -84,20 +84,20 @@ fn @get(arg0: memptr) {
     v18 = add v17, v15
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
+    v20 = add v17, 32
+    v21 = add v8, 32
+    calldatacopy v20, v21, v9
     mstore 128, 0
-    v29 = mload v17
-    v31 = add v17, 32
-    v33 = mload 64 !metadata(memory=scratch)
-    mcopy v33, v31, v29
-    v35 = add v33, v29
-    mstore v35, 0
-    v37 = add v29, 32
-    v38 = keccak256 v33, v37
-    v39 = sload v38 !metadata(storage=symbolic(v38))
-    mstore 128, v39
+    v25 = mload v17
+    v27 = add v17, 32
+    v29 = mload 64 !metadata(memory=scratch)
+    mcopy v29, v27, v25
+    v30 = add v29, v25
+    mstore v30, 0
+    v31 = add v25, 32
+    v32 = keccak256 v29, v31
+    v33 = sload v32 !metadata(storage=symbolic(v32))
+    mstore 128, v33
     returndata 128, 32
 }
 
@@ -113,17 +113,17 @@ fn @flat(arg0: memptr) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v12 = add arg0, 4
-    v13 = calldataload v12
-    v15 = add v12, 32
-    v17 = mload 64 !metadata(memory=scratch)
-    calldatacopy v17, v15, v13
-    v19 = add v17, v13
-    mstore v19, 0
-    v21 = add v13, 32
-    v22 = keccak256 v17, v21
-    v23 = sload v22 !metadata(storage=symbolic(v22))
-    mstore 128, v23
+    v11 = add arg0, 4
+    v12 = calldataload v11
+    v14 = add v11, 32
+    v16 = mload 64 !metadata(memory=scratch)
+    calldatacopy v16, v14, v12
+    v17 = add v16, v12
+    mstore v17, 0
+    v18 = add v12, 32
+    v19 = keccak256 v16, v18
+    v20 = sload v19 !metadata(storage=symbolic(v19))
+    mstore 128, v20
     returndata 128, 32
 }
 
@@ -144,20 +144,20 @@ fn @nestedFirst(arg0: memptr, arg1: address) {
     revert 0, 0
   bb4:
     mstore 128, 0
-    v19 = add arg0, 4
-    v20 = calldataload v19
-    v22 = add v19, 32
-    v24 = mload 64 !metadata(memory=scratch)
-    calldatacopy v24, v22, v20
-    v26 = add v24, v20
-    mstore v26, 1
-    v28 = add v20, 32
-    v29 = keccak256 v24, v28
+    v18 = add arg0, 4
+    v19 = calldataload v18
+    v21 = add v18, 32
+    v23 = mload 64 !metadata(memory=scratch)
+    calldatacopy v23, v21, v19
+    v24 = add v23, v19
+    mstore v24, 1
+    v25 = add v19, 32
+    v26 = keccak256 v23, v25
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v29 !metadata(memory=scratch)
-    v35 = keccak256 0, 64 !metadata(memory=scratch)
-    v36 = sload v35 !metadata(storage=symbolic(v35))
-    mstore 128, v36
+    mstore 32, v26 !metadata(memory=scratch)
+    v30 = keccak256 0, 64 !metadata(memory=scratch)
+    v31 = sload v30 !metadata(storage=symbolic(v30))
+    mstore 128, v31
     returndata 128, 32
 }
 
@@ -180,103 +180,103 @@ fn @nestedSecond(arg0: address, arg1: memptr) {
     mstore 128, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
-    v23 = keccak256 0, 64 !metadata(memory=scratch)
-    v25 = add arg1, 4
-    v26 = calldataload v25
-    v28 = add v25, 32
-    v30 = mload 64 !metadata(memory=scratch)
-    calldatacopy v30, v28, v26
-    v32 = add v30, v26
-    mstore v32, v23
-    v34 = add v26, 32
-    v35 = keccak256 v30, v34
-    v36 = sload v35 !metadata(storage=symbolic(v35))
-    mstore 128, v36
+    v20 = keccak256 0, 64 !metadata(memory=scratch)
+    v22 = add arg1, 4
+    v23 = calldataload v22
+    v25 = add v22, 32
+    v27 = mload 64 !metadata(memory=scratch)
+    calldatacopy v27, v25, v23
+    v28 = add v27, v23
+    mstore v28, v20
+    v29 = add v23, 32
+    v30 = keccak256 v27, v29
+    v31 = sload v30 !metadata(storage=symbolic(v30))
+    mstore 128, v31
     returndata 128, 32
 }
 
 fn @skey() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 3 !metadata(storage=slot(3))
-    v6 = and v4, 1
-    v7 = eq v6, 1
-    v9 = and v4, 255
-    v11 = shr 1, v9
-    v12 = shr 1, v4
-    v13 = select v7, v12, v11
-    v16 = not 31
-    v17 = add v13, 31
-    v18 = and v17, v16
-    v19 = iszero v18
-    v20 = select v19, 32, v18
-    v21 = add 32, v20
-    v23 = mload 64 !metadata(memory=scratch)
-    v25 = add v23, 96
-    mstore 64, v25 !metadata(memory=scratch)
-    v29 = mload 64 !metadata(memory=scratch)
-    v30 = add v29, v21
-    mstore 64, v30 !metadata(memory=scratch)
-    mstore v29, v13
-    v34 = add v29, 32
-    br v7, bb2, bb1
+    v3 = sload 3 !metadata(storage=slot(3))
+    v5 = and v3, 1
+    v6 = eq v5, 1
+    v8 = and v3, 255
+    v10 = shr 1, v8
+    v11 = shr 1, v3
+    v12 = select v6, v11, v10
+    v15 = not 31
+    v16 = add v12, 31
+    v17 = and v16, v15
+    v18 = iszero v17
+    v19 = select v18, 32, v17
+    v20 = add 32, v19
+    v22 = mload 64 !metadata(memory=scratch)
+    v24 = add v22, 96
+    mstore 64, v24 !metadata(memory=scratch)
+    v27 = mload 64 !metadata(memory=scratch)
+    v28 = add v27, v20
+    mstore 64, v28 !metadata(memory=scratch)
+    mstore v27, v12
+    v30 = add v27, 32
+    br v6, bb2, bb1
   bb1:
-    v36 = and v4, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v34, v36
+    v32 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v30, v32
     jump bb3
   bb2:
-    mstore v23, 3
-    v39 = keccak256 v23, 32
-    v40 = div v18, 32
-    v42 = add v23, 32
-    v44 = add v23, 64
-    mstore v23, v34
-    mstore v42, v40
-    mstore v44, v39
+    mstore v22, 3
+    v33 = keccak256 v22, 32
+    v34 = div v17, 32
+    v36 = add v22, 32
+    v38 = add v22, 64
+    mstore v22, v30
+    mstore v36, v34
+    mstore v38, v33
     jump bb4
   bb3:
-    v64 = mload 64 !metadata(memory=scratch)
-    v66 = add v64, 32
-    mstore 64, v66 !metadata(memory=scratch)
-    v70 = add v64, 32
-    v71 = sub v70, v64
-    mstore v64, v71
-    v73 = mload v29
-    mstore v70, v73
-    v77 = not 31
-    v78 = add v73, 31
-    v79 = and v78, v77
-    v80 = add v70, 32
-    v81 = iszero v79
-    br v81, bb7, bb6
+    v51 = mload 64 !metadata(memory=scratch)
+    v53 = add v51, 32
+    mstore 64, v53 !metadata(memory=scratch)
+    v56 = add v51, 32
+    v57 = sub v56, v51
+    mstore v51, v57
+    v58 = mload v27
+    mstore v56, v58
+    v61 = not 31
+    v62 = add v58, 31
+    v63 = and v62, v61
+    v64 = add v56, 32
+    v65 = iszero v63
+    br v65, bb7, bb6
   bb4:
-    v48 = mload v42
-    v50 = gt v48, 0
-    br v50, bb5, bb3
+    v39 = mload v36
+    v41 = gt v39, 0
+    br v41, bb5, bb3
   bb5:
-    v51 = mload v44
-    v52 = sload v51 !metadata(storage=symbolic(v51))
-    v53 = mload v23
-    mstore v53, v52
-    v55 = add v51, 1
-    mstore v44, v55
-    v58 = add v53, 32
-    mstore v23, v58
-    v60 = mload v42
-    v61 = sub v60, 1
-    mstore v42, v61
+    v42 = mload v38
+    v43 = sload v42 !metadata(storage=symbolic(v42))
+    v44 = mload v22
+    mstore v44, v43
+    v45 = add v42, 1
+    mstore v38, v45
+    v47 = add v44, 32
+    mstore v22, v47
+    v48 = mload v36
+    v49 = sub v48, 1
+    mstore v36, v49
     jump bb4
   bb6:
-    v82 = sub v79, 32
-    v83 = add v80, v82
-    mstore v83, 0
+    v66 = sub v63, 32
+    v67 = add v64, v66
+    mstore v67, 0
     jump bb7
   bb7:
-    v86 = add v29, 32
-    v87 = add v80, v79
-    mcopy v80, v86, v73
-    v89 = sub v87, v64
-    returndata v64, v89
+    v69 = add v27, 32
+    v70 = add v64, v63
+    mcopy v64, v69, v58
+    v71 = sub v70, v51
+    returndata v51, v71
 }
 
 fn @setLit(arg0: u256) {
@@ -291,11 +291,11 @@ fn @setLit(arg0: u256) {
     v10 = mload 64 !metadata(memory=scratch)
     v13 = add v10, 0
     mstore v13, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v16 = add v10, 5
-    mstore v16, 0
-    v19 = add 5, 32
-    v20 = keccak256 v10, v19
-    sstore v20, arg0 !metadata(storage=symbolic(v20))
+    v15 = add v10, 5
+    mstore v15, 0
+    v17 = add 5, 32
+    v18 = keccak256 v10, v17
+    sstore v18, arg0 !metadata(storage=symbolic(v18))
     stop
 }
 
@@ -311,13 +311,13 @@ fn @setLitLong(arg0: u256) {
     v10 = mload 64 !metadata(memory=scratch)
     v13 = add v10, 0
     mstore v13, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
-    v17 = add v10, 32
-    mstore v17, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
-    v20 = add v10, 58
-    mstore v20, 0
-    v23 = add 58, 32
-    v24 = keccak256 v10, v23
-    sstore v24, arg0 !metadata(storage=symbolic(v24))
+    v16 = add v10, 32
+    mstore v16, 0x2d74776f2062797465732c2068617368656420696e2066756c6c000000000000
+    v18 = add v10, 58
+    mstore v18, 0
+    v20 = add 58, 32
+    v21 = keccak256 v10, v20
+    sstore v21, arg0 !metadata(storage=symbolic(v21))
     stop
 }
 
@@ -340,28 +340,28 @@ fn @setNestedFirst(arg0: memptr, arg1: address, arg2: u256) {
     v18 = add v17, v15
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
-    v27 = calldataload 36
-    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-    v30 = eq v27, v29
-    br v30, bb4, bb3
+    v20 = add v17, 32
+    v21 = add v8, 32
+    calldatacopy v20, v21, v9
+    v24 = calldataload 36
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = eq v24, v26
+    br v27, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v34 = mload v17
-    v36 = add v17, 32
-    v38 = mload 64 !metadata(memory=scratch)
-    mcopy v38, v36, v34
-    v40 = add v38, v34
-    mstore v40, 1
-    v42 = add v34, 32
-    v43 = keccak256 v38, v42
+    v31 = mload v17
+    v33 = add v17, 32
+    v35 = mload 64 !metadata(memory=scratch)
+    mcopy v35, v33, v31
+    v36 = add v35, v31
+    mstore v36, 1
+    v37 = add v31, 32
+    v38 = keccak256 v35, v37
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v43 !metadata(memory=scratch)
-    v49 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v49, arg2 !metadata(storage=symbolic(v49))
+    mstore 32, v38 !metadata(memory=scratch)
+    v42 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v42, arg2 !metadata(storage=symbolic(v42))
     stop
 }
 
@@ -384,30 +384,30 @@ fn @getNestedFirst(arg0: memptr, arg1: address) {
     v18 = add v17, v15
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
-    v27 = calldataload 36
-    v29 = and v27, 0xffffffffffffffffffffffffffffffffffffffff
-    v30 = eq v27, v29
-    br v30, bb4, bb3
+    v20 = add v17, 32
+    v21 = add v8, 32
+    calldatacopy v20, v21, v9
+    v24 = calldataload 36
+    v26 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v27 = eq v24, v26
+    br v27, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     mstore 128, 0
-    v36 = mload v17
-    v38 = add v17, 32
-    v40 = mload 64 !metadata(memory=scratch)
-    mcopy v40, v38, v36
-    v42 = add v40, v36
-    mstore v42, 1
-    v44 = add v36, 32
-    v45 = keccak256 v40, v44
+    v32 = mload v17
+    v34 = add v17, 32
+    v36 = mload 64 !metadata(memory=scratch)
+    mcopy v36, v34, v32
+    v37 = add v36, v32
+    mstore v37, 1
+    v38 = add v32, 32
+    v39 = keccak256 v36, v38
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v45 !metadata(memory=scratch)
-    v51 = keccak256 0, 64 !metadata(memory=scratch)
-    v52 = sload v51 !metadata(storage=symbolic(v51))
-    mstore 128, v52
+    mstore 32, v39 !metadata(memory=scratch)
+    v43 = keccak256 0, 64 !metadata(memory=scratch)
+    v44 = sload v43 !metadata(storage=symbolic(v43))
+    mstore 128, v44
     returndata 128, 32
 }
 
@@ -437,21 +437,21 @@ fn @setNestedSecond(arg0: address, arg1: memptr, arg2: u256) {
     v25 = add v24, v22
     mstore 64, v25 !metadata(memory=scratch)
     mstore v24, v16
-    v29 = add v24, 32
-    v30 = add v15, 32
-    calldatacopy v29, v30, v16
+    v27 = add v24, 32
+    v28 = add v15, 32
+    calldatacopy v27, v28, v16
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 2 !metadata(memory=scratch)
-    v39 = keccak256 0, 64 !metadata(memory=scratch)
-    v40 = mload v24
-    v42 = add v24, 32
-    v44 = mload 64 !metadata(memory=scratch)
-    mcopy v44, v42, v40
-    v46 = add v44, v40
-    mstore v46, v39
-    v48 = add v40, 32
-    v49 = keccak256 v44, v48
-    sstore v49, arg2 !metadata(storage=symbolic(v49))
+    v34 = keccak256 0, 64 !metadata(memory=scratch)
+    v35 = mload v24
+    v37 = add v24, 32
+    v39 = mload 64 !metadata(memory=scratch)
+    mcopy v39, v37, v35
+    v40 = add v39, v35
+    mstore v40, v34
+    v41 = add v35, 32
+    v42 = keccak256 v39, v41
+    sstore v42, arg2 !metadata(storage=symbolic(v42))
     stop
 }
 
@@ -474,77 +474,77 @@ fn @setSkey(arg0: memptr) {
     v18 = add v17, v15
     mstore 64, v18 !metadata(memory=scratch)
     mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
-    v26 = mload v17
-    v28 = add v17, 32
-    v29 = sload 3 !metadata(storage=slot(3))
-    v31 = and v29, 1
-    v32 = eq v31, 1
-    v34 = and v29, 255
-    v36 = shr 1, v34
-    v37 = shr 1, v29
-    v38 = select v32, v37, v36
-    v40 = not 31
-    v41 = add v38, 31
-    v42 = and v41, v40
-    v43 = div v42, 32
-    v45 = select v32, v43, 0
-    v46 = add v26, 31
-    v47 = and v46, v40
-    v48 = div v47, 32
-    v49 = gt v26, 31
-    v50 = select v49, v48, 0
-    v52 = mload 64 !metadata(memory=scratch)
-    v54 = add v52, 32
-    mstore 64, v54 !metadata(memory=scratch)
-    mstore v52, 3
-    v58 = keccak256 v52, 32
-    br v49, bb4, bb3
+    v20 = add v17, 32
+    v21 = add v8, 32
+    calldatacopy v20, v21, v9
+    v23 = mload v17
+    v25 = add v17, 32
+    v26 = sload 3 !metadata(storage=slot(3))
+    v28 = and v26, 1
+    v29 = eq v28, 1
+    v31 = and v26, 255
+    v33 = shr 1, v31
+    v34 = shr 1, v26
+    v35 = select v29, v34, v33
+    v37 = not 31
+    v38 = add v35, 31
+    v39 = and v38, v37
+    v40 = div v39, 32
+    v42 = select v29, v40, 0
+    v43 = add v23, 31
+    v44 = and v43, v37
+    v45 = div v44, 32
+    v46 = gt v23, 31
+    v47 = select v46, v45, 0
+    v49 = mload 64 !metadata(memory=scratch)
+    v51 = add v49, 32
+    mstore 64, v51 !metadata(memory=scratch)
+    mstore v49, 3
+    v53 = keccak256 v49, 32
+    br v46, bb4, bb3
   bb3:
-    v59 = mload v28
-    v61 = mul v26, 8
-    v63 = shr v61, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v64 = not v63
-    v65 = and v59, v64
-    v66 = shl 1, v26
-    v67 = or v65, v66
-    sstore 3, v67 !metadata(storage=slot(3))
+    v54 = mload v25
+    v56 = mul v23, 8
+    v58 = shr v56, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v59 = not v58
+    v60 = and v54, v59
+    v61 = shl 1, v23
+    v62 = or v60, v61
+    sstore 3, v62 !metadata(storage=slot(3))
     jump bb7
   bb4:
-    v69 = shl 1, v26
-    v70 = or v69, 1
-    sstore 3, v70 !metadata(storage=slot(3))
-    mstore v52, 0
+    v63 = shl 1, v23
+    v64 = or v63, 1
+    sstore 3, v64 !metadata(storage=slot(3))
+    mstore v49, 0
     jump bb5
   bb5:
-    v73 = mload v52
-    v74 = lt v73, v50
-    br v74, bb6, bb7
+    v65 = mload v49
+    v66 = lt v65, v47
+    br v66, bb6, bb7
   bb6:
-    v75 = mload v52
-    v76 = add v58, v75
-    v77 = mul v75, 32
-    v78 = add v28, v77
-    v79 = mload v78
-    sstore v76, v79 !metadata(storage=symbolic(v76))
-    v81 = add v75, 1
-    mstore v52, v81
+    v67 = mload v49
+    v68 = add v53, v67
+    v69 = mul v67, 32
+    v70 = add v25, v69
+    v71 = mload v70
+    sstore v68, v71 !metadata(storage=symbolic(v68))
+    v72 = add v67, 1
+    mstore v49, v72
     jump bb5
   bb7:
-    mstore v52, v50
+    mstore v49, v47
     jump bb8
   bb8:
-    v84 = mload v52
-    v85 = lt v84, v45
-    br v85, bb9, bb10
+    v73 = mload v49
+    v74 = lt v73, v42
+    br v74, bb9, bb10
   bb9:
-    v86 = mload v52
-    v87 = add v58, v86
-    sstore v87, 0 !metadata(storage=symbolic(v87))
-    v89 = add v86, 1
-    mstore v52, v89
+    v75 = mload v49
+    v76 = add v53, v75
+    sstore v76, 0 !metadata(storage=symbolic(v76))
+    v77 = add v75, 1
+    mstore v49, v77
     jump bb8
   bb10:
     stop
@@ -575,53 +575,53 @@ fn @setViaStorageKey(arg0: u256) {
     v27 = mload 64 !metadata(memory=scratch)
     v29 = add v27, 96
     mstore 64, v29 !metadata(memory=scratch)
-    v33 = mload 64 !metadata(memory=scratch)
-    v34 = add v33, v25
-    mstore 64, v34 !metadata(memory=scratch)
-    mstore v33, v17
-    v38 = add v33, 32
+    v32 = mload 64 !metadata(memory=scratch)
+    v33 = add v32, v25
+    mstore 64, v33 !metadata(memory=scratch)
+    mstore v32, v17
+    v35 = add v32, 32
     br v11, bb4, bb3
   bb3:
-    v40 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v38, v40
+    v37 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v35, v37
     jump bb5
   bb4:
     mstore v27, 3
-    v43 = keccak256 v27, 32
-    v44 = div v22, 32
-    v46 = add v27, 32
-    v48 = add v27, 64
-    mstore v27, v38
-    mstore v46, v44
-    mstore v48, v43
+    v38 = keccak256 v27, 32
+    v39 = div v22, 32
+    v41 = add v27, 32
+    v43 = add v27, 64
+    mstore v27, v35
+    mstore v41, v39
+    mstore v43, v38
     jump bb6
   bb5:
-    v68 = mload v33
-    v70 = add v33, 32
-    v72 = mload 64 !metadata(memory=scratch)
-    mcopy v72, v70, v68
-    v74 = add v72, v68
-    mstore v74, 0
-    v76 = add v68, 32
-    v77 = keccak256 v72, v76
-    sstore v77, arg0 !metadata(storage=symbolic(v77))
+    v56 = mload v32
+    v58 = add v32, 32
+    v60 = mload 64 !metadata(memory=scratch)
+    mcopy v60, v58, v56
+    v61 = add v60, v56
+    mstore v61, 0
+    v62 = add v56, 32
+    v63 = keccak256 v60, v62
+    sstore v63, arg0 !metadata(storage=symbolic(v63))
     stop
   bb6:
-    v52 = mload v46
-    v54 = gt v52, 0
-    br v54, bb7, bb5
+    v44 = mload v41
+    v46 = gt v44, 0
+    br v46, bb7, bb5
   bb7:
-    v55 = mload v48
-    v56 = sload v55 !metadata(storage=symbolic(v55))
-    v57 = mload v27
-    mstore v57, v56
-    v59 = add v55, 1
-    mstore v48, v59
-    v62 = add v57, 32
-    mstore v27, v62
-    v64 = mload v46
-    v65 = sub v64, 1
-    mstore v46, v65
+    v47 = mload v43
+    v48 = sload v47 !metadata(storage=symbolic(v47))
+    v49 = mload v27
+    mstore v49, v48
+    v50 = add v47, 1
+    mstore v43, v50
+    v52 = add v49, 32
+    mstore v27, v52
+    v53 = mload v41
+    v54 = sub v53, 1
+    mstore v41, v54
     jump bb6
 }
 
@@ -635,57 +635,57 @@ fn @setThenAlloc(arg0: memptr, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v13 = add arg0, 4
-    v14 = calldataload v13
-    v16 = add v13, 32
-    v18 = mload 64 !metadata(memory=scratch)
-    calldatacopy v18, v16, v14
-    v20 = add v18, v14
-    mstore v20, 0
-    v22 = add v14, 32
-    v23 = keccak256 v18, v22
-    sstore v23, arg1 !metadata(storage=symbolic(v23))
-    v27 = mload 64 !metadata(memory=scratch)
-    mstore v27, 32
-    v31 = add 32, 31
-    v32 = lt v31, 32
-    br v32, bb3, bb4
+    v12 = add arg0, 4
+    v13 = calldataload v12
+    v15 = add v12, 32
+    v17 = mload 64 !metadata(memory=scratch)
+    calldatacopy v17, v15, v13
+    v18 = add v17, v13
+    mstore v18, 0
+    v19 = add v13, 32
+    v20 = keccak256 v17, v19
+    sstore v20, arg1 !metadata(storage=symbolic(v20))
+    v23 = mload 64 !metadata(memory=scratch)
+    mstore v23, 32
+    v26 = add 32, 31
+    v27 = lt v26, 32
+    br v27, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v40 = not 31
-    v41 = and v31, v40
-    v42 = add v41, 32
-    v43 = lt v42, v41
-    br v43, bb5, bb6
+    v33 = not 31
+    v34 = and v26, v33
+    v35 = add v34, 32
+    v36 = lt v35, v34
+    br v36, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v51 = add v27, v42
-    v52 = lt v51, v27
-    br v52, bb7, bb8
+    v42 = add v23, v35
+    v43 = lt v42, v23
+    br v43, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v61 = gt v51, 0xffffffffffffffff
-    br v61, bb9, bb10
+    v50 = gt v42, 0xffffffffffffffff
+    br v50, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v51 !metadata(memory=scratch)
-    v71 = add v27, 32
-    v72 = calldatasize
-    calldatacopy v71, v72, v41
-    v74 = mload v27
-    mstore 128, v74
+    mstore 64, v42 !metadata(memory=scratch)
+    v57 = add v23, 32
+    v58 = calldatasize
+    calldatacopy v57, v58, v34
+    v59 = mload v23
+    mstore 128, v59
     returndata 128, 32
 }
 

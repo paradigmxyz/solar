@@ -10,47 +10,47 @@ fn @makeBytes(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = mload 64 !metadata(memory=scratch)
-    mstore v11, arg0
-    v15 = add arg0, 31
-    v16 = lt v15, arg0
-    br v16, bb3, bb4
+    v10 = mload 64 !metadata(memory=scratch)
+    mstore v10, arg0
+    v13 = add arg0, 31
+    v14 = lt v13, arg0
+    br v14, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v24 = not 31
-    v25 = and v15, v24
-    v26 = add v25, 32
-    v27 = lt v26, v25
-    br v27, bb5, bb6
+    v20 = not 31
+    v21 = and v13, v20
+    v22 = add v21, 32
+    v23 = lt v22, v21
+    br v23, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v35 = add v11, v26
-    v36 = lt v35, v11
-    br v36, bb7, bb8
+    v29 = add v10, v22
+    v30 = lt v29, v10
+    br v30, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v45 = gt v35, 0xffffffffffffffff
-    br v45, bb9, bb10
+    v37 = gt v29, 0xffffffffffffffff
+    br v37, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v35 !metadata(memory=scratch)
-    v55 = add v11, 32
-    v56 = calldatasize
-    calldatacopy v55, v56, v25
-    v58 = mload v11
-    mstore 128, v58
+    mstore 64, v29 !metadata(memory=scratch)
+    v44 = add v10, 32
+    v45 = calldatasize
+    calldatacopy v44, v45, v21
+    v46 = mload v10
+    mstore 128, v46
     returndata 128, 32
 }
 
@@ -64,46 +64,46 @@ fn @makeArray(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = mload 64 !metadata(memory=scratch)
-    mstore v11, arg0
-    v14 = mul arg0, 32
-    v15 = div v14, 32
-    v16 = eq v15, arg0
-    br v16, bb4, bb3
+    v10 = mload 64 !metadata(memory=scratch)
+    mstore v10, arg0
+    v12 = mul arg0, 32
+    v13 = div v12, 32
+    v14 = eq v13, arg0
+    br v14, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v24 = add v14, 32
-    v25 = lt v24, v14
-    br v25, bb5, bb6
+    v20 = add v12, 32
+    v21 = lt v20, v12
+    br v21, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v33 = add v11, v24
-    v34 = lt v33, v11
-    br v34, bb7, bb8
+    v27 = add v10, v20
+    v28 = lt v27, v10
+    br v28, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v43 = gt v33, 0xffffffffffffffff
-    br v43, bb9, bb10
+    v35 = gt v27, 0xffffffffffffffff
+    br v35, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v33 !metadata(memory=scratch)
-    v53 = add v11, 32
-    v54 = calldatasize
-    calldatacopy v53, v54, v14
-    v56 = mload v11
-    mstore 128, v56
+    mstore 64, v27 !metadata(memory=scratch)
+    v42 = add v10, 32
+    v43 = calldatasize
+    calldatacopy v42, v43, v12
+    v44 = mload v10
+    mstore 128, v44
     returndata 128, 32
 }
 

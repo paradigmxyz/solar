@@ -3,8 +3,8 @@
 fn @value() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v4
+    v3 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v3
     returndata 128, 32
 }
 
