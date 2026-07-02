@@ -70,6 +70,11 @@ impl<'a> FunctionBuilder<'a> {
         self.func.alloc_value(Value::Undef(ty))
     }
 
+    /// Creates an error sentinel value for an already-reported lowering error.
+    pub fn error_value(&mut self, guar: solar_interface::diagnostics::ErrorGuaranteed) -> ValueId {
+        self.func.alloc_value(Value::Error(guar))
+    }
+
     fn emit_inst_raw(&mut self, kind: InstKind, result_ty: Option<MirType>) -> InstId {
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
@@ -130,7 +135,9 @@ impl<'a> FunctionBuilder<'a> {
                 }
                 _ => MemoryRegion::Unknown,
             },
-            Value::Arg { .. } | Value::Immediate(_) | Value::Undef(_) => MemoryRegion::Unknown,
+            Value::Arg { .. } | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {
+                MemoryRegion::Unknown
+            }
         }
     }
 

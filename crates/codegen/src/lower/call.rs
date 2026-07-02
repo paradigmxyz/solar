@@ -281,12 +281,11 @@ impl<'gcx> Lowerer<'gcx> {
         let contract_id = match &ty.kind {
             hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
             _ => {
-                self.gcx
-                    .dcx()
-                    .err("codegen expected a contract type for `new` expression")
-                    .span(ty.span)
-                    .emit();
-                return builder.imm_u64(0);
+                return self.err_value(
+                    builder,
+                    ty.span,
+                    "codegen expected a contract type for `new` expression",
+                );
             }
         };
 
@@ -294,7 +293,8 @@ impl<'gcx> Lowerer<'gcx> {
         let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
             Some(bc) => bc.clone(),
             None => {
-                self.gcx
+                let guar = self
+                    .gcx
                     .dcx()
                     .err(format!(
                         "codegen is missing creation bytecode for `new {}`",
@@ -303,7 +303,7 @@ impl<'gcx> Lowerer<'gcx> {
                     .span(ty.span)
                     .note("the deployed contract did not compile or was not lowered first")
                     .emit();
-                return builder.imm_u64(0);
+                return builder.error_value(guar);
             }
         };
 
@@ -492,12 +492,11 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(ptr) = self.lower_abi_encode_to_bytes(builder, &arg_exprs) {
                     return ptr;
                 }
-                self.gcx
-                    .dcx()
-                    .err("codegen does not support these `abi.encode` arguments yet")
-                    .span(args.span)
-                    .emit();
-                builder.imm_u64(0)
+                self.err_value(
+                    builder,
+                    args.span,
+                    "codegen does not support these `abi.encode` arguments yet",
+                )
             }
             Builtin::AbiEncodePacked => {
                 // abi.encodePacked: pack values tightly based on their types
@@ -630,7 +629,8 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(expected) = Self::yul_builtin_arity(builtin)
             && arg_vals.len() != expected
         {
-            self.gcx
+            let guar = self
+                .gcx
                 .dcx()
                 .err(format!(
                     "wrong number of arguments for Yul builtin `{}`: expected {}, found {}",
@@ -640,7 +640,7 @@ impl<'gcx> Lowerer<'gcx> {
                 ))
                 .span(args.span)
                 .emit();
-            return builder.imm_u64(0);
+            return builder.error_value(guar);
         }
 
         match builtin {
@@ -911,12 +911,7 @@ impl<'gcx> Lowerer<'gcx> {
         builtin: Builtin,
         span: Span,
     ) -> ValueId {
-        self.gcx
-            .dcx()
-            .err(format!("unsupported Yul builtin `{}`", builtin.name()))
-            .span(span)
-            .emit();
-        builder.imm_u64(0)
+        self.err_value(builder, span, format!("unsupported Yul builtin `{}`", builtin.name()))
     }
 
     /// Lowers a member function call (e.g., counter.increment()).
@@ -1620,7 +1615,14 @@ impl<'gcx> Lowerer<'gcx> {
         let body = func.body;
 
         if !self.try_enter_inline(func_id) {
-            panic!("codegen hit unsupported void-call inline recursion");
+            {
+                let guar = self
+                    .gcx
+                    .dcx()
+                    .err("codegen does not support this recursive call through inlining yet")
+                    .emit();
+                return builder.error_value(guar);
+            }
         }
 
         let saved_locals = std::mem::take(&mut self.locals);
@@ -1757,7 +1759,14 @@ impl<'gcx> Lowerer<'gcx> {
 
             result
         } else {
-            panic!("codegen does not support external library calls yet")
+            {
+                let guar = self
+                    .gcx
+                    .dcx()
+                    .err("codegen does not support external library calls yet")
+                    .emit();
+                builder.error_value(guar)
+            }
         }
     }
 

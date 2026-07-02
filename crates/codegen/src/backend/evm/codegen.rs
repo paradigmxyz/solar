@@ -2973,6 +2973,10 @@ impl EvmCodegen {
                      CALL operands should be concrete values."
                 );
             }
+            crate::mir::Value::Error(_) => {
+                // A lowering error fails compilation before codegen runs.
+                panic!("emit_value_fresh: error sentinel {val:?} reached the backend");
+            }
         }
     }
 

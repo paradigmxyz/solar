@@ -475,7 +475,7 @@ impl PartialRedundancyEliminator {
         dominators: &DominatorTree,
     ) -> bool {
         match func.value(value) {
-            Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) => true,
+            Value::Immediate(_) | Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => true,
             Value::Inst(inst) => inst_blocks
                 .get(inst)
                 .is_some_and(|def_block| dominators.dominates(*def_block, block)),

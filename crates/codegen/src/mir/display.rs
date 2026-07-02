@@ -305,6 +305,7 @@ fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
             write!(f, "{}", display_u256(u256))
         }
         Value::Arg { index, .. } => write!(f, "arg{index}"),
+        Value::Error(_) => write!(f, "err"),
         _ => write!(f, "v{}", vid.index()),
     })
 }

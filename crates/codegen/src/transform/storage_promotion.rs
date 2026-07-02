@@ -903,7 +903,7 @@ impl StorageScalarPromoter {
                 .blocks
                 .iter()
                 .any(|&block_id| func.blocks[block_id].instructions.contains(inst_id)),
-            Value::Undef(_) => true,
+            Value::Undef(_) | Value::Error(_) => true,
             Value::Arg { .. } | Value::Immediate(_) => false,
         }
     }

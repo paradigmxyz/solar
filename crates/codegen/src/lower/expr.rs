@@ -53,12 +53,11 @@ impl<'gcx> Lowerer<'gcx> {
                     // The raw resolution set is ambiguous (an overloaded
                     // function or event referenced as a value); the type
                     // checker records disambiguation only for callees.
-                    self.gcx
-                        .dcx()
-                        .err("codegen cannot resolve an overloaded identifier used as a value")
-                        .span(expr.span)
-                        .emit();
-                    builder.imm_u64(0)
+                    self.err_value(
+                        builder,
+                        expr.span,
+                        "codegen cannot resolve an overloaded identifier used as a value",
+                    )
                 }
             }
 
@@ -668,48 +667,37 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         member: Ident,
     ) -> ValueId {
-        let ExprKind::Ident(res_slice) = &base.kind else {
-            self.gcx
-                .dcx()
-                .err(format!("unsupported Yul member `.{}`", member.name))
-                .span(member.span)
-                .emit();
-            return builder.imm_u64(0);
+        let Some(var_id) = self.ident_variable(base) else {
+            return self.err_value(
+                builder,
+                member.span,
+                format!("unsupported Yul member `.{}`", member.name),
+            );
         };
-
-        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
-            self.gcx
-                .dcx()
-                .err(format!("unsupported Yul member `.{}`", member.name))
-                .span(member.span)
-                .emit();
-            return builder.imm_u64(0);
-        };
-
         // For a calldata array/bytes parameter, its lowered value is the ABI
         // head: the offset (relative to the start of the args, i.e. after the
         // 4-byte selector) to the length word. So the length word is at calldata
         // position `4 + head`, and the first element at `4 + head + 32`.
-        let calldata_head = (self.gcx.hir.variable(*var_id).data_location
+        let calldata_head = (self.gcx.hir.variable(var_id).data_location
             == Some(solar_ast::DataLocation::Calldata))
-        .then(|| self.locals.get(var_id).copied())
+        .then(|| self.locals.get(&var_id).copied())
         .flatten();
 
         match member.name {
             sym::slot => {
-                if let Some(&slot) = self.storage_slots.get(var_id) {
+                if let Some(&slot) = self.storage_slots.get(&var_id) {
                     return builder.imm_u64(slot);
                 }
-                if let Some(&slot) = self.locals.get(var_id) {
+                if let Some(&slot) = self.locals.get(&var_id) {
                     return slot;
                 }
-                if let Some(offset) = self.get_local_memory_offset(var_id) {
+                if let Some(offset) = self.get_local_memory_offset(&var_id) {
                     let offset = self.local_memory_addr(builder, offset);
                     return builder.mload(offset);
                 }
             }
             sym::offset => {
-                if let Some(location) = self.storage_locations.get(var_id) {
+                if let Some(location) = self.storage_locations.get(&var_id) {
                     return builder.imm_u64(u64::from(location.offset));
                 }
                 if let Some(head) = calldata_head {
@@ -728,12 +716,7 @@ impl<'gcx> Lowerer<'gcx> {
             _ => {}
         }
 
-        self.gcx
-            .dcx()
-            .err(format!("unsupported Yul member `.{}`", member.name))
-            .span(member.span)
-            .emit();
-        builder.imm_u64(0)
+        self.err_value(builder, member.span, format!("unsupported Yul member `.{}`", member.name))
     }
 
     /// Lowers `lhs && rhs` / `lhs || rhs` with short-circuit evaluation: the
@@ -953,20 +936,33 @@ impl<'gcx> Lowerer<'gcx> {
         is_creation_code: bool,
     ) -> ValueId {
         // Extract ContractId from the type
-        let contract_id = match &ty.kind {
-            hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
-            _ => panic!("codegen expected contract type for `type(C).creationCode`"),
+        let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = ty.kind else {
+            return self.err_value(
+                builder,
+                ty.span,
+                "codegen expected a contract type for `creationCode`/`runtimeCode`",
+            );
         };
 
         // Look up pre-compiled bytecode
         // For creationCode we use the deployment bytecode (initcode)
         if !is_creation_code {
-            panic!("codegen does not support `type(C).runtimeCode` yet");
+            return self.err_value(
+                builder,
+                ty.span,
+                "codegen does not support `type(C).runtimeCode` yet",
+            );
         }
 
         let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
             Some(bc) => bc.clone(),
-            None => panic!("codegen missing creation bytecode for `type(C).creationCode`"),
+            None => {
+                return self.err_value(
+                    builder,
+                    ty.span,
+                    "codegen is missing creation bytecode for `type(C).creationCode`",
+                );
+            }
         };
 
         let bytecode_len = bytecode.len();
@@ -1689,12 +1685,11 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = if let Some((head, _)) = self.calldata_dyn_head(data) {
             self.materialize_calldata_bytes(builder, head)
         } else if self.expr_is_calldata_dynamic_bytes(data) {
-            self.gcx
-                .dcx()
-                .err("codegen does not support `abi.decode` from this calldata source yet")
-                .span(data.span)
-                .emit();
-            return builder.imm_u64(0);
+            return self.err_value(
+                builder,
+                data.span,
+                "codegen does not support `abi.decode` from this calldata source yet",
+            );
         } else {
             self.lower_expr(builder, data)
         };

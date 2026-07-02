@@ -516,7 +516,7 @@ impl MemoryStoreEliminator {
                 _ => Some(MemAddrKey::BaseOffset { base: value, offset: 0 }),
             },
             Value::Arg { .. } => Some(MemAddrKey::BaseOffset { base: value, offset: 0 }),
-            Value::Undef(_) => None,
+            Value::Undef(_) | Value::Error(_) => None,
         }
     }
 

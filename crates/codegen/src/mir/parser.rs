@@ -703,6 +703,12 @@ impl<'a> Parser<'a> {
         if ident == "false" {
             return Ok(func.alloc_value(Value::Immediate(Immediate::bool(false))));
         }
+        if ident == "err" {
+            // Reconstructing an already-reported error state from text: there
+            // is no live diagnostic to propagate here.
+            let guar = solar_interface::diagnostics::ErrorGuaranteed::new_unchecked();
+            return Ok(func.alloc_value(Value::Error(guar)));
+        }
         if let Some(rest) = ident.strip_prefix("arg") {
             let idx: usize =
                 rest.parse().map_err(|_| self.error(format!("invalid arg `{ident}`")))?;

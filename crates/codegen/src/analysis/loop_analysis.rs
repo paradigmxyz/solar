@@ -317,7 +317,7 @@ impl LoopAnalyzer {
                         invariant_values.insert(value_id);
                     }
                 }
-                Value::Undef(_) => {}
+                Value::Undef(_) | Value::Error(_) => {}
             }
         }
 

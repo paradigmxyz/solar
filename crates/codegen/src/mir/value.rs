@@ -2,6 +2,7 @@
 
 use super::{InstId, MirType};
 use alloy_primitives::U256;
+use solar_interface::diagnostics::ErrorGuaranteed;
 use std::fmt;
 
 /// An SSA value in the MIR.
@@ -20,6 +21,13 @@ pub enum Value {
     Immediate(Immediate),
     /// Undefined value (used for uninitialized variables).
     Undef(MirType),
+    /// Error sentinel: lowering already reported a diagnostic for this value.
+    ///
+    /// Mirrors HIR's error types: instead of panicking or silently producing
+    /// zero, error paths lower to this value, which carries the emitted
+    /// diagnostic's guarantee. Compilation fails before bytecode is produced,
+    /// so backends only need a defensive placeholder for it.
+    Error(ErrorGuaranteed),
 }
 
 impl Value {
@@ -27,7 +35,7 @@ impl Value {
     #[must_use]
     pub fn ty(&self) -> MirType {
         match self {
-            Self::Inst(_) => MirType::uint256(),
+            Self::Inst(_) | Self::Error(_) => MirType::uint256(),
             Self::Arg { ty, .. } | Self::Undef(ty) => *ty,
             Self::Immediate(imm) => imm.ty(),
         }

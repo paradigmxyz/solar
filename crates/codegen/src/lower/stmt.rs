@@ -330,12 +330,11 @@ impl<'gcx> Lowerer<'gcx> {
         match ty.peel_refs().kind {
             TyKind::Array(elem_ty, len) => {
                 let Some(len) = u64::try_from(len).ok() else {
-                    self.gcx
-                        .dcx()
-                        .err("fixed-size memory array is too large for codegen")
-                        .span(span)
-                        .emit();
-                    return builder.imm_u256(U256::ZERO);
+                    return self.err_value(
+                        builder,
+                        span,
+                        "fixed-size memory array is too large for codegen",
+                    );
                 };
                 let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
                     self.gcx

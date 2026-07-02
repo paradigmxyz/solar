@@ -657,21 +657,21 @@ impl LoopOptimizer {
     fn const_addr(&self, func: &Function, value: ValueId) -> Option<u64> {
         match func.value(value) {
             Value::Immediate(imm) => imm.as_u256()?.try_into().ok(),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) => None,
+            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
         }
     }
 
     fn const_condition(&self, func: &Function, value: ValueId) -> Option<bool> {
         match func.value(value) {
             Value::Immediate(imm) => Some(!imm.as_u256()?.is_zero()),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) => None,
+            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
         }
     }
 
     fn const_i128(&self, func: &Function, value: ValueId) -> Option<i128> {
         match func.value(value) {
             Value::Immediate(imm) => u256_to_i128(imm.as_u256()?),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) => None,
+            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => None,
         }
     }
 
@@ -701,7 +701,7 @@ impl LoopOptimizer {
     fn value_defined_in_loop(&self, func: &Function, value: ValueId, loop_data: &Loop) -> bool {
         match func.value(value) {
             Value::Inst(inst_id) => self.inst_in_loop(func, *inst_id, loop_data),
-            Value::Undef(_) => true,
+            Value::Undef(_) | Value::Error(_) => true,
             Value::Arg { .. } | Value::Immediate(_) => false,
         }
     }

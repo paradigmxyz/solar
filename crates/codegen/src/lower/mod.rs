@@ -25,7 +25,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Ident, Span, kw, sym};
+use solar_interface::{Ident, Span, diagnostics::DiagMsg, kw, sym};
 use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
@@ -119,6 +119,18 @@ pub struct Lowerer<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Reports a lowering error and returns the error sentinel value carrying
+    /// the emitted diagnostic's guarantee, mirroring HIR's error types.
+    pub(super) fn err_value(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+    ) -> ValueId {
+        let guar = self.gcx.dcx().err(msg).span(span).emit();
+        builder.error_value(guar)
+    }
+
     /// Creates a new lowerer.
     pub fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
         if !gcx.has_typeck_results() {
