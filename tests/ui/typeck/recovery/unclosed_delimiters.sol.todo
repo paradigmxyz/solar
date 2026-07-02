@@ -1,0 +1,40 @@
+//@ compile-flags: -Ztypeck
+
+// TODO: These unclosed delimiter cases currently fail before an AST reaches
+// typeck. Keep them as focused repros for parser recovery work.
+
+contract MissingContractClose {
+    function f() public {
+        uint8 y = 300;
+    }
+
+contract MissingFunctionClose {
+    function f() public {
+        uint8 y = 300;
+}
+
+contract MissingIfParen {
+    function f() public {
+        if (true {
+            uint8 y = 300;
+        }
+    }
+}
+
+contract MissingCallParen {
+    function g(uint256 a, uint256 b) public {}
+
+    function f() public {
+        this.g(1, 2;
+        uint8 y = 300;
+    }
+}
+
+contract MissingIndexBracket {
+    uint256[] xs;
+
+    function f() public {
+        uint256 x = xs[1;
+        uint8 y = 300;
+    }
+}

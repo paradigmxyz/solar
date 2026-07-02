@@ -490,6 +490,7 @@ declare_visitors! {
                 ExprKind::Unary(_op, expr) => {
                     self.visit_expr #_mut(expr)?;
                 }
+                ExprKind::Err(_guar) => {}
             }
             ControlFlow::Continue(())
         }

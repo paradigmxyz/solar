@@ -1780,6 +1780,7 @@ impl<'gcx> ResolveContext<'gcx> {
             ast::ExprKind::TypeCall(ty) => hir::ExprKind::TypeCall(self.lower_type(ty)),
             ast::ExprKind::Type(ty) => hir::ExprKind::Type(self.lower_type(ty)),
             ast::ExprKind::Unary(op, expr) => hir::ExprKind::Unary(*op, self.lower_expr(expr)),
+            ast::ExprKind::Err(guar) => hir::ExprKind::Err(*guar),
         };
         self.hir_builder().expr_owned(self.next_id(), kind, expr.span)
     }

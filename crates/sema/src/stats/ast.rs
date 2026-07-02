@@ -84,6 +84,7 @@ impl EnumVariantSize for ast::ExprKind<'_> {
             Self::Tuple(exprs) => variant_payload_size!(self, exprs),
             Self::TypeCall(ty) | Self::Type(ty) => variant_payload_size!(self, ty),
             Self::Unary(op, expr) => variant_payload_size!(self, op, expr),
+            Self::Err(guar) => variant_payload_size!(self, guar),
         }
     }
 }
@@ -459,7 +460,8 @@ impl<'ast> Visit<'ast> for StatCollector {
                 Tuple,
                 TypeCall,
                 Type,
-                Unary
+                Unary,
+                Err
             ]
         );
         self.walk_expr(expr)

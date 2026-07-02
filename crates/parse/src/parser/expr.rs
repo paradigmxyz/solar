@@ -142,8 +142,10 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         loop {
             let kind = if self.eat(TokenKind::Dot) {
                 // expr.member
-                let member = self.parse_ident_any()?;
-                ExprKind::Member(expr, member)
+                match self.parse_ident_any() {
+                    Ok(member) => ExprKind::Member(expr, member),
+                    Err(err) => ExprKind::Err(err.emit()),
+                }
             } else if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 // expr(args)
                 let args = self.parse_call_args()?;
