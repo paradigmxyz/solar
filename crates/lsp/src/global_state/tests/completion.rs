@@ -395,7 +395,7 @@ fn check_completion(fixture: &str, expected: impl IntoData) {
     let cursor = fixture.cursor;
     let result = analyze_fixture(fixture.files);
 
-    let completions = result.symbol_tables.completion_items(&cursor.uri, cursor.position);
+    let completions = result.symbol_tables.completion_items(&cursor.uri, cursor.position, None);
     assert_data_eq!(format_completion_items(&completions), expected);
 }
 

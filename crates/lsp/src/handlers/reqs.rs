@@ -74,11 +74,8 @@ pub(crate) fn completion(
         })
     });
     let symbol_tables = state.symbol_tables.read();
-    let items = if let Some(line) = line.as_deref() {
-        symbol_tables.completion_items_with_line(&params.text_document.uri, params.position, line)
-    } else {
-        symbol_tables.completion_items(&params.text_document.uri, params.position)
-    };
+    let items =
+        symbol_tables.completion_items(&params.text_document.uri, params.position, line.as_deref());
     ready(Ok(Some(CompletionResponse::Array(items))))
 }
 

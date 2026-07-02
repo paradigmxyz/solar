@@ -415,23 +415,17 @@ impl SymbolTables {
         Some(locations)
     }
 
-    pub(crate) fn completion_items(&self, uri: &Url, position: Position) -> Vec<CompletionItem> {
-        if let Some(items) = self.member_completion_items(uri, position) {
-            return items;
-        }
-        self.lexical_completion_items(uri, position)
-    }
-
-    pub(crate) fn completion_items_with_line(
+    pub(crate) fn completion_items(
         &self,
         uri: &Url,
         position: Position,
-        line: &str,
+        line: Option<&str>,
     ) -> Vec<CompletionItem> {
         if let Some(items) = self.member_completion_items(uri, position) {
             return items;
         }
-        if let Some((receiver, _prefix)) = member_access_prefix(line, position.character)
+        if let Some(line) = line
+            && let Some((receiver, _prefix)) = member_access_prefix(line, position.character)
             && let Some(items) = self.member_completion_items_for_receiver(uri, position, receiver)
         {
             return items;
