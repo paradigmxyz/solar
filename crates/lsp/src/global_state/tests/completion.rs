@@ -326,6 +326,47 @@ B | enum member | Choice
     .await;
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn completes_members_from_live_line_in_open_document() {
+    check_dirty_completion(
+        r#"
+        //- /Members.sol open
+        contract C {
+            struct Data { uint256 field; uint256 other; }
+
+            function read(Data memory data) public pure {
+                data.$1;
+            }
+        }
+        "#,
+        |dirty_source| dirty_source.replace("data.", "data"),
+        snapbox::str![[r#"
+field | property | -
+other | property | -
+"#]],
+    )
+    .await;
+
+    check_dirty_completion(
+        r#"
+        //- /Members.sol open
+        contract C {
+            struct Data { uint256 field; uint256 other; }
+
+            function read(Data memory data) public pure {
+                data.f$1;
+            }
+        }
+        "#,
+        |dirty_source| dirty_source.replace("data.f", "data"),
+        snapbox::str![[r#"
+field | property | -
+other | property | -
+"#]],
+    )
+    .await;
+}
+
 fn check_completion(fixture: &str, expected: impl IntoData) {
     let fixture = TestProject::from_fixture_with_cursor(fixture);
     let cursor = fixture.cursor;

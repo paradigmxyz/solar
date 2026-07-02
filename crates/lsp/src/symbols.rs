@@ -431,7 +431,7 @@ impl SymbolTables {
         if let Some(items) = self.member_completion_items(uri, position) {
             return items;
         }
-        if let Some(receiver) = trailing_member_receiver(line, position.character)
+        if let Some((receiver, _prefix)) = member_access_prefix(line, position.character)
             && let Some(items) = self.member_completion_items_for_receiver(uri, position, receiver)
         {
             return items;
@@ -1599,10 +1599,21 @@ fn range_size_key(range: Range) -> (u32, u32) {
     )
 }
 
-fn trailing_member_receiver(line: &str, character: u32) -> Option<&str> {
+fn member_access_prefix(line: &str, character: u32) -> Option<(&str, &str)> {
     let line_prefix = utf16_prefix(line, character)?;
     let trimmed = line_prefix.trim_end();
-    let before_dot = trimmed.strip_suffix('.')?.trim_end();
+    let member_end = trimmed.len();
+    let member_start = trimmed[..member_end]
+        .char_indices()
+        .rev()
+        .find_map(|(index, ch)| (!is_identifier_continue(ch)).then_some(index + ch.len_utf8()))
+        .unwrap_or(0);
+    let member_prefix = &trimmed[member_start..member_end];
+    if !member_prefix.is_empty() && !member_prefix.chars().next().is_some_and(is_identifier_start) {
+        return None;
+    }
+
+    let before_dot = trimmed[..member_start].strip_suffix('.')?.trim_end();
     let receiver_end = before_dot.len();
     let receiver_start = before_dot[..receiver_end]
         .char_indices()
@@ -1611,7 +1622,7 @@ fn trailing_member_receiver(line: &str, character: u32) -> Option<&str> {
         .unwrap_or(0);
     let receiver = &before_dot[receiver_start..receiver_end];
     (!receiver.is_empty() && receiver.chars().next().is_some_and(is_identifier_start))
-        .then_some(receiver)
+        .then_some((receiver, member_prefix))
 }
 
 fn utf16_prefix(line: &str, character: u32) -> Option<&str> {
