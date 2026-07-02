@@ -282,10 +282,15 @@ pub fn run_default_pipeline(module: &mut Module) -> bool {
 }
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen with options.
+///
+/// This is a phase transition: the module comes out in [`MirPhase::Optimized`].
+/// Ad-hoc pass lists run through [`run_pipeline`], such as `solar mir-opt`
+/// invocations, deliberately do not advance the phase.
 pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineOptions) -> bool {
     let mut changed = run_pipeline_with_options(module, DEFAULT_PIPELINE, options);
     changed |=
         run_cleanup_pipeline_to_fixpoint(module, DEFAULT_CLEANUP_PIPELINE, options, "cleanup");
+    module.advance_phase(crate::mir::MirPhase::Optimized);
     changed
 }
 

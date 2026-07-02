@@ -17,6 +17,51 @@ use solar_interface::Ident;
 /// constructor patch loop instead of blindly patching with `MSTORE`.
 pub const IMMUTABLE_WORD_SIZE: usize = 32;
 
+/// The lowering phase a [`Module`] is in.
+///
+/// MIR is a phased IR, like rustc's MIR: the same data structures pass through
+/// well-defined phases, and passes declare what phase they expect and produce.
+/// Two phases exist today; the plan is to grow this into progressive lowering
+/// where high-level constructs are rewritten into MIR itself instead of being
+/// special-cased in the backend:
+///
+/// - a dispatch phase, where the selector switch becomes an ordinary MIR `entry` function instead
+///   of backend magic,
+/// - an ABI phase, where every external function gets a MIR wrapper that decodes calldata and
+///   encodes returndata around an internal call,
+/// - an EVM-shaped phase, where builtin-level operations are expanded and functions take the layout
+///   the backend expects.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MirPhase {
+    /// Fresh from HIR lowering: typed values, internal calls by function id,
+    /// dispatch and ABI handling not yet materialized as MIR.
+    #[default]
+    Built,
+    /// The canonical optimization pipeline has run.
+    Optimized,
+}
+
+impl MirPhase {
+    /// Stable textual name, as printed in the module header.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Built => "built",
+            Self::Optimized => "optimized",
+        }
+    }
+
+    /// Looks up a phase by its textual name.
+    #[must_use]
+    pub fn by_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "built" => Self::Built,
+            "optimized" => Self::Optimized,
+            _ => return None,
+        })
+    }
+}
+
 /// A MIR module representing a compiled contract.
 #[derive(Clone, Debug)]
 pub struct Module {
@@ -32,6 +77,8 @@ pub struct Module {
     pub immutables: Vec<ImmutableSlot>,
     /// Whether this is an interface (no bytecode generation).
     pub is_interface: bool,
+    /// The lowering phase this module is in.
+    pub phase: MirPhase,
 }
 
 impl Module {
@@ -45,7 +92,22 @@ impl Module {
             storage_layout: Vec::new(),
             immutables: Vec::new(),
             is_interface: false,
+            phase: MirPhase::Built,
         }
+    }
+
+    /// Advances this module to a later phase.
+    ///
+    /// Phases only move forward; a pipeline that would regress the phase is a
+    /// bug in pass scheduling.
+    pub fn advance_phase(&mut self, phase: MirPhase) {
+        debug_assert!(
+            phase >= self.phase,
+            "MIR phase cannot regress: {} -> {}",
+            self.phase.name(),
+            phase.name()
+        );
+        self.phase = phase;
     }
 
     /// Adds a function to the module.
@@ -100,7 +162,11 @@ impl Module {
     /// Returns the human-readable textual MIR representation of this module.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
-            writeln!(f, "; module @{}", self.name)?;
+            if self.phase == MirPhase::default() {
+                writeln!(f, "; module @{}", self.name)?;
+            } else {
+                writeln!(f, "; module @{} [phase = {}]", self.name, self.phase.name())?;
+            }
             write!(
                 f,
                 "{}",

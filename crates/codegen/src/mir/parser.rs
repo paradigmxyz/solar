@@ -352,13 +352,25 @@ impl<'a> Parser<'a> {
     fn parse_module(&mut self) -> Result<Module, ParseError> {
         self.skip_blank_and_comments();
 
-        // Optional `; module @Name` header (the printer always emits it,
-        // but we accept input without it).
+        // Optional `; module @Name [phase = ...]` header (the printer always
+        // emits the name; the phase is printed only when not the default).
+        let mut phase = super::MirPhase::default();
         let module_name = if self.try_punct(';') {
             self.expect_keyword("module")?;
             self.skip_inline();
             self.expect_punct('@')?;
             let name = self.parse_ident()?.to_string();
+            self.skip_inline_whitespace();
+            if self.try_punct('[') {
+                self.expect_keyword("phase")?;
+                self.skip_inline_whitespace();
+                self.expect_punct('=')?;
+                self.skip_inline_whitespace();
+                let phase_name = self.parse_ident()?;
+                phase = super::MirPhase::by_name(phase_name)
+                    .ok_or_else(|| self.error(format!("unknown MIR phase `{phase_name}`")))?;
+                self.expect_punct(']')?;
+            }
             self.skip_to_eol();
             self.skip_blank_and_comments();
             name
@@ -368,6 +380,7 @@ impl<'a> Parser<'a> {
 
         let module_ident = Ident::with_dummy_span(Symbol::intern(&module_name));
         let mut module = Module::new(module_ident);
+        module.phase = phase;
 
         while !self.is_eof() {
             self.skip_blank_and_comments();
@@ -1662,6 +1675,27 @@ mod tests {
     fn with_session<F: FnOnce() + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(f);
+    }
+
+    #[test]
+    fn parse_module_phase_header() {
+        with_session(|| {
+            let src =
+                "; module @Phased [phase = optimized]\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let module = parse_module(src).unwrap();
+            assert_eq!(module.phase, crate::mir::MirPhase::Optimized);
+            // Round-trips through the printer.
+            let printed = module.to_text().to_string();
+            assert!(printed.starts_with("; module @Phased [phase = optimized]"), "{printed}");
+            let reparsed = parse_module(&printed).unwrap();
+            assert_eq!(reparsed.phase, crate::mir::MirPhase::Optimized);
+
+            // The default phase is not printed, and parses back as built.
+            let src = "; module @Fresh\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let module = parse_module(src).unwrap();
+            assert_eq!(module.phase, crate::mir::MirPhase::Built);
+            assert!(module.to_text().to_string().starts_with("; module @Fresh\n"));
+        });
     }
 
     #[test]
