@@ -14,9 +14,9 @@ use solar_interface::{Result, Session, config::CompilerStage};
 use std::ops::ControlFlow;
 
 // Convenience re-exports.
-#[doc(no_inline)]
+#[doc(no_inline)] // Work around rustdoc ICE: https://github.com/rust-lang/rust/issues/158686
 pub use ::thread_local;
-#[doc(no_inline)]
+#[doc(no_inline)] // Work around rustdoc ICE: https://github.com/rust-lang/rust/issues/158686
 pub use bumpalo;
 pub use solar_ast as ast;
 pub use solar_interface as interface;

@@ -6,7 +6,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 // Convenience re-exports.
-#[doc(no_inline)]
+#[doc(no_inline)] // Work around rustdoc ICE: https://github.com/rust-lang/rust/issues/158686
 pub use bumpalo;
 pub use solar_interface as interface;
 

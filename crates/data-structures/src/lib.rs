@@ -38,7 +38,7 @@ pub use interned::Interned;
 mod thin_slice;
 pub use thin_slice::{RawThinSlice, ThinSlice};
 
-#[doc(no_inline)]
+#[doc(no_inline)] // Work around rustdoc ICE: https://github.com/rust-lang/rust/issues/158686
 pub use smallvec;
 
 /// Pluralize a word based on a count.
