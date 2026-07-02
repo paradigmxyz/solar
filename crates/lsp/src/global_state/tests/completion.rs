@@ -496,35 +496,20 @@ const BUILTIN_COMPLETIONS: &[&str] = &[
 ];
 
 fn completion_item_kind(kind: Option<CompletionItemKind>) -> &'static str {
-    let Some(kind) = kind else {
-        return "-";
-    };
-
-    if kind == CompletionItemKind::CLASS {
-        "class"
-    } else if kind == CompletionItemKind::CONSTANT {
-        "constant"
-    } else if kind == CompletionItemKind::ENUM {
-        "enum"
-    } else if kind == CompletionItemKind::ENUM_MEMBER {
-        "enum member"
-    } else if kind == CompletionItemKind::FIELD {
-        "field"
-    } else if kind == CompletionItemKind::FUNCTION {
-        "function"
-    } else if kind == CompletionItemKind::METHOD {
-        "method"
-    } else if kind == CompletionItemKind::MODULE {
-        "module"
-    } else if kind == CompletionItemKind::PROPERTY {
-        "property"
-    } else if kind == CompletionItemKind::STRUCT {
-        "struct"
-    } else if kind == CompletionItemKind::TYPE_PARAMETER {
-        "type parameter"
-    } else if kind == CompletionItemKind::VARIABLE {
-        "variable"
-    } else {
-        "text"
+    match kind {
+        None => "-",
+        Some(CompletionItemKind::CLASS) => "class",
+        Some(CompletionItemKind::CONSTANT) => "constant",
+        Some(CompletionItemKind::ENUM) => "enum",
+        Some(CompletionItemKind::ENUM_MEMBER) => "enum member",
+        Some(CompletionItemKind::FIELD) => "field",
+        Some(CompletionItemKind::FUNCTION) => "function",
+        Some(CompletionItemKind::METHOD) => "method",
+        Some(CompletionItemKind::MODULE) => "module",
+        Some(CompletionItemKind::PROPERTY) => "property",
+        Some(CompletionItemKind::STRUCT) => "struct",
+        Some(CompletionItemKind::TYPE_PARAMETER) => "type parameter",
+        Some(CompletionItemKind::VARIABLE) => "variable",
+        Some(_) => "text",
     }
 }
