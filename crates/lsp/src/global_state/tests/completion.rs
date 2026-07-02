@@ -367,6 +367,29 @@ other | property | -
     .await;
 }
 
+#[tokio::test(flavor = "current_thread")]
+async fn completes_builtin_module_members_from_live_line_in_open_document() {
+    check_dirty_completion(
+        r#"
+        //- /Members.sol open
+        contract C {
+            function read() public payable {
+                msg.$1;
+            }
+        }
+        "#,
+        |dirty_source| dirty_source.replace("msg.", "uint256 marker = 1"),
+        snapbox::str![[r#"
+data | method | -
+gas | method | -
+sender | method | -
+sig | method | -
+value | method | -
+"#]],
+    )
+    .await;
+}
+
 fn check_completion(fixture: &str, expected: impl IntoData) {
     let fixture = TestProject::from_fixture_with_cursor(fixture);
     let cursor = fixture.cursor;

@@ -678,7 +678,12 @@ impl SymbolTables {
         context: CompletionContext,
     ) -> Option<MemberCompletionSetId> {
         let source = context.source?;
-        if !matches!(res, Res::Item(_) | Res::Namespace(_)) {
+        let has_members = match res {
+            Res::Item(_) | Res::Namespace(_) => true,
+            Res::Builtin(builtin) => builtin.members().is_some(),
+            Res::Err(_) => false,
+        };
+        if !has_members {
             return None;
         }
         let entries = gcx
