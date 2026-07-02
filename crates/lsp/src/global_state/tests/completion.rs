@@ -87,35 +87,15 @@ fn completes_function_scope_symbols() {
             }
         }
         "#,
-        snapbox::str![[r#"
-C | class | -
-abi | module | builtin
-addmod | function | builtin
-assert | function | builtin
-blobhash | function | builtin
-block | module | builtin
-blockhash | function | builtin
-caller | method | -
-ecrecover | function | builtin
-erc7201 | function | builtin
-gasleft | function | builtin
-input | variable | -
-keccak256 | function | builtin
-localValue | variable | -
-msg | module | builtin
-mulmod | function | builtin
-output | variable | -
-require | function | builtin
-revert | function | builtin
-ripemd160 | function | builtin
-selfdestruct | function | builtin
-sha256 | function | builtin
-stateValue | property | -
-super | function | builtin
-target | method | -
-this | function | builtin
-tx | module | builtin
-"#]],
+        completion_with_builtins(&[
+            "C | class | -",
+            "caller | method | -",
+            "input | variable | -",
+            "localValue | variable | -",
+            "output | variable | -",
+            "stateValue | property | -",
+            "target | method | -",
+        ]),
     );
 }
 
@@ -131,31 +111,7 @@ fn does_not_complete_local_before_declaration_is_in_scope() {
             }
         }
         "#,
-        snapbox::str![[r#"
-C | class | -
-abi | module | builtin
-addmod | function | builtin
-assert | function | builtin
-blobhash | function | builtin
-block | module | builtin
-blockhash | function | builtin
-ecrecover | function | builtin
-erc7201 | function | builtin
-f | method | -
-gasleft | function | builtin
-input | variable | -
-keccak256 | function | builtin
-msg | module | builtin
-mulmod | function | builtin
-require | function | builtin
-revert | function | builtin
-ripemd160 | function | builtin
-selfdestruct | function | builtin
-sha256 | function | builtin
-super | function | builtin
-this | function | builtin
-tx | module | builtin
-"#]],
+        completion_with_builtins(&["C | class | -", "f | method | -", "input | variable | -"]),
     );
 
     check_completion(
@@ -168,32 +124,12 @@ tx | module | builtin
             }
         }
         "#,
-        snapbox::str![[r#"
-C | class | -
-abi | module | builtin
-addmod | function | builtin
-assert | function | builtin
-blobhash | function | builtin
-block | module | builtin
-blockhash | function | builtin
-ecrecover | function | builtin
-erc7201 | function | builtin
-f | method | -
-gasleft | function | builtin
-input | variable | -
-keccak256 | function | builtin
-localValue | variable | -
-msg | module | builtin
-mulmod | function | builtin
-require | function | builtin
-revert | function | builtin
-ripemd160 | function | builtin
-selfdestruct | function | builtin
-sha256 | function | builtin
-super | function | builtin
-this | function | builtin
-tx | module | builtin
-"#]],
+        completion_with_builtins(&[
+            "C | class | -",
+            "f | method | -",
+            "input | variable | -",
+            "localValue | variable | -",
+        ]),
     );
 }
 
@@ -463,6 +399,37 @@ fn format_completion_items(completions: &[CompletionItem]) -> String {
     }
     output
 }
+
+fn completion_with_builtins(scope_items: &[&str]) -> String {
+    let mut items = Vec::with_capacity(scope_items.len() + BUILTIN_COMPLETIONS.len());
+    items.extend_from_slice(scope_items);
+    items.extend_from_slice(BUILTIN_COMPLETIONS);
+    items.sort_unstable();
+    items.join("\n")
+}
+
+const BUILTIN_COMPLETIONS: &[&str] = &[
+    "abi | module | builtin",
+    "addmod | function | builtin",
+    "assert | function | builtin",
+    "blobhash | function | builtin",
+    "block | module | builtin",
+    "blockhash | function | builtin",
+    "ecrecover | function | builtin",
+    "erc7201 | function | builtin",
+    "gasleft | function | builtin",
+    "keccak256 | function | builtin",
+    "msg | module | builtin",
+    "mulmod | function | builtin",
+    "require | function | builtin",
+    "revert | function | builtin",
+    "ripemd160 | function | builtin",
+    "selfdestruct | function | builtin",
+    "sha256 | function | builtin",
+    "super | function | builtin",
+    "this | function | builtin",
+    "tx | module | builtin",
+];
 
 fn completion_item_kind(kind: Option<CompletionItemKind>) -> &'static str {
     let Some(kind) = kind else {
