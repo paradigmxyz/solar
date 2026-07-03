@@ -1,7 +1,8 @@
 //@compile-flags: --pass lower-abi
-// A function with a non-word-sized (memory-pointer) parameter is left untouched:
-// the static-word ABI codec does not model dynamic head/tail layout. The module
-// still advances to the `abi` phase.
+// The static-word ABI codec does not model dynamic head/tail layout, so a
+// module with any non-word-sized (memory-pointer) external parameter is left
+// entirely untouched: the phase transition is all-or-nothing, so the module
+// does not advance to `abi` and no function is wrapped.
 ; module @LowerAbiSkipsDynamic
 fn @takesBytes(arg0: memptr) -> u256 [selector=0x0dead001] {
   bb0 (entry):

@@ -12,6 +12,10 @@
 //! argument-free self-decoding wrappers this switch routes to; that is why it
 //! only routes selector-bearing functions that take no MIR arguments.
 //!
+//! It requires the `abi` phase: it routes to the argument-free wrappers that
+//! [`super::LowerAbiPass`] produces, so it bails on `built`/`optimized` modules
+//! rather than half-dispatching argument-taking functions.
+//!
 //! This is opt-in: it is not part of the default pipeline, and the backend does
 //! not consume `dispatch`-phase modules. It is the staging ground for moving the
 //! dispatcher out of the backend.
@@ -43,24 +47,41 @@ impl LowerDispatchPass {
     }
 
     fn run(&mut self, module: &mut Module) -> bool {
+        self.stats = LowerDispatchStats::default();
+
         // Idempotent: only build the dispatcher once.
         if module.phase >= MirPhase::Dispatch {
             return false;
         }
 
-        // Collect the routable external wrappers: a selector plus a body, and no
-        // MIR arguments (the ABI phase has already absorbed them). Anything with
-        // arguments is left for the backend, since this switch cannot supply
-        // them.
-        let mut routes: Vec<(u32, FunctionId)> = module
-            .functions
-            .iter_enumerated()
-            .filter_map(|(id, func)| {
-                let selector = func.selector?;
-                (func.params.is_empty() && !func.blocks.is_empty())
-                    .then(|| (u32::from_be_bytes(selector), id))
-            })
-            .collect();
+        // Dispatch routes to the argument-free ABI wrappers, so it requires the
+        // ABI phase. Running on `built`/`optimized` MIR would leave
+        // argument-taking external functions unroutable while still advancing
+        // the phase; require the precondition and bail otherwise.
+        if module.phase < MirPhase::Abi {
+            return false;
+        }
+
+        // The ABI phase invariant is a hard precondition, not a debug-only
+        // assumption. If a hand-written or stale MIR module claims `abi` while
+        // still containing argument-taking selector functions, leave it
+        // untouched instead of synthesizing an invalid dispatcher.
+        if module.functions.iter().any(|func| {
+            func.selector.is_some() && !func.blocks.is_empty() && !func.params.is_empty()
+        }) {
+            return false;
+        }
+
+        // Collect the routable external wrappers: a selector plus a body. After
+        // the ABI phase every such wrapper is argument-free.
+        let mut routes: Vec<(u32, FunctionId)> = Vec::new();
+        for (id, func) in module.functions.iter_enumerated() {
+            let Some(selector) = func.selector else { continue };
+            if func.blocks.is_empty() {
+                continue;
+            }
+            routes.push((u32::from_be_bytes(selector), id));
+        }
         if routes.is_empty() {
             return false;
         }
@@ -99,9 +120,17 @@ impl LowerDispatchPass {
             let zero = builder.imm_u64(0);
             builder.revert(zero, zero);
 
-            // Each case tail-calls its argument-free wrapper. The wrapper ends in
-            // its own RETURN/REVERT, so the dispatcher never returns to the case
-            // block; a `stop` keeps the block well-formed.
+            // Each case routes to its argument-free wrapper.
+            //
+            // TODO: this uses `internal_call` as a text-model placeholder. A
+            // wrapper terminates externally (`RETURN`/`REVERT`), so this is not a
+            // real backend-ready call edge: an internal call expects control to
+            // return, but a wrapper never does. Making dispatch backend-ready
+            // needs a tail-call/jump-like MIR edge to the wrapper, or dispatch
+            // should target the body functions and encode returndata in the case
+            // block itself. The trailing `stop` keeps the block well-formed for
+            // the current model, where the backend does not yet consume this
+            // phase.
             for ((_, target), block) in routes.iter().zip(&case_blocks) {
                 builder.switch_to_block(*block);
                 builder.internal_call_void(*target, Vec::new(), 0);

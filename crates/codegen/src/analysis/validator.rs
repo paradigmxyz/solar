@@ -315,7 +315,30 @@ impl Validator {
                 all.push(err);
             }
         }
+        all.extend(Self::validate_phase(module));
         all
+    }
+
+    /// Checks that the module's content satisfies its declared [`MirPhase`], so
+    /// the phase is a real contract rather than a label.
+    fn validate_phase(module: &Module) -> Vec<ValidationError> {
+        let mut errors = Vec::new();
+        // From the `abi` phase on, every bodied external (selector-bearing)
+        // function is an argument-free self-decoding wrapper.
+        if module.phase >= crate::mir::MirPhase::Abi {
+            for (id, func) in module.iter_functions() {
+                if func.selector.is_some() && !func.blocks.is_empty() && !func.params.is_empty() {
+                    errors.push(ValidationError::new(format!(
+                        "[fn{}] selector function `{}` still takes arguments in the `{}` phase \
+                         (expected an argument-free ABI wrapper)",
+                        id.index(),
+                        func.name,
+                        module.phase.name()
+                    )));
+                }
+            }
+        }
+        errors
     }
 }
 

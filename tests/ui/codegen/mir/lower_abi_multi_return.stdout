@@ -1,0 +1,17 @@
+// === ROOT/tests/ui/codegen/mir/lower_abi_multi_return.mir (after lower-abi) ===
+; module @LowerAbiMultiReturn [phase = abi]
+fn @pair() {
+  bb0 (entry):
+    v1 = calldataload 4
+    v2 = internal_call fn1, 2, v1
+    mstore 128, v2
+    v5 = mload 32 !metadata(memory=scratch)
+    mstore 160, v5
+    returndata 128, 64
+}
+
+fn @pair.body(arg0: u256) -> (u256, u256) {
+  bb0 (entry):
+    v2 = add arg0, 1
+    ret arg0, v2
+}

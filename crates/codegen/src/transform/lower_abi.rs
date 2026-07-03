@@ -15,8 +15,14 @@
 //!
 //! For the static word-sized scope this is a faithful ABI codec: static
 //! arguments are one word each at a fixed calldata offset, and a tuple of static
-//! returns is their words concatenated with no head/tail. Functions with dynamic
-//! parameters or returns (and non-external functions) are left untouched.
+//! returns is their words concatenated with no head/tail. Internal call sites
+//! that targeted a wrapped function are retargeted to its extracted body, so
+//! internal calls to public functions keep their semantics.
+//!
+//! The phase transition is all-or-nothing: if any bodied external function has a
+//! dynamic (non-word) parameter or return, the module is left untouched and does
+//! not advance, so an `abi`-phase module always means every external function is
+//! a wrapper.
 //!
 //! This is opt-in: it is not part of the default pipeline, and the backend does
 //! not consume `abi`-phase modules. It is the staging ground for moving dispatch
@@ -24,9 +30,10 @@
 //! which routes a selector switch to these argument-free wrappers.
 
 use crate::{
-    mir::{Function, FunctionId, MirPhase, MirType, Module},
+    mir::{Function, FunctionId, InstKind, MirPhase, MirType, Module},
     pass::ModulePass,
 };
+use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Symbol};
 
 /// Base memory offset for the wrapper's return buffer.
@@ -41,9 +48,13 @@ const RETURN_BUFFER_START: u64 = 0x80;
 pub struct LowerAbiStats {
     /// Number of external functions wrapped.
     pub wrapped: usize,
-    /// Number of external functions left unchanged because a parameter or
-    /// return type is not a static word.
+    /// Number of external functions whose parameter or return types are not
+    /// static words. Any non-zero count makes the whole pass bail: the phase
+    /// transition is all-or-nothing.
     pub skipped_dynamic: usize,
+    /// Number of internal call sites retargeted from a wrapped function to its
+    /// extracted body.
+    pub retargeted_calls: usize,
 }
 
 /// ABI phase lowering pass.
@@ -60,6 +71,8 @@ impl LowerAbiPass {
     }
 
     fn run(&mut self, module: &mut Module) -> bool {
+        self.stats = LowerAbiStats::default();
+
         // Idempotent: only `built`/`optimized` modules have an implicit ABI
         // boundary to materialize.
         if module.phase >= MirPhase::Abi {
@@ -75,22 +88,45 @@ impl LowerAbiPass {
             .map(|(id, _)| id)
             .collect();
 
+        // All-or-nothing: `abi` means *every* bodied external function is a
+        // wrapper. If any signature is outside the static-word scope, leave the
+        // module untouched instead of advancing to a phase the content does not
+        // satisfy.
+        self.stats.skipped_dynamic =
+            targets.iter().filter(|&&id| function_words(module.function(id)).is_none()).count();
+        if self.stats.skipped_dynamic != 0 || targets.is_empty() {
+            return false;
+        }
+
+        let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
-            if function_words(module.function(id)).is_some() {
-                self.wrap_function(module, id);
-                self.stats.wrapped += 1;
-            } else {
-                self.stats.skipped_dynamic += 1;
+            let body_id = self.wrap_function(module, id);
+            body_of_wrapper.insert(id, body_id);
+            self.stats.wrapped += 1;
+        }
+
+        // Internal calls to a wrapped public/external function must keep the
+        // original call semantics: retarget them to the extracted body. The
+        // wrappers' own calls already target the bodies and are not affected.
+        for func in module.functions.iter_mut() {
+            for inst in func.instructions.iter_mut() {
+                if let InstKind::InternalCall { function, .. } = &mut inst.kind
+                    && let Some(&body_id) = body_of_wrapper.get(function)
+                {
+                    *function = body_id;
+                    self.stats.retargeted_calls += 1;
+                }
             }
         }
 
         module.advance_phase(MirPhase::Abi);
-        self.stats.wrapped != 0
+        true
     }
 
     /// Splits one external function into an internal body plus a self-decoding
-    /// wrapper that reuses the original function slot.
-    fn wrap_function(&mut self, module: &mut Module, wrapper_id: FunctionId) {
+    /// wrapper that reuses the original function slot, returning the id of the
+    /// extracted body.
+    fn wrap_function(&mut self, module: &mut Module, wrapper_id: FunctionId) -> FunctionId {
         let (param_tys, return_tys) =
             function_words(module.function(wrapper_id)).expect("caller checked word-sized");
 
@@ -120,27 +156,30 @@ impl LowerAbiPass {
             args.push(builder.calldataload(offset));
         }
 
-        // Call the original body.
-        let result_ty = return_tys.first().copied().unwrap_or_else(MirType::uint256);
-        let call = builder.internal_call(body_id, args, result_ty, return_tys.len());
-
         if return_tys.is_empty() {
+            builder.internal_call_void(body_id, args, 0);
             let zero = builder.imm_u64(0);
             builder.ret_data(zero, zero);
-            return;
+            return body_id;
         }
 
+        // Call the original body. The first return value is the call result; any
+        // remaining return words follow the existing multi-return call convention
+        // and are materialized in scratch memory at `32`, `64`, ...
+        let call = builder.internal_call(body_id, args, return_tys[0], return_tys.len());
+
         // Encode the static returns: word `i` at `RETURN_BUFFER_START + 32*i`.
-        //
-        // A single-return internal call yields its value directly; the
-        // multi-return ABI-tuple projection is not modelled at this phase yet,
-        // so only the first word is materialized for tuples (still a valid,
-        // if partial, static encoding shell). Extend when MIR grows tuple
-        // projections.
         let base = builder.imm_u64(RETURN_BUFFER_START);
         builder.mstore(base, call);
+        for i in 1..return_tys.len() {
+            let src = builder.imm_u64((i * 32) as u64);
+            let word = builder.mload(src);
+            let dst = builder.imm_u64(RETURN_BUFFER_START + (i * 32) as u64);
+            builder.mstore(dst, word);
+        }
         let size = builder.imm_u64(32 * return_tys.len() as u64);
         builder.ret_data(base, size);
+        body_id
     }
 }
 
