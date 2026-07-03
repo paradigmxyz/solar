@@ -2,7 +2,7 @@ use crate::{PResult, Parser};
 use smallvec::SmallVec;
 use solar_ast::{token::*, *};
 
-use solar_interface::kw;
+use solar_interface::{Ident, Symbol, kw};
 
 impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     /// Parses an expression.
@@ -141,10 +141,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }?;
         loop {
             let kind = if self.eat(TokenKind::Dot) {
+                let dot_span = self.prev_token.span;
                 // expr.member
                 match self.parse_ident_any() {
                     Ok(member) => ExprKind::Member(expr, member),
-                    Err(err) => ExprKind::Err(err.emit()),
+                    Err(err) => {
+                        err.emit();
+                        let member = Ident::new(Symbol::DUMMY, dot_span.shrink_to_hi());
+                        ExprKind::Member(expr, member)
+                    }
                 }
             } else if self.check(TokenKind::OpenDelim(Delimiter::Parenthesis)) {
                 // expr(args)

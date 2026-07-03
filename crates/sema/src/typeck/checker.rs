@@ -456,6 +456,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 if receiver_ty.references_error() {
                     return receiver_ty;
                 }
+                if ident.name == Symbol::DUMMY {
+                    return receiver_ty;
+                }
 
                 let possible_members = self
                     .gcx

@@ -946,16 +946,18 @@ mod tests {
             contract C {
                 Token[] tokens;
                 Token public token;
+                Token foo;
 
                 function getToken() public view returns (Token) {
                     return token;
                 }
 
                 function read(uint256 i) public view {
-                    getToken().bal;
-                    (this.token()).bal;
+                    getToken().;
+                    (this.token()).b;
                     tokens[i].bal;
-                    token
+                    foo.;
+                    foo
                         .bal;
                 }
             }
@@ -963,13 +965,21 @@ mod tests {
         );
         let path = project.path("/Completion.sol");
         let uri = Url::from_file_path(&path).unwrap();
+        let contents = project.read_file("/Completion.sol");
         let result = analyze(AnalysisBatch {
             opts: CompileOpts::default(),
-            files: vec![(path, project.read_file("/Completion.sol"))],
+            files: vec![(path, contents.clone())],
             seen_paths: FxHashSet::default(),
         });
 
-        for position in [position(10, 22), position(11, 26), position(12, 21), position(14, 16)] {
+        for position in [
+            position_after(&contents, "getToken()."),
+            position_after(&contents, "(this.token())."),
+            position_after(&contents, "(this.token()).b"),
+            position_after(&contents, "tokens[i].bal"),
+            position_after_nth(&contents, ".bal", 1),
+            position_after(&contents, "foo."),
+        ] {
             let completions = result.symbol_tables.completion_items(&uri, position);
             assert_eq!(
                 completion_labels(&completions),
@@ -1306,6 +1316,35 @@ mod tests {
 
     fn completion_labels(completions: &[lsp_types::CompletionItem]) -> Vec<&str> {
         completions.iter().map(|completion| completion.label.as_str()).collect()
+    }
+
+    fn position_after(contents: &str, needle: &str) -> Position {
+        position_after_nth(contents, needle, 0)
+    }
+
+    fn position_after_nth(contents: &str, needle: &str, occurrence: usize) -> Position {
+        let mut offset = None;
+        let mut search_start = 0;
+        for _ in 0..=occurrence {
+            let found = contents[search_start..]
+                .find(needle)
+                .unwrap_or_else(|| panic!("missing occurrence {occurrence} of `{needle}`"));
+            let found = search_start + found;
+            offset = Some(found + needle.len());
+            search_start = found + needle.len();
+        }
+        let offset = offset.unwrap();
+        let mut line = 0;
+        let mut character = 0;
+        for byte in contents[..offset].bytes() {
+            if byte == b'\n' {
+                line += 1;
+                character = 0;
+            } else {
+                character += 1;
+            }
+        }
+        position(line, character)
     }
 
     fn position(line: u32, character: u32) -> Position {
