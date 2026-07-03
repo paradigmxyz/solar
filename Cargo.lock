@@ -1791,14 +1791,14 @@ dependencies = [
 
 [[package]]
 name = "inturn"
-version = "0.1.3"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d58cf1c5e088a860e4b7def7d8fdf8cf222ca33c7a0365619af22e0453b3b79c"
+checksum = "630b41dcc27d131bc9b501515a2cb3dfde2b0de4d8b53bd9c97180fb87696aa2"
 dependencies = [
  "boxcar",
+ "bumpalo",
  "dashmap",
  "hashbrown 0.14.5",
- "stumpalo",
  "thread_local",
 ]
 
@@ -2681,12 +2681,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "readme-rustdocifier"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08ad765b21a08b1a8e5cdce052719188a23772bcbefb3c439f0baaf62c56ceac"
-
-[[package]]
 name = "redox_syscall"
 version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3527,15 +3521,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
-]
-
-[[package]]
-name = "stumpalo"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1628a62e30c1399999472f01517efa4dad9fddb3585cef572520e5dc21c3cf8"
-dependencies = [
- "readme-rustdocifier",
 ]
 
 [[package]]
