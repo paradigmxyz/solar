@@ -457,7 +457,7 @@ impl<'gcx> TypeChecker<'gcx> {
                     return receiver_ty;
                 }
                 if ident.name == Symbol::DUMMY {
-                    return receiver_ty;
+                    return self.gcx.mk_ty_misc_err();
                 }
 
                 let possible_members = self
@@ -1569,6 +1569,11 @@ impl<'gcx> TypeChecker<'gcx> {
         let receiver_ty = self.check_expr_outside_lvalue_context(receiver, None);
         if let Err(e) = receiver_ty.error_reported() {
             let ty = self.gcx.mk_ty_err(e);
+            self.register_ty(callee, ty);
+            return ty;
+        }
+        if ident.name == Symbol::DUMMY {
+            let ty = self.gcx.mk_ty_misc_err();
             self.register_ty(callee, ty);
             return ty;
         }
