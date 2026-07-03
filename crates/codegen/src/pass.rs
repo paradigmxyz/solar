@@ -26,8 +26,8 @@ use crate::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, MemoryDsePass, PrePass, PureEvalPass, SccpTransformPass, StorageDsePass,
-        StorageLoadCsePass, StorageScalarPromotionPass,
+        LowerDispatchPass, LowerEvmShapedPass, MemoryDsePass, PrePass, PureEvalPass,
+        SccpTransformPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -168,6 +168,8 @@ declare_passes! {
     /// Dispatch phase lowering: synthesize the selector-switch `entry` function.
     const LOWER_DISPATCH_PASS_BASE -> "lower-dispatch" = LowerDispatchPass::default();
 
+    /// EVM-shape lowering: non-returning internal calls become tail calls.
+    const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
 }
 
 /// ABI phase lowering with its phase range declared: consumes
@@ -179,6 +181,11 @@ pub const LOWER_ABI_PASS: PassInfo =
 /// `abi`-phase MIR and produces the `dispatch` phase.
 pub const LOWER_DISPATCH_PASS: PassInfo =
     LOWER_DISPATCH_PASS_BASE.phases(MirPhase::Abi, MirPhase::Abi);
+
+/// EVM-shape lowering with its phase range declared: consumes exactly
+/// `dispatch`-phase MIR and produces the `evm-shaped` phase.
+pub const LOWER_EVM_SHAPED_PASS: PassInfo =
+    LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::Dispatch, MirPhase::Dispatch);
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub const PASS_REGISTRY: &[PassInfo] = &[
@@ -206,6 +213,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     STORAGE_PROMOTION_PASS,
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
+    LOWER_EVM_SHAPED_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.

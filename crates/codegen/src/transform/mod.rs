@@ -16,6 +16,7 @@ mod loop_canonicalize;
 mod loop_opt;
 mod lower_abi;
 mod lower_dispatch;
+mod lower_evm_shaped;
 mod memory_dse;
 mod pre;
 mod pure_eval;
@@ -49,6 +50,7 @@ pub use loop_canonicalize::{LoopCanonicalizePass, LoopCanonicalizeStats, LoopCan
 pub use loop_opt::{LicmPass, LoopOptConfig, LoopOptStats, LoopOptimizer};
 pub use lower_abi::{LowerAbiPass, LowerAbiStats};
 pub use lower_dispatch::{LowerDispatchPass, LowerDispatchStats};
+pub use lower_evm_shaped::{LowerEvmShapedPass, LowerEvmShapedStats};
 pub use memory_dse::{MemoryDsePass, MemoryStoreEliminator};
 pub use pre::{PartialRedundancyEliminator, PrePass, PreStats};
 pub use pure_eval::{PureEvalPass, PureEvalStats, PureEvaluator};

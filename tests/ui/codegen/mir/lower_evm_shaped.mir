@@ -1,0 +1,10 @@
+//@compile-flags: --pass lower-abi,lower-dispatch,lower-evm-shaped
+// A fused external body encodes its own returndata and never returns, so the
+// wrapper's internal call to it is a lie: the evm-shaped phase rewrites the
+// resultless call into a tail call and drops the dead remainder of the block.
+; module @LowerEvmShaped
+fn @fused(arg0: u256) [selector=0x00000007] {
+  bb0 (entry):
+    mstore 128, arg0
+    returndata 128, 32
+}
