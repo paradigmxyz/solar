@@ -1,9 +1,27 @@
-//@compile-flags: --pass lower-abi,lower-dispatch,lower-evm-shaped
-// A fused external body encodes its own returndata and never returns, so the
-// wrapper's internal call to it is a lie: the evm-shaped phase rewrites the
-// resultless call into a tail call and drops the dead remainder of the block.
-; module @LowerEvmShaped
-fn @fused(arg0: u256) [selector=0x00000007] {
+//@compile-flags: --pass lower-evm-shaped
+// A resultless internal call to a callee that never returns (no `ret`, no
+// `stop` — it ends in `returndata`) models a returning edge that does not
+// exist. The evm-shaped phase rewrites it into a `tail_call` and drops the
+// dead remainder of the block. `@entry` is present so the module satisfies the
+// dispatch-phase contract.
+; module @LowerEvmShaped [phase = dispatch]
+fn @entry() {
+  bb0 (entry):
+    v0 = calldataload 0
+    v2 = shr 224, v0
+    switch v2, default bb2, [7 => bb1]
+  bb1:
+    tail_call fn1
+  bb2:
+    revert 0, 0
+}
+fn @caller() [selector=0x00000007] {
+  bb0 (entry):
+    v0 = calldataload 4
+    internal_call fn2, 0, v0
+    stop
+}
+fn @fused(arg0: u256) {
   bb0 (entry):
     mstore 128, arg0
     returndata 128, 32
