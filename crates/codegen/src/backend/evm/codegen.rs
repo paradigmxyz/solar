@@ -2969,6 +2969,20 @@ impl EvmCodegen {
                             self.asm.emit_op(op::GAS);
                             self.scheduler.stack.push(val);
                         }
+                        crate::mir::InstKind::LoadImmutable(offset) => {
+                            // Same emission as the scheduled path: a patched
+                            // placeholder at runtime, the staged scratch word
+                            // inside the running constructor.
+                            if self.in_constructor {
+                                self.asm.emit_push(U256::from(
+                                    IMMUTABLE_SCRATCH_BASE + u64::from(*offset),
+                                ));
+                                self.asm.emit_op(op::MLOAD);
+                            } else {
+                                self.asm.emit_push_immutable(*offset);
+                            }
+                            self.scheduler.stack.push(val);
+                        }
                         crate::mir::InstKind::CallValue => {
                             self.asm.emit_op(op::CALLVALUE);
                             self.scheduler.stack.push(val);
@@ -3047,6 +3061,33 @@ impl EvmCodegen {
                         }
                         crate::mir::InstKind::Shr(shift, value) => {
                             self.emit_fresh_binary(func, val, *shift, *value, op::SHR, false);
+                        }
+                        crate::mir::InstKind::Div(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::DIV, false);
+                        }
+                        crate::mir::InstKind::SDiv(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::SDIV, false);
+                        }
+                        crate::mir::InstKind::Mod(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::MOD, false);
+                        }
+                        crate::mir::InstKind::SMod(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::SMOD, false);
+                        }
+                        crate::mir::InstKind::Lt(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::LT, false);
+                        }
+                        crate::mir::InstKind::Gt(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::GT, false);
+                        }
+                        crate::mir::InstKind::SLt(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::SLT, false);
+                        }
+                        crate::mir::InstKind::SGt(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::SGT, false);
+                        }
+                        crate::mir::InstKind::Eq(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::EQ, true);
                         }
                         crate::mir::InstKind::Sar(shift, value) => {
                             self.emit_fresh_binary(func, val, *shift, *value, op::SAR, false);
