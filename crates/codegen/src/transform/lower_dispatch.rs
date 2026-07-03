@@ -120,21 +120,12 @@ impl LowerDispatchPass {
             let zero = builder.imm_u64(0);
             builder.revert(zero, zero);
 
-            // Each case routes to its argument-free wrapper.
-            //
-            // TODO: this uses `internal_call` as a text-model placeholder. A
-            // wrapper terminates externally (`RETURN`/`REVERT`), so this is not a
-            // real backend-ready call edge: an internal call expects control to
-            // return, but a wrapper never does. Making dispatch backend-ready
-            // needs a tail-call/jump-like MIR edge to the wrapper, or dispatch
-            // should target the body functions and encode returndata in the case
-            // block itself. The trailing `stop` keeps the block well-formed for
-            // the current model, where the backend does not yet consume this
-            // phase.
+            // Each case tail-calls its argument-free wrapper: control transfers
+            // to the wrapper and never returns, matching the wrapper's external
+            // `RETURN`/`REVERT` termination.
             for ((_, target), block) in routes.iter().zip(&case_blocks) {
                 builder.switch_to_block(*block);
-                builder.internal_call_void(*target, Vec::new(), 0);
-                builder.stop();
+                builder.tail_call(*target, Vec::new());
             }
         }
 

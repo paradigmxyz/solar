@@ -117,6 +117,7 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
                 | Terminator::ReturnData { .. }
                 | Terminator::Stop
                 | Terminator::SelfDestruct { .. }
+                | Terminator::TailCall { .. }
                 | Terminator::Invalid => Ok(()),
             }
         })
@@ -435,6 +436,13 @@ fn display_terminator<'a>(term: &'a Terminator, func: &'a Function) -> impl fmt:
             write!(f, "returndata {}, {}", display_val(*offset, func), display_val(*size, func))
         }
         Terminator::Stop => write!(f, "stop"),
+        Terminator::TailCall { function, args } => {
+            write!(f, "tail_call fn{}", function.index())?;
+            for arg in args {
+                write!(f, ", {}", display_val(*arg, func))?;
+            }
+            Ok(())
+        }
         Terminator::SelfDestruct { recipient } => {
             write!(f, "selfdestruct {}", display_val(*recipient, func))
         }

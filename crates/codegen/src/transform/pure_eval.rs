@@ -179,6 +179,7 @@ impl PureEvaluator {
                 | Terminator::Revert { .. }
                 | Terminator::Stop
                 | Terminator::SelfDestruct { .. }
+                | Terminator::TailCall { .. }
                 | Terminator::Invalid => return None,
             }
         }

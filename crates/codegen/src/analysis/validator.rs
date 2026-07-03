@@ -315,8 +315,41 @@ impl Validator {
                 all.push(err);
             }
         }
+        all.extend(Self::validate_tail_calls(module));
         all.extend(Self::validate_phase(module));
         all
+    }
+
+    /// Checks the cross-function invariants of `tail_call` terminators: the
+    /// callee exists and the argument count matches its parameters.
+    fn validate_tail_calls(module: &Module) -> Vec<ValidationError> {
+        let mut errors = Vec::new();
+        for (id, func) in module.iter_functions() {
+            for block in func.blocks.iter() {
+                let Some(crate::mir::Terminator::TailCall { function, args }) = &block.terminator
+                else {
+                    continue;
+                };
+                let Some(callee) = module.functions.get(*function) else {
+                    errors.push(ValidationError::new(format!(
+                        "[fn{}] tail_call targets nonexistent function fn{}",
+                        id.index(),
+                        function.index()
+                    )));
+                    continue;
+                };
+                if args.len() != callee.params.len() {
+                    errors.push(ValidationError::new(format!(
+                        "[fn{}] tail_call to `{}` passes {} argument(s), expected {}",
+                        id.index(),
+                        callee.name,
+                        args.len(),
+                        callee.params.len()
+                    )));
+                }
+            }
+        }
+        errors
     }
 
     /// Checks that the module's content satisfies its declared [`MirPhase`], so

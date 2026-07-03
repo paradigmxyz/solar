@@ -1168,6 +1168,11 @@ impl LoadRedundancyEliminator {
                 replace(size);
             }
             Terminator::SelfDestruct { recipient } => replace(recipient),
+            Terminator::TailCall { args, .. } => {
+                for arg in args {
+                    replace(arg);
+                }
+            }
         }
     }
 }

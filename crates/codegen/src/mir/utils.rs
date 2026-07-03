@@ -246,6 +246,11 @@ fn replace_terminator_operands(
                 replace(value);
             }
         }
+        Terminator::TailCall { args, .. } => {
+            for arg in args {
+                replace(arg);
+            }
+        }
         Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
             replace(offset);
             replace(size);

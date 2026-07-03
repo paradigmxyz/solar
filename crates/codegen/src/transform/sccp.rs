@@ -529,7 +529,8 @@ impl SccpPass {
                     LatticeValue::Top => {}
                 }
             }
-            Terminator::Return { .. }
+            Terminator::TailCall { .. }
+            | Terminator::Return { .. }
             | Terminator::Revert { .. }
             | Terminator::ReturnData { .. }
             | Terminator::Stop

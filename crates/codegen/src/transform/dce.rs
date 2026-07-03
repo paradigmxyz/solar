@@ -203,6 +203,7 @@ impl DeadCodeEliminator {
                 vec![*offset, *size]
             }
             Terminator::SelfDestruct { recipient } => vec![*recipient],
+            Terminator::TailCall { args, .. } => args.to_vec(),
         }
     }
 
@@ -254,6 +255,11 @@ impl DeadCodeEliminator {
             }
             Terminator::SelfDestruct { recipient } => {
                 used.insert(*recipient);
+            }
+            Terminator::TailCall { args, .. } => {
+                for arg in args {
+                    used.insert(*arg);
+                }
             }
         }
     }

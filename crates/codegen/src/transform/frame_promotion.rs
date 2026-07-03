@@ -589,6 +589,7 @@ impl FrameSlotPromoter {
             | Terminator::Return { .. }
             | Terminator::Stop
             | Terminator::Invalid
+            | Terminator::TailCall { .. }
             | Terminator::SelfDestruct { .. } => false,
         }
     }

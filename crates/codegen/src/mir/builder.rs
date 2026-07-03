@@ -698,6 +698,13 @@ impl<'a> FunctionBuilder<'a> {
         self.func.blocks[self.current_block].terminator = Some(Terminator::Stop);
     }
 
+    /// Sets a tail-call terminator: transfer control to `function` without
+    /// returning to this function.
+    pub fn tail_call(&mut self, function: FunctionId, args: Vec<ValueId>) {
+        self.func.blocks[self.current_block].terminator =
+            Some(Terminator::TailCall { function, args: args.into_iter().collect() });
+    }
+
     /// Sets an invalid terminator.
     pub fn invalid(&mut self) {
         self.func.blocks[self.current_block].terminator = Some(Terminator::Invalid);

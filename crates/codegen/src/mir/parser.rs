@@ -973,6 +973,16 @@ impl<'a> Parser<'a> {
                 self.skip_to_eol();
                 return Ok(());
             }
+            "tail_call" => {
+                let function = self.parse_function_id()?;
+                let mut args = smallvec::SmallVec::new();
+                while self.try_punct(',') {
+                    args.push(self.parse_value(func, arg_values, value_labels)?);
+                }
+                self.set_terminator(func, block, Terminator::TailCall { function, args });
+                self.skip_to_eol();
+                return Ok(());
+            }
             _ => {}
         }
 

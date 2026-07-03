@@ -19,8 +19,7 @@ fn @entry() {
     v3 = shr 224, v1
     switch v3, default bb2, [0x9507d39a => bb1]
   bb1:
-    internal_call fn0, 0
-    stop
+    tail_call fn0
   bb2:
     revert 0, 0
 }

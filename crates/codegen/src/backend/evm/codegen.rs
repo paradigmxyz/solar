@@ -3253,6 +3253,10 @@ impl EvmCodegen {
         preserve_stack: bool,
     ) {
         match term {
+            Terminator::TailCall { .. } => {
+                // Dispatch-phase MIR is not consumed by the backend yet.
+                panic!("tail_call terminator reached the EVM backend");
+            }
             Terminator::Jump(target) => {
                 // Pop any remaining values from the stack before jumping.
                 // Each block normally starts with an empty stack, so we must

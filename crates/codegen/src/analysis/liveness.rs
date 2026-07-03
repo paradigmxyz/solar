@@ -306,6 +306,9 @@ fn collect_terminator_uses(term: &Terminator, out: &mut SmallVec<[ValueId; 8]>) 
             out.push(*size);
         }
         Terminator::Stop | Terminator::Invalid => {}
+        Terminator::TailCall { args, .. } => {
+            out.extend(args.iter().copied());
+        }
         Terminator::SelfDestruct { recipient } => {
             out.push(*recipient);
         }

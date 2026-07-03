@@ -962,6 +962,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
             | Some(Terminator::SelfDestruct { .. })
+            | Some(Terminator::TailCall { .. })
             | None => summary.has_unsupported_terminator = true,
             Some(Terminator::Invalid) => {}
         }
@@ -1066,6 +1067,7 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
         Terminator::Revert { .. } | Terminator::ReturnData { .. } => (20, 4),
         Terminator::Stop => (0, 1),
         Terminator::SelfDestruct { .. } => (5_000, 1),
+        Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
         Terminator::Invalid => (0, 1),
     };
     MirCost { runtime_gas, code_size }
@@ -1490,7 +1492,10 @@ impl<'a> InlineCloner<'a> {
                 offset: self.clone_value(*offset)?,
                 size: self.clone_value(*size)?,
             },
-            Terminator::ReturnData { .. } | Terminator::Stop | Terminator::SelfDestruct { .. } => {
+            Terminator::ReturnData { .. }
+            | Terminator::Stop
+            | Terminator::SelfDestruct { .. }
+            | Terminator::TailCall { .. } => {
                 return None;
             }
             Terminator::Invalid => Terminator::Invalid,

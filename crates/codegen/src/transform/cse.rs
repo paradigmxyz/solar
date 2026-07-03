@@ -1066,6 +1066,11 @@ impl CommonSubexprEliminator {
                 count(*size);
             }
             Terminator::SelfDestruct { recipient } => count(*recipient),
+            Terminator::TailCall { args, .. } => {
+                for &arg in args {
+                    count(arg);
+                }
+            }
         }
     }
 

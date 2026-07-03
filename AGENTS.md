@@ -71,8 +71,9 @@ only when not the default). The phases, in order:
   function, and encodes the typed results into returndata. Produced by the
   `lower-abi` pass.
 - `dispatch`: the selector switch is an ordinary MIR `entry` function routing to
-  the ABI wrappers, instead of backend-generated. Produced by the
-  `lower-dispatch` pass.
+  the ABI wrappers through `tail_call` terminators (control transfers and does
+  not return, matching the wrappers' external termination). Produced by the
+  `lower-dispatch` pass, which requires the `abi` phase.
 - `evm-shaped`: builtins expanded into the shape the backend expects. Reserved;
   nothing lowers to it yet, since builtins already lower to concrete `InstKind`s.
 

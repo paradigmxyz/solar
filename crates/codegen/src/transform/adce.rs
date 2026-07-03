@@ -187,6 +187,7 @@ impl AggressiveDeadCodeEliminator {
             | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
+            | Terminator::TailCall { .. }
             | Terminator::Invalid => Some(block_id),
         }
     }
