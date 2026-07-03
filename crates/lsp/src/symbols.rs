@@ -1386,18 +1386,15 @@ fn range_size_key(range: Range) -> (u32, u32) {
 }
 
 fn member_completion_item_kind(gcx: Gcx<'_>, member: MemberCompletion<'_>) -> CompletionItemKind {
-    if matches!(member.resolved, Some(ResolvedMember::EnumVariant { .. })) {
-        return CompletionItemKind::ENUM_MEMBER;
-    }
-    if matches!(member.resolved, Some(ResolvedMember::StructField { .. })) {
-        return CompletionItemKind::FIELD;
-    }
-
-    match member.member.res {
-        Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
-        Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
-        Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
-        Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
+    match member.resolved {
+        Some(ResolvedMember::EnumVariant { .. }) => CompletionItemKind::ENUM_MEMBER,
+        Some(ResolvedMember::StructField { .. }) => CompletionItemKind::FIELD,
+        Some(ResolvedMember::Res(_)) | None => match member.member.res {
+            Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
+            Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
+            Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
+            Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
+        },
     }
 }
 
