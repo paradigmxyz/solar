@@ -297,6 +297,24 @@ impl<'a> Parser<'a> {
     }
 
     /// Consume an identifier: `[a-zA-Z_][a-zA-Z0-9_]*`.
+    /// Parses a phase name such as `evm-shaped`. Unlike an identifier, a phase
+    /// name may contain internal hyphens.
+    fn parse_phase_name(&mut self) -> Result<String, ParseError> {
+        self.skip_inline();
+        let start = self.pos;
+        while let Some(c) = self.peek_char() {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        if self.pos == start {
+            return Err(self.error("expected phase name"));
+        }
+        Ok(self.input[start..self.pos].to_string())
+    }
+
     fn parse_ident(&mut self) -> Result<&'a str, ParseError> {
         self.skip_inline();
         let start = self.pos;
@@ -366,8 +384,8 @@ impl<'a> Parser<'a> {
                 self.skip_inline_whitespace();
                 self.expect_punct('=')?;
                 self.skip_inline_whitespace();
-                let phase_name = self.parse_ident()?;
-                phase = super::MirPhase::by_name(phase_name)
+                let phase_name = self.parse_phase_name()?;
+                phase = super::MirPhase::by_name(&phase_name)
                     .ok_or_else(|| self.error(format!("unknown MIR phase `{phase_name}`")))?;
                 self.expect_punct(']')?;
             }
@@ -1700,6 +1718,24 @@ mod tests {
             let src = "; module @Bogus [phase = shiny]\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
             let err = parse_module(src).unwrap_err();
             assert!(err.to_string().contains("unknown MIR phase `shiny`"), "{err}");
+
+            // Every phase name round-trips through parse and print.
+            for phase in [
+                crate::mir::MirPhase::Built,
+                crate::mir::MirPhase::Optimized,
+                crate::mir::MirPhase::Abi,
+                crate::mir::MirPhase::Dispatch,
+                crate::mir::MirPhase::EvmShaped,
+            ] {
+                let src = format!(
+                    "; module @P [phase = {}]\nfn @f() {{\n  bb0 (entry):\n    stop\n}}\n",
+                    phase.name()
+                );
+                let module = parse_module(&src).unwrap();
+                assert_eq!(module.phase, phase, "parse `{}`", phase.name());
+                let reparsed = parse_module(&module.to_text().to_string()).unwrap();
+                assert_eq!(reparsed.phase, phase, "round-trip `{}`", phase.name());
+            }
         });
     }
 

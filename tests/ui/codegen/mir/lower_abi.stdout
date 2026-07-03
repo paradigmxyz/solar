@@ -1,0 +1,29 @@
+// === ROOT/tests/ui/codegen/mir/lower_abi.mir (after lower-abi) ===
+; module @LowerAbi [phase = abi]
+fn @add() {
+  bb0 (entry):
+    v1 = calldataload 4
+    v3 = calldataload 36
+    v4 = internal_call fn2, 1, v1, v3
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @flag() {
+  bb0 (entry):
+    v1 = calldataload 4
+    v2 = internal_call fn3, 1, v1
+    mstore 128, v2
+    returndata 128, 32
+}
+
+fn @add.body(arg0: u256, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, arg1
+    ret v2
+}
+
+fn @flag.body(arg0: bool) -> bool {
+  bb0 (entry):
+    ret arg0
+}

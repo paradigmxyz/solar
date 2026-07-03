@@ -25,9 +25,9 @@ use crate::{
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
-        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, MemoryDsePass, PrePass,
-        PureEvalPass, SccpTransformPass, StorageDsePass, StorageLoadCsePass,
-        StorageScalarPromotionPass,
+        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
+        LowerDispatchPass, MemoryDsePass, PrePass, PureEvalPass, SccpTransformPass, StorageDsePass,
+        StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -137,6 +137,12 @@ declare_passes! {
 
     /// Aggressive dead-code elimination for dead control regions.
     pub const ADCE_PASS -> "adce" = AdcePass;
+
+    /// ABI phase lowering: external functions become self-decoding wrappers.
+    pub const LOWER_ABI_PASS -> "lower-abi" = LowerAbiPass::default();
+
+    /// Dispatch phase lowering: synthesize the selector-switch `entry` function.
+    pub const LOWER_DISPATCH_PASS -> "lower-dispatch" = LowerDispatchPass::default();
 }
 
 /// All known MIR passes exposed to `solar mir-opt`.
@@ -163,6 +169,8 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     FRAME_SLOT_PROMOTION_PASS,
     MEMORY_DSE_PASS,
     STORAGE_PROMOTION_PASS,
+    LOWER_ABI_PASS,
+    LOWER_DISPATCH_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.

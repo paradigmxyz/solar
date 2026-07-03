@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/mir/lower_abi_then_dispatch.mir (after lower-abi,lower-dispatch) ===
+; module @LowerAbiThenDispatch [phase = dispatch]
+fn @get() {
+  bb0 (entry):
+    v1 = calldataload 4
+    v2 = internal_call fn1, 1, v1
+    mstore 128, v2
+    returndata 128, 32
+}
+
+fn @get.body(arg0: u256) -> u256 {
+  bb0 (entry):
+    ret arg0
+}
+
+fn @entry() {
+  bb0 (entry):
+    v1 = calldataload 0
+    v3 = shr 224, v1
+    switch v3, default bb2, [0x9507d39a => bb1]
+  bb1:
+    internal_call fn0, 0
+    stop
+  bb2:
+    revert 0, 0
+}

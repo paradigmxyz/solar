@@ -21,16 +21,16 @@ pub const IMMUTABLE_WORD_SIZE: usize = 32;
 ///
 /// MIR is a phased IR, like rustc's MIR: the same data structures pass through
 /// well-defined phases, and passes declare what phase they expect and produce.
-/// Two phases exist today; the plan is to grow this into progressive lowering
-/// where high-level constructs are rewritten into MIR itself instead of being
-/// special-cased in the backend:
+/// Phases only move forward. The enum order is the lowering order, so
+/// [`MirPhase`] derives `Ord` and [`Module::advance_phase`] can assert
+/// monotonicity.
 ///
-/// - a dispatch phase, where the selector switch becomes an ordinary MIR `entry` function instead
-///   of backend magic,
-/// - an ABI phase, where every external function gets a MIR wrapper that decodes calldata and
-///   encodes returndata around an internal call,
-/// - an EVM-shaped phase, where builtin-level operations are expanded and functions take the layout
-///   the backend expects.
+/// Optimization runs on the compact high-level form first; the progressive
+/// lowering phases then rewrite high-level constructs into MIR itself instead
+/// of leaving them as backend special cases. Today the backend still consumes
+/// `built`/`optimized` MIR and performs dispatch and ABI handling implicitly;
+/// the lowering phases are produced by opt-in passes and are the staging ground
+/// for moving that work into MIR.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
     /// Fresh from HIR lowering: typed values, internal calls by function id,
@@ -39,6 +39,19 @@ pub enum MirPhase {
     Built,
     /// The canonical optimization pipeline has run.
     Optimized,
+    /// Every external function has been rewritten into a self-decoding wrapper:
+    /// it decodes calldata into typed arguments, calls the original body as an
+    /// internal function, and encodes the typed results back into returndata.
+    /// The wrapper keeps its selector but takes no MIR arguments.
+    Abi,
+    /// The selector switch has been materialized as an ordinary MIR `entry`
+    /// function that routes to the ABI wrappers, instead of being generated
+    /// inside the backend.
+    Dispatch,
+    /// Builtin-level operations are expanded and functions take the shape the
+    /// backend expects. Reserved: nothing lowers to this phase yet, since
+    /// builtins already lower to concrete `InstKind`s.
+    EvmShaped,
 }
 
 impl MirPhase {
@@ -48,6 +61,9 @@ impl MirPhase {
         match self {
             Self::Built => "built",
             Self::Optimized => "optimized",
+            Self::Abi => "abi",
+            Self::Dispatch => "dispatch",
+            Self::EvmShaped => "evm-shaped",
         }
     }
 
@@ -57,6 +73,9 @@ impl MirPhase {
         Some(match name {
             "built" => Self::Built,
             "optimized" => Self::Optimized,
+            "abi" => Self::Abi,
+            "dispatch" => Self::Dispatch,
+            "evm-shaped" => Self::EvmShaped,
             _ => return None,
         })
     }

@@ -57,24 +57,33 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
 ### MIR Phases
 
 MIR is a phased IR, like rustc's MIR: a `Module` carries a `MirPhase`, phases
-only move forward, and the phase round-trips through the text format as
-`; module @Name [phase = ...]` (printed only when not the default). Two phases
-exist today:
+only move forward (the enum order is the lowering order), and the phase
+round-trips through the text format as `; module @Name [phase = ...]` (printed
+only when not the default). The phases, in order:
 
 - `built`: fresh from HIR lowering — one MIR function per Solidity function,
   typed values, dispatch and ABI handling not yet materialized as MIR.
 - `optimized`: the canonical pass pipeline has run
   (`run_default_pipeline_with_options` is the phase transition; ad-hoc
   `mir-opt` pass lists do not advance the phase).
+- `abi`: each word-sized external function is a self-decoding wrapper — it
+  decodes calldata into typed arguments, calls the original body as an internal
+  function, and encodes the typed results into returndata. Produced by the
+  `lower-abi` pass.
+- `dispatch`: the selector switch is an ordinary MIR `entry` function routing to
+  the ABI wrappers, instead of backend-generated. Produced by the
+  `lower-dispatch` pass.
+- `evm-shaped`: builtins expanded into the shape the backend expects. Reserved;
+  nothing lowers to it yet, since builtins already lower to concrete `InstKind`s.
 
-The planned direction (see the `MirPhase` docs in
-`crates/codegen/src/mir/module.rs`) is progressive MIR-to-MIR lowering instead
-of backend special cases: a dispatch phase where the selector switch becomes an
-ordinary MIR `entry` function, an ABI phase where external functions get
-wrappers that decode calldata and encode returndata around an internal call,
-and an EVM-shaped phase where builtins are expanded into what the backend
-expects. When adding one of these, make the transition a named pipeline entry
-point that advances the phase, and pin it with `.mir` UI tests.
+The `lower-abi` and `lower-dispatch` passes are progressive MIR-to-MIR lowering,
+the beginning of moving dispatch and ABI handling out of the backend. They are
+**opt-in** (run via `mir-opt --pass`, not in the default pipeline), so the
+backend still consumes `built`/`optimized` MIR and production bytecode is
+unaffected. When extending them or adding the next phase, make the transition a
+named pass that advances the phase via `Module::advance_phase`, keep it
+conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
+and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.
 
 ### Visitor Pattern
 

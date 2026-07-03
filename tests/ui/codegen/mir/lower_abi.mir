@@ -1,0 +1,14 @@
+//@compile-flags: --pass lower-abi
+// The ABI phase turns each word-sized external function into an argument-free
+// self-decoding wrapper (calldataload per argument, internal call, returndata)
+// plus a typed internal `.body`. Advances the module to the `abi` phase.
+; module @LowerAbi
+fn @add(arg0: u256, arg1: u256) -> u256 [selector=0x771602f7] {
+  bb0 (entry):
+    v2 = add arg0, arg1
+    ret v2
+}
+fn @flag(arg0: bool) -> bool [selector=0x0d2020dd] {
+  bb0 (entry):
+    ret arg0
+}
