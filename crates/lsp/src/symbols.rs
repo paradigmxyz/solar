@@ -13,7 +13,7 @@ use solar_sema::{
         self, ContractKind, EnumId, FunctionKind, ItemId, Res, StmtKind, TypeKind, UsingEntryKind,
         VarKind, Visit,
     },
-    ty::{MemberCompletion, ResolvedMember},
+    ty::{MemberCompletion, ResolvedMember, Ty},
 };
 use std::ops::ControlFlow;
 
@@ -465,16 +465,28 @@ impl SymbolTables {
             };
             let variable = gcx.hir.variable(variable_id);
             let ty = gcx.type_of_item(ItemId::Variable(variable_id));
-            let mut items = gcx
-                .member_completions_of(ty, variable.source, variable.contract)
-                .map(|member| self.completion_item_for_member(gcx, member))
-                .collect::<Vec<_>>();
-            sort_completion_items(&mut items);
-            items.dedup_by(|a, b| a.label == b.label);
+            let items =
+                self.member_completion_items_for_ty(gcx, ty, variable.source, variable.contract);
             if !items.is_empty() {
                 self.receiver_member_completions.insert(symbol_id, items);
             }
         }
+    }
+
+    fn member_completion_items_for_ty<'gcx>(
+        &self,
+        gcx: Gcx<'gcx>,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Vec<CompletionItem> {
+        let mut items = gcx
+            .member_completions_of(ty, source, contract)
+            .map(|member| self.completion_item_for_member(gcx, member))
+            .collect::<Vec<_>>();
+        sort_completion_items(&mut items);
+        items.dedup_by(|a, b| a.label == b.label);
+        items
     }
 
     fn push_declaration(&mut self, key: SymbolKey, declaration: DeclarationSymbol) -> SymbolId {
@@ -1120,13 +1132,12 @@ impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
             return;
         };
 
-        let mut items = self
-            .gcx
-            .member_completions_of(receiver_ty, source, self.contract)
-            .map(|member| self.tables.completion_item_for_member(self.gcx, member))
-            .collect::<Vec<_>>();
-        sort_completion_items(&mut items);
-        items.dedup_by(|a, b| a.label == b.label);
+        let items = self.tables.member_completion_items_for_ty(
+            self.gcx,
+            receiver_ty,
+            source,
+            self.contract,
+        );
         if items.is_empty() {
             return;
         }
