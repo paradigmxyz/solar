@@ -5,3 +5,7 @@
 /tmp
 .DS_Store
 __pycache__/
+solc-test-output*
+solar-test-output*
+tests/foundry/**/cache*/
+tests/foundry/**/out*/

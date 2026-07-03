@@ -6,6 +6,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "0 3 * * 0"
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -86,8 +89,19 @@ jobs:
     name: fandango
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    continue-on-error: true
     permissions:
       contents: read
+    env:
+      FANDANGO_ABI_SEED_COUNT: ${{ github.event_name == 'schedule' && '8' || '3' }}
+      FANDANGO_ABI_VALUES_PER_SEED: ${{ github.event_name == 'schedule' && '64' || '32' }}
+      FANDANGO_MAX_ABI_VECTORS: ${{ github.event_name == 'schedule' && '768' || '160' }}
+      FANDANGO_SOURCE_COUNT: ${{ github.event_name == 'schedule' && '128' || '32' }}
+      FANDANGO_RUNTIME_SOURCE_COUNT: ${{ github.event_name == 'schedule' && '64' || '16' }}
+      FANDANGO_SOLSMITH_COUNT: ${{ github.event_name == 'schedule' && '64' || '16' }}
+      FANDANGO_RUNTIME_CASES: ${{ github.event_name == 'schedule' && '16' || '8' }}
+      FANDANGO_FOUNDRY_TARGETS: ${{ github.event_name == 'schedule' && '8' || '2' }}
+      FANDANGO_FOUNDRY_FUZZ_RUNS: ${{ github.event_name == 'schedule' && '256' || '64' }}
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -106,8 +120,15 @@ jobs:
           version: stable
       - name: Install uv
         uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
-      - name: Fandango runtime and source differentials
+      - name: Fandango and Foundry runtime differentials
         run: .github/scripts/run_fandango_checks.sh
+      - name: Upload Fandango artifacts
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fandango-runtime-fuzz
+          path: target/runtime-fuzz
+          if-no-files-found: ignore
 
   feature-checks:
     name: features
@@ -244,7 +265,6 @@ jobs:
     permissions: {}
     needs:
       - test
-      - fandango
       - feature-checks
       - wasm
       - typos

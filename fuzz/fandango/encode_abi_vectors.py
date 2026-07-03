@@ -14,9 +14,10 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import subprocess
 import sys
 from typing import Any
+
+import evm_runtime as evm
 
 
 def main() -> int:
@@ -33,7 +34,7 @@ def main() -> int:
         vector = json.loads(line)
         signature = vector["signature"]
         values = [_cast_arg(value) for value in vector.get("args", [])]
-        calldata = _cast_calldata(args.cast, signature, values)
+        calldata = evm.cast_calldata(args.cast, signature, values)
 
         out: dict[str, Any] = dict(vector)
         out.update({
@@ -58,17 +59,6 @@ def _cast_arg(value: Any) -> str:
     if isinstance(value, list):
         return "[" + ",".join(_cast_arg(item) for item in value) + "]"
     return str(value)
-
-
-def _cast_calldata(cast: str, signature: str, args: list[str]) -> str:
-    result = subprocess.run(
-        [cast, "calldata", signature, *args],
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
-    return result.stdout.strip()
 
 
 if __name__ == "__main__":
