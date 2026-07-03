@@ -45,6 +45,8 @@ pub struct EvmCodegenConfig {
     pub optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     pub mir_print_after_each: bool,
+    /// Lower dispatch/ABI as MIR phases and consume them here.
+    pub mir_dispatch: bool,
     /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
     ///
     /// Off by default: the default bytecode path must stay byte-for-byte
@@ -64,6 +66,7 @@ impl EvmCodegenConfig {
             evm_version: sess.opts.evm_version,
             optimization: sess.opts.optimization,
             mir_print_after_each: sess.opts.unstable.mir_print_after_each,
+            mir_dispatch: sess.opts.unstable.mir_dispatch,
             // Keep the experimental EVM IR stack scheduler off in every default
             // compilation path so produced bytecode is unchanged.
             evm_ir_stack_schedule: false,
@@ -335,6 +338,7 @@ pub struct EvmCodegen {
     optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     mir_print_after_each: bool,
+    mir_dispatch: bool,
 }
 
 impl EvmCodegen {
@@ -359,6 +363,7 @@ impl EvmCodegen {
             in_internal_function: false,
             optimization: config.optimization,
             mir_print_after_each: config.mir_print_after_each,
+            mir_dispatch: config.mir_dispatch,
         }
     }
 
@@ -671,16 +676,27 @@ impl EvmCodegen {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        if self.optimization == OptimizationMode::None {
-            return;
+        if self.optimization != OptimizationMode::None {
+            run_default_pipeline_with_options(
+                module,
+                PipelineOptions {
+                    print_after_each: self.mir_print_after_each,
+                    ..PipelineOptions::default()
+                },
+            );
         }
-        run_default_pipeline_with_options(
-            module,
-            PipelineOptions {
-                print_after_each: self.mir_print_after_each,
-                ..PipelineOptions::default()
-            },
-        );
+        // Progressive lowering: materialize ABI wrappers, the dispatcher, and
+        // tail-call edges as MIR. Each pass bails without advancing the phase
+        // when the module is outside its scope, in which case runtime
+        // generation falls back to the backend dispatcher.
+        if self.mir_dispatch {
+            crate::pass::run_pass(module, &crate::pass::LOWER_ABI_PASS);
+            crate::pass::run_pass(module, &crate::pass::LOWER_DISPATCH_PASS);
+            // `lower-evm-shaped` stays out of this pipeline for now: its
+            // argument-carrying tail calls need callee frame setup the backend
+            // does not perform yet, while the wrapper's internal call to a
+            // fused body is fully supported.
+        }
     }
 
     /// Generates runtime bytecode for a module.
@@ -696,13 +712,105 @@ impl EvmCodegen {
         self.stack_phi_sources.clear();
 
         if !module.functions.is_empty() {
-            // The dispatcher generates function bodies inline
-            self.generate_dispatcher(module);
+            if module.phase >= crate::mir::MirPhase::Dispatch {
+                self.generate_mir_dispatched(module);
+            } else {
+                // The dispatcher generates function bodies inline
+                self.generate_dispatcher(module);
+            }
         }
 
         let result = self.asm.assemble();
         self.runtime_immutable_refs = result.immutable_refs;
         result.bytecode
+    }
+
+    /// Generates the runtime from a `dispatch`-phase module: the MIR `entry`
+    /// function is the runtime prologue, its `tail_call`s jump to the ABI
+    /// wrappers, and no backend dispatcher is synthesized.
+    ///
+    /// Selector matching, receive/fallback routing, and callvalue checks all
+    /// live in the MIR `entry`, so wrappers are emitted without the selector
+    /// pop and payable check the backend dispatcher would add.
+    fn generate_mir_dispatched(&mut self, module: &Module) {
+        let Some((entry_id, _)) = module
+            .functions
+            .iter_enumerated()
+            .find(|(_, f)| f.selector.is_none() && f.name.as_str() == "entry")
+        else {
+            // Phase says dispatch but there is nothing to route; fall back.
+            self.generate_dispatcher(module);
+            return;
+        };
+
+        let call_graph = CallGraphInfo::new(module);
+        let internal_targets = call_graph.reachable_bodies_from(
+            module.functions.iter_enumerated().filter_map(|(func_id, func)| {
+                (func_id == entry_id || Self::is_external_entry(func)).then_some(func_id)
+            }),
+        );
+
+        for (func_id, func) in module.functions.iter_enumerated() {
+            self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
+            if !func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::MemPtr)) {
+                self.restorable_internal_frames.insert(func_id);
+            }
+        }
+
+        // Labels for every tail-call and internal-call target.
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func_id == entry_id {
+                continue;
+            }
+            let needs_body = Self::is_external_entry(func)
+                || (Self::has_body(func) && internal_targets.contains(&func_id));
+            if needs_body {
+                let label = self.asm.new_label();
+                self.function_labels.insert(func_id, label);
+            }
+        }
+
+        // The MIR entry is the runtime prologue.
+        self.in_internal_function = false;
+        let entry_free = self.emit_external_free_memory_start();
+        self.generate_function_body(&module.functions[entry_id]);
+        let entry_spill = self.record_function_spill_size(entry_id);
+        self.asm.set_deferred_const(
+            entry_free,
+            U256::from(Self::external_spill_base(&module.functions[entry_id]) + entry_spill),
+        );
+
+        // External entries, reached only through `tail_call` jumps.
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func_id == entry_id || !Self::is_external_entry(func) {
+                continue;
+            }
+            let Some(&label) = self.function_labels.get(&func_id) else { continue };
+            self.asm.define_label(label);
+            let free_memory_start = self.emit_external_free_memory_start();
+            self.in_internal_function = false;
+            self.generate_function_body(func);
+            let spill_size = self.record_function_spill_size(func_id);
+            self.asm.set_deferred_const(
+                free_memory_start,
+                U256::from(Self::external_spill_base(func) + spill_size),
+            );
+        }
+
+        // Internal-call targets, exactly as in the backend dispatcher path.
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func_id == entry_id || Self::is_external_entry(func) || !Self::has_body(func) {
+                continue;
+            }
+            let Some(&label) = self.function_labels.get(&func_id) else { continue };
+            self.asm.define_label(label);
+            self.in_internal_function = true;
+            self.generate_function_body(func);
+            self.in_internal_function = false;
+            self.record_function_spill_size(func_id);
+        }
+
+        self.resolve_pending_frame_size_consts(module);
     }
 
     /// Generates the function dispatcher.
@@ -3253,9 +3361,14 @@ impl EvmCodegen {
         preserve_stack: bool,
     ) {
         match term {
-            Terminator::TailCall { .. } => {
-                // Dispatch-phase MIR is not consumed by the backend yet.
-                panic!("tail_call terminator reached the EVM backend");
+            Terminator::TailCall { function, args } => {
+                // Control transfers to the target and never returns: a plain
+                // jump to its entry label. Argument-carrying tail calls are not
+                // produced by the current lowering phases.
+                assert!(args.is_empty(), "tail_call with arguments is not lowered yet");
+                let label = self.function_labels[function];
+                self.asm.emit_push_label(label);
+                self.asm.emit_op(op::JUMP);
             }
             Terminator::Jump(target) => {
                 // Pop any remaining values from the stack before jumping.
@@ -3390,7 +3503,9 @@ impl EvmCodegen {
             }
 
             Terminator::ReturnData { offset, size } => {
-                debug_assert!(!self.in_internal_function);
+                // Valid in internal functions too: a fused external body called
+                // through an ABI wrapper returns straight to the external
+                // caller, abandoning the internal frame.
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
                 self.asm.emit_op(op::RETURN);
