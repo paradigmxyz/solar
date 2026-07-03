@@ -668,6 +668,11 @@ impl<'a> Parser<'a> {
                     let selector = self.u256_to_u32(selector)?;
                     func.selector = Some(selector.to_be_bytes());
                 }
+                "receive" => func.attributes.is_receive = true,
+                "fallback" => func.attributes.is_fallback = true,
+                "payable" => {
+                    func.attributes.state_mutability = hir::StateMutability::Payable;
+                }
                 _ => return Err(self.error(format!("unknown function attribute `{key}`"))),
             }
 

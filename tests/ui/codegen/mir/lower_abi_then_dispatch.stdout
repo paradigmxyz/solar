@@ -15,11 +15,22 @@ fn @get.body(arg0: u256) -> u256 {
 
 fn @entry() {
   bb0 (entry):
-    v1 = calldataload 0
-    v3 = shr 224, v1
-    switch v3, default bb2, [0x9507d39a => bb1]
+    v0 = callvalue
+    br v0, bb6, bb1
   bb1:
-    tail_call fn0
+    v1 = calldatasize
+    v3 = eq v1, 0
+    br v3, bb2, bb3
   bb2:
+    jump bb6
+  bb3:
+    v5 = calldataload 0
+    v7 = shr 224, v5
+    switch v7, default bb5, [0x9507d39a => bb4]
+  bb4:
+    tail_call fn0
+  bb5:
+    jump bb6
+  bb6:
     revert 0, 0
 }
