@@ -106,6 +106,15 @@ pub enum ResolvedMember {
     EnumVariant { enum_id: hir::EnumId, variant_index: usize },
 }
 
+/// A completion candidate for a member visible on a receiver type.
+#[derive(Clone, Copy, Debug)]
+pub struct MemberCompletion<'gcx> {
+    /// The visible member candidate.
+    pub member: members::Member<'gcx>,
+    /// The source-level target for the member, if one can be identified.
+    pub resolved: Option<ResolvedMember>,
+}
+
 impl<'gcx> TypeckResults<'gcx> {
     /// Returns the type inferred for the given expression, if available.
     #[inline]
@@ -856,6 +865,58 @@ impl<'gcx> Gcx<'gcx> {
             self.native_members_in_context(ty, contract).unwrap_or_else(|| self.native_members(ty));
         let attached = self.attached_functions(ty, source, contract);
         native.iter().copied().chain(attached)
+    }
+
+    pub fn member_completions_of(
+        self,
+        ty: Ty<'gcx>,
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> impl Iterator<Item = MemberCompletion<'gcx>> + 'gcx {
+        self.members_of(ty, source, contract).map(move |member| MemberCompletion {
+            resolved: self.resolve_member_target(ty, member.name, member.res),
+            member,
+        })
+    }
+
+    pub(crate) fn resolve_member_target(
+        self,
+        receiver_ty: Ty<'gcx>,
+        name: Symbol,
+        res: Option<hir::Res>,
+    ) -> Option<ResolvedMember> {
+        if let Some(res) = res {
+            return Some(ResolvedMember::Res(res));
+        }
+
+        match receiver_ty.kind {
+            TyKind::Ref(inner, _) => {
+                let TyKind::Struct(struct_id) = inner.kind else { return None };
+                let field_index = self.struct_field_index(struct_id, name)?;
+                Some(ResolvedMember::StructField { struct_id, field_index })
+            }
+            TyKind::Struct(struct_id) => {
+                let field_index = self.struct_field_index(struct_id, name)?;
+                Some(ResolvedMember::StructField { struct_id, field_index })
+            }
+            TyKind::Type(ty) => {
+                let TyKind::Enum(enum_id) = ty.kind else { return None };
+                let variant_index = self
+                    .hir
+                    .enumm(enum_id)
+                    .variants
+                    .iter()
+                    .position(|variant| variant.name == name)?;
+                Some(ResolvedMember::EnumVariant { enum_id, variant_index })
+            }
+            _ => None,
+        }
+    }
+
+    fn struct_field_index(self, struct_id: hir::StructId, name: Symbol) -> Option<usize> {
+        self.hir.strukt(struct_id).fields.iter().position(|&field_id| {
+            self.hir.variable(field_id).name.is_some_and(|field| field.name == name)
+        })
     }
 
     fn native_members_in_context(

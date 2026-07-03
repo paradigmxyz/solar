@@ -935,6 +935,51 @@ mod tests {
     }
 
     #[test]
+    fn analyze_completes_dirty_members_from_typed_receivers() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Completion.sol
+            contract Token {
+                uint256 public balance;
+            }
+
+            contract C {
+                Token[] tokens;
+                Token public token;
+
+                function getToken() public view returns (Token) {
+                    return token;
+                }
+
+                function read(uint256 i) public view {
+                    getToken().bal;
+                    (this.token()).bal;
+                    tokens[i].bal;
+                    token
+                        .bal;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Completion.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, project.read_file("/Completion.sol"))],
+            seen_paths: FxHashSet::default(),
+        });
+
+        for position in [position(10, 22), position(11, 26), position(12, 21), position(14, 16)] {
+            let completions = result.symbol_tables.completion_items(&uri, position);
+            assert_eq!(
+                completion_labels(&completions),
+                ["balance"],
+                "unexpected completions at {position:?}: {completions:#?}",
+            );
+        }
+    }
+
+    #[test]
     fn analyze_indexes_member_references() {
         let project = TestProject::from_fixture(
             r#"
@@ -1257,6 +1302,10 @@ mod tests {
             .iter()
             .find(|symbol| symbol.name == name)
             .unwrap_or_else(|| panic!("missing workspace symbol `{name}` in {symbols:#?}"))
+    }
+
+    fn completion_labels(completions: &[lsp_types::CompletionItem]) -> Vec<&str> {
+        completions.iter().map(|completion| completion.label.as_str()).collect()
     }
 
     fn position(line: u32, character: u32) -> Position {

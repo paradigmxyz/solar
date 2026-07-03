@@ -12,7 +12,7 @@ use solar_sema::{
         self, ContractKind, EnumId, FunctionKind, ItemId, Res, StmtKind, TypeKind, UsingEntryKind,
         VarKind, Visit,
     },
-    ty::ResolvedMember,
+    ty::{MemberCompletion, ResolvedMember},
 };
 use std::ops::ControlFlow;
 
@@ -25,6 +25,7 @@ pub(crate) struct SymbolTables {
     workspace_symbol_ids: Vec<SymbolId>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
+    member_completions: Vec<MemberCompletionScope>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, Vec<usize>>,
@@ -69,6 +70,13 @@ struct Scope {
 struct ScopedDeclaration {
     symbol_id: SymbolId,
     available_from: Option<Position>,
+}
+
+#[derive(Clone, Debug)]
+struct MemberCompletionScope {
+    uri: Url,
+    range: Range,
+    items: Vec<CompletionItem>,
 }
 
 #[derive(Clone, Debug)]
@@ -175,6 +183,7 @@ impl SymbolTables {
         }
 
         tables.build_scopes(gcx);
+        tables.build_member_completions(gcx);
         tables.build_references(gcx);
         tables.rebuild_indexes();
         tables
@@ -227,6 +236,7 @@ impl SymbolTables {
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
+        self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
         // HIR IDs are scoped to one compiler run, so this build-time map is not meaningful after
         // merging symbol tables from separate analysis batches.
@@ -356,6 +366,10 @@ impl SymbolTables {
     }
 
     pub(crate) fn completion_items(&self, uri: &Url, position: Position) -> Vec<CompletionItem> {
+        if let Some(items) = self.member_completion_items(uri, position) {
+            return items;
+        }
+
         let Some(scope_id) = self.scope_at_position(uri, position) else {
             return Vec::new();
         };
@@ -405,6 +419,17 @@ impl SymbolTables {
         let mut builder = ScopeBuilder { tables: self, gcx, scope: None };
         for source_id in gcx.hir.source_ids() {
             builder.visit_source_scope(source_id);
+        }
+    }
+
+    fn build_member_completions(&mut self, gcx: Gcx<'_>) {
+        let mut collector =
+            MemberCompletionCollector { tables: self, gcx, source: None, contract: None };
+        for source_id in gcx.hir.source_ids() {
+            collector.source = Some(source_id);
+            collector.contract = None;
+            let _ = collector.visit_nested_source(source_id);
+            collector.source = None;
         }
     }
 
@@ -590,6 +615,21 @@ impl SymbolTables {
         depth
     }
 
+    fn member_completion_items(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<Vec<CompletionItem>> {
+        let completion = self
+            .member_completions
+            .iter()
+            .filter(|completion| {
+                completion.uri == *uri && completion_range_contains(completion.range, position)
+            })
+            .min_by_key(|completion| range_size_key(completion.range))?;
+        Some(completion.items.clone())
+    }
+
     fn completion_item(&self, symbol_id: SymbolId) -> CompletionItem {
         let symbol = &self.declarations[symbol_id];
         CompletionItem {
@@ -600,9 +640,61 @@ impl SymbolTables {
         }
     }
 
+    fn completion_item_for_member(
+        &self,
+        gcx: Gcx<'_>,
+        member: MemberCompletion<'_>,
+    ) -> CompletionItem {
+        if let Some(symbol_id) = self.symbol_id_for_member_completion(gcx, member) {
+            return self.completion_item(symbol_id);
+        }
+
+        CompletionItem {
+            label: member.member.name.to_string(),
+            kind: Some(member_completion_item_kind(gcx, member)),
+            detail: member.member.attached.then_some("using for".to_string()),
+            ..Default::default()
+        }
+    }
+
     fn selection_location(&self, symbol_id: SymbolId) -> Location {
         let symbol = &self.declarations[symbol_id];
         Location { uri: symbol.location.uri.clone(), range: symbol.name_range }
+    }
+
+    fn symbol_id_for_member_completion(
+        &self,
+        gcx: Gcx<'_>,
+        member: MemberCompletion<'_>,
+    ) -> Option<SymbolId> {
+        if let Some(resolved) = member.resolved {
+            return self.symbol_id_for_resolved_member(gcx, resolved);
+        }
+        member.member.res.and_then(|res| self.symbol_id_for_res(res))
+    }
+
+    fn symbol_id_for_res(&self, res: Res) -> Option<SymbolId> {
+        match res {
+            Res::Item(item_id) => self.symbols_by_key.get(&SymbolKey::Item(item_id)).copied(),
+            Res::Namespace(_) | Res::Builtin(_) | Res::Err(_) => None,
+        }
+    }
+
+    fn symbol_id_for_resolved_member(
+        &self,
+        gcx: Gcx<'_>,
+        member: ResolvedMember,
+    ) -> Option<SymbolId> {
+        match member {
+            ResolvedMember::Res(res) => self.symbol_id_for_res(res),
+            ResolvedMember::StructField { struct_id, field_index } => {
+                let field_id = gcx.hir.strukt(struct_id).fields.get(field_index).copied()?;
+                self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(field_id))).copied()
+            }
+            ResolvedMember::EnumVariant { enum_id, variant_index } => {
+                self.symbols_by_key.get(&SymbolKey::EnumVariant(enum_id, variant_index)).copied()
+            }
+        }
     }
 
     fn rebuild_indexes(&mut self) {
@@ -880,6 +972,77 @@ impl<'gcx> hir::Visit<'gcx> for ScopeBuilder<'_, 'gcx> {
     }
 }
 
+struct MemberCompletionCollector<'a, 'gcx> {
+    tables: &'a mut SymbolTables,
+    gcx: Gcx<'gcx>,
+    source: Option<hir::SourceId>,
+    contract: Option<hir::ContractId>,
+}
+
+impl<'gcx> MemberCompletionCollector<'_, 'gcx> {
+    fn push_member_completions(
+        &mut self,
+        receiver: &'gcx hir::Expr<'gcx>,
+        member: solar_interface::Ident,
+    ) {
+        let Some(source) = self.source else {
+            return;
+        };
+        let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id) else {
+            return;
+        };
+        let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), member.span)
+        else {
+            return;
+        };
+
+        let mut items = self
+            .gcx
+            .member_completions_of(receiver_ty, source, self.contract)
+            .map(|member| self.tables.completion_item_for_member(self.gcx, member))
+            .collect::<Vec<_>>();
+        sort_completion_items(&mut items);
+        items.dedup_by(|a, b| a.label == b.label);
+        if items.is_empty() {
+            return;
+        }
+
+        self.tables.member_completions.push(MemberCompletionScope {
+            uri: location.uri,
+            range: location.range,
+            items,
+        });
+    }
+}
+
+impl<'gcx> hir::Visit<'gcx> for MemberCompletionCollector<'_, 'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_nested_contract(&mut self, id: hir::ContractId) -> ControlFlow<Self::BreakValue> {
+        let previous_contract = self.contract.replace(id);
+        let result = self.visit_contract(self.hir().contract(id));
+        self.contract = previous_contract;
+        result
+    }
+
+    fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
+        match expr.kind {
+            hir::ExprKind::Member(receiver, member) => {
+                self.visit_expr(receiver)?;
+                self.push_member_completions(receiver, member);
+            }
+            _ => {
+                hir::Visit::walk_expr(self, expr)?;
+            }
+        }
+        ControlFlow::Continue(())
+    }
+}
+
 struct ReferenceCollector<'a, 'gcx> {
     tables: &'a mut SymbolTables,
     gcx: Gcx<'gcx>,
@@ -899,40 +1062,12 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
     }
 
     fn symbol_ids_for_res(&self, res: impl IntoIterator<Item = Res>) -> Vec<SymbolId> {
-        res.into_iter()
-            .filter_map(|res| match res {
-                Res::Item(item_id) => {
-                    self.tables.symbols_by_key.get(&SymbolKey::Item(item_id)).copied()
-                }
-                Res::Namespace(_) | Res::Builtin(_) | Res::Err(_) => None,
-            })
-            .collect()
-    }
-
-    fn symbol_id_for_member(&self, member: ResolvedMember) -> Option<SymbolId> {
-        match member {
-            ResolvedMember::Res(Res::Item(item_id)) => {
-                self.tables.symbols_by_key.get(&SymbolKey::Item(item_id)).copied()
-            }
-            ResolvedMember::StructField { struct_id, field_index } => {
-                let field_id = self.gcx.hir.strukt(struct_id).fields.get(field_index).copied()?;
-                self.tables
-                    .symbols_by_key
-                    .get(&SymbolKey::Item(ItemId::Variable(field_id)))
-                    .copied()
-            }
-            ResolvedMember::EnumVariant { enum_id, variant_index } => self
-                .tables
-                .symbols_by_key
-                .get(&SymbolKey::EnumVariant(enum_id, variant_index))
-                .copied(),
-            ResolvedMember::Res(Res::Namespace(_) | Res::Builtin(_) | Res::Err(_)) => None,
-        }
+        res.into_iter().filter_map(|res| self.tables.symbol_id_for_res(res)).collect()
     }
 
     fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> Vec<SymbolId> {
         if let Some(member) = self.gcx.resolved_member(expr.id)
-            && let Some(symbol_id) = self.symbol_id_for_member(member)
+            && let Some(symbol_id) = self.tables.symbol_id_for_resolved_member(self.gcx, member)
         {
             return vec![symbol_id];
         }
@@ -1101,6 +1236,10 @@ fn sort_locations(locations: &mut [Location]) {
     });
 }
 
+fn sort_completion_items(items: &mut [CompletionItem]) {
+    items.sort_by(|a, b| a.label.cmp(&b.label));
+}
+
 fn range_contains(range: Range, position: Position) -> bool {
     if range.start == range.end {
         return position == range.start;
@@ -1108,11 +1247,34 @@ fn range_contains(range: Range, position: Position) -> bool {
     position >= range.start && position < range.end
 }
 
+fn completion_range_contains(range: Range, position: Position) -> bool {
+    if range.start == range.end {
+        return position == range.start;
+    }
+    position >= range.start && position <= range.end
+}
+
 fn range_size_key(range: Range) -> (u32, u32) {
     (
         range.end.line.saturating_sub(range.start.line),
         range.end.character.saturating_sub(range.start.character),
     )
+}
+
+fn member_completion_item_kind(gcx: Gcx<'_>, member: MemberCompletion<'_>) -> CompletionItemKind {
+    if matches!(member.resolved, Some(ResolvedMember::EnumVariant { .. })) {
+        return CompletionItemKind::ENUM_MEMBER;
+    }
+    if matches!(member.resolved, Some(ResolvedMember::StructField { .. })) {
+        return CompletionItemKind::FIELD;
+    }
+
+    match member.member.res {
+        Some(Res::Item(item_id)) => completion_item_kind(item_symbol_kind(gcx, item_id)),
+        Some(Res::Namespace(_)) => CompletionItemKind::MODULE,
+        Some(Res::Builtin(_)) => CompletionItemKind::METHOD,
+        Some(Res::Err(_)) | None => CompletionItemKind::FIELD,
+    }
 }
 
 fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
