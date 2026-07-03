@@ -21,7 +21,7 @@
 
 use crate::{
     analysis::Validator,
-    mir::{Function, Module},
+    mir::{Function, MirPhase, Module},
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
@@ -42,12 +42,36 @@ pub struct PassInfo {
     pub name: &'static str,
     /// Human-readable help text.
     pub description: &'static str,
+    /// Earliest [`MirPhase`] this pass may run on.
+    pub min_phase: MirPhase,
+    /// Latest [`MirPhase`] this pass may run on.
+    pub max_phase: MirPhase,
     make_pass: PassFactory,
 }
 
 impl PassInfo {
     const fn new(name: &'static str, description: &'static str, make_pass: PassFactory) -> Self {
-        Self { name, description, make_pass }
+        Self {
+            name,
+            description,
+            min_phase: MirPhase::Built,
+            max_phase: MirPhase::EvmShaped,
+            make_pass,
+        }
+    }
+
+    /// Restricts the phases this pass may run on: the pass manager skips it,
+    /// rather than running it, on modules outside the range.
+    const fn phases(mut self, min: MirPhase, max: MirPhase) -> Self {
+        self.min_phase = min;
+        self.max_phase = max;
+        self
+    }
+
+    /// Whether this pass's declared phase range admits the module's phase.
+    #[must_use]
+    pub fn admits(&self, module: &Module) -> bool {
+        self.min_phase <= module.phase && module.phase <= self.max_phase
     }
 
     fn make_pass(&self) -> Box<dyn ModulePass> {
@@ -139,11 +163,22 @@ declare_passes! {
     pub const ADCE_PASS -> "adce" = AdcePass;
 
     /// ABI phase lowering: external functions become self-decoding wrappers.
-    pub const LOWER_ABI_PASS -> "lower-abi" = LowerAbiPass::default();
+    const LOWER_ABI_PASS_BASE -> "lower-abi" = LowerAbiPass::default();
 
     /// Dispatch phase lowering: synthesize the selector-switch `entry` function.
-    pub const LOWER_DISPATCH_PASS -> "lower-dispatch" = LowerDispatchPass::default();
+    const LOWER_DISPATCH_PASS_BASE -> "lower-dispatch" = LowerDispatchPass::default();
+
 }
+
+/// ABI phase lowering with its phase range declared: consumes
+/// `built`/`optimized` MIR and produces the `abi` phase.
+pub const LOWER_ABI_PASS: PassInfo =
+    LOWER_ABI_PASS_BASE.phases(MirPhase::Built, MirPhase::Optimized);
+
+/// Dispatch phase lowering with its phase range declared: consumes exactly
+/// `abi`-phase MIR and produces the `dispatch` phase.
+pub const LOWER_DISPATCH_PASS: PassInfo =
+    LOWER_DISPATCH_PASS_BASE.phases(MirPhase::Abi, MirPhase::Abi);
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub const PASS_REGISTRY: &[PassInfo] = &[
@@ -252,6 +287,11 @@ pub fn run_pass(module: &mut Module, pass: &PassInfo) -> bool {
 }
 
 fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
+    // Passes declare which phases they operate on; the manager enforces it so a
+    // pipeline entry cannot silently corrupt a module in the wrong phase.
+    if !pass.admits(module) {
+        return false;
+    }
     let mut pm = PassManager::new();
     pm.set_validate_after_each(options.validate_after_each);
     pm.add_pass(pass.make_pass());

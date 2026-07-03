@@ -1,0 +1,10 @@
+//@compile-flags: --pass lower-dispatch,lower-abi,lower-dispatch,dce
+// Passes declare the phases they operate on and the pass manager enforces the
+// range: the first lower-dispatch is skipped on a `built` module (it requires
+// `abi`), lower-abi then advances the phase, the second lower-dispatch runs,
+// and dce demonstrates ordinary optimization still works after dispatch.
+; module @PhasePassBounds
+fn @get(arg0: u256) -> u256 [selector=0x9507d39a] {
+  bb0 (entry):
+    ret arg0
+}
