@@ -40,13 +40,6 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Symbol};
 
-/// Base memory offset for the wrapper's return buffer.
-///
-/// The wrapper is self-contained and does not share memory with a caller, so
-/// any non-scratch offset is valid; `0x80` is the conventional free-memory
-/// start.
-const RETURN_BUFFER_START: u64 = 0x80;
-
 /// Statistics from ABI wrapper lowering.
 #[derive(Clone, Debug, Default)]
 pub struct LowerAbiStats {
@@ -126,62 +119,55 @@ impl LowerAbiPass {
         true
     }
 
-    /// Splits one external function into an internal body plus a self-decoding
-    /// wrapper that reuses the original function slot, returning the id of the
-    /// extracted body.
+    /// Rewrites one external function into a self-decoding form, keeping a
+    /// pristine copy for internal callers.
+    ///
+    /// The original function keeps its selector and loses its MIR parameters:
+    /// each `Value::Arg` entry in its value table is redefined as a fresh
+    /// `calldataload(4 + 32*i)` instruction prepended to the entry block, so
+    /// every use follows automatically and the function decodes itself exactly
+    /// the way the backend used to materialize its arguments. Its fused encode
+    /// and `RETURN` stay intact, and no internal call is introduced on the
+    /// external path. A pristine `.body` copy with parameters preserved is
+    /// appended for internal callers, which are retargeted to it.
     fn wrap_function(&mut self, module: &mut Module, wrapper_id: FunctionId) -> FunctionId {
-        let (param_tys, return_tys) =
-            function_words(module.function(wrapper_id)).expect("caller checked word-sized");
-
-        // Move the original function (body, params, returns) into a new internal
-        // function, leaving a fresh wrapper shell in its place.
-        let wrapper_name = module.function(wrapper_id).name;
-        let selector = module.function(wrapper_id).selector;
-        let body_name = Ident::with_dummy_span(Symbol::intern(&format!("{wrapper_name}.body")));
-
-        let mut body =
-            std::mem::replace(module.function_mut(wrapper_id), Function::new(wrapper_name));
-        body.name = body_name;
+        // Pristine copy for internal callers.
+        let mut body = module.function(wrapper_id).clone();
+        body.name = Ident::with_dummy_span(Symbol::intern(&format!("{}.body", body.name)));
         body.selector = None;
         body.attributes.visibility = solar_sema::hir::Visibility::Internal;
         let body_id = module.add_function(body);
 
-        // Rebuild the wrapper shell: same name and selector, no MIR arguments.
-        let wrapper = module.function_mut(wrapper_id);
-        wrapper.selector = selector;
-
-        let mut builder = crate::mir::FunctionBuilder::new(wrapper);
-
-        // Decode each static argument: one word at `4 + 32*i`.
-        let mut args = Vec::with_capacity(param_tys.len());
-        for i in 0..param_tys.len() {
-            let offset = builder.imm_u64(4 + 32 * i as u64);
-            args.push(builder.calldataload(offset));
+        // Absorb the arguments into the external original.
+        let func = module.function_mut(wrapper_id);
+        let params = std::mem::take(&mut func.params);
+        let mut loads = Vec::with_capacity(params.len());
+        for index in 0..params.len() {
+            let offset = func.alloc_value(crate::mir::Value::Immediate(
+                crate::mir::Immediate::uint256(alloy_primitives::U256::from(4 + 32 * index as u64)),
+            ));
+            let inst = func.alloc_inst(crate::mir::Instruction::new(
+                InstKind::CalldataLoad(offset),
+                Some(MirType::uint256()),
+            ));
+            loads.push(inst);
         }
-
-        if return_tys.is_empty() {
-            builder.internal_call_void(body_id, args, 0);
-            let zero = builder.imm_u64(0);
-            builder.ret_data(zero, zero);
-            return body_id;
+        let entry = func.entry_block;
+        for (position, inst) in loads.iter().enumerate() {
+            func.blocks[entry].instructions.insert(position, *inst);
         }
-
-        // Call the original body. The first return value is the call result; any
-        // remaining return words follow the existing multi-return call convention
-        // and are materialized in scratch memory at `32`, `64`, ...
-        let call = builder.internal_call(body_id, args, return_tys[0], return_tys.len());
-
-        // Encode the static returns: word `i` at `RETURN_BUFFER_START + 32*i`.
-        let base = builder.imm_u64(RETURN_BUFFER_START);
-        builder.mstore(base, call);
-        for i in 1..return_tys.len() {
-            let src = builder.imm_u64((i * 32) as u64);
-            let word = builder.mload(src);
-            let dst = builder.imm_u64(RETURN_BUFFER_START + (i * 32) as u64);
-            builder.mstore(dst, word);
+        // Redefine each argument value as its load: every use follows.
+        let arg_values: Vec<_> = func
+            .values
+            .iter_enumerated()
+            .filter_map(|(vid, value)| match value {
+                crate::mir::Value::Arg { index, .. } => Some((vid, *index as usize)),
+                _ => None,
+            })
+            .collect();
+        for (vid, index) in arg_values {
+            func.values[vid] = crate::mir::Value::Inst(loads[index]);
         }
-        let size = builder.imm_u64(32 * return_tys.len() as u64);
-        builder.ret_data(base, size);
         body_id
     }
 }
@@ -202,38 +188,16 @@ fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor && !func.blocks.is_empty()
 }
 
-/// Returns the parameter and return types if the function is wrappable.
+/// Returns the parameter and return types if the function can be absorbed.
 ///
-/// Parameters of any type are decoded by passing the raw calldata word at
-/// `4 + 32*i` through: the external-form body interprets its argument as that
-/// word — the scalar itself for static types, the ABI head offset for dynamic
-/// ones — and performs any further decoding itself. Returns must be static
-/// words, since the wrapper encodes them; a dynamic return makes the whole
-/// pass bail.
+/// Absorption relies on the fused encode: the body must produce its own
+/// returndata, so a function that still returns MIR values (which would need
+/// the caller to encode them) makes the whole pass bail. Parameters of any
+/// type and any count are fine: each becomes a `calldataload` of its head
+/// word, exactly the lazy load the backend used to materialize.
 fn function_words(func: &Function) -> Option<(Vec<MirType>, Vec<MirType>)> {
-    if !func.returns.iter().all(is_static_word) {
-        return None;
-    }
-    // The wrapper materializes every decoded argument at once to pass them
-    // through the internal call, unlike the backend's lazy per-use
-    // `CALLDATALOAD`; past this width the stack scheduler cannot spill the
-    // call arguments. Wider functions fall back to the backend dispatcher.
-    const MAX_WRAPPED_PARAMS: usize = 10;
-    if func.params.len() > MAX_WRAPPED_PARAMS {
+    if !func.returns.is_empty() {
         return None;
     }
     Some((func.params.clone(), func.returns.clone()))
-}
-
-/// Whether a type occupies exactly one ABI word with no head/tail, so it decodes
-/// from a single `calldataload` and encodes with a single `mstore`.
-fn is_static_word(ty: &MirType) -> bool {
-    matches!(
-        ty,
-        MirType::UInt(_)
-            | MirType::Int(_)
-            | MirType::Bool
-            | MirType::Address
-            | MirType::FixedBytes(_)
-    )
 }

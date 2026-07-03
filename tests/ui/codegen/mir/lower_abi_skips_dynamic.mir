@@ -1,7 +1,7 @@
 //@compile-flags: --pass lower-abi
-// A dynamic (memory-pointer) RETURN cannot be encoded by the static-word
-// wrapper, so the module is left entirely untouched: the phase transition is
-// all-or-nothing and the module does not advance to `abi`.
+// A function that still returns MIR values needs its caller to encode them,
+// which absorption cannot do, so the module is left entirely untouched: the
+// phase transition is all-or-nothing and the module does not advance to `abi`.
 ; module @LowerAbiSkipsDynamic
 fn @givesBytes(arg0: u256) -> memptr [selector=0x0dead001] {
   bb0 (entry):
