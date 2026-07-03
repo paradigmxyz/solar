@@ -1695,6 +1695,11 @@ mod tests {
             let module = parse_module(src).unwrap();
             assert_eq!(module.phase, crate::mir::MirPhase::Built);
             assert!(module.to_text().to_string().starts_with("; module @Fresh\n"));
+
+            // Unknown phase names are rejected.
+            let src = "; module @Bogus [phase = shiny]\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let err = parse_module(src).unwrap_err();
+            assert!(err.to_string().contains("unknown MIR phase `shiny`"), "{err}");
         });
     }
 
