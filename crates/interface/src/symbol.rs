@@ -439,7 +439,7 @@ impl fmt::Debug for ByteSymbol {
 ///
 /// Initialized in `SessionGlobals` with the `symbols!` macro's initial symbols.
 pub(crate) struct Interner {
-    inner: inturn::BytesInterner<ByteSymbol, solar_data_structures::map::FxBuildHasher>,
+    inner: inturn::sync::BytesInterner<ByteSymbol, solar_data_structures::map::FxBuildHasher>,
 }
 
 impl Interner {
@@ -448,8 +448,10 @@ impl Interner {
     }
 
     pub(crate) fn prefill(init: &[&'static str]) -> Self {
-        let mut inner =
-            inturn::BytesInterner::with_capacity_and_hasher(init.len() * 4, Default::default());
+        let mut inner = inturn::sync::BytesInterner::with_capacity_and_hasher(
+            init.len() * 4,
+            Default::default(),
+        );
         inner.intern_many_mut_static(init.iter().map(|s| s.as_bytes()));
         Self { inner }
     }
