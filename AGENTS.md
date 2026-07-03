@@ -78,10 +78,12 @@ only when not the default). The phases, in order:
   nothing lowers to it yet, since builtins already lower to concrete `InstKind`s.
 
 The `lower-abi` and `lower-dispatch` passes are progressive MIR-to-MIR lowering,
-the beginning of moving dispatch and ABI handling out of the backend. They are
-**opt-in** (run via `mir-opt --pass`, not in the default pipeline), so the
-backend still consumes `built`/`optimized` MIR and production bytecode is
-unaffected. When extending them or adding the next phase, make the transition a
+moving dispatch and ABI handling out of the backend. By default they are
+**opt-in** (run via `mir-opt --pass`), so the backend consumes
+`built`/`optimized` MIR and production bytecode is unaffected; under
+`-Zmir-dispatch` the codegen pipeline runs them and the backend consumes the
+`dispatch`-phase module, with the MIR `entry` as the runtime prologue and
+`tail_call` lowered to a jump. When extending them or adding the next phase, make the transition a
 named pass that advances the phase via `Module::advance_phase`, keep it
 conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
 and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.

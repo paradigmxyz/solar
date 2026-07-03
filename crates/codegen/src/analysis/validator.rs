@@ -356,6 +356,17 @@ impl Validator {
     /// the phase is a real contract rather than a label.
     fn validate_phase(module: &Module) -> Vec<ValidationError> {
         let mut errors = Vec::new();
+        // From the `dispatch` phase on, routing is materialized: a module with
+        // bodied selector functions must contain the synthesized `entry`.
+        if module.phase >= crate::mir::MirPhase::Dispatch
+            && module.functions.iter().any(|f| f.selector.is_some() && !f.blocks.is_empty())
+            && !module.functions.iter().any(|f| f.name.as_str() == "entry")
+        {
+            errors.push(ValidationError::new(format!(
+                "module is in the `{}` phase but has no `entry` dispatcher function",
+                module.phase.name()
+            )));
+        }
         // From the `abi` phase on, every bodied external (selector-bearing)
         // function is an argument-free self-decoding wrapper.
         if module.phase >= crate::mir::MirPhase::Abi {

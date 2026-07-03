@@ -112,12 +112,19 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
                         })
                     )
                 }
+                Terminator::TailCall { function, .. } => {
+                    writeln!(
+                        f,
+                        "    bb{} -> fn{} [style=dashed, label=\"tail_call\"];",
+                        block_idx,
+                        function.index()
+                    )
+                }
                 Terminator::Return { .. }
                 | Terminator::Revert { .. }
                 | Terminator::ReturnData { .. }
                 | Terminator::Stop
                 | Terminator::SelfDestruct { .. }
-                | Terminator::TailCall { .. }
                 | Terminator::Invalid => Ok(()),
             }
         })
