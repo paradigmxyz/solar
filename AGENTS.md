@@ -54,6 +54,28 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
 - Keep the layers separate: MIR should not grow EVM stack-layout details, and
   EVM IR should not rediscover high-level Solidity typing or call semantics.
 
+### MIR Phases
+
+MIR is a phased IR, like rustc's MIR: a `Module` carries a `MirPhase`, phases
+only move forward, and the phase round-trips through the text format as
+`; module @Name [phase = ...]` (printed only when not the default). Two phases
+exist today:
+
+- `built`: fresh from HIR lowering — one MIR function per Solidity function,
+  typed values, dispatch and ABI handling not yet materialized as MIR.
+- `optimized`: the canonical pass pipeline has run
+  (`run_default_pipeline_with_options` is the phase transition; ad-hoc
+  `mir-opt` pass lists do not advance the phase).
+
+The planned direction (see the `MirPhase` docs in
+`crates/codegen/src/mir/module.rs`) is progressive MIR-to-MIR lowering instead
+of backend special cases: a dispatch phase where the selector switch becomes an
+ordinary MIR `entry` function, an ABI phase where external functions get
+wrappers that decode calldata and encode returndata around an internal call,
+and an EVM-shaped phase where builtins are expanded into what the backend
+expects. When adding one of these, make the transition a named pipeline entry
+point that advances the phase, and pin it with `.mir` UI tests.
+
 ### Visitor Pattern
 
 Use `type BreakValue = Never` if visitor never breaks. Override `visit_*` methods and always call `walk_*` to continue traversal:
