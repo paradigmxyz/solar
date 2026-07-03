@@ -1,5 +1,6 @@
 use crate::{global_state::GlobalState, symbols::CompletionContext};
 use async_lsp::ResponseError;
+use crop::Rope;
 use lsp_types::{
     CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
     GotoDefinitionParams, GotoDefinitionResponse, Position, ReferenceParams, Url,
@@ -90,14 +91,18 @@ impl CompletionInput {
 
 fn completion_input(state: &GlobalState, uri: &Url, position: Position) -> Option<CompletionInput> {
     let path = crate::proto::vfs_path(uri)?;
-    let contents = state.vfs.read().get_file_contents(&path)?.to_string();
-    let line_prefix = line_prefix_at(&contents, position)?;
+    let vfs = state.vfs.read();
+    let line = line_at(vfs.get_file_contents(&path)?, position.line as usize)?;
+    let line_prefix = line_prefix_at(&line, position)?;
     Some(completion_input_from_line_prefix(line_prefix))
 }
 
+fn line_at(contents: &Rope, line: usize) -> Option<String> {
+    (line < contents.line_len()).then(|| contents.line(line).to_string())
+}
+
 fn line_prefix_at(contents: &str, position: Position) -> Option<&str> {
-    let line = contents.split('\n').nth(position.line as usize)?;
-    let line = line.strip_suffix('\r').unwrap_or(line);
+    let line = contents.strip_suffix('\r').unwrap_or(contents);
     let target = position.character as usize;
     let mut utf16 = 0;
     for (idx, ch) in line.char_indices() {

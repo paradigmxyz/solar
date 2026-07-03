@@ -29,6 +29,7 @@ pub(crate) struct SymbolTables {
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
     member_completions: Vec<MemberCompletionScope>,
+    file_member_completions: FxHashMap<Url, Vec<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, Vec<usize>>,
@@ -395,17 +396,17 @@ impl SymbolTables {
         context: CompletionContext<'_>,
     ) -> Vec<CompletionItem> {
         if let Some(items) = self.member_completion_items(uri, position) {
-            return filter_completion_items(items, context.prefix);
+            return filtered_completion_items(items, context.prefix);
         }
         if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
-            return filter_completion_items(items, context.prefix);
+            return filtered_completion_items(items, context.prefix);
         }
 
         let Some(scope_id) = self.scope_at_position(uri, position) else {
             return Vec::new();
         };
 
-        let mut seen = FxHashMap::<String, SymbolId>::default();
+        let mut seen = FxHashMap::<&str, SymbolId>::default();
         let mut scope = Some(scope_id);
         while let Some(scope_id) = scope {
             let current = &self.scopes[scope_id];
@@ -417,7 +418,7 @@ impl SymbolTables {
                     continue;
                 }
                 let symbol = &self.declarations[declaration.symbol_id];
-                seen.entry(symbol.name.clone()).or_insert(declaration.symbol_id);
+                seen.entry(symbol.name.as_str()).or_insert(declaration.symbol_id);
             }
             scope = current.parent;
         }
@@ -660,26 +661,21 @@ impl SymbolTables {
         depth
     }
 
-    fn member_completion_items(
-        &self,
-        uri: &Url,
-        position: Position,
-    ) -> Option<Vec<CompletionItem>> {
+    fn member_completion_items(&self, uri: &Url, position: Position) -> Option<&[CompletionItem]> {
         let completion = self
-            .member_completions
+            .file_member_completions
+            .get(uri)?
             .iter()
-            .filter(|completion| {
-                completion.uri == *uri && completion_range_contains(completion.range, position)
+            .filter_map(|&index| {
+                let completion = &self.member_completions[index];
+                completion_range_contains(completion.range, position).then_some(completion)
             })
             .min_by_key(|completion| range_size_key(completion.range))?;
-        Some(completion.items.clone())
+        Some(&completion.items)
     }
 
-    fn builtin_member_completion_items(
-        &self,
-        receiver: Option<&str>,
-    ) -> Option<Vec<CompletionItem>> {
-        self.builtin_member_completions.get(receiver?).cloned()
+    fn builtin_member_completion_items(&self, receiver: Option<&str>) -> Option<&[CompletionItem]> {
+        self.builtin_member_completions.get(receiver?).map(Vec::as_slice)
     }
 
     fn completion_item(&self, symbol_id: SymbolId) -> CompletionItem {
@@ -767,6 +763,17 @@ impl SymbolTables {
         for scopes in self.file_scopes.values_mut() {
             scopes.sort_by_key(|&scope_id| {
                 let range = self.scopes[scope_id].range;
+                (range.start.line, range.start.character, range.end.line, range.end.character)
+            });
+        }
+
+        self.file_member_completions.clear();
+        for (index, completion) in self.member_completions.iter().enumerate() {
+            self.file_member_completions.entry(completion.uri.clone()).or_default().push(index);
+        }
+        for completions in self.file_member_completions.values_mut() {
+            completions.sort_by_key(|&index| {
+                let range = self.member_completions[index].range;
                 (range.start.line, range.start.character, range.end.line, range.end.character)
             });
         }
@@ -1373,17 +1380,23 @@ fn completion_item_for_builtin(builtin: Builtin) -> CompletionItem {
 }
 
 fn filter_completion_items(mut items: Vec<CompletionItem>, prefix: &str) -> Vec<CompletionItem> {
-    if !prefix.is_empty() {
-        items.retain(|item| fuzzy_completion_match(prefix, &item.label));
-    }
+    let Some(prefix) = completion_filter_prefix(prefix) else { return items };
+    items.retain(|item| fuzzy_completion_match(&prefix, &item.label));
     items
 }
 
+fn filtered_completion_items(items: &[CompletionItem], prefix: &str) -> Vec<CompletionItem> {
+    let Some(prefix) = completion_filter_prefix(prefix) else { return items.to_vec() };
+    items.iter().filter(|item| fuzzy_completion_match(&prefix, &item.label)).cloned().collect()
+}
+
+fn completion_filter_prefix(prefix: &str) -> Option<String> {
+    (!prefix.is_empty()).then(|| prefix.to_lowercase())
+}
+
 fn fuzzy_completion_match(prefix: &str, label: &str) -> bool {
-    let label = label.to_lowercase();
-    let mut label_chars = label.chars();
+    let mut label_chars = label.chars().flat_map(char::to_lowercase);
     prefix
-        .to_lowercase()
         .chars()
         .all(|prefix_char| label_chars.by_ref().any(|label_char| label_char == prefix_char))
 }
