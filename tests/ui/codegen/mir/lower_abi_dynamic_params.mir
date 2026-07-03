@@ -1,0 +1,11 @@
+//@compile-flags: --pass lower-abi
+// Dynamic parameters decode uniformly: the wrapper passes the ABI head word at
+// `4 + 32*i` through, and the body performs any further decoding itself, so a
+// memory-pointer parameter does not block the `abi` phase.
+; module @LowerAbiDynamicParams
+fn @takesBytes(arg0: memptr, arg1: u256) -> u256 [selector=0x0dead002] {
+  bb0 (entry):
+    v1 = mload arg0
+    v2 = add v1, arg1
+    ret v2
+}

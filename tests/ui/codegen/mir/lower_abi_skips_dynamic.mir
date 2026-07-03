@@ -1,11 +1,9 @@
 //@compile-flags: --pass lower-abi
-// The static-word ABI codec does not model dynamic head/tail layout, so a
-// module with any non-word-sized (memory-pointer) external parameter is left
-// entirely untouched: the phase transition is all-or-nothing, so the module
-// does not advance to `abi` and no function is wrapped.
+// A dynamic (memory-pointer) RETURN cannot be encoded by the static-word
+// wrapper, so the module is left entirely untouched: the phase transition is
+// all-or-nothing and the module does not advance to `abi`.
 ; module @LowerAbiSkipsDynamic
-fn @takesBytes(arg0: memptr) -> u256 [selector=0x0dead001] {
+fn @givesBytes(arg0: u256) -> memptr [selector=0x0dead001] {
   bb0 (entry):
-    v1 = mload arg0
-    ret v1
+    ret arg0
 }

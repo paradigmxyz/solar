@@ -13,9 +13,13 @@
 //!    decodes each argument from `calldataload(4 + 32*i)`, calls `f.body` with the decoded values,
 //!    writes the returns to memory, and returns them with `RETURN(offset, 32*m)`.
 //!
-//! For the static word-sized scope this is a faithful ABI codec: static
-//! arguments are one word each at a fixed calldata offset, and a tuple of static
-//! returns is their words concatenated with no head/tail. Internal call sites
+//! Argument decoding is uniform for every parameter type: the ABI head word at
+//! the parameter's fixed calldata offset is passed through, which is the scalar
+//! itself for static types and the head offset for dynamic ones — exactly the
+//! word the external-form body already expects and further decodes itself.
+//! Return encoding is the wrapper's job, so returns must be static words: a
+//! tuple of static returns is their words concatenated with no head/tail, and a
+//! dynamic return makes the whole pass bail. Internal call sites
 //! that targeted a wrapped function are retargeted to its extracted body, so
 //! internal calls to public functions keep their semantics.
 //!
@@ -48,9 +52,8 @@ const RETURN_BUFFER_START: u64 = 0x80;
 pub struct LowerAbiStats {
     /// Number of external functions wrapped.
     pub wrapped: usize,
-    /// Number of external functions whose parameter or return types are not
-    /// static words. Any non-zero count makes the whole pass bail: the phase
-    /// transition is all-or-nothing.
+    /// Number of external functions with a non-word return type. Any non-zero
+    /// count makes the whole pass bail: the phase transition is all-or-nothing.
     pub skipped_dynamic: usize,
     /// Number of internal call sites retargeted from a wrapped function to its
     /// extracted body.
@@ -199,10 +202,16 @@ fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor && !func.blocks.is_empty()
 }
 
-/// Returns the parameter and return types if every one is a static word-sized
-/// scalar, else `None`.
+/// Returns the parameter and return types if the function is wrappable.
+///
+/// Parameters of any type are decoded by passing the raw calldata word at
+/// `4 + 32*i` through: the external-form body interprets its argument as that
+/// word — the scalar itself for static types, the ABI head offset for dynamic
+/// ones — and performs any further decoding itself. Returns must be static
+/// words, since the wrapper encodes them; a dynamic return makes the whole
+/// pass bail.
 fn function_words(func: &Function) -> Option<(Vec<MirType>, Vec<MirType>)> {
-    if !func.params.iter().all(is_static_word) || !func.returns.iter().all(is_static_word) {
+    if !func.returns.iter().all(is_static_word) {
         return None;
     }
     Some((func.params.clone(), func.returns.clone()))

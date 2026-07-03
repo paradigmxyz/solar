@@ -1,7 +1,6 @@
 // === ROOT/tests/ui/codegen/mir/lower_abi_skips_dynamic.mir (after lower-abi) ===
 ; module @LowerAbiSkipsDynamic
-fn @takesBytes(arg0: memptr) -> u256 {
+fn @givesBytes(arg0: u256) -> memptr {
   bb0 (entry):
-    v1 = mload arg0
-    ret v1
+    ret arg0
 }

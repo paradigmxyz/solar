@@ -1,0 +1,17 @@
+// === ROOT/tests/ui/codegen/mir/lower_abi_dynamic_params.mir (after lower-abi) ===
+; module @LowerAbiDynamicParams [phase = abi]
+fn @takesBytes() {
+  bb0 (entry):
+    v1 = calldataload 4
+    v3 = calldataload 36
+    v4 = internal_call fn1, 1, v1, v3
+    mstore 128, v4
+    returndata 128, 32
+}
+
+fn @takesBytes.body(arg0: memptr, arg1: u256) -> u256 {
+  bb0 (entry):
+    v2 = mload arg0
+    v3 = add v2, arg1
+    ret v3
+}
