@@ -825,7 +825,7 @@ impl SymbolTables {
             .member_completions
             .iter()
             .filter(|completion| {
-                completion.uri == *uri && range_contains(completion.range, position)
+                completion.uri == *uri && completion_range_contains(completion.range, position)
             })
             .min_by_key(|completion| range_size_key(completion.range))?;
         self.completion_items_from_entries(&completion.entries)
@@ -1580,6 +1580,13 @@ fn range_contains(range: Range, position: Position) -> bool {
         return position == range.start;
     }
     position >= range.start && position < range.end
+}
+
+fn completion_range_contains(range: Range, position: Position) -> bool {
+    if range.start == range.end {
+        return position == range.start;
+    }
+    position >= range.start && position <= range.end
 }
 
 fn range_size_key(range: Range) -> (u32, u32) {

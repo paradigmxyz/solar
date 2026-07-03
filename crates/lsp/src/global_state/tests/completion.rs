@@ -219,6 +219,40 @@ B | enum member | Choice
     );
 }
 
+#[test]
+fn completes_members_at_end_of_member_name() {
+    check_completion(
+        r#"
+        //- /Members.sol
+        contract Token {
+            uint256 public balance;
+            uint256 public balanceLimit;
+
+            function burn(uint256 amount) public {
+                amount;
+            }
+        }
+
+        contract C {
+            Token token;
+
+            function getToken() public view returns (Token) {
+                return token;
+            }
+
+            function read() public view {
+                getToken().balance$1;
+            }
+        }
+        "#,
+        snapbox::str![[r#"
+balance | method | -
+balanceLimit | method | -
+burn | method | -
+"#]],
+    );
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn completes_members_after_trailing_dot_in_open_document() {
     check_dirty_completion(
