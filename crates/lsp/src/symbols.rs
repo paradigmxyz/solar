@@ -434,26 +434,12 @@ impl SymbolTables {
     }
 
     fn lexical_completion_items(&self, uri: &Url, position: Position) -> Vec<CompletionItem> {
-        let Some(scope_id) = self.scope_at_position(uri, position) else {
-            return Vec::new();
-        };
-
         let mut seen = FxHashMap::<&str, CompletionEntryId>::default();
-        let mut scope = Some(scope_id);
-        while let Some(scope_id) = scope {
-            let current = &self.scopes[scope_id];
-            for declaration in &current.declarations {
-                if declaration
-                    .available_from
-                    .is_some_and(|available_from| available_from > position)
-                {
-                    continue;
-                }
-                let entry = &self.completion_entries[declaration.completion_id];
-                seen.entry(entry.label.as_str()).or_insert(declaration.completion_id);
-            }
-            scope = current.parent;
-        }
+        self.visit_visible_scope_declarations(uri, position, |declaration| {
+            let entry = &self.completion_entries[declaration.completion_id];
+            seen.entry(entry.label.as_str()).or_insert(declaration.completion_id);
+            ControlFlow::Continue(())
+        });
 
         let mut items =
             seen.into_values().map(|entry_id| self.completion_item(entry_id)).collect::<Vec<_>>();
@@ -851,28 +837,42 @@ impl SymbolTables {
         position: Position,
         receiver: &str,
     ) -> Option<Vec<CompletionItem>> {
-        let mut scope = Some(self.scope_at_position(uri, position)?);
+        let mut items = None;
+        self.visit_visible_scope_declarations(uri, position, |declaration| {
+            let entry = &self.completion_entries[declaration.completion_id];
+            if entry.label != receiver {
+                return ControlFlow::Continue(());
+            }
+            if let Some(completion_set) = declaration.member_completion_ids {
+                items = self.completion_items_from_entries(
+                    &self.member_completion_sets[completion_set].entries,
+                );
+            }
+            ControlFlow::Break(())
+        });
+        items
+    }
+
+    fn visit_visible_scope_declarations(
+        &self,
+        uri: &Url,
+        position: Position,
+        mut visit: impl FnMut(&ScopedDeclaration) -> ControlFlow<()>,
+    ) {
+        let mut scope = self.scope_at_position(uri, position);
         while let Some(scope_id) = scope {
             let current = &self.scopes[scope_id];
             for declaration in &current.declarations {
                 if declaration
                     .available_from
-                    .is_some_and(|available_from| available_from > position)
+                    .is_none_or(|available_from| available_from <= position)
+                    && visit(declaration).is_break()
                 {
-                    continue;
+                    return;
                 }
-                let entry = &self.completion_entries[declaration.completion_id];
-                if entry.label != receiver {
-                    continue;
-                }
-                let completion_set = declaration.member_completion_ids?;
-                return self.completion_items_from_entries(
-                    &self.member_completion_sets[completion_set].entries,
-                );
             }
             scope = current.parent;
         }
-        None
     }
 
     fn completion_items_from_entries(
@@ -914,15 +914,25 @@ impl SymbolTables {
         member: MemberCompletion<'_>,
     ) -> Option<SymbolId> {
         match member.resolved {
-            Some(ResolvedMember::Res(res)) => self.symbol_id_for_res(res),
-            Some(ResolvedMember::StructField { struct_id, field_index }) => {
+            Some(resolved) => self.symbol_id_for_resolved_member(gcx, resolved),
+            None => member.member.res.and_then(|res| self.symbol_id_for_res(res)),
+        }
+    }
+
+    fn symbol_id_for_resolved_member(
+        &self,
+        gcx: Gcx<'_>,
+        member: ResolvedMember,
+    ) -> Option<SymbolId> {
+        match member {
+            ResolvedMember::Res(res) => self.symbol_id_for_res(res),
+            ResolvedMember::StructField { struct_id, field_index } => {
                 let field_id = gcx.hir.strukt(struct_id).fields.get(field_index).copied()?;
                 self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(field_id))).copied()
             }
-            Some(ResolvedMember::EnumVariant { enum_id, variant_index }) => {
+            ResolvedMember::EnumVariant { enum_id, variant_index } => {
                 self.symbols_by_key.get(&SymbolKey::EnumVariant(enum_id, variant_index)).copied()
             }
-            None => member.member.res.and_then(|res| self.symbol_id_for_res(res)),
         }
     }
 
@@ -1387,24 +1397,7 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
     }
 
     fn symbol_id_for_member(&self, member: ResolvedMember) -> Option<SymbolId> {
-        match member {
-            ResolvedMember::Res(Res::Item(item_id)) => {
-                self.tables.symbols_by_key.get(&SymbolKey::Item(item_id)).copied()
-            }
-            ResolvedMember::StructField { struct_id, field_index } => {
-                let field_id = self.gcx.hir.strukt(struct_id).fields.get(field_index).copied()?;
-                self.tables
-                    .symbols_by_key
-                    .get(&SymbolKey::Item(ItemId::Variable(field_id)))
-                    .copied()
-            }
-            ResolvedMember::EnumVariant { enum_id, variant_index } => self
-                .tables
-                .symbols_by_key
-                .get(&SymbolKey::EnumVariant(enum_id, variant_index))
-                .copied(),
-            ResolvedMember::Res(Res::Namespace(_) | Res::Builtin(_) | Res::Err(_)) => None,
-        }
+        self.tables.symbol_id_for_resolved_member(self.gcx, member)
     }
 
     fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> Vec<SymbolId> {
