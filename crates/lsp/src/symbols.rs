@@ -8,6 +8,7 @@ use solar_interface::{
 };
 use solar_sema::{
     Gcx,
+    builtins::Builtin,
     hir::{
         self, ContractKind, EnumId, FunctionKind, ItemId, Res, StmtKind, TypeKind, UsingEntryKind,
         VarKind, Visit,
@@ -25,6 +26,8 @@ pub(crate) struct SymbolTables {
     workspace_symbol_ids: Vec<SymbolId>,
     symbols_by_key: FxHashMap<SymbolKey, SymbolId>,
     scopes: IndexVec<ScopeId, Scope>,
+    global_completions: Vec<CompletionItem>,
+    builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
     member_completions: Vec<MemberCompletionScope>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
     references: Vec<SymbolReference>,
@@ -79,6 +82,18 @@ struct MemberCompletionScope {
     items: Vec<CompletionItem>,
 }
 
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct CompletionContext<'a> {
+    pub(crate) prefix: &'a str,
+    pub(crate) member_receiver: Option<&'a str>,
+}
+
+impl<'a> CompletionContext<'a> {
+    pub(crate) fn new(prefix: &'a str, member_receiver: Option<&'a str>) -> Self {
+        Self { prefix, member_receiver }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct SymbolReference {
     location: Location,
@@ -107,6 +122,7 @@ impl SymbolTables {
     /// source-level declarations that LSP requests can query after that run has finished.
     pub(crate) fn build(gcx: Gcx<'_>) -> Self {
         let mut tables = Self::default();
+        tables.build_builtin_completions();
         let item_ids = gcx.hir.item_ids();
         let mut item_symbols =
             FxHashMap::with_capacity_and_hasher(item_ids.size_hint().0, Default::default());
@@ -206,6 +222,13 @@ impl SymbolTables {
     }
 
     pub(crate) fn extend(&mut self, mut other: Self) {
+        if self.global_completions.is_empty() {
+            self.global_completions = std::mem::take(&mut other.global_completions);
+        }
+        if self.builtin_member_completions.is_empty() {
+            self.builtin_member_completions = std::mem::take(&mut other.builtin_member_completions);
+        }
+
         if other.declarations.is_empty() {
             return;
         }
@@ -365,9 +388,17 @@ impl SymbolTables {
         Some(locations)
     }
 
-    pub(crate) fn completion_items(&self, uri: &Url, position: Position) -> Vec<CompletionItem> {
+    pub(crate) fn completion_items(
+        &self,
+        uri: &Url,
+        position: Position,
+        context: CompletionContext<'_>,
+    ) -> Vec<CompletionItem> {
         if let Some(items) = self.member_completion_items(uri, position) {
-            return items;
+            return filter_completion_items(items, context.prefix);
+        }
+        if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
+            return filter_completion_items(items, context.prefix);
         }
 
         let Some(scope_id) = self.scope_at_position(uri, position) else {
@@ -393,8 +424,22 @@ impl SymbolTables {
 
         let mut items =
             seen.into_values().map(|symbol_id| self.completion_item(symbol_id)).collect::<Vec<_>>();
+        items.extend(self.global_completions.iter().cloned());
         items.sort_by(|a, b| a.label.cmp(&b.label));
-        items
+        items.dedup_by(|a, b| a.label == b.label);
+        filter_completion_items(items, context.prefix)
+    }
+
+    fn build_builtin_completions(&mut self) {
+        self.global_completions = Builtin::global().map(completion_item_for_builtin).collect();
+        self.builtin_member_completions = Builtin::global()
+            .filter_map(|builtin| {
+                let mut items =
+                    builtin.members()?.map(completion_item_for_builtin).collect::<Vec<_>>();
+                sort_completion_items(&mut items);
+                Some((builtin.name().to_string(), items))
+            })
+            .collect();
     }
 
     fn push_declaration(&mut self, key: SymbolKey, declaration: DeclarationSymbol) -> SymbolId {
@@ -628,6 +673,13 @@ impl SymbolTables {
             })
             .min_by_key(|completion| range_size_key(completion.range))?;
         Some(completion.items.clone())
+    }
+
+    fn builtin_member_completion_items(
+        &self,
+        receiver: Option<&str>,
+    ) -> Option<Vec<CompletionItem>> {
+        self.builtin_member_completions.get(receiver?).cloned()
     }
 
     fn completion_item(&self, symbol_id: SymbolId) -> CompletionItem {
@@ -1306,6 +1358,34 @@ fn completion_item_kind(kind: SymbolKind) -> CompletionItemKind {
         SymbolKind::TYPE_PARAMETER => CompletionItemKind::TYPE_PARAMETER,
         _ => CompletionItemKind::TEXT,
     }
+}
+
+fn completion_item_for_builtin(builtin: Builtin) -> CompletionItem {
+    CompletionItem {
+        label: builtin.name().to_string(),
+        kind: Some(if builtin.members().is_some() {
+            CompletionItemKind::MODULE
+        } else {
+            CompletionItemKind::FUNCTION
+        }),
+        ..Default::default()
+    }
+}
+
+fn filter_completion_items(mut items: Vec<CompletionItem>, prefix: &str) -> Vec<CompletionItem> {
+    if !prefix.is_empty() {
+        items.retain(|item| fuzzy_completion_match(prefix, &item.label));
+    }
+    items
+}
+
+fn fuzzy_completion_match(prefix: &str, label: &str) -> bool {
+    let label = label.to_lowercase();
+    let mut label_chars = label.chars();
+    prefix
+        .to_lowercase()
+        .chars()
+        .all(|prefix_char| label_chars.by_ref().any(|label_char| label_char == prefix_char))
 }
 
 fn search_name(name: &str) -> String {

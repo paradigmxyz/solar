@@ -1,9 +1,9 @@
-use crate::global_state::GlobalState;
+use crate::{global_state::GlobalState, symbols::CompletionContext};
 use async_lsp::ResponseError;
 use lsp_types::{
     CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
-    GotoDefinitionParams, GotoDefinitionResponse, ReferenceParams, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse,
+    GotoDefinitionParams, GotoDefinitionResponse, Position, ReferenceParams, Url,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use std::future::ready;
 
@@ -67,9 +67,69 @@ pub(crate) fn completion(
     params: CompletionParams,
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position;
-    let items =
-        state.symbol_tables.read().completion_items(&params.text_document.uri, params.position);
+    let input = completion_input(state, &params.text_document.uri, params.position);
+    let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
+    let items = state.symbol_tables.read().completion_items(
+        &params.text_document.uri,
+        params.position,
+        context,
+    );
     ready(Ok(Some(CompletionResponse::Array(items))))
+}
+
+struct CompletionInput {
+    prefix: String,
+    member_receiver: Option<String>,
+}
+
+impl CompletionInput {
+    fn context(&self) -> CompletionContext<'_> {
+        CompletionContext::new(&self.prefix, self.member_receiver.as_deref())
+    }
+}
+
+fn completion_input(state: &GlobalState, uri: &Url, position: Position) -> Option<CompletionInput> {
+    let path = crate::proto::vfs_path(uri)?;
+    let contents = state.vfs.read().get_file_contents(&path)?.to_string();
+    let line_prefix = line_prefix_at(&contents, position)?;
+    Some(completion_input_from_line_prefix(line_prefix))
+}
+
+fn line_prefix_at(contents: &str, position: Position) -> Option<&str> {
+    let line = contents.split('\n').nth(position.line as usize)?;
+    let line = line.strip_suffix('\r').unwrap_or(line);
+    let target = position.character as usize;
+    let mut utf16 = 0;
+    for (idx, ch) in line.char_indices() {
+        if utf16 >= target {
+            return Some(&line[..idx]);
+        }
+        utf16 += ch.len_utf16();
+    }
+    Some(line)
+}
+
+fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
+    let prefix_start = start_of_trailing_ident(line_prefix);
+    let prefix = line_prefix[prefix_start..].to_string();
+    let before_prefix = &line_prefix[..prefix_start];
+    let member_receiver = before_prefix.strip_suffix('.').and_then(|before_dot| {
+        let receiver_start = start_of_trailing_ident(before_dot);
+        let receiver = &before_dot[receiver_start..];
+        (!receiver.is_empty()).then(|| receiver.to_string())
+    });
+    CompletionInput { prefix, member_receiver }
+}
+
+fn start_of_trailing_ident(s: &str) -> usize {
+    s.char_indices()
+        .rev()
+        .find(|(_, ch)| !is_completion_ident_char(*ch))
+        .map_or(0, |(idx, ch)| idx + ch.len_utf8())
+}
+
+fn is_completion_ident_char(ch: char) -> bool {
+    ch == '_' || ch == '$' || ch.is_ascii_alphanumeric()
 }
 
 #[cfg(test)]
@@ -86,6 +146,14 @@ mod tests {
         Url, WorkDoneProgressParams, WorkspaceSymbolResponse,
     };
     use std::sync::Arc;
+
+    #[test]
+    fn completion_input_extracts_prefix_and_member_receiver() {
+        assert_completion_input("        ms", "ms", None);
+        assert_completion_input("        msg.", "", Some("msg"));
+        assert_completion_input("        msg.s", "s", Some("msg"));
+        assert_completion_input("        getToken().", "", None);
+    }
 
     #[tokio::test(flavor = "current_thread")]
     async fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
@@ -203,5 +271,15 @@ mod tests {
 
     fn parse_uri(uri: &str) -> lsp_types::Url {
         lsp_types::Url::parse(uri).unwrap()
+    }
+
+    fn assert_completion_input(
+        line_prefix: &str,
+        expected_prefix: &str,
+        expected_receiver: Option<&str>,
+    ) {
+        let input = completion_input_from_line_prefix(line_prefix);
+        assert_eq!(input.prefix, expected_prefix);
+        assert_eq!(input.member_receiver.as_deref(), expected_receiver);
     }
 }

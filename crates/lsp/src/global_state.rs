@@ -373,11 +373,13 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::TestProject;
+    use crate::{symbols::CompletionContext, test_support::TestProject};
     use async_lsp::ClientSocket;
     use lsp_types::{
-        CompletionItemKind, Diagnostic, DocumentSymbol, GotoDefinitionResponse, Position, Range,
-        SymbolKind, WatchKind, WorkspaceSymbol, notification::Notification,
+        CompletionItemKind, CompletionParams, CompletionResponse, Diagnostic, DocumentSymbol,
+        GotoDefinitionResponse, PartialResultParams, Position, Range, SymbolKind,
+        TextDocumentIdentifier, TextDocumentPositionParams, WatchKind, WorkDoneProgressParams,
+        WorkspaceSymbol, notification::Notification,
     };
 
     fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
@@ -890,7 +892,11 @@ mod tests {
             [position(1, 12), position(3, 37), position(7, 37)]
         );
 
-        let completions = result.symbol_tables.completion_items(&uri, position(4, 17));
+        let completions = result.symbol_tables.completion_items(
+            &uri,
+            position(4, 17),
+            CompletionContext::default(),
+        );
         let labels = completions.iter().map(|item| item.label.as_str()).collect::<Vec<_>>();
         assert!(labels.contains(&"input"), "{labels:?}");
         assert!(labels.contains(&"localValue"), "{labels:?}");
@@ -923,12 +929,20 @@ mod tests {
 
         assert!(result.diagnostics.is_empty(), "{:#?}", result.diagnostics);
 
-        let before_initializer = result.symbol_tables.completion_items(&uri, position(2, 31));
+        let before_initializer = result.symbol_tables.completion_items(
+            &uri,
+            position(2, 31),
+            CompletionContext::default(),
+        );
         let labels = before_initializer.iter().map(|item| item.label.as_str()).collect::<Vec<_>>();
         assert!(labels.contains(&"input"), "{labels:?}");
         assert!(!labels.contains(&"localValue"), "{labels:?}");
 
-        let after_declaration = result.symbol_tables.completion_items(&uri, position(3, 30));
+        let after_declaration = result.symbol_tables.completion_items(
+            &uri,
+            position(3, 30),
+            CompletionContext::default(),
+        );
         let labels = after_declaration.iter().map(|item| item.label.as_str()).collect::<Vec<_>>();
         assert!(labels.contains(&"localValue"), "{labels:?}");
         assert!(!labels.contains(&"nextValue"), "{labels:?}");
@@ -980,13 +994,185 @@ mod tests {
             position_after_nth(&contents, ".bal", 1),
             position_after(&contents, "foo."),
         ] {
-            let completions = result.symbol_tables.completion_items(&uri, position);
+            let completions =
+                result.symbol_tables.completion_items(&uri, position, CompletionContext::default());
             assert_eq!(
                 completion_labels(&completions),
                 ["balance"],
                 "unexpected completions at {position:?}: {completions:#?}",
             );
         }
+    }
+
+    #[test]
+    fn analyze_completes_builtin_members_and_filters_globals() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Completion.sol
+            contract C {
+                function f() public view {
+                    msg.;
+                    tx.;
+                    block.;
+                    abi.;
+                    ms;
+                    tx.
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Completion.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let contents = project.read_file("/Completion.sol");
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, contents.clone())],
+            seen_paths: FxHashSet::default(),
+        });
+
+        let completions = result.symbol_tables.completion_items(
+            &uri,
+            position_after(&contents, "msg."),
+            CompletionContext::new("", Some("msg")),
+        );
+        assert_eq!(
+            completion_labels(&completions),
+            ["data", "gas", "sender", "sig", "value"],
+            "unexpected `msg` completions: {completions:#?}",
+        );
+
+        let completions = result.symbol_tables.completion_items(
+            &uri,
+            position_after(&contents, "tx."),
+            CompletionContext::new("", Some("tx")),
+        );
+        assert_eq!(
+            completion_labels(&completions),
+            ["gasprice", "origin"],
+            "unexpected `tx` completions: {completions:#?}",
+        );
+
+        let completions = result.symbol_tables.completion_items(
+            &uri,
+            position_after_nth(&contents, "tx.", 1),
+            CompletionContext::new("", Some("tx")),
+        );
+        assert_eq!(
+            completion_labels(&completions),
+            ["gasprice", "origin"],
+            "unexpected unterminated `tx` completions: {completions:#?}",
+        );
+
+        let completions = result.symbol_tables.completion_items(
+            &uri,
+            position_after(&contents, "block."),
+            CompletionContext::new("", Some("block")),
+        );
+        assert_eq!(
+            completion_labels(&completions),
+            [
+                "basefee",
+                "blobbasefee",
+                "chainid",
+                "coinbase",
+                "difficulty",
+                "gaslimit",
+                "number",
+                "prevrandao",
+                "timestamp"
+            ],
+            "unexpected `block` completions: {completions:#?}",
+        );
+
+        let completions = result.symbol_tables.completion_items(
+            &uri,
+            position_after(&contents, "abi."),
+            CompletionContext::new("", Some("abi")),
+        );
+        assert_eq!(
+            completion_labels(&completions),
+            [
+                "decode",
+                "encode",
+                "encodeCall",
+                "encodePacked",
+                "encodeWithSelector",
+                "encodeWithSignature"
+            ],
+            "unexpected `abi` completions: {completions:#?}",
+        );
+
+        let completions = result.symbol_tables.completion_items(
+            &uri,
+            position_after(&contents, "ms"),
+            CompletionContext::new("ms", None),
+        );
+        assert_eq!(completion_labels(&completions), ["msg"]);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn completion_handler_uses_vfs_context_for_builtin_completions() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /Completion.sol open
+            contract C {
+                function f() public view {
+                    tx.;
+                    ms;
+                    tx.
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Completion.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let contents = project.read_file("/Completion.sol");
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, contents.clone())],
+            seen_paths: FxHashSet::default(),
+        });
+
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        *state.vfs.write() = project.vfs();
+        *state.symbol_tables.write() = result.symbol_tables;
+
+        let response = crate::handlers::completion(
+            &mut state,
+            completion_params(uri.clone(), position_after(&contents, "tx.")),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let CompletionResponse::Array(completions) = response else {
+            panic!("expected completion array");
+        };
+        assert_eq!(completion_labels(&completions), ["gasprice", "origin"]);
+
+        let response = crate::handlers::completion(
+            &mut state,
+            completion_params(uri.clone(), position_after_nth(&contents, "tx.", 1)),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let CompletionResponse::Array(completions) = response else {
+            panic!("expected completion array");
+        };
+        assert_eq!(completion_labels(&completions), ["gasprice", "origin"]);
+
+        let response = crate::handlers::completion(
+            &mut state,
+            completion_params(uri, position_after(&contents, "ms")),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let CompletionResponse::Array(completions) = response else {
+            panic!("expected completion array");
+        };
+        assert_eq!(completion_labels(&completions), ["msg"]);
     }
 
     #[test]
@@ -1316,6 +1502,18 @@ mod tests {
 
     fn completion_labels(completions: &[lsp_types::CompletionItem]) -> Vec<&str> {
         completions.iter().map(|completion| completion.label.as_str()).collect()
+    }
+
+    fn completion_params(uri: Url, position: Position) -> CompletionParams {
+        CompletionParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri },
+                position,
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+            partial_result_params: PartialResultParams::default(),
+            context: None,
+        }
     }
 
     fn position_after(contents: &str, needle: &str) -> Position {
