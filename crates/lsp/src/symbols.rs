@@ -28,6 +28,7 @@ pub(crate) struct SymbolTables {
     scopes: IndexVec<ScopeId, Scope>,
     global_completions: Vec<CompletionItem>,
     builtin_member_completions: FxHashMap<String, Vec<CompletionItem>>,
+    receiver_member_completions: FxHashMap<SymbolId, Vec<CompletionItem>>,
     member_completions: Vec<MemberCompletionScope>,
     file_member_completions: FxHashMap<Url, Vec<usize>>,
     file_scopes: FxHashMap<Url, Vec<ScopeId>>,
@@ -200,6 +201,7 @@ impl SymbolTables {
         }
 
         tables.build_scopes(gcx);
+        tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
         tables.build_references(gcx);
         tables.rebuild_indexes();
@@ -260,6 +262,12 @@ impl SymbolTables {
         }
         self.declarations.extend(other.declarations);
         self.scopes.extend(other.scopes);
+        self.receiver_member_completions.extend(
+            other
+                .receiver_member_completions
+                .into_iter()
+                .map(|(symbol_id, items)| (remap_symbol_id(symbol_id, symbol_offset), items)),
+        );
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
         // HIR IDs are scoped to one compiler run, so this build-time map is not meaningful after
@@ -401,6 +409,11 @@ impl SymbolTables {
         if let Some(items) = self.builtin_member_completion_items(context.member_receiver) {
             return filtered_completion_items(items, context.prefix);
         }
+        if let Some(items) =
+            self.receiver_member_completion_items(uri, position, context.member_receiver)
+        {
+            return filtered_completion_items(items, context.prefix);
+        }
 
         let Some(scope_id) = self.scope_at_position(uri, position) else {
             return Vec::new();
@@ -441,6 +454,27 @@ impl SymbolTables {
                 Some((builtin.name().to_string(), items))
             })
             .collect();
+    }
+
+    fn build_receiver_member_completions(&mut self, gcx: Gcx<'_>) {
+        for variable_id in gcx.hir.variable_ids() {
+            let Some(&symbol_id) =
+                self.symbols_by_key.get(&SymbolKey::Item(ItemId::Variable(variable_id)))
+            else {
+                continue;
+            };
+            let variable = gcx.hir.variable(variable_id);
+            let ty = gcx.type_of_item(ItemId::Variable(variable_id));
+            let mut items = gcx
+                .member_completions_of(ty, variable.source, variable.contract)
+                .map(|member| self.completion_item_for_member(gcx, member))
+                .collect::<Vec<_>>();
+            sort_completion_items(&mut items);
+            items.dedup_by(|a, b| a.label == b.label);
+            if !items.is_empty() {
+                self.receiver_member_completions.insert(symbol_id, items);
+            }
+        }
     }
 
     fn push_declaration(&mut self, key: SymbolKey, declaration: DeclarationSymbol) -> SymbolId {
@@ -676,6 +710,37 @@ impl SymbolTables {
 
     fn builtin_member_completion_items(&self, receiver: Option<&str>) -> Option<&[CompletionItem]> {
         self.builtin_member_completions.get(receiver?).map(Vec::as_slice)
+    }
+
+    fn receiver_member_completion_items(
+        &self,
+        uri: &Url,
+        position: Position,
+        receiver: Option<&str>,
+    ) -> Option<&[CompletionItem]> {
+        let receiver = receiver?;
+        let mut scope = Some(self.scope_at_position(uri, position)?);
+        while let Some(scope_id) = scope {
+            let current = &self.scopes[scope_id];
+            for declaration in &current.declarations {
+                if declaration
+                    .available_from
+                    .is_some_and(|available_from| available_from > position)
+                {
+                    continue;
+                }
+                let symbol_id = declaration.symbol_id;
+                if self.declarations[symbol_id].name == receiver {
+                    return self
+                        .receiver_member_completions
+                        .get(&symbol_id)
+                        .map(Vec::as_slice)
+                        .or(Some(&[]));
+                }
+            }
+            scope = current.parent;
+        }
+        None
     }
 
     fn completion_item(&self, symbol_id: SymbolId) -> CompletionItem {

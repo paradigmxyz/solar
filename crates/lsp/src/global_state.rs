@@ -1175,6 +1175,70 @@ mod tests {
         assert_eq!(completion_labels(&completions), ["msg"]);
     }
 
+    #[tokio::test(flavor = "current_thread")]
+    async fn completion_handler_uses_vfs_context_for_partial_member_prefixes() {
+        let mut project = TestProject::from_fixture(
+            r#"
+            //- /Completion.sol
+            contract C {
+                struct Data {
+                    uint256 field;
+                    uint256 other;
+                }
+
+                function f() public pure {
+                    Data memory data;
+                    data;
+                }
+            }
+            "#,
+        );
+        let path = project.path("/Completion.sol");
+        let uri = Url::from_file_path(&path).unwrap();
+        let analyzed_contents = project.read_file("/Completion.sol");
+        let result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path, analyzed_contents.clone())],
+            seen_paths: FxHashSet::default(),
+        });
+
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(project.config());
+        *state.symbol_tables.write() = result.symbol_tables;
+
+        let live_contents = analyzed_contents.replace("        data;\n", "        data.\n");
+        project.open_file("/Completion.sol", &live_contents);
+        *state.vfs.write() = project.vfs();
+
+        let response = crate::handlers::completion(
+            &mut state,
+            completion_params(uri.clone(), position_after(&live_contents, "data.")),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let CompletionResponse::Array(completions) = response else {
+            panic!("expected completion array");
+        };
+        assert_eq!(completion_labels(&completions), ["field", "other"]);
+
+        let live_contents = analyzed_contents.replace("        data;\n", "        data.f\n");
+        project.open_file("/Completion.sol", &live_contents);
+        *state.vfs.write() = project.vfs();
+
+        let response = crate::handlers::completion(
+            &mut state,
+            completion_params(uri, position_after(&live_contents, "data.f")),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        let CompletionResponse::Array(completions) = response else {
+            panic!("expected completion array");
+        };
+        assert_eq!(completion_labels(&completions), ["field"]);
+    }
+
     #[test]
     fn analyze_indexes_member_references() {
         let project = TestProject::from_fixture(
