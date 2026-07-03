@@ -214,6 +214,14 @@ fn function_words(func: &Function) -> Option<(Vec<MirType>, Vec<MirType>)> {
     if !func.returns.iter().all(is_static_word) {
         return None;
     }
+    // The wrapper materializes every decoded argument at once to pass them
+    // through the internal call, unlike the backend's lazy per-use
+    // `CALLDATALOAD`; past this width the stack scheduler cannot spill the
+    // call arguments. Wider functions fall back to the backend dispatcher.
+    const MAX_WRAPPED_PARAMS: usize = 10;
+    if func.params.len() > MAX_WRAPPED_PARAMS {
+        return None;
+    }
     Some((func.params.clone(), func.returns.clone()))
 }
 

@@ -66,7 +66,7 @@ impl EvmCodegenConfig {
             evm_version: sess.opts.evm_version,
             optimization: sess.opts.optimization,
             mir_print_after_each: sess.opts.unstable.mir_print_after_each,
-            mir_dispatch: sess.opts.unstable.mir_dispatch,
+            mir_dispatch: !sess.opts.unstable.no_mir_dispatch,
             // Keep the experimental EVM IR stack scheduler off in every default
             // compilation path so produced bytecode is unchanged.
             evm_ir_stack_schedule: false,

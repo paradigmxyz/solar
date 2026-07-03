@@ -50,8 +50,8 @@ Options:
           
           Off by default: MIR and bytecode output is only produced when this is set. Codegen is a work in progress and not yet part of the compiler's stable, solc-compatible behavior.
 
-      -Zmir-dispatch
-          Lower dispatch and ABI handling as MIR phases and consume them in the EVM backend, instead of generating the dispatcher inside the backend. Falls back to the backend dispatcher when the module cannot be fully lowered. WIP
+      -Zno-mir-dispatch
+          Disable MIR-phase dispatch lowering: generate the dispatcher inside the EVM backend instead of lowering dispatch and ABI handling as MIR phases. By default the phases run and the backend consumes them, falling back to the backend dispatcher per module when it cannot be fully lowered
 
       -Zhelp
           Print help
