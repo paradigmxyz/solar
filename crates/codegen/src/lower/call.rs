@@ -115,7 +115,9 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(ty) = self.get_expr_type(callee)
             && let TyKind::Error(_, error_id) = ty.kind
         {
-            panic!("typeck did not record resolved custom-error callee {error_id:?}");
+            if self.gcx.dcx().has_errors().is_ok() {
+                panic!("typeck did not record resolved custom-error callee {error_id:?}");
+            }
         }
 
         None
@@ -1105,7 +1107,15 @@ impl<'gcx> Lowerer<'gcx> {
         // Look up the function being called to get its selector and return count.
         let resolved_func = self.resolved_function_callee(callee);
         if resolved_func.is_none() && self.gcx.has_typeck_results() {
-            panic!("typeck did not record resolved member-function callee `{member}`");
+            // The callee is unresolved: either a prior error left the receiver
+            // untyped, or it is a member call on a receiver shape codegen does
+            // not handle yet (e.g. `push`/`pop` on a nested or mapping-nested
+            // array). Report it instead of asserting the typeck invariant.
+            return self.err_value(
+                builder,
+                member.span,
+                format!("codegen does not support this `.{member}` member call yet"),
+            );
         }
         let (selector, num_returns, struct_return_info) = if let Some(func_id) = resolved_func {
             (

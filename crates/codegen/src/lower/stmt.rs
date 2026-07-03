@@ -834,7 +834,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(success_block);
         if let Some(returns_clause) = try_stmt.clauses.first() {
             if !returns_clause.args.is_empty() {
-                panic!("codegen does not support try/catch return bindings yet");
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support try/catch return bindings yet")
+                    .span(try_stmt.expr.span)
+                    .emit();
             }
             self.lower_block(builder, &returns_clause.block);
         }
@@ -844,13 +848,21 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(catch_block);
         let catch_clauses = &try_stmt.clauses[1..];
         if catch_clauses.len() > 1 {
-            panic!("codegen does not support multiple try/catch handlers yet");
+            self.gcx
+                .dcx()
+                .err("codegen does not support multiple try/catch handlers yet")
+                .span(try_stmt.expr.span)
+                .emit();
         }
 
         // The catch clauses are after the first (returns) clause.
         for clause in try_stmt.clauses.iter().skip(1) {
             if clause.name.is_some() || !clause.args.is_empty() {
-                panic!("codegen does not support typed try/catch handlers yet");
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support typed try/catch handlers yet")
+                    .span(try_stmt.expr.span)
+                    .emit();
             }
             self.lower_block(builder, &clause.block);
         }

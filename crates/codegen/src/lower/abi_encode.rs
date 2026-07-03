@@ -909,6 +909,11 @@ impl<'gcx> Lowerer<'gcx> {
         let Some(expr) = value else {
             return Vec::new();
         };
+        // A return expression with no declared return types is malformed input
+        // that upstream analysis already reported; do not index an empty list.
+        if tys.is_empty() {
+            return Vec::new();
+        }
         if let ExprKind::Tuple(elements) = &expr.kind {
             return elements
                 .iter()
