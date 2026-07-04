@@ -10,7 +10,14 @@ use lsp_types::{
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
 use solar_interface::data_structures::map::FxHashSet;
-use std::{fmt::Write as _, io::Read as _, path::Path, sync::Arc};
+use std::{
+    fmt::Write as _,
+    future::Future,
+    io::Read as _,
+    path::Path,
+    sync::Arc,
+    task::{Context, Poll, Waker},
+};
 
 pub(super) struct RequestFixture {
     marked: MarkedProject,
@@ -36,37 +43,38 @@ impl RequestFixture {
         Self { marked, result }
     }
 
-    pub(super) async fn check_completion(&self, marker: &str, expected: impl IntoData) {
+    pub(super) fn check_completion(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
-        let response = crate::handlers::completion(&mut state, completion_params(uri, position))
-            .await
-            .unwrap()
-            .unwrap();
+        let response =
+            expect_ready(crate::handlers::completion(&mut state, completion_params(uri, position)))
+                .unwrap()
+                .unwrap();
         let CompletionResponse::Array(items) = response else {
             panic!("expected completion array");
         };
         assert_data_eq!(completion_output(&items), expected);
     }
 
-    pub(super) async fn check_goto_definition(&self, marker: &str, expected: impl IntoData) {
+    pub(super) fn check_goto_definition(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
         let response =
-            crate::handlers::goto_definition(&mut state, goto_params(uri, position)).await.unwrap();
+            expect_ready(crate::handlers::goto_definition(&mut state, goto_params(uri, position)))
+                .unwrap();
         assert_data_eq!(self.goto_output(response), expected);
     }
 
-    pub(super) async fn check_goto_declaration(&self, marker: &str, expected: impl IntoData) {
+    pub(super) fn check_goto_declaration(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
-        let response = crate::handlers::goto_declaration(&mut state, goto_params(uri, position))
-            .await
-            .unwrap();
+        let response =
+            expect_ready(crate::handlers::goto_declaration(&mut state, goto_params(uri, position)))
+                .unwrap();
         assert_data_eq!(self.goto_output(response), expected);
     }
 
-    pub(super) async fn check_references(
+    pub(super) fn check_references(
         &self,
         marker: &str,
         include_declaration: bool,
@@ -74,11 +82,10 @@ impl RequestFixture {
     ) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);
-        let response = crate::handlers::references(
+        let response = expect_ready(crate::handlers::references(
             &mut state,
             reference_params(uri, position, include_declaration),
-        )
-        .await
+        ))
         .unwrap();
         assert_data_eq!(self.locations_output(response), expected);
     }
@@ -139,6 +146,16 @@ impl RequestFixture {
             location.range.start.character,
             line.trim()
         )
+    }
+}
+
+fn expect_ready<F: Future>(future: F) -> F::Output {
+    let waker = Waker::noop();
+    let mut cx = Context::from_waker(waker);
+    let mut future = std::pin::pin!(future);
+    match future.as_mut().poll(&mut cx) {
+        Poll::Ready(output) => output,
+        Poll::Pending => panic!("request handler future should complete immediately"),
     }
 }
 

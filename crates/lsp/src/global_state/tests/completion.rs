@@ -1,8 +1,8 @@
 use super::support::RequestFixture;
 use snapbox::str;
 
-#[tokio::test(flavor = "current_thread")]
-async fn completes_symbols_in_scope() {
+#[test]
+fn completes_symbols_in_scope() {
     let fixture = RequestFixture::new(
         r#"
         //- /Symbols.sol open
@@ -18,10 +18,9 @@ async fn completes_symbols_in_scope() {
         "/Symbols.sol",
     );
 
-    fixture
-        .check_completion(
-            "$1",
-            str![[r#"
+    fixture.check_completion(
+        "$1",
+        str![[r#"
 C Class
 abi Module
 addmod Function
@@ -48,12 +47,11 @@ target Method
 tx Module
 
 "#]],
-        )
-        .await;
+    );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn filters_locals_by_declaration_scope() {
+#[test]
+fn filters_locals_by_declaration_scope() {
     let fixture = RequestFixture::new(
         r#"
         //- /Completion.sol open
@@ -67,10 +65,9 @@ async fn filters_locals_by_declaration_scope() {
         "/Completion.sol",
     );
 
-    fixture
-        .check_completion(
-            "$1",
-            str![[r#"
+    fixture.check_completion(
+        "$1",
+        str![[r#"
 C Class
 abi Module
 addmod Function
@@ -94,12 +91,10 @@ sha256 Function
 tx Module
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_completion(
-            "$2",
-            str![[r#"
+    );
+    fixture.check_completion(
+        "$2",
+        str![[r#"
 C Class
 abi Module
 addmod Function
@@ -124,12 +119,11 @@ sha256 Function
 tx Module
 
 "#]],
-        )
-        .await;
+    );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn completes_dirty_members_from_typed_receivers() {
+#[test]
+fn completes_dirty_members_from_typed_receivers() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Completion.sol open
@@ -163,15 +157,15 @@ balance Method
 
 "#]];
 
-    fixture.check_completion("$1", expected.clone()).await;
-    fixture.check_completion("$2", expected.clone()).await;
-    fixture.check_completion("$3", expected.clone()).await;
-    fixture.check_completion("$4", expected.clone()).await;
-    fixture.check_completion("$5", expected).await;
+    fixture.check_completion("$1", expected.clone());
+    fixture.check_completion("$2", expected.clone());
+    fixture.check_completion("$3", expected.clone());
+    fixture.check_completion("$4", expected.clone());
+    fixture.check_completion("$5", expected);
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn completes_builtin_members_and_filters_globals() {
+#[test]
+fn completes_builtin_members_and_filters_globals() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Completion.sol open
@@ -189,10 +183,9 @@ async fn completes_builtin_members_and_filters_globals() {
         "/Completion.sol",
     );
 
-    fixture
-        .check_completion(
-            "$1",
-            str![[r#"
+    fixture.check_completion(
+        "$1",
+        str![[r#"
 data Method
 gas Method
 sender Method
@@ -200,32 +193,26 @@ sig Method
 value Method
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_completion(
-            "$2",
-            str![[r#"
+    );
+    fixture.check_completion(
+        "$2",
+        str![[r#"
 gasprice Method
 origin Method
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_completion(
-            "$3",
-            str![[r#"
+    );
+    fixture.check_completion(
+        "$3",
+        str![[r#"
 gasprice Function
 origin Function
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_completion(
-            "$4",
-            str![[r#"
+    );
+    fixture.check_completion(
+        "$4",
+        str![[r#"
 basefee Function
 blobbasefee Function
 chainid Function
@@ -237,12 +224,10 @@ prevrandao Function
 timestamp Function
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_completion(
-            "$5",
-            str![[r#"
+    );
+    fixture.check_completion(
+        "$5",
+        str![[r#"
 decode Method
 encode Method
 encodeCall Method
@@ -251,21 +236,18 @@ encodeWithSelector Method
 encodeWithSignature Method
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_completion(
-            "$6",
-            str![[r#"
+    );
+    fixture.check_completion(
+        "$6",
+        str![[r#"
 msg Module
 
 "#]],
-        )
-        .await;
+    );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn completes_partial_member_prefixes_from_vfs_context() {
+#[test]
+fn completes_partial_member_prefixes_from_vfs_context() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
         //- /Completion.sol open
@@ -285,23 +267,19 @@ async fn completes_partial_member_prefixes_from_vfs_context() {
         "/Completion.sol",
     );
 
-    fixture
-        .check_completion(
-            "$1",
-            str![[r#"
+    fixture.check_completion(
+        "$1",
+        str![[r#"
 field Property
 other Property
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_completion(
-            "$2",
-            str![[r#"
+    );
+    fixture.check_completion(
+        "$2",
+        str![[r#"
 field Property
 
 "#]],
-        )
-        .await;
+    );
 }

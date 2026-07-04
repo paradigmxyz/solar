@@ -1,8 +1,8 @@
 use super::support::RequestFixture;
 use snapbox::str;
 
-#[tokio::test(flavor = "current_thread")]
-async fn resolves_function_calls() {
+#[test]
+fn resolves_function_calls() {
     let fixture = RequestFixture::new(
         r#"
         //- /Symbols.sol
@@ -22,19 +22,17 @@ async fn resolves_function_calls() {
         "/Symbols.sol",
     );
 
-    fixture
-        .check_goto_definition(
-            "$1",
-            str![[r#"
+    fixture.check_goto_definition(
+        "$1",
+        str![[r#"
 /Symbols.sol:2:13 function target(uint256 input) public returns (uint256 output) {
 
 "#]],
-        )
-        .await;
+    );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn resolves_member_targets() {
+#[test]
+fn resolves_member_targets() {
     let fixture = RequestFixture::new(
         r#"
         //- /Members.sol
@@ -51,28 +49,24 @@ async fn resolves_member_targets() {
         "/Members.sol",
     );
 
-    fixture
-        .check_goto_definition(
-            "$1",
-            str![[r#"
+    fixture.check_goto_definition(
+        "$1",
+        str![[r#"
 /Members.sol:1:18 enum Choice { A, B }
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_goto_definition(
-            "$2",
-            str![[r#"
+    );
+    fixture.check_goto_definition(
+        "$2",
+        str![[r#"
 /Members.sol:2:26 struct Data { uint256 field; }
 
 "#]],
-        )
-        .await;
+    );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn resolves_overloaded_calls_to_selected_definition() {
+#[test]
+fn resolves_overloaded_calls_to_selected_definition() {
     let fixture = RequestFixture::new(
         r#"
         //- /Overload.sol
@@ -87,19 +81,17 @@ async fn resolves_overloaded_calls_to_selected_definition() {
         "/Overload.sol",
     );
 
-    fixture
-        .check_goto_definition(
-            "$1",
-            str![[r#"
+    fixture.check_goto_definition(
+        "$1",
+        str![[r#"
 /Overload.sol:1:13 function f(uint256) public {}
 
 "#]],
-        )
-        .await;
+    );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn resolves_using_directives_and_attached_functions() {
+#[test]
+fn resolves_using_directives_and_attached_functions() {
     let fixture = RequestFixture::new(
         r#"
         //- /Using.sol
@@ -120,28 +112,24 @@ async fn resolves_using_directives_and_attached_functions() {
         "/Using.sol",
     );
 
-    fixture
-        .check_goto_definition(
-            "$1",
-            str![[r#"
+    fixture.check_goto_definition(
+        "$1",
+        str![[r#"
 /Using.sol:0:8 library L {
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_goto_definition(
-            "$2",
-            str![[r#"
+    );
+    fixture.check_goto_definition(
+        "$2",
+        str![[r#"
 /Using.sol:1:13 function inc(uint256 value) internal pure returns (uint256) {
 
 "#]],
-        )
-        .await;
+    );
 }
 
-#[tokio::test(flavor = "current_thread")]
-async fn distinguishes_function_declarations_from_definitions() {
+#[test]
+fn distinguishes_function_declarations_from_definitions() {
     let fixture = RequestFixture::new(
         r#"
         //- /Navigation.sol
@@ -152,22 +140,18 @@ async fn distinguishes_function_declarations_from_definitions() {
         "/Navigation.sol",
     );
 
-    fixture
-        .check_goto_declaration(
-            "$1",
-            str![[r#"
+    fixture.check_goto_declaration(
+        "$1",
+        str![[r#"
 /Navigation.sol:1:13 function f() external returns (uint256);
 
 "#]],
-        )
-        .await;
-    fixture
-        .check_goto_definition(
-            "$1",
-            str![[r#"
+    );
+    fixture.check_goto_definition(
+        "$1",
+        str![[r#"
 <none>
 
 "#]],
-        )
-        .await;
+    );
 }
