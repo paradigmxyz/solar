@@ -1750,10 +1750,13 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
 
-        // For internal library functions, inline the function body
-        if func.visibility == hir::Visibility::Internal
-            || func.visibility == hir::Visibility::Private
-        {
+        // Inline the library function body (or, for non-trivial bodies, call an
+        // internal-frame copy). A library has no storage of its own and runs in
+        // the caller's storage/`msg` context, so a `public`/`external` library
+        // function produces the same result inlined as it does through solc's
+        // delegatecall linking — without needing a separately deployed+linked
+        // library. Only a body-less declaration cannot be lowered this way.
+        if func.body.is_some() {
             // Collect argument values FIRST (before entering inline tracking)
             // This allows nested calls to the same function (e.g., add(add(x, 1), 2))
             // because we evaluate arguments before marking ourselves as "in progress"
