@@ -3102,15 +3102,36 @@ impl EvmCodegen {
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
                         }
-                        other => {
-                            // For other instruction results that aren't spilled and can't be
-                            // re-executed, this is a bug - the lowering
-                            // should have ensured all CALL operands are
-                            // either immediates, spilled, or re-executable instructions.
-                            panic!(
-                                "emit_value_fresh: unhandled instruction kind {other:?} for value {val:?}. \
-                                 CALL operands should be immediates, spilled values, GAS, or MLOAD."
-                            );
+                        _ => {
+                            // A value that cannot be re-executed (e.g. an
+                            // internal-call result used to compute a CALL
+                            // operand) is live on the stack: duplicate it rather
+                            // than re-running it. If it is buried too deep to
+                            // `DUP`, spill it to a reserved slot and reload.
+                            if let Some(depth) = self.scheduler.stack.find(val) {
+                                if depth < 16 {
+                                    self.asm.emit_op(op::DUP1 + depth as u8);
+                                    self.scheduler.stack.push(val);
+                                } else {
+                                    let slot = self.scheduler.spills.allocate(val);
+                                    self.spill_deep_stack_value(func, val, slot, depth);
+                                    self.emit_spill_slot_addr(func, slot);
+                                    self.asm.emit_op(op::MLOAD);
+                                    self.scheduler.stack.push(val);
+                                }
+                            } else if let Some(slot) = self.scheduler.spills.get(val) {
+                                // Tracked in a spill slot even though not flagged
+                                // stored; reloading its address is still correct.
+                                self.emit_spill_slot_addr(func, slot);
+                                self.asm.emit_op(op::MLOAD);
+                                self.scheduler.stack.push(val);
+                            } else {
+                                panic!(
+                                    "emit_value_fresh: value {val:?} ({:?}) is neither on the \
+                                     stack, spilled, nor re-executable",
+                                    func.instruction(*inst_id).kind
+                                );
+                            }
                         }
                     }
                 }
