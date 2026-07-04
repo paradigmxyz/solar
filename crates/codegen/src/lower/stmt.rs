@@ -446,61 +446,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Assigns a multi-valued RHS to a tuple of EXISTING lvalues, `(a, b) = rhs`.
-    /// Mirrors [`Self::lower_multi_var_decl`] but stores through the existing
-    /// lvalues (via [`Self::lower_assign`]) instead of allocating fresh locals.
-    /// Holes in the tuple (`(x, )`) are skipped.
-    pub(super) fn lower_tuple_assign(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        elements: &[Option<&hir::Expr<'_>>],
-        rhs: &hir::Expr<'_>,
-    ) {
-        // Tuple RHS, `(a, b) = (x, y)` (including swaps `(a, b) = (b, a)`):
-        // evaluate every RHS element before assigning any, so a swap reads the
-        // old values.
-        if let hir::ExprKind::Tuple(rhs_elems) = &rhs.kind {
-            let vals: Vec<Option<ValueId>> =
-                rhs_elems.iter().map(|e| e.map(|e| self.lower_expr(builder, e))).collect();
-            for (i, &elem) in elements.iter().enumerate() {
-                if let Some(elem) = elem
-                    && let Some(Some(val)) = vals.get(i)
-                {
-                    self.lower_assign(builder, elem, *val);
-                }
-            }
-            return;
-        }
-
-        if self.is_low_level_call_expr(rhs) {
-            // `(ok, data) = addr.call(...)`: the call lowering yields the success
-            // flag; the full returndata is copied out right after the call.
-            let success = self.lower_expr(builder, rhs);
-            for (i, &elem) in elements.iter().enumerate() {
-                let Some(elem) = elem else { continue };
-                let val =
-                    if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
-                self.lower_assign(builder, elem, val);
-            }
-            return;
-        }
-
-        // A call returning multiple values leaves the first in the returned MIR
-        // value and the rest at memory offsets 32, 64, ...
-        let first_val = self.lower_expr(builder, rhs);
-        for (i, &elem) in elements.iter().enumerate() {
-            let Some(elem) = elem else { continue };
-            let val = if i == 0 {
-                first_val
-            } else {
-                let mem_offset = builder.imm_u64((i * 32) as u64);
-                builder.mload(mem_offset)
-            };
-            self.lower_assign(builder, elem, val);
-        }
-    }
-
-    pub(super) fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
         let ExprKind::Call(callee, ..) = &expr.kind else { return false };
         let ExprKind::Member(base, member) = &callee.kind else { return false };
         matches!(member.name, kw::Call | kw::Staticcall | kw::Delegatecall)

@@ -382,13 +382,6 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::YulMember(base, member) => self.lower_yul_member(builder, base, *member),
 
             ExprKind::Assign(lhs, op, rhs) => {
-                // Tuple destructuring to existing lvalues, `(a, b) = rhs`.
-                if op.is_none()
-                    && let ExprKind::Tuple(elements) = &lhs.kind
-                {
-                    self.lower_tuple_assign(builder, elements, rhs);
-                    return builder.imm_u64(0);
-                }
                 let rhs_val = if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
                     self.lower_expr_as_memory_bytes(builder, rhs)
                 } else {
@@ -1117,7 +1110,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers an assignment.
-    pub(super) fn lower_assign(
+    fn lower_assign(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         lhs: &hir::Expr<'_>,
