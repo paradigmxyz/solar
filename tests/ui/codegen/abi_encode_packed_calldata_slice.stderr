@@ -1,8 +1,0 @@
-error: codegen does not support packed encoding of calldata `bytes`/`string` yet
-   ╭▸ ROOT/tests/ui/codegen/abi_encode_packed_calldata_slice.sol:LL:CC
-   │
-LL │         return keccak256(abi.encodePacked(data[start:end]));
-   ╰╴                                          ━━━━━━━━━━━━━━━
-
-error: aborting due to 1 previous error
-
