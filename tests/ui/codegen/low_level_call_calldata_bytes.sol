@@ -9,11 +9,13 @@
 // solc 0.8.30 separately.
 
 contract C {
-    function callFwd(address t, bytes calldata data) external returns (bool ok) {
-        (ok, ) = t.call(data);
+    function callFwd(address t, bytes calldata data) external returns (bool) {
+        (bool ok, ) = t.call(data);
+        return ok;
     }
 
-    function delegateFwd(address t, bytes calldata data) external returns (bool ok) {
-        (ok, ) = t.delegatecall(data);
+    function delegateFwd(address t, bytes calldata data) external returns (bool) {
+        (bool ok, ) = t.delegatecall(data);
+        return ok;
     }
 }
