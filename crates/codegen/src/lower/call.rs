@@ -801,6 +801,11 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.revert(arg_vals[0], arg_vals[1]);
                 builder.imm_u64(0)
             }
+            Builtin::YulReturn => {
+                // `return(offset, size)` halts and returns `size` bytes of memory.
+                builder.ret_data(arg_vals[0], arg_vals[1]);
+                builder.imm_u64(0)
+            }
             Builtin::YulStop => {
                 builder.stop();
                 builder.imm_u64(0)
@@ -818,8 +823,7 @@ impl<'gcx> Lowerer<'gcx> {
             | Builtin::YulCallcode
             | Builtin::YulExtcall
             | Builtin::YulExtdelegatecall
-            | Builtin::YulExtstaticcall
-            | Builtin::YulReturn => self.unsupported_yul_builtin(builder, builtin, args.span),
+            | Builtin::YulExtstaticcall => self.unsupported_yul_builtin(builder, builtin, args.span),
             _ => unreachable!("non-Yul builtin passed to Yul lowering"),
         }
     }
