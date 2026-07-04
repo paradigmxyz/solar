@@ -1,7 +1,7 @@
 use super::{Gcx, Ty, TyFnKind, TyKind};
 use crate::hir;
 use alloy_json_abi as json;
-use solar_ast::ElementaryType;
+use solar_ast::{DataLocation, ElementaryType};
 use std::{fmt, ops::ControlFlow};
 
 impl<'gcx> Gcx<'gcx> {
@@ -10,10 +10,14 @@ impl<'gcx> Gcx<'gcx> {
         self,
         name: &str,
         tys: impl IntoIterator<Item = Ty<'gcx>>,
+        structs_by_name: bool,
     ) -> String {
         let mut s = String::with_capacity(64);
         s.push_str(name);
-        TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Signature).print_tuple(tys).unwrap();
+        TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Signature)
+            .with_structs_by_name(structs_by_name)
+            .print_tuple(tys)
+            .unwrap();
         s
     }
 
@@ -148,6 +152,13 @@ pub struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     mode: TyAbiPrinterMode,
+    /// Print structs by their canonical name instead of as a flattened tuple, and
+    /// print reference types with a `storage` data-location suffix.
+    ///
+    /// This matches the way solc encodes the signatures of `library` functions,
+    /// which — unlike contract functions — may take `mapping`/`storage` reference
+    /// parameters and refer to structs by name (e.g. `f(DataTypes.Reserve storage)`).
+    structs_by_name: bool,
 }
 
 /// [`TyAbiPrinter`] configuration.
@@ -168,7 +179,15 @@ pub enum TyAbiPrinterMode {
 impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     /// Creates a new ABI printer.
     pub fn new(gcx: Gcx<'gcx>, buf: W, mode: TyAbiPrinterMode) -> Self {
-        Self { gcx, buf, mode }
+        Self { gcx, buf, mode, structs_by_name: false }
+    }
+
+    /// Sets whether structs are printed by canonical name (and reference types
+    /// carry a `storage` location suffix), as done for `library` function
+    /// signatures. See `Self::structs_by_name`.
+    pub fn with_structs_by_name(mut self, yes: bool) -> Self {
+        self.structs_by_name = yes;
+        self
     }
 
     /// Returns a mutable reference to the underlying buffer.
@@ -188,6 +207,9 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             TyKind::Contract(_) => self.buf.write_str("address"),
             TyKind::Fn(_) => self.buf.write_str("function"),
             TyKind::Struct(id) => match self.mode {
+                TyAbiPrinterMode::Signature if self.structs_by_name => {
+                    write!(self.buf, "{}", self.gcx.item_canonical_name(id))
+                }
                 TyAbiPrinterMode::Signature => {
                     if self.gcx.struct_recursiveness(id).is_recursive() {
                         assert!(
@@ -203,7 +225,25 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             },
             TyKind::Enum(_) => self.buf.write_str("uint8"),
             TyKind::Udvt(ty, _) => self.print(ty),
-            TyKind::Ref(ty, _loc) => self.print(ty),
+            TyKind::Ref(ty, loc) => {
+                self.print(ty)?;
+                // solc encodes the `storage` location in `library` function
+                // signatures (e.g. `f(uint256[] storage)`), but never `memory`
+                // or `calldata`.
+                if self.structs_by_name && loc == DataLocation::Storage {
+                    self.buf.write_str(" storage")?;
+                }
+                Ok(())
+            }
+            // A `mapping` can appear in a `library` function signature. solc prints
+            // it structurally as `mapping(key => value)`.
+            TyKind::Mapping(key, value) if self.mode == TyAbiPrinterMode::Signature => {
+                self.buf.write_str("mapping(")?;
+                self.print(key)?;
+                self.buf.write_str(" => ")?;
+                self.print(value)?;
+                self.buf.write_str(")")
+            }
             TyKind::DynArray(ty) => {
                 self.print(ty)?;
                 self.buf.write_str("[]")
@@ -219,6 +259,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
             | TyKind::Super(_)
+            // ^ `Mapping` only reaches here in `Abi` mode; `Signature` mode handles it above.
             | TyKind::Error(..)
             | TyKind::Event(..)
             | TyKind::Module(_)

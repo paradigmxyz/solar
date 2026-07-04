@@ -1,0 +1,1 @@
+{"contracts":{"ROOT/tests/ui/abi/library_signature_encoding.sol:C":{"hashes":{"sum((uint256,uint256))":"5601ffbe"}},"ROOT/tests/ui/abi/library_signature_encoding.sol:L":{"hashes":{"total(S storage)":"33ad6f28"}}},"version":"VERSION"}
