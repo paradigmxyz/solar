@@ -2525,48 +2525,44 @@ impl EvmCodegen {
             // Log operations
             InstKind::Log0(offset, size) => {
                 // LOG0(offset, size) - stack order: offset on top, then size
-                self.emit_value(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG0);
-                self.scheduler.instruction_executed(2, None);
+                self.emit_log(func, op::LOG0, &[*size, *offset], liveness, block, inst_idx);
             }
             InstKind::Log1(offset, size, topic1) => {
                 // LOG1(offset, size, topic1) - stack order: offset, size, topic1
-                self.emit_value(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG1);
-                self.scheduler.instruction_executed(3, None);
+                self.emit_log(func, op::LOG1, &[*topic1, *size, *offset], liveness, block, inst_idx);
             }
             InstKind::Log2(offset, size, topic1, topic2) => {
                 // LOG2(offset, size, topic1, topic2) - stack order: offset, size, topic1, topic2
-                self.emit_value(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG2);
-                self.scheduler.instruction_executed(4, None);
+                self.emit_log(
+                    func,
+                    op::LOG2,
+                    &[*topic2, *topic1, *size, *offset],
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
             InstKind::Log3(offset, size, topic1, topic2, topic3) => {
                 // LOG3(offset, size, topic1, topic2, topic3)
-                self.emit_value(func, *topic3);
-                self.emit_operand(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG3);
-                self.scheduler.instruction_executed(5, None);
+                self.emit_log(
+                    func,
+                    op::LOG3,
+                    &[*topic3, *topic2, *topic1, *size, *offset],
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
             InstKind::Log4(offset, size, topic1, topic2, topic3, topic4) => {
                 // LOG4(offset, size, topic1, topic2, topic3, topic4)
-                self.emit_value(func, *topic4);
-                self.emit_operand(func, *topic3);
-                self.emit_operand(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG4);
-                self.scheduler.instruction_executed(6, None);
+                self.emit_log(
+                    func,
+                    op::LOG4,
+                    &[*topic4, *topic3, *topic2, *topic1, *size, *offset],
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
 
             // Memory copy operations
@@ -3295,6 +3291,35 @@ impl EvmCodegen {
 
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(1, result);
+    }
+
+    /// Emits a `LOG0`..=`LOG4` instruction. `operands` are given in stack order
+    /// (deepest first, top last) and pushed in that order; the `LOG` then
+    /// consumes all of them. Each operand still live after this instruction is
+    /// spilled once it reaches the top, so a later use in the same block can
+    /// reload it — the same operand-liveness handling as the arithmetic, store
+    /// and copy paths. Without it, a topic value consumed by the `LOG` and used
+    /// again later (e.g. an event that also stores its data word) would be lost.
+    fn emit_log(
+        &mut self,
+        func: &Function,
+        opcode: u8,
+        operands: &[ValueId],
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        for (i, &operand) in operands.iter().enumerate() {
+            if i == 0 {
+                self.emit_value(func, operand);
+            } else {
+                // Repeated operands (e.g. duplicate topics) need their own stack item.
+                self.emit_operand(func, operand);
+            }
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, operand);
+        }
+        self.asm.emit_op(opcode);
+        self.scheduler.instruction_executed(operands.len(), None);
     }
 
     /// Emits a store operation with liveness awareness.
