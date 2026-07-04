@@ -1594,7 +1594,37 @@ impl EvmCodegen {
                 }
             }
         }
+        // A cheap-recomputable value that is live-out is re-executed in the
+        // successor block instead of spilled. That recomputation needs its
+        // non-rematerializable operand leaves, which may be live only within the
+        // defining block; spill those leaves too, or the recomputation reads a
+        // value that is neither on the stack nor stored.
+        let seeds: Vec<ValueId> = values.iter().copied().collect();
+        for val in seeds {
+            if Self::is_cheap_recomputable_value(func, val) {
+                Self::collect_recompute_leaves(func, val, &mut values);
+            }
+        }
         values
+    }
+
+    /// Adds the non-rematerializable values that recomputing `val` depends on:
+    /// operands are followed through further cheap-recomputable values, and
+    /// every other non-rematerializable operand is a leaf that must be spilled.
+    fn collect_recompute_leaves(func: &Function, val: ValueId, out: &mut FxHashSet<ValueId>) {
+        let crate::mir::Value::Inst(inst_id) = func.value(val) else {
+            return;
+        };
+        for op in func.instructions[*inst_id].kind.operands() {
+            if Self::is_rematerializable_value(func, op) {
+                continue;
+            }
+            if Self::is_cheap_recomputable_value(func, op) {
+                Self::collect_recompute_leaves(func, op, out);
+            } else {
+                out.insert(op);
+            }
+        }
     }
 
     /// Spills all live-out values that are currently on the stack to memory.
@@ -2790,6 +2820,11 @@ impl EvmCodegen {
             self.emit_current_internal_frame_addr(64 + (args.len() as u64) * 32);
             self.asm.emit_op(op::MLOAD);
             self.scheduler.stack.push(result);
+            // Store the result to its reserved slot now, while it is on top.
+            // Other value-producing instructions do this; internal calls did
+            // not, so a reserved result (e.g. a recompute leaf of a live-out
+            // cheap value) was never stored. No-op unless reserved and live.
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         }
 
         // Copy return values 2..N from the callee frame into scratch memory at
