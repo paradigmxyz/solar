@@ -2,10 +2,7 @@ use crate::{
     builtins::{Builtin, members},
     eval::{ConstValue, ConstantEvaluator, EvalErrorKind},
     hir::{self, Visit},
-    ty::{
-        Gcx, ResolvedCallee, ResolvedMember, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
-        TypeckResults,
-    },
+    ty::{Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind, TypeckResults},
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -458,6 +455,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 let receiver_ty = self.check_expr_outside_lvalue_context(receiver, None);
                 if receiver_ty.references_error() {
                     return receiver_ty;
+                }
+                if ident.name == Symbol::DUMMY {
+                    return self.gcx.mk_ty_misc_err();
                 }
 
                 let possible_members = self
@@ -1572,6 +1572,11 @@ impl<'gcx> TypeChecker<'gcx> {
             self.register_ty(callee, ty);
             return ty;
         }
+        if ident.name == Symbol::DUMMY {
+            let ty = self.gcx.mk_ty_misc_err();
+            self.register_ty(callee, ty);
+            return ty;
+        }
 
         let possible_members = self
             .gcx
@@ -1632,48 +1637,11 @@ impl<'gcx> TypeChecker<'gcx> {
         receiver_ty: Ty<'gcx>,
         member: &members::Member<'gcx>,
     ) {
-        let Some(resolved) = self.resolved_member(receiver_ty, member) else { return };
+        let Some(resolved) = self.gcx.resolve_member_target(receiver_ty, member.name, member.res)
+        else {
+            return;
+        };
         self.results.resolved_members.insert(expr.id, resolved);
-    }
-
-    fn resolved_member(
-        &self,
-        receiver_ty: Ty<'gcx>,
-        member: &members::Member<'gcx>,
-    ) -> Option<ResolvedMember> {
-        if let Some(res) = member.res {
-            return Some(ResolvedMember::Res(res));
-        }
-
-        match receiver_ty.kind {
-            TyKind::Ref(inner, _) => {
-                let TyKind::Struct(struct_id) = inner.kind else { return None };
-                let field_index = self.struct_field_index(struct_id, member.name)?;
-                Some(ResolvedMember::StructField { struct_id, field_index })
-            }
-            TyKind::Struct(struct_id) => {
-                let field_index = self.struct_field_index(struct_id, member.name)?;
-                Some(ResolvedMember::StructField { struct_id, field_index })
-            }
-            TyKind::Type(ty) => {
-                let TyKind::Enum(enum_id) = ty.kind else { return None };
-                let variant_index = self
-                    .gcx
-                    .hir
-                    .enumm(enum_id)
-                    .variants
-                    .iter()
-                    .position(|variant| variant.name == member.name)?;
-                Some(ResolvedMember::EnumVariant { enum_id, variant_index })
-            }
-            _ => None,
-        }
-    }
-
-    fn struct_field_index(&self, struct_id: hir::StructId, name: Symbol) -> Option<usize> {
-        self.gcx.hir.strukt(struct_id).fields.iter().position(|&field_id| {
-            self.gcx.hir.variable(field_id).name.is_some_and(|field| field.name == name)
-        })
     }
 
     fn check_ident_call_callee(

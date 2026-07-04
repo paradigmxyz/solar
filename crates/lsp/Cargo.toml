@@ -46,6 +46,7 @@ tokio-util = { workspace = true, features = ["compat"] }
 tokio = { workspace = true, features = ["rt", "io-std"] }
 
 [dev-dependencies]
+snapbox.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["io-util", "macros", "rt", "sync", "time"] }
 tokio-util = { workspace = true, features = ["compat"] }

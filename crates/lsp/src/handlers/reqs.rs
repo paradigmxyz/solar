@@ -1,9 +1,10 @@
-use crate::global_state::GlobalState;
+use crate::{global_state::GlobalState, symbols::CompletionContext};
 use async_lsp::ResponseError;
+use crop::Rope;
 use lsp_types::{
     CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
-    GotoDefinitionParams, GotoDefinitionResponse, ReferenceParams, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse,
+    GotoDefinitionParams, GotoDefinitionResponse, Position, ReferenceParams, Url,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use std::future::ready;
 
@@ -67,9 +68,73 @@ pub(crate) fn completion(
     params: CompletionParams,
 ) -> impl Future<Output = Result<Option<CompletionResponse>, ResponseError>> + use<> {
     let params = params.text_document_position;
-    let items =
-        state.symbol_tables.read().completion_items(&params.text_document.uri, params.position);
+    let input = completion_input(state, &params.text_document.uri, params.position);
+    let context = input.as_ref().map(CompletionInput::context).unwrap_or_default();
+    let items = state.symbol_tables.read().completion_items(
+        &params.text_document.uri,
+        params.position,
+        context,
+    );
     ready(Ok(Some(CompletionResponse::Array(items))))
+}
+
+struct CompletionInput {
+    prefix: String,
+    member_receiver: Option<String>,
+}
+
+impl CompletionInput {
+    fn context(&self) -> CompletionContext<'_> {
+        CompletionContext::new(&self.prefix, self.member_receiver.as_deref())
+    }
+}
+
+fn completion_input(state: &GlobalState, uri: &Url, position: Position) -> Option<CompletionInput> {
+    let path = crate::proto::vfs_path(uri)?;
+    let vfs = state.vfs.read();
+    let line = line_at(vfs.get_file_contents(&path)?, position.line as usize)?;
+    let line_prefix = line_prefix_at(&line, position)?;
+    Some(completion_input_from_line_prefix(line_prefix))
+}
+
+fn line_at(contents: &Rope, line: usize) -> Option<String> {
+    (line < contents.line_len()).then(|| contents.line(line).to_string())
+}
+
+fn line_prefix_at(contents: &str, position: Position) -> Option<&str> {
+    let line = contents.strip_suffix('\r').unwrap_or(contents);
+    let target = position.character as usize;
+    let mut utf16 = 0;
+    for (idx, ch) in line.char_indices() {
+        if utf16 >= target {
+            return Some(&line[..idx]);
+        }
+        utf16 += ch.len_utf16();
+    }
+    Some(line)
+}
+
+fn completion_input_from_line_prefix(line_prefix: &str) -> CompletionInput {
+    let prefix_start = start_of_trailing_ident(line_prefix);
+    let prefix = line_prefix[prefix_start..].to_string();
+    let before_prefix = &line_prefix[..prefix_start];
+    let member_receiver = before_prefix.strip_suffix('.').and_then(|before_dot| {
+        let receiver_start = start_of_trailing_ident(before_dot);
+        let receiver = &before_dot[receiver_start..];
+        (!receiver.is_empty()).then(|| receiver.to_string())
+    });
+    CompletionInput { prefix, member_receiver }
+}
+
+fn start_of_trailing_ident(s: &str) -> usize {
+    s.char_indices()
+        .rev()
+        .find(|(_, ch)| !is_completion_ident_char(*ch))
+        .map_or(0, |(idx, ch)| idx + ch.len_utf8())
+}
+
+fn is_completion_ident_char(ch: char) -> bool {
+    ch == '_' || ch == '$' || ch.is_ascii_alphanumeric()
 }
 
 #[cfg(test)]
@@ -85,17 +150,30 @@ mod tests {
         PartialResultParams, SymbolKind, TextDocumentClientCapabilities, TextDocumentIdentifier,
         Url, WorkDoneProgressParams, WorkspaceSymbolResponse,
     };
-    use std::sync::Arc;
+    use std::{
+        future::Future,
+        sync::Arc,
+        task::{Context, Poll, Waker},
+    };
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
+    #[test]
+    fn completion_input_extracts_prefix_and_member_receiver() {
+        assert_completion_input("        ms", "ms", None);
+        assert_completion_input("        msg.", "", Some("msg"));
+        assert_completion_input("        msg.s", "s", Some("msg"));
+        assert_completion_input("        getToken().", "", None);
+    }
+
+    #[test]
+    fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
         let uri = parse_uri("file:///workspace/src/Test.sol");
         let other_uri = parse_uri("file:///workspace/src/Other.sol");
         let mut state =
             state_with_symbols(symbol_tables(&uri, &other_uri), InitializeParams::default());
 
-        let response =
-            document_symbol(&mut state, document_symbol_params(uri)).await.unwrap().unwrap();
+        let response = expect_ready(document_symbol(&mut state, document_symbol_params(uri)))
+            .unwrap()
+            .unwrap();
 
         let DocumentSymbolResponse::Flat(symbols) = response else {
             panic!("expected flat document symbols");
@@ -108,8 +186,8 @@ mod tests {
         assert_eq!(symbols[1].container_name.as_deref(), Some("C"));
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn document_symbol_returns_nested_symbols_with_hierarchical_client_support() {
+    #[test]
+    fn document_symbol_returns_nested_symbols_with_hierarchical_client_support() {
         let uri = parse_uri("file:///workspace/src/Test.sol");
         let other_uri = parse_uri("file:///workspace/src/Other.sol");
         let mut state = state_with_symbols(
@@ -117,8 +195,9 @@ mod tests {
             initialize_params_with_hierarchical_document_symbols(),
         );
 
-        let response =
-            document_symbol(&mut state, document_symbol_params(uri)).await.unwrap().unwrap();
+        let response = expect_ready(document_symbol(&mut state, document_symbol_params(uri)))
+            .unwrap()
+            .unwrap();
 
         let DocumentSymbolResponse::Nested(symbols) = response else {
             panic!("expected nested document symbols");
@@ -136,22 +215,21 @@ mod tests {
         );
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn workspace_symbol_returns_matching_symbols() {
+    #[test]
+    fn workspace_symbol_returns_matching_symbols() {
         let uri = parse_uri("file:///workspace/src/Test.sol");
         let other_uri = parse_uri("file:///workspace/src/Other.sol");
         let mut state =
             state_with_symbols(symbol_tables(&uri, &other_uri), InitializeParams::default());
 
-        let response = workspace_symbol(
+        let response = expect_ready(workspace_symbol(
             &mut state,
             WorkspaceSymbolParams {
                 query: "oth".into(),
                 work_done_progress_params: WorkDoneProgressParams::default(),
                 partial_result_params: PartialResultParams::default(),
             },
-        )
-        .await
+        ))
         .unwrap()
         .unwrap();
 
@@ -203,5 +281,25 @@ mod tests {
 
     fn parse_uri(uri: &str) -> lsp_types::Url {
         lsp_types::Url::parse(uri).unwrap()
+    }
+
+    fn expect_ready<F: Future>(future: F) -> F::Output {
+        let waker = Waker::noop();
+        let mut cx = Context::from_waker(waker);
+        let mut future = std::pin::pin!(future);
+        match future.as_mut().poll(&mut cx) {
+            Poll::Ready(output) => output,
+            Poll::Pending => panic!("request handler future should complete immediately"),
+        }
+    }
+
+    fn assert_completion_input(
+        line_prefix: &str,
+        expected_prefix: &str,
+        expected_receiver: Option<&str>,
+    ) {
+        let input = completion_input_from_line_prefix(line_prefix);
+        assert_eq!(input.prefix, expected_prefix);
+        assert_eq!(input.member_receiver.as_deref(), expected_receiver);
     }
 }

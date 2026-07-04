@@ -3,8 +3,9 @@ use crate::{
     vfs::{Vfs, VfsPath},
 };
 use crop::Rope;
-use lsp_types::{InitializeParams, Url, WorkspaceFolder};
+use lsp_types::{InitializeParams, Position, Url, WorkspaceFolder};
 use std::{
+    collections::BTreeMap,
     fs,
     io::Read,
     path::{Path, PathBuf},
@@ -14,6 +15,17 @@ use tempfile::TempDir;
 pub(crate) struct TestProject {
     tmp: TempDir,
     open_files: Vec<(PathBuf, String)>,
+}
+
+pub(crate) struct MarkedProject {
+    project: TestProject,
+    markers: BTreeMap<String, Vec<Marker>>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Marker {
+    path: String,
+    position: Position,
 }
 
 impl TestProject {
@@ -117,6 +129,45 @@ impl TestProject {
     }
 }
 
+impl MarkedProject {
+    pub(crate) fn from_fixture(fixture: &str) -> Self {
+        let mut project = TestProject::new();
+        let mut markers = BTreeMap::<String, Vec<Marker>>::new();
+        for mut file in parse_fixture(fixture) {
+            let file_markers = strip_markers(&mut file.text);
+            for (name, position) in file_markers {
+                markers.entry(name).or_default().push(Marker { path: file.path.clone(), position });
+            }
+            project.write_file(&file.path, &file.text);
+            if file.open {
+                project.open_file(&file.path, &file.text);
+            }
+        }
+        Self { project, markers }
+    }
+
+    pub(crate) fn project(&self) -> &TestProject {
+        &self.project
+    }
+
+    pub(crate) fn marker(&self, name: &str) -> Marker {
+        let name = normalize_marker_name(name);
+        let markers = self.markers.get(name).unwrap_or_else(|| panic!("missing marker `${name}`"));
+        assert_eq!(markers.len(), 1, "marker `${name}` is ambiguous: {markers:?}");
+        markers[0].clone()
+    }
+}
+
+impl Marker {
+    pub(crate) fn path(&self) -> &str {
+        &self.path
+    }
+
+    pub(crate) fn position(&self) -> Position {
+        self.position
+    }
+}
+
 struct FixtureFile {
     path: String,
     text: String,
@@ -172,6 +223,44 @@ fn parse_meta(meta: &str) -> FixtureFile {
     }
 
     FixtureFile { path, text: String::new(), open }
+}
+
+fn strip_markers(text: &mut String) -> Vec<(String, Position)> {
+    let mut stripped = String::with_capacity(text.len());
+    let mut markers = Vec::new();
+    let mut chars = text.chars().peekable();
+    let mut line = 0;
+    let mut character = 0;
+
+    while let Some(ch) = chars.next() {
+        if ch == '$' && chars.peek().is_some_and(|next| next.is_ascii_digit()) {
+            let mut name = String::new();
+            while let Some(next) = chars.peek() {
+                if next.is_ascii_digit() {
+                    name.push(chars.next().unwrap());
+                } else {
+                    break;
+                }
+            }
+            markers.push((name, Position { line, character }));
+            continue;
+        }
+
+        stripped.push(ch);
+        if ch == '\n' {
+            line += 1;
+            character = 0;
+        } else {
+            character += ch.len_utf16() as u32;
+        }
+    }
+
+    *text = stripped;
+    markers
+}
+
+fn normalize_marker_name(name: &str) -> &str {
+    name.strip_prefix('$').unwrap_or(name)
 }
 
 fn trim_indent(text: &str) -> String {
