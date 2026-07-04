@@ -951,6 +951,16 @@ impl<'gcx> Lowerer<'gcx> {
             return self.lower_struct_constructor(builder, struct_id, args);
         }
 
+        // Handle enum conversion written as `Container.Enum(x)`. An enum value is
+        // represented by its integer, so — like the `Ident` enum-callee path in
+        // `lower_call` — the conversion is the identity on the argument.
+        if let Some(resolved) = resolved
+            && let hir::Res::Item(hir::ItemId::Enum(_)) = resolved.res
+            && let Some(arg) = args.exprs().next()
+        {
+            return self.lower_expr(builder, arg);
+        }
+
         // Handle library function calls: Library.func(args).
         if self.is_library_type_expr(base)
             && let Some(func_id) = self.resolved_function_callee(callee)

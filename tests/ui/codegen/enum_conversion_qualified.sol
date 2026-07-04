@@ -1,0 +1,22 @@
+//@compile-flags: -Zcodegen --emit=bin-runtime
+
+// An explicit enum conversion written through its container, `Container.Enum(x)`
+// (the callee is a member access resolving to an enum), is the identity on the
+// underlying integer — matching the plain `Enum(x)` (`Ident` callee) path.
+// Used by aave-v3-core FlashLoanLogic:
+//   `DataTypes.InterestRateMode(params.interestRateModes[i]) == ...NONE`.
+// Runtime behavior is verified against solc 0.8.30 separately.
+
+library DataTypes {
+    enum Mode {
+        NONE,
+        STABLE,
+        VARIABLE
+    }
+}
+
+contract E {
+    function isNone(uint256 x) external pure returns (bool) {
+        return DataTypes.Mode(x) == DataTypes.Mode.NONE;
+    }
+}
