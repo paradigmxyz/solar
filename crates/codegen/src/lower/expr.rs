@@ -19,6 +19,13 @@ pub(super) struct MappingElementSlot {
     pub(super) value_is_mapping: bool,
 }
 
+/// The base storage slot of a mapping: a compile-time constant for a state
+/// variable, or a runtime value for a storage-reference parameter/local.
+enum MappingBaseSlot {
+    Const(u64),
+    Value(ValueId),
+}
+
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers an expression to MIR.
     pub(super) fn lower_expr(
@@ -2495,27 +2502,18 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         index: Option<&hir::Expr<'_>>,
     ) -> Option<MappingElementSlot> {
+        // Mapping state variable: base slot is a compile-time constant.
         if let Some((var_id, slot)) = self.get_mapping_base_slot(base) {
-            let index_val = self.lower_index_or_zero(builder, index);
-            let slot_val = builder.imm_u64(slot);
-            let var = self.gcx.hir.variable(var_id);
-            let (key_is_dynamic, value_is_mapping) =
-                if let hir::TypeKind::Mapping(map) = &var.ty.kind {
-                    (
-                        Self::is_dynamic_mapping_key(&map.key.kind),
-                        matches!(map.value.kind, hir::TypeKind::Mapping(_)),
-                    )
-                } else {
-                    (false, false)
-                };
-            let slot = self.compute_mapping_slot_for_index(
-                builder,
-                index,
-                index_val,
-                slot_val,
-                key_is_dynamic,
-            );
-            return Some(MappingElementSlot { slot, value_is_mapping });
+            let base_slot = MappingBaseSlot::Const(slot);
+            return Some(self.finish_mapping_element_slot(builder, var_id, base_slot, index));
+        }
+
+        // Mapping held as a storage-reference parameter or local (e.g. a `library`
+        // function taking `mapping(...) storage`): its base slot is a runtime
+        // value in `locals`, not a compile-time constant.
+        if let Some((var_id, slot_val)) = self.mapping_ref_base_slot_value(base) {
+            let base_slot = MappingBaseSlot::Value(slot_val);
+            return Some(self.finish_mapping_element_slot(builder, var_id, base_slot, index));
         }
 
         if self.is_nested_mapping_index(base) {
@@ -2536,6 +2534,56 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         None
+    }
+
+    /// Given the (already resolved) base slot of a mapping and an index, computes
+    /// the element's storage slot, reading the key/value kinds off the mapping's
+    /// declared type. Shared by the state-variable and storage-reference paths.
+    fn finish_mapping_element_slot(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        var_id: hir::VariableId,
+        base_slot: MappingBaseSlot,
+        index: Option<&hir::Expr<'_>>,
+    ) -> MappingElementSlot {
+        let index_val = self.lower_index_or_zero(builder, index);
+        // Materialize the base slot after the index so a constant state-variable
+        // slot keeps its original emission order (the index is lowered first).
+        let slot_val = match base_slot {
+            MappingBaseSlot::Const(slot) => builder.imm_u64(slot),
+            MappingBaseSlot::Value(val) => val,
+        };
+        let var = self.gcx.hir.variable(var_id);
+        let (key_is_dynamic, value_is_mapping) = if let hir::TypeKind::Mapping(map) = &var.ty.kind {
+            (
+                Self::is_dynamic_mapping_key(&map.key.kind),
+                matches!(map.value.kind, hir::TypeKind::Mapping(_)),
+            )
+        } else {
+            (false, false)
+        };
+        let slot =
+            self.compute_mapping_slot_for_index(builder, index, index_val, slot_val, key_is_dynamic);
+        MappingElementSlot { slot, value_is_mapping }
+    }
+
+    /// If `base` denotes a mapping held as a storage-reference parameter or local
+    /// (not a state variable), returns its variable id and the runtime value that
+    /// is its base slot. Such a mapping is passed by slot number — its value in
+    /// `locals` is the slot itself.
+    fn mapping_ref_base_slot_value(
+        &self,
+        base: &hir::Expr<'_>,
+    ) -> Option<(hir::VariableId, ValueId)> {
+        let ExprKind::Ident(res_slice) = &base.kind else { return None };
+        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+            return None;
+        };
+        if !matches!(self.gcx.hir.variable(*var_id).ty.kind, hir::TypeKind::Mapping(_)) {
+            return None;
+        }
+        let slot_val = self.locals.get(var_id).copied()?;
+        Some((*var_id, slot_val))
     }
 
     /// Computes the storage slot for a nested mapping access.

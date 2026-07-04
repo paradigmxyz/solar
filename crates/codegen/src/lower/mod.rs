@@ -838,6 +838,13 @@ impl<'gcx> Lowerer<'gcx> {
                         );
                     }
                     self.locals.insert(param_id, val);
+                    // A storage-reference parameter (`mapping`/`storage`) is passed
+                    // by slot: its value *is* the base slot, so mark it so mapping
+                    // indexing and struct/array reads through it use storage, and
+                    // so passing it onward resolves back to the slot.
+                    if self.param_is_storage_ref(param_id) {
+                        self.storage_ref_locals.insert(param_id);
+                    }
                 }
             }
 

@@ -1494,6 +1494,15 @@ impl<'gcx> Lowerer<'gcx> {
         1
     }
 
+    /// Whether a parameter is a storage reference — a `mapping` (always storage)
+    /// or any type declared with the `storage` data location. Such parameters are
+    /// passed by slot number rather than by value.
+    pub(super) fn param_is_storage_ref(&self, param_id: hir::VariableId) -> bool {
+        let var = self.gcx.hir.variable(param_id);
+        matches!(var.ty.kind, hir::TypeKind::Mapping(_))
+            || var.data_location == Some(solar_ast::DataLocation::Storage)
+    }
+
     /// Lowers an internal function call by inlining it.
     /// This handles calls like `add(a, b)` where `add` is a function in the same contract.
     fn lower_internal_call(
@@ -1506,12 +1515,36 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Collect argument values FIRST (before entering inline tracking)
         // This allows nested calls to the same function (e.g., add(add(x, 1), 2))
-        // because we evaluate arguments before marking ourselves as "in progress"
-        let arg_vals: Vec<ValueId> =
-            args.exprs().map(|arg| self.lower_expr(builder, arg)).collect();
+        // because we evaluate arguments before marking ourselves as "in progress".
+        //
+        // A storage-reference parameter (a `mapping`, or an array/struct in
+        // `storage`) is passed by slot number, so such an argument is lowered to
+        // its storage slot rather than as a value — lowering it as a value would
+        // `sload` the slot and pass the wrong thing.
+        let params = func.parameters;
+        let arg_vals: Vec<ValueId> = args
+            .exprs()
+            .enumerate()
+            .map(|(i, arg)| {
+                if params.get(i).is_some_and(|&p| self.param_is_storage_ref(p))
+                    && let Some(slot) = self.lower_lvalue_slot(builder, arg)
+                {
+                    slot
+                } else {
+                    self.lower_expr(builder, arg)
+                }
+            })
+            .collect();
+
+        // A callee that takes a storage-reference parameter must be lowered
+        // through the internal-frame path, whose normal statement lowering binds
+        // storage-reference locals correctly. The straight-line SSA inline path
+        // (`lower_library_body_simple`) lowers a `T storage x = ...;` declaration
+        // as a memory value and would miscompile subsequent field/element reads.
+        let has_storage_ref_param = params.iter().any(|&p| self.param_is_storage_ref(p));
 
         if func.returns.is_empty() {
-            if self.function_is_recursive(func_id) {
+            if has_storage_ref_param || self.function_is_recursive(func_id) {
                 return self.lower_internal_call_fallback(builder, func_id, arg_vals);
             }
             return self.lower_inline_void_call(builder, func_id, arg_vals);
@@ -1528,8 +1561,9 @@ impl<'gcx> Lowerer<'gcx> {
         // use the internal-frame convention directly; a public callee is compiled
         // for the external ABI, so it needs an internal-frame copy
         // (`ensure_internal_mir_function`) for `internal_call` to target.
-        let needs_call =
-            !Self::is_simple_return_function(func) || self.function_is_recursive(func_id);
+        let needs_call = has_storage_ref_param
+            || !Self::is_simple_return_function(func)
+            || self.function_is_recursive(func_id);
         if needs_call {
             return self.lower_internal_call_fallback(builder, func_id, arg_vals);
         }
@@ -1712,23 +1746,46 @@ impl<'gcx> Lowerer<'gcx> {
             let mut arg_vals: Vec<ValueId> = Vec::new();
 
             // If there's a bound argument (from `using X for T`), it's the first argument
+            let bound_offset = bound_arg.is_some() as usize;
             if let Some(bound_val) = bound_arg {
                 arg_vals.push(bound_val);
             }
 
-            // Lower all explicit arguments
-            for arg in args.exprs() {
-                arg_vals.push(self.lower_expr(builder, arg));
+            // Lower all explicit arguments. A storage-reference parameter (a
+            // `mapping`, or an array/struct in `storage`) is passed by slot, so
+            // such an argument is lowered to its storage slot rather than as a
+            // value — lowering it as a value would `sload` the slot and pass the
+            // wrong thing.
+            for (i, arg) in args.exprs().enumerate() {
+                let param_idx = i + bound_offset;
+                if func.parameters.get(param_idx).is_some_and(|&p| self.param_is_storage_ref(p))
+                    && let Some(slot) = self.lower_lvalue_slot(builder, arg)
+                {
+                    arg_vals.push(slot);
+                } else {
+                    arg_vals.push(self.lower_expr(builder, arg));
+                }
             }
 
+            // A callee taking a storage-reference parameter must go through the
+            // internal-frame path, whose normal statement lowering binds
+            // storage-reference locals correctly; the straight-line SSA inline
+            // path lowers a `T storage x = ...;` as a memory value and would
+            // miscompile subsequent field/element reads.
+            let has_storage_ref_param =
+                func.parameters.iter().any(|&p| self.param_is_storage_ref(p));
+
             if func.returns.is_empty() {
-                if self.function_is_recursive(func_id) {
+                if has_storage_ref_param || self.function_is_recursive(func_id) {
                     return self.lower_internal_call_fallback(builder, func_id, arg_vals);
                 }
                 return self.lower_inline_void_call(builder, func_id, arg_vals);
             }
 
-            if !Self::is_simple_return_function(func) || self.function_is_recursive(func_id) {
+            if has_storage_ref_param
+                || !Self::is_simple_return_function(func)
+                || self.function_is_recursive(func_id)
+            {
                 return self.lower_internal_call_fallback(builder, func_id, arg_vals);
             }
 
