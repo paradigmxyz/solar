@@ -150,7 +150,11 @@ mod tests {
         PartialResultParams, SymbolKind, TextDocumentClientCapabilities, TextDocumentIdentifier,
         Url, WorkDoneProgressParams, WorkspaceSymbolResponse,
     };
-    use std::sync::Arc;
+    use std::{
+        future::Future,
+        sync::Arc,
+        task::{Context, Poll, Waker},
+    };
 
     #[test]
     fn completion_input_extracts_prefix_and_member_receiver() {
@@ -160,15 +164,16 @@ mod tests {
         assert_completion_input("        getToken().", "", None);
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
+    #[test]
+    fn document_symbol_returns_flat_symbols_without_hierarchical_client_support() {
         let uri = parse_uri("file:///workspace/src/Test.sol");
         let other_uri = parse_uri("file:///workspace/src/Other.sol");
         let mut state =
             state_with_symbols(symbol_tables(&uri, &other_uri), InitializeParams::default());
 
-        let response =
-            document_symbol(&mut state, document_symbol_params(uri)).await.unwrap().unwrap();
+        let response = expect_ready(document_symbol(&mut state, document_symbol_params(uri)))
+            .unwrap()
+            .unwrap();
 
         let DocumentSymbolResponse::Flat(symbols) = response else {
             panic!("expected flat document symbols");
@@ -181,8 +186,8 @@ mod tests {
         assert_eq!(symbols[1].container_name.as_deref(), Some("C"));
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn document_symbol_returns_nested_symbols_with_hierarchical_client_support() {
+    #[test]
+    fn document_symbol_returns_nested_symbols_with_hierarchical_client_support() {
         let uri = parse_uri("file:///workspace/src/Test.sol");
         let other_uri = parse_uri("file:///workspace/src/Other.sol");
         let mut state = state_with_symbols(
@@ -190,8 +195,9 @@ mod tests {
             initialize_params_with_hierarchical_document_symbols(),
         );
 
-        let response =
-            document_symbol(&mut state, document_symbol_params(uri)).await.unwrap().unwrap();
+        let response = expect_ready(document_symbol(&mut state, document_symbol_params(uri)))
+            .unwrap()
+            .unwrap();
 
         let DocumentSymbolResponse::Nested(symbols) = response else {
             panic!("expected nested document symbols");
@@ -209,22 +215,21 @@ mod tests {
         );
     }
 
-    #[tokio::test(flavor = "current_thread")]
-    async fn workspace_symbol_returns_matching_symbols() {
+    #[test]
+    fn workspace_symbol_returns_matching_symbols() {
         let uri = parse_uri("file:///workspace/src/Test.sol");
         let other_uri = parse_uri("file:///workspace/src/Other.sol");
         let mut state =
             state_with_symbols(symbol_tables(&uri, &other_uri), InitializeParams::default());
 
-        let response = workspace_symbol(
+        let response = expect_ready(workspace_symbol(
             &mut state,
             WorkspaceSymbolParams {
                 query: "oth".into(),
                 work_done_progress_params: WorkDoneProgressParams::default(),
                 partial_result_params: PartialResultParams::default(),
             },
-        )
-        .await
+        ))
         .unwrap()
         .unwrap();
 
@@ -276,6 +281,16 @@ mod tests {
 
     fn parse_uri(uri: &str) -> lsp_types::Url {
         lsp_types::Url::parse(uri).unwrap()
+    }
+
+    fn expect_ready<F: Future>(future: F) -> F::Output {
+        let waker = Waker::noop();
+        let mut cx = Context::from_waker(waker);
+        let mut future = std::pin::pin!(future);
+        match future.as_mut().poll(&mut cx) {
+            Poll::Ready(output) => output,
+            Poll::Pending => panic!("request handler future should complete immediately"),
+        }
     }
 
     fn assert_completion_input(
