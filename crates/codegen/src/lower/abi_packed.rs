@@ -105,14 +105,21 @@ impl<'gcx> Lowerer<'gcx> {
                 continue;
             }
 
+            // Calldata `bytes`/`string`: copy into a `[len][data]` memory buffer
+            // and pack its data like any other dynamic bytes value.
             if self.expr_is_calldata_dynamic_bytes(arg) {
-                self.gcx
-                    .dcx()
-                    .err(
-                        "codegen does not support packed encoding of calldata `bytes`/`string` yet",
-                    )
-                    .span(arg.span)
-                    .emit();
+                if let Some((head, _)) = self.calldata_dyn_head(arg) {
+                    let ptr = self.materialize_calldata_bytes(builder, head);
+                    packed_args.push(PackedAbiArg::DynamicBytes(ptr));
+                } else {
+                    self.gcx
+                        .dcx()
+                        .err(
+                            "codegen does not support packed encoding of calldata `bytes`/`string` yet",
+                        )
+                        .span(arg.span)
+                        .emit();
+                }
                 continue;
             }
 
