@@ -467,6 +467,17 @@ impl<'gcx> Lowerer<'gcx> {
             return (data, len);
         }
 
+        // A `bytes`/`string` calldata value: copy it into memory (a low-level
+        // call reads its input from memory), then use that region. This arises in
+        // proxy fallbacks such as `impl.delegatecall(data)` with `bytes calldata`.
+        if let Some((head, _)) = self.calldata_dyn_head(expr) {
+            let ptr = self.materialize_calldata_bytes(builder, head);
+            let word = builder.imm_u64(32);
+            let len = builder.mload(ptr);
+            let data = builder.add(ptr, word);
+            return (data, len);
+        }
+
         let guar = self
             .gcx
             .dcx()
