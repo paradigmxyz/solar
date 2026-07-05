@@ -214,6 +214,8 @@ impl<'gcx> Lowerer<'gcx> {
         let initial_value = if let Some(init) = var.initializer {
             if self.var_expects_memory_bytes_value(var) {
                 self.lower_expr_as_memory_bytes(builder, init)
+            } else if self.var_expects_memory_dyn_array_value(var) {
+                self.lower_expr_as_memory_dyn_array(builder, init)
             } else {
                 self.lower_expr(builder, init)
             }

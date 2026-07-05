@@ -405,6 +405,8 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 let rhs_val = if op.is_none() && self.lhs_expects_memory_bytes_value(lhs) {
                     self.lower_expr_as_memory_bytes(builder, rhs)
+                } else if op.is_none() && self.lhs_expects_memory_dyn_array_value(lhs) {
+                    self.lower_expr_as_memory_dyn_array(builder, rhs)
                 } else {
                     self.lower_expr(builder, rhs)
                 };
@@ -1694,7 +1696,18 @@ impl<'gcx> Lowerer<'gcx> {
             if i >= num_fields {
                 break;
             }
-            let field_val = self.lower_expr(builder, arg);
+            // Memory struct fields hold memory values: a calldata dynamic
+            // array/bytes argument materializes as a memory copy — its raw
+            // calldata head word would be meaningless as a field value.
+            let field_val = if let Some((head, is_bytes)) = self.calldata_dyn_head(arg) {
+                if is_bytes {
+                    self.materialize_calldata_bytes(builder, head)
+                } else {
+                    self.materialize_calldata_dyn_array(builder, head)
+                }
+            } else {
+                self.lower_expr(builder, arg)
+            };
             let field_offset = (i as u64) * 32;
             if field_offset == 0 {
                 builder.mstore(struct_ptr, field_val);

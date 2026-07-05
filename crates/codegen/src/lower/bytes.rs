@@ -166,6 +166,66 @@ impl<'gcx> Lowerer<'gcx> {
         )
     }
 
+    /// Whether a declared variable wants a MEMORY dynamic-array value: a
+    /// calldata-array initializer must materialize as a memory copy.
+    pub(super) fn var_expects_memory_dyn_array_value(&self, var: &hir::Variable<'_>) -> bool {
+        matches!(&var.ty.kind, hir::TypeKind::Array(arr) if arr.size.is_none())
+            && !matches!(
+                var.data_location,
+                Some(solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage)
+            )
+    }
+
+    /// Whether an assignment target wants a MEMORY dynamic-array value.
+    pub(super) fn lhs_expects_memory_dyn_array_value(&self, lhs: &hir::Expr<'_>) -> bool {
+        let ExprKind::Ident(res_slice) = &lhs.kind else { return false };
+        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+            return false;
+        };
+        self.var_expects_memory_dyn_array_value(self.gcx.hir.variable(*var_id))
+    }
+
+    /// Lowers an expression whose consumer needs a MEMORY dynamic array: a
+    /// calldata dynamic array materializes as a `[length][elems...]` copy;
+    /// anything else lowers normally (it is already a memory pointer).
+    pub(super) fn lower_expr_as_memory_dyn_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let Some((head, false)) = self.calldata_dyn_head(expr) {
+            return self.materialize_calldata_dyn_array(builder, head);
+        }
+        self.lower_expr(builder, expr)
+    }
+
+    /// Copies a calldata dynamic array of word elements into Solidity's
+    /// memory array layout (`[length][elems...]`).
+    pub(super) fn materialize_calldata_dyn_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        head: ValueId,
+    ) -> ValueId {
+        let four = builder.imm_u64(4);
+        let len_pos = builder.add(four, head);
+        let len = builder.calldataload(len_pos);
+
+        let word_size = builder.imm_u64(32);
+        // Guard `len * 32` overflow before sizing the allocation.
+        let shift = builder.imm_u64(251);
+        let too_big = builder.shr(shift, len);
+        self.emit_panic_if(builder, too_big, PanicCode::MemoryAllocationOverflow);
+        let byte_len = builder.mul(len, word_size);
+        let total_size = builder.add(word_size, byte_len);
+
+        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        builder.mstore(ptr, len);
+        let data_ptr = builder.add(ptr, word_size);
+        let data_pos = builder.add(len_pos, word_size);
+        builder.calldatacopy(data_ptr, data_pos, byte_len);
+        ptr
+    }
+
     pub(super) fn lhs_expects_memory_bytes_value(&self, lhs: &hir::Expr<'_>) -> bool {
         if self.expr_has_bytes_or_string_type(lhs) {
             return true;
