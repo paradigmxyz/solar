@@ -321,6 +321,20 @@ pub struct EvmCodegen {
     pending_frame_size_consts: Vec<(DeferredConst, FunctionId, u64)>,
     /// Callees whose internal-call frame can be deallocated after return.
     restorable_internal_frames: FxHashSet<FunctionId>,
+    /// Functions whose frame lives at a compile-time-fixed address (static
+    /// frames): internal-convention, non-recursive functions in the runtime
+    /// passes. Their arg/local/spill accesses are absolute pushes and their
+    /// call sites skip all frame-pointer and free-pointer bookkeeping.
+    static_frame_functions: FxHashSet<FunctionId>,
+    /// Interned deferred constants for absolute static-frame addresses, keyed
+    /// by (function, byte offset within its frame). Resolved at the end of
+    /// the pass, once every body's exact spill size is known.
+    static_frame_addr_consts: FxHashMap<(FunctionId, u64), DeferredConst>,
+    /// Per-external-entry free-memory-pointer constants, resolved at the end
+    /// of the pass: the heap must start above the static frame region.
+    pending_free_memory_consts: Vec<(DeferredConst, FunctionId)>,
+    /// The internal-convention function currently being emitted.
+    current_internal_function: Option<FunctionId>,
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
@@ -355,6 +369,10 @@ impl EvmCodegen {
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
             restorable_internal_frames: FxHashSet::default(),
+            static_frame_functions: FxHashSet::default(),
+            static_frame_addr_consts: FxHashMap::default(),
+            pending_free_memory_consts: Vec::new(),
+            current_internal_function: None,
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -585,6 +603,10 @@ impl EvmCodegen {
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
             self.restorable_internal_frames.clear();
+            self.static_frame_functions.clear();
+            self.static_frame_addr_consts.clear();
+            self.pending_free_memory_consts.clear();
+            self.current_internal_function = None;
             self.stack_phi_sources.clear();
 
             for (func_id, func) in module.functions.iter_enumerated() {
@@ -709,6 +731,10 @@ impl EvmCodegen {
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
         self.restorable_internal_frames.clear();
+        self.static_frame_functions.clear();
+        self.static_frame_addr_consts.clear();
+        self.pending_free_memory_consts.clear();
+        self.current_internal_function = None;
         self.block_copies.clear();
         self.stack_phi_sources.clear();
 
@@ -756,6 +782,14 @@ impl EvmCodegen {
             if !func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::MemPtr)) {
                 self.restorable_internal_frames.insert(func_id);
             }
+            // Non-recursive internal functions get compile-time-fixed frames.
+            if func_id != entry_id
+                && !Self::is_external_entry(func)
+                && Self::has_body(func)
+                && !call_graph.is_recursive(func_id)
+            {
+                self.static_frame_functions.insert(func_id);
+            }
         }
 
         // Labels for every tail-call and internal-call target.
@@ -775,11 +809,8 @@ impl EvmCodegen {
         self.in_internal_function = false;
         let entry_free = self.emit_external_free_memory_start();
         self.generate_function_body(&module.functions[entry_id]);
-        let entry_spill = self.record_function_spill_size(entry_id);
-        self.asm.set_deferred_const(
-            entry_free,
-            U256::from(Self::external_spill_base(&module.functions[entry_id]) + entry_spill),
-        );
+        self.record_function_spill_size(entry_id);
+        self.pending_free_memory_consts.push((entry_free, entry_id));
 
         // External entries, reached only through `tail_call` jumps.
         for (func_id, func) in module.functions.iter_enumerated() {
@@ -791,11 +822,8 @@ impl EvmCodegen {
             let free_memory_start = self.emit_external_free_memory_start();
             self.in_internal_function = false;
             self.generate_function_body(func);
-            let spill_size = self.record_function_spill_size(func_id);
-            self.asm.set_deferred_const(
-                free_memory_start,
-                U256::from(Self::external_spill_base(func) + spill_size),
-            );
+            self.record_function_spill_size(func_id);
+            self.pending_free_memory_consts.push((free_memory_start, func_id));
         }
 
         // Internal-call targets, exactly as in the backend dispatcher path.
@@ -806,12 +834,15 @@ impl EvmCodegen {
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
             self.in_internal_function = true;
+            self.current_internal_function = Some(func_id);
             self.generate_function_body(func);
             self.in_internal_function = false;
+            self.current_internal_function = None;
             self.record_function_spill_size(func_id);
         }
 
         self.resolve_pending_frame_size_consts(module);
+        self.resolve_static_frames(module);
     }
 
     /// Generates the function dispatcher.
@@ -847,6 +878,13 @@ impl EvmCodegen {
             self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
             if !func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::MemPtr)) {
                 self.restorable_internal_frames.insert(func_id);
+            }
+            // Non-recursive internal functions get compile-time-fixed frames.
+            if !Self::is_external_entry(func)
+                && Self::has_body(func)
+                && !call_graph.is_recursive(func_id)
+            {
+                self.static_frame_functions.insert(func_id);
             }
         }
 
@@ -949,15 +987,12 @@ impl EvmCodegen {
             self.in_internal_function = false;
             self.generate_function_body(func);
 
-            let spill_size = self.record_function_spill_size(func_id);
-            self.asm.set_deferred_const(
-                free_memory_start,
-                U256::from(Self::external_spill_base(func) + spill_size),
-            );
+            self.record_function_spill_size(func_id);
+            self.pending_free_memory_consts.push((free_memory_start, func_id));
         }
 
-        // Define internal-call targets once. Calls jump here and return through the frame's
-        // saved return address.
+        // Define internal-call targets once. Calls jump here and return
+        // through the stack-passed return address.
         for (func_id, func) in module.functions.iter_enumerated() {
             if Self::is_external_entry(func) || !Self::has_body(func) {
                 continue;
@@ -965,8 +1000,10 @@ impl EvmCodegen {
             let Some(label) = func_labels[func_id.index()] else { continue };
             self.asm.define_label(label);
             self.in_internal_function = true;
+            self.current_internal_function = Some(func_id);
             self.generate_function_body(func);
             self.in_internal_function = false;
+            self.current_internal_function = None;
             self.record_function_spill_size(func_id);
         }
 
@@ -977,6 +1014,7 @@ impl EvmCodegen {
         self.asm.emit_op(op::REVERT);
 
         self.resolve_pending_frame_size_consts(module);
+        self.resolve_static_frames(module);
     }
 
     /// Records the exact spill area size of the function body that just emitted.
@@ -2517,7 +2555,7 @@ impl EvmCodegen {
             }
 
             InstKind::InternalFrameAddr(offset) => {
-                self.emit_current_internal_frame_addr(*offset);
+                self.emit_own_frame_addr(*offset);
                 if let Some(result) = result_value {
                     self.scheduler.stack.push(result);
                 }
@@ -2685,12 +2723,155 @@ impl EvmCodegen {
         self.scheduler.instruction_executed(2, None);
     }
 
+    /// Address of `offset` within whatever frame the frame-pointer slot
+    /// currently holds. Dynamic call sites use this to reach the callee frame
+    /// right after a call (before the pointer is restored); dynamic functions
+    /// use it for their own frame. For accesses that are statically about the
+    /// CURRENT function's own frame, use [`Self::emit_own_frame_addr`], which
+    /// resolves to an absolute address when the function has a static frame.
     fn emit_current_internal_frame_addr(&mut self, offset: u64) {
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MLOAD);
         if offset != 0 {
             self.asm.emit_push(U256::from(offset));
             self.asm.emit_op(op::ADD);
+        }
+    }
+
+    /// Address of `offset` within the current function's own frame: a single
+    /// absolute push for static-frame functions, the frame-pointer indirection
+    /// otherwise.
+    fn emit_own_frame_addr(&mut self, offset: u64) {
+        if let Some(func_id) = self.current_internal_function
+            && self.static_frame_functions.contains(&func_id)
+        {
+            let addr = self.static_frame_addr(func_id, offset);
+            self.asm.emit_push_deferred(addr);
+            return;
+        }
+        self.emit_current_internal_frame_addr(offset);
+    }
+
+    /// Interns the deferred constant for absolute address `base(func_id) +
+    /// offset`. The value is set by [`Self::resolve_static_frames`] once every
+    /// body has emitted and exact spill sizes are known; the assembler then
+    /// encodes it as a minimal-width push.
+    fn static_frame_addr(&mut self, func_id: FunctionId, offset: u64) -> DeferredConst {
+        if let Some(&id) = self.static_frame_addr_consts.get(&(func_id, offset)) {
+            return id;
+        }
+        let id = self.asm.new_deferred_const();
+        self.static_frame_addr_consts.insert((func_id, offset), id);
+        id
+    }
+
+    /// Total frame size of `func_id`: the fixed prefix plus the exact spill
+    /// area recorded after its body emitted (conservative when unavailable).
+    fn emitted_frame_size(&self, module: &Module, func_id: FunctionId) -> u64 {
+        let func = &module.functions[func_id];
+        let spill = self
+            .function_spill_sizes
+            .get(&func_id)
+            .copied()
+            .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
+        64 + ((func.params.len() + func.returns.len()) as u64) * 32
+            + func.internal_frame_size
+            + spill
+    }
+
+    /// Places every referenced static frame and resolves the address and
+    /// free-memory-pointer constants recorded during this pass.
+    ///
+    /// Placement is an overlay: `base(f) = region_start + depth(f)`, where
+    /// `depth(f)` is the longest chain of static frames that can be live below
+    /// an activation of `f`. Depth propagates along every call edge — a static
+    /// caller contributes its frame size, a dynamic caller (recursive, or an
+    /// external entry whose locals live below the region) only forwards its
+    /// own depth, so a static function reached THROUGH a dynamic one is still
+    /// placed above its static ancestors. Static functions are acyclic by
+    /// construction, so every cycle in the graph is weight-zero and the
+    /// relaxation converges. Functions that can never be simultaneously live
+    /// end up sharing addresses; that is the point of the overlay.
+    ///
+    /// The heap floor moves up to `region_end`: each entry's free-pointer
+    /// constant is the maximum entry frame end when no static frame was
+    /// referenced (today's behavior), and `region_end` otherwise.
+    fn resolve_static_frames(&mut self, module: &Module) {
+        let entry_bases: Vec<(DeferredConst, u64)> = std::mem::take(
+            &mut self.pending_free_memory_consts,
+        )
+        .into_iter()
+        .map(|(id, func_id)| {
+            let func = &module.functions[func_id];
+            let spill = self
+                .function_spill_sizes
+                .get(&func_id)
+                .copied()
+                .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
+            (id, Self::external_spill_base(func) + spill)
+        })
+        .collect();
+
+        if self.static_frame_addr_consts.is_empty() {
+            for (id, base) in entry_bases {
+                self.asm.set_deferred_const(id, U256::from(base));
+            }
+            return;
+        }
+
+        let region_start = entry_bases
+            .iter()
+            .map(|&(_, base)| base)
+            .max()
+            .unwrap_or(0)
+            .max(INTERNAL_FRAME_PTR_SLOT + 32);
+
+        // Longest live-chain depth below each function, over all call edges.
+        let mut edges = Vec::new();
+        for (func_id, func) in module.functions.iter_enumerated() {
+            for inst in &func.instructions {
+                if let InstKind::InternalCall { function, .. } = inst.kind {
+                    edges.push((func_id, function));
+                }
+            }
+            for block in func.blocks.iter() {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    edges.push((func_id, *function));
+                }
+            }
+        }
+        let mut depth: FxHashMap<FunctionId, u64> = FxHashMap::default();
+        for _ in 0..=module.functions.len() {
+            let mut changed = false;
+            for &(caller, callee) in &edges {
+                let mut contribution = depth.get(&caller).copied().unwrap_or(0);
+                if self.static_frame_functions.contains(&caller) {
+                    contribution += self.emitted_frame_size(module, caller);
+                }
+                if contribution > depth.get(&callee).copied().unwrap_or(0) {
+                    depth.insert(callee, contribution);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        let placed: FxHashSet<FunctionId> =
+            self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
+        let mut region_end = region_start;
+        let mut bases = FxHashMap::default();
+        for &func_id in &placed {
+            let base = region_start + depth.get(&func_id).copied().unwrap_or(0);
+            region_end = region_end.max(base + self.emitted_frame_size(module, func_id));
+            bases.insert(func_id, base);
+        }
+        for (&(func_id, offset), &id) in &self.static_frame_addr_consts {
+            self.asm.set_deferred_const(id, U256::from(bases[&func_id] + offset));
+        }
+        for (id, _) in entry_bases {
+            self.asm.set_deferred_const(id, U256::from(region_end));
         }
     }
 
@@ -2730,7 +2911,7 @@ impl EvmCodegen {
         if self.in_internal_function {
             let spill_base =
                 64 + (func.params.len() as u64) * 32 + (func.returns.len() as u64) * 32;
-            self.emit_current_internal_frame_addr(
+            self.emit_own_frame_addr(
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
             );
         } else if self.in_constructor {
@@ -2743,7 +2924,7 @@ impl EvmCodegen {
     }
 
     fn emit_internal_arg_load(&mut self, index: u32) {
-        self.emit_current_internal_frame_addr(64 + u64::from(index) * 32);
+        self.emit_own_frame_addr(64 + u64::from(index) * 32);
         self.asm.emit_op(op::MLOAD);
     }
 
@@ -2763,6 +2944,26 @@ impl EvmCodegen {
             return;
         };
         let return_label = self.asm.new_label();
+
+        // A static-frame callee needs none of the frame-pointer or
+        // free-pointer bookkeeping below: its addresses are compile-time
+        // constants.
+        if self.static_frame_functions.contains(&callee) {
+            self.emit_internal_call_static(
+                func,
+                callee,
+                callee_label,
+                return_label,
+                args,
+                returns,
+                result,
+                liveness,
+                block,
+                inst_idx,
+            );
+            return;
+        }
+
         let static_local_frame_size =
             self.function_static_frame_sizes.get(&callee).copied().unwrap_or_default();
         // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
@@ -2865,6 +3066,69 @@ impl EvmCodegen {
         self.asm.emit_op(op::MSTORE);
     }
 
+    /// Call to a static-frame callee: arguments are stored at absolute
+    /// addresses, the return address rides the EVM stack (same invariants as
+    /// the dynamic path), and there is no frame-pointer save/update/restore
+    /// and no free-pointer traffic — the callee's frame is a fixed region
+    /// below the heap that its single live activation owns.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_internal_call_static(
+        &mut self,
+        func: &Function,
+        callee: FunctionId,
+        callee_label: Label,
+        return_label: Label,
+        args: &[ValueId],
+        returns: usize,
+        result: Option<ValueId>,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        // Spill values that are live after this call BEFORE consuming the
+        // arguments (see the dynamic path).
+        self.spill_live_stack_values(func, liveness, block, inst_idx);
+
+        for (i, &arg) in args.iter().enumerate() {
+            self.emit_operand(func, arg);
+            let addr = self.static_frame_addr(callee, 64 + (i as u64) * 32);
+            self.asm.emit_push_deferred(addr);
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::MSTORE);
+            self.scheduler.instruction_executed(2, None);
+        }
+
+        self.pop_all_stack_values();
+        self.scheduler.clear_stack();
+
+        self.asm.emit_push_label(return_label);
+        self.asm.emit_push_label(callee_label);
+        self.asm.emit_op(op::JUMP);
+
+        self.asm.define_label(return_label);
+        self.scheduler.clear_stack();
+
+        if let Some(result) = result
+            && returns > 0
+        {
+            let addr = self.static_frame_addr(callee, 64 + (args.len() as u64) * 32);
+            self.asm.emit_push_deferred(addr);
+            self.asm.emit_op(op::MLOAD);
+            self.scheduler.stack.push(result);
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
+        }
+
+        // Copy return values 2..N into scratch, matching the dynamic path.
+        for i in 1..returns {
+            let addr =
+                self.static_frame_addr(callee, 64 + ((args.len() + i) as u64) * 32);
+            self.asm.emit_push_deferred(addr);
+            self.asm.emit_op(op::MLOAD);
+            self.asm.emit_push(U256::from((i as u64) * 32));
+            self.asm.emit_op(op::MSTORE);
+        }
+    }
+
     fn spill_live_stack_values(
         &mut self,
         func: &Function,
@@ -2938,11 +3202,7 @@ impl EvmCodegen {
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
-                        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
-                        self.asm.emit_op(op::MLOAD);
-                        self.asm.emit_push(U256::from(64 + u64::from(index) * 32));
-                        self.asm.emit_op(op::ADD);
-                        self.asm.emit_op(op::MLOAD);
+                        self.emit_internal_arg_load(index);
                     } else if self.in_constructor {
                         // Constructor args were copied to memory at 0x80
                         // Load from memory: 0x80 + index * 32
@@ -3038,7 +3298,7 @@ impl EvmCodegen {
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::InternalFrameAddr(offset) => {
-                            self.emit_current_internal_frame_addr(*offset);
+                            self.emit_own_frame_addr(*offset);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Timestamp => {
@@ -3470,7 +3730,7 @@ impl EvmCodegen {
         let return_base = 64 + (func.params.len() as u64) * 32;
         for (i, &value) in values.iter().enumerate() {
             self.emit_operand(func, value);
-            self.emit_current_internal_frame_addr(return_base + (i as u64) * 32);
+            self.emit_own_frame_addr(return_base + (i as u64) * 32);
             self.asm.emit_op(op::MSTORE);
             self.scheduler.stack.pop();
         }

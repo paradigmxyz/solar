@@ -1,6 +1,6 @@
 //! Module-level call graph facts for MIR.
 
-use crate::mir::{Function, FunctionId, InstKind, Module};
+use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
@@ -121,6 +121,13 @@ impl CallGraphInfo {
         for inst in &func.instructions {
             if let InstKind::InternalCall { function, .. } = inst.kind {
                 callees.insert(function);
+            }
+        }
+        // Tail calls transfer control to another function body: for
+        // reachability and recursion purposes they are call edges.
+        for block in func.blocks.iter() {
+            if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                callees.insert(*function);
             }
         }
         callees
