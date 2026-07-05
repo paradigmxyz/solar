@@ -7,7 +7,7 @@
 //! use this — they return raw words/pointers through the internal frame.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, Value, ValueId};
+use crate::mir::{FunctionBuilder, MirType, Value, ValueId};
 use alloy_primitives::U256;
 use solar_ast::ElementaryType;
 use solar_sema::ty::{Ty, TyKind};
@@ -704,8 +704,24 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Decodes a storage `bytes`/`string` slot into the memory layout the ABI
-    /// encoder expects: `[length][data...]`.
+    /// encoder expects (`[length][data...]`), through the module's shared
+    /// `__load_storage_bytes` helper: the short/long-form decode and copy loop
+    /// is far larger than a call, and real contracts read storage strings from
+    /// several sites.
     pub(super) fn materialize_storage_bytes(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slot: ValueId,
+    ) -> ValueId {
+        if self.synthesizing_helper {
+            return self.materialize_storage_bytes_inline(builder, slot);
+        }
+        let helper = self.ensure_load_storage_bytes_helper();
+        builder.internal_call(helper, vec![slot], MirType::MemPtr, 1)
+    }
+
+    /// The out-of-line body of [`Self::materialize_storage_bytes`].
+    pub(super) fn materialize_storage_bytes_inline(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         slot: ValueId,

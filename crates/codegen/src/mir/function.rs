@@ -336,6 +336,9 @@ pub struct FunctionAttributes {
     pub is_fallback: bool,
     /// Whether this is a receive function.
     pub is_receive: bool,
+    /// Never inline this function (synthesized shared helpers whose whole
+    /// point is existing once per module).
+    pub no_inline: bool,
 }
 
 impl Default for FunctionAttributes {
@@ -346,6 +349,7 @@ impl Default for FunctionAttributes {
             is_constructor: false,
             is_fallback: false,
             is_receive: false,
+            no_inline: false,
         }
     }
 }

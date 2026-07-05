@@ -113,6 +113,9 @@ pub struct Lowerer<'gcx> {
     /// every `returns (string memory)`-shaped wrapper calls it instead of
     /// ABI-encoding the value in place.
     ret_bytes_helper: Option<FunctionId>,
+    /// The module's shared storage-`bytes`/`string` load helper: decodes the
+    /// packed short/long form into a fresh `[length][data...]` memory copy.
+    storage_bytes_helper: Option<FunctionId>,
     /// Guards helper synthesis against routing through itself.
     synthesizing_helper: bool,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
@@ -175,6 +178,7 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_internal_function: false,
             revert_error_helper: None,
             ret_bytes_helper: None,
+            storage_bytes_helper: None,
             synthesizing_helper: false,
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
@@ -430,6 +434,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: true,
             is_fallback: false,
             is_receive: false,
+            no_inline: false,
         };
 
         {
@@ -592,6 +597,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let name = Ident::new(Symbol::intern("__revert_error"), Span::DUMMY);
         let mut func = Function::new(name);
+        func.attributes.no_inline = true;
         {
             let mut builder = FunctionBuilder::new(&mut func);
             let len = builder.add_param(MirType::UInt(256));
@@ -625,6 +631,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let name = Ident::new(Symbol::intern("__ret_bytes"), Span::DUMMY);
         let mut func = Function::new(name);
+        func.attributes.no_inline = true;
         {
             let mut builder = FunctionBuilder::new(&mut func);
             let ptr = builder.add_param(MirType::MemPtr);
@@ -634,6 +641,31 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let id = self.module.add_function(func);
         self.ret_bytes_helper = Some(id);
+        id
+    }
+
+    /// Returns the module's shared storage-`bytes`/`string` load helper,
+    /// synthesizing it on first use: takes the slot, decodes the packed
+    /// short/long form, and returns a fresh `[length][data...]` memory copy.
+    /// Marked `no_inline` — the whole point is existing once per module.
+    pub(super) fn ensure_load_storage_bytes_helper(&mut self) -> FunctionId {
+        if let Some(id) = self.storage_bytes_helper {
+            return id;
+        }
+        let name = Ident::new(Symbol::intern("__load_storage_bytes"), Span::DUMMY);
+        let mut func = Function::new(name);
+        func.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let slot = builder.add_param(MirType::uint256());
+            builder.add_return(MirType::MemPtr);
+            self.synthesizing_helper = true;
+            let ptr = self.materialize_storage_bytes_inline(&mut builder, slot);
+            self.synthesizing_helper = false;
+            builder.ret([ptr]);
+        }
+        let id = self.module.add_function(func);
+        self.storage_bytes_helper = Some(id);
         id
     }
 
@@ -698,6 +730,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: hir_func.kind == hir::FunctionKind::Constructor,
             is_fallback: hir_func.kind == hir::FunctionKind::Fallback,
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
+            no_inline: false,
         };
 
         // Only regular public/external functions get selectors. An internal copy

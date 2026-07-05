@@ -669,6 +669,7 @@ struct MirInlineSummary {
     has_unsupported_terminator: bool,
     is_entry_point: bool,
     is_constructor: bool,
+    no_inline: bool,
 }
 
 /// Module-level MIR internal-call inliner.
@@ -881,6 +882,7 @@ impl MirInliner {
         let single_call = self.config.inline_single_call && call_count == 1;
 
         if caller == site.callee
+            || summary.no_inline
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi
@@ -950,6 +952,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
+        no_inline: func.attributes.no_inline,
         ..MirInlineSummary::default()
     };
 

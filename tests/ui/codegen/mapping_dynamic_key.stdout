@@ -198,61 +198,67 @@ fn @nestedSecond(arg0: address, arg1: memptr) {
 fn @skey() {
   bb0 (entry):
     mstore 128, 0
-    v3 = sload 3 !metadata(storage=slot(3))
-    v5 = and v3, 1
-    v6 = eq v5, 1
-    v8 = and v3, 255
-    v10 = shr 1, v8
-    v11 = shr 1, v3
-    v12 = select v6, v11, v10
-    v15 = not 31
-    v16 = add v12, 31
-    v17 = and v16, v15
-    v18 = iszero v17
-    v19 = select v18, 32, v17
-    v20 = add 32, v19
-    v22 = mload 64 !metadata(memory=scratch)
-    v24 = add v22, 96
-    mstore 64, v24 !metadata(memory=scratch)
-    v27 = mload 64 !metadata(memory=scratch)
-    v28 = add v27, v20
-    mstore 64, v28 !metadata(memory=scratch)
-    mstore v27, v12
-    v30 = add v27, 32
-    br v6, bb2, bb1
+    v3 = internal_call fn4, 1, 3
+    internal_call fn5, 0, v3
+    invalid
+}
+
+fn @__load_storage_bytes(arg0: u256) -> memptr {
+  bb0 (entry):
+    v1 = sload arg0 !metadata(storage=symbolic(arg0))
+    v3 = and v1, 1
+    v4 = eq v3, 1
+    v6 = and v1, 255
+    v8 = shr 1, v6
+    v9 = shr 1, v1
+    v10 = select v4, v9, v8
+    v13 = not 31
+    v14 = add v10, 31
+    v15 = and v14, v13
+    v16 = iszero v15
+    v17 = select v16, 32, v15
+    v18 = add 32, v17
+    v20 = mload 64 !metadata(memory=scratch)
+    v22 = add v20, 96
+    mstore 64, v22 !metadata(memory=scratch)
+    v25 = mload 64 !metadata(memory=scratch)
+    v26 = add v25, v18
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore v25, v10
+    v28 = add v25, 32
+    br v4, bb2, bb1
   bb1:
-    v32 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v30, v32
+    v30 = and v1, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v28, v30
     jump bb3
   bb2:
-    mstore v22, 3
-    v33 = keccak256 v22, 32
-    v34 = div v17, 32
-    v36 = add v22, 32
-    v38 = add v22, 64
-    mstore v22, v30
-    mstore v36, v34
-    mstore v38, v33
+    mstore v20, arg0
+    v31 = keccak256 v20, 32
+    v32 = div v15, 32
+    v34 = add v20, 32
+    v36 = add v20, 64
+    mstore v20, v28
+    mstore v34, v32
+    mstore v36, v31
     jump bb4
   bb3:
-    internal_call fn4, 0, v27
-    invalid
+    ret v25
   bb4:
-    v39 = mload v36
-    v41 = gt v39, 0
-    br v41, bb5, bb3
+    v37 = mload v34
+    v39 = gt v37, 0
+    br v39, bb5, bb3
   bb5:
-    v42 = mload v38
-    v43 = sload v42 !metadata(storage=symbolic(v42))
-    v44 = mload v22
-    mstore v44, v43
-    v45 = add v42, 1
-    mstore v38, v45
-    v47 = add v44, 32
-    mstore v22, v47
-    v48 = mload v36
-    v49 = sub v48, 1
-    mstore v36, v49
+    v40 = mload v36
+    v41 = sload v40 !metadata(storage=symbolic(v40))
+    v42 = mload v20
+    mstore v42, v41
+    v43 = add v40, 1
+    mstore v36, v43
+    v45 = add v42, 32
+    mstore v20, v45
+    v46 = mload v34
+    v47 = sub v46, 1
+    mstore v34, v47
     jump bb4
 }
 
@@ -565,70 +571,17 @@ fn @setViaStorageKey(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v8 = sload 3 !metadata(storage=slot(3))
-    v10 = and v8, 1
-    v11 = eq v10, 1
-    v13 = and v8, 255
-    v15 = shr 1, v13
-    v16 = shr 1, v8
-    v17 = select v11, v16, v15
-    v20 = not 31
-    v21 = add v17, 31
-    v22 = and v21, v20
-    v23 = iszero v22
-    v24 = select v23, 32, v22
-    v25 = add 32, v24
-    v27 = mload 64 !metadata(memory=scratch)
-    v29 = add v27, 96
-    mstore 64, v29 !metadata(memory=scratch)
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, v25
-    mstore 64, v33 !metadata(memory=scratch)
-    mstore v32, v17
-    v35 = add v32, 32
-    br v11, bb4, bb3
-  bb3:
-    v37 = and v8, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v35, v37
-    jump bb5
-  bb4:
-    mstore v27, 3
-    v38 = keccak256 v27, 32
-    v39 = div v22, 32
-    v41 = add v27, 32
-    v43 = add v27, 64
-    mstore v27, v35
-    mstore v41, v39
-    mstore v43, v38
-    jump bb6
-  bb5:
-    v56 = mload v32
-    v58 = add v32, 32
-    v60 = mload 64 !metadata(memory=scratch)
-    mcopy v60, v58, v56
-    v61 = add v60, v56
-    mstore v61, 0
-    v62 = add v56, 32
-    v63 = keccak256 v60, v62
-    sstore v63, arg0 !metadata(storage=symbolic(v63))
+    v8 = internal_call fn4, 1, 3
+    v10 = mload v8
+    v12 = add v8, 32
+    v14 = mload 64 !metadata(memory=scratch)
+    mcopy v14, v12, v10
+    v15 = add v14, v10
+    mstore v15, 0
+    v16 = add v10, 32
+    v17 = keccak256 v14, v16
+    sstore v17, arg0 !metadata(storage=symbolic(v17))
     stop
-  bb6:
-    v44 = mload v41
-    v46 = gt v44, 0
-    br v46, bb7, bb5
-  bb7:
-    v47 = mload v43
-    v48 = sload v47 !metadata(storage=symbolic(v47))
-    v49 = mload v27
-    mstore v49, v48
-    v50 = add v47, 1
-    mstore v43, v50
-    v52 = add v49, 32
-    mstore v27, v52
-    v53 = mload v41
-    v54 = sub v53, 1
-    mstore v41, v54
-    jump bb6
 }
 
 fn @setThenAlloc(arg0: memptr, arg1: u256) {
