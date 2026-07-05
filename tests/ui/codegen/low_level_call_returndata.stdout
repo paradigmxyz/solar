@@ -216,30 +216,36 @@ fn @forward(arg0: address, arg1: memptr) {
     revert 0, 0
   bb6:
     v60 = mload 192
-    v62 = mload 64 !metadata(memory=scratch)
-    v64 = add v62, 32
-    mstore 64, v64 !metadata(memory=scratch)
-    v67 = add v62, 32
-    v68 = sub v67, v62
-    mstore v62, v68
-    v69 = mload v60
-    mstore v67, v69
-    v72 = not 31
-    v73 = add v69, 31
-    v74 = and v73, v72
-    v75 = add v67, 32
-    v76 = iszero v74
-    br v76, bb8, bb7
-  bb7:
-    v77 = sub v74, 32
-    v78 = add v75, v77
-    mstore v78, 0
-    jump bb8
-  bb8:
-    v80 = add v60, 32
-    v81 = add v75, v74
-    mcopy v75, v80, v69
-    v82 = sub v81, v62
-    returndata v62, v82
+    internal_call fn4, 0, v60
+    invalid
+}
+
+fn @__ret_bytes(arg0: memptr) {
+  bb0 (entry):
+    v2 = mload 64 !metadata(memory=scratch)
+    v4 = add v2, 32
+    mstore 64, v4 !metadata(memory=scratch)
+    v7 = add v2, 32
+    v8 = sub v7, v2
+    mstore v2, v8
+    v9 = mload arg0
+    mstore v7, v9
+    v12 = not 31
+    v13 = add v9, 31
+    v14 = and v13, v12
+    v15 = add v7, 32
+    v16 = iszero v14
+    br v16, bb2, bb1
+  bb1:
+    v17 = sub v14, 32
+    v18 = add v15, v17
+    mstore v18, 0
+    jump bb2
+  bb2:
+    v20 = add arg0, 32
+    v21 = add v15, v14
+    mcopy v15, v20, v9
+    v22 = sub v21, v2
+    returndata v2, v22
 }
 

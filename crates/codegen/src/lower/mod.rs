@@ -109,6 +109,12 @@ pub struct Lowerer<'gcx> {
     /// use: constant short revert messages call it instead of materializing
     /// and ABI-encoding the string at every site.
     revert_error_helper: Option<FunctionId>,
+    /// The module's shared single-`bytes`/`string` external-return helper:
+    /// every `returns (string memory)`-shaped wrapper calls it instead of
+    /// ABI-encoding the value in place.
+    ret_bytes_helper: Option<FunctionId>,
+    /// Guards helper synthesis against routing through itself.
+    synthesizing_helper: bool,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
     in_unchecked_block: bool,
     /// Sema return types of the function currently being lowered (one per declared
@@ -168,6 +174,8 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_constructor: false,
             lowering_internal_function: false,
             revert_error_helper: None,
+            ret_bytes_helper: None,
+            synthesizing_helper: false,
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
@@ -603,6 +611,29 @@ impl<'gcx> Lowerer<'gcx> {
         }
         let id = self.module.add_function(func);
         self.revert_error_helper = Some(id);
+        id
+    }
+
+    /// Returns the module's shared single-`bytes`/`string` external-return
+    /// helper, synthesizing it on first use: it ABI-encodes its memory-bytes
+    /// argument (offset word, length, padded data) and terminates with
+    /// `ReturnData`, so wrappers pay one cheap call instead of an inline
+    /// encode each. Never inlined back: it has no MIR return values.
+    pub(super) fn ensure_ret_bytes_helper(&mut self, ty: Ty<'gcx>) -> FunctionId {
+        if let Some(id) = self.ret_bytes_helper {
+            return id;
+        }
+        let name = Ident::new(Symbol::intern("__ret_bytes"), Span::DUMMY);
+        let mut func = Function::new(name);
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let ptr = builder.add_param(MirType::MemPtr);
+            self.synthesizing_helper = true;
+            self.emit_abi_return(&mut builder, &[(ptr, ty)]);
+            self.synthesizing_helper = false;
+        }
+        let id = self.module.add_function(func);
+        self.ret_bytes_helper = Some(id);
         id
     }
 

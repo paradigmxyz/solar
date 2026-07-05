@@ -410,6 +410,24 @@ impl<'gcx> Lowerer<'gcx> {
             builder.stop();
             return;
         }
+
+        // The most common dynamic-return shape — a single `bytes`/`string`
+        // value — encodes through one shared helper per module instead of
+        // duplicating the offset/length/copy sequence in every wrapper.
+        if let [(value, ty)] = items
+            && !self.synthesizing_helper
+            && matches!(
+                ty.peel_refs().kind,
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            )
+        {
+            let helper = self.ensure_ret_bytes_helper(*ty);
+            builder.internal_call_void(helper, vec![*value], 0);
+            // The helper terminates externally; this is unreachable.
+            builder.invalid();
+            return;
+        }
+
         let head_size: u64 = items.iter().map(|&(_, t)| self.abi_head_size(t)).sum();
         let has_dynamic = items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty));
         if !has_dynamic {
