@@ -676,6 +676,7 @@ impl EvmCodegen {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
+        module.optimize_for_size = self.optimization == OptimizationMode::Size;
         if self.optimization != OptimizationMode::None {
             run_default_pipeline_with_options(
                 module,

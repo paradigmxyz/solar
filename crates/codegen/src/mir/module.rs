@@ -96,6 +96,9 @@ pub struct Module {
     pub immutables: Vec<ImmutableSlot>,
     /// Whether this is an interface (no bytecode generation).
     pub is_interface: bool,
+    /// Whether optimization passes should favor bytecode size over runtime
+    /// gas (`-O size`): multi-use functions are called rather than inlined.
+    pub optimize_for_size: bool,
     /// The lowering phase this module is in.
     pub phase: MirPhase,
 }
@@ -111,6 +114,7 @@ impl Module {
             storage_layout: Vec::new(),
             immutables: Vec::new(),
             is_interface: false,
+            optimize_for_size: false,
             phase: MirPhase::Built,
         }
     }

@@ -626,6 +626,20 @@ impl Default for MirInlineConfig {
     }
 }
 
+impl MirInlineConfig {
+    /// Configuration for `-O size`: a module budget of zero disables all MIR
+    /// inlining, which only ever grows emitted code on real contracts (both
+    /// multi-use duplication and the cascades that single-call inlining sets
+    /// off were measured to increase size). Lowering-time inlining of tiny
+    /// single-return helpers is deliberately kept: solar's internal-call
+    /// protocol (memory frame setup) costs more bytes than those bodies, so
+    /// sharing them was measured to *increase* code size as well.
+    #[must_use]
+    pub fn for_size() -> Self {
+        Self { max_module_code_size: 0, ..Self::default() }
+    }
+}
+
 /// Statistics for MIR-level inlining.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct MirInlineStats {
@@ -675,7 +689,12 @@ impl ModulePass for InlinePass {
     }
 
     fn run(&mut self, module: &mut Module) -> bool {
-        MirInliner::default().run(module).inlined != 0
+        let config = if module.optimize_for_size {
+            MirInlineConfig::for_size()
+        } else {
+            MirInlineConfig::default()
+        };
+        MirInliner::new(config).run(module).inlined != 0
     }
 }
 
