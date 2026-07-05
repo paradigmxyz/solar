@@ -3,9 +3,9 @@ use crate::test_support::MarkedProject;
 use async_lsp::ClientSocket;
 use lsp_types::{
     CompletionItem, CompletionParams, CompletionResponse, GotoDefinitionParams,
-    GotoDefinitionResponse, Location, PartialResultParams, Position, ReferenceContext,
-    ReferenceParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
-    WorkDoneProgressParams,
+    GotoDefinitionResponse, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location,
+    PartialResultParams, Position, Range, ReferenceContext, ReferenceParams,
+    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -88,6 +88,33 @@ impl RequestFixture {
         ))
         .unwrap();
         assert_data_eq!(self.locations_output(response), expected);
+    }
+
+    pub(super) fn check_inlay_hints(&self, path: &str, range: Range, expected: impl IntoData) {
+        let mut state = self.state();
+        let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
+        let response =
+            expect_ready(crate::handlers::inlay_hints(&mut state, inlay_hint_params(uri, range)))
+                .unwrap();
+        assert_data_eq!(inlay_hint_output(&response.unwrap_or_default()), expected);
+    }
+
+    pub(super) fn check_inlay_hints_between(
+        &self,
+        start_marker: &str,
+        end_marker: &str,
+        expected: impl IntoData,
+    ) {
+        let (start_uri, start) = self.marker_location(start_marker);
+        let (end_uri, end) = self.marker_location(end_marker);
+        assert_eq!(start_uri, end_uri);
+        let mut state = self.state();
+        let response = expect_ready(crate::handlers::inlay_hints(
+            &mut state,
+            inlay_hint_params(start_uri, Range { start, end }),
+        ))
+        .unwrap();
+        assert_data_eq!(inlay_hint_output(&response.unwrap_or_default()), expected);
     }
 
     fn state(&self) -> GlobalState {
@@ -174,6 +201,30 @@ fn completion_output(items: &[CompletionItem]) -> String {
     output
 }
 
+fn inlay_hint_output(hints: &[InlayHint]) -> String {
+    let mut output = String::new();
+    for hint in hints {
+        writeln!(output, "{} {}", inlay_hint_kind(hint.kind), inlay_hint_label(&hint.label))
+            .unwrap();
+    }
+    output
+}
+
+fn inlay_hint_kind(kind: Option<InlayHintKind>) -> &'static str {
+    match kind {
+        Some(InlayHintKind::PARAMETER) => "PARAMETER",
+        Some(InlayHintKind::TYPE) => "TYPE",
+        _ => "UNKNOWN",
+    }
+}
+
+fn inlay_hint_label(label: &InlayHintLabel) -> String {
+    match label {
+        InlayHintLabel::String(label) => label.clone(),
+        InlayHintLabel::LabelParts(parts) => parts.iter().map(|part| part.value.as_str()).collect(),
+    }
+}
+
 fn display_path(root: &Path, path: &Path) -> String {
     let path = path.strip_prefix(root).unwrap_or(path);
     format!("/{}", path.display())
@@ -202,6 +253,14 @@ fn reference_params(uri: Url, position: Position, include_declaration: bool) -> 
         work_done_progress_params: WorkDoneProgressParams::default(),
         partial_result_params: PartialResultParams::default(),
         context: ReferenceContext { include_declaration },
+    }
+}
+
+fn inlay_hint_params(uri: Url, range: Range) -> InlayHintParams {
+    InlayHintParams {
+        text_document: TextDocumentIdentifier { uri },
+        range,
+        work_done_progress_params: WorkDoneProgressParams::default(),
     }
 }
 

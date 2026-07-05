@@ -2,7 +2,10 @@ use crate::{
     builtins::{Builtin, members},
     eval::{ConstValue, ConstantEvaluator, EvalErrorKind},
     hir::{self, Visit},
-    ty::{Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind, TypeckResults},
+    ty::{
+        CallableParamSource, CallableSignature, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn,
+        TyFnKind, TyKind, TypeckResults,
+    },
 };
 use alloy_primitives::U256;
 use solar_ast::{
@@ -17,24 +20,6 @@ use solar_interface::{
 use std::ops::ControlFlow;
 
 mod yul;
-
-type ParamNames = SmallVec<[Option<Symbol>; 8]>;
-type CallCandidateParams<'gcx> = (&'gcx [Ty<'gcx>], Option<ParamNamesSource>);
-
-#[derive(Clone, Copy)]
-enum ParamNamesSource {
-    Function {
-        id: hir::FunctionId,
-        /// Whether the leading receiver parameter is not visible at the call site.
-        ///
-        /// Attached member calls strip the receiver from the visible call parameters,
-        /// but named arguments still come from the original function declaration.
-        skips_receiver: bool,
-    },
-    Struct(hir::StructId),
-    Event(hir::EventId),
-    Error(hir::ErrorId),
-}
 
 #[derive(Clone, Copy)]
 enum AbiDecodeArg {
@@ -266,12 +251,16 @@ impl<'gcx> TypeChecker<'gcx> {
                     callee_ty = self.check_call_options(callee_ty, opts.args, opts.span);
                 }
 
-                // Get the function type for struct constructors, keeping struct_id for field names.
-                let struct_id = if let TyKind::Type(struct_ty) = callee_ty.kind
-                    && let TyKind::Struct(id) = struct_ty.kind
+                // Get the function type for struct constructors, keeping field names.
+                let struct_param_source = if let TyKind::Type(_) = callee_ty.kind
+                    && let Some(signature) = self.gcx.callable_signature_of_ty(callee_ty)
                 {
-                    callee_ty = struct_constructor(self.gcx, struct_ty, id);
-                    Some(id)
+                    callee_ty = self.gcx.mk_builtin_fn(
+                        signature.parameters,
+                        StateMutability::Pure,
+                        signature.returns,
+                    );
+                    signature.param_source
                 } else {
                     None
                 };
@@ -293,11 +282,8 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
 
                         let builtin = self.results.builtin_callee(callee.id);
-                        let param_names = if let Some(id) = struct_id {
-                            Some(ParamNamesSource::Struct(id))
-                        } else {
-                            self.ty_fn_param_names_source(f)
-                        };
+                        let param_names = struct_param_source
+                            .or_else(|| self.gcx.callable_signature_of_ty(callee_ty)?.param_source);
                         if builtin != Some(Builtin::Require) {
                             let _ =
                                 self.check_call_args(expr.span, args, f.parameters, param_names);
@@ -322,7 +308,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             expr.span,
                             args,
                             param_tys,
-                            Some(ParamNamesSource::Event(id)),
+                            Some(CallableParamSource::Event(id)),
                         );
                         self.gcx.types.unit
                     }
@@ -340,7 +326,7 @@ impl<'gcx> TypeChecker<'gcx> {
                             expr.span,
                             args,
                             param_tys,
-                            Some(ParamNamesSource::Error(id)),
+                            Some(CallableParamSource::Error(id)),
                         );
                         self.gcx.types.unit
                     }
@@ -1001,64 +987,12 @@ impl<'gcx> TypeChecker<'gcx> {
         }
     }
 
-    fn get_param_names(&self, params: &[hir::VariableId]) -> ParamNames {
-        params.iter().map(|&id| self.gcx.hir.variable(id).name.map(|i| i.name)).collect()
-    }
-
-    fn get_call_param_names(&self, function: hir::FunctionId, skips_receiver: bool) -> ParamNames {
-        let mut names = self.get_param_names(self.gcx.hir.function(function).parameters);
-        if skips_receiver {
-            debug_assert!(!names.is_empty());
-            names.remove(0);
-        }
-        names
-    }
-
-    fn ty_fn_param_names_source(&self, function_ty: &TyFn<'gcx>) -> Option<ParamNamesSource> {
-        function_ty.function_id.map(|id| {
-            let declared_param_count = self.gcx.hir.function(id).parameters.len();
-            let visible_param_count = function_ty.parameters.len();
-            debug_assert!(
-                declared_param_count == visible_param_count
-                    || declared_param_count == visible_param_count + 1
-            );
-            ParamNamesSource::Function {
-                id,
-                skips_receiver: declared_param_count == visible_param_count + 1,
-            }
-        })
-    }
-
-    fn get_struct_field_names(
-        &self,
-        id: hir::StructId,
-    ) -> SmallVec<[Option<solar_interface::Symbol>; 8]> {
-        self.gcx
-            .hir
-            .strukt(id)
-            .fields
-            .iter()
-            .map(|&fid| self.gcx.hir.variable(fid).name.map(|i| i.name))
-            .collect()
-    }
-
-    fn get_param_names_from_source(&self, source: ParamNamesSource) -> ParamNames {
-        match source {
-            ParamNamesSource::Function { id, skips_receiver } => {
-                self.get_call_param_names(id, skips_receiver)
-            }
-            ParamNamesSource::Struct(id) => self.get_struct_field_names(id),
-            ParamNamesSource::Event(id) => self.get_param_names(self.gcx.hir.event(id).parameters),
-            ParamNamesSource::Error(id) => self.get_param_names(self.gcx.hir.error(id).parameters),
-        }
-    }
-
     fn check_call_args(
         &mut self,
         call_span: Span,
         args: &hir::CallArgs<'gcx>,
         param_tys: &[Ty<'gcx>],
-        param_names: Option<ParamNamesSource>,
+        param_names: Option<CallableParamSource>,
     ) -> Result<(), ErrorGuaranteed> {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => {
@@ -1223,7 +1157,7 @@ impl<'gcx> TypeChecker<'gcx> {
             self.register_ty(callee, callee_ty);
         }
         let result =
-            self.check_call_args(expr.span, &args, param_tys, Some(ParamNamesSource::Error(id)));
+            self.check_call_args(expr.span, &args, param_tys, Some(CallableParamSource::Error(id)));
         self.register_ty(expr, self.gcx.types.unit);
         result
     }
@@ -1720,10 +1654,10 @@ impl<'gcx> TypeChecker<'gcx> {
         let mut selected = SmallVec::<[_; 4]>::new();
         for &res in res {
             let ty = self.type_of_res(res);
-            let Some((param_tys, param_names)) = self.call_candidate_params(ty) else {
+            let Some(signature) = self.call_candidate_params(ty) else {
                 continue;
             };
-            if self.call_args_match(args, param_tys, param_names) {
+            if self.call_args_match(args, signature.parameters, signature.param_source) {
                 selected.push(res);
             }
         }
@@ -1766,17 +1700,8 @@ impl<'gcx> TypeChecker<'gcx> {
         selected
     }
 
-    fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallCandidateParams<'gcx>> {
-        match ty.kind {
-            TyKind::Fn(function_ty) => {
-                let param_names = self.ty_fn_param_names_source(function_ty);
-                Some((function_ty.parameters, param_names))
-            }
-            TyKind::Event(param_tys, id) => Some((param_tys, Some(ParamNamesSource::Event(id)))),
-            TyKind::Error(param_tys, id) => Some((param_tys, Some(ParamNamesSource::Error(id)))),
-            TyKind::Err(_) => None,
-            _ => None,
-        }
+    fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallableSignature<'gcx>> {
+        self.gcx.callable_signature_of_ty(ty)
     }
 
     fn select_member_call_overload<'a>(
@@ -1793,9 +1718,8 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let mut selected = WantOne::Zero;
         for member in members {
-            if let Some((parameters, param_names)) =
-                self.member_call_candidate_params(receiver_ty, member)
-                && self.call_args_match(args, parameters, param_names)
+            if let Some(signature) = self.member_call_candidate_params(receiver_ty, member)
+                && self.call_args_match(args, signature.parameters, signature.param_source)
             {
                 selected.push(member);
             }
@@ -1811,33 +1735,21 @@ impl<'gcx> TypeChecker<'gcx> {
         &self,
         receiver_ty: Ty<'gcx>,
         member: &members::Member<'gcx>,
-    ) -> Option<CallCandidateParams<'gcx>> {
-        let TyKind::Fn(function_ty) = member.ty.kind else { return None };
-        let (parameters, skips_receiver) = if member.attached {
-            let (&self_ty, parameters) = function_ty.parameters.split_first()?;
-            if !receiver_ty.convert_implicit_to(self_ty, self.gcx) {
-                return None;
-            }
-            (parameters, true)
-        } else {
-            (function_ty.parameters, false)
-        };
-        let param_names =
-            function_ty.function_id.map(|id| ParamNamesSource::Function { id, skips_receiver });
-        Some((parameters, param_names))
+    ) -> Option<CallableSignature<'gcx>> {
+        self.gcx.callable_signature_of_member(receiver_ty, member)
     }
 
     fn call_args_match(
         &mut self,
         args: &hir::CallArgs<'gcx>,
         param_tys: &[Ty<'gcx>],
-        param_names: Option<ParamNamesSource>,
+        param_names: Option<CallableParamSource>,
     ) -> bool {
         match args.kind {
             hir::CallArgsKind::Unnamed(exprs) => self.positional_call_args_match(exprs, param_tys),
             hir::CallArgsKind::Named(named_args) => {
                 let Some(param_names) = param_names else { return false };
-                let names = self.get_param_names_from_source(param_names);
+                let names = self.gcx.callable_param_names(param_names);
                 if named_args.len() != param_tys.len() {
                     return false;
                 }
@@ -2039,7 +1951,7 @@ impl<'gcx> TypeChecker<'gcx> {
         args_span: Span,
         named_args: &'gcx [hir::NamedArg<'gcx>],
         param_tys: &[Ty<'gcx>],
-        param_names: Option<ParamNamesSource>,
+        param_names: Option<CallableParamSource>,
     ) -> Result<(), ErrorGuaranteed> {
         let Some(param_names) = param_names else {
             let guar = self.dcx().emit_err(
@@ -2052,7 +1964,7 @@ impl<'gcx> TypeChecker<'gcx> {
             return Err(guar);
         };
 
-        let param_names = self.get_param_names_from_source(param_names);
+        let param_names = self.gcx.callable_param_names(param_names);
         debug_assert_eq!(param_tys.len(), param_names.len());
         let mut result = Ok(());
 
@@ -3065,16 +2977,5 @@ fn valid_meta_type(ty: Ty<'_>) -> bool {
         TyKind::Elementary(hir::ElementaryType::Int(_) | hir::ElementaryType::UInt(_))
             | TyKind::Contract(_)
             | TyKind::Enum(_)
-    )
-}
-
-fn struct_constructor<'gcx>(gcx: Gcx<'gcx>, ty: Ty<'gcx>, id: hir::StructId) -> Ty<'gcx> {
-    gcx.mk_builtin_fn(
-        &gcx.struct_field_types(id)
-            .iter()
-            .map(|&ty| ty.with_loc_if_ref(gcx, DataLocation::Memory))
-            .collect::<Vec<_>>(),
-        hir::StateMutability::Pure,
-        &[ty.with_loc(gcx, DataLocation::Memory)],
     )
 }

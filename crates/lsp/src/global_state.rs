@@ -382,6 +382,7 @@ mod tests {
 
     mod completion;
     mod goto_definition;
+    mod inlay_hint;
     mod references;
     mod support;
 

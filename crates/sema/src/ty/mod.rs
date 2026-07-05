@@ -115,6 +115,41 @@ pub struct MemberCompletion<'gcx> {
     pub resolved: Option<ResolvedMember>,
 }
 
+/// Parameter names available for a callable's visible arguments.
+pub type CallableParamNames = SmallVec<[Option<Symbol>; 8]>;
+
+/// The source declaration used for a callable's parameter names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum CallableParamSource {
+    /// A function-like declaration.
+    Function {
+        /// The function ID.
+        id: hir::FunctionId,
+        /// Whether the leading receiver parameter is not visible at the call site.
+        ///
+        /// Attached member calls strip the receiver from the visible call parameters,
+        /// but named arguments still come from the original function declaration.
+        skips_receiver: bool,
+    },
+    /// A struct constructor.
+    Struct(hir::StructId),
+    /// An event invocation.
+    Event(hir::EventId),
+    /// An error invocation.
+    Error(hir::ErrorId),
+}
+
+/// The visible signature of a callable expression.
+#[derive(Clone, Copy, Debug)]
+pub struct CallableSignature<'gcx> {
+    /// The visible parameter types at the call site.
+    pub parameters: &'gcx [Ty<'gcx>],
+    /// The return types.
+    pub returns: &'gcx [Ty<'gcx>],
+    /// The declaration source for parameter names, if one exists.
+    pub param_source: Option<CallableParamSource>,
+}
+
 impl<'gcx> TypeckResults<'gcx> {
     /// Returns the type inferred for the given expression, if available.
     #[inline]
@@ -827,6 +862,123 @@ impl<'gcx> Gcx<'gcx> {
             hir::Res::Builtin(builtin) => builtin.ty(self),
             hir::Res::Err(guar) => self.mk_ty_err(guar),
         }
+    }
+
+    /// Returns the visible callable signature for the given resolved target.
+    pub fn callable_signature_of_res(
+        self,
+        res: hir::Res,
+        skips_receiver: bool,
+    ) -> Option<CallableSignature<'gcx>> {
+        let mut signature = self.callable_signature_of_ty(self.type_of_res(res))?;
+        if let Some(CallableParamSource::Function { id, .. }) = signature.param_source {
+            signature.param_source = Some(CallableParamSource::Function { id, skips_receiver });
+        }
+        if skips_receiver && let Some((&_receiver, parameters)) = signature.parameters.split_first()
+        {
+            signature.parameters = parameters;
+        }
+        Some(signature)
+    }
+
+    /// Returns the visible callable signature for the given type.
+    pub fn callable_signature_of_ty(self, ty: Ty<'gcx>) -> Option<CallableSignature<'gcx>> {
+        match ty.kind {
+            TyKind::Fn(function_ty) => Some(CallableSignature {
+                parameters: function_ty.parameters,
+                returns: function_ty.returns,
+                param_source: self.callable_param_source_for_fn(function_ty),
+            }),
+            TyKind::Event(parameters, id) => Some(CallableSignature {
+                parameters,
+                returns: Default::default(),
+                param_source: Some(CallableParamSource::Event(id)),
+            }),
+            TyKind::Error(parameters, id) => Some(CallableSignature {
+                parameters,
+                returns: Default::default(),
+                param_source: Some(CallableParamSource::Error(id)),
+            }),
+            TyKind::Type(ty) => self.struct_constructor_signature(ty),
+            TyKind::Err(_) => None,
+            _ => None,
+        }
+    }
+
+    /// Returns the visible callable signature for a member call candidate.
+    pub fn callable_signature_of_member(
+        self,
+        receiver_ty: Ty<'gcx>,
+        member: &members::Member<'gcx>,
+    ) -> Option<CallableSignature<'gcx>> {
+        let TyKind::Fn(function_ty) = member.ty.kind else { return None };
+        let (parameters, skips_receiver) = if member.attached {
+            let (&self_ty, parameters) = function_ty.parameters.split_first()?;
+            if !receiver_ty.convert_implicit_to(self_ty, self) {
+                return None;
+            }
+            (parameters, true)
+        } else {
+            (function_ty.parameters, false)
+        };
+        Some(CallableSignature {
+            parameters,
+            returns: function_ty.returns,
+            param_source: function_ty
+                .function_id
+                .map(|id| CallableParamSource::Function { id, skips_receiver }),
+        })
+    }
+
+    /// Returns the parameter names from a callable parameter source.
+    pub fn callable_param_names(self, source: CallableParamSource) -> CallableParamNames {
+        match source {
+            CallableParamSource::Function { id, skips_receiver } => {
+                let mut names = self.param_names(self.hir.function(id).parameters);
+                if skips_receiver {
+                    debug_assert!(!names.is_empty());
+                    names.remove(0);
+                }
+                names
+            }
+            CallableParamSource::Struct(id) => self.param_names(self.hir.strukt(id).fields),
+            CallableParamSource::Event(id) => self.param_names(self.hir.event(id).parameters),
+            CallableParamSource::Error(id) => self.param_names(self.hir.error(id).parameters),
+        }
+    }
+
+    fn callable_param_source_for_fn(self, function_ty: &TyFn<'gcx>) -> Option<CallableParamSource> {
+        function_ty.function_id.map(|id| {
+            let declared_param_count = self.hir.function(id).parameters.len();
+            let visible_param_count = function_ty.parameters.len();
+            debug_assert!(
+                declared_param_count == visible_param_count
+                    || declared_param_count == visible_param_count + 1
+            );
+            CallableParamSource::Function {
+                id,
+                skips_receiver: declared_param_count == visible_param_count + 1,
+            }
+        })
+    }
+
+    fn struct_constructor_signature(self, ty: Ty<'gcx>) -> Option<CallableSignature<'gcx>> {
+        let TyKind::Struct(id) = ty.kind else { return None };
+        let parameters = self.mk_ty_iter(
+            self.struct_field_types(id)
+                .iter()
+                .map(|&field_ty| field_ty.with_loc_if_ref(self, DataLocation::Memory)),
+        );
+        let returns = self.mk_ty_iter(std::iter::once(ty.with_loc(self, DataLocation::Memory)));
+        Some(CallableSignature {
+            parameters,
+            returns,
+            param_source: Some(CallableParamSource::Struct(id)),
+        })
+    }
+
+    fn param_names(self, params: &[hir::VariableId]) -> CallableParamNames {
+        params.iter().map(|&id| self.hir.variable(id).name.map(|i| i.name)).collect()
     }
 
     /// Returns the type of the given literal.
