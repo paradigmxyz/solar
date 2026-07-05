@@ -143,6 +143,78 @@ PARAMETER code:
 }
 
 #[test]
+fn handles_contextual_builtin_callees() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Builtins.sol
+        type MyUdvt is uint256;
+
+        contract C {
+            uint256[] xs;
+
+            function run(uint256 x, MyUdvt y) public returns (uint256) {
+                xs.push(1);
+                xs.pop();
+
+                MyUdvt wrapped = MyUdvt.wrap(x);
+                uint256 unwrapped = MyUdvt.unwrap(y);
+
+                return MyUdvt.unwrap(wrapped) + unwrapped;
+            }
+        }
+        "#,
+        "/Builtins.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/Builtins.sol",
+        full_range(),
+        str![[r#"
+TYPE : MyUdvt
+TYPE : uint256
+TYPE : uint256
+
+"#]],
+    );
+}
+
+#[test]
+fn skips_type_hints_for_explicit_casts() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Casts.sol
+        contract Target {}
+
+        enum SomeEnum { A, B }
+
+        contract Repro {
+            function value() public pure returns (uint256) {
+                return 1;
+            }
+
+            function run(address addr) public pure returns (SomeEnum) {
+                Target t = Target(addr);
+                SomeEnum e = SomeEnum(0);
+                uint256 n = uint256(1);
+                uint256 x = value();
+                return e;
+            }
+        }
+        "#,
+        "/Casts.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/Casts.sol",
+        full_range(),
+        str![[r#"
+TYPE : uint256
+
+"#]],
+    );
+}
+
+#[test]
 fn returns_parameter_hints_for_solidity_callable_forms() {
     let fixture = RequestFixture::new(
         r#"
@@ -190,6 +262,36 @@ PARAMETER id:
 PARAMETER account:
 PARAMETER code:
 PARAMETER account:
+
+"#]],
+    );
+}
+
+#[test]
+fn returns_parameter_hints_for_new_contract_constructor_calls() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /New.sol
+        contract Target {
+            constructor(uint256 amount, address owner) {}
+        }
+
+        contract C {
+            function run(address user) public {
+                Target deployed = new Target(1, user);
+            }
+        }
+        "#,
+        "/New.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/New.sol",
+        full_range(),
+        str![[r#"
+PARAMETER amount:
+PARAMETER owner:
+TYPE : contract Target
 
 "#]],
     );

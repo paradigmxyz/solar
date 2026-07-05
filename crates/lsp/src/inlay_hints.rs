@@ -174,6 +174,13 @@ impl<'gcx> InlayHintCollector<'gcx> {
     }
 
     fn call_param_source(&self, callee: &'gcx hir::Expr<'gcx>) -> Option<CallableParamSource> {
+        if let ExprKind::New(hir_ty) = &callee.kind
+            && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(hir_ty).kind
+            && let Some(ctor) = self.gcx.hir.contract(id).ctor
+        {
+            return Some(CallableParamSource::Function { id: ctor, skips_receiver: false });
+        }
+
         let signature = if let Some(resolved) = self.gcx.resolved_callee(callee.id) {
             if matches!(resolved.res, Res::Builtin(_)) {
                 self.gcx
@@ -189,10 +196,9 @@ impl<'gcx> InlayHintCollector<'gcx> {
     }
 
     fn is_explicit_cast_call(&self, callee: &'gcx hir::Expr<'gcx>) -> bool {
-        self.gcx.resolved_callee(callee.id).is_none()
-            && self.gcx.type_of_expr(callee.id).is_some_and(
-                |ty| matches!(ty.kind, TyKind::Type(to) if !matches!(to.kind, TyKind::Struct(_))),
-            )
+        self.gcx.type_of_expr(callee.id).is_some_and(
+            |ty| matches!(ty.kind, TyKind::Type(to) if !matches!(to.kind, TyKind::Struct(_))),
+        )
     }
 
     fn modifier_param_source(
