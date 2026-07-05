@@ -1892,6 +1892,16 @@ impl EvmCodegen {
         }
     }
 
+    /// Values that are always re-emitted at each use instead of being kept on
+    /// the stack or spilled.
+    ///
+    /// `Arg` MUST stay in this set. With static frames an argument reload is a
+    /// 3-4 byte `PUSH addr; MLOAD`/`CALLDATALOAD`, cheaper than the spill
+    /// traffic that tracking would create — and the spill machinery assumes
+    /// arguments never own slots: making `Arg` non-rematerializable was
+    /// measured to REGRESS every bench contract's size (erc20 +61 B, maple
+    /// +72 B, fractional +127 B) and to break 4 of 8 bench harnesses at
+    /// runtime. Do not re-attempt without redesigning argument spilling.
     fn is_rematerializable_value(func: &Function, value: ValueId) -> bool {
         matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
     }
