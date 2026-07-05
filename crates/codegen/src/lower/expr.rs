@@ -769,11 +769,73 @@ impl<'gcx> Lowerer<'gcx> {
         builder.phi(incoming)
     }
 
+    /// Returns the bytes of a compile-time-constant string expression: a
+    /// string literal, or an identifier/member reference to a `constant`
+    /// string variable whose initializer (transitively) is a literal — e.g.
+    /// aave's `Errors.X` library constants.
+    fn constant_string_bytes(&self, expr: &hir::Expr<'_>) -> Option<Vec<u8>> {
+        let mut expr = expr;
+        for _ in 0..4 {
+            match &expr.kind {
+                ExprKind::Lit(lit) => {
+                    let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
+                    return Some(bytes.as_byte_str().to_vec());
+                }
+                ExprKind::Ident([hir::Res::Item(hir::ItemId::Variable(var_id))]) => {
+                    let var = self.gcx.hir.variable(*var_id);
+                    if !var.is_constant() {
+                        return None;
+                    }
+                    expr = var.initializer?;
+                }
+                ExprKind::Member(..) => {
+                    let ResolvedMember::Res(hir::Res::Item(hir::ItemId::Variable(var_id))) =
+                        self.resolved_member(expr)?
+                    else {
+                        return None;
+                    };
+                    let var = self.gcx.hir.variable(var_id);
+                    if !var.is_constant() {
+                        return None;
+                    }
+                    expr = var.initializer?;
+                }
+                _ => return None,
+            }
+        }
+        None
+    }
+
     pub(super) fn emit_revert_error_string_from_expr(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> bool {
+        // A constant message (a literal, or a `constant` string like aave's
+        // `Errors.X`). Short messages revert through the module's shared
+        // helper: one call with the length and the left-aligned data word,
+        // instead of materializing and ABI-encoding the string at every site
+        // — the revert data is identical to the generic path below. Longer
+        // (or empty) constants materialize their resolved bytes directly:
+        // `lower_expr` on a constant reference would yield a truncated
+        // immediate word, not a memory string.
+        if let Some(bytes) = self.constant_string_bytes(expr) {
+            if (1..=32).contains(&bytes.len()) {
+                let helper = self.ensure_revert_error_helper();
+                let mut padded = [0u8; 32];
+                padded[..bytes.len()].copy_from_slice(&bytes);
+                let len = builder.imm_u64(bytes.len() as u64);
+                let data = builder.imm_u256(U256::from_be_bytes(padded));
+                builder.internal_call_void(helper, vec![len, data], 0);
+                // The helper reverts; this terminator is unreachable.
+                builder.invalid();
+                return true;
+            }
+            let ptr = self.lower_string_bytes_to_memory(builder, &bytes);
+            self.emit_revert_error_string_from_memory(builder, ptr);
+            return true;
+        }
+
         let ptr = if let ExprKind::Lit(lit) = &expr.kind {
             let Some(ptr) = self.lower_string_literal_to_memory(builder, lit) else {
                 return false;

@@ -21,7 +21,15 @@ impl<'gcx> Lowerer<'gcx> {
         lit: &hir::Lit<'_>,
     ) -> Option<ValueId> {
         let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-        let bytes = bytes.as_byte_str();
+        Some(self.lower_string_bytes_to_memory(builder, bytes.as_byte_str()))
+    }
+
+    /// Materializes constant bytes as a `[length][data...]` memory string.
+    pub(super) fn lower_string_bytes_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        bytes: &[u8],
+    ) -> ValueId {
         let len = bytes.len();
         let aligned = len.div_ceil(32) * 32;
         let ptr = self.allocate_memory(builder, (32 + aligned) as u64);
@@ -39,7 +47,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, val);
         }
 
-        Some(ptr)
+        ptr
     }
 
     pub(super) fn lower_expr_as_memory_bytes(

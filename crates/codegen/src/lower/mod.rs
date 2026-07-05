@@ -25,7 +25,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Ident, Span, diagnostics::DiagMsg, kw, sym};
+use solar_interface::{Ident, Span, Symbol, diagnostics::DiagMsg, kw, sym};
 use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
@@ -105,6 +105,10 @@ pub struct Lowerer<'gcx> {
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
     lowering_internal_function: bool,
+    /// The module's shared `Error(string)` revert helper, synthesized on first
+    /// use: constant short revert messages call it instead of materializing
+    /// and ABI-encoding the string at every site.
+    revert_error_helper: Option<FunctionId>,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
     in_unchecked_block: bool,
     /// Sema return types of the function currently being lowered (one per declared
@@ -163,6 +167,7 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_functions: FxHashSet::default(),
             lowering_constructor: false,
             lowering_internal_function: false,
+            revert_error_helper: None,
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
@@ -561,6 +566,44 @@ impl<'gcx> Lowerer<'gcx> {
         self.current_return_tys = saved_current_return_tys;
 
         mir_id
+    }
+
+    /// Returns the module's shared `Error(string)` revert helper, synthesizing
+    /// it on first use.
+    ///
+    /// The helper takes the message length (1..=32) and its bytes left-aligned
+    /// in one word, and reverts with the standard `Error(string)` encoding:
+    /// selector, head offset, length, one padded data word — 100 bytes of
+    /// revert data, matching what the generic in-line path produces for short
+    /// messages. Sharing this cold path saves the string materialization and
+    /// ABI-encode boilerplate (~60-90 bytes) at every `require`/`revert` site
+    /// with a constant short message.
+    pub(super) fn ensure_revert_error_helper(&mut self) -> FunctionId {
+        if let Some(id) = self.revert_error_helper {
+            return id;
+        }
+        let name = Ident::new(Symbol::intern("__revert_error"), Span::DUMMY);
+        let mut func = Function::new(name);
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let len = builder.add_param(MirType::UInt(256));
+            let data = builder.add_param(MirType::UInt(256));
+            let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
+            let zero = builder.imm_u64(0);
+            builder.mstore(zero, selector);
+            let selector_size = builder.imm_u64(4);
+            let head_offset = builder.imm_u64(32);
+            builder.mstore(selector_size, head_offset);
+            let len_offset = builder.imm_u64(36);
+            builder.mstore(len_offset, len);
+            let data_offset = builder.imm_u64(68);
+            builder.mstore(data_offset, data);
+            let size = builder.imm_u64(100);
+            builder.revert(zero, size);
+        }
+        let id = self.module.add_function(func);
+        self.revert_error_helper = Some(id);
+        id
     }
 
     /// Lowers a public function with the internal-frame calling convention so it

@@ -14,7 +14,8 @@ fn @entry() {
 fn @caller() {
   bb0 (entry):
     v1 = calldataload 4
-    tail_call fn2, v1
+    internal_call fn2, 0, v1
+    stop
 }
 
 fn @fused(arg0: u256) {

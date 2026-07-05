@@ -51,11 +51,13 @@ impl LowerEvmShapedPass {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
                     let inst = &func.instructions[inst_id];
+                    // Argument-carrying tail calls are not lowered by the
+                    // backend yet; keep those as ordinary calls.
                     inst.result_ty.is_none()
                         && matches!(
                             &inst.kind,
-                            InstKind::InternalCall { function, .. }
-                                if cannot_return[function.index()]
+                            InstKind::InternalCall { function, args, .. }
+                                if cannot_return[function.index()] && args.is_empty()
                         )
                 }) else {
                     continue;
