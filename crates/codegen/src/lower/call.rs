@@ -1094,8 +1094,11 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Handle storage `bytes`/`string` methods before the generic member
         // call path. Their storage layout is Solidity's packed short/long
-        // bytes form, not the generic dynamic-array layout.
-        if self.is_storage_bytes_expr(base)
+        // bytes form, not the generic dynamic-array layout. The receiver may be
+        // a state variable, a storage-reference local, or a `bytes` field
+        // reached through one (`state.part.push(b)`); `lower_lvalue_slot`
+        // resolves the slot for all of these.
+        if self.expr_is_storage_bytes_lvalue(base)
             && let Some(method) = array_method
             && let Some(slot) = self.lower_lvalue_slot(builder, base)
         {

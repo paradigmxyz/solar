@@ -375,6 +375,26 @@ impl<'gcx> Lowerer<'gcx> {
         false
     }
 
+    /// Whether an expression is an lvalue of storage-located `bytes`/`string`
+    /// type: a state variable, a storage-reference local, or a `bytes` field
+    /// reached through one (e.g. `state.part` with `S storage state`). Unlike
+    /// [`Self::is_storage_bytes_expr`], this covers member/index receivers and
+    /// is meant to be paired with `lower_lvalue_slot`, which resolves the slot
+    /// for exactly these shapes.
+    pub(super) fn expr_is_storage_bytes_lvalue(&self, expr: &hir::Expr<'_>) -> bool {
+        if self.is_storage_bytes_expr(expr) {
+            return true;
+        }
+        let Some(ty) = self.get_expr_type(expr) else { return false };
+        if let TyKind::Ref(inner, solar_ast::DataLocation::Storage) = ty.kind {
+            return matches!(
+                inner.kind,
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            );
+        }
+        false
+    }
+
     /// Copies the returndata of the call that was just lowered into a fresh
     /// `bytes memory` allocation (`[length][data...]`) and returns the pointer.
     ///

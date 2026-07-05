@@ -276,6 +276,20 @@ impl<'gcx> Lowerer<'gcx> {
                     }
                 }
 
+                // A `bytes`/`string` struct field living in storage, reached
+                // through a storage reference (`state.part` with
+                // `S storage state`): its value is the packed storage form, so
+                // materialize it into a `[length][data...]` memory copy — the
+                // same representation a storage bytes state variable lowers to.
+                // Reading the field slot as a word (the generic struct-field
+                // path below) would hand a length word to consumers expecting
+                // a memory pointer.
+                if self.expr_is_storage_bytes_lvalue(expr)
+                    && let Some(slot) = self.lower_lvalue_slot(builder, expr)
+                {
+                    return self.materialize_storage_bytes(builder, slot);
+                }
+
                 // Keep a name-based fallback for callers without sema results.
                 if member.name == sym::length {
                     // Storage array (state variable or storage-reference
@@ -2755,9 +2769,10 @@ impl<'gcx> Lowerer<'gcx> {
             if self.is_dynamic_calldata_arg(Some(expr)) {
                 return self.compute_dynamic_calldata_mapping_slot(builder, key, slot);
             }
-            // Storage `bytes`/`string` state variable: its lowering already
-            // materialized a `[length][data...]` memory copy in `key`.
-            if self.expr_yields_memory_bytes(expr) || self.is_storage_bytes_expr(expr) {
+            // Storage `bytes`/`string` (state variable or a field reached
+            // through a storage reference): its lowering already materialized
+            // a `[length][data...]` memory copy in `key`.
+            if self.expr_yields_memory_bytes(expr) || self.expr_is_storage_bytes_lvalue(expr) {
                 return self.compute_dynamic_memory_mapping_slot(builder, key, slot);
             }
             // Storage-reference local (`string storage r`): `key` is the
