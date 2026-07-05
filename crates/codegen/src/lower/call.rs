@@ -1560,8 +1560,15 @@ impl<'gcx> Lowerer<'gcx> {
         // as a memory value and would miscompile subsequent field/element reads.
         let has_storage_ref_param = params.iter().any(|&p| self.param_is_storage_ref(p));
 
+        // `-O size`: lowering-time inlining duplicates the body at every call
+        // site with no call-count awareness. Emit a shared call instead — with
+        // static frames and stack return addresses a call site costs a few
+        // bytes, so sharing multi-use helpers now shrinks the output (the
+        // opposite held under the old memory-frame protocol).
+        let size_mode = self.gcx.sess.opts.optimize_mir_for_size();
+
         if func.returns.is_empty() {
-            if has_storage_ref_param || self.function_is_recursive(func_id) {
+            if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
                 return self.lower_internal_call_fallback(builder, func_id, arg_vals);
             }
             return self.lower_inline_void_call(builder, func_id, arg_vals);
@@ -1578,7 +1585,8 @@ impl<'gcx> Lowerer<'gcx> {
         // use the internal-frame convention directly; a public callee is compiled
         // for the external ABI, so it needs an internal-frame copy
         // (`ensure_internal_mir_function`) for `internal_call` to target.
-        let needs_call = has_storage_ref_param
+        let needs_call = size_mode
+            || has_storage_ref_param
             || !Self::is_simple_return_function(func)
             || self.function_is_recursive(func_id);
         if needs_call {
@@ -1977,14 +1985,19 @@ impl<'gcx> Lowerer<'gcx> {
             let has_storage_ref_param =
                 func.parameters.iter().any(|&p| self.param_is_storage_ref(p));
 
+            // `-O size`: share multi-use helpers through (cheap static-frame)
+            // calls instead of duplicating their body at every call site.
+            let size_mode = self.gcx.sess.opts.optimize_mir_for_size();
+
             if func.returns.is_empty() {
-                if has_storage_ref_param || self.function_is_recursive(func_id) {
+                if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
                     return self.lower_internal_call_fallback(builder, func_id, arg_vals);
                 }
                 return self.lower_inline_void_call(builder, func_id, arg_vals);
             }
 
-            if has_storage_ref_param
+            if size_mode
+                || has_storage_ref_param
                 || !Self::is_simple_return_function(func)
                 || self.function_is_recursive(func_id)
             {
