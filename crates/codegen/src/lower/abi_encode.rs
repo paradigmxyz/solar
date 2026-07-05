@@ -51,6 +51,14 @@ impl<'gcx> Lowerer<'gcx> {
     /// type (an offset slot), the recursive sum for a static struct, `N *
     /// head(T)` for a static `T[N]`, and 32 for every value type.
     pub(super) fn abi_head_size(&self, ty: Ty<'gcx>) -> u64 {
+        // A storage reference (a mapping, or a struct/array in storage — legal
+        // for library function parameters) travels as its slot: one word.
+        if matches!(
+            ty.kind,
+            TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage)
+        ) {
+            return 32;
+        }
         let ty = ty.peel_refs();
         if self.abi_is_dynamic(ty) {
             return 32;

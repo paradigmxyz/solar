@@ -691,7 +691,13 @@ impl<'gcx> Lowerer<'gcx> {
                     AbiParamSource::ExternalCalldata
                 };
 
-                if decodes_abi_params && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind {
+                // Storage-reference parameters (a `mapping`, or a struct/array in
+                // `storage` — legal for library functions) travel as their slot:
+                // one plain word, never field-expanded from calldata.
+                if decodes_abi_params
+                    && !self.param_is_storage_ref(param_id)
+                    && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind
+                {
                     // Struct parameters: copy fields from calldata to memory
                     let strukt = self.gcx.hir.strukt(struct_id);
                     let field_ids = strukt.fields;
@@ -728,6 +734,7 @@ impl<'gcx> Lowerer<'gcx> {
                     // Store the memory pointer as the local (not the Arg value)
                     self.locals.insert(param_id, struct_ptr);
                 } else if decodes_abi_params
+                    && !self.param_is_storage_ref(param_id)
                     && let Some(len) = self.fixed_word_array_param_len(param)
                 {
                     // Fixed-size array of word elements (memory or calldata):
