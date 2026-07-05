@@ -10,8 +10,21 @@ use solar_sema::{
     builtins::Builtin,
     eval::erc7201_slot,
     hir::{self, CallArgs, ElementaryType, ExprKind},
-    ty::TyKind,
+    ty::{Ty, TyKind},
 };
+
+/// How a value travels across a linked-library delegatecall boundary.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum LinkedFieldKind {
+    /// One head word holding the value itself.
+    Value,
+    /// One head word holding the args-relative offset of a
+    /// `[len][elems...]` tail.
+    DynArray,
+    /// One head word holding the args-relative offset of a
+    /// `[len][padded bytes]` tail.
+    DynBytes,
+}
 
 impl<'gcx> Lowerer<'gcx> {
     /// Lowers a function call.
@@ -1778,23 +1791,45 @@ impl<'gcx> Lowerer<'gcx> {
         None
     }
 
+    /// How a struct field travels across a linked-library call boundary.
+    pub(super) fn linked_field_kind(&self, ty: Ty<'gcx>) -> Option<LinkedFieldKind> {
+        let ty = ty.peel_refs();
+        match ty.kind {
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                Some(LinkedFieldKind::DynBytes)
+            }
+            TyKind::DynArray(elem) | TyKind::Slice(elem) => {
+                let elem = elem.peel_refs();
+                (!self.abi_is_dynamic(elem)
+                    && !matches!(elem.kind, TyKind::Struct(_) | TyKind::Array(..)))
+                .then_some(LinkedFieldKind::DynArray)
+            }
+            // Aggregates are memory pointers in the field-inlined layout and
+            // cannot cross the delegatecall boundary as a word.
+            TyKind::Struct(_) | TyKind::Array(..) | TyKind::Tuple(_) => None,
+            _ => (!self.abi_is_dynamic(ty)).then_some(LinkedFieldKind::Value),
+        }
+    }
+
     /// Whether every parameter of `func_id` is encodable by the linked-library
-    /// delegatecall convention: value types, memory structs (field-inlined),
-    /// and storage references (passed by slot). Dynamic `bytes`/`string`/array
-    /// parameters fall back to inlining.
+    /// delegatecall convention: value types, storage references (passed by
+    /// slot), and memory structs whose fields are values or one-level dynamic
+    /// arrays/bytes (offset + tail). Anything else falls back to inlining —
+    /// a raw memory pointer would be meaningless in the callee's memory.
     fn linked_library_args_supported(&self, func_id: hir::FunctionId) -> bool {
         let func = self.gcx.hir.function(func_id);
         func.parameters.iter().all(|&param_id| {
             if self.param_is_storage_ref(param_id) {
                 return true;
             }
-            let var = self.gcx.hir.variable(param_id);
-            match &var.ty.kind {
-                hir::TypeKind::Elementary(
-                    hir::ElementaryType::Bytes | hir::ElementaryType::String,
-                ) => false,
-                hir::TypeKind::Array(array) => array.size.is_some(),
-                _ => true,
+            let ty = self.gcx.type_of_hir_ty(&self.gcx.hir.variable(param_id).ty);
+            match ty.peel_refs().kind {
+                TyKind::Struct(id) => self
+                    .gcx
+                    .struct_field_types(id)
+                    .iter()
+                    .all(|&field| self.linked_field_kind(field).is_some()),
+                _ => self.linked_field_kind(ty) == Some(LinkedFieldKind::Value),
             }
         })
     }
@@ -1822,6 +1857,7 @@ impl<'gcx> Lowerer<'gcx> {
         let params = func.parameters;
         let mut arg_vals = Vec::with_capacity(args.len());
         let mut arg_slots = Vec::with_capacity(args.len());
+        let mut arg_structs = Vec::with_capacity(args.len());
         for (i, arg) in args.exprs().enumerate() {
             let is_storage_ref =
                 params.get(i).is_some_and(|&p| self.param_is_storage_ref(p));
@@ -1836,15 +1872,18 @@ impl<'gcx> Lowerer<'gcx> {
                 });
                 arg_vals.push(slot);
                 arg_slots.push(1usize);
-            } else if let Some((_, field_count)) = self.get_expr_struct_info(arg) {
+                arg_structs.push(None);
+            } else if let Some((struct_id, field_count)) = self.get_expr_struct_info(arg) {
                 arg_vals.push(self.lower_expr(builder, arg));
                 arg_slots.push(field_count);
+                arg_structs.push(Some(struct_id));
             } else {
                 arg_vals.push(self.lower_expr(builder, arg));
                 arg_slots.push(1usize);
+                arg_structs.push(None);
             }
         }
-        let calldata_size_bytes = 4 + arg_slots.iter().sum::<usize>() * 32;
+        let head_size_bytes = 4 + arg_slots.iter().sum::<usize>() * 32;
 
         // Build the calldata at the free pointer; stash its base in scratch
         // (0x20) so it survives the argument stores.
@@ -1856,9 +1895,13 @@ impl<'gcx> Lowerer<'gcx> {
         let selector_val = builder.imm_u256(U256::from(selector) << 224);
         builder.mstore(calldata_start, selector_val);
 
+        // Heads. A dynamic struct field reserves its head slot here and is
+        // filled by the tail pass below with the tail's args-relative offset.
+        let mut pending_tails: Vec<(u64, ValueId, LinkedFieldKind)> = Vec::new();
         let mut arg_offset = 4u64;
-        for (arg_val, slots) in arg_vals.iter().zip(&arg_slots) {
-            if *slots > 1 {
+        for (i, (arg_val, slots)) in arg_vals.iter().zip(&arg_slots).enumerate() {
+            if let Some(struct_id) = arg_structs[i] {
+                let field_tys = self.gcx.struct_field_types(struct_id);
                 for field_idx in 0..*slots {
                     let field_val = if field_idx == 0 {
                         builder.mload(*arg_val)
@@ -1867,9 +1910,18 @@ impl<'gcx> Lowerer<'gcx> {
                         let field_addr = builder.add(*arg_val, field_offset);
                         builder.mload(field_addr)
                     };
-                    let offset_val = builder.imm_u64(arg_offset);
-                    let write_addr = builder.add(calldata_start, offset_val);
-                    builder.mstore(write_addr, field_val);
+                    match field_tys.get(field_idx).and_then(|&f| self.linked_field_kind(f)) {
+                        Some(kind @ (LinkedFieldKind::DynArray | LinkedFieldKind::DynBytes)) => {
+                            // `field_val` is the caller-memory pointer of the
+                            // array/bytes; its contents travel in the tail.
+                            pending_tails.push((arg_offset, field_val, kind));
+                        }
+                        _ => {
+                            let offset_val = builder.imm_u64(arg_offset);
+                            let write_addr = builder.add(calldata_start, offset_val);
+                            builder.mstore(write_addr, field_val);
+                        }
+                    }
                     arg_offset += 32;
                 }
             } else {
@@ -1880,12 +1932,46 @@ impl<'gcx> Lowerer<'gcx> {
             }
         }
 
+        // Tails: `[len][data...]` blobs appended after the heads; each head
+        // slot holds its tail's offset relative to the args start (after the
+        // selector), so the callee decodes with `calldataload(4 + offset)`.
+        let mut tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
+        let word = builder.imm_u64(32);
+        for (head_off, src, kind) in pending_tails {
+            let head_addr_off = builder.imm_u64(head_off);
+            let head_addr = builder.add(calldata_start, head_addr_off);
+            builder.mstore(head_addr, tail_off);
+
+            let len = builder.mload(src);
+            let byte_len = match kind {
+                LinkedFieldKind::DynBytes => {
+                    let thirty_one = builder.imm_u64(31);
+                    let padded = builder.add(len, thirty_one);
+                    let mask = builder.imm_u256(U256::MAX - U256::from(31));
+                    builder.and(padded, mask)
+                }
+                _ => builder.mul(len, word),
+            };
+
+            let four = builder.imm_u64(4);
+            let args_base = builder.add(calldata_start, four);
+            let dst = builder.add(args_base, tail_off);
+            builder.mstore(dst, len);
+            let dst_data = builder.add(dst, word);
+            let src_data = builder.add(src, word);
+            self.mcopy(builder, dst_data, src_data, byte_len, None);
+
+            let advanced = builder.add(word, byte_len);
+            tail_off = builder.add(tail_off, advanced);
+        }
+        let four = builder.imm_u64(4);
+        let total_size = builder.add(four, tail_off);
+
         // Return area: scratch words at 0, or an allocation for struct returns.
         let (ret_offset, ret_size, struct_ptr_opt) =
             if let Some((_struct_id, field_count)) = struct_return_info {
                 let struct_size = field_count as u64 * 32;
-                let calldata_end = builder.imm_u64(calldata_size_bytes as u64);
-                let struct_ptr = builder.add(calldata_start, calldata_end);
+                let struct_ptr = builder.add(calldata_start, total_size);
                 let struct_size_val = builder.imm_u64(struct_size);
                 let new_free_ptr = builder.add(struct_ptr, struct_size_val);
                 builder.mstore(free_ptr_addr, new_free_ptr);
@@ -1894,7 +1980,7 @@ impl<'gcx> Lowerer<'gcx> {
                 (builder.imm_u64(0), builder.imm_u64(num_returns as u64 * 32), None)
             };
 
-        let calldata_size = builder.imm_u64(calldata_size_bytes as u64);
+        let calldata_size = total_size;
         let addr = builder.imm_u256(lib_addr);
         let gas = builder.gas();
         let scratch_reload = builder.imm_u64(0x20);

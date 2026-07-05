@@ -745,6 +745,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let strukt = self.gcx.hir.strukt(struct_id);
                     let field_ids = strukt.fields;
                     let num_fields = field_ids.len();
+                    let field_tys = self.gcx.struct_field_types(struct_id);
 
                     // Allocate memory for the struct
                     let struct_size = (num_fields as u64) * 32;
@@ -763,14 +764,53 @@ impl<'gcx> Lowerer<'gcx> {
                             abi_param_source,
                         );
 
+                        // A dynamic array/bytes field's head word is the tail
+                        // offset relative to the args start: materialize the
+                        // `[len][data...]` tail into fresh memory so the body
+                        // sees an ordinary memory array/bytes. (A raw word
+                        // would be a caller-memory pointer, meaningless here.)
+                        let stored_val = match field_tys
+                            .get(field_idx)
+                            .and_then(|&f| self.linked_field_kind(f))
+                        {
+                            Some(
+                                kind @ (call::LinkedFieldKind::DynArray
+                                | call::LinkedFieldKind::DynBytes),
+                            ) => {
+                                let four = builder.imm_u64(4);
+                                let pos = builder.add(four, field_val);
+                                let len = builder.calldataload(pos);
+                                let word = builder.imm_u64(32);
+                                let byte_len = if kind == call::LinkedFieldKind::DynBytes {
+                                    let thirty_one = builder.imm_u64(31);
+                                    let padded = builder.add(len, thirty_one);
+                                    let mask = builder.imm_u256(U256::MAX - U256::from(31));
+                                    builder.and(padded, mask)
+                                } else {
+                                    builder.mul(len, word)
+                                };
+                                let free_ptr = builder.imm_u64(0x40);
+                                let ptr = builder.mload(free_ptr);
+                                let alloc = builder.add(word, byte_len);
+                                let new_free = builder.add(ptr, alloc);
+                                builder.mstore(free_ptr, new_free);
+                                builder.mstore(ptr, len);
+                                let dst = builder.add(ptr, word);
+                                let src = builder.add(pos, word);
+                                builder.calldatacopy(dst, src, byte_len);
+                                ptr
+                            }
+                            _ => field_val,
+                        };
+
                         // Store the field value into the struct memory
                         let field_offset = (field_idx as u64) * 32;
                         if field_offset == 0 {
-                            builder.mstore(struct_ptr, field_val);
+                            builder.mstore(struct_ptr, stored_val);
                         } else {
                             let offset_val = builder.imm_u64(field_offset);
                             let field_addr = builder.add(struct_ptr, offset_val);
-                            builder.mstore(field_addr, field_val);
+                            builder.mstore(field_addr, stored_val);
                         }
                     }
 
