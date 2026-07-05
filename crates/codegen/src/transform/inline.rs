@@ -596,6 +596,11 @@ pub struct MirInlineConfig {
     pub max_caller_inlined_instructions: usize,
     /// Minimum estimated internal-call protocol gas saved before inlining.
     pub min_call_savings: u64,
+    /// Size-aware backstop: once a module's estimated runtime bytecode reaches
+    /// this many bytes, stop inlining (which grows code) so the contract stays
+    /// under the EIP-170 deployable-code limit. Small contracts never reach it
+    /// and inline normally.
+    pub max_module_code_size: usize,
 }
 
 impl Default for MirInlineConfig {
@@ -610,6 +615,13 @@ impl Default for MirInlineConfig {
             max_hot_code_growth: 512,
             max_caller_inlined_instructions: 64,
             min_call_savings: 120,
+            // Budget in `estimated_code_size` units (a per-instruction proxy that
+            // runs well below final bytecode because it does not model stack
+            // scheduling/spills). Calibrated as a conservative backstop: a module
+            // already this large has little headroom under the EIP-170 24576-byte
+            // limit, so further (growth-only) inlining is skipped to keep it
+            // deployable. Ordinary contracts are far smaller and inline normally.
+            max_module_code_size: 7450,
         }
     }
 }
@@ -687,6 +699,13 @@ impl MirInliner {
         let mut call_counts = self.call_counts(module);
         let recursive_functions = self.recursive_functions(module);
 
+        // Size-aware backstop: inlining grows emitted code, so track the module's
+        // estimated runtime bytecode and stop inlining once it reaches the budget,
+        // keeping large contracts under the EIP-170 deployable-code limit. Small
+        // contracts never reach the budget and inline normally.
+        let mut module_code_size: usize =
+            summaries.values().map(|s| s.estimated_code_size).sum();
+
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
             let loop_depths = block_loop_depths(module.function(caller_id));
             // Bound how much each caller may grow from inlining so a function
@@ -710,7 +729,8 @@ impl MirInliner {
                     s.instruction_count.saturating_sub(base_instructions)
                         > self.config.max_caller_inlined_instructions
                 });
-                if grew_too_much
+                if module_code_size >= self.config.max_module_code_size
+                    || grew_too_much
                     || recursive_functions.contains(&site.callee)
                     || !self.is_inlineable(caller_id, site, summary, call_count)
                 {
@@ -719,10 +739,16 @@ impl MirInliner {
                 }
 
                 let callee = module.function(site.callee).clone();
+                let old_size =
+                    summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    summaries.insert(caller_id, summarize_function(module.function(caller_id)));
+                    let new_summary = summarize_function(module.function(caller_id));
+                    module_code_size = module_code_size
+                        .saturating_sub(old_size)
+                        .saturating_add(new_summary.estimated_code_size);
+                    summaries.insert(caller_id, new_summary);
                     call_counts = self.call_counts(module);
                     cursor = (site.block.index(), 0);
                 } else {
