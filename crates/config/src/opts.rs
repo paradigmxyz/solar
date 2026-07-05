@@ -99,6 +99,17 @@ pub struct CompileOpts {
     #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
     pub optimization: OptimizationMode,
 
+    /// Library addresses for linking, as `LibraryName=0xADDRESS` (an optional
+    /// `path.sol:` prefix on the name is accepted and ignored). A `public`/
+    /// `external` library function whose library has a linked address is
+    /// called through `DELEGATECALL` at that address instead of being inlined
+    /// into the caller.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long = "libraries", value_name = "NAME=ADDRESS", value_delimiter = ',')
+    )]
+    pub libraries: Vec<String>,
+
     /// Directory to write output files.
     #[cfg_attr(feature = "clap", arg(long, value_hint = ValueHint::DirPath))]
     pub out_dir: Option<PathBuf>,

@@ -1742,6 +1742,176 @@ impl<'gcx> Lowerer<'gcx> {
         self.lower_expr(builder, arg)
     }
 
+    /// Returns the linked address of the library that defines `func_id`, when
+    /// one was supplied via `--libraries Name=0xADDRESS`. An optional
+    /// `path.sol:` prefix on the configured name is ignored.
+    fn linked_library_address(&self, func_id: hir::FunctionId) -> Option<U256> {
+        let specs = &self.gcx.sess.opts.libraries;
+        if specs.is_empty() {
+            return None;
+        }
+        let contract_id = self.gcx.hir.function(func_id).contract?;
+        let contract = self.gcx.hir.contract(contract_id);
+        if !contract.kind.is_library() {
+            return None;
+        }
+        let lib_name = contract.name.as_str();
+        for spec in specs {
+            let Some((name, addr)) = spec.split_once('=') else { continue };
+            let name = name.rsplit(':').next().unwrap_or(name).trim();
+            if name != lib_name {
+                continue;
+            }
+            let addr = addr.trim().trim_start_matches("0x");
+            if let Ok(addr) = U256::from_str_radix(addr, 16) {
+                return Some(addr);
+            }
+        }
+        None
+    }
+
+    /// Whether every parameter of `func_id` is encodable by the linked-library
+    /// delegatecall convention: value types, memory structs (field-inlined),
+    /// and storage references (passed by slot). Dynamic `bytes`/`string`/array
+    /// parameters fall back to inlining.
+    fn linked_library_args_supported(&self, func_id: hir::FunctionId) -> bool {
+        let func = self.gcx.hir.function(func_id);
+        func.parameters.iter().all(|&param_id| {
+            if self.param_is_storage_ref(param_id) {
+                return true;
+            }
+            let var = self.gcx.hir.variable(param_id);
+            match &var.ty.kind {
+                hir::TypeKind::Elementary(
+                    hir::ElementaryType::Bytes | hir::ElementaryType::String,
+                ) => false,
+                hir::TypeKind::Array(array) => array.size.is_some(),
+                _ => true,
+            }
+        })
+    }
+
+    /// Lowers a call to a `public`/`external` function of a linked library as
+    /// an ABI-encoded `DELEGATECALL` to the linked address, mirroring solc's
+    /// library call convention: the library runs in the caller's storage and
+    /// `msg` context, storage-reference arguments travel as their slot, and a
+    /// failed call re-raises the callee's revert data.
+    fn lower_linked_library_call(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        args: &CallArgs<'_>,
+        lib_addr: U256,
+    ) -> ValueId {
+        let func = self.gcx.hir.function(func_id);
+        let selector = u32::from_be_bytes(self.gcx.function_selector(func_id).0);
+        let num_returns = self.function_return_slot_count(func_id);
+        let struct_return_info = self.function_struct_return(func_id);
+
+        // Evaluate arguments first: storage references lower to their slot,
+        // memory structs to their pointer (field-inlined below), scalars to
+        // their value.
+        let params = func.parameters;
+        let mut arg_vals = Vec::with_capacity(args.len());
+        let mut arg_slots = Vec::with_capacity(args.len());
+        for (i, arg) in args.exprs().enumerate() {
+            let is_storage_ref =
+                params.get(i).is_some_and(|&p| self.param_is_storage_ref(p));
+            if is_storage_ref {
+                let slot = self.lower_lvalue_slot(builder, arg).unwrap_or_else(|| {
+                    self.err_value(
+                        builder,
+                        arg.span,
+                        "cannot resolve the storage slot of this library call argument"
+                            .to_string(),
+                    )
+                });
+                arg_vals.push(slot);
+                arg_slots.push(1usize);
+            } else if let Some((_, field_count)) = self.get_expr_struct_info(arg) {
+                arg_vals.push(self.lower_expr(builder, arg));
+                arg_slots.push(field_count);
+            } else {
+                arg_vals.push(self.lower_expr(builder, arg));
+                arg_slots.push(1usize);
+            }
+        }
+        let calldata_size_bytes = 4 + arg_slots.iter().sum::<usize>() * 32;
+
+        // Build the calldata at the free pointer; stash its base in scratch
+        // (0x20) so it survives the argument stores.
+        let free_ptr_addr = builder.imm_u64(0x40);
+        let calldata_start = builder.mload(free_ptr_addr);
+        let scratch_calldata = builder.imm_u64(0x20);
+        builder.mstore(scratch_calldata, calldata_start);
+
+        let selector_val = builder.imm_u256(U256::from(selector) << 224);
+        builder.mstore(calldata_start, selector_val);
+
+        let mut arg_offset = 4u64;
+        for (arg_val, slots) in arg_vals.iter().zip(&arg_slots) {
+            if *slots > 1 {
+                for field_idx in 0..*slots {
+                    let field_val = if field_idx == 0 {
+                        builder.mload(*arg_val)
+                    } else {
+                        let field_offset = builder.imm_u64(field_idx as u64 * 32);
+                        let field_addr = builder.add(*arg_val, field_offset);
+                        builder.mload(field_addr)
+                    };
+                    let offset_val = builder.imm_u64(arg_offset);
+                    let write_addr = builder.add(calldata_start, offset_val);
+                    builder.mstore(write_addr, field_val);
+                    arg_offset += 32;
+                }
+            } else {
+                let offset_val = builder.imm_u64(arg_offset);
+                let write_addr = builder.add(calldata_start, offset_val);
+                builder.mstore(write_addr, *arg_val);
+                arg_offset += 32;
+            }
+        }
+
+        // Return area: scratch words at 0, or an allocation for struct returns.
+        let (ret_offset, ret_size, struct_ptr_opt) =
+            if let Some((_struct_id, field_count)) = struct_return_info {
+                let struct_size = field_count as u64 * 32;
+                let calldata_end = builder.imm_u64(calldata_size_bytes as u64);
+                let struct_ptr = builder.add(calldata_start, calldata_end);
+                let struct_size_val = builder.imm_u64(struct_size);
+                let new_free_ptr = builder.add(struct_ptr, struct_size_val);
+                builder.mstore(free_ptr_addr, new_free_ptr);
+                (struct_ptr, builder.imm_u64(struct_size), Some(struct_ptr))
+            } else {
+                (builder.imm_u64(0), builder.imm_u64(num_returns as u64 * 32), None)
+            };
+
+        let calldata_size = builder.imm_u64(calldata_size_bytes as u64);
+        let addr = builder.imm_u256(lib_addr);
+        let gas = builder.gas();
+        let scratch_reload = builder.imm_u64(0x20);
+        let calldata_reload = builder.mload(scratch_reload);
+        let success =
+            builder.delegatecall(gas, addr, calldata_reload, calldata_size, ret_offset, ret_size);
+
+        // Bubble the callee's revert data on failure, like solc.
+        let fail_block = builder.create_block();
+        let cont_block = builder.create_block();
+        builder.branch(success, cont_block, fail_block);
+        builder.switch_to_block(fail_block);
+        let zero = builder.imm_u64(0);
+        let rds = builder.returndatasize();
+        builder.returndatacopy(zero, zero, rds);
+        builder.revert(zero, rds);
+        builder.switch_to_block(cont_block);
+
+        if let Some(struct_ptr) = struct_ptr_opt {
+            return struct_ptr;
+        }
+        let ret_base = builder.imm_u64(0);
+        builder.mload(ret_base)
+    }
+
     /// Lowers an internal library function call by inlining it.
     /// For internal library functions, we inline the function body.
     fn lower_library_call(
@@ -1752,6 +1922,18 @@ impl<'gcx> Lowerer<'gcx> {
         bound_arg: Option<ValueId>,
     ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
+
+        // A `public`/`external` function of a library with a linked address
+        // (`--libraries Name=0xADDR`) is called through DELEGATECALL instead of
+        // being inlined, matching solc's library model and keeping the library
+        // body out of the caller's bytecode.
+        if matches!(func.visibility, hir::Visibility::Public | hir::Visibility::External)
+            && bound_arg.is_none()
+            && self.linked_library_args_supported(func_id)
+            && let Some(lib_addr) = self.linked_library_address(func_id)
+        {
+            return self.lower_linked_library_call(builder, func_id, args, lib_addr);
+        }
 
         // Inline the library function body (or, for non-trivial bodies, call an
         // internal-frame copy). A library has no storage of its own and runs in
