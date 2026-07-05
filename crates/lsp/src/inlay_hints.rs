@@ -172,8 +172,14 @@ impl<'gcx> InlayHintCollector<'gcx> {
     }
 
     fn call_param_source(&self, callee: &'gcx hir::Expr<'gcx>) -> Option<CallableParamSource> {
-        let signature = if let Some(callee) = self.gcx.resolved_callee(callee.id) {
-            self.gcx.callable_signature_of_res(callee.res, callee.attached)
+        let signature = if let Some(resolved) = self.gcx.resolved_callee(callee.id) {
+            if matches!(resolved.res, Res::Builtin(_)) {
+                self.gcx
+                    .type_of_expr(callee.id)
+                    .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
+            } else {
+                self.gcx.callable_signature_of_res(resolved.res, resolved.attached)
+            }
         } else {
             self.gcx.type_of_expr(callee.id).and_then(|ty| self.gcx.callable_signature_of_ty(ty))
         };
