@@ -2765,7 +2765,9 @@ impl EvmCodegen {
         let return_label = self.asm.new_label();
         let static_local_frame_size =
             self.function_static_frame_sizes.get(&callee).copied().unwrap_or_default();
-        // Frame layout: [return addr][saved frame ptr][args][returns][locals][spills].
+        // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
+        // The first slot is reserved (the return address used to live there;
+        // it now travels on the EVM stack) so downstream offsets stay stable.
         // The spill suffix is only known after the callee body has emitted.
         let static_frame_size = 64 + ((args.len() + returns) as u64) * 32 + static_local_frame_size;
         let frame_size = self.asm.new_deferred_const();
@@ -2779,11 +2781,6 @@ impl EvmCodegen {
         self.spill_live_stack_values(func, liveness, block, inst_idx);
 
         self.emit_new_internal_frame_base_tracked();
-
-        // frame[0] = return label
-        self.asm.emit_push_label(return_label);
-        self.scheduler.stack.push_unknown();
-        self.emit_internal_frame_store_from_top_preserving_base(0);
 
         // frame[32] = previous frame pointer
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
@@ -2804,6 +2801,15 @@ impl EvmCodegen {
 
         self.pop_all_stack_values();
         self.scheduler.clear_stack();
+
+        // The return address travels on the EVM stack, not in the frame: it is
+        // pushed after the caller's stack is fully drained, so it is the only
+        // physical value below the callee's execution. It is deliberately not
+        // tracked by the scheduler — the model only describes the region above
+        // it and every emitted DUP/SWAP/POP is model-relative, so nothing in
+        // the callee can reach it. The callee's return consumes it with a bare
+        // JUMP, and a tail call within the callee forwards it untouched.
+        self.asm.emit_push_label(return_label);
 
         self.asm.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
@@ -3470,8 +3476,8 @@ impl EvmCodegen {
         }
 
         self.pop_all_stack_values();
-        self.emit_current_internal_frame_addr(0);
-        self.asm.emit_op(op::MLOAD);
+        // The caller's return address is the untracked value at the bottom of
+        // the stack; after popping every tracked value it is on top.
         self.asm.emit_op(op::JUMP);
     }
 
