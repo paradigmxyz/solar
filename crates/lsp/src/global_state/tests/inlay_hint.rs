@@ -17,9 +17,7 @@ fn returns_parameter_hints_for_positional_calls_and_skips_named_args() {
             }
 
             function caller(address user) public pure returns (uint256) {
-                uint256 positional = target(1, user);
-                uint256 named = target({amount: 2, account: user});
-                return positional + named;
+                return target(1, user) + target({amount: 2, account: user});
             }
         }
         "#,
