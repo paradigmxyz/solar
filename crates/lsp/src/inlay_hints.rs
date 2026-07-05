@@ -1,6 +1,9 @@
 use crate::proto;
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel, Position, Range, Url};
-use solar_interface::data_structures::{Never, map::FxHashMap};
+use solar_interface::{
+    Symbol,
+    data_structures::{Never, map::FxHashMap},
+};
 use solar_sema::{
     Gcx,
     hir::{self, CallArgsKind, ExprKind, ItemId, Res, Visit},
@@ -121,6 +124,9 @@ impl<'gcx> InlayHintCollector<'gcx> {
             let Some(param_name) = param_name else {
                 continue;
             };
+            if self.argument_name_matches_param(arg, param_name) {
+                continue;
+            }
             let Some(location) = proto::span_to_location(self.gcx.sess.source_map(), arg.span)
             else {
                 continue;
@@ -130,6 +136,20 @@ impl<'gcx> InlayHintCollector<'gcx> {
                 StoredInlayHint::parameter(location.range.start, format!("{param_name}:")),
             );
         }
+    }
+
+    fn argument_name_matches_param(&self, arg: &'gcx hir::Expr<'gcx>, param_name: Symbol) -> bool {
+        let arg = arg.peel_parens();
+        if let ExprKind::Ident([Res::Item(item)]) = arg.kind
+            && self.gcx.item_name_opt(*item).is_some_and(|ident| ident.name == param_name)
+        {
+            return true;
+        }
+        self.gcx
+            .sess
+            .source_map()
+            .span_to_snippet(arg.span)
+            .is_ok_and(|snippet| snippet == param_name.as_str())
     }
 
     fn push_call_type_hint(&mut self, expr: &'gcx hir::Expr<'gcx>, callee: &'gcx hir::Expr<'gcx>) {

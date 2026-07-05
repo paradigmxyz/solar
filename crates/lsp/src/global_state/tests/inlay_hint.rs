@@ -106,6 +106,45 @@ TYPE : uint256
 }
 
 #[test]
+fn skips_parameter_hints_for_arguments_with_matching_names() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Names.sol
+        contract C {
+            error Bad(uint256 code, address account);
+
+            function target(uint256 amount, address account) public pure returns (uint256) {
+                return amount;
+            }
+
+            function caller(address account, uint256 amount) public pure returns (uint256) {
+                uint256 bothSame = target(amount, account);
+                uint256 secondSame = target(1, account);
+                return bothSame + secondSame;
+            }
+
+            function fail(address user) public pure {
+                revert Bad(7, account);
+            }
+        }
+        "#,
+        "/Names.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/Names.sol",
+        full_range(),
+        str![[r#"
+TYPE : uint256
+PARAMETER amount:
+TYPE : uint256
+PARAMETER code:
+
+"#]],
+    );
+}
+
+#[test]
 fn returns_parameter_hints_for_solidity_callable_forms() {
     let fixture = RequestFixture::new(
         r#"
