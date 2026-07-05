@@ -3,8 +3,8 @@ use crate::{
     eval::{ConstValue, ConstantEvaluator, EvalErrorKind},
     hir::{self, Visit},
     ty::{
-        CallableParamSource, CallableSignature, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn,
-        TyFnKind, TyKind, TypeckResults,
+        CallableParamSource, Gcx, ResolvedCallee, Ty, TyConvertError, TyFn, TyFnKind, TyKind,
+        TypeckResults,
     },
 };
 use alloy_primitives::U256;
@@ -251,19 +251,17 @@ impl<'gcx> TypeChecker<'gcx> {
                     callee_ty = self.check_call_options(callee_ty, opts.args, opts.span);
                 }
 
-                // Get the function type for struct constructors, keeping field names.
-                let struct_param_source = if let TyKind::Type(_) = callee_ty.kind
-                    && let Some(signature) = self.gcx.callable_signature_of_ty(callee_ty)
+                let callee_signature = self.gcx.callable_signature_of_ty(callee_ty);
+                if let TyKind::Type(_) = callee_ty.kind
+                    && let Some(signature) = callee_signature
                 {
+                    // Get the function type for struct constructors, keeping field names.
                     callee_ty = self.gcx.mk_builtin_fn(
                         signature.parameters,
                         StateMutability::Pure,
                         signature.returns,
                     );
-                    signature.param_source
-                } else {
-                    None
-                };
+                }
 
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
@@ -282,8 +280,8 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
 
                         let builtin = self.results.builtin_callee(callee.id);
-                        let param_names = struct_param_source
-                            .or_else(|| self.gcx.callable_signature_of_ty(callee_ty)?.param_source);
+                        let param_names =
+                            callee_signature.and_then(|signature| signature.param_source);
                         if builtin != Some(Builtin::Require) {
                             let _ =
                                 self.check_call_args(expr.span, args, f.parameters, param_names);
@@ -1654,7 +1652,7 @@ impl<'gcx> TypeChecker<'gcx> {
         let mut selected = SmallVec::<[_; 4]>::new();
         for &res in res {
             let ty = self.type_of_res(res);
-            let Some(signature) = self.call_candidate_params(ty) else {
+            let Some(signature) = self.gcx.callable_signature_of_ty(ty) else {
                 continue;
             };
             if self.call_args_match(args, signature.parameters, signature.param_source) {
@@ -1700,10 +1698,6 @@ impl<'gcx> TypeChecker<'gcx> {
         selected
     }
 
-    fn call_candidate_params(&self, ty: Ty<'gcx>) -> Option<CallableSignature<'gcx>> {
-        self.gcx.callable_signature_of_ty(ty)
-    }
-
     fn select_member_call_overload<'a>(
         &mut self,
         receiver_ty: Ty<'gcx>,
@@ -1718,7 +1712,7 @@ impl<'gcx> TypeChecker<'gcx> {
 
         let mut selected = WantOne::Zero;
         for member in members {
-            if let Some(signature) = self.member_call_candidate_params(receiver_ty, member)
+            if let Some(signature) = self.gcx.callable_signature_of_member(receiver_ty, member)
                 && self.call_args_match(args, signature.parameters, signature.param_source)
             {
                 selected.push(member);
@@ -1729,14 +1723,6 @@ impl<'gcx> TypeChecker<'gcx> {
             WantOne::One(member) => Ok(member),
             WantOne::Many => Err(OverloadError::Ambiguous),
         }
-    }
-
-    fn member_call_candidate_params(
-        &self,
-        receiver_ty: Ty<'gcx>,
-        member: &members::Member<'gcx>,
-    ) -> Option<CallableSignature<'gcx>> {
-        self.gcx.callable_signature_of_member(receiver_ty, member)
     }
 
     fn call_args_match(

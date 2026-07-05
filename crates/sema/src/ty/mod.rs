@@ -874,8 +874,7 @@ impl<'gcx> Gcx<'gcx> {
         if let Some(CallableParamSource::Function { id, .. }) = signature.param_source {
             signature.param_source = Some(CallableParamSource::Function { id, skips_receiver });
         }
-        if skips_receiver && let Some((&_receiver, parameters)) = signature.parameters.split_first()
-        {
+        if skips_receiver && let Some((_, parameters)) = signature.parameters.split_first() {
             signature.parameters = parameters;
         }
         Some(signature)
