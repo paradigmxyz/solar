@@ -19,7 +19,9 @@ pub(crate) struct InlayHintIndex {
 #[derive(Clone, Debug)]
 struct StoredInlayHint {
     position: Position,
-    label: String,
+    // Labels are built once during analysis and only copied into LSP responses,
+    // so store the fixed text without String's unused capacity.
+    label: Box<str>,
     kind: StoredInlayHintKind,
 }
 
@@ -73,19 +75,19 @@ impl InlayHintIndex {
 }
 
 impl StoredInlayHint {
-    fn parameter(position: Position, label: String) -> Self {
-        Self { position, label, kind: StoredInlayHintKind::Parameter }
+    fn parameter(position: Position, label: impl Into<Box<str>>) -> Self {
+        Self { position, label: label.into(), kind: StoredInlayHintKind::Parameter }
     }
 
-    fn call_type(position: Position, label: String) -> Self {
-        Self { position, label, kind: StoredInlayHintKind::CallType }
+    fn call_type(position: Position, label: impl Into<Box<str>>) -> Self {
+        Self { position, label: label.into(), kind: StoredInlayHintKind::CallType }
     }
 
     fn to_lsp(&self) -> InlayHint {
         let (kind, padding_left, padding_right) = self.kind.lsp_fields();
         InlayHint {
             position: self.position,
-            label: InlayHintLabel::String(self.label.clone()),
+            label: InlayHintLabel::String(self.label.to_string()),
             kind: Some(kind),
             text_edits: None,
             tooltip: None,
@@ -230,5 +232,5 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'gcx> {
 }
 
 fn hint_sort_key(hint: &StoredInlayHint) -> (Position, StoredInlayHintKind, &str) {
-    (hint.position, hint.kind, hint.label.as_str())
+    (hint.position, hint.kind, hint.label.as_ref())
 }
