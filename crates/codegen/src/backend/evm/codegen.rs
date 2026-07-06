@@ -925,23 +925,26 @@ impl EvmCodegen {
             self.emit_callvalue_check(revert_label);
         }
 
-        // Check if calldatasize == 0
-        self.asm.emit_op(op::CALLDATASIZE);
-        self.asm.emit_push_label(has_calldata_label);
-        self.asm.emit_op(op::JUMPI);
-
-        // calldatasize == 0: Handle receive/fallback
-        // Solidity semantics: if receive exists, call it; else if fallback exists, call it; else
-        // revert
-        if let Some(recv_idx) = receive_idx {
-            self.asm.emit_push_label(func_labels[recv_idx].expect("receive label missing"));
-            self.asm.emit_op(op::JUMP);
-        } else if let Some(fb_idx) = fallback_idx {
-            self.asm.emit_push_label(func_labels[fb_idx].expect("fallback label missing"));
-            self.asm.emit_op(op::JUMP);
+        // Empty calldata: route to receive/fallback when they exist; with
+        // neither, invert the check so nonempty calldata falls straight
+        // through to the selector load and empty calldata takes the shared
+        // revert stub (a byte shorter than a dedicated arm).
+        if receive_idx.is_some() || fallback_idx.is_some() {
+            self.asm.emit_op(op::CALLDATASIZE);
+            self.asm.emit_push_label(has_calldata_label);
+            self.asm.emit_op(op::JUMPI);
+            if let Some(recv_idx) = receive_idx {
+                self.asm.emit_push_label(func_labels[recv_idx].expect("receive label missing"));
+                self.asm.emit_op(op::JUMP);
+            } else if let Some(fb_idx) = fallback_idx {
+                self.asm.emit_push_label(func_labels[fb_idx].expect("fallback label missing"));
+                self.asm.emit_op(op::JUMP);
+            }
         } else {
+            self.asm.emit_op(op::CALLDATASIZE);
+            self.asm.emit_op(op::ISZERO);
             self.asm.emit_push_label(revert_label);
-            self.asm.emit_op(op::JUMP);
+            self.asm.emit_op(op::JUMPI);
         }
 
         // calldatasize > 0: Load selector and match
@@ -982,10 +985,12 @@ impl EvmCodegen {
             let Some(label) = func_labels[func_id.index()] else { continue };
             self.asm.define_label(label);
 
-            // Pop the selector for regular functions (receive/fallback don't have it on stack)
-            if func.selector.is_some() {
-                self.asm.emit_op(op::POP);
-            }
+            // The dispatcher's shr'd selector is still on the physical stack
+            // for regular functions. It is untracked and below everything the
+            // wrapper's stack model describes, so it is inert (the same
+            // invariant stack-passed return addresses rely on) — the wrapper
+            // terminates externally and never reaches it; popping it per
+            // wrapper was a wasted byte each.
 
             if !all_external_entries_reject_value {
                 self.emit_payable_check(func, revert_label);
@@ -1119,14 +1124,18 @@ impl EvmCodegen {
         self.asm.emit_op(op::JUMPI);
     }
 
-    fn emit_selector_dispatch_miss(&mut self, fallback_label: Option<Label>, revert_label: Label) {
+    fn emit_selector_dispatch_miss(&mut self, fallback_label: Option<Label>, _revert_label: Label) {
         if let Some(fallback_label) = fallback_label {
-            self.asm.emit_op(op::POP);
+            // The unmatched selector below the fallback's stack model is
+            // inert, like the one below regular wrappers.
             self.asm.emit_push_label(fallback_label);
             self.asm.emit_op(op::JUMP);
         } else {
-            self.asm.emit_push_label(revert_label);
-            self.asm.emit_op(op::JUMP);
+            // Reverting inline is a byte shorter than jumping to the shared
+            // revert stub, and terminal-span dedup still merges the copies.
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_push(U256::ZERO);
+            self.asm.emit_op(op::REVERT);
         }
     }
 
