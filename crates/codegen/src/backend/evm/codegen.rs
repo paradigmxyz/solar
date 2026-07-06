@@ -3519,6 +3519,51 @@ impl EvmCodegen {
             return;
         }
 
+        // Operands that already sit on top of the tracked stack are consumed
+        // in place when they are dead afterwards and own no reserved spill
+        // slot, instead of being re-emitted and the stale copy nipped later
+        // (`DUP2 <op> ... SWAP1 POP` becomes `<op>`).
+        let a_dead_free = liveness.is_dead_after(a, block, inst_idx)
+            && self.scheduler.spills.get(a).is_none();
+        let b_dead_free = liveness.is_dead_after(b, block, inst_idx)
+            && self.scheduler.spills.get(b).is_none();
+        if self.scheduler.stack.top() == Some(a)
+            && self.scheduler.stack.peek(1) == Some(b)
+            && a_dead_free
+            && b_dead_free
+        {
+            // The stack is already [b, a].
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, result);
+            return;
+        }
+        if self.scheduler.stack.top() == Some(b)
+            && b_dead_free
+            && self.scheduler.can_emit_value(a, func)
+        {
+            // b is in place below; put a above it.
+            self.emit_value(func, a);
+            if a_is_live && !Self::is_rematerializable_value(func, a) {
+                self.spill_value_if_needed(func, a);
+            }
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, result);
+            return;
+        }
+        if self.scheduler.stack.top() == Some(a)
+            && a_dead_free
+            && self.scheduler.can_emit_value(b, func)
+        {
+            // a is in place; emit b above it and swap into [b, a].
+            self.emit_value(func, b);
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
+            self.asm.emit_op(op::SWAP1);
+            self.scheduler.stack_swapped();
+            self.asm.emit_op(opcode);
+            self.scheduler.instruction_executed(2, result);
+            return;
+        }
+
         // Check if either operand is already on stack as an untracked value
         let a_can_emit = self.scheduler.can_emit_value(a, func);
         let b_can_emit = self.scheduler.can_emit_value(b, func);
