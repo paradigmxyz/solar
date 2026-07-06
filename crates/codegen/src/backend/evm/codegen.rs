@@ -330,9 +330,12 @@ pub struct EvmCodegen {
     /// by (function, byte offset within its frame). Resolved at the end of
     /// the pass, once every body's exact spill size is known.
     static_frame_addr_consts: FxHashMap<(FunctionId, u64), DeferredConst>,
-    /// Per-external-entry free-memory-pointer constants, resolved at the end
-    /// of the pass: the heap must start above the static frame region.
-    pending_free_memory_consts: Vec<(DeferredConst, FunctionId)>,
+    /// The pass's single free-memory-pointer constant, emitted once in the
+    /// runtime prologue and resolved at the end of the pass: the heap must
+    /// start above every entry's locals/spills and the static frame region.
+    runtime_free_memory_const: Option<DeferredConst>,
+    /// Every external body emitted this pass, for sizing the heap floor.
+    runtime_entry_funcs: Vec<FunctionId>,
     /// The internal-convention function currently being emitted.
     current_internal_function: Option<FunctionId>,
     /// Copies to insert at block exits (from phi elimination).
@@ -371,7 +374,8 @@ impl EvmCodegen {
             restorable_internal_frames: FxHashSet::default(),
             static_frame_functions: FxHashSet::default(),
             static_frame_addr_consts: FxHashMap::default(),
-            pending_free_memory_consts: Vec::new(),
+            runtime_free_memory_const: None,
+            runtime_entry_funcs: Vec::new(),
             current_internal_function: None,
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
@@ -605,7 +609,8 @@ impl EvmCodegen {
             self.restorable_internal_frames.clear();
             self.static_frame_functions.clear();
             self.static_frame_addr_consts.clear();
-            self.pending_free_memory_consts.clear();
+            self.runtime_free_memory_const = None;
+            self.runtime_entry_funcs.clear();
             self.current_internal_function = None;
             self.stack_phi_sources.clear();
 
@@ -730,7 +735,8 @@ impl EvmCodegen {
         self.restorable_internal_frames.clear();
         self.static_frame_functions.clear();
         self.static_frame_addr_consts.clear();
-        self.pending_free_memory_consts.clear();
+        self.runtime_free_memory_const = None;
+        self.runtime_entry_funcs.clear();
         self.current_internal_function = None;
         self.block_copies.clear();
         self.stack_phi_sources.clear();
@@ -802,12 +808,14 @@ impl EvmCodegen {
             }
         }
 
-        // The MIR entry is the runtime prologue.
+        // The MIR entry is the runtime prologue: one shared free-memory
+        // store covers every wrapper reached through it.
         self.in_internal_function = false;
         let entry_free = self.emit_external_free_memory_start();
+        self.runtime_free_memory_const = Some(entry_free);
         self.generate_function_body(&module.functions[entry_id]);
         self.record_function_spill_size(entry_id);
-        self.pending_free_memory_consts.push((entry_free, entry_id));
+        self.runtime_entry_funcs.push(entry_id);
 
         // External entries, reached only through `tail_call` jumps.
         for (func_id, func) in module.functions.iter_enumerated() {
@@ -816,11 +824,10 @@ impl EvmCodegen {
             }
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
-            let free_memory_start = self.emit_external_free_memory_start();
             self.in_internal_function = false;
             self.generate_function_body(func);
             self.record_function_spill_size(func_id);
-            self.pending_free_memory_consts.push((free_memory_start, func_id));
+            self.runtime_entry_funcs.push(func_id);
         }
 
         // Internal-call targets, exactly as in the backend dispatcher path.
@@ -908,6 +915,12 @@ impl EvmCodegen {
                     .filter(|func| Self::is_external_entry(func))
                     .all(Self::rejects_callvalue);
 
+        // One shared free-memory store for every entry reached through the
+        // dispatcher (solc does the same); its value is the maximum entry
+        // frame end, or the static-frame region end.
+        let dispatcher_free = self.emit_external_free_memory_start();
+        self.runtime_free_memory_const = Some(dispatcher_free);
+
         if all_external_entries_reject_value {
             self.emit_callvalue_check(revert_label);
         }
@@ -978,14 +991,12 @@ impl EvmCodegen {
                 self.emit_payable_check(func, revert_label);
             }
 
-            let free_memory_start = self.emit_external_free_memory_start();
-
             // Generate function body
             self.in_internal_function = false;
             self.generate_function_body(func);
 
             self.record_function_spill_size(func_id);
-            self.pending_free_memory_consts.push((free_memory_start, func_id));
+            self.runtime_entry_funcs.push(func_id);
         }
 
         // Define internal-call targets once. Calls jump here and return
@@ -2811,33 +2822,28 @@ impl EvmCodegen {
     /// constant is the maximum entry frame end when no static frame was
     /// referenced (today's behavior), and `region_end` otherwise.
     fn resolve_static_frames(&mut self, module: &Module) {
-        let entry_bases: Vec<(DeferredConst, u64)> =
-            std::mem::take(&mut self.pending_free_memory_consts)
-                .into_iter()
-                .map(|(id, func_id)| {
-                    let func = &module.functions[func_id];
-                    let spill = self
-                        .function_spill_sizes
-                        .get(&func_id)
-                        .copied()
-                        .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
-                    (id, Self::external_spill_base(func) + spill)
-                })
-                .collect();
+        let max_entry_base = std::mem::take(&mut self.runtime_entry_funcs)
+            .into_iter()
+            .map(|func_id| {
+                let func = &module.functions[func_id];
+                let spill = self
+                    .function_spill_sizes
+                    .get(&func_id)
+                    .copied()
+                    .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
+                Self::external_spill_base(func) + spill
+            })
+            .max()
+            .unwrap_or(0);
 
         if self.static_frame_addr_consts.is_empty() {
-            for (id, base) in entry_bases {
-                self.asm.set_deferred_const(id, U256::from(base));
+            if let Some(id) = self.runtime_free_memory_const.take() {
+                self.asm.set_deferred_const(id, U256::from(max_entry_base));
             }
             return;
         }
 
-        let region_start = entry_bases
-            .iter()
-            .map(|&(_, base)| base)
-            .max()
-            .unwrap_or(0)
-            .max(INTERNAL_FRAME_PTR_SLOT + 32);
+        let region_start = max_entry_base.max(INTERNAL_FRAME_PTR_SLOT + 32);
 
         // Longest live-chain depth below each function, over all call edges.
         let mut edges = Vec::new();
@@ -2883,7 +2889,7 @@ impl EvmCodegen {
         for (&(func_id, offset), &id) in &self.static_frame_addr_consts {
             self.asm.set_deferred_const(id, U256::from(bases[&func_id] + offset));
         }
-        for (id, _) in entry_bases {
+        if let Some(id) = self.runtime_free_memory_const.take() {
             self.asm.set_deferred_const(id, U256::from(region_end));
         }
     }
