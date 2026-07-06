@@ -101,6 +101,9 @@ where
             ($skip:expr => [$a:expr, $b:expr]) => {
                 Some(Peephole::replace_2($skip, $a, $b))
             };
+            ($skip:expr => [$a:expr, $b:expr, $c:expr]) => {
+                Some(Peephole::replace_3($skip, $a, $b, $c))
+            };
         }
 
         let stack = InstStack::new(&self.program.instructions[..write]);
@@ -198,6 +201,71 @@ where
             return peephole!(3 => [AsmInst::op(op::ISZERO)]);
         }
 
+        // `DUP2 <2-in/1-out op> SWAP1 POP`: the operation consumed a copy and
+        // the original below it is immediately nipped, so both operands are in
+        // fact dead — consume them in place. `[x, y] DUP2 op` computes
+        // `op(x, y)`; so does `SWAP1 op`, and a commutative op needs no swap.
+        if stack.len() >= 4
+            && let (
+                AsmInstKind::Op(op::POP),
+                AsmInstKind::Op(swap),
+                AsmInstKind::Op(binop),
+                AsmInstKind::Op(dup),
+            ) = (stack[0].kind(), stack[1].kind(), stack[2].kind(), stack[3].kind())
+            && swap == op::SWAP1
+            && dup == op::DUP2
+        {
+            if matches!(binop, op::ADD | op::MUL | op::AND | op::OR | op::XOR | op::EQ) {
+                return peephole!(4 => [AsmInst::op(binop)]);
+            }
+            if matches!(
+                binop,
+                op::SUB
+                    | op::DIV
+                    | op::SDIV
+                    | op::MOD
+                    | op::SMOD
+                    | op::EXP
+                    | op::SIGNEXTEND
+                    | op::LT
+                    | op::GT
+                    | op::SLT
+                    | op::SGT
+                    | op::BYTE
+                    | op::SHL
+                    | op::SHR
+                    | op::SAR
+                    | op::KECCAK256
+            ) {
+                return peephole!(4 => [AsmInst::op(op::SWAP1), AsmInst::op(binop)]);
+            }
+        }
+
+        // `SWAP1 POP SWAP1 POP` (nip twice) -> `SWAP2 POP POP`.
+        if stack.len() >= 4
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::POP))
+            && matches!(stack[1].kind(), AsmInstKind::Op(s) if s == op::SWAP1)
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::POP))
+            && matches!(stack[3].kind(), AsmInstKind::Op(s) if s == op::SWAP1)
+        {
+            return peephole!(4 => [
+                AsmInst::op(op::SWAP1 + 1),
+                AsmInst::op(op::POP),
+                AsmInst::op(op::POP)
+            ]);
+        }
+
+        // `EQ ISZERO <label> JUMPI -> SUB <label> JUMPI`: jump-if-not-equal
+        // only needs a nonzero word, which the difference already is.
+        if stack.len() >= 4
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::JUMPI))
+            && matches!(stack[1].kind(), AsmInstKind::PushLabel(_))
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[3].kind(), AsmInstKind::Op(op::EQ))
+        {
+            return peephole!(4 => [AsmInst::op(op::SUB), stack[1], AsmInst::op(op::JUMPI)]);
+        }
+
         None
     }
 }
@@ -239,20 +307,24 @@ impl std::ops::Index<usize> for InstStack<'_> {
 struct Peephole {
     skip: u32,
     replacement_len: u32,
-    replacement: [AsmInst; 2],
+    replacement: [AsmInst; 3],
 }
 
 impl Peephole {
     fn delete(skip: u32) -> Self {
-        Self { skip, replacement_len: 0, replacement: [AsmInst::PLACEHOLDER; 2] }
+        Self { skip, replacement_len: 0, replacement: [AsmInst::PLACEHOLDER; 3] }
     }
 
     fn replace_1(skip: u32, inst: AsmInst) -> Self {
-        Self { skip, replacement_len: 1, replacement: [inst, AsmInst::PLACEHOLDER] }
+        Self { skip, replacement_len: 1, replacement: [inst, AsmInst::PLACEHOLDER, AsmInst::PLACEHOLDER] }
     }
 
     fn replace_2(skip: u32, a: AsmInst, b: AsmInst) -> Self {
-        Self { skip, replacement_len: 2, replacement: [a, b] }
+        Self { skip, replacement_len: 2, replacement: [a, b, AsmInst::PLACEHOLDER] }
+    }
+
+    fn replace_3(skip: u32, a: AsmInst, b: AsmInst, c: AsmInst) -> Self {
+        Self { skip, replacement_len: 3, replacement: [a, b, c] }
     }
 }
 
@@ -346,6 +418,51 @@ mod tests {
         let result = asm.assemble();
 
         assert_eq!(result.bytecode, vec![0x60, 42, op::ISZERO, op::STOP]);
+    }
+
+    #[test]
+    fn folds_dup2_binop_nip() {
+        // Commutative: `DUP2 ADD SWAP1 POP -> ADD`.
+        let mut asm = Assembler::new();
+        asm.emit_op(op::DUP2);
+        asm.emit_op(op::ADD);
+        asm.emit_op(op::SWAP1);
+        asm.emit_op(op::POP);
+        asm.emit_op(op::STOP);
+        assert_eq!(asm.assemble().bytecode, vec![op::ADD, op::STOP]);
+
+        // Non-commutative: `DUP2 SUB SWAP1 POP -> SWAP1 SUB`.
+        let mut asm = Assembler::new();
+        asm.emit_op(op::DUP2);
+        asm.emit_op(op::SUB);
+        asm.emit_op(op::SWAP1);
+        asm.emit_op(op::POP);
+        asm.emit_op(op::STOP);
+        assert_eq!(asm.assemble().bytecode, vec![op::SWAP1, op::SUB, op::STOP]);
+    }
+
+    #[test]
+    fn folds_double_nip() {
+        let mut asm = Assembler::new();
+        for _ in 0..2 {
+            asm.emit_op(op::SWAP1);
+            asm.emit_op(op::POP);
+        }
+        asm.emit_op(op::STOP);
+        assert_eq!(asm.assemble().bytecode, vec![op::SWAP1 + 1, op::POP, op::POP, op::STOP]);
+    }
+
+    #[test]
+    fn folds_eq_iszero_jumpi() {
+        let mut asm = Assembler::new();
+        let label = asm.new_label();
+        asm.define_label(label);
+        asm.emit_op(op::EQ);
+        asm.emit_op(op::ISZERO);
+        asm.emit_push_label(label);
+        asm.emit_op(op::JUMPI);
+        let bytecode = asm.assemble().bytecode;
+        assert_eq!(bytecode, vec![op::JUMPDEST, op::SUB, op::PUSH0, op::JUMPI]);
     }
 
     #[test]
