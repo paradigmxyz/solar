@@ -466,6 +466,21 @@ mod tests {
     }
 
     #[test]
+    fn drops_unreferenced_labels() {
+        let mut asm = Assembler::new();
+        let dead = asm.new_label();
+        let live = asm.new_label();
+        asm.emit_op(op::CALLER);
+        asm.define_label(dead); // fallthrough-only: no JUMPDEST needed
+        asm.emit_op(op::POP);
+        asm.define_label(live);
+        asm.emit_push_label(live);
+        asm.emit_op(op::JUMP);
+        let result = asm.assemble();
+        assert_eq!(result.bytecode, vec![op::CALLER, op::POP, op::JUMPDEST, 0x60, 2, op::JUMP]);
+    }
+
+    #[test]
     fn preserves_push_one_div() {
         let mut asm = Assembler::new();
 

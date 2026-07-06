@@ -8,7 +8,7 @@
 use crate::mir::IMMUTABLE_WORD_SIZE;
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
@@ -215,7 +215,13 @@ impl Assembler {
         }
         let mut program = ir_program.to_asm_program();
         self.run_assembler_passes(&mut program);
+        // Dedup first at the original span granularity, then drop the labels
+        // nothing references (which merges fallthrough-split spans), and
+        // dedup once more at the coarser granularity that removal exposes.
         Self::dedup_terminal_spans(&mut program.instructions);
+        Self::remove_unreferenced_labels(&mut program.instructions);
+        Self::dedup_terminal_spans(&mut program.instructions);
+        Self::remove_unreferenced_labels(&mut program.instructions);
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
@@ -256,6 +262,24 @@ impl Assembler {
         let result = self.emit_bytecode(&program, label_offsets, &push_widths);
         self.clear();
         result
+    }
+
+    /// Deletes label definitions that nothing references: such a block can
+    /// only be entered by fallthrough, so its `JUMPDEST` byte is pure waste.
+    /// Rewrites and span dedup orphan labels, and running this before the
+    /// span dedup also exposes more spans whose predecessor is terminating.
+    fn remove_unreferenced_labels(instructions: &mut Vec<AsmInst>) {
+        let referenced: FxHashSet<Label> = instructions
+            .iter()
+            .filter_map(|inst| match inst.kind() {
+                AsmInstKind::PushLabel(label) => Some(label),
+                _ => None,
+            })
+            .collect();
+        instructions.retain(|inst| match inst.kind() {
+            AsmInstKind::Label(label) => referenced.contains(&label),
+            _ => true,
+        });
     }
 
     /// Merges byte-identical label-started spans that end in a terminating
