@@ -147,6 +147,14 @@ impl<'gcx> InlayHintCollector<'gcx> {
         param_source: CallableParamSource,
     ) {
         let param_names = self.gcx.callable_param_names(param_source);
+        self.push_parameter_hints_for_exprs_and_names(exprs, param_names);
+    }
+
+    fn push_parameter_hints_for_exprs_and_names(
+        &mut self,
+        exprs: impl IntoIterator<Item = &'gcx hir::Expr<'gcx>>,
+        param_names: impl IntoIterator<Item = Option<Symbol>>,
+    ) {
         for (arg, param_name) in exprs.into_iter().zip(param_names) {
             let Some(param_name) = param_name else {
                 continue;
@@ -165,21 +173,32 @@ impl<'gcx> InlayHintCollector<'gcx> {
         }
     }
 
-    /// Adds target parameter-name hints for the tuple argument in `abi.encodeCall`.
+    /// Adds target parameter-name hints for the encoded arguments in `abi.encodeCall`.
     fn push_abi_encode_call_parameter_hints(&mut self, args: &hir::CallArgs<'gcx>) {
         let CallArgsKind::Unnamed([target, arguments]) = args.kind else {
-            return;
-        };
-        let ExprKind::Tuple(components) = arguments.peel_parens().kind else {
             return;
         };
         let Some(param_source) = self.call_param_source_from_expr(target) else {
             return;
         };
-        self.push_parameter_hints_for_exprs(
-            components.iter().filter_map(|component| *component),
-            param_source,
-        );
+        let param_names = self.gcx.callable_param_names(param_source);
+        let arguments = arguments.peel_parens();
+
+        match arguments.kind {
+            ExprKind::Tuple(components) => {
+                if components.iter().any(|component| component.is_none()) {
+                    return;
+                }
+                self.push_parameter_hints_for_exprs_and_names(
+                    components.iter().filter_map(|component| *component),
+                    param_names,
+                );
+            }
+            _ if param_names.len() == 1 => {
+                self.push_parameter_hints_for_exprs_and_names([arguments], param_names);
+            }
+            _ => {}
+        }
     }
 
     /// Returns whether an argument expression already makes the parameter name visible.
@@ -216,8 +235,20 @@ impl<'gcx> InlayHintCollector<'gcx> {
         };
         self.index.push(
             location.uri,
-            StoredInlayHint::call_type(location.range.end, format!(": {}", ty.display(self.gcx))),
+            StoredInlayHint::call_type(location.range.end, self.call_type_label(ty)),
         );
+    }
+
+    fn call_type_label(&self, ty: Ty<'gcx>) -> String {
+        if let TyKind::Tuple(tys) = ty.kind {
+            let tys = tys
+                .iter()
+                .map(|ty| ty.display(self.gcx).to_string())
+                .collect::<Vec<_>>()
+                .join(", ");
+            return format!(": ({tys})");
+        }
+        format!(": {}", ty.display(self.gcx))
     }
 
     /// Finds the callable declaration that supplies parameter names for a call expression.
@@ -253,10 +284,32 @@ impl<'gcx> InlayHintCollector<'gcx> {
             return Some(CallableParamSource::FunctionType(variable));
         }
 
+        if let ExprKind::Member(receiver, ident) = expr.kind
+            && let Some(receiver_ty) = self.gcx.type_of_expr(receiver.id)
+            && let Some(field) = self.struct_field(receiver_ty, ident.name)
+            && matches!(self.gcx.hir.variable(field).ty.kind, hir::TypeKind::Function(_))
+        {
+            return Some(CallableParamSource::FunctionType(field));
+        }
+
         self.gcx
             .type_of_expr(expr.id)
             .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
             .and_then(|signature| signature.param_source)
+    }
+
+    fn struct_field(&self, receiver_ty: Ty<'gcx>, name: Symbol) -> Option<hir::VariableId> {
+        let struct_id = match receiver_ty.kind {
+            TyKind::Ref(inner, _) => match inner.kind {
+                TyKind::Struct(id) => id,
+                _ => return None,
+            },
+            TyKind::Struct(id) => id,
+            _ => return None,
+        };
+        self.gcx.hir.strukt(struct_id).fields.iter().copied().find(|&field| {
+            self.gcx.hir.variable(field).name.is_some_and(|field_name| field_name.name == name)
+        })
     }
 
     /// Finds the function or constructor declaration that supplies parameter names for a modifier.

@@ -341,6 +341,34 @@ PARAMETER input:
 }
 
 #[test]
+fn displays_multi_return_call_type_hints_as_solidity_tuples() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /MultiReturn.sol
+        contract C {
+            function pair(uint256 amount) internal pure returns (uint256, bool) {
+                return (amount, amount != 0);
+            }
+
+            function caller() public pure returns (uint256, bool) {
+                return pair(1);
+            }
+        }
+        "#,
+        "/MultiReturn.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/MultiReturn.sol",
+        str![[r#"
+PARAMETER amount:
+TYPE : (uint256, bool)
+
+"#]],
+    );
+}
+
+#[test]
 fn uses_function_type_parameter_names_for_function_variable_calls() {
     let fixture = RequestFixture::new_allowing_diagnostics(
         r#"
@@ -361,6 +389,37 @@ fn uses_function_type_parameter_names_for_function_variable_calls() {
 
     fixture.check_inlay_hints(
         "/FunctionType.sol",
+        str![[r#"
+PARAMETER amount:
+PARAMETER account:
+TYPE : uint256
+
+"#]],
+    );
+}
+
+#[test]
+fn uses_function_type_parameter_names_for_struct_field_calls() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /FunctionField.sol
+        contract C {
+            struct Holder {
+                function(uint256 amount, address account) internal returns (uint256) callback;
+            }
+
+            Holder holder;
+
+            function caller(address user) public returns (uint256) {
+                return holder.callback(1, user);
+            }
+        }
+        "#,
+        "/FunctionField.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/FunctionField.sol",
         str![[r#"
 PARAMETER amount:
 PARAMETER account:
@@ -393,6 +452,61 @@ fn uses_target_parameter_names_for_abi_encode_call_tuple() {
         str![[r#"
 PARAMETER amount:
 PARAMETER account:
+TYPE : bytes memory
+
+"#]],
+    );
+}
+
+#[test]
+fn uses_target_parameter_names_for_single_abi_encode_call_argument() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /AbiEncodeCallSingle.sol
+        interface I {
+            function target(uint256 amount) external returns (uint256);
+        }
+
+        contract C {
+            function caller() public pure returns (bytes memory) {
+                return abi.encodeCall(I.target, 1);
+            }
+        }
+        "#,
+        "/AbiEncodeCallSingle.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/AbiEncodeCallSingle.sol",
+        str![[r#"
+PARAMETER amount:
+TYPE : bytes memory
+
+"#]],
+    );
+}
+
+#[test]
+fn skips_abi_encode_call_parameter_hints_for_tuple_holes() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /AbiEncodeCallHole.sol
+        interface I {
+            function target(uint256 amount, address account) external returns (uint256);
+        }
+
+        contract C {
+            function caller(address user) public pure returns (bytes memory) {
+                return abi.encodeCall(I.target, (, user));
+            }
+        }
+        "#,
+        "/AbiEncodeCallHole.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/AbiEncodeCallHole.sol",
+        str![[r#"
 TYPE : bytes memory
 
 "#]],
