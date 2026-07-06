@@ -1,10 +1,5 @@
 use super::support::RequestFixture;
-use lsp_types::{Position, Range};
 use snapbox::str;
-
-fn full_range() -> Range {
-    Range { start: Position::new(0, 0), end: Position::new(u32::MAX, u32::MAX) }
-}
 
 #[test]
 fn returns_parameter_hints_for_positional_calls_and_skips_named_args() {
@@ -26,7 +21,6 @@ fn returns_parameter_hints_for_positional_calls_and_skips_named_args() {
 
     fixture.check_inlay_hints(
         "/Hints.sol",
-        full_range(),
         str![[r#"
 PARAMETER amount:
 PARAMETER account:
@@ -61,7 +55,6 @@ fn uses_selected_overload_for_parameter_hints() {
 
     fixture.check_inlay_hints(
         "/Overload.sol",
-        full_range(),
         str![[r#"
 PARAMETER text:
 TYPE : uint256
@@ -94,7 +87,6 @@ fn skips_attached_using_receiver_for_parameter_hints() {
 
     fixture.check_inlay_hints(
         "/Using.sol",
-        full_range(),
         str![[r#"
 PARAMETER amount:
 TYPE : uint256
@@ -131,7 +123,6 @@ fn skips_parameter_hints_for_arguments_with_matching_names() {
 
     fixture.check_inlay_hints(
         "/Names.sol",
-        full_range(),
         str![[r#"
 TYPE : uint256
 PARAMETER amount:
@@ -168,7 +159,6 @@ fn handles_contextual_builtin_callees() {
 
     fixture.check_inlay_hints(
         "/Builtins.sol",
-        full_range(),
         str![[r#"
 TYPE : MyUdvt
 TYPE : uint256
@@ -206,7 +196,6 @@ fn skips_type_hints_for_explicit_casts() {
 
     fixture.check_inlay_hints(
         "/Casts.sol",
-        full_range(),
         str![[r#"
 TYPE : uint256
 
@@ -250,7 +239,6 @@ fn returns_parameter_hints_for_solidity_callable_forms() {
 
     fixture.check_inlay_hints(
         "/Forms.sol",
-        full_range(),
         str![[r#"
 PARAMETER baseValue:
 PARAMETER ctorValue:
@@ -287,7 +275,6 @@ fn returns_parameter_hints_for_new_contract_constructor_calls() {
 
     fixture.check_inlay_hints(
         "/New.sol",
-        full_range(),
         str![[r#"
 PARAMETER amount:
 PARAMETER owner:
@@ -322,7 +309,6 @@ fn returns_call_type_hints_for_non_unit_calls() {
 
     fixture.check_inlay_hints(
         "/Types.sol",
-        full_range(),
         str![[r#"
 TYPE : uint256
 PARAMETER input:

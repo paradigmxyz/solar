@@ -7,7 +7,7 @@ use solar_interface::{
 use solar_sema::{
     Gcx,
     hir::{self, CallArgsKind, ExprKind, ItemId, Visit},
-    ty::{CallableParamSource, TyKind},
+    ty::{CallableParamSource, Ty, TyKind},
 };
 use std::ops::ControlFlow;
 
@@ -142,6 +142,12 @@ impl<'gcx> InlayHintCollector<'gcx> {
 
     fn argument_name_matches_param(&self, arg: &'gcx hir::Expr<'gcx>, param_name: Symbol) -> bool {
         let arg = arg.peel_parens();
+        if let ExprKind::Ident([res]) = arg.kind
+            && let Some(variable) = res.as_variable()
+            && self.gcx.hir.variable(variable).name.is_some_and(|name| name.name == param_name)
+        {
+            return true;
+        }
         self.gcx
             .sess
             .source_map()
@@ -149,8 +155,10 @@ impl<'gcx> InlayHintCollector<'gcx> {
             .is_ok_and(|snippet| snippet == param_name.as_str())
     }
 
-    fn push_call_type_hint(&mut self, expr: &'gcx hir::Expr<'gcx>, callee: &'gcx hir::Expr<'gcx>) {
-        if self.is_explicit_cast_call(callee) {
+    fn push_call_type_hint(&mut self, expr: &'gcx hir::Expr<'gcx>, callee_ty: Option<Ty<'gcx>>) {
+        if callee_ty.is_some_and(
+            |ty| matches!(ty.kind, TyKind::Type(to) if !matches!(to.kind, TyKind::Struct(_))),
+        ) {
             return;
         }
         let Some(ty) = self.gcx.type_of_expr(expr.id) else {
@@ -168,7 +176,11 @@ impl<'gcx> InlayHintCollector<'gcx> {
         );
     }
 
-    fn call_param_source(&self, callee: &'gcx hir::Expr<'gcx>) -> Option<CallableParamSource> {
+    fn call_param_source(
+        &self,
+        callee: &'gcx hir::Expr<'gcx>,
+        callee_ty: Option<Ty<'gcx>>,
+    ) -> Option<CallableParamSource> {
         if let ExprKind::New(hir_ty) = &callee.kind
             && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(hir_ty).kind
             && let Some(ctor) = self.gcx.hir.contract(id).ctor
@@ -176,15 +188,9 @@ impl<'gcx> InlayHintCollector<'gcx> {
             return Some(CallableParamSource::Function { id: ctor, skips_receiver: false });
         }
 
-        let signature =
-            self.gcx.type_of_expr(callee.id).and_then(|ty| self.gcx.callable_signature_of_ty(ty));
-        signature.and_then(|signature| signature.param_source)
-    }
-
-    fn is_explicit_cast_call(&self, callee: &'gcx hir::Expr<'gcx>) -> bool {
-        self.gcx.type_of_expr(callee.id).is_some_and(
-            |ty| matches!(ty.kind, TyKind::Type(to) if !matches!(to.kind, TyKind::Struct(_))),
-        )
+        callee_ty
+            .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
+            .and_then(|signature| signature.param_source)
     }
 
     fn modifier_param_source(
@@ -209,8 +215,9 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'gcx> {
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         if let ExprKind::Call(callee, ref args, _) = expr.kind {
-            self.push_parameter_hints(args, self.call_param_source(callee));
-            self.push_call_type_hint(expr, callee);
+            let callee_ty = self.gcx.type_of_expr(callee.id);
+            self.push_parameter_hints(args, self.call_param_source(callee, callee_ty));
+            self.push_call_type_hint(expr, callee_ty);
         }
         hir::Visit::walk_expr(self, expr)
     }

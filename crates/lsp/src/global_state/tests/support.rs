@@ -90,13 +90,9 @@ impl RequestFixture {
         assert_data_eq!(self.locations_output(response), expected);
     }
 
-    pub(super) fn check_inlay_hints(&self, path: &str, range: Range, expected: impl IntoData) {
-        let mut state = self.state();
+    pub(super) fn check_inlay_hints(&self, path: &str, expected: impl IntoData) {
         let uri = Url::from_file_path(self.marked.project().path(path)).unwrap();
-        let response =
-            expect_ready(crate::handlers::inlay_hints(&mut state, inlay_hint_params(uri, range)))
-                .unwrap();
-        assert_data_eq!(inlay_hint_output(&response.unwrap_or_default()), expected);
+        assert_data_eq!(inlay_hint_output(&self.inlay_hints(uri, full_range())), expected);
     }
 
     pub(super) fn check_inlay_hints_between(
@@ -108,13 +104,18 @@ impl RequestFixture {
         let (start_uri, start) = self.marker_location(start_marker);
         let (end_uri, end) = self.marker_location(end_marker);
         assert_eq!(start_uri, end_uri);
+        assert_data_eq!(
+            inlay_hint_output(&self.inlay_hints(start_uri, Range { start, end })),
+            expected
+        );
+    }
+
+    fn inlay_hints(&self, uri: Url, range: Range) -> Vec<InlayHint> {
         let mut state = self.state();
-        let response = expect_ready(crate::handlers::inlay_hints(
-            &mut state,
-            inlay_hint_params(start_uri, Range { start, end }),
-        ))
-        .unwrap();
-        assert_data_eq!(inlay_hint_output(&response.unwrap_or_default()), expected);
+        let response =
+            expect_ready(crate::handlers::inlay_hints(&mut state, inlay_hint_params(uri, range)))
+                .unwrap();
+        response.unwrap_or_default()
     }
 
     fn state(&self) -> GlobalState {
@@ -262,6 +263,10 @@ fn inlay_hint_params(uri: Url, range: Range) -> InlayHintParams {
         range,
         work_done_progress_params: WorkDoneProgressParams::default(),
     }
+}
+
+fn full_range() -> Range {
+    Range { start: Position::new(0, 0), end: Position::new(u32::MAX, u32::MAX) }
 }
 
 fn text_document_position(uri: Url, position: Position) -> TextDocumentPositionParams {

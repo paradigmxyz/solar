@@ -252,6 +252,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
 
                 let callee_signature = self.gcx.callable_signature_of_ty(callee_ty);
+                let callee_param_source =
+                    callee_signature.and_then(|signature| signature.param_source);
                 if let TyKind::Type(_) = callee_ty.kind
                     && let Some(signature) = callee_signature
                 {
@@ -280,11 +282,13 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
 
                         let builtin = self.results.builtin_callee(callee.id);
-                        let param_names =
-                            callee_signature.and_then(|signature| signature.param_source);
                         if builtin != Some(Builtin::Require) {
-                            let _ =
-                                self.check_call_args(expr.span, args, f.parameters, param_names);
+                            let _ = self.check_call_args(
+                                expr.span,
+                                args,
+                                f.parameters,
+                                callee_param_source,
+                            );
                         }
                         if let Some(builtin) = builtin {
                             let _ = self.check_builtin_call_args(expr.span, args, builtin);
@@ -292,7 +296,7 @@ impl<'gcx> TypeChecker<'gcx> {
                         self.fn_call_return_type(f.returns)
                     }
                     TyKind::Type(to) => self.check_explicit_cast(expr.span, to, args),
-                    TyKind::Event(param_tys, id) => {
+                    TyKind::Event(param_tys, _) => {
                         if !self.in_emit {
                             self.dcx().emit_err(
                                 expr.span,
@@ -302,15 +306,11 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
-                        let _ = self.check_call_args(
-                            expr.span,
-                            args,
-                            param_tys,
-                            Some(CallableParamSource::Event(id)),
-                        );
+                        let _ =
+                            self.check_call_args(expr.span, args, param_tys, callee_param_source);
                         self.gcx.types.unit
                     }
-                    TyKind::Error(param_tys, id) => {
+                    TyKind::Error(param_tys, _) => {
                         if !self.in_revert {
                             self.dcx().emit_err(
                                 expr.span,
@@ -320,12 +320,8 @@ impl<'gcx> TypeChecker<'gcx> {
                         // Clear context so nested calls in args are not considered in emit/revert.
                         self.in_emit = false;
                         self.in_revert = false;
-                        let _ = self.check_call_args(
-                            expr.span,
-                            args,
-                            param_tys,
-                            Some(CallableParamSource::Error(id)),
-                        );
+                        let _ =
+                            self.check_call_args(expr.span, args, param_tys, callee_param_source);
                         self.gcx.types.unit
                     }
                     TyKind::Err(_) => callee_ty,
@@ -1147,15 +1143,18 @@ impl<'gcx> TypeChecker<'gcx> {
             }
         };
         let callee_ty = self.type_of_res(selected);
-        let TyKind::Error(param_tys, id) = callee_ty.kind else {
+        let TyKind::Error(param_tys, _) = callee_ty.kind else {
             return self.check_expected(expr, callee_ty, self.gcx.types.string_ref.memory);
         };
+        let param_source = self
+            .gcx
+            .callable_signature_of_ty(callee_ty)
+            .and_then(|signature| signature.param_source);
         self.results.resolved_callees.insert(callee.id, ResolvedCallee::new(selected, false));
         if !self.results.expr_types.contains_key(&callee.id) {
             self.register_ty(callee, callee_ty);
         }
-        let result =
-            self.check_call_args(expr.span, &args, param_tys, Some(CallableParamSource::Error(id)));
+        let result = self.check_call_args(expr.span, &args, param_tys, param_source);
         self.register_ty(expr, self.gcx.types.unit);
         result
     }
