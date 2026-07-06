@@ -142,11 +142,6 @@ impl<'gcx> InlayHintCollector<'gcx> {
 
     fn argument_name_matches_param(&self, arg: &'gcx hir::Expr<'gcx>, param_name: Symbol) -> bool {
         let arg = arg.peel_parens();
-        if let ExprKind::Ident([Res::Item(item)]) = arg.kind
-            && self.gcx.item_name_opt(*item).is_some_and(|ident| ident.name == param_name)
-        {
-            return true;
-        }
         self.gcx
             .sess
             .source_map()
@@ -181,17 +176,8 @@ impl<'gcx> InlayHintCollector<'gcx> {
             return Some(CallableParamSource::Function { id: ctor, skips_receiver: false });
         }
 
-        let signature = if let Some(resolved) = self.gcx.resolved_callee(callee.id) {
-            if matches!(resolved.res, Res::Builtin(_)) {
-                self.gcx
-                    .type_of_expr(callee.id)
-                    .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
-            } else {
-                self.gcx.callable_signature_of_res(resolved.res, resolved.attached)
-            }
-        } else {
-            self.gcx.type_of_expr(callee.id).and_then(|ty| self.gcx.callable_signature_of_ty(ty))
-        };
+        let signature =
+            self.gcx.type_of_expr(callee.id).and_then(|ty| self.gcx.callable_signature_of_ty(ty));
         signature.and_then(|signature| signature.param_source)
     }
 
