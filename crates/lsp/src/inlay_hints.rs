@@ -32,6 +32,10 @@ enum StoredInlayHintKind {
 }
 
 impl InlayHintIndex {
+    /// Builds the LSP-owned inlay hint index from the compiler HIR.
+    ///
+    /// The compiler's HIR data is scoped to one analysis run. This index copies out the inlay
+    /// hints that LSP requests can query after that run has finished.
     pub(crate) fn build(gcx: Gcx<'_>) -> Self {
         let mut collector = InlayHintCollector { gcx, index: Self::default() };
         for source_id in gcx.hir.source_ids() {
@@ -48,6 +52,10 @@ impl InlayHintIndex {
         self.sort();
     }
 
+    /// Returns the inlay hints requested by the LSP client for a file range.
+    ///
+    /// The LSP inlay hint request includes a range so clients can ask only for the part of a file
+    /// they need. Empty ranges include hints exactly at the requested position.
     pub(crate) fn hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
         let Some(hints) = self.by_file.get(uri) else {
             return Vec::new();
@@ -63,10 +71,12 @@ impl InlayHintIndex {
             .collect()
     }
 
+    /// Stores a collected inlay hint under the URI it should be returned for.
     fn push(&mut self, uri: Url, hint: StoredInlayHint) {
         self.by_file.entry(uri).or_default().push(hint);
     }
 
+    /// Orders each file's hints for deterministic LSP responses and range filtering.
     fn sort(&mut self) {
         for hints in self.by_file.values_mut() {
             hints.sort_by(|a, b| hint_sort_key(a).cmp(&hint_sort_key(b)));
@@ -75,14 +85,17 @@ impl InlayHintIndex {
 }
 
 impl StoredInlayHint {
+    /// Creates a parameter-name hint to display before a positional argument.
     fn parameter(position: Position, label: impl Into<Box<str>>) -> Self {
         Self { position, label: label.into(), kind: StoredInlayHintKind::Parameter }
     }
 
+    /// Creates a type hint to display after a call expression.
     fn call_type(position: Position, label: impl Into<Box<str>>) -> Self {
         Self { position, label: label.into(), kind: StoredInlayHintKind::CallType }
     }
 
+    /// Converts the stored hint into the LSP response type.
     fn to_lsp(&self) -> InlayHint {
         let (kind, padding_left, padding_right) = self.kind.lsp_fields();
         InlayHint {
@@ -113,6 +126,9 @@ struct InlayHintCollector<'gcx> {
 }
 
 impl<'gcx> InlayHintCollector<'gcx> {
+    /// Adds parameter-name hints for positional arguments when parameter names are known.
+    ///
+    /// Hints are skipped when the argument already carries the same name as the parameter.
     fn push_parameter_hints(
         &mut self,
         args: &hir::CallArgs<'gcx>,
@@ -140,6 +156,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
         }
     }
 
+    /// Returns whether an argument expression already makes the parameter name visible.
     fn argument_name_matches_param(&self, arg: &'gcx hir::Expr<'gcx>, param_name: Symbol) -> bool {
         let arg = arg.peel_parens();
         if let ExprKind::Ident([res]) = arg.kind
@@ -155,6 +172,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
             .is_ok_and(|snippet| snippet == param_name.as_str())
     }
 
+    /// Adds a result-type hint after a call when the call has a useful inferred type.
     fn push_call_type_hint(&mut self, expr: &'gcx hir::Expr<'gcx>, callee_ty: Option<Ty<'gcx>>) {
         if callee_ty.is_some_and(
             |ty| matches!(ty.kind, TyKind::Type(to) if !matches!(to.kind, TyKind::Struct(_))),
@@ -176,6 +194,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
         );
     }
 
+    /// Finds the callable declaration that supplies parameter names for a call expression.
     fn call_param_source(
         &self,
         callee: &'gcx hir::Expr<'gcx>,
@@ -193,6 +212,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
             .and_then(|signature| signature.param_source)
     }
 
+    /// Finds the function or constructor declaration that supplies parameter names for a modifier.
     fn modifier_param_source(
         &self,
         modifier: &'gcx hir::Modifier<'gcx>,
