@@ -2578,7 +2578,14 @@ impl EvmCodegen {
             }
             InstKind::Log1(offset, size, topic1) => {
                 // LOG1(offset, size, topic1) - stack order: offset, size, topic1
-                self.emit_log(func, op::LOG1, &[*topic1, *size, *offset], liveness, block, inst_idx);
+                self.emit_log(
+                    func,
+                    op::LOG1,
+                    &[*topic1, *size, *offset],
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
             InstKind::Log2(offset, size, topic1, topic2) => {
                 // LOG2(offset, size, topic1, topic2) - stack order: offset, size, topic1, topic2
@@ -2807,20 +2814,19 @@ impl EvmCodegen {
     /// constant is the maximum entry frame end when no static frame was
     /// referenced (today's behavior), and `region_end` otherwise.
     fn resolve_static_frames(&mut self, module: &Module) {
-        let entry_bases: Vec<(DeferredConst, u64)> = std::mem::take(
-            &mut self.pending_free_memory_consts,
-        )
-        .into_iter()
-        .map(|(id, func_id)| {
-            let func = &module.functions[func_id];
-            let spill = self
-                .function_spill_sizes
-                .get(&func_id)
-                .copied()
-                .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
-            (id, Self::external_spill_base(func) + spill)
-        })
-        .collect();
+        let entry_bases: Vec<(DeferredConst, u64)> =
+            std::mem::take(&mut self.pending_free_memory_consts)
+                .into_iter()
+                .map(|(id, func_id)| {
+                    let func = &module.functions[func_id];
+                    let spill = self
+                        .function_spill_sizes
+                        .get(&func_id)
+                        .copied()
+                        .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
+                    (id, Self::external_spill_base(func) + spill)
+                })
+                .collect();
 
         if self.static_frame_addr_consts.is_empty() {
             for (id, base) in entry_bases {
@@ -3130,8 +3136,7 @@ impl EvmCodegen {
 
         // Copy return values 2..N into scratch, matching the dynamic path.
         for i in 1..returns {
-            let addr =
-                self.static_frame_addr(callee, 64 + ((args.len() + i) as u64) * 32);
+            let addr = self.static_frame_addr(callee, 64 + ((args.len() + i) as u64) * 32);
             self.asm.emit_push_deferred(addr);
             self.asm.emit_op(op::MLOAD);
             self.asm.emit_push(U256::from((i as u64) * 32));

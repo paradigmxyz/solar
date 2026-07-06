@@ -127,10 +127,9 @@ impl<'gcx> Lowerer<'gcx> {
 
         if let Some(ty) = self.get_expr_type(callee)
             && let TyKind::Error(_, error_id) = ty.kind
+            && self.gcx.dcx().has_errors().is_ok()
         {
-            if self.gcx.dcx().has_errors().is_ok() {
-                panic!("typeck did not record resolved custom-error callee {error_id:?}");
-            }
+            panic!("typeck did not record resolved custom-error callee {error_id:?}");
         }
 
         None
@@ -836,7 +835,9 @@ impl<'gcx> Lowerer<'gcx> {
             | Builtin::YulCallcode
             | Builtin::YulExtcall
             | Builtin::YulExtdelegatecall
-            | Builtin::YulExtstaticcall => self.unsupported_yul_builtin(builder, builtin, args.span),
+            | Builtin::YulExtstaticcall => {
+                self.unsupported_yul_builtin(builder, builtin, args.span)
+            }
             _ => unreachable!("non-Yul builtin passed to Yul lowering"),
         }
     }
@@ -1859,15 +1860,13 @@ impl<'gcx> Lowerer<'gcx> {
         let mut arg_slots = Vec::with_capacity(args.len());
         let mut arg_structs = Vec::with_capacity(args.len());
         for (i, arg) in args.exprs().enumerate() {
-            let is_storage_ref =
-                params.get(i).is_some_and(|&p| self.param_is_storage_ref(p));
+            let is_storage_ref = params.get(i).is_some_and(|&p| self.param_is_storage_ref(p));
             if is_storage_ref {
                 let slot = self.lower_lvalue_slot(builder, arg).unwrap_or_else(|| {
                     self.err_value(
                         builder,
                         arg.span,
-                        "cannot resolve the storage slot of this library call argument"
-                            .to_string(),
+                        "cannot resolve the storage slot of this library call argument".to_string(),
                     )
                 });
                 arg_vals.push(slot);

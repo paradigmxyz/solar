@@ -53,10 +53,8 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn abi_head_size(&self, ty: Ty<'gcx>) -> u64 {
         // A storage reference (a mapping, or a struct/array in storage — legal
         // for library function parameters) travels as its slot: one word.
-        if matches!(
-            ty.kind,
-            TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage)
-        ) {
+        if matches!(ty.kind, TyKind::Mapping(..) | TyKind::Ref(_, solar_ast::DataLocation::Storage))
+        {
             return 32;
         }
         let ty = ty.peel_refs();

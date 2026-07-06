@@ -352,7 +352,8 @@ impl Validator {
         errors
     }
 
-    /// Checks that the module's content satisfies its declared [`MirPhase`], so
+    /// Checks that the module's content satisfies its declared
+    /// [`MirPhase`](crate::mir::MirPhase), so
     /// the phase is a real contract rather than a label.
     fn validate_phase(module: &Module) -> Vec<ValidationError> {
         let mut errors = Vec::new();

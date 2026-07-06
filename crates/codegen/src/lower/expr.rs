@@ -2658,8 +2658,13 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             (false, false)
         };
-        let slot =
-            self.compute_mapping_slot_for_index(builder, index, index_val, slot_val, key_is_dynamic);
+        let slot = self.compute_mapping_slot_for_index(
+            builder,
+            index,
+            index_val,
+            slot_val,
+            key_is_dynamic,
+        );
         MappingElementSlot { slot, value_is_mapping }
     }
 

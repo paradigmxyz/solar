@@ -480,8 +480,7 @@ impl<'gcx> Lowerer<'gcx> {
             let success = self.lower_expr(builder, rhs);
             for (i, &elem) in elements.iter().enumerate() {
                 let Some(elem) = elem else { continue };
-                let val =
-                    if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
+                let val = if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
                 self.lower_assign(builder, elem, val);
             }
             return;

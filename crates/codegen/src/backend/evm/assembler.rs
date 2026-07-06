@@ -272,8 +272,7 @@ impl Assembler {
             matches!(
                 inst.kind(),
                 AsmInstKind::Op(
-                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID
-                        | op::SELFDESTRUCT,
+                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID | op::SELFDESTRUCT,
                 )
             )
         }

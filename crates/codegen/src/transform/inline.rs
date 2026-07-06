@@ -723,8 +723,7 @@ impl MirInliner {
         // estimated runtime bytecode and stop inlining once it reaches the budget,
         // keeping large contracts under the EIP-170 deployable-code limit. Small
         // contracts never reach the budget and inline normally.
-        let mut module_code_size: usize =
-            summaries.values().map(|s| s.estimated_code_size).sum();
+        let mut module_code_size: usize = summaries.values().map(|s| s.estimated_code_size).sum();
 
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
             let loop_depths = block_loop_depths(module.function(caller_id));
