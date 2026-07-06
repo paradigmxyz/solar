@@ -6,7 +6,8 @@ use solar_interface::{
 };
 use solar_sema::{
     Gcx,
-    hir::{self, CallArgsKind, ExprKind, ItemId, Visit},
+    builtins::Builtin,
+    hir::{self, CallArgsKind, ExprKind, ItemId, StmtKind, Visit},
     ty::{CallableParamSource, Ty, TyKind},
 };
 use std::ops::ControlFlow;
@@ -137,8 +138,16 @@ impl<'gcx> InlayHintCollector<'gcx> {
         let (CallArgsKind::Unnamed(exprs), Some(param_source)) = (args.kind, param_source) else {
             return;
         };
+        self.push_parameter_hints_for_exprs(exprs, param_source);
+    }
+
+    fn push_parameter_hints_for_exprs(
+        &mut self,
+        exprs: impl IntoIterator<Item = &'gcx hir::Expr<'gcx>>,
+        param_source: CallableParamSource,
+    ) {
         let param_names = self.gcx.callable_param_names(param_source);
-        for (arg, param_name) in exprs.iter().zip(param_names) {
+        for (arg, param_name) in exprs.into_iter().zip(param_names) {
             let Some(param_name) = param_name else {
                 continue;
             };
@@ -154,6 +163,23 @@ impl<'gcx> InlayHintCollector<'gcx> {
                 StoredInlayHint::parameter(location.range.start, format!("{param_name}:")),
             );
         }
+    }
+
+    /// Adds target parameter-name hints for the tuple argument in `abi.encodeCall`.
+    fn push_abi_encode_call_parameter_hints(&mut self, args: &hir::CallArgs<'gcx>) {
+        let CallArgsKind::Unnamed([target, arguments]) = args.kind else {
+            return;
+        };
+        let ExprKind::Tuple(components) = arguments.peel_parens().kind else {
+            return;
+        };
+        let Some(param_source) = self.call_param_source_from_expr(target) else {
+            return;
+        };
+        self.push_parameter_hints_for_exprs(
+            components.iter().filter_map(|component| *component),
+            param_source,
+        );
     }
 
     /// Returns whether an argument expression already makes the parameter name visible.
@@ -207,7 +233,28 @@ impl<'gcx> InlayHintCollector<'gcx> {
             return Some(CallableParamSource::Function { id: ctor, skips_receiver: false });
         }
 
-        callee_ty
+        self.call_param_source_from_expr(callee).or_else(|| {
+            callee_ty
+                .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
+                .and_then(|signature| signature.param_source)
+        })
+    }
+
+    /// Finds the parameter-name source attached to a specific expression.
+    fn call_param_source_from_expr(
+        &self,
+        expr: &'gcx hir::Expr<'gcx>,
+    ) -> Option<CallableParamSource> {
+        let expr = expr.peel_parens();
+        if let ExprKind::Ident([res]) = expr.kind
+            && let Some(variable) = res.as_variable()
+            && matches!(self.gcx.hir.variable(variable).ty.kind, hir::TypeKind::Function(_))
+        {
+            return Some(CallableParamSource::FunctionType(variable));
+        }
+
+        self.gcx
+            .type_of_expr(expr.id)
             .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
             .and_then(|signature| signature.param_source)
     }
@@ -236,10 +283,20 @@ impl<'gcx> Visit<'gcx> for InlayHintCollector<'gcx> {
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         if let ExprKind::Call(callee, ref args, _) = expr.kind {
             let callee_ty = self.gcx.type_of_expr(callee.id);
+            if self.gcx.builtin_callee(callee.id) == Some(Builtin::AbiEncodeCall) {
+                self.push_abi_encode_call_parameter_hints(args);
+            }
             self.push_parameter_hints(args, self.call_param_source(callee, callee_ty));
             self.push_call_type_hint(expr, callee_ty);
         }
         hir::Visit::walk_expr(self, expr)
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        if matches!(stmt.kind, StmtKind::AssemblyBlock(_)) {
+            return ControlFlow::Continue(());
+        }
+        hir::Visit::walk_stmt(self, stmt)
     }
 
     fn visit_modifier(

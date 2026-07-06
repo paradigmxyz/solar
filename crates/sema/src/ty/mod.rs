@@ -131,6 +131,8 @@ pub enum CallableParamSource {
         /// but named arguments still come from the original function declaration.
         skips_receiver: bool,
     },
+    /// A variable declared with a function type.
+    FunctionType(hir::VariableId),
     /// A struct constructor.
     Struct(hir::StructId),
     /// An event invocation.
@@ -924,6 +926,10 @@ impl<'gcx> Gcx<'gcx> {
                 }
                 names
             }
+            CallableParamSource::FunctionType(id) => match self.hir.variable(id).ty.kind {
+                hir::TypeKind::Function(ty) => self.param_names(ty.parameters),
+                _ => Default::default(),
+            },
             CallableParamSource::Struct(id) => self.param_names(self.hir.strukt(id).fields),
             CallableParamSource::Event(id) => self.param_names(self.hir.event(id).parameters),
             CallableParamSource::Error(id) => self.param_names(self.hir.error(id).parameters),

@@ -169,6 +169,29 @@ TYPE : uint256
 }
 
 #[test]
+fn skips_inlay_hints_inside_inline_assembly() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Assembly.sol
+        contract C {
+            function run() public pure {
+                assembly {
+                    let y := add(1, 2)
+                }
+            }
+        }
+        "#,
+        "/Assembly.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/Assembly.sol",
+        str![[r#"
+"#]],
+    );
+}
+
+#[test]
 fn skips_type_hints_for_explicit_casts() {
     let fixture = RequestFixture::new(
         r#"
@@ -312,6 +335,65 @@ fn returns_call_type_hints_for_non_unit_calls() {
         str![[r#"
 TYPE : uint256
 PARAMETER input:
+
+"#]],
+    );
+}
+
+#[test]
+fn uses_function_type_parameter_names_for_function_variable_calls() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /FunctionType.sol
+        contract C {
+            function target(uint256 amount, address account) internal pure returns (uint256) {
+                return amount;
+            }
+
+            function caller(address user) public pure returns (uint256) {
+                function(uint256 amount, address account) internal pure returns (uint256) f = target;
+                return f(1, user);
+            }
+        }
+        "#,
+        "/FunctionType.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/FunctionType.sol",
+        str![[r#"
+PARAMETER amount:
+PARAMETER account:
+TYPE : uint256
+
+"#]],
+    );
+}
+
+#[test]
+fn uses_target_parameter_names_for_abi_encode_call_tuple() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /AbiEncodeCall.sol
+        interface I {
+            function target(uint256 amount, address account) external returns (uint256);
+        }
+
+        contract C {
+            function caller(address user) public pure returns (bytes memory) {
+                return abi.encodeCall(I.target, (1, user));
+            }
+        }
+        "#,
+        "/AbiEncodeCall.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/AbiEncodeCall.sol",
+        str![[r#"
+PARAMETER amount:
+PARAMETER account:
+TYPE : bytes memory
 
 "#]],
     );
