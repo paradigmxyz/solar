@@ -6,7 +6,7 @@ use solar_interface::{
 };
 use solar_sema::{
     Gcx,
-    hir::{self, CallArgsKind, ExprKind, ItemId, Res, Visit},
+    hir::{self, CallArgsKind, ExprKind, ItemId, Visit},
     ty::{CallableParamSource, TyKind},
 };
 use std::ops::ControlFlow;
@@ -191,11 +191,12 @@ impl<'gcx> InlayHintCollector<'gcx> {
         &self,
         modifier: &'gcx hir::Modifier<'gcx>,
     ) -> Option<CallableParamSource> {
-        let res = match modifier.id {
-            ItemId::Contract(id) => self.gcx.hir.contract(id).ctor.map(ItemId::Function)?,
-            id => id,
+        let id = match modifier.id {
+            ItemId::Contract(id) => self.gcx.hir.contract(id).ctor?,
+            ItemId::Function(id) => id,
+            _ => return None,
         };
-        self.gcx.callable_signature_of_res(Res::Item(res), false)?.param_source
+        Some(CallableParamSource::Function { id, skips_receiver: false })
     }
 }
 

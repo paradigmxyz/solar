@@ -864,22 +864,6 @@ impl<'gcx> Gcx<'gcx> {
         }
     }
 
-    /// Returns the visible callable signature for the given resolved target.
-    pub fn callable_signature_of_res(
-        self,
-        res: hir::Res,
-        skips_receiver: bool,
-    ) -> Option<CallableSignature<'gcx>> {
-        let mut signature = self.callable_signature_of_ty(self.type_of_res(res))?;
-        if let Some(CallableParamSource::Function { id, .. }) = signature.param_source {
-            signature.param_source = Some(CallableParamSource::Function { id, skips_receiver });
-        }
-        if skips_receiver && let Some((_, parameters)) = signature.parameters.split_first() {
-            signature.parameters = parameters;
-        }
-        Some(signature)
-    }
-
     /// Returns the visible callable signature for the given type.
     pub fn callable_signature_of_ty(self, ty: Ty<'gcx>) -> Option<CallableSignature<'gcx>> {
         match ty.kind {
