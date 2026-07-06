@@ -3,29 +3,38 @@ use std::{env, io::Read, path::Path};
 
 #[cfg(feature = "version")]
 const SOLC_VERSION_FALLBACK: &str = "0.8.35";
+#[cfg(feature = "version")]
+const VERSION_UNKNOWN: &str = "unknown";
+#[cfg(feature = "version")]
+const VERGEN_IDEMPOTENT_OUTPUT: &str = "VERGEN_IDEMPOTENT_OUTPUT";
 
 #[cfg(feature = "version")]
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cargo = vergen::Cargo::builder().features(true).target_triple(true).build();
     let build = vergen::Build::builder().build_timestamp(true).build();
-    let git = vergen::Gitcl::builder().describe(false, true, None).dirty(true).sha(false).build();
+    let git = vergen::Gitcl::builder()
+        .describe(false, true, None)
+        .dirty(true)
+        .sha(false)
+        .vcs_info_fallback(true)
+        .build();
     vergen::Emitter::new()
+        .default_on_error()
         .add_instructions(&cargo)?
         .add_instructions(&build)?
         .add_instructions(&git)?
         .emit_and_set()?;
 
-    let sha = env::var("VERGEN_GIT_SHA").unwrap();
-    let sha_short = &sha[..7];
+    let sha = vergen_env("VERGEN_GIT_SHA");
+    let sha_short = sha.get(..7).unwrap_or(&sha);
 
     let is_dev = {
-        let is_dirty = env::var("VERGEN_GIT_DIRTY").unwrap() == "true";
+        let is_dirty = vergen_env("VERGEN_GIT_DIRTY") == "true";
 
         // > git describe --always --tags
         // if not on a tag: v0.2.0-beta.3-82-g1939939b
         // if on a tag: v0.2.0-beta.3
-        let not_on_tag =
-            env::var("VERGEN_GIT_DESCRIBE").unwrap().ends_with(&format!("-g{sha_short}"));
+        let not_on_tag = vergen_env("VERGEN_GIT_DESCRIBE").ends_with(&format!("-g{sha_short}"));
 
         is_dirty || not_on_tag
     };
@@ -76,6 +85,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(feature = "version")]
+fn vergen_env(key: &str) -> String {
+    match env::var(key) {
+        Ok(value) if value != VERGEN_IDEMPOTENT_OUTPUT => value,
+        _ => VERSION_UNKNOWN.to_string(),
+    }
 }
 
 #[cfg(not(feature = "version"))]
