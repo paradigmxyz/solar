@@ -1627,7 +1627,19 @@ impl<'gcx> TypeChecker<'gcx> {
         match members {
             [] => Err(MemberAccessError::NotFound),
             [member] => Ok(member),
-            [..] => Err(MemberAccessError::Ambiguous),
+            // Mirror value-position overload resolution: a public state
+            // variable or constant is accompanied by its getter function, and
+            // the unique variable candidate wins for a non-call member access.
+            [..] => {
+                match members
+                    .iter()
+                    .filter(|member| member.res.is_some_and(|res| res.as_variable().is_some()))
+                    .collect::<WantOne<_>>()
+                {
+                    WantOne::One(member) => Ok(member),
+                    WantOne::Zero | WantOne::Many => Err(MemberAccessError::Ambiguous),
+                }
+            }
         }
     }
 
