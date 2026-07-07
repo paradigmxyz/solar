@@ -25,7 +25,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Ident, Span, kw, sym};
+use solar_interface::{Ident, Span, diagnostics::DiagMsg, kw, sym};
 use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
@@ -119,6 +119,18 @@ pub struct Lowerer<'gcx> {
 }
 
 impl<'gcx> Lowerer<'gcx> {
+    /// Reports a lowering error and returns the error sentinel value carrying
+    /// the emitted diagnostic's guarantee, mirroring HIR's error types.
+    pub(super) fn err_value(
+        &self,
+        builder: &mut FunctionBuilder<'_>,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+    ) -> ValueId {
+        let guar = self.gcx.dcx().err(msg).span(span).emit();
+        builder.error_value(guar)
+    }
+
     /// Creates a new lowerer.
     pub fn new(gcx: Gcx<'gcx>, name: Ident) -> Self {
         if !gcx.has_typeck_results() {
@@ -1293,10 +1305,8 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Marks a variable as being assigned (needs memory storage).
     fn mark_assigned_var(&mut self, expr: &hir::Expr<'_>) {
-        if let hir::ExprKind::Ident(res_slice) = &expr.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            self.assigned_vars.insert(*var_id);
+        if let Some(var_id) = self.ident_variable(expr) {
+            self.assigned_vars.insert(var_id);
         }
     }
 
@@ -1371,10 +1381,9 @@ impl<'gcx> Lowerer<'gcx> {
     fn is_external_call(&self, callee: &hir::Expr<'_>) -> bool {
         // External calls are Member expressions where the base is a contract
         if let hir::ExprKind::Member(base, _) = &callee.kind
-            && let hir::ExprKind::Ident(res_slice) = &base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+            && let Some(var_id) = self.ident_variable(base)
         {
-            let var = self.gcx.hir.variable(*var_id);
+            let var = self.gcx.hir.variable(var_id);
             // Contract type variables are external call targets
             if matches!(var.ty.kind, hir::TypeKind::Custom(hir::ItemId::Contract(_))) {
                 return true;

@@ -3,23 +3,23 @@
 fn @value() {
   bb0 (entry):
     mstore 128, 0
-    v4 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v4
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v0
     returndata 128, 32
 }
 
 fn @set(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = eq arg0, 0
-    v9 = iszero v8
-    br v9, bb3, bb4
+    v3 = eq arg0, 0
+    v4 = iszero v3
+    br v4, bb3, bb4
   bb3:
     sstore 0, arg0 !metadata(storage=slot(0))
     jump bb4
@@ -30,14 +30,14 @@ fn @set(arg0: u256) {
 fn @setUnlessZero(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = eq arg0, 0
-    br v8, bb3, bb4
+    v3 = eq arg0, 0
+    br v3, bb3, bb4
   bb3:
     stop
   bb4:
@@ -47,9 +47,9 @@ fn @setUnlessZero(arg0: u256) {
 
 fn @writeIfNonZero(arg0: u256) {
   bb0 (entry):
-    v2 = eq arg0, 0
-    v3 = iszero v2
-    br v3, bb1, bb2
+    v0 = eq arg0, 0
+    v1 = iszero v0
+    br v1, bb1, bb2
   bb1:
     sstore 0, arg0 !metadata(storage=slot(0))
     jump bb2

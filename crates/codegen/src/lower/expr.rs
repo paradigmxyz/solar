@@ -4,10 +4,7 @@ use super::{
     Lowerer,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
-use crate::{
-    mir::{FunctionBuilder, MirType, ValueId},
-    utils::{ConstantFolder, FoldResult},
-};
+use crate::mir::{FunctionBuilder, MirType, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
 use solar_interface::{Ident, Span, Symbol, kw, sym};
@@ -45,28 +42,31 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Ident(res_slice) => {
-                if let Some(res) = res_slice.first() {
-                    self.lower_ident(builder, res)
-                } else {
+                if res_slice.is_empty() {
                     builder.imm_u64(0)
+                } else if let Some(res) = self.ident_res(expr) {
+                    self.lower_ident(builder, &res)
+                } else {
+                    // The raw resolution set is ambiguous (an overloaded
+                    // function or event referenced as a value); the type
+                    // checker records disambiguation only for callees.
+                    self.err_value(
+                        builder,
+                        expr.span,
+                        "codegen cannot resolve an overloaded identifier used as a value",
+                    )
                 }
             }
 
             ExprKind::Binary(lhs, op, rhs) => {
-                // Try constant folding first
-                let folder = ConstantFolder::new(self.gcx);
+                // Constant operations are not special-cased here: lowering
+                // emits the plain instruction and the MIR pass pipeline folds
+                // it uniformly, with checked-arithmetic semantics intact.
                 let int_info =
                     self.integer_info_for_expr(expr).or_else(|| self.integer_info_for_expr(lhs));
                 let is_signed =
                     int_info.map_or_else(|| self.is_expr_signed(lhs), |info| info.signed);
                 let unsupported_udvt_operator = self.gcx.unsupported_udvt_operator(expr.id);
-                if !Self::signed_binary_fold_is_unsafe(op.kind, is_signed) {
-                    match folder.try_fold(expr) {
-                        FoldResult::Integer(folded) => return builder.imm_u256(folded),
-                        FoldResult::Bool(b) => return builder.imm_bool(b),
-                        FoldResult::NotConstant | FoldResult::Error => {}
-                    }
-                }
 
                 // `&&`/`||` must short-circuit: the right operand may have
                 // side effects (external calls, reverts, ...).
@@ -152,14 +152,6 @@ impl<'gcx> Lowerer<'gcx> {
                         }
                     }
                     _ => {
-                        // Try constant folding for non-mutating unary ops
-                        let folder = ConstantFolder::new(self.gcx);
-                        match folder.try_fold(expr) {
-                            FoldResult::Integer(folded) => return builder.imm_u256(folded),
-                            FoldResult::Bool(b) => return builder.imm_bool(b),
-                            FoldResult::NotConstant | FoldResult::Error => {}
-                        }
-
                         let operand_val = self.lower_expr(builder, operand);
                         let int_info = self
                             .integer_info_for_expr(expr)
@@ -455,12 +447,11 @@ impl<'gcx> Lowerer<'gcx> {
                 // Deleting a memory fixed-size array zeroes its elements in
                 // place; nulling the pointer would alias scratch memory on the
                 // next access. Storage targets keep the assignment path.
-                if let ExprKind::Ident(res_slice) = &target.kind
-                    && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-                    && !self.storage_ref_locals.contains(var_id)
-                    && !self.storage_slots.contains_key(var_id)
+                if let Some(var_id) = self.ident_variable(target)
+                    && !self.storage_ref_locals.contains(&var_id)
+                    && !self.storage_slots.contains_key(&var_id)
                 {
-                    let var = self.gcx.hir.variable(*var_id);
+                    let var = self.gcx.hir.variable(var_id);
                     if self.is_fixed_memory_array_type(&var.ty, var.data_location)
                         && let Some(len) = self.fixed_memory_array_len(&var.ty)
                         && let hir::TypeKind::Array(array) = &var.ty.kind
@@ -659,48 +650,37 @@ impl<'gcx> Lowerer<'gcx> {
         base: &hir::Expr<'_>,
         member: Ident,
     ) -> ValueId {
-        let ExprKind::Ident(res_slice) = &base.kind else {
-            self.gcx
-                .dcx()
-                .err(format!("unsupported Yul member `.{}`", member.name))
-                .span(member.span)
-                .emit();
-            return builder.imm_u64(0);
+        let Some(var_id) = self.ident_variable(base) else {
+            return self.err_value(
+                builder,
+                member.span,
+                format!("unsupported Yul member `.{}`", member.name),
+            );
         };
-
-        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
-            self.gcx
-                .dcx()
-                .err(format!("unsupported Yul member `.{}`", member.name))
-                .span(member.span)
-                .emit();
-            return builder.imm_u64(0);
-        };
-
         // For a calldata array/bytes parameter, its lowered value is the ABI
         // head: the offset (relative to the start of the args, i.e. after the
         // 4-byte selector) to the length word. So the length word is at calldata
         // position `4 + head`, and the first element at `4 + head + 32`.
-        let calldata_head = (self.gcx.hir.variable(*var_id).data_location
+        let calldata_head = (self.gcx.hir.variable(var_id).data_location
             == Some(solar_ast::DataLocation::Calldata))
-        .then(|| self.locals.get(var_id).copied())
+        .then(|| self.locals.get(&var_id).copied())
         .flatten();
 
         match member.name {
             sym::slot => {
-                if let Some(&slot) = self.storage_slots.get(var_id) {
+                if let Some(&slot) = self.storage_slots.get(&var_id) {
                     return builder.imm_u64(slot);
                 }
-                if let Some(&slot) = self.locals.get(var_id) {
+                if let Some(&slot) = self.locals.get(&var_id) {
                     return slot;
                 }
-                if let Some(offset) = self.get_local_memory_offset(var_id) {
+                if let Some(offset) = self.get_local_memory_offset(&var_id) {
                     let offset = self.local_memory_addr(builder, offset);
                     return builder.mload(offset);
                 }
             }
             sym::offset => {
-                if let Some(location) = self.storage_locations.get(var_id) {
+                if let Some(location) = self.storage_locations.get(&var_id) {
                     return builder.imm_u64(u64::from(location.offset));
                 }
                 if let Some(head) = calldata_head {
@@ -719,12 +699,7 @@ impl<'gcx> Lowerer<'gcx> {
             _ => {}
         }
 
-        self.gcx
-            .dcx()
-            .err(format!("unsupported Yul member `.{}`", member.name))
-            .span(member.span)
-            .emit();
-        builder.imm_u64(0)
+        self.err_value(builder, member.span, format!("unsupported Yul member `.{}`", member.name))
     }
 
     /// Lowers `lhs && rhs` / `lhs || rhs` with short-circuit evaluation: the
@@ -944,20 +919,33 @@ impl<'gcx> Lowerer<'gcx> {
         is_creation_code: bool,
     ) -> ValueId {
         // Extract ContractId from the type
-        let contract_id = match &ty.kind {
-            hir::TypeKind::Custom(hir::ItemId::Contract(id)) => *id,
-            _ => panic!("codegen expected contract type for `type(C).creationCode`"),
+        let hir::TypeKind::Custom(hir::ItemId::Contract(contract_id)) = ty.kind else {
+            return self.err_value(
+                builder,
+                ty.span,
+                "codegen expected a contract type for `creationCode`/`runtimeCode`",
+            );
         };
 
         // Look up pre-compiled bytecode
         // For creationCode we use the deployment bytecode (initcode)
         if !is_creation_code {
-            panic!("codegen does not support `type(C).runtimeCode` yet");
+            return self.err_value(
+                builder,
+                ty.span,
+                "codegen does not support `type(C).runtimeCode` yet",
+            );
         }
 
         let (bytecode, _segment_idx) = match self.contract_bytecodes.get(&contract_id) {
             Some(bc) => bc.clone(),
-            None => panic!("codegen missing creation bytecode for `type(C).creationCode`"),
+            None => {
+                return self.err_value(
+                    builder,
+                    ty.span,
+                    "codegen is missing creation bytecode for `type(C).creationCode`",
+                );
+            }
         };
 
         let bytecode_len = bytecode.len();
@@ -1680,12 +1668,11 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = if let Some((head, _)) = self.calldata_dyn_head(data) {
             self.materialize_calldata_bytes(builder, head)
         } else if self.expr_is_calldata_dynamic_bytes(data) {
-            self.gcx
-                .dcx()
-                .err("codegen does not support `abi.decode` from this calldata source yet")
-                .span(data.span)
-                .emit();
-            return builder.imm_u64(0);
+            return self.err_value(
+                builder,
+                data.span,
+                "codegen does not support `abi.decode` from this calldata source yet",
+            );
         } else {
             self.lower_expr(builder, data)
         };

@@ -2,10 +2,10 @@
 ; module @CfgSimplify
 fn @sequential(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, 1
-    v4 = add v2, 1
-    v6 = add v4, 1
-    ret v6
+    v0 = add arg0, 1
+    v1 = add v0, 1
+    v2 = add v1, 1
+    ret v2
   bb1:
     invalid
   bb2:

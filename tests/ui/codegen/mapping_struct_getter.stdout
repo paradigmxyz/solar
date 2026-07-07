@@ -9,9 +9,9 @@ fn @constructor() {
 fn @items(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -20,17 +20,17 @@ fn @items(arg0: u256) {
     mstore 192, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v22 = keccak256 0, 64 !metadata(memory=scratch)
-    v23 = sload v22 !metadata(storage=symbolic(v22))
-    v25 = add v22, 1
-    v26 = sload v25 !metadata(storage=offset(v22, 1))
-    v28 = add v22, 2
-    v29 = sload v28 !metadata(storage=offset(v22, 2))
-    mstore 128, v23
-    v33 = add 128, 32
-    mstore v33, v26
-    v36 = add 128, 64
-    mstore v36, v29
+    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = add v3, 1
+    v6 = sload v5 !metadata(storage=offset(v3, 1))
+    v7 = add v3, 2
+    v8 = sload v7 !metadata(storage=offset(v3, 2))
+    mstore 128, v4
+    v9 = add 128, 32
+    mstore v9, v6
+    v10 = add 128, 64
+    mstore v10, v8
     returndata 128, 96
 }
 

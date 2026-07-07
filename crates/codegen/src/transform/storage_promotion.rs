@@ -651,11 +651,8 @@ impl StorageScalarPromoter {
                             (promoted.dirty_addr, promoted.dirty_value)
                         && matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _))
                     {
-                        let (dirty_store, _) = self.alloc_inst_value(
-                            func,
-                            InstKind::MStore(dirty_addr, dirty_value),
-                            None,
-                        );
+                        let dirty_store =
+                            self.alloc_void_inst(func, InstKind::MStore(dirty_addr, dirty_value));
                         func.blocks[block_id].instructions.insert(index + 1, dirty_store);
                         index += 1;
                     }
@@ -722,13 +719,10 @@ impl StorageScalarPromoter {
                     let (load_inst, load_value) = self.alloc_inst_value(
                         func,
                         InstKind::SLoad(candidate.slot_value),
-                        Some(MirType::uint256()),
+                        MirType::uint256(),
                     );
-                    let (store_inst, _) = self.alloc_inst_value(
-                        func,
-                        InstKind::MStore(promoted.temp_addr, load_value),
-                        None,
-                    );
+                    let store_inst = self
+                        .alloc_void_inst(func, InstKind::MStore(promoted.temp_addr, load_value));
                     func.blocks[candidate.preheader]
                         .instructions
                         .insert(insert_pos + inserted, load_inst);
@@ -741,8 +735,8 @@ impl StorageScalarPromoter {
 
                 if let Some(dirty_addr) = promoted.dirty_addr {
                     let false_word = self.bool_word(func, false);
-                    let (dirty_store, _) =
-                        self.alloc_inst_value(func, InstKind::MStore(dirty_addr, false_word), None);
+                    let dirty_store =
+                        self.alloc_void_inst(func, InstKind::MStore(dirty_addr, false_word));
                     func.blocks[candidate.preheader]
                         .instructions
                         .insert(insert_pos + inserted, dirty_store);
@@ -875,11 +869,17 @@ impl StorageScalarPromoter {
         &self,
         func: &mut Function,
         kind: InstKind,
-        ty: Option<MirType>,
+        ty: MirType,
     ) -> (InstId, ValueId) {
-        let inst = func.alloc_inst(Instruction::new(kind, ty));
+        let inst = func.alloc_inst(Instruction::new(kind, Some(ty)));
         let value = func.alloc_value(Value::Inst(inst));
         (inst, value)
+    }
+
+    /// Allocates an instruction that produces no value, so no result [`Value`]
+    /// entry is created for it.
+    fn alloc_void_inst(&self, func: &mut Function, kind: InstKind) -> InstId {
+        func.alloc_inst(Instruction::new(kind, None))
     }
 
     fn storage_alias_for_loop_value(
@@ -903,7 +903,7 @@ impl StorageScalarPromoter {
                 .blocks
                 .iter()
                 .any(|&block_id| func.blocks[block_id].instructions.contains(inst_id)),
-            Value::Undef(_) => true,
+            Value::Undef(_) | Value::Error(_) => true,
             Value::Arg { .. } | Value::Immediate(_) => false,
         }
     }

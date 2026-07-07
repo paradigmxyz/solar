@@ -4,8 +4,8 @@ fn @single_large_caller(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb2
   bb1:
-    v4 = phi [bb13: v3]
-    ret v4
+    v2 = phi [bb13: v1]
+    ret v2
   bb2:
     jump bb3
   bb3:
@@ -29,7 +29,7 @@ fn @single_large_caller(arg0: u256) -> u256 {
   bb12:
     jump bb13
   bb13:
-    v3 = add arg0, 1
+    v1 = add arg0, 1
     jump bb1
 }
 
@@ -57,31 +57,31 @@ fn @single_large_callee(arg0: u256) -> u256 {
   bb10:
     jump bb11
   bb11:
-    v2 = add arg0, 1
-    ret v2
+    v0 = add arg0, 1
+    ret v0
 }
 
 fn @multi_return_caller(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb2
   bb1:
-    v9 = phi [bb2: v6]
-    v10 = phi [bb2: v8]
-    mstore 32, v10
-    v3 = mload 32
-    v4 = add v9, v3
-    ret v4
+    v5 = phi [bb2: v3]
+    v6 = phi [bb2: v4]
+    mstore 32, v6
+    v1 = mload 32
+    v2 = add v5, v1
+    ret v2
   bb2:
-    v6 = add arg0, 1
-    v8 = add arg0, 2
+    v3 = add arg0, 1
+    v4 = add arg0, 2
     jump bb1
 }
 
 fn @multi_return_callee(arg0: u256) -> (u256, u256) {
   bb0 (entry):
-    v2 = add arg0, 1
-    v4 = add arg0, 2
-    ret v2, v4
+    v0 = add arg0, 1
+    v1 = add arg0, 2
+    ret v0, v1
 }
 
 fn @tiny_stateful_caller(arg0: u256, arg1: u256) {

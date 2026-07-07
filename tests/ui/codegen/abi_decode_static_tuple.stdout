@@ -3,64 +3,64 @@
 fn @decode(arg0: memptr) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = add 4, arg0
-    v9 = calldataload v8
-    v11 = add v9, 31
-    v12 = not 31
-    v13 = and v11, v12
-    v15 = add v13, 32
-    v17 = mload 64 !metadata(memory=scratch)
-    v18 = add v17, v15
-    mstore 64, v18 !metadata(memory=scratch)
-    mstore v17, v9
-    v22 = add v17, 32
-    v23 = add v8, 32
-    calldatacopy v22, v23, v9
+    v3 = add 4, arg0
+    v4 = calldataload v3
+    v5 = add v4, 31
+    v6 = not 31
+    v7 = and v5, v6
+    v8 = add v7, 32
+    v9 = mload 64 !metadata(memory=scratch)
+    v10 = add v9, v8
+    mstore 64, v10 !metadata(memory=scratch)
+    mstore v9, v4
+    v11 = add v9, 32
+    v12 = add v3, 32
+    calldatacopy v11, v12, v4
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
-    v35 = mload v17
-    v37 = lt v35, 96
-    br v37, bb3, bb4
+    v13 = mload v9
+    v14 = lt v13, 96
+    br v14, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v40 = add v17, 32
-    v41 = mload v40
-    v43 = add v40, 32
-    v44 = mload v43
-    v45 = iszero v44
-    v46 = iszero v45
-    v47 = eq v44, v46
-    v48 = iszero v47
-    br v48, bb5, bb6
+    v15 = add v9, 32
+    v16 = mload v15
+    v17 = add v15, 32
+    v18 = mload v17
+    v19 = iszero v18
+    v20 = iszero v19
+    v21 = eq v18, v20
+    v22 = iszero v21
+    br v22, bb5, bb6
   bb5:
     revert 0, 0
   bb6:
-    mstore 32, v46 !metadata(memory=scratch)
-    v54 = add v40, 64
-    v55 = mload v54
-    v57 = and v55, 0xffffffffffffffffffffffffffffffffffffffff
-    v58 = eq v55, v57
-    v59 = iszero v58
-    br v59, bb7, bb8
+    mstore 32, v20 !metadata(memory=scratch)
+    v23 = add v15, 64
+    v24 = mload v23
+    v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
+    v26 = eq v24, v25
+    v27 = iszero v26
+    br v27, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    mstore 64, v57 !metadata(memory=scratch)
-    v65 = mload 32 !metadata(memory=scratch)
-    v67 = mload 64 !metadata(memory=scratch)
-    mstore 128, v41
-    v71 = add 128, 32
-    mstore v71, v65
-    v74 = add 128, 64
-    mstore v74, v67
+    mstore 64, v25 !metadata(memory=scratch)
+    v28 = mload 32 !metadata(memory=scratch)
+    v29 = mload 64 !metadata(memory=scratch)
+    mstore 128, v16
+    v30 = add 128, 32
+    mstore v30, v28
+    v31 = add 128, 64
+    mstore v31, v29
     returndata 128, 96
 }
 

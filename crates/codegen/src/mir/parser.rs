@@ -6,9 +6,9 @@
 //! ; module @Counter
 //! fn @increment() {
 //!   bb0 (entry):
-//!     v1 = sload 0
-//!     v3 = add v1, 1
-//!     v5 = sstore 0, v3
+//!     v0 = sload 0
+//!     v1 = add v0, 1
+//!     sstore 0, v1
 //!     stop
 //! }
 //! ```
@@ -702,6 +702,12 @@ impl<'a> Parser<'a> {
         }
         if ident == "false" {
             return Ok(func.alloc_value(Value::Immediate(Immediate::bool(false))));
+        }
+        if ident == "err" {
+            // Reconstructing an already-reported error state from text: there
+            // is no live diagnostic to propagate here.
+            let guar = solar_interface::diagnostics::ErrorGuaranteed::new_unchecked();
+            return Ok(func.alloc_value(Value::Error(guar)));
         }
         if let Some(rest) = ident.strip_prefix("arg") {
             let idx: usize =
@@ -1684,9 +1690,9 @@ fn @add(arg0: u256, arg1: u256) -> u256 {
             let src = "\
 fn @increment() {
   bb0 (entry):
-    v1 = sload 0
-    v3 = add v1, 1
-    sstore 0, v3
+    v0 = sload 0
+    v1 = add v0, 1
+    sstore 0, v1
     stop
 }
 ";
@@ -1696,7 +1702,7 @@ fn @increment() {
             // sstore + stop are the only "no result" things; sload, add produce results.
             // So we expect 4 instructions total.
             assert_eq!(func.instructions.len(), 3);
-            // 0 + 1 are immediates; v1, v3 are inst results.
+            // 0 + 1 are immediates; v0, v1 are inst results.
             assert!(func.values.len() >= 4);
         });
     }

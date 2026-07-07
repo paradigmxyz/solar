@@ -53,8 +53,8 @@ fn @dedup_local_computations(arg0: u256, arg1: u256) {
   bb0 (entry):
     br arg0, bb1, bb2
   bb1:
-    v3 = add arg0, 1
-    mstore 0, v3
+    v0 = add arg0, 1
+    mstore 0, v0
     revert 0, 32
   bb2:
     br arg1, bb1, bb4

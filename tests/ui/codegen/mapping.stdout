@@ -3,88 +3,88 @@
 fn @balances(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v16 = keccak256 0, 64 !metadata(memory=scratch)
-    v17 = sload v16 !metadata(storage=symbolic(v16))
-    mstore 128, v17
+    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    mstore 128, v4
     returndata 128, 32
 }
 
 fn @allowances(arg0: address, arg1: address) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v29 = keccak256 0, 64 !metadata(memory=scratch)
+    v9 = keccak256 0, 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v29 !metadata(memory=scratch)
-    v35 = keccak256 0, 64 !metadata(memory=scratch)
-    v36 = sload v35 !metadata(storage=symbolic(v35))
-    mstore 128, v36
+    mstore 32, v9 !metadata(memory=scratch)
+    v10 = keccak256 0, 64 !metadata(memory=scratch)
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    mstore 128, v11
     returndata 128, 32
 }
 
 fn @set_balance(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v14 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v14, arg1 !metadata(storage=symbolic(v14))
+    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v3, arg1 !metadata(storage=symbolic(v3))
     stop
 }
 
 fn @add_balance(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v14 = keccak256 0, 64 !metadata(memory=scratch)
-    v15 = sload v14 !metadata(storage=symbolic(v14))
-    v16 = add v15, arg1
-    v17 = lt v16, v15
-    br v17, bb3, bb4
+    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    v4 = sload v3 !metadata(storage=symbolic(v3))
+    v5 = add v4, arg1
+    v6 = lt v5, v4
+    br v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -92,76 +92,76 @@ fn @add_balance(arg0: u256, arg1: u256) {
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v31 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v31, v16 !metadata(storage=symbolic(v31))
+    v7 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v7, v5 !metadata(storage=symbolic(v7))
     stop
 }
 
 fn @approve(arg0: address, arg1: address, arg2: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 96
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v27 = keccak256 0, 64 !metadata(memory=scratch)
+    v9 = keccak256 0, 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v27 !metadata(memory=scratch)
-    v33 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v33, arg2 !metadata(storage=symbolic(v33))
+    mstore 32, v9 !metadata(memory=scratch)
+    v10 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v10, arg2 !metadata(storage=symbolic(v10))
     stop
 }
 
 fn @get_allowance(arg0: address, arg1: address) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = and v15, 0xffffffffffffffffffffffffffffffffffffffff
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v29 = keccak256 0, 64 !metadata(memory=scratch)
+    v9 = keccak256 0, 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v29 !metadata(memory=scratch)
-    v35 = keccak256 0, 64 !metadata(memory=scratch)
-    v36 = sload v35 !metadata(storage=symbolic(v35))
-    mstore 128, v36
+    mstore 32, v9 !metadata(memory=scratch)
+    v10 = keccak256 0, 64 !metadata(memory=scratch)
+    v11 = sload v10 !metadata(storage=symbolic(v10))
+    mstore 128, v11
     returndata 128, 32
 }
 

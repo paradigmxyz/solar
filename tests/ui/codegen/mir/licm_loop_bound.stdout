@@ -4,42 +4,42 @@ fn @keep_mload_non_exiting_bound() -> u256 {
   bb0 (entry):
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb4: v1]
-    v4 = eq v2, 100
-    br v4, bb5, bb2
+    v0 = phi [bb0: 0], [bb4: v5]
+    v1 = eq v0, 100
+    br v1, bb5, bb2
   bb2:
-    v6 = mload 64
-    v8 = mul v2, 32
-    mstore v8, 1
-    v11 = lt v2, 2
-    br v11, bb3, bb4
+    v2 = mload 64
+    v3 = mul v0, 32
+    mstore v3, 1
+    v4 = lt v0, 2
+    br v4, bb3, bb4
   bb3:
     jump bb4
   bb4:
-    v1 = add v2, 1
+    v5 = add v0, 1
     jump bb1
   bb5:
-    ret v6
+    ret v2
 }
 
 fn @keep_mload_inner_branch_bound() -> u256 {
   bb0 (entry):
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb4: v1]
-    v4 = lt v2, 100
-    br v4, bb2, bb5
+    v0 = phi [bb0: 0], [bb4: v5]
+    v1 = lt v0, 100
+    br v1, bb2, bb5
   bb2:
-    v6 = mload 64
-    v8 = mul v2, 32
-    mstore v8, 1
-    v11 = lt v2, 2
-    br v11, bb3, bb4
+    v2 = mload 64
+    v3 = mul v0, 32
+    mstore v3, 1
+    v4 = lt v0, 2
+    br v4, bb3, bb4
   bb3:
     jump bb4
   bb4:
-    v1 = add v2, 1
+    v5 = add v0, 1
     jump bb1
   bb5:
-    ret v6
+    ret v2
 }

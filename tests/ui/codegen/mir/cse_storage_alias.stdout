@@ -2,38 +2,38 @@
 ; module @CseStorageAlias
 fn @reuse_sload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = sload arg0
-    v4 = add arg0, 1
-    sstore v4, arg1
-    v6 = add v2, v2
-    ret v6
+    v0 = sload arg0
+    v1 = add arg0, 1
+    sstore v1, arg1
+    v3 = add v0, v0
+    ret v3
 }
 
 fn @keep_sload_after_aliasing_store(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
+    v0 = sload arg0
+    v1 = add arg0, 0
+    sstore v1, arg1
     v2 = sload arg0
-    v4 = add arg0, 0
-    sstore v4, arg1
-    v5 = sload arg0
-    v6 = add v2, v5
-    ret v6
+    v3 = add v0, v2
+    ret v3
 }
 
 fn @reuse_tload_after_disjoint_store(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = tload arg0
-    v4 = add arg0, 1
-    tstore v4, arg1
-    v6 = add v2, v2
-    ret v6
+    v0 = tload arg0
+    v1 = add arg0, 1
+    tstore v1, arg1
+    v3 = add v0, v0
+    ret v3
 }
 
 fn @keep_sload_after_external_call(arg0: u256, arg1: address) -> u256 {
   bb0 (entry):
+    v0 = sload arg0
+    v1 = call 0x186a0, arg1, 0, 0, 0, 0, 0
     v2 = sload arg0
-    v9 = call 0x186a0, arg1, 0, 0, 0, 0, 0
-    v10 = sload arg0
-    v11 = add v2, v10
-    v12 = add v11, v9
-    ret v12
+    v3 = add v0, v2
+    v4 = add v3, v1
+    ret v4
 }

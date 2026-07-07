@@ -8,6 +8,6 @@ fn @diamond(arg0: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v3 = phi [bb1: 10], [bb2: 20]
-    ret v3
+    v0 = phi [bb1: 10], [bb2: 20]
+    ret v0
 }

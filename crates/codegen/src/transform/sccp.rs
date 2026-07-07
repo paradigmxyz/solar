@@ -126,7 +126,7 @@ impl SccpPass {
                         lattice[vid.index()] = LatticeValue::Bottom;
                     }
                 }
-                Value::Undef(_) => lattice[vid.index()] = LatticeValue::Bottom,
+                Value::Undef(_) | Value::Error(_) => lattice[vid.index()] = LatticeValue::Bottom,
                 Value::Inst(_) => {} // stays Top
             }
         }

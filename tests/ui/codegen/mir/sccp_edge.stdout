@@ -19,8 +19,8 @@ fn @unknown_branch_keeps_phi(arg0: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v3 = phi [bb1: 11], [bb2: 22]
-    ret v3
+    v0 = phi [bb1: 11], [bb2: 22]
+    ret v0
 }
 
 fn @constant_switch_selects_one_case() -> u256 {

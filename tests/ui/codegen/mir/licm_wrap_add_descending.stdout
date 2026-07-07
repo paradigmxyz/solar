@@ -4,15 +4,15 @@ fn @wrap_add_descending() -> u256 {
   bb0 (entry):
     jump bb1
   bb1:
-    v2 = phi [bb0: 64], [bb2: v1]
-    v4 = lt v2, 100
-    br v4, bb2, bb3
+    v0 = phi [bb0: 64], [bb2: v4]
+    v1 = lt v0, 100
+    br v1, bb2, bb3
   bb2:
-    v6 = mul v2, 32
-    mstore v6, 1
-    v9 = mload 0
-    v1 = add v2, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v2 = mul v0, 32
+    mstore v2, 1
+    v3 = mload 0
+    v4 = add v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     jump bb1
   bb3:
-    ret v9
+    ret v3
 }

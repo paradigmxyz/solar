@@ -9,3 +9,5 @@ solc-test-output*
 solar-test-output*
 tests/foundry/**/cache*/
 tests/foundry/**/out*/
+crates/codegen/testdata/**/cache*/
+crates/codegen/testdata/**/out*/

@@ -4,64 +4,64 @@ fn @rotated_guard_overlap() -> u256 {
   bb0 (entry):
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v1]
-    v4 = mul v2, 32
-    mstore v4, 1
-    v7 = mload 320
-    v9 = lt v2, 10
-    br v9, bb2, bb3
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = mul v0, 32
+    mstore v1, 1
+    v2 = mload 320
+    v3 = lt v0, 10
+    br v3, bb2, bb3
   bb2:
-    v1 = add v2, 1
+    v4 = add v0, 1
     jump bb1
   bb3:
-    ret v7
+    ret v2
 }
 
 fn @dowhile_latch_guard_overlap() -> u256 {
   bb0 (entry):
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb1: v1]
-    v4 = mul v2, 32
-    mstore v4, 1
-    v7 = mload 320
-    v1 = add v2, 1
-    v10 = lt v2, 10
-    br v10, bb1, bb2
+    v0 = phi [bb0: 0], [bb1: v3]
+    v1 = mul v0, 32
+    mstore v1, 1
+    v2 = mload 320
+    v3 = add v0, 1
+    v4 = lt v0, 10
+    br v4, bb1, bb2
   bb2:
-    ret v7
+    ret v2
 }
 
 fn @top_tested_control() -> u256 {
   bb0 (entry):
-    v9 = mload 320
+    v3 = mload 320
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v1]
-    v4 = lt v2, 10
-    br v4, bb2, bb3
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = lt v0, 10
+    br v1, bb2, bb3
   bb2:
-    v6 = mul v2, 32
-    mstore v6, 1
-    v1 = add v2, 1
+    v2 = mul v0, 32
+    mstore v2, 1
+    v4 = add v0, 1
     jump bb1
   bb3:
-    ret v9
+    ret v3
 }
 
 fn @disjoint_past_widened_range() -> u256 {
   bb0 (entry):
-    v7 = mload 384
+    v2 = mload 384
     jump bb1
   bb1:
-    v2 = phi [bb0: 0], [bb2: v1]
-    v4 = mul v2, 32
-    mstore v4, 1
-    v9 = lt v2, 10
-    br v9, bb2, bb3
+    v0 = phi [bb0: 0], [bb2: v4]
+    v1 = mul v0, 32
+    mstore v1, 1
+    v3 = lt v0, 10
+    br v3, bb2, bb3
   bb2:
-    v1 = add v2, 1
+    v4 = add v0, 1
     jump bb1
   bb3:
-    ret v7
+    ret v2
 }

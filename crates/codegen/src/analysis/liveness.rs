@@ -836,7 +836,7 @@ mod tests {
             let y = b.add_param(MirType::uint256());
             let sum = b.add(x, y);
             let product = b.mul(sum, x);
-            let _side = b.sstore(x, product); // no result
+            b.sstore(x, product); // no result
             let loaded = b.sload(y);
             b.ret([loaded]);
         }

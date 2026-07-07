@@ -3,157 +3,157 @@
 fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 96
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v9 = calldataload 36
-    v11 = and v9, 0xffffffffffffffffffffffffffffffffffffffff
-    v12 = eq v9, v11
-    br v12, bb4, bb3
+    v3 = calldataload 36
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v16 = calldataload 68
-    v18 = and v16, 0xffff000000000000000000000000000000000000000000000000000000000000
-    v19 = eq v16, v18
-    br v19, bb6, bb5
+    v6 = calldataload 68
+    v7 = and v6, 0xffff000000000000000000000000000000000000000000000000000000000000
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
-    v25 = mload 64 !metadata(memory=scratch)
-    mstore v25, arg0
-    v28 = shl 96, arg1
-    v30 = add v25, 32
-    mstore v30, v28
-    v33 = add v25, 52
-    mstore v33, arg2
-    v36 = keccak256 v25, 54
-    mstore 128, v36
+    v9 = mload 64 !metadata(memory=scratch)
+    mstore v9, arg0
+    v10 = shl 96, arg1
+    v11 = add v9, 32
+    mstore v11, v10
+    v12 = add v9, 52
+    mstore v12, arg2
+    v13 = keccak256 v9, 54
+    mstore 128, v13
     returndata 128, 32
 }
 
 fn @dynamicArg(arg0: bytes32, arg1: memptr) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v9 = add 4, arg1
-    v10 = calldataload v9
-    v12 = add v10, 31
-    v13 = not 31
-    v14 = and v12, v13
-    v16 = add v14, 32
-    v18 = mload 64 !metadata(memory=scratch)
-    v19 = add v18, v16
-    mstore 64, v19 !metadata(memory=scratch)
-    mstore v18, v10
-    v23 = add v18, 32
-    v24 = add v9, 32
-    calldatacopy v23, v24, v10
+    v3 = add 4, arg1
+    v4 = calldataload v3
+    v5 = add v4, 31
+    v6 = not 31
+    v7 = and v5, v6
+    v8 = add v7, 32
+    v9 = mload 64 !metadata(memory=scratch)
+    v10 = add v9, v8
+    mstore 64, v10 !metadata(memory=scratch)
+    mstore v9, v4
+    v11 = add v9, 32
+    v12 = add v3, 32
+    calldatacopy v11, v12, v4
     mstore 128, 0
-    v30 = mload 64 !metadata(memory=scratch)
-    mstore v30, arg0
-    v33 = add v30, 32
-    v34 = mload v18
-    v36 = add v18, 32
-    mcopy v33, v36, v34
-    v38 = add v33, v34
-    v39 = sub v38, v30
-    v40 = keccak256 v30, v39
-    mstore 128, v40
+    v13 = mload 64 !metadata(memory=scratch)
+    mstore v13, arg0
+    v14 = add v13, 32
+    v15 = mload v9
+    v16 = add v9, 32
+    mcopy v14, v16, v15
+    v17 = add v14, v15
+    v18 = sub v17, v13
+    v19 = keccak256 v13, v18
+    mstore 128, v19
     returndata 128, 32
 }
 
 fn @materialized(arg0: u16, arg1: memptr, arg2: bool) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 96
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = add 4, arg1
-    v16 = calldataload v15
-    v18 = add v16, 31
-    v19 = not 31
-    v20 = and v18, v19
-    v22 = add v20, 32
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, v22
-    mstore 64, v25 !metadata(memory=scratch)
-    mstore v24, v16
-    v29 = add v24, 32
-    v30 = add v15, 32
-    calldatacopy v29, v30, v16
-    v34 = calldataload 68
-    v35 = iszero v34
-    v36 = iszero v35
-    v37 = eq v34, v36
-    br v37, bb6, bb5
+    v6 = add 4, arg1
+    v7 = calldataload v6
+    v8 = add v7, 31
+    v9 = not 31
+    v10 = and v8, v9
+    v11 = add v10, 32
+    v12 = mload 64 !metadata(memory=scratch)
+    v13 = add v12, v11
+    mstore 64, v13 !metadata(memory=scratch)
+    mstore v12, v7
+    v14 = add v12, 32
+    v15 = add v6, 32
+    calldatacopy v14, v15, v7
+    v16 = calldataload 68
+    v17 = iszero v16
+    v18 = iszero v17
+    v19 = eq v16, v18
+    br v19, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
-    v43 = mload 64 !metadata(memory=scratch)
-    v45 = add v43, 32
-    v47 = shl 240, arg0
-    mstore v45, v47
-    v50 = add v45, 2
-    v51 = mload v24
-    v53 = add v24, 32
-    mcopy v50, v53, v51
-    v55 = add v50, v51
-    v57 = shl 248, arg2
-    mstore v55, v57
-    v60 = add v55, 1
-    v61 = sub v60, v45
-    v63 = add v61, 31
-    v64 = not 31
-    v65 = and v63, v64
-    v66 = add v65, 32
-    mstore v43, v61
-    v68 = add v43, v66
-    mstore 64, v68 !metadata(memory=scratch)
-    v71 = mload 64 !metadata(memory=scratch)
-    v73 = add v71, 32
-    mstore 64, v73 !metadata(memory=scratch)
-    v77 = add v71, 32
-    v78 = sub v77, v71
-    mstore v71, v78
-    v80 = mload v43
-    mstore v77, v80
-    v84 = not 31
-    v85 = add v80, 31
-    v86 = and v85, v84
-    v87 = add v77, 32
-    v88 = iszero v86
-    br v88, bb8, bb7
+    v20 = mload 64 !metadata(memory=scratch)
+    v21 = add v20, 32
+    v22 = shl 240, arg0
+    mstore v21, v22
+    v23 = add v21, 2
+    v24 = mload v12
+    v25 = add v12, 32
+    mcopy v23, v25, v24
+    v26 = add v23, v24
+    v27 = shl 248, arg2
+    mstore v26, v27
+    v28 = add v26, 1
+    v29 = sub v28, v21
+    v30 = add v29, 31
+    v31 = not 31
+    v32 = and v30, v31
+    v33 = add v32, 32
+    mstore v20, v29
+    v34 = add v20, v33
+    mstore 64, v34 !metadata(memory=scratch)
+    v35 = mload 64 !metadata(memory=scratch)
+    v36 = add v35, 32
+    mstore 64, v36 !metadata(memory=scratch)
+    v37 = add v35, 32
+    v38 = sub v37, v35
+    mstore v35, v38
+    v39 = mload v20
+    mstore v37, v39
+    v40 = not 31
+    v41 = add v39, 31
+    v42 = and v41, v40
+    v43 = add v37, 32
+    v44 = iszero v42
+    br v44, bb8, bb7
   bb7:
-    v89 = sub v86, 32
-    v90 = add v87, v89
-    mstore v90, 0
+    v45 = sub v42, 32
+    v46 = add v43, v45
+    mstore v46, 0
     jump bb8
   bb8:
-    v93 = add v43, 32
-    v94 = add v87, v86
-    mcopy v87, v93, v80
-    v96 = sub v94, v71
-    returndata v71, v96
+    v47 = add v20, 32
+    v48 = add v43, v42
+    mcopy v43, v47, v39
+    v49 = sub v48, v35
+    returndata v35, v49
 }
 

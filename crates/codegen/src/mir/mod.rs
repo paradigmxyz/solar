@@ -65,11 +65,9 @@ newtype_index! {
 /// 6. Print `parsed2` (`print3`).
 /// 7. Assert `print2 == print3` — i.e., the parser+printer pair is **idempotent**.
 ///
-/// Why not assert `print1 == print2`? The first parse allocates immediates as
-/// `Value::Immediate` entries before allocating instruction results, which can
-/// shift the `vN` numbering relative to the original lowered MIR. After one
-/// round-trip the value numbers correspond directly to actual `ValueId`s, so
-/// a *second* round-trip is stable.
+/// Why not assert `print1 == print2`? Raw `.mir` fixtures may use arbitrary
+/// `vN` labels, and the first print canonicalizes them to result-instruction
+/// indices. A *second* round-trip must be stable.
 #[cfg(test)]
 mod round_trip {
     use super::{Module, parse_module};

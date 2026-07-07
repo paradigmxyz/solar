@@ -2,26 +2,26 @@
 ; module @InstSimplify
 fn @strength_reduce_arithmetic(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = shl 5, arg0
-    v4 = shr 3, v2
-    v6 = and arg0, 15
-    v8 = mul arg0, arg0
-    v10 = add arg0, 4
-    v12 = add arg0, 32
-    v14 = and arg0, 255
-    v16 = and arg0, 15
-    v17 = add v4, v6
-    v18 = add v8, v12
-    v19 = add v17, v18
-    v20 = add v19, v16
-    ret v20
+    v0 = shl 5, arg0
+    v1 = shr 3, v0
+    v2 = and arg0, 15
+    v3 = mul arg0, arg0
+    v4 = add arg0, 4
+    v5 = add arg0, 32
+    v6 = and arg0, 255
+    v7 = and arg0, 15
+    v8 = add v1, v2
+    v9 = add v3, v5
+    v10 = add v8, v9
+    v11 = add v10, v7
+    ret v11
 }
 
 fn @simplify_booleans(arg0: bool, arg1: u256, arg2: u256) -> (bool, bool, u256, bool, bool) {
   bb0 (entry):
-    v6 = iszero arg0
-    v14 = iszero arg0
-    ret arg0, v6, arg1, arg0, v14
+    v1 = iszero arg0
+    v4 = iszero arg0
+    ret arg0, v1, arg1, arg0, v4
 }
 
 fn @remove_zero_length_copies(arg0: u256) -> u256 {
@@ -36,15 +36,15 @@ fn @fold_modular_helpers(arg0: u256) -> u256 {
 
 fn @complete_word_identities(arg0: u256, arg1: bool) -> (u256, u256, bool, bool, bool, u256, u256, u256, u256) {
   bb0 (entry):
-    v5 = not arg0
-    v6 = iszero arg1
-    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v5, arg1, arg1, arg1, 0, 0, 0, arg0
+    v1 = not arg0
+    v2 = iszero arg1
+    ret 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v1, arg1, arg1, arg1, 0, 0, 0, arg0
 }
 
 fn @complete_exact_identities(arg0: u256, arg1: bool) -> (u256, u256, u256, u256, bool, bool, bool, bool, u256, u256) {
   bb0 (entry):
-    v2 = not arg0
-    ret v2, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0, 1, 0, 0, 0
+    v0 = not arg0
+    ret v0, 0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, 1, 0, 1, 0, 0, 0
 }
 
 fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
@@ -54,8 +54,8 @@ fn @fold_modular_mod_one(arg0: u256, arg1: u256) -> u256 {
 
 fn @keep_exp_zero_base_with_unknown_exponent(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = exp 0, arg0
-    ret v2
+    v0 = exp 0, arg0
+    ret v0
 }
 
 fn @fold_wide_modular_constants() -> (u256, u256) {

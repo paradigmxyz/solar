@@ -8,18 +8,18 @@ fn @dead_merge(arg0: u256, arg1: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v2 = internal_frame_addr 128
+    v0 = internal_frame_addr 128
     jump bb4
   bb4:
-    v12 = phi [bb3: 0], [bb5: v8]
-    v4 = internal_frame_addr 128
-    v6 = lt v12, arg0
-    br v6, bb5, bb6
+    v8 = phi [bb3: 0], [bb5: v4]
+    v1 = internal_frame_addr 128
+    v3 = lt v8, arg0
+    br v3, bb5, bb6
   bb5:
-    v8 = add v12, 1
-    v9 = internal_frame_addr 128
+    v4 = add v8, 1
+    v5 = internal_frame_addr 128
     jump bb4
   bb6:
-    v10 = internal_frame_addr 128
-    ret v12
+    v6 = internal_frame_addr 128
+    ret v8
 }

@@ -4,15 +4,15 @@ fn @caller(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb2
   bb1:
-    v4 = phi [bb2: v3]
-    ret v4
+    v2 = phi [bb2: v1]
+    ret v2
   bb2:
-    v3 = add arg0, 1
+    v1 = add arg0, 1
     jump bb1
 }
 
 fn @callee(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, 1
-    ret v2
+    v0 = add arg0, 1
+    ret v0
 }

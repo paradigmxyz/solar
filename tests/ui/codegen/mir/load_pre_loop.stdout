@@ -2,44 +2,44 @@
 ; module @LoadPreLoop
 fn @loop_header_reload(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = sload 5
+    v0 = sload 5
     jump bb1
   bb1:
-    v6 = phi [bb0: v2], [bb2: v6]
-    v5 = lt v6, arg0
-    br v5, bb2, bb3
+    v3 = phi [bb0: v0], [bb2: v3]
+    v2 = lt v3, arg0
+    br v2, bb2, bb3
   bb2:
     jump bb1
   bb3:
-    ret v6
+    ret v3
 }
 
 fn @loop_clobbered_keeps_reload(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v3 = sload 5
+    v0 = sload 5
     jump bb1
   bb1:
-    v5 = sload 5
-    v6 = lt v5, arg0
-    br v6, bb2, bb3
+    v1 = sload 5
+    v2 = lt v1, arg0
+    br v2, bb2, bb3
   bb2:
     sstore arg1, 9
     jump bb1
   bb3:
-    ret v5
+    ret v1
 }
 
 fn @loop_clobbered_no_insert(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v3 = sload 5
+    v0 = sload 5
     jump bb1
   bb1:
-    v5 = sload 5
-    v6 = lt v5, arg0
-    br v6, bb2, bb3
+    v1 = sload 5
+    v2 = lt v1, arg0
+    br v2, bb2, bb3
   bb2:
     sstore arg1, 9
-    br v6, bb1, bb3
+    br v2, bb1, bb3
   bb3:
-    ret v5
+    ret v1
 }

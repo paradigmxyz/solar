@@ -1261,6 +1261,7 @@ impl<'a> InlineCloner<'a> {
         let cloned = match self.callee.values[value].clone() {
             Value::Immediate(imm) => self.caller.alloc_value(Value::Immediate(imm)),
             Value::Undef(ty) => self.caller.alloc_value(Value::Undef(ty)),
+            Value::Error(guar) => self.caller.alloc_value(Value::Error(guar)),
             Value::Arg { .. } | Value::Inst(_) => return None,
         };
         self.value_map.insert(value, cloned);
@@ -1643,7 +1644,7 @@ mod tests {
         {
             let mut builder = FunctionBuilder::new(&mut caller);
             let limit = builder.imm_u64(4);
-            let value = builder.internal_call(callee_id, vec![limit], Some(MirType::uint256()), 1);
+            let value = builder.internal_call(callee_id, vec![limit], MirType::uint256(), 1);
             let one = builder.imm_u64(1);
             let result = builder.add(value, one);
             builder.ret([result]);

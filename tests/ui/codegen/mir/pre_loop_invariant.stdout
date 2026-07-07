@@ -2,40 +2,40 @@
 ; module @LoopInvariant
 fn @hoist_header_expr(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v10 = add arg0, 7
+    v5 = add arg0, 7
     jump bb1
   bb1:
-    v3 = phi [bb0: arg0], [bb2: v2]
-    v11 = phi [bb0: v10], [bb2: v9]
-    v6 = lt v11, arg1
-    br v6, bb2, bb3
+    v0 = phi [bb0: arg0], [bb2: v3]
+    v6 = phi [bb0: v5], [bb2: v4]
+    v2 = lt v6, arg1
+    br v2, bb2, bb3
   bb2:
-    v2 = add v3, 1
-    v9 = add v2, 7
+    v3 = add v0, 1
+    v4 = add v3, 7
     jump bb1
   bb3:
-    ret v11
+    ret v6
 }
 
 fn @hoist_header_expr_two_latches(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v15 = add arg0, 7
+    v7 = add arg0, 7
     jump bb1
   bb1:
-    v4 = phi [bb0: arg0], [bb3: v2], [bb4: v3]
-    v16 = phi [bb0: v15], [bb3: v11], [bb4: v14]
-    v7 = lt v16, arg1
-    br v7, bb2, bb5
+    v0 = phi [bb0: arg0], [bb3: v3], [bb4: v5]
+    v8 = phi [bb0: v7], [bb3: v4], [bb4: v6]
+    v2 = lt v8, arg1
+    br v2, bb2, bb5
   bb2:
     switch arg1, default bb3, [1 => bb4]
   bb3:
-    v2 = add v4, 1
-    v11 = add v2, 7
+    v3 = add v0, 1
+    v4 = add v3, 7
     jump bb1
   bb4:
-    v3 = add v4, 2
-    v14 = add v3, 7
+    v5 = add v0, 2
+    v6 = add v5, 7
     jump bb1
   bb5:
-    ret v16
+    ret v8
 }

@@ -425,10 +425,7 @@ impl<'gcx> Lowerer<'gcx> {
         let ExprKind::Member(base, member) = &callee.kind else {
             return None;
         };
-        let ExprKind::Ident(res_slice) = &base.kind else {
-            return None;
-        };
-        matches!(res_slice.first(), Some(hir::Res::Builtin(Builtin::Abi)))
+        matches!(self.ident_builtin(base), Some(Builtin::Abi))
             .then_some(args)
             .filter(|_| member.name == name)
     }

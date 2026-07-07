@@ -13,9 +13,9 @@ fn @keep_store_read_before_successor_overwrite() -> u256 {
     mstore 128, 1
     jump bb1
   bb1:
-    v3 = mload 128
+    v0 = mload 128
     mstore 128, 2
-    ret v3
+    ret v0
 }
 
 fn @keep_store_into_multi_pred_successor(arg0: bool) -> u256 {

@@ -5,20 +5,20 @@ fn @sum(arg0: u256) {
     mstore 128, 0
     jump bb1
   bb1:
-    v5 = phi [bb0: 0], [bb7: v4]
-    v6 = lt v5, arg0
-    br v6, bb4, bb2
+    v0 = phi [bb0: 0], [bb7: v3]
+    v1 = lt v0, arg0
+    br v1, bb4, bb2
   bb2:
-    v8 = mload 128
-    mstore 128, v8
+    v2 = mload 128
+    mstore 128, v2
     returndata 128, 32
   bb3:
     invalid
   bb4:
-    v15 = mload 128
-    v16 = add v15, v5
-    v17 = lt v16, v15
-    br v17, bb6, bb7
+    v5 = mload 128
+    v6 = add v5, v0
+    v7 = lt v6, v5
+    br v7, bb6, bb7
   bb5:
     invalid
   bb6:
@@ -26,8 +26,8 @@ fn @sum(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb7:
-    mstore 128, v16
-    v4 = add v5, 1
+    mstore 128, v6
+    v3 = add v0, 1
     jump bb1
   bb8:
     invalid

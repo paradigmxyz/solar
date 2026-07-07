@@ -2,7 +2,7 @@
 ; module @LicmMemoryAlias
 fn @hoist_non_aliasing_mload() -> u256 {
   bb0 (entry):
-    v2 = mload 0
+    v0 = mload 0
     jump bb1
   bb1:
     br 1, bb2, bb3
@@ -10,7 +10,7 @@ fn @hoist_non_aliasing_mload() -> u256 {
     mstore 64, 1
     jump bb1
   bb3:
-    ret v2
+    ret v0
 }
 
 fn @keep_aliasing_mload() -> u256 {
@@ -19,16 +19,16 @@ fn @keep_aliasing_mload() -> u256 {
   bb1:
     br 1, bb2, bb3
   bb2:
-    v2 = mload 0
+    v0 = mload 0
     mstore 16, 1
     jump bb1
   bb3:
-    ret v2
+    ret v0
 }
 
 fn @hoist_non_aliasing_keccak() -> bytes32 {
   bb0 (entry):
-    v3 = keccak256 0, 32
+    v0 = keccak256 0, 32
     jump bb1
   bb1:
     br 1, bb2, bb3
@@ -36,7 +36,7 @@ fn @hoist_non_aliasing_keccak() -> bytes32 {
     mstore 64, 1
     jump bb1
   bb3:
-    ret v3
+    ret v0
 }
 
 fn @keep_aliasing_keccak() -> bytes32 {
@@ -45,9 +45,9 @@ fn @keep_aliasing_keccak() -> bytes32 {
   bb1:
     br 1, bb2, bb3
   bb2:
-    v3 = keccak256 0, 32
+    v0 = keccak256 0, 32
     mstore 16, 1
     jump bb1
   bb3:
-    ret v3
+    ret v0
 }

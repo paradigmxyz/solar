@@ -2,16 +2,16 @@
 ; module @CseSload
 fn @sload_cse(arg0: u256) -> u256 {
   bb0 (entry):
-    v1 = sload arg0
-    v3 = add v1, v1
-    ret v3
+    v0 = sload arg0
+    v2 = add v0, v0
+    ret v2
 }
 
 fn @sload_after_sstore(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = sload arg0
+    v0 = sload arg0
     sstore arg0, arg1
-    v3 = sload arg0
-    v4 = add v2, v3
-    ret v4
+    v1 = sload arg0
+    v2 = add v0, v1
+    ret v2
 }

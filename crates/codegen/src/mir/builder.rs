@@ -1,7 +1,7 @@
 //! MIR function builder.
 
 use super::{
-    BlockId, Function, FunctionId, Immediate, InstKind, Instruction, MemoryRegion, MirType,
+    BlockId, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
     StorageAlias, Terminator, Value, ValueId,
 };
 use alloy_primitives::U256;
@@ -70,7 +70,12 @@ impl<'a> FunctionBuilder<'a> {
         self.func.alloc_value(Value::Undef(ty))
     }
 
-    fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+    /// Creates an error sentinel value for an already-reported lowering error.
+    pub fn error_value(&mut self, guar: solar_interface::diagnostics::ErrorGuaranteed) -> ValueId {
+        self.func.alloc_value(Value::Error(guar))
+    }
+
+    fn emit_inst_raw(&mut self, kind: InstKind, result_ty: Option<MirType>) -> InstId {
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata.set_effect(Some(inst.kind.effect_kind()));
         inst.metadata.set_memory_region(self.memory_region_for_inst(&inst.kind));
@@ -78,7 +83,21 @@ impl<'a> FunctionBuilder<'a> {
 
         let inst_id = self.func.alloc_inst(inst);
         self.func.blocks[self.current_block].instructions.push(inst_id);
+        inst_id
+    }
+
+    fn emit_inst(&mut self, kind: InstKind, result_ty: Option<MirType>) -> ValueId {
+        debug_assert!(result_ty.is_some(), "value-producing instructions must have a result type");
+        let inst_id = self.emit_inst_raw(kind, result_ty);
         self.func.alloc_value(Value::Inst(inst_id))
+    }
+
+    /// Emits an instruction that produces no value, such as a store or a log.
+    ///
+    /// No result [`Value`] is allocated: only value-producing instructions get
+    /// an entry in the function's value table.
+    fn emit_void_inst(&mut self, kind: InstKind) {
+        self.emit_inst_raw(kind, None);
     }
 
     fn memory_region_for_inst(&self, kind: &InstKind) -> Option<MemoryRegion> {
@@ -116,7 +135,9 @@ impl<'a> FunctionBuilder<'a> {
                 }
                 _ => MemoryRegion::Unknown,
             },
-            Value::Arg { .. } | Value::Immediate(_) | Value::Undef(_) => MemoryRegion::Unknown,
+            Value::Arg { .. } | Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {
+                MemoryRegion::Unknown
+            }
         }
     }
 
@@ -279,13 +300,13 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an mstore instruction.
-    pub fn mstore(&mut self, offset: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MStore(offset, value), None)
+    pub fn mstore(&mut self, offset: ValueId, value: ValueId) {
+        self.emit_void_inst(InstKind::MStore(offset, value))
     }
 
     /// Emits an mstore8 instruction.
-    pub fn mstore8(&mut self, offset: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MStore8(offset, value), None)
+    pub fn mstore8(&mut self, offset: ValueId, value: ValueId) {
+        self.emit_void_inst(InstKind::MStore8(offset, value))
     }
 
     /// Emits an msize instruction.
@@ -294,8 +315,8 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an mcopy instruction.
-    pub fn mcopy(&mut self, dest: ValueId, src: ValueId, len: ValueId) -> ValueId {
-        self.emit_inst(InstKind::MCopy(dest, src, len), None)
+    pub fn mcopy(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
+        self.emit_void_inst(InstKind::MCopy(dest, src, len))
     }
 
     /// Emits an sload instruction.
@@ -304,8 +325,8 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an sstore instruction.
-    pub fn sstore(&mut self, slot: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::SStore(slot, value), None)
+    pub fn sstore(&mut self, slot: ValueId, value: ValueId) {
+        self.emit_void_inst(InstKind::SStore(slot, value))
     }
 
     /// Emits a tload instruction.
@@ -314,8 +335,8 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a tstore instruction.
-    pub fn tstore(&mut self, slot: ValueId, value: ValueId) -> ValueId {
-        self.emit_inst(InstKind::TStore(slot, value), None)
+    pub fn tstore(&mut self, slot: ValueId, value: ValueId) {
+        self.emit_void_inst(InstKind::TStore(slot, value))
     }
 
     /// Emits a calldataload instruction.
@@ -329,8 +350,8 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a calldatacopy instruction.
-    pub fn calldatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) -> ValueId {
-        self.emit_inst(InstKind::CalldataCopy(dest, offset, size), None)
+    pub fn calldatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
+        self.emit_void_inst(InstKind::CalldataCopy(dest, offset, size))
     }
 
     /// Emits a codesize instruction.
@@ -349,14 +370,8 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits an extcodecopy instruction.
-    pub fn extcodecopy(
-        &mut self,
-        addr: ValueId,
-        dest: ValueId,
-        offset: ValueId,
-        size: ValueId,
-    ) -> ValueId {
-        self.emit_inst(InstKind::ExtCodeCopy(addr, dest, offset, size), None)
+    pub fn extcodecopy(&mut self, addr: ValueId, dest: ValueId, offset: ValueId, size: ValueId) {
+        self.emit_void_inst(InstKind::ExtCodeCopy(addr, dest, offset, size))
     }
 
     /// Emits an extcodehash instruction.
@@ -370,8 +385,8 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a returndatacopy instruction.
-    pub fn returndatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) -> ValueId {
-        self.emit_inst(InstKind::ReturnDataCopy(dest, offset, size), None)
+    pub fn returndatacopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
+        self.emit_void_inst(InstKind::ReturnDataCopy(dest, offset, size))
     }
 
     /// Emits an internal function call.
@@ -379,11 +394,20 @@ impl<'a> FunctionBuilder<'a> {
         &mut self,
         function: FunctionId,
         args: Vec<ValueId>,
-        result_ty: Option<MirType>,
+        result_ty: MirType,
         returns: usize,
     ) -> ValueId {
         let returns = u32::try_from(returns).expect("too many internal call return values");
-        self.emit_inst(InstKind::InternalCall { function, args: args.into(), returns }, result_ty)
+        self.emit_inst(
+            InstKind::InternalCall { function, args: args.into(), returns },
+            Some(result_ty),
+        )
+    }
+
+    /// Emits an internal function call whose result, if any, is not used as a value.
+    pub fn internal_call_void(&mut self, function: FunctionId, args: Vec<ValueId>, returns: usize) {
+        let returns = u32::try_from(returns).expect("too many internal call return values");
+        self.emit_void_inst(InstKind::InternalCall { function, args: args.into(), returns });
     }
 
     /// Emits an address inside the current internal-call frame.
@@ -553,23 +577,23 @@ impl<'a> FunctionBuilder<'a> {
     }
 
     /// Emits a codecopy instruction.
-    pub fn codecopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) -> ValueId {
-        self.emit_inst(InstKind::CodeCopy(dest, offset, size), None)
+    pub fn codecopy(&mut self, dest: ValueId, offset: ValueId, size: ValueId) {
+        self.emit_void_inst(InstKind::CodeCopy(dest, offset, size))
     }
 
     /// Emits a log0 instruction (event with no topics).
     pub fn log0(&mut self, offset: ValueId, size: ValueId) {
-        self.emit_inst(InstKind::Log0(offset, size), None);
+        self.emit_void_inst(InstKind::Log0(offset, size));
     }
 
     /// Emits a log1 instruction (event with 1 topic).
     pub fn log1(&mut self, offset: ValueId, size: ValueId, topic1: ValueId) {
-        self.emit_inst(InstKind::Log1(offset, size, topic1), None);
+        self.emit_void_inst(InstKind::Log1(offset, size, topic1));
     }
 
     /// Emits a log2 instruction (event with 2 topics).
     pub fn log2(&mut self, offset: ValueId, size: ValueId, topic1: ValueId, topic2: ValueId) {
-        self.emit_inst(InstKind::Log2(offset, size, topic1, topic2), None);
+        self.emit_void_inst(InstKind::Log2(offset, size, topic1, topic2));
     }
 
     /// Emits a log3 instruction (event with 3 topics).
@@ -581,7 +605,7 @@ impl<'a> FunctionBuilder<'a> {
         topic2: ValueId,
         topic3: ValueId,
     ) {
-        self.emit_inst(InstKind::Log3(offset, size, topic1, topic2, topic3), None);
+        self.emit_void_inst(InstKind::Log3(offset, size, topic1, topic2, topic3));
     }
 
     /// Emits a log4 instruction (event with 4 topics).
@@ -594,7 +618,7 @@ impl<'a> FunctionBuilder<'a> {
         topic3: ValueId,
         topic4: ValueId,
     ) {
-        self.emit_inst(InstKind::Log4(offset, size, topic1, topic2, topic3, topic4), None);
+        self.emit_void_inst(InstKind::Log4(offset, size, topic1, topic2, topic3, topic4));
     }
 
     /// Emits a select instruction.

@@ -55,10 +55,7 @@ impl<'gcx> Lowerer<'gcx> {
         let ExprKind::Call(callee, args, _) = &expr.kind else {
             return false;
         };
-        let ExprKind::Ident(res_slice) = &callee.kind else {
-            return false;
-        };
-        if !matches!(res_slice.first(), Some(hir::Res::Builtin(Builtin::Keccak256))) {
+        if !matches!(self.callee_res(callee), Some(hir::Res::Builtin(Builtin::Keccak256))) {
             return false;
         }
 
@@ -70,10 +67,7 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn is_local_ident(&self, expr: &hir::Expr<'_>, var_id: hir::VariableId) -> bool {
-        let ExprKind::Ident(res_slice) = &expr.kind else {
-            return false;
-        };
-        matches!(res_slice.first(), Some(hir::Res::Item(hir::ItemId::Variable(id))) if *id == var_id)
+        self.ident_variable(expr) == Some(var_id)
     }
 
     fn lower_immediate_packed_hash_return(
@@ -336,12 +330,11 @@ impl<'gcx> Lowerer<'gcx> {
         match ty.peel_refs().kind {
             TyKind::Array(elem_ty, len) => {
                 let Some(len) = u64::try_from(len).ok() else {
-                    self.gcx
-                        .dcx()
-                        .err("fixed-size memory array is too large for codegen")
-                        .span(span)
-                        .emit();
-                    return builder.imm_u256(U256::ZERO);
+                    return self.err_value(
+                        builder,
+                        span,
+                        "fixed-size memory array is too large for codegen",
+                    );
                 };
                 let alloc_size = len.checked_mul(32).unwrap_or_else(|| {
                     self.gcx
@@ -718,16 +711,13 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         };
 
-        // Get the event from the callee
-        let hir::ExprKind::Ident(res_slice) = &callee.kind else {
+        // Get the event from the callee, using the overload target selected by
+        // the type checker: `emit E(...)` may name an overloaded event.
+        let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = self.callee_res(callee) else {
             return;
         };
 
-        let Some(hir::Res::Item(hir::ItemId::Event(event_id))) = res_slice.first() else {
-            return;
-        };
-
-        let event = self.gcx.hir.event(*event_id);
+        let event = self.gcx.hir.event(event_id);
 
         // Compute event signature hash (topic0 for non-anonymous events)
         let sig = self.compute_event_signature(event);

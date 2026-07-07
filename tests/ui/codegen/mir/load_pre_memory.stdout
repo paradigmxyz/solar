@@ -4,14 +4,14 @@ fn @mload_full_diamond(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2
   bb1:
-    v2 = mload 128
+    v0 = mload 128
     jump bb3
   bb2:
-    v4 = mload 128
+    v1 = mload 128
     jump bb3
   bb3:
-    v6 = mload 128
-    ret v6
+    v2 = mload 128
+    ret v2
 }
 
 fn @mstore_forwarding(arg0: bool, arg1: u256) -> u256 {
@@ -21,16 +21,16 @@ fn @mstore_forwarding(arg0: bool, arg1: u256) -> u256 {
     mstore 128, arg1
     jump bb3
   bb2:
-    v4 = mload 128
+    v0 = mload 128
     jump bb3
   bb3:
-    v6 = mload 128
-    ret v6
+    v1 = mload 128
+    ret v1
 }
 
 fn @mstore8_overlap_kills(arg0: bool) -> u256 {
   bb0 (entry):
-    v2 = mload 128
+    v0 = mload 128
     br arg0, bb1, bb2
   bb1:
     mstore8 159, 7
@@ -38,98 +38,98 @@ fn @mstore8_overlap_kills(arg0: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v6 = mload 128
-    ret v6
+    v1 = mload 128
+    ret v1
   bb4:
-    ret v2
+    ret v0
 }
 
 fn @mload_partial_rejected(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2
   bb1:
-    v2 = mload 128
+    v0 = mload 128
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v4 = mload 128
-    ret v4
+    v1 = mload 128
+    ret v1
 }
 
 fn @mload_partial_repeated_profitable(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2
   bb1:
-    v2 = mload 128
+    v0 = mload 128
     jump bb3
   bb2:
-    v8 = mload 128
+    v4 = mload 128
     jump bb3
   bb3:
-    v9 = phi [bb1: v2], [bb2: v8]
-    v7 = add v9, v9
-    ret v7
+    v5 = phi [bb1: v0], [bb2: v4]
+    v3 = add v5, v5
+    ret v3
 }
 
 fn @mload_partial_two_available(arg0: u256) -> u256 {
   bb0 (entry):
     switch arg0, default bb3, [1 => bb1, 2 => bb2]
   bb1:
-    v4 = mload 128
+    v0 = mload 128
     jump bb4
   bb2:
-    v6 = mload 128
+    v1 = mload 128
     jump bb4
   bb3:
     jump bb4
   bb4:
-    v8 = mload 128
-    ret v8
+    v2 = mload 128
+    ret v2
 }
 
 fn @mload_loop_header(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = mload 128
+    v0 = mload 128
     jump bb1
   bb1:
-    v6 = phi [bb0: v2], [bb2: v6]
-    v5 = lt v6, arg0
-    br v5, bb2, bb3
+    v3 = phi [bb0: v0], [bb2: v3]
+    v2 = lt v3, arg0
+    br v2, bb2, bb3
   bb2:
     jump bb1
   bb3:
-    ret v6
+    ret v3
 }
 
 fn @staticcall_kills_memory(arg0: bool, arg1: address) -> u256 {
   bb0 (entry):
-    v3 = mload 128
+    v0 = mload 128
     br arg0, bb1, bb2
   bb1:
-    v9 = staticcall 0x186a0, arg1, 0, 0, 0, 0
+    v1 = staticcall 0x186a0, arg1, 0, 0, 0, 0
     br arg0, bb3, bb4
   bb2:
     jump bb3
   bb3:
-    v11 = mload 128
-    ret v11
+    v2 = mload 128
+    ret v2
   bb4:
-    ret v3
+    ret v0
 }
 
 fn @msize_blocks_memory(arg0: bool) -> u256 {
   bb0 (entry):
     br arg0, bb1, bb2
   bb1:
-    v2 = mload 128
+    v0 = mload 128
     jump bb3
   bb2:
-    v4 = mload 128
+    v1 = mload 128
     jump bb3
   bb3:
-    v5 = msize
-    v7 = mload 128
-    v8 = add v5, v7
-    ret v8
+    v2 = msize
+    v3 = mload 128
+    v4 = add v2, v3
+    ret v4
 }

@@ -31,6 +31,6 @@ fn @keeps_phi_target(arg0: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v3 = phi [bb1: 1], [bb2: 2]
-    ret v3
+    v0 = phi [bb1: 1], [bb2: 2]
+    ret v0
 }

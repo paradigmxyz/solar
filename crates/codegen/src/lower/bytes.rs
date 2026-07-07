@@ -445,7 +445,8 @@ impl<'gcx> Lowerer<'gcx> {
                 _ => {}
             }
 
-            self.gcx
+            let guar = self
+                .gcx
                 .dcx()
                 .err(format!(
                     "codegen does not support `abi.{}` with these arguments as low-level call data yet",
@@ -453,7 +454,8 @@ impl<'gcx> Lowerer<'gcx> {
                 ))
                 .span(expr.span)
                 .emit();
-            return (builder.imm_u64(0), builder.imm_u64(0));
+            let err = builder.error_value(guar);
+            return (err, err);
         }
 
         // A `bytes memory` value: `[length][data...]` pointer.
@@ -465,12 +467,14 @@ impl<'gcx> Lowerer<'gcx> {
             return (data, len);
         }
 
-        self.gcx
+        let guar = self
+            .gcx
             .dcx()
             .err("codegen does not support this `bytes` expression as low-level call data yet")
             .span(expr.span)
             .emit();
-        (builder.imm_u64(0), builder.imm_u64(0))
+        let err = builder.error_value(guar);
+        (err, err)
     }
 
     /// Looks through a `bytes(x)` / `string(x)` conversion to the underlying

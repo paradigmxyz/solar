@@ -3,54 +3,54 @@
 fn @narrowAddress(arg0: address) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     mstore 128, 0
-    v17 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
-    v19 = and v17, 0xffff
-    mstore 128, v19
+    v6 = and arg0, 0xffffffffffffffffffffffffffffffffffffffff
+    v7 = and v6, 0xffff
+    mstore 128, v7
     returndata 128, 32
 }
 
 fn @narrowUint(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = and arg0, 0xffff
-    mstore 128, v11
+    v3 = and arg0, 0xffff
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @narrowSigned(arg0: i256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = shl 248, arg0
-    v12 = sar 248, v11
-    mstore 128, v12
+    v3 = shl 248, arg0
+    v4 = sar 248, v3
+    mstore 128, v4
     returndata 128, 32
 }
 

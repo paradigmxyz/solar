@@ -209,7 +209,7 @@ impl GlobalValueNumberer {
                 Value::Arg { index, .. } => {
                     vn[value_id.index()] = *arg_reps.entry(*index).or_insert(value_id);
                 }
-                Value::Inst(_) | Value::Undef(_) => {}
+                Value::Inst(_) | Value::Undef(_) | Value::Error(_) => {}
             }
         }
 

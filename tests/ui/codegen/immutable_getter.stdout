@@ -3,17 +3,17 @@
 fn @owner() {
   bb0 (entry):
     mstore 128, 0
-    v3 = loadimmutable 0
-    mstore 128, v3
+    v0 = loadimmutable 0
+    mstore 128, v0
     returndata 128, 32
 }
 
 fn @_anonymous(arg0: address) {
   bb0 (entry):
-    v2 = mload 128
-    v4 = and v2, 0xffffffffffffffffffffffffffffffffffffffff
-    v5 = eq v2, v4
-    br v5, bb2, bb1
+    v0 = mload 128
+    v1 = and v0, 0xffffffffffffffffffffffffffffffffffffffff
+    v2 = eq v0, v1
+    br v2, bb2, bb1
   bb1:
     revert 0, 0
   bb2:
