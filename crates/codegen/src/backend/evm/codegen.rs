@@ -3532,10 +3532,10 @@ impl EvmCodegen {
         // in place when they are dead afterwards and own no reserved spill
         // slot, instead of being re-emitted and the stale copy nipped later
         // (`DUP2 <op> ... SWAP1 POP` becomes `<op>`).
-        let a_dead_free = liveness.is_dead_after(a, block, inst_idx)
-            && self.scheduler.spills.get(a).is_none();
-        let b_dead_free = liveness.is_dead_after(b, block, inst_idx)
-            && self.scheduler.spills.get(b).is_none();
+        let a_dead_free =
+            liveness.is_dead_after(a, block, inst_idx) && self.scheduler.spills.get(a).is_none();
+        let b_dead_free =
+            liveness.is_dead_after(b, block, inst_idx) && self.scheduler.spills.get(b).is_none();
         if self.scheduler.stack.top() == Some(a)
             && self.scheduler.stack.peek(1) == Some(b)
             && a_dead_free

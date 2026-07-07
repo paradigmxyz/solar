@@ -316,7 +316,11 @@ impl Peephole {
     }
 
     fn replace_1(skip: u32, inst: AsmInst) -> Self {
-        Self { skip, replacement_len: 1, replacement: [inst, AsmInst::PLACEHOLDER, AsmInst::PLACEHOLDER] }
+        Self {
+            skip,
+            replacement_len: 1,
+            replacement: [inst, AsmInst::PLACEHOLDER, AsmInst::PLACEHOLDER],
+        }
     }
 
     fn replace_2(skip: u32, a: AsmInst, b: AsmInst) -> Self {
