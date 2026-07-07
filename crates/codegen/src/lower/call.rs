@@ -453,10 +453,15 @@ impl<'gcx> Lowerer<'gcx> {
                     if matches!(builtin, Builtin::Assert) {
                         self.emit_panic_revert(builder, PanicCode::Assert);
                     } else if let Some(message) = exprs.next() {
+                        // The message is lowered in the revert block, which
+                        // does not dominate the continuation — slots memoized
+                        // while lowering it must not leak past the join.
+                        self.mapping_memo_scope_enter();
                         if !self.emit_revert_payload_from_expr(builder, message) {
                             let zero = builder.imm_u64(0);
                             builder.revert(zero, zero);
                         }
+                        self.mapping_memo_scope_exit();
                     } else {
                         let zero = builder.imm_u64(0);
                         builder.revert(zero, zero);
@@ -1639,6 +1644,19 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     fn lower_internal_call_fallback(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+    ) -> ValueId {
+        let result = self.lower_internal_call_fallback_inner(builder, func_id, arg_vals);
+        // The callee shares this memory space and may have rewritten bytes a
+        // memoized mapping key points into (through memory-pointer args).
+        self.invalidate_mapping_slot_memo();
+        result
+    }
+
+    fn lower_internal_call_fallback_inner(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         func_id: hir::FunctionId,

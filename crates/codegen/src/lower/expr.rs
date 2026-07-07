@@ -473,6 +473,8 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::New(_ty) => builder.imm_u64(0),
 
             ExprKind::Delete(target) => {
+                // `delete` zero-fills memory targets in place.
+                self.invalidate_mapping_slot_memo();
                 let zero = builder.imm_u256(U256::ZERO);
                 // Deleting a memory fixed-size array zeroes its elements in
                 // place; nulling the pointer would alias scratch memory on the
@@ -753,7 +755,9 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         builder.switch_to_block(rhs_block);
+        self.mapping_memo_scope_enter();
         let rhs_val = self.lower_expr(builder, rhs);
+        self.mapping_memo_scope_exit();
         let rhs_end = builder.current_block();
         let rhs_terminated = builder.func().block(rhs_end).is_terminated();
         if !rhs_terminated {
@@ -1110,12 +1114,16 @@ impl<'gcx> Lowerer<'gcx> {
 
             // Then block: evaluate then_expr and write tuple elements to memory
             builder.switch_to_block(then_block);
+            self.mapping_memo_scope_enter();
             self.lower_tuple_to_scratch(builder, then_expr);
+            self.mapping_memo_scope_exit();
             builder.jump(merge_block);
 
             // Else block: evaluate else_expr and write tuple elements to memory
             builder.switch_to_block(else_block);
+            self.mapping_memo_scope_enter();
             self.lower_tuple_to_scratch(builder, else_expr);
+            self.mapping_memo_scope_exit();
             builder.jump(merge_block);
 
             // Merge block: load first value from scratch memory
@@ -1135,16 +1143,20 @@ impl<'gcx> Lowerer<'gcx> {
 
             // Then block
             builder.switch_to_block(then_block);
+            self.mapping_memo_scope_enter();
             let then_val = self.lower_expr(builder, then_expr);
             let zero_then = builder.imm_u64(0);
             builder.mstore(zero_then, then_val);
+            self.mapping_memo_scope_exit();
             builder.jump(merge_block);
 
             // Else block
             builder.switch_to_block(else_block);
+            self.mapping_memo_scope_enter();
             let else_val = self.lower_expr(builder, else_expr);
             let zero_else = builder.imm_u64(0);
             builder.mstore(zero_else, else_val);
+            self.mapping_memo_scope_exit();
             builder.jump(merge_block);
 
             // Merge block: load result from scratch memory
@@ -1196,6 +1208,23 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers an assignment.
     pub(super) fn lower_assign(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        lhs: &hir::Expr<'_>,
+        rhs: ValueId,
+    ) {
+        // Writes through references may rewrite the bytes a memoized mapping
+        // key points into; plain identifier rebinds produce a new value id
+        // and need no invalidation.
+        let clobbers_key_memory =
+            matches!(&lhs.kind, ExprKind::Index(..) | ExprKind::Member(..) | ExprKind::Tuple(_));
+        self.lower_assign_inner(builder, lhs, rhs);
+        if clobbers_key_memory {
+            self.invalidate_mapping_slot_memo();
+        }
+    }
+
+    fn lower_assign_inner(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         lhs: &hir::Expr<'_>,
@@ -2833,6 +2862,53 @@ impl<'gcx> Lowerer<'gcx> {
     /// keys are hashed per spec as `keccak256(key bytes ++ uint256(slot))`;
     /// everything else is the fixed `keccak256(key word ++ slot word)`.
     fn compute_mapping_slot_for_index(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        index_expr: Option<&hir::Expr<'_>>,
+        key: ValueId,
+        slot: ValueId,
+        key_is_dynamic: bool,
+    ) -> ValueId {
+        // Element-slot CSE: the check-then-assign idiom (`if (m[k] ...) ...;
+        // m[k] = v;`) computes the same slot twice — for dynamic keys that is
+        // a full materialize+copy+keccak each time. Storage-backed keys are
+        // excluded (their bytes can change without any memory write); literal
+        // keys already fold to a constant.
+        let memoizable = if key_is_dynamic {
+            index_expr.is_some_and(|expr| {
+                Self::str_lit_key_bytes(expr).is_none()
+                    && !self.expr_is_storage_bytes_lvalue(expr)
+                    && !self.is_storage_ref_bytes_local(expr)
+            })
+        } else {
+            true
+        };
+        if !memoizable {
+            return self.compute_mapping_slot_for_index_uncached(
+                builder,
+                index_expr,
+                key,
+                slot,
+                key_is_dynamic,
+            );
+        }
+        let memo_key =
+            (Self::slot_memo_operand(builder, slot), Self::slot_memo_operand(builder, key));
+        if let Some(slot_val) = self.mapping_slot_memo_get(&memo_key) {
+            return slot_val;
+        }
+        let result = self.compute_mapping_slot_for_index_uncached(
+            builder,
+            index_expr,
+            key,
+            slot,
+            key_is_dynamic,
+        );
+        self.mapping_slot_memo_insert(memo_key, result);
+        result
+    }
+
+    fn compute_mapping_slot_for_index_uncached(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         index_expr: Option<&hir::Expr<'_>>,

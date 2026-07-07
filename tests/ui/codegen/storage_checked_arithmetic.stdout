@@ -28,10 +28,7 @@ fn @storage_sub(arg0: address, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v10, v8 !metadata(storage=symbolic(v10))
+    sstore v6, v8 !metadata(storage=symbolic(v6))
     stop
 }
 
@@ -63,10 +60,7 @@ fn @storage_binary_sub(arg0: address, arg1: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v10, v8 !metadata(storage=symbolic(v10))
+    sstore v6, v8 !metadata(storage=symbolic(v6))
     stop
 }
 
@@ -105,10 +99,7 @@ fn @storage_struct_add(arg0: address, arg1: u128) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v13, v11 !metadata(storage=symbolic(v13))
+    sstore v9, v11 !metadata(storage=symbolic(v9))
     stop
 }
 
@@ -150,11 +141,8 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v16 = keccak256 0, 64 !metadata(memory=scratch)
-    v17 = add v16, 1
-    sstore v17, v12 !metadata(storage=offset(v16, 1))
+    v16 = add v9, 1
+    sstore v16, v12 !metadata(storage=offset(v9, 1))
     stop
 }
 
