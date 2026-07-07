@@ -16,14 +16,14 @@ fn @entry() {
     br v0, bb7, bb1
   bb1:
     v1 = calldatasize
-    v3 = eq v1, 0
-    br v3, bb2, bb3
+    v2 = eq v1, 0
+    br v2, bb2, bb3
   bb2:
     jump bb7
   bb3:
-    v5 = calldataload 0
-    v7 = shr 224, v5
-    switch v7, default bb6, [0x5c36b186 => bb4, 0x8d3a3e57 => bb5]
+    v3 = calldataload 0
+    v4 = shr 224, v3
+    switch v4, default bb6, [0x5c36b186 => bb4, 0x8d3a3e57 => bb5]
   bb4:
     tail_call fn0
   bb5:
