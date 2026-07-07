@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
+
+### Bug Fixes
+
+- [parser] Recover malformed member access ([#914](https://github.com/paradigmxyz/solar/issues/914))
+- [docs] Avoid rustdoc ICE on re-exports ([#912](https://github.com/paradigmxyz/solar/issues/912))
+- [sema] Inherit public variable getter docs ([#825](https://github.com/paradigmxyz/solar/issues/825))
+- [sema] Align natspec validation ([#771](https://github.com/paradigmxyz/solar/issues/771))
+- Replace unnecessary repetitions of structure name ([#581](https://github.com/paradigmxyz/solar/issues/581))
+
+### Features
+
+- [sema] Implement using for ([#773](https://github.com/paradigmxyz/solar/issues/773))
+- [sema] Lower inline yul to hir ([#769](https://github.com/paradigmxyz/solar/issues/769))
+- [sema] Lower natspec ([#768](https://github.com/paradigmxyz/solar/issues/768))
+- [ast] Change TypeSize to store bits instead of bytes ([#671](https://github.com/paradigmxyz/solar/issues/671))
+- [ast] Naive natspec ([#470](https://github.com/paradigmxyz/solar/issues/470))
+- [sema] Experimental typeck ([#563](https://github.com/paradigmxyz/solar/issues/563))
+- [ast] Add some methods to BinOpKind, DataLocation ([#555](https://github.com/paradigmxyz/solar/issues/555))
+
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
 
 ### Bug Fixes

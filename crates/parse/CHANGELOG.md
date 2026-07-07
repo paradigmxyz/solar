@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
+
+### Bug Fixes
+
+- [parser] Recover malformed member access ([#914](https://github.com/paradigmxyz/solar/issues/914))
+- [docs] Avoid rustdoc ICE on re-exports ([#912](https://github.com/paradigmxyz/solar/issues/912))
+- [parser] Clear error literal denominations ([#896](https://github.com/paradigmxyz/solar/issues/896))
+- Add codes to warnings ([#839](https://github.com/paradigmxyz/solar/issues/839))
+- [parse] Preserve hex escape bytes ([#831](https://github.com/paradigmxyz/solar/issues/831))
+- [sema] Align natspec validation ([#771](https://github.com/paradigmxyz/solar/issues/771))
+- [parser] Parse exponentiation right-assoc ([#767](https://github.com/paradigmxyz/solar/issues/767))
+- [sema] Canonicalize bare integer aliases ([#761](https://github.com/paradigmxyz/solar/issues/761))
+- [parse] Ignore mid-line '@' in doc cmnts ([#597](https://github.com/paradigmxyz/solar/issues/597))
+- Do not break on close paren for struct ([#562](https://github.com/paradigmxyz/solar/issues/562))
+- [parser] Neg. exp. empty check, disallow plus ([#561](https://github.com/paradigmxyz/solar/issues/561))
+
+### Features
+
+- [lsp] Add auto-completion support ([#915](https://github.com/paradigmxyz/solar/issues/915))
+- Improve parser/lowering ([#835](https://github.com/paradigmxyz/solar/issues/835))
+- [parser] Add import callback ([#823](https://github.com/paradigmxyz/solar/issues/823))
+- [sema] Lower inline yul to hir ([#769](https://github.com/paradigmxyz/solar/issues/769))
+- [sema] Lower natspec ([#768](https://github.com/paradigmxyz/solar/issues/768))
+- SIMD optimizations, bug fixes, and struct codegen improvements
+- [ast] Change TypeSize to store bits instead of bytes ([#671](https://github.com/paradigmxyz/solar/issues/671))
+- [ast] Naive natspec ([#470](https://github.com/paradigmxyz/solar/issues/470))
+
+### Miscellaneous Tasks
+
+- Warn instead err on invalid natspec tag ([#600](https://github.com/paradigmxyz/solar/issues/600))
+- [parse] Natspec w/ ws after '@' is valid ([#585](https://github.com/paradigmxyz/solar/issues/585))
+
+### Other
+
+- Revert "feat: SIMD optimizations, bug fixes, and struct codegen improvements"
+
+### Refactor
+
+- Add diagnostic span helper ([#820](https://github.com/paradigmxyz/solar/issues/820))
+- [parser] Move mapping key type validation to semantic analysis ([#574](https://github.com/paradigmxyz/solar/issues/574))
+
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
 
 ### Bug Fixes

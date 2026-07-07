@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
+
+### Features
+
+- Introduce EVM IR ([#868](https://github.com/paradigmxyz/solar/issues/868))
+- [lsp] Add initial language server support ([#870](https://github.com/paradigmxyz/solar/issues/870))
+- Codegen ([#822](https://github.com/paradigmxyz/solar/issues/822))
+- Add solc-compatible wasm API ([#850](https://github.com/paradigmxyz/solar/issues/850))
+- Allow warnings by code ([#837](https://github.com/paradigmxyz/solar/issues/837))
+- [cli] Support standard json pipeline ([#829](https://github.com/paradigmxyz/solar/issues/829))
+- [cli] Add tracing-samply ([#669](https://github.com/paradigmxyz/solar/issues/669))
+
+### Miscellaneous Tasks
+
+- Dep upgrades ([#852](https://github.com/paradigmxyz/solar/issues/852))
+- Warn instead err on invalid natspec tag ([#600](https://github.com/paradigmxyz/solar/issues/600))
+- [lowering] Allow empty sources ([#572](https://github.com/paradigmxyz/solar/issues/572))
+
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
 
 ### Features

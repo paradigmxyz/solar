@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
+
+### Bug Fixes
+
+- Align import resolution with solc ([#860](https://github.com/paradigmxyz/solar/issues/860))
+- [sema] Check variadic builtins ([#815](https://github.com/paradigmxyz/solar/issues/815))
+- [sema] Model function member kinds ([#786](https://github.com/paradigmxyz/solar/issues/786))
+- [interface] Honor no_warnings in DiagCtxtFlags::update_from_opts ([#744](https://github.com/paradigmxyz/solar/issues/744))
+- Replace unnecessary repetitions of structure name ([#581](https://github.com/paradigmxyz/solar/issues/581))
+- [interface] Strip prefix from import resolution context ([#577](https://github.com/paradigmxyz/solar/issues/577))
+
+### Dependencies
+
+- Bump inturn to 0.2.0 ([#916](https://github.com/paradigmxyz/solar/issues/916))
+
+### Features
+
+-   feat(lsp): load workspace config across lifecycle events ([#881](https://github.com/paradigmxyz/solar/issues/881))
+- [lsp] Add initial language server support ([#870](https://github.com/paradigmxyz/solar/issues/870))
+- Add erc7201 builtin ([#877](https://github.com/paradigmxyz/solar/issues/877))
+- Add solc-compatible wasm API ([#850](https://github.com/paradigmxyz/solar/issues/850))
+- Allow warnings by code ([#837](https://github.com/paradigmxyz/solar/issues/837))
+- [cli] Support standard json pipeline ([#829](https://github.com/paradigmxyz/solar/issues/829))
+- [sema] Lower inline yul to hir ([#769](https://github.com/paradigmxyz/solar/issues/769))
+- Switch default emitter kind to unicode ([#629](https://github.com/paradigmxyz/solar/issues/629))
+
+### Miscellaneous Tasks
+
+- Sync annotate_snippets impl ([#630](https://github.com/paradigmxyz/solar/issues/630))
+- [interface] Expose semver MIN_SOLIDITY_VERSION ([#593](https://github.com/paradigmxyz/solar/issues/593))
+- [interface] Expose minimum supported solidity version ([#573](https://github.com/paradigmxyz/solar/issues/573))
+- Fix -Zdump path parser ([#554](https://github.com/paradigmxyz/solar/issues/554))
+
+### Refactor
+
+- [evm] Clean up assembler ([#858](https://github.com/paradigmxyz/solar/issues/858))
+- Add diagnostic span helper ([#820](https://github.com/paradigmxyz/solar/issues/820))
+- Replace index_vec with oxc_index ([#742](https://github.com/paradigmxyz/solar/issues/742))
+- [interface] Update annotation_snippets emitter ([#602](https://github.com/paradigmxyz/solar/issues/602))
+
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
 
 ### Bug Fixes
