@@ -43,6 +43,7 @@ use crate::{
     pass::AnalysisPass,
 };
 use solar_data_structures::map::FxHashMap;
+use solar_interface::sym;
 use std::fmt;
 
 /// MIR validation query.
@@ -361,7 +362,7 @@ impl Validator {
         // bodied selector functions must contain the synthesized `entry`.
         if module.phase >= crate::mir::MirPhase::Dispatch
             && module.functions.iter().any(|f| f.selector.is_some() && !f.blocks.is_empty())
-            && !module.functions.iter().any(|f| f.name.as_str() == "entry")
+            && !module.functions.iter().any(|f| f.name.name == sym::entry)
         {
             errors.push(ValidationError::new(format!(
                 "module is in the `{}` phase but has no `entry` dispatcher function",

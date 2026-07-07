@@ -24,7 +24,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use solar_interface::Session;
+use solar_interface::{Session, sym};
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
 // 0x80 is used as the static ABI return buffer. Keep the internal-call frame
@@ -763,7 +763,7 @@ impl EvmCodegen {
         let Some((entry_id, _)) = module
             .functions
             .iter_enumerated()
-            .find(|(_, f)| f.selector.is_none() && f.name.as_str() == "entry")
+            .find(|(_, f)| f.selector.is_none() && f.name.name == sym::entry)
         else {
             // Phase says dispatch but there is nothing to route; fall back.
             self.generate_dispatcher(module);

@@ -247,7 +247,8 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ## Notes
 
-- **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to `crates/macros/src/symbols.rs`.
+- **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to the `symbols! { ... }` list in `crates/interface/src/symbol.rs`.
+- **No inline interning of fixed strings**: Never call `Symbol::intern("...")` with a string literal. Add the name to the pre-interned `symbols!` set and use `sym::name`; `Symbol::intern` is only for strings built at runtime.
 - **Arena allocation**: AST nodes use arenas for performance.
 - **Benchmarks**: See @benches/README.md to benchmark when working on performance-critical code.
 - Do not describe Solar in the third person. This repository is the project:

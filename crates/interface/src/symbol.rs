@@ -960,6 +960,9 @@ symbols! {
     Symbols {
         Test,
         X,
+        __load_storage_bytes,
+        __ret_bytes,
+        __revert_error,
         __tmp_struct,
         _anonymous,
         _recursive_internal,
@@ -981,6 +984,7 @@ symbols! {
         encodePacked,
         encodeWithSelector,
         encodeWithSignature,
+        entry,
         erc7201,
         error,
         experimental,

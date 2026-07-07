@@ -24,7 +24,7 @@ use crate::{
     mir::{Function, FunctionBuilder, FunctionId, MirPhase, Module, ValueId},
     pass::ModulePass,
 };
-use solar_interface::{Ident, Symbol};
+use solar_interface::{Ident, sym};
 
 /// Statistics from dispatch lowering.
 #[derive(Clone, Debug, Default)]
@@ -133,7 +133,7 @@ impl LowerDispatchPass {
             routes.iter().map(|&(_, id)| rejects_callvalue(module.function(id))).collect();
         let fallback_rejects = fallback.is_some_and(|id| rejects_callvalue(module.function(id)));
 
-        let mut entry = Function::new(Ident::with_dummy_span(Symbol::intern("entry")));
+        let mut entry = Function::new(Ident::with_dummy_span(sym::entry));
         {
             let mut builder = FunctionBuilder::new(&mut entry);
 

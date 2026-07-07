@@ -25,7 +25,7 @@ use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
 };
-use solar_interface::{Ident, Span, Symbol, diagnostics::DiagMsg, kw, sym};
+use solar_interface::{Ident, Span, diagnostics::DiagMsg, kw, sym};
 use solar_sema::{
     hir::{self, ContractId, ElementaryType, FunctionId as HirFunctionId, VariableId, Visit},
     ty::{Gcx, Ty, TyKind},
@@ -595,7 +595,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(id) = self.revert_error_helper {
             return id;
         }
-        let name = Ident::new(Symbol::intern("__revert_error"), Span::DUMMY);
+        let name = Ident::new(sym::__revert_error, Span::DUMMY);
         let mut func = Function::new(name);
         func.attributes.no_inline = true;
         {
@@ -629,7 +629,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(id) = self.ret_bytes_helper {
             return id;
         }
-        let name = Ident::new(Symbol::intern("__ret_bytes"), Span::DUMMY);
+        let name = Ident::new(sym::__ret_bytes, Span::DUMMY);
         let mut func = Function::new(name);
         func.attributes.no_inline = true;
         {
@@ -652,7 +652,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(id) = self.storage_bytes_helper {
             return id;
         }
-        let name = Ident::new(Symbol::intern("__load_storage_bytes"), Span::DUMMY);
+        let name = Ident::new(sym::__load_storage_bytes, Span::DUMMY);
         let mut func = Function::new(name);
         func.attributes.no_inline = true;
         {
