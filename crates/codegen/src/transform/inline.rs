@@ -880,8 +880,11 @@ impl MirInliner {
     ) -> bool {
         let single_call = self.config.inline_single_call && call_count == 1;
 
+        // `no_inline` prevents cloning a shared helper into every caller; with
+        // a single call site there is nothing to duplicate, and absorbing the
+        // helper removes the call protocol around its only use.
         if caller == site.callee
-            || summary.no_inline
+            || (summary.no_inline && !single_call)
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi

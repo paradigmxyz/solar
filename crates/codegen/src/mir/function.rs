@@ -336,8 +336,9 @@ pub struct FunctionAttributes {
     pub is_fallback: bool,
     /// Whether this is a receive function.
     pub is_receive: bool,
-    /// Never inline this function (synthesized shared helpers whose whole
-    /// point is existing once per module).
+    /// Never clone this function into multiple callers (synthesized shared
+    /// helpers whose whole point is existing once per module). A sole call
+    /// site may still absorb it: with one caller there is nothing to share.
     pub no_inline: bool,
 }
 
