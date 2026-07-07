@@ -66,9 +66,9 @@ only when not the default). The phases, in order:
 - `optimized`: the canonical pass pipeline has run
   (`run_default_pipeline_with_options` is the phase transition; ad-hoc
   `mir-opt` pass lists do not advance the phase).
-- `abi`: each word-sized external function is a self-decoding wrapper — it
-  decodes calldata into typed arguments, calls the original body as an internal
-  function, and encodes the typed results into returndata. Produced by the
+- `abi`: each external function is a self-decoding wrapper — it decodes
+  calldata into typed arguments and calls the original body as an internal
+  function; the body keeps its fused external termination. Produced by the
   `lower-abi` pass.
 - `dispatch`: the selector switch is an ordinary MIR `entry` function routing to
   the ABI wrappers through `tail_call` terminators (control transfers and does
@@ -84,9 +84,10 @@ The `lower-abi`, `lower-dispatch`, and `lower-evm-shaped` passes are progressive
 moving dispatch and ABI handling out of the backend. They run **by default** in
 the codegen pipeline and the backend consumes the `dispatch`-phase module, with
 the MIR `entry` as the runtime prologue and `tail_call` lowered to a jump
-(opt out with `-Zno-mir-dispatch`). A module where `lower-abi` bails — currently
-when an external function returns a dynamic type, or the module has no external
-interface — keeps its phase and is dispatched by the backend. When extending them or adding the next phase, make the transition a
+(opt out with `-Zno-mir-dispatch`). A module where `lower-abi` bails — when any
+external function has returns (the wrappers do not implement returndata
+encoding yet), or there is no external interface — keeps its phase and is
+dispatched by the backend. When extending them or adding the next phase, make the transition a
 named pass that advances the phase via `Module::advance_phase`, keep it
 conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
 and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.

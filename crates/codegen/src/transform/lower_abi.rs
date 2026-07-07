@@ -5,28 +5,29 @@
 //! implicitly in the backend. This pass makes that explicit, moving the ABI
 //! boundary into MIR itself (the ABI phase of the sketch in [`MirPhase`]).
 //!
-//! For each external entry `f(x0: T0, .., xn: Tn) -> (R0, .., Rm)` whose
-//! parameters and returns are all static word-sized scalars, it:
+//! For each external entry `f(x0: T0, .., xn: Tn)` with no MIR returns, it:
 //!
 //! 1. moves the original body into a fresh internal function `f.body`, and
 //! 2. rewrites `f` into a self-decoding wrapper that takes no MIR arguments, keeps its selector,
-//!    decodes each argument from `calldataload(4 + 32*i)`, calls `f.body` with the decoded values,
-//!    writes the returns to memory, and returns them with `RETURN(offset, 32*m)`.
+//!    decodes each argument from `calldataload(4 + 32*i)`, and calls `f.body` with the decoded
+//!    values; the body keeps its fused external termination (`RETURN`/`REVERT`/`STOP`).
 //!
 //! Argument decoding is uniform for every parameter type: the ABI head word at
 //! the parameter's fixed calldata offset is passed through, which is the scalar
 //! itself for static types and the head offset for dynamic ones — exactly the
 //! word the external-form body already expects and further decodes itself.
-//! Return encoding is the wrapper's job, so returns must be static words: a
-//! tuple of static returns is their words concatenated with no head/tail, and a
-//! dynamic return makes the whole pass bail. Internal call sites
-//! that targeted a wrapped function are retargeted to its extracted body, so
-//! internal calls to public functions keep their semantics.
+//! Returns are different: the wrappers do not implement returndata encoding at
+//! all yet, so a function with any MIR returns — word-sized or dynamic — is not
+//! wrapped. Internal call sites that targeted a wrapped function are retargeted
+//! to its extracted body, so internal calls to public functions keep their
+//! semantics.
 //!
-//! The phase transition is all-or-nothing: if any bodied external function has a
-//! dynamic (non-word) parameter or return, the module is left untouched and does
-//! not advance, so an `abi`-phase module always means every external function is
-//! a wrapper.
+//! The phase transition is all-or-nothing: if any bodied external function has
+//! returns, the module is left untouched and does not advance, so an
+//! `abi`-phase module always means every external function is a wrapper. In
+//! practice this means a module with any returning external function (a
+//! `public` state variable's getter included) is dispatched by the backend
+//! today.
 //!
 //! Together with [`super::LowerDispatchPass`], which routes a selector switch
 //! to these argument-free wrappers, this moves dispatch and ABI handling out of
@@ -46,8 +47,9 @@ use solar_interface::{Ident, Symbol};
 pub struct LowerAbiStats {
     /// Number of external functions wrapped.
     pub wrapped: usize,
-    /// Number of external functions with a non-word return type. Any non-zero
-    /// count makes the whole pass bail: the phase transition is all-or-nothing.
+    /// Number of external functions with returns, which the wrappers cannot
+    /// encode yet. Any non-zero count makes the whole pass bail: the phase
+    /// transition is all-or-nothing.
     pub skipped_dynamic: usize,
     /// Number of internal call sites retargeted from a wrapped function to its
     /// extracted body.

@@ -40,8 +40,8 @@ pub enum MirPhase {
     /// The canonical optimization pipeline has run.
     Optimized,
     /// Every external function has been rewritten into a self-decoding wrapper:
-    /// it decodes calldata into typed arguments, calls the original body as an
-    /// internal function, and encodes the typed results back into returndata.
+    /// it decodes calldata into typed arguments and calls the original body as
+    /// an internal function; the body keeps its fused external termination.
     /// The wrapper keeps its selector but takes no MIR arguments.
     Abi,
     /// The selector switch has been materialized as an ordinary MIR `entry`
