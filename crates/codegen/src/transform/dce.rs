@@ -174,7 +174,7 @@ impl DeadCodeEliminator {
 
             // Collect from terminators
             if let Some(ref term) = block.terminator {
-                for val_id in self.get_terminator_operands(term) {
+                for val_id in term.operands() {
                     if let Value::Arg { index, .. } = &func.values[val_id] {
                         used_args.insert(*index);
                     }
@@ -186,27 +186,6 @@ impl DeadCodeEliminator {
         (0..func.params.len() as u32).filter(|idx| !used_args.contains(idx)).collect()
     }
 
-    /// Gets operands from a terminator.
-    fn get_terminator_operands(&self, term: &Terminator) -> Vec<ValueId> {
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => vec![],
-            Terminator::Branch { condition, .. } => vec![*condition],
-            Terminator::Switch { value, cases, .. } => {
-                let mut ops = vec![*value];
-                for (case_val, _) in cases {
-                    ops.push(*case_val);
-                }
-                ops
-            }
-            Terminator::Return { values } => values.to_vec(),
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                vec![*offset, *size]
-            }
-            Terminator::SelfDestruct { recipient } => vec![*recipient],
-            Terminator::TailCall { args, .. } => args.to_vec(),
-        }
-    }
-
     /// Collects all values that are used (appear in instructions or terminators).
     fn collect_used_values(&self, func: &Function) -> FxHashSet<ValueId> {
         let mut used = FxHashSet::default();
@@ -214,7 +193,7 @@ impl DeadCodeEliminator {
         // Add values used in terminators
         for (_, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {
-                self.collect_terminator_uses(term, &mut used);
+                used.extend(term.operands());
             }
         }
 
@@ -229,39 +208,6 @@ impl DeadCodeEliminator {
         }
 
         used
-    }
-
-    /// Collects values used by a terminator.
-    fn collect_terminator_uses(&self, term: &Terminator, used: &mut FxHashSet<ValueId>) {
-        match term {
-            Terminator::Jump(_) | Terminator::Stop | Terminator::Invalid => {}
-            Terminator::Branch { condition, .. } => {
-                used.insert(*condition);
-            }
-            Terminator::Switch { value, cases, .. } => {
-                used.insert(*value);
-                for (case_val, _) in cases {
-                    used.insert(*case_val);
-                }
-            }
-            Terminator::Return { values } => {
-                for val in values {
-                    used.insert(*val);
-                }
-            }
-            Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-                used.insert(*offset);
-                used.insert(*size);
-            }
-            Terminator::SelfDestruct { recipient } => {
-                used.insert(*recipient);
-            }
-            Terminator::TailCall { args, .. } => {
-                for arg in args {
-                    used.insert(*arg);
-                }
-            }
-        }
     }
 
     /// Finds instructions that are dead (unused result, no side effects).
