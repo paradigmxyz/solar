@@ -4,7 +4,7 @@ members = ["cargo:."]
 # Config for 'dist'
 [dist]
 # The preferred dist version to use in CI (Cargo.toml SemVer syntax)
-cargo-dist-version = "0.30.0"
+cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
@@ -35,9 +35,3 @@ install-updater = false
 install-path = ["$XDG_BIN_HOME/", "$XDG_DATA_HOME/../bin", "~/.local/bin"]
 # The preferred Rust toolchain to use in CI (rustup toolchain syntax)
 rust-toolchain-version = "stable"
-
-[dist.dependencies.apt]
-gcc-aarch64-linux-gnu = { version = '*', targets = [
-    "aarch64-unknown-linux-gnu",
-    "aarch64-unknown-linux-musl",
-] }
