@@ -10,12 +10,12 @@ impl<'gcx> Gcx<'gcx> {
         self,
         name: &str,
         tys: impl IntoIterator<Item = Ty<'gcx>>,
-        structs_by_name: bool,
+        in_library: bool,
     ) -> String {
         let mut s = String::with_capacity(64);
         s.push_str(name);
         TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Signature)
-            .with_structs_by_name(structs_by_name)
+            .with_in_library(in_library)
             .print_tuple(tys)
             .unwrap();
         s
@@ -152,14 +152,12 @@ pub struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     mode: TyAbiPrinterMode,
-    /// Print structs and enums by their canonical name instead of as a
-    /// flattened tuple / `uint8`, and print reference types with a `storage`
-    /// data-location suffix.
+    /// Print types in the library function signature form used by solc.
     ///
-    /// This matches the way solc encodes the signatures of `library` functions,
-    /// which — unlike contract functions — may take `mapping`/`storage` reference
-    /// parameters and refer to structs by name (e.g. `f(DataTypes.Reserve storage)`).
-    structs_by_name: bool,
+    /// Unlike contract functions, library functions may take `mapping`/`storage`
+    /// reference parameters and refer to structs, enums, and contracts by name
+    /// (e.g. `f(DataTypes.Reserve storage)`).
+    in_library: bool,
 }
 
 /// [`TyAbiPrinter`] configuration.
@@ -180,14 +178,12 @@ pub enum TyAbiPrinterMode {
 impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     /// Creates a new ABI printer.
     pub fn new(gcx: Gcx<'gcx>, buf: W, mode: TyAbiPrinterMode) -> Self {
-        Self { gcx, buf, mode, structs_by_name: false }
+        Self { gcx, buf, mode, in_library: false }
     }
 
-    /// Sets whether structs are printed by canonical name (and reference types
-    /// carry a `storage` location suffix), as done for `library` function
-    /// signatures. See `Self::structs_by_name`.
-    pub fn with_structs_by_name(mut self, yes: bool) -> Self {
-        self.structs_by_name = yes;
+    /// Sets whether types are printed as a `library` function signature.
+    pub fn with_in_library(mut self, yes: bool) -> Self {
+        self.in_library = yes;
         self
     }
 
@@ -205,10 +201,13 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     pub fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         match ty.kind {
             TyKind::Elementary(ty) => ty.write_abi_str(&mut self.buf),
+            TyKind::Contract(id) if self.mode == TyAbiPrinterMode::Signature && self.in_library => {
+                write!(self.buf, "{}", self.gcx.item_canonical_name(id))
+            }
             TyKind::Contract(_) => self.buf.write_str("address"),
             TyKind::Fn(_) => self.buf.write_str("function"),
             TyKind::Struct(id) => match self.mode {
-                TyAbiPrinterMode::Signature if self.structs_by_name => {
+                TyAbiPrinterMode::Signature if self.in_library => {
                     write!(self.buf, "{}", self.gcx.item_canonical_name(id))
                 }
                 TyAbiPrinterMode::Signature => {
@@ -225,7 +224,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 TyAbiPrinterMode::Abi => self.buf.write_str("tuple"),
             },
             TyKind::Enum(id) => match self.mode {
-                TyAbiPrinterMode::Signature if self.structs_by_name => {
+                TyAbiPrinterMode::Signature if self.in_library => {
                     write!(self.buf, "{}", self.gcx.item_canonical_name(id))
                 }
                 _ => self.buf.write_str("uint8"),
@@ -236,7 +235,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 // solc encodes the `storage` location in `library` function
                 // signatures (e.g. `f(uint256[] storage)`), but never `memory`
                 // or `calldata`.
-                if self.structs_by_name && loc == DataLocation::Storage {
+                if self.in_library && loc == DataLocation::Storage {
                     self.buf.write_str(" storage")?;
                 }
                 Ok(())

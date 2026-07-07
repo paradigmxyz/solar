@@ -2,12 +2,13 @@
 //@filecheck: --implicit-check-not=get(
 
 // A `library` (unlike a contract) may expose `public`/`external` functions
-// that take `storage` reference parameters and refer to structs and enums by
-// canonical name. solc encodes their signatures — and hence 4-byte
-// selectors — with the type's canonical name and a trailing `storage`
+// that take `storage` reference parameters and refer to structs, enums, and
+// contract types by canonical name. solc encodes their signatures — and hence
+// 4-byte selectors — with the type's canonical name and a trailing `storage`
 // location suffix on storage reference parameters (`memory`/`calldata`
 // parameters carry no suffix): `total(S storage)`, not a flattened
 // `total((uint256,uint256))`, and `libEnum(L.Kind)`, not `libEnum(uint8)`.
+// UDVTs are still encoded as their underlying type.
 //
 // Contract function signatures are unaffected: structs still flatten into
 // ABI tuples, enums encode as `uint8`, and there is no location suffix.
@@ -24,6 +25,8 @@ enum Color {
     Green
 }
 
+type Amount is uint128;
+
 contract D {
     struct U {
         uint128 x;
@@ -33,9 +36,28 @@ contract D {
         A,
         B
     }
-}
 
-// CHECK: :D":{"hashes":{}}
+    // CHECK: "contractEnum(uint8)":"1c7536dd"
+    function contractEnum(Color c) external pure returns (uint8) {
+        return uint8(c);
+    }
+
+    // Normal contract signatures still use `address` for contract types.
+    // CHECK: "contractParam(address)":"c7849d6e"
+    function contractParam(D d) external pure returns (address) {
+        return address(d);
+    }
+
+    // CHECK: "contractStruct((uint256,uint256))":"dbf2d21f"
+    function contractStruct(S memory s) external pure returns (uint256) {
+        return s.a;
+    }
+
+    // CHECK: "contractStructMemoryArray((uint256,uint256)[])":"45f21878"
+    function contractStructMemoryArray(S[] memory s) external pure returns (uint256) {
+        return s.length;
+    }
+}
 
 library L {
     struct T {
@@ -58,6 +80,12 @@ library L {
         return m[k].a;
     }
 
+    // A contract type is printed by canonical name in library signatures.
+    // CHECK: "contractParam(D)":"052dc53f"
+    function contractParam(D d) external pure returns (address) {
+        return address(d);
+    }
+
     // File-level enum by bare canonical name.
     // CHECK: "fileEnum(Color)":"83ef0b32"
     function fileEnum(Color c) external pure returns (uint8) {
@@ -68,6 +96,20 @@ library L {
     // CHECK: "fileStruct(S)":"bb1da689"
     function fileStruct(S memory s) external pure returns (uint256) {
         return s.a;
+    }
+
+    // A `storage` array carries the suffix on the array, with struct elements
+    // still printed by name.
+    // CHECK: "fileStructArray(S[] storage)":"0d156ee7"
+    function fileStructArray(S[] storage s) external view returns (uint256) {
+        return s.length;
+    }
+
+    // A `memory` array has no location suffix, but still prints struct
+    // elements by name.
+    // CHECK: "fileStructMemoryArray(S[])":"84842d52"
+    function fileStructMemoryArray(S[] memory s) external pure returns (uint256) {
+        return s.length;
     }
 
     // Struct defined inside the library itself.
@@ -98,5 +140,17 @@ library L {
     // CHECK: "total(S storage)":"33ad6f28"
     function total(S storage s) external view returns (uint256) {
         return s.a + s.b;
+    }
+
+    // UDVTs are encoded as their underlying type, even in libraries.
+    // CHECK: "udvt(uint128)":"88ccebaf"
+    function udvt(Amount a) external pure returns (uint128) {
+        return Amount.unwrap(a);
+    }
+
+    // Arrays of UDVTs keep using the underlying element type.
+    // CHECK: "udvtArray(uint128[])":"28add3d4"
+    function udvtArray(Amount[] memory a) external pure returns (uint256) {
+        return a.length;
     }
 }

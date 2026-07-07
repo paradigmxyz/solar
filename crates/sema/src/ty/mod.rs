@@ -1308,11 +1308,9 @@ pub(crate) fn natspec_contract_in_source(
 pub fn item_signature(gcx: _, id: hir::ItemId) -> &'gcx str {
     let name = gcx.item_name(id);
     let tys = gcx.item_parameter_types(id);
-    // Library functions may take `mapping`/`storage` reference parameters and
-    // refer to structs by name; solc encodes their signatures accordingly.
-    let structs_by_name =
+    let in_library =
         gcx.hir.item(id).contract().is_some_and(|c| gcx.hir.contract(c).kind.is_library());
-    gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied(), structs_by_name))
+    gcx.bump().alloc_str(&gcx.mk_abi_signature(name.as_str(), tys.iter().copied(), in_library))
 }
 
 pub(crate) fn item_selector(gcx: _, id: hir::ItemId) -> B256 {
