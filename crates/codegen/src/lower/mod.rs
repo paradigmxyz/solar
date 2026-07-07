@@ -592,32 +592,30 @@ impl<'gcx> Lowerer<'gcx> {
     /// ABI-encode boilerplate (~60-90 bytes) at every `require`/`revert` site
     /// with a constant short message.
     pub(super) fn ensure_revert_error_helper(&mut self) -> FunctionId {
-        if let Some(id) = self.revert_error_helper {
-            return id;
-        }
-        let name = Ident::new(sym::__revert_error, Span::DUMMY);
-        let mut func = Function::new(name);
-        func.attributes.no_inline = true;
-        {
-            let mut builder = FunctionBuilder::new(&mut func);
-            let len = builder.add_param(MirType::UInt(256));
-            let data = builder.add_param(MirType::UInt(256));
-            let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
-            let zero = builder.imm_u64(0);
-            builder.mstore(zero, selector);
-            let selector_size = builder.imm_u64(4);
-            let head_offset = builder.imm_u64(32);
-            builder.mstore(selector_size, head_offset);
-            let len_offset = builder.imm_u64(36);
-            builder.mstore(len_offset, len);
-            let data_offset = builder.imm_u64(68);
-            builder.mstore(data_offset, data);
-            let size = builder.imm_u64(100);
-            builder.revert(zero, size);
-        }
-        let id = self.module.add_function(func);
-        self.revert_error_helper = Some(id);
-        id
+        let Self { revert_error_helper, module, .. } = self;
+        *revert_error_helper.get_or_insert_with(|| {
+            let name = Ident::new(sym::__revert_error, Span::DUMMY);
+            let mut func = Function::new(name);
+            func.attributes.no_inline = true;
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let len = builder.add_param(MirType::UInt(256));
+                let data = builder.add_param(MirType::UInt(256));
+                let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
+                let zero = builder.imm_u64(0);
+                builder.mstore(zero, selector);
+                let selector_size = builder.imm_u64(4);
+                let head_offset = builder.imm_u64(32);
+                builder.mstore(selector_size, head_offset);
+                let len_offset = builder.imm_u64(36);
+                builder.mstore(len_offset, len);
+                let data_offset = builder.imm_u64(68);
+                builder.mstore(data_offset, data);
+                let size = builder.imm_u64(100);
+                builder.revert(zero, size);
+            }
+            module.add_function(func)
+        })
     }
 
     /// Returns the module's shared single-`bytes`/`string` external-return
@@ -626,6 +624,8 @@ impl<'gcx> Lowerer<'gcx> {
     /// `ReturnData`, so wrappers pay one cheap call instead of an inline
     /// encode each. Never inlined back: it has no MIR return values.
     pub(super) fn ensure_ret_bytes_helper(&mut self, ty: Ty<'gcx>) -> FunctionId {
+        // Not `get_or_insert_with`: synthesis re-enters `self` lowering
+        // methods, which the closure borrow would forbid.
         if let Some(id) = self.ret_bytes_helper {
             return id;
         }
