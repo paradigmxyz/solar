@@ -268,7 +268,6 @@ PARAMETER ctorValue:
 PARAMETER requiredValue:
 PARAMETER left:
 PARAMETER right:
-TYPE : struct Pair { uint256 left; uint256 right; }
 PARAMETER id:
 PARAMETER account:
 PARAMETER code:

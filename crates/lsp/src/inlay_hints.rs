@@ -219,9 +219,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
 
     /// Adds a result-type hint after a call when the call has a useful inferred type.
     fn push_call_type_hint(&mut self, expr: &'gcx hir::Expr<'gcx>, callee_ty: Option<Ty<'gcx>>) {
-        if callee_ty.is_some_and(
-            |ty| matches!(ty.kind, TyKind::Type(to) if !matches!(to.kind, TyKind::Struct(_))),
-        ) {
+        if callee_ty.is_some_and(|ty| matches!(ty.kind, TyKind::Type(_))) {
             return;
         }
         let Some(ty) = self.gcx.type_of_expr(expr.id) else {
@@ -248,41 +246,7 @@ impl<'gcx> InlayHintCollector<'gcx> {
                 .join(", ");
             return format!(": ({tys})");
         }
-        if let Some(label) = self.struct_type_label(ty) {
-            return format!(": {label}");
-        }
         format!(": {}", ty.display(self.gcx))
-    }
-
-    fn struct_type_label(&self, ty: Ty<'gcx>) -> Option<String> {
-        let TyKind::Struct(id) = ty.peel_refs().kind else {
-            return None;
-        };
-        let strukt = self.gcx.hir.strukt(id);
-        let fields = strukt
-            .fields
-            .iter()
-            .map(|&field| self.struct_field_label(field))
-            .collect::<Vec<_>>()
-            .join("; ");
-        Some(format!("struct {} {{ {fields}; }}", strukt.name))
-    }
-
-    fn struct_field_label(&self, field_id: hir::VariableId) -> String {
-        let field = self.gcx.hir.variable(field_id);
-        let ty = self
-            .gcx
-            .sess
-            .source_map()
-            .span_to_snippet(field.ty.span)
-            .map(|snippet| snippet.split_whitespace().collect::<Vec<_>>().join(" "))
-            .unwrap_or_else(|_| {
-                self.gcx.type_of_item(field_id.into()).display(self.gcx).to_string()
-            });
-        match field.name {
-            Some(name) => format!("{ty} {name}"),
-            None => ty,
-        }
     }
 
     /// Finds the callable declaration that supplies parameter names for a call expression.
