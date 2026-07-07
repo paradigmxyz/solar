@@ -8,8 +8,8 @@ fn @keep_conflicting_diamond(arg0: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v3 = phi [bb0: 1], [bb2: 2]
-    ret v3
+    v0 = phi [bb0: 1], [bb2: 2]
+    ret v0
 }
 
 fn @fold_equal_value_diamond(arg0: bool) -> u256 {
@@ -20,6 +20,6 @@ fn @fold_equal_value_diamond(arg0: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v3 = phi [bb0: 7], [bb2: 7]
-    ret v3
+    v0 = phi [bb0: 7], [bb2: 7]
+    ret v0
 }

@@ -2,7 +2,7 @@
 ; module @SccpNoFold
 fn @with_arg(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, 1
-    v4 = mul v2, 2
-    ret v4
+    v0 = add arg0, 1
+    v1 = mul v0, 2
+    ret v1
 }

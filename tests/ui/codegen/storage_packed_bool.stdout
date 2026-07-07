@@ -3,75 +3,75 @@
 fn @a() {
   bb0 (entry):
     mstore 128, 0
-    v3 = sload 0 !metadata(storage=slot(0))
-    v5 = and v3, 255
-    mstore 128, v5
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 255
+    mstore 128, v1
     returndata 128, 32
 }
 
 fn @b() {
   bb0 (entry):
     mstore 128, 0
-    v3 = sload 0 !metadata(storage=slot(0))
-    v5 = shr 8, v3
-    v7 = and v5, 255
-    mstore 128, v7
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = shr 8, v0
+    v2 = and v1, 255
+    mstore 128, v2
     returndata 128, 32
 }
 
 fn @set(arg0: bool, arg1: bool) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v9 = iszero v8
-    v10 = iszero v9
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = iszero v3
+    v5 = iszero v4
+    v6 = eq v3, v5
+    br v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v16 = iszero v15
-    v17 = iszero v16
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v7 = calldataload 36
+    v8 = iszero v7
+    v9 = iszero v8
+    v10 = eq v7, v9
+    br v10, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
-    v23 = sload 0 !metadata(storage=slot(0))
-    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    v25 = and arg0, 255
-    v26 = or v24, v25
-    sstore 0, v26 !metadata(storage=slot(0))
-    v30 = sload 0 !metadata(storage=slot(0))
-    v31 = and v30, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
-    v32 = and arg1, 255
-    v34 = shl 8, v32
-    v35 = or v31, v34
-    sstore 0, v35 !metadata(storage=slot(0))
+    v11 = sload 0 !metadata(storage=slot(0))
+    v12 = and v11, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    v13 = and arg0, 255
+    v14 = or v12, v13
+    sstore 0, v14 !metadata(storage=slot(0))
+    v15 = sload 0 !metadata(storage=slot(0))
+    v16 = and v15, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff
+    v17 = and arg1, 255
+    v18 = shl 8, v17
+    v19 = or v16, v18
+    sstore 0, v19 !metadata(storage=slot(0))
     stop
 }
 
 fn @both() {
   bb0 (entry):
     mstore 128, 0
-    v3 = sload 0 !metadata(storage=slot(0))
-    v5 = and v3, 255
-    br v5, bb1, bb2
+    v0 = sload 0 !metadata(storage=slot(0))
+    v1 = and v0, 255
+    br v1, bb1, bb2
   bb1:
-    v7 = sload 0 !metadata(storage=slot(0))
-    v9 = shr 8, v7
-    v11 = and v9, 255
+    v2 = sload 0 !metadata(storage=slot(0))
+    v3 = shr 8, v2
+    v4 = and v3, 255
     jump bb2
   bb2:
-    v13 = phi [bb0: 0], [bb1: v11]
-    mstore 128, v13
+    v5 = phi [bb0: 0], [bb1: v4]
+    mstore 128, v5
     returndata 128, 32
 }
 

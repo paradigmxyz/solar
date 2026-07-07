@@ -3,8 +3,8 @@
 fn @value() {
   bb0 (entry):
     mstore 128, 0
-    v3 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v3
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v0
     returndata 128, 32
 }
 
@@ -25,8 +25,8 @@ fn @_anonymous(arg0: u256) {
 fn @value() {
   bb0 (entry):
     mstore 128, 0
-    v3 = sload 0 !metadata(storage=slot(0))
-    mstore 128, v3
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v0
     returndata 128, 32
 }
 

@@ -56,16 +56,18 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
             let inst = &func.instructions[inst_id];
 
             write!(f, "  ")?;
-            if inst.result_ty.is_some()
-                && let Some(vid) = inst_def_value(func, inst_id)
-            {
-                write!(f, "v{} = ", vid.index())?;
+            if inst.result_ty.is_some() {
+                write!(f, "v{} = ", inst_result_index(func, inst_id).expect("result inst"))?;
             }
             write!(f, "{}\\l", display_inst_kind(&inst.kind, func))
         })
     }
 
-    fn display_dot_edges(block_id: BlockId, block: &BasicBlock) -> impl fmt::Display + '_ {
+    fn display_dot_edges<'a>(
+        func: &'a Function,
+        block_id: BlockId,
+        block: &'a BasicBlock,
+    ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let block_idx = block_id.index();
             let Some(term) = &block.terminator else { return Ok(()) };
@@ -77,10 +79,10 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
                 Terminator::Branch { condition, then_block, else_block } => {
                     writeln!(
                         f,
-                        "    bb{} -> bb{} [label=\"v{} == true\", color=\"green\"];",
+                        "    bb{} -> bb{} [label=\"{} == true\", color=\"green\"];",
                         block_idx,
                         then_block.index(),
-                        condition.index()
+                        display_val(*condition, func)
                     )?;
                     writeln!(
                         f,
@@ -102,10 +104,10 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
                         cases.iter().format_with("", |f, (case_val, target)| {
                             writeln!(
                                 f,
-                                "    bb{} -> bb{} [label=\"v{}\"];",
+                                "    bb{} -> bb{} [label=\"{}\"];",
                                 block_idx,
                                 target.index(),
-                                case_val.index()
+                                display_val(*case_val, func)
                             )
                         })
                     )
@@ -141,11 +143,9 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
         write!(
             f,
             "{}",
-            func.blocks.iter_enumerated().format_with("", |f, (block_id, block)| write!(
-                f,
-                "{}",
-                display_dot_edges(block_id, block)
-            ))
+            func.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
+                write!(f, "{}", display_dot_edges(func, block_id, block))
+            })
         )?;
 
         writeln!(f, "}}")
@@ -158,10 +158,10 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
 /// ```text
 /// fn @name(arg0: uint256, arg1: bool) -> uint256 {
 ///   bb0:
-///     v2 = add arg0, 1
+///     v0 = add arg0, 1
 ///     br arg1, bb1, bb2
 ///   bb1:
-///     ret v2
+///     ret v0
 ///   bb2:
 ///     ret arg0
 /// }
@@ -198,10 +198,8 @@ pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
             let inst = &func.instructions[inst_id];
 
             write!(f, "    ")?;
-            if inst.result_ty.is_some()
-                && let Some(vid) = inst_def_value(func, inst_id)
-            {
-                write!(f, "v{} = ", vid.index())?;
+            if inst.result_ty.is_some() {
+                write!(f, "v{} = ", inst_result_index(func, inst_id).expect("result inst"))?;
             }
             writeln!(f, "{}{}", display_inst_kind(&inst.kind, func), display_metadata(inst, func))
         })
@@ -241,15 +239,15 @@ pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
     })
 }
 
-fn inst_def_value(func: &Function, inst_id: InstId) -> Option<ValueId> {
-    func.values
-        .iter_enumerated()
-        .find(|(_, v)| matches!(v, Value::Inst(id) if *id == inst_id))
-        .map(|(vid, _)| vid)
-}
-
 fn function_prints_return_values(func: &Function) -> bool {
     func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
+}
+
+fn inst_result_index(func: &Function, inst_id: InstId) -> Option<usize> {
+    func.instructions
+        .iter_enumerated()
+        .filter(|(_, inst)| inst.result_ty.is_some())
+        .position(|(id, _)| id == inst_id)
 }
 
 /// Formats an instruction kind for display.
@@ -305,6 +303,10 @@ fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
             write!(f, "{}", display_u256(u256))
         }
         Value::Arg { index, .. } => write!(f, "arg{index}"),
+        Value::Inst(inst_id) => match inst_result_index(func, *inst_id) {
+            Some(index) => write!(f, "v{index}"),
+            None => write!(f, "v{}", vid.index()),
+        },
         Value::Error(_) => write!(f, "err"),
         _ => write!(f, "v{}", vid.index()),
     })
@@ -476,8 +478,8 @@ mod tests {
                 str![[r#"
 fn @display_test(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, 1
-    ret v2
+    v0 = add arg0, 1
+    ret v0
 }
 
 "#]]
@@ -490,7 +492,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  v2 = add arg0, 1\l  ret v2\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0 (entry):\l  v0 = add arg0, 1\l  ret v0\l", fillcolor="#e0ffe0", style=filled];
 
 }
 
@@ -543,7 +545,7 @@ digraph "display_test" {
     bb1 [label="bb1:\l  ret arg0\l"];
     bb2 [label="bb2:\l  ret arg0\l"];
 
-    bb0 -> bb1 [label="v1 == true", color="green"];
+    bb0 -> bb1 [label="arg1 == true", color="green"];
     bb0 -> bb2 [label="false", color="red"];
 }
 
@@ -572,8 +574,8 @@ digraph "display_test" {
 fn @display_test(arg0: u256, arg1: u256) {
   bb0 (entry):
     sstore arg0, arg1 !metadata(storage=symbolic(arg0))
-    v2 = sload arg0 !metadata(storage=symbolic(arg0))
-    ret v2
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
+    ret v0
 }
 
 "#]]
@@ -586,7 +588,7 @@ digraph "display_test" {
     node [shape=box, fontname="Courier", fontsize=10];
     edge [fontname="Courier", fontsize=9];
 
-    bb0 [label="bb0 (entry):\l  sstore arg0, arg1\l  v2 = sload arg0\l  ret v2\l", fillcolor="#e0ffe0", style=filled];
+    bb0 [label="bb0 (entry):\l  sstore arg0, arg1\l  v0 = sload arg0\l  ret v0\l", fillcolor="#e0ffe0", style=filled];
 
 }
 

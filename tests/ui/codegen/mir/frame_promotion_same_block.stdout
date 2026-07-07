@@ -2,6 +2,6 @@
 ; module @FramePromotionSameBlock
 fn @same_block() -> u256 {
   bb0 (entry):
-    v5 = add 7, 1
-    ret v5
+    v3 = add 7, 1
+    ret v3
 }

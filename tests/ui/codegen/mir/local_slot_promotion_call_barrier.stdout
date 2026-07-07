@@ -2,28 +2,28 @@
 ; module @LocalSlotPromotionCallBarrier
 fn @promote_across_unrelated_staticcall(arg0: address) -> u256 {
   bb0 (entry):
-    v8 = staticcall 0x186a0, arg0, 0, 0, 0, 0
-    v11 = add 9, v8
-    ret v11
+    v1 = staticcall 0x186a0, arg0, 0, 0, 0, 0
+    v4 = add 9, v1
+    ret v4
 }
 
 fn @keep_msize_observation() -> u256 {
   bb0 (entry):
     v0 = internal_frame_addr 128
     mstore v0, 9
-    v2 = msize
-    v3 = internal_frame_addr 128
-    v4 = mload v3
-    v5 = add v4, v2
-    ret v5
+    v1 = msize
+    v2 = internal_frame_addr 128
+    v3 = mload v2
+    v4 = add v3, v1
+    ret v4
 }
 
 fn @promote_slot_with_unrelated_frame_hash() -> u256 {
   bb0 (entry):
+    v1 = internal_frame_addr 192
+    mstore v1, 1
     v2 = internal_frame_addr 192
-    mstore v2, 1
-    v4 = internal_frame_addr 192
-    v6 = keccak256 v4, 32
-    v9 = add 9, v6
-    ret v9
+    v3 = keccak256 v2, 32
+    v6 = add 9, v3
+    ret v6
 }

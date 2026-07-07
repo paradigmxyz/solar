@@ -3,9 +3,9 @@
 fn @count_down(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -13,18 +13,18 @@ fn @count_down(arg0: u256) {
     mstore 160, arg0
     jump bb3
   bb3:
-    v11 = mload 160
-    v13 = gt v11, 0
-    br v13, bb5, bb7
+    v3 = mload 160
+    v4 = gt v3, 0
+    br v4, bb5, bb7
   bb4:
-    v26 = mload 160
-    mstore 128, v26
+    v8 = mload 160
+    mstore 128, v8
     returndata 128, 32
   bb5:
-    v15 = mload 160
-    v17 = sub v15, 1
-    v18 = lt v15, 1
-    br v18, bb8, bb9
+    v5 = mload 160
+    v6 = sub v5, 1
+    v7 = lt v5, 1
+    br v7, bb8, bb9
   bb6:
     jump bb3
   bb7:
@@ -34,16 +34,16 @@ fn @count_down(arg0: u256) {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb9:
-    mstore 160, v17
+    mstore 160, v6
     jump bb6
 }
 
 fn @do_at_least_once(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -51,23 +51,23 @@ fn @do_at_least_once(arg0: u256) {
     mstore 160, 0
     jump bb3
   bb3:
-    v12 = mload 160
-    v14 = add v12, 1
-    v15 = lt v14, v12
-    br v15, bb5, bb6
+    v3 = mload 160
+    v4 = add v3, 1
+    v5 = lt v4, v3
+    br v5, bb5, bb6
   bb4:
-    v26 = mload 160
-    mstore 128, v26
+    v8 = mload 160
+    mstore 128, v8
     returndata 128, 32
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 160, v14
-    v23 = mload 160
-    v24 = lt v23, arg0
-    br v24, bb7, bb9
+    mstore 160, v4
+    v6 = mload 160
+    v7 = lt v6, arg0
+    br v7, bb7, bb9
   bb7:
     jump bb3
   bb8:
@@ -79,9 +79,9 @@ fn @do_at_least_once(arg0: u256) {
 fn @break_when_found(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -89,17 +89,17 @@ fn @break_when_found(arg0: u256, arg1: u256) {
     mstore 160, 0
     jump bb3
   bb3:
-    v13 = mload 160
-    v14 = lt v13, arg0
-    br v14, bb5, bb7
+    v3 = mload 160
+    v4 = lt v3, arg0
+    br v4, bb5, bb7
   bb4:
-    v30 = mload 160
-    mstore 128, v30
+    v10 = mload 160
+    mstore 128, v10
     returndata 128, 32
   bb5:
-    v16 = mload 160
-    v17 = eq v16, arg1
-    br v17, bb8, bb9
+    v5 = mload 160
+    v6 = eq v5, arg1
+    br v6, bb8, bb9
   bb6:
     jump bb3
   bb7:
@@ -107,16 +107,16 @@ fn @break_when_found(arg0: u256, arg1: u256) {
   bb8:
     jump bb4
   bb9:
-    v19 = mload 160
-    v21 = add v19, 1
-    v22 = lt v21, v19
-    br v22, bb10, bb11
+    v7 = mload 160
+    v8 = add v7, 1
+    v9 = lt v8, v7
+    br v9, bb10, bb11
   bb10:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb11:
-    mstore 160, v21
+    mstore 160, v8
     jump bb6
 }
 

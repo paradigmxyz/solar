@@ -3,16 +3,16 @@
 fn @vUint8(arg0: u8) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 255
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 255
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -24,16 +24,16 @@ fn @vUint8(arg0: u8) {
 fn @vInt16(arg0: i16) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = signextend 1, v8
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = signextend 1, v3
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -45,17 +45,17 @@ fn @vInt16(arg0: i16) {
 fn @vBool(arg0: bool) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v9 = iszero v8
-    v10 = iszero v9
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = iszero v3
+    v5 = iszero v4
+    v6 = eq v3, v5
+    br v6, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -67,16 +67,16 @@ fn @vBool(arg0: bool) {
 fn @vAddress(arg0: address) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -88,16 +88,16 @@ fn @vAddress(arg0: address) {
 fn @vBytes4(arg0: bytes4) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -109,15 +109,15 @@ fn @vBytes4(arg0: bytes4) {
 fn @vEnum(arg0: u8) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = lt v8, 3
-    br v10, bb4, bb3
+    v3 = calldataload 4
+    v4 = lt v3, 3
+    br v4, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
@@ -129,70 +129,70 @@ fn @vEnum(arg0: u8) {
 fn @vMulti(arg0: u32, arg1: i8) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = signextend 0, v15
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = signextend 0, v6
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
-    v23 = and arg0, 0xffffffff
-    v25 = shl 248, arg1
-    v26 = sar 248, v25
-    v28 = and v26, 255
-    v29 = add v23, v28
-    v30 = lt v29, v23
-    br v30, bb7, bb8
+    v9 = and arg0, 0xffffffff
+    v10 = shl 248, arg1
+    v11 = sar 248, v10
+    v12 = and v11, 255
+    v13 = add v9, v12
+    v14 = lt v13, v9
+    br v14, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v29
+    mstore 128, v13
     returndata 128, 32
 }
 
 fn @vFull(arg0: u256, arg1: bytes32, arg2: i256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 96
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = add arg0, arg1
-    v12 = lt v11, arg0
-    br v12, bb3, bb4
+    v3 = add arg0, arg1
+    v4 = lt v3, arg0
+    br v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v18 = add v11, arg2
-    v19 = lt v18, v11
-    br v19, bb5, bb6
+    v5 = add v3, arg2
+    v6 = lt v5, v3
+    br v6, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    mstore 128, v18
+    mstore 128, v5
     returndata 128, 32
 }
 

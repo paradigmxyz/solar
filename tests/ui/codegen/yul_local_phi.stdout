@@ -3,25 +3,25 @@
 fn @branchLocal(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     mstore 160, 1
-    v12 = eq arg0, 0
-    v13 = iszero v12
-    br v13, bb3, bb4
+    v3 = eq arg0, 0
+    v4 = iszero v3
+    br v4, bb3, bb4
   bb3:
     mstore 160, 2
     jump bb4
   bb4:
-    v17 = mload 160
-    mstore 128, v17
-    v20 = mload 128
-    mstore 128, v20
+    v5 = mload 160
+    mstore 128, v5
+    v6 = mload 128
+    mstore 128, v6
     returndata 128, 32
 }
 

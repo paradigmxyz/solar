@@ -8,9 +8,9 @@ fn @keep_phi_only_block(arg0: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v3 = phi [bb1: 1], [bb2: 2]
+    v0 = phi [bb1: 1], [bb2: 2]
     jump bb4
   bb4:
-    v5 = add v3, 1
-    ret v5
+    v1 = add v0, 1
+    ret v1
 }

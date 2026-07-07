@@ -3,262 +3,262 @@
 fn @fact(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = gt arg0, 1
-    v11 = iszero v10
-    br v11, bb3, bb4
+    v3 = gt arg0, 1
+    v4 = iszero v3
+    br v4, bb3, bb4
   bb3:
     mstore 128, 1
     returndata 128, 32
   bb4:
-    v16 = sub arg0, 1
-    v17 = lt arg0, 1
-    br v17, bb5, bb6
+    v5 = sub arg0, 1
+    v6 = lt arg0, 1
+    br v6, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v23 = internal_call fn1, 1, v16
-    v24 = mul arg0, v23
-    v25 = iszero v23
-    v26 = div v24, v23
-    v27 = eq v26, arg0
-    v28 = or v25, v27
-    v29 = iszero v28
-    br v29, bb7, bb8
+    v7 = internal_call fn1, 1, v5
+    v8 = mul arg0, v7
+    v9 = iszero v7
+    v10 = div v8, v7
+    v11 = eq v10, arg0
+    v12 = or v9, v11
+    v13 = iszero v12
+    br v13, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v24
+    mstore 128, v8
     returndata 128, 32
 }
 
 fn @fact(arg0: u256) -> u256 {
   bb0 (entry):
-    v1 = internal_frame_addr 128
-    mstore v1, 0 !metadata(memory=internal_frame)
-    v4 = gt arg0, 1
-    v5 = iszero v4
-    br v5, bb1, bb2
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = gt arg0, 1
+    v2 = iszero v1
+    br v2, bb1, bb2
   bb1:
     ret 1
   bb2:
-    v8 = sub arg0, 1
-    v9 = lt arg0, 1
-    br v9, bb3, bb4
+    v3 = sub arg0, 1
+    v4 = lt arg0, 1
+    br v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v15 = internal_call fn1, 1, v8
-    v16 = mul arg0, v15
-    v17 = iszero v15
-    v18 = div v16, v15
-    v19 = eq v18, arg0
-    v20 = or v17, v19
-    v21 = iszero v20
-    br v21, bb5, bb6
+    v5 = internal_call fn1, 1, v3
+    v6 = mul arg0, v5
+    v7 = iszero v5
+    v8 = div v6, v5
+    v9 = eq v8, arg0
+    v10 = or v7, v9
+    v11 = iszero v10
+    br v11, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    ret v16
+    ret v6
 }
 
 fn @fib(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = gt arg0, 1
-    v11 = iszero v10
-    br v11, bb3, bb4
+    v3 = gt arg0, 1
+    v4 = iszero v3
+    br v4, bb3, bb4
   bb3:
     mstore 128, arg0
     returndata 128, 32
   bb4:
-    v15 = sub arg0, 1
-    v16 = lt arg0, 1
-    br v16, bb5, bb6
+    v5 = sub arg0, 1
+    v6 = lt arg0, 1
+    br v6, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v22 = internal_call fn3, 1, v15
-    v24 = sub arg0, 2
-    v25 = lt arg0, 2
-    br v25, bb7, bb8
+    v7 = internal_call fn3, 1, v5
+    v8 = sub arg0, 2
+    v9 = lt arg0, 2
+    br v9, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v31 = internal_call fn3, 1, v24
-    v32 = add v22, v31
-    v33 = lt v32, v22
-    br v33, bb9, bb10
+    v10 = internal_call fn3, 1, v8
+    v11 = add v7, v10
+    v12 = lt v11, v7
+    br v12, bb9, bb10
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 128, v32
+    mstore 128, v11
     returndata 128, 32
 }
 
 fn @fib(arg0: u256) -> u256 {
   bb0 (entry):
-    v1 = internal_frame_addr 128
-    mstore v1, 0 !metadata(memory=internal_frame)
-    v4 = gt arg0, 1
-    v5 = iszero v4
-    br v5, bb1, bb2
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = gt arg0, 1
+    v2 = iszero v1
+    br v2, bb1, bb2
   bb1:
     ret arg0
   bb2:
-    v7 = sub arg0, 1
-    v8 = lt arg0, 1
-    br v8, bb3, bb4
+    v3 = sub arg0, 1
+    v4 = lt arg0, 1
+    br v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v14 = internal_call fn3, 1, v7
-    v16 = sub arg0, 2
-    v17 = lt arg0, 2
-    br v17, bb5, bb6
+    v5 = internal_call fn3, 1, v3
+    v6 = sub arg0, 2
+    v7 = lt arg0, 2
+    br v7, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v23 = internal_call fn3, 1, v16
-    v24 = add v14, v23
-    v25 = lt v24, v14
-    br v25, bb7, bb8
+    v8 = internal_call fn3, 1, v6
+    v9 = add v5, v8
+    v10 = lt v9, v5
+    br v10, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    ret v24
+    ret v9
 }
 
 fn @isEven(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = eq arg0, 0
-    br v10, bb3, bb4
+    v3 = eq arg0, 0
+    br v3, bb3, bb4
   bb3:
     mstore 128, 1
     returndata 128, 32
   bb4:
-    v15 = sub arg0, 1
-    v16 = lt arg0, 1
-    br v16, bb5, bb6
+    v4 = sub arg0, 1
+    v5 = lt arg0, 1
+    br v5, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v22 = internal_call fn5, 1, v15
-    mstore 128, v22
+    v6 = internal_call fn5, 1, v4
+    mstore 128, v6
     returndata 128, 32
 }
 
 fn @isOdd(arg0: u256) -> bool {
   bb0 (entry):
-    v1 = internal_frame_addr 128
-    mstore v1, 0 !metadata(memory=internal_frame)
-    v4 = eq arg0, 0
-    br v4, bb1, bb2
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = eq arg0, 0
+    br v1, bb1, bb2
   bb1:
     ret 0
   bb2:
-    v7 = sub arg0, 1
-    v8 = lt arg0, 1
-    br v8, bb3, bb4
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    br v3, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v14 = internal_call fn6, 1, v7
-    ret v14
+    v4 = internal_call fn6, 1, v2
+    ret v4
 }
 
 fn @isEven(arg0: u256) -> bool {
   bb0 (entry):
-    v1 = internal_frame_addr 128
-    mstore v1, 0 !metadata(memory=internal_frame)
-    v4 = eq arg0, 0
-    br v4, bb1, bb2
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = eq arg0, 0
+    br v1, bb1, bb2
   bb1:
     ret 1
   bb2:
-    v7 = sub arg0, 1
-    v8 = lt arg0, 1
-    br v8, bb3, bb4
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    br v3, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v14 = internal_call fn5, 1, v7
-    ret v14
+    v4 = internal_call fn5, 1, v2
+    ret v4
 }
 
 fn @isOdd(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = eq arg0, 0
-    br v10, bb3, bb4
+    v3 = eq arg0, 0
+    br v3, bb3, bb4
   bb3:
     mstore 128, 0
     returndata 128, 32
   bb4:
-    v15 = sub arg0, 1
-    v16 = lt arg0, 1
-    br v16, bb5, bb6
+    v4 = sub arg0, 1
+    v5 = lt arg0, 1
+    br v5, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v22 = internal_call fn6, 1, v15
-    mstore 128, v22
+    v6 = internal_call fn6, 1, v4
+    mstore 128, v6
     returndata 128, 32
 }
 

@@ -8,34 +8,34 @@ fn @congruent_phis_collapse(arg0: u256, arg1: u256, arg2: bool) -> u256 {
   bb2:
     jump bb3
   bb3:
-    v3 = phi [bb1: arg0], [bb2: arg1]
-    v5 = add v3, v3
-    ret v5
+    v0 = phi [bb1: arg0], [bb2: arg1]
+    v2 = add v0, v0
+    ret v2
 }
 
 fn @phi_of_same_folds_to_dominating_operand(arg0: u256, arg1: bool) -> u256 {
   bb0 (entry):
-    v3 = add arg0, 1
+    v0 = add arg0, 1
     br arg1, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
-    v6 = mul v3, 2
-    ret v6
+    v2 = mul v0, 2
+    ret v2
 }
 
 fn @phi_of_congruent_incoming(arg0: u256, arg1: bool) -> u256 {
   bb0 (entry):
-    v3 = add arg0, 1
+    v0 = add arg0, 1
     br arg1, bb1, bb2
   bb1:
     jump bb3
   bb2:
     jump bb3
   bb3:
-    ret v3
+    ret v0
 }
 
 fn @phi_of_equal_immediates(arg0: bool) -> u256 {
@@ -53,15 +53,15 @@ fn @lockstep_loop_phis_stay(arg0: u256) -> u256 {
   bb0 (entry):
     jump bb1
   bb1:
-    v3 = phi [bb0: 0], [bb2: v2]
-    v6 = phi [bb0: 0], [bb2: v5]
-    v7 = lt v3, arg0
-    br v7, bb2, bb3
+    v0 = phi [bb0: 0], [bb2: v3]
+    v1 = phi [bb0: 0], [bb2: v4]
+    v2 = lt v0, arg0
+    br v2, bb2, bb3
   bb2:
-    v2 = add v3, 1
-    v5 = add v6, 1
+    v3 = add v0, 1
+    v4 = add v1, 1
     jump bb1
   bb3:
-    v10 = add v3, v6
-    ret v10
+    v5 = add v0, v1
+    ret v5
 }

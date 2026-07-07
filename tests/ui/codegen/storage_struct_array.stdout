@@ -3,71 +3,71 @@
 fn @setS(arg0: u256, arg1: u256, arg2: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 96
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v11 = lt arg0, 3
-    br v11, bb4, bb3
+    v3 = lt arg0, 3
+    br v3, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v18 = mul arg0, 2
-    v19 = add 0, v18
-    sstore v19, arg1 !metadata(storage=symbolic(v18))
-    v22 = lt arg0, 3
-    br v22, bb6, bb5
+    v4 = mul arg0, 2
+    v5 = add 0, v4
+    sstore v5, arg1 !metadata(storage=symbolic(v4))
+    v6 = lt arg0, 3
+    br v6, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v29 = mul arg0, 2
-    v30 = add 0, v29
-    v32 = add v30, 1
-    sstore v32, arg2 !metadata(storage=offset(v29, 1))
+    v7 = mul arg0, 2
+    v8 = add 0, v7
+    v9 = add v8, 1
+    sstore v9, arg2 !metadata(storage=offset(v7, 1))
     stop
 }
 
 fn @getS(arg0: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
     mstore 160, 0
-    v13 = lt arg0, 3
-    br v13, bb4, bb3
+    v3 = lt arg0, 3
+    br v3, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v20 = mul arg0, 2
-    v21 = add 0, v20
-    v22 = sload v21 !metadata(storage=symbolic(v20))
-    v25 = lt arg0, 3
-    br v25, bb6, bb5
+    v4 = mul arg0, 2
+    v5 = add 0, v4
+    v6 = sload v5 !metadata(storage=symbolic(v4))
+    v7 = lt arg0, 3
+    br v7, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v32 = mul arg0, 2
-    v33 = add 0, v32
-    v35 = add v33, 1
-    v36 = sload v35 !metadata(storage=offset(v32, 1))
-    mstore 128, v22
-    v39 = add 128, 32
-    mstore v39, v36
+    v8 = mul arg0, 2
+    v9 = add 0, v8
+    v10 = add v9, 1
+    v11 = sload v10 !metadata(storage=offset(v8, 1))
+    mstore 128, v6
+    v12 = add 128, 32
+    mstore v12, v11
     returndata 128, 64
 }
 

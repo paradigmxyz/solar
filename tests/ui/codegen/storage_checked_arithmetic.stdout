@@ -3,26 +3,26 @@
 fn @storage_sub(arg0: address, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v18 = keccak256 0, 64 !metadata(memory=scratch)
-    v19 = sload v18 !metadata(storage=symbolic(v18))
-    v20 = sub v19, arg1
-    v21 = lt v19, arg1
-    br v21, bb5, bb6
+    v6 = keccak256 0, 64 !metadata(memory=scratch)
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = sub v7, arg1
+    v9 = lt v7, arg1
+    br v9, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -30,34 +30,34 @@ fn @storage_sub(arg0: address, arg1: u256) {
   bb6:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v31 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v31, v20 !metadata(storage=symbolic(v31))
+    v10 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v10, v8 !metadata(storage=symbolic(v10))
     stop
 }
 
 fn @storage_binary_sub(arg0: address, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v18 = keccak256 0, 64 !metadata(memory=scratch)
-    v19 = sload v18 !metadata(storage=symbolic(v18))
-    v20 = sub v19, arg1
-    v21 = lt v19, arg1
-    br v21, bb5, bb6
+    v6 = keccak256 0, 64 !metadata(memory=scratch)
+    v7 = sload v6 !metadata(storage=symbolic(v6))
+    v8 = sub v7, arg1
+    v9 = lt v7, arg1
+    br v9, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -65,41 +65,41 @@ fn @storage_binary_sub(arg0: address, arg1: u256) {
   bb6:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
-    v31 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v31, v20 !metadata(storage=symbolic(v31))
+    v10 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v10, v8 !metadata(storage=symbolic(v10))
     stop
 }
 
 fn @storage_struct_add(arg0: address, arg1: u128) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = and v15, 0xffffffffffffffffffffffffffffffff
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = and v6, 0xffffffffffffffffffffffffffffffff
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v24 = keccak256 0, 64 !metadata(memory=scratch)
-    v25 = sload v24 !metadata(storage=symbolic(v24))
-    v26 = add v25, arg1
-    v28 = gt v26, 0xffffffffffffffffffffffffffffffff
-    br v28, bb7, bb8
+    v9 = keccak256 0, 64 !metadata(memory=scratch)
+    v10 = sload v9 !metadata(storage=symbolic(v9))
+    v11 = add v10, arg1
+    v12 = gt v11, 0xffffffffffffffffffffffffffffffff
+    br v12, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -107,44 +107,44 @@ fn @storage_struct_add(arg0: address, arg1: u128) {
   bb8:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v38 = keccak256 0, 64 !metadata(memory=scratch)
-    sstore v38, v26 !metadata(storage=symbolic(v38))
+    v13 = keccak256 0, 64 !metadata(memory=scratch)
+    sstore v13, v11 !metadata(storage=symbolic(v13))
     stop
 }
 
 fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = signextend 0, v15
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = signextend 0, v6
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v24 = keccak256 0, 64 !metadata(memory=scratch)
-    v26 = add v24, 1
-    v27 = sload v26 !metadata(storage=offset(v24, 1))
-    v28 = sub v27, arg1
-    v31 = slt v28, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
-    v32 = sgt v28, 127
-    v33 = or v31, v32
-    br v33, bb7, bb8
+    v9 = keccak256 0, 64 !metadata(memory=scratch)
+    v10 = add v9, 1
+    v11 = sload v10 !metadata(storage=offset(v9, 1))
+    v12 = sub v11, arg1
+    v13 = slt v12, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80
+    v14 = sgt v12, 127
+    v15 = or v13, v14
+    br v15, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
@@ -152,9 +152,9 @@ fn @storage_struct_signed_sub(arg0: address, arg1: i8) {
   bb8:
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 1 !metadata(memory=scratch)
-    v43 = keccak256 0, 64 !metadata(memory=scratch)
-    v45 = add v43, 1
-    sstore v45, v28 !metadata(storage=offset(v43, 1))
+    v16 = keccak256 0, 64 !metadata(memory=scratch)
+    v17 = add v16, 1
+    sstore v17, v12 !metadata(storage=offset(v16, 1))
     stop
 }
 

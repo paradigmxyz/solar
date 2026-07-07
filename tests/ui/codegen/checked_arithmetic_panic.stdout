@@ -3,79 +3,79 @@
 fn @add(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = add arg0, arg1
-    v11 = lt v10, arg0
-    br v11, bb3, bb4
+    v3 = add arg0, arg1
+    v4 = lt v3, arg0
+    br v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v10
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @sub(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = sub arg0, arg1
-    v11 = lt arg0, arg1
-    br v11, bb3, bb4
+    v3 = sub arg0, arg1
+    v4 = lt arg0, arg1
+    br v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v10
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @mul(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = mul arg0, arg1
-    v11 = iszero arg1
-    v12 = div v10, arg1
-    v13 = eq v12, arg0
-    v14 = or v11, v13
-    v15 = iszero v14
-    br v15, bb3, bb4
+    v3 = mul arg0, arg1
+    v4 = iszero arg1
+    v5 = div v3, arg1
+    v6 = eq v5, arg0
+    v7 = or v4, v6
+    v8 = iszero v7
+    br v8, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v10
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @div_zero(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
@@ -86,255 +86,255 @@ fn @div_zero(arg0: u256, arg1: u256) {
     mstore 4, 18 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v15 = div arg0, arg1
-    mstore 128, v15
+    v3 = div arg0, arg1
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @pow(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v13 = iszero arg1
-    br v13, bb3, bb4
+    v3 = iszero arg1
+    br v3, bb3, bb4
   bb3:
-    v63 = phi [bb2: 1], [bb4: 0], [bb5: 1], [bb10: v25], [bb11: v37], [bb19: v62]
-    mstore 128, v63
+    v31 = phi [bb2: 1], [bb4: 0], [bb5: 1], [bb10: v8], [bb11: v16], [bb19: v30]
+    mstore 128, v31
     returndata 128, 32
   bb4:
-    v14 = iszero arg0
-    br v14, bb3, bb5
+    v4 = iszero arg0
+    br v4, bb3, bb5
   bb5:
-    v15 = eq arg0, 1
-    br v15, bb3, bb6
+    v5 = eq arg0, 1
+    br v5, bb3, bb6
   bb6:
-    v17 = eq arg0, 2
-    br v17, bb7, bb8
+    v6 = eq arg0, 2
+    br v6, bb7, bb8
   bb7:
-    v19 = gt arg1, 255
-    br v19, bb9, bb10
+    v7 = gt arg1, 255
+    br v7, bb9, bb10
   bb8:
-    v27 = lt arg0, 11
-    v29 = lt arg1, 78
-    v30 = and v27, v29
-    v32 = lt arg0, 307
-    v34 = lt arg1, 32
-    v35 = and v32, v34
-    v36 = or v30, v35
-    br v36, bb11, bb12
+    v9 = lt arg0, 11
+    v10 = lt arg1, 78
+    v11 = and v9, v10
+    v12 = lt arg0, 307
+    v13 = lt arg1, 32
+    v14 = and v12, v13
+    v15 = or v11, v14
+    br v15, bb11, bb12
   bb9:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    v25 = shl arg1, 1
+    v8 = shl arg1, 1
     jump bb3
   bb11:
-    v37 = exp arg0, arg1
+    v16 = exp arg0, arg1
     jump bb3
   bb12:
     jump bb13
   bb13:
-    v38 = phi [bb12: 1], [bb17: v52]
-    v39 = phi [bb12: arg0], [bb17: v53]
-    v40 = phi [bb12: arg1], [bb17: v54]
-    v42 = gt v40, 1
-    br v42, bb14, bb15
+    v17 = phi [bb12: 1], [bb17: v25]
+    v18 = phi [bb12: arg0], [bb17: v26]
+    v19 = phi [bb12: arg1], [bb17: v27]
+    v20 = gt v19, 1
+    br v20, bb14, bb15
   bb14:
-    v43 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v39
-    v44 = gt v39, v43
-    br v44, bb16, bb17
+    v21 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v18
+    v22 = gt v18, v21
+    br v22, bb16, bb17
   bb15:
-    v55 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v39
-    v56 = gt v38, v55
-    br v56, bb18, bb19
+    v28 = div 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff, v18
+    v29 = gt v17, v28
+    br v29, bb18, bb19
   bb16:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb17:
-    v50 = and v40, 1
-    v51 = mul v38, v39
-    v52 = select v50, v51, v38
-    v53 = mul v39, v39
-    v54 = shr 1, v40
+    v23 = and v19, 1
+    v24 = mul v17, v18
+    v25 = select v23, v24, v17
+    v26 = mul v18, v18
+    v27 = shr 1, v19
     jump bb13
   bb18:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb19:
-    v62 = mul v38, v39
+    v30 = mul v17, v18
     jump bb3
 }
 
 fn @signed_add(arg0: i256, arg1: i256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = add arg0, arg1
-    v12 = slt arg0, 0
-    v13 = slt v10, arg1
-    v14 = xor v12, v13
-    br v14, bb3, bb4
+    v3 = add arg0, arg1
+    v4 = slt arg0, 0
+    v5 = slt v3, arg1
+    v6 = xor v4, v5
+    br v6, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v10
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @signed_neg(arg0: i256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
-    br v11, bb3, bb4
+    v3 = eq arg0, 0x8000000000000000000000000000000000000000000000000000000000000000
+    br v3, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v17 = sub 0, arg0
-    mstore 128, v17
+    v4 = sub 0, arg0
+    mstore 128, v4
     returndata 128, 32
 }
 
 fn @narrow_add(arg0: u8, arg1: u8) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 255
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 255
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = and v15, 255
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = and v6, 255
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
-    v22 = add arg0, arg1
-    v24 = gt v22, 255
-    br v24, bb7, bb8
+    v9 = add arg0, arg1
+    v10 = gt v9, 255
+    br v10, bb7, bb8
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    mstore 128, v22
+    mstore 128, v9
     returndata 128, 32
 }
 
 fn @unchecked_add(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = add arg0, arg1
-    mstore 128, v10
+    v3 = add arg0, arg1
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @unchecked_neg(arg0: i256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 32
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = sub 0, arg0
-    mstore 128, v10
+    v3 = sub 0, arg0
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @unchecked_pow(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v10 = exp arg0, arg1
-    mstore 128, v10
+    v3 = exp arg0, arg1
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @unchecked_call(arg0: u256, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
     mstore 128, 0
-    v11 = add arg0, arg1
-    v12 = lt v11, arg0
-    br v12, bb3, bb4
+    v3 = add arg0, arg1
+    v4 = lt v3, arg0
+    br v4, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    mstore 128, v11
+    mstore 128, v3
     returndata 128, 32
 }
 
 fn @checked_inner(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = internal_frame_addr 160
-    mstore v2, 0 !metadata(memory=internal_frame)
-    v4 = add arg0, arg1
-    v5 = lt v4, arg0
-    br v5, bb1, bb2
+    v0 = internal_frame_addr 160
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = add arg0, arg1
+    v2 = lt v1, arg0
+    br v2, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    ret v4
+    ret v1
 }
 

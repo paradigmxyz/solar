@@ -2,55 +2,55 @@
 ; module @Gvn
 fn @transitive_congruence(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, arg1
-    v5 = mul v2, 2
-    v8 = add v5, v5
-    ret v8
+    v0 = add arg0, arg1
+    v2 = mul v0, 2
+    v4 = add v2, v2
+    ret v4
 }
 
 fn @equal_immediates_unify(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, 16
-    v5 = add v2, v2
-    ret v5
+    v0 = add arg0, 16
+    v2 = add v0, v0
+    ret v2
 }
 
 fn @swapped_comparison_feeds_arithmetic(arg0: u256, arg1: u256) -> u256 {
   bb0 (entry):
-    v2 = lt arg0, arg1
-    v4 = select v2, arg0, arg1
-    v6 = add v4, v4
-    ret v6
+    v0 = lt arg0, arg1
+    v2 = select v0, arg0, arg1
+    v4 = add v2, v2
+    ret v4
 }
 
 fn @keep_state_dependent_reads(arg0: u256) -> u256 {
   bb0 (entry):
+    v0 = sload arg0
     v1 = sload arg0
-    v2 = sload arg0
+    v2 = balance arg0
     v3 = balance arg0
-    v4 = balance arg0
-    v7 = keccak256 0, 32
-    v10 = keccak256 0, 32
-    v11 = add v1, v2
-    v12 = add v3, v4
-    v13 = add v7, v10
-    v14 = add v11, v12
-    v15 = add v14, v13
-    ret v15
+    v4 = keccak256 0, 32
+    v5 = keccak256 0, 32
+    v6 = add v0, v1
+    v7 = add v2, v3
+    v8 = add v4, v5
+    v9 = add v6, v7
+    v10 = add v9, v8
+    ret v10
 }
 
 fn @no_replacement_across_siblings(arg0: u256, arg1: bool) -> u256 {
   bb0 (entry):
     br arg1, bb1, bb2
   bb1:
-    v3 = add arg0, 1
-    v5 = mul v3, 3
+    v0 = add arg0, 1
+    v1 = mul v0, 3
     jump bb3
   bb2:
-    v7 = add arg0, 1
-    v9 = mul v7, 3
+    v2 = add arg0, 1
+    v3 = mul v2, 3
     jump bb3
   bb3:
-    v10 = phi [bb1: v5], [bb2: v9]
-    ret v10
+    v4 = phi [bb1: v1], [bb2: v3]
+    ret v4
 }

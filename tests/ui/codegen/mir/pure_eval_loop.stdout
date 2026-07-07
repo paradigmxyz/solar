@@ -13,6 +13,6 @@ fn @bounded_loop() -> u256 {
 
 fn @with_arg(arg0: u256) -> u256 {
   bb0 (entry):
-    v2 = add arg0, 1
-    ret v2
+    v0 = add arg0, 1
+    ret v0
 }

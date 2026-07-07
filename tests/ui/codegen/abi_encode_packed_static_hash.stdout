@@ -3,35 +3,35 @@
 fn @hash(arg0: u64, arg1: u64, arg2: bytes32) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 96
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = and v15, 0xffffffffffffffff
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = and v6, 0xffffffffffffffff
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
-    v26 = shl 136, arg0
-    v27 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v26
-    v29 = shl 72, arg1
-    v30 = or v27, v29
-    mstore 0, v30 !metadata(memory=scratch)
+    v9 = shl 136, arg0
+    v10 = or 0x4d656d6f72793a00000000000000000000000000000000000000000000000000, v9
+    v11 = shl 72, arg1
+    v12 = or v10, v11
+    mstore 0, v12 !metadata(memory=scratch)
     mstore 23, arg2 !metadata(memory=scratch)
-    v33 = keccak256 0, 55 !metadata(memory=scratch)
-    mstore 128, v33
+    v13 = keccak256 0, 55 !metadata(memory=scratch)
+    mstore 128, v13
     returndata 128, 32
 }
 

@@ -3,54 +3,54 @@
 fn @safeCall(arg0: address, arg1: bytes4) {
   bb0 (entry):
     v0 = calldatasize
-    v2 = sub v0, 4
-    v4 = slt v2, 64
-    br v4, bb1, bb2
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
   bb1:
     revert 0, 0
   bb2:
-    v8 = calldataload 4
-    v10 = and v8, 0xffffffffffffffffffffffffffffffffffffffff
-    v11 = eq v8, v10
-    br v11, bb4, bb3
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v15 = calldataload 36
-    v17 = and v15, 0xffffffff00000000000000000000000000000000000000000000000000000000
-    v18 = eq v15, v17
-    br v18, bb6, bb5
+    v6 = calldataload 36
+    v7 = and v6, 0xffffffff00000000000000000000000000000000000000000000000000000000
+    v8 = eq v6, v7
+    br v8, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
-    v23 = mload 64 !metadata(memory=scratch)
+    v9 = mload 64 !metadata(memory=scratch)
     mstore 0, arg1 !metadata(memory=scratch)
-    v26 = gas
-    v32 = call v26, arg0, 0, 0, 4, 0, 32
-    mstore 128, v32
-    v35 = mload 128
-    v37 = mload 0 !metadata(memory=scratch)
-    v39 = eq v37, 1
-    v40 = and v35, v39
-    v41 = iszero v40
-    v43 = eq v41, 0
-    v44 = iszero v43
-    br v44, bb7, bb8
+    v10 = gas
+    v11 = call v10, arg0, 0, 0, 4, 0, 32
+    mstore 128, v11
+    v12 = mload 128
+    v13 = mload 0 !metadata(memory=scratch)
+    v14 = eq v13, 1
+    v15 = and v12, v14
+    v16 = iszero v15
+    v17 = eq v16, 0
+    v18 = iszero v17
+    br v18, bb7, bb8
   bb7:
-    v46 = returndatasize
-    returndatacopy v23, 0, v46
-    v48 = returndatasize
-    revert v23, v48
+    v19 = returndatasize
+    returndatacopy v9, 0, v19
+    v20 = returndatasize
+    revert v9, v20
   bb8:
-    v51 = mload 128
-    v52 = extcodesize arg0
-    v54 = gt v52, 0
-    v55 = and v51, v54
-    mstore 128, v55
-    mstore 64, v23 !metadata(memory=scratch)
-    v60 = mload 128
-    mstore 128, v60
+    v21 = mload 128
+    v22 = extcodesize arg0
+    v23 = gt v22, 0
+    v24 = and v21, v23
+    mstore 128, v24
+    mstore 64, v9 !metadata(memory=scratch)
+    v25 = mload 128
+    mstore 128, v25
     returndata 128, 32
 }
 
