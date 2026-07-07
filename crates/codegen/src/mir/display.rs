@@ -57,7 +57,7 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
 
             write!(f, "  ")?;
             if inst.result_ty.is_some() {
-                write!(f, "v{} = ", inst_result_index(func, inst_id).expect("result inst"))?;
+                write!(f, "v{} = ", inst_result_index(func, inst_id))?;
             }
             write!(f, "{}\\l", display_inst_kind(&inst.kind, func))
         })
@@ -199,7 +199,7 @@ pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
 
             write!(f, "    ")?;
             if inst.result_ty.is_some() {
-                write!(f, "v{} = ", inst_result_index(func, inst_id).expect("result inst"))?;
+                write!(f, "v{} = ", inst_result_index(func, inst_id))?;
             }
             writeln!(f, "{}{}", display_inst_kind(&inst.kind, func), display_metadata(inst, func))
         })
@@ -243,11 +243,12 @@ fn function_prints_return_values(func: &Function) -> bool {
     func.blocks.iter().any(|block| matches!(block.terminator, Some(Terminator::Return { .. })))
 }
 
-fn inst_result_index(func: &Function, inst_id: InstId) -> Option<usize> {
+fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
     func.instructions
         .iter_enumerated()
         .filter(|(_, inst)| inst.result_ty.is_some())
         .position(|(id, _)| id == inst_id)
+        .expect("Value::Inst should point to a value-producing instruction")
 }
 
 /// Formats an instruction kind for display.
@@ -303,10 +304,7 @@ fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
             write!(f, "{}", display_u256(u256))
         }
         Value::Arg { index, .. } => write!(f, "arg{index}"),
-        Value::Inst(inst_id) => match inst_result_index(func, *inst_id) {
-            Some(index) => write!(f, "v{index}"),
-            None => write!(f, "v{}", vid.index()),
-        },
+        Value::Inst(inst_id) => write!(f, "v{}", inst_result_index(func, *inst_id)),
         Value::Error(_) => write!(f, "err"),
         _ => write!(f, "v{}", vid.index()),
     })
