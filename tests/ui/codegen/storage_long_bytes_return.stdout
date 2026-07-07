@@ -3,8 +3,8 @@
 fn @s() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 0
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -99,8 +99,8 @@ fn @__ret_bytes(arg0: memptr) {
 fn @b() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 1
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 1
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -122,16 +122,16 @@ fn @_anonymous() {
 fn @getS() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 0
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
 fn @getB() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 1
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 1
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 

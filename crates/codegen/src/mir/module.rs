@@ -194,7 +194,10 @@ impl Module {
             write!(
                 f,
                 "{}",
-                self.functions.iter().map(super::display::display_function_text).format("\n")
+                self.functions
+                    .iter()
+                    .map(|func| super::display::display_function_text(func, Some(&self.functions)))
+                    .format("\n")
             )
         })
     }
@@ -205,7 +208,10 @@ impl Module {
             write!(
                 f,
                 "{}",
-                self.functions.iter().map(super::display::display_function_dot).format("\n\n")
+                self.functions
+                    .iter()
+                    .map(|func| super::display::display_function_dot(func, Some(&self.functions)))
+                    .format("\n\n")
             )
         })
     }

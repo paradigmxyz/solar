@@ -198,8 +198,8 @@ fn @nestedSecond(arg0: address, arg1: memptr) {
 fn @skey() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn4, 1, 3
-    internal_call fn5, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 3
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -571,7 +571,7 @@ fn @setViaStorageKey(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = internal_call fn4, 1, 3
+    v3 = internal_call @__load_storage_bytes, 1, 3
     v4 = mload v3
     v5 = add v3, 32
     v6 = mload 64 !metadata(memory=scratch)

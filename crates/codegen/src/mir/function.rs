@@ -314,12 +314,12 @@ impl Function {
 
     /// Returns the human-readable textual MIR representation of this function.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
-        super::display::display_function_text(self)
+        super::display::display_function_text(self, None)
     }
 
     /// Returns this function's DOT-format CFG.
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
-        super::display::display_function_dot(self)
+        super::display::display_function_dot(self, None)
     }
 }
 

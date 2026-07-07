@@ -42,7 +42,7 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
     v7 = add 96, 32
     v8 = add v3, v7
     mstore 64, v8 !metadata(memory=scratch)
-    internal_call fn2, 0, v3
+    internal_call @__ret_bytes, 0, v3
     invalid
 }
 
@@ -127,7 +127,7 @@ fn @encodeDynamic(arg0: u256, arg1: memptr) {
     v29 = add v28, 32
     v30 = add v13, v29
     mstore 64, v30 !metadata(memory=scratch)
-    internal_call fn2, 0, v13
+    internal_call @__ret_bytes, 0, v13
     invalid
 }
 

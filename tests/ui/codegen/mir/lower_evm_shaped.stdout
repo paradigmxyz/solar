@@ -6,7 +6,7 @@ fn @entry() {
     v1 = shr 224, v0
     switch v1, default bb2, [7 => bb1]
   bb1:
-    tail_call fn1
+    tail_call @caller
   bb2:
     revert 0, 0
 }
@@ -14,7 +14,7 @@ fn @entry() {
 fn @caller() {
   bb0 (entry):
     v0 = calldataload 4
-    tail_call fn2, v0
+    tail_call @fused, v0
 }
 
 fn @fused(arg0: u256) {
@@ -25,6 +25,6 @@ fn @fused(arg0: u256) {
 
 fn @spin(arg0: u256) {
   bb0 (entry):
-    internal_call fn3, 0, arg0
+    internal_call @spin, 0, arg0
     revert 0, 0
 }

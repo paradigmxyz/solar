@@ -14,7 +14,7 @@ fn @entry() {
     br v2, bb1, bb2
   bb1:
     v3 = calldataload 4
-    tail_call fn0, v3
+    tail_call @wrapper, v3
   bb2:
     revert 0, 0
 }

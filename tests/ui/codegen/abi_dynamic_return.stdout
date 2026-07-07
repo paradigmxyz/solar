@@ -10,7 +10,7 @@ fn @bytesLiteral() {
     v2 = add v0, 32
     v3 = add v2, 0
     mstore v3, 0x102030000000000000000000000000000000000000000000000000000000000
-    internal_call fn1, 0, v0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -53,7 +53,7 @@ fn @stringLiteral() {
     v2 = add v0, 32
     v3 = add v2, 0
     mstore v3, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    internal_call fn1, 0, v0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 

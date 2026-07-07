@@ -558,7 +558,7 @@ fn @decodeBytes(arg0: memptr) {
     mstore v38, 0
     v39 = add v21, 32
     mcopy v36, v39, v22
-    internal_call fn3, 0, v34
+    internal_call @__ret_bytes, 0, v34
     invalid
 }
 

@@ -3,8 +3,8 @@
 fn @b() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 0
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -241,7 +241,7 @@ fn @poke() {
 fn @hashB() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 0
+    v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = mload v0
     v2 = add v0, 32
     v3 = keccak256 v2, v1
@@ -254,8 +254,8 @@ fn @hashB() {
 fn @name() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 0
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -350,8 +350,8 @@ fn @__ret_bytes(arg0: memptr) {
 fn @symbol() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 1
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 1
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -531,8 +531,8 @@ fn @_anonymous(arg0: memptr, arg1: memptr) {
 fn @name() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 0
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -627,8 +627,8 @@ fn @__ret_bytes(arg0: memptr) {
 fn @symbol() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 1
-    internal_call fn2, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 1
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -967,8 +967,8 @@ fn @_anonymous() {
 fn @name() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn2, 1, 0
-    internal_call fn3, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -1063,8 +1063,8 @@ fn @__ret_bytes(arg0: memptr) {
 fn @symbol() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn2, 1, 1
-    internal_call fn3, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 1
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -1232,8 +1232,8 @@ fn @constructor() {
 fn @name() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn2, 1, 0
-    internal_call fn3, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -1328,8 +1328,8 @@ fn @__ret_bytes(arg0: memptr) {
 fn @symbol() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn2, 1, 1
-    internal_call fn3, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 1
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 

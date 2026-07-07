@@ -212,8 +212,8 @@ fn @get(arg0: u256) {
     mstore 0, arg0 !metadata(memory=scratch)
     mstore 32, 0 !metadata(memory=scratch)
     v3 = keccak256 0, 64 !metadata(memory=scratch)
-    v4 = internal_call fn3, 1, v3
-    internal_call fn4, 0, v4
+    v4 = internal_call @__load_storage_bytes, 1, v3
+    internal_call @__ret_bytes, 0, v4
     invalid
 }
 
@@ -321,8 +321,8 @@ fn @getNested(arg0: u256, arg1: u256) {
     mstore 0, arg1 !metadata(memory=scratch)
     mstore 32, v3 !metadata(memory=scratch)
     v4 = keccak256 0, 64 !metadata(memory=scratch)
-    v5 = internal_call fn3, 1, v4
-    internal_call fn4, 0, v5
+    v5 = internal_call @__load_storage_bytes, 1, v4
+    internal_call @__ret_bytes, 0, v5
     invalid
 }
 

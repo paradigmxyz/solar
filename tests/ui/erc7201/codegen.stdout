@@ -91,7 +91,7 @@ fn @calldataParam(arg0: memptr) {
 fn @storageValue() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn5, 1, 0
+    v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = mload v0
     v2 = add v0, 32
     v3 = keccak256 v2, v1

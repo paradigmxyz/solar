@@ -130,7 +130,7 @@ fn @materialized(arg0: u16, arg1: memptr, arg2: bool) {
     mstore v20, v29
     v34 = add v20, v33
     mstore 64, v34 !metadata(memory=scratch)
-    internal_call fn3, 0, v20
+    internal_call @__ret_bytes, 0, v20
     invalid
 }
 

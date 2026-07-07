@@ -286,7 +286,7 @@ fn @fillImpl(arg0: memptr, arg1: u256) -> memptr {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v16 = internal_call fn3, 1, arg0, v14
+    v16 = internal_call @fillImpl, 1, arg0, v14
     ret v16
 }
 
@@ -338,7 +338,7 @@ fn @squares(arg0: u256) {
     v12 = add v3, 32
     v13 = calldatasize
     calldatacopy v12, v13, v4
-    v14 = internal_call fn3, 1, v3, 0
+    v14 = internal_call @fillImpl, 1, v3, 0
     v15 = mload 64 !metadata(memory=scratch)
     v16 = add v15, 32
     mstore 64, v16 !metadata(memory=scratch)

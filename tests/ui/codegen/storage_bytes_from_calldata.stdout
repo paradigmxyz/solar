@@ -231,8 +231,8 @@ fn @setBlob(arg0: memptr) {
 fn @getText() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn3, 1, 0
-    internal_call fn4, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 
@@ -327,8 +327,8 @@ fn @__ret_bytes(arg0: memptr) {
 fn @getBlob() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn3, 1, 1
-    internal_call fn4, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 1
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 

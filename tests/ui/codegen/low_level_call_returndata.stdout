@@ -84,7 +84,7 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
   bb14:
     jump bb10
   bb15:
-    internal_call fn1, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
+    internal_call @__revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
     invalid
   bb16:
     stop
@@ -216,7 +216,7 @@ fn @forward(arg0: address, arg1: memptr) {
     revert 0, 0
   bb6:
     v30 = mload 192
-    internal_call fn4, 0, v30
+    internal_call @__ret_bytes, 0, v30
     invalid
 }
 

@@ -28,7 +28,7 @@ fn @entry() {
     v4 = shr 224, v3
     switch v4, default bb5, [0x9507d39a => bb4]
   bb4:
-    tail_call fn0
+    tail_call @get
   bb5:
     jump bb6
   bb6:

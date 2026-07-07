@@ -2,7 +2,7 @@
 ; module @StorageBytesPushPop
 fn @_anonymous() {
   bb0 (entry):
-    v0 = internal_call fn1, 1, 0
+    v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = mload v0
     v2 = add v1, 1
     v3 = lt v2, v1
@@ -101,7 +101,7 @@ fn @_anonymous() {
     mstore v37, v61
     jump bb8
   bb10:
-    v62 = internal_call fn1, 1, 0
+    v62 = internal_call @__load_storage_bytes, 1, 0
     v63 = mload v62
     v64 = add v63, 1
     v65 = lt v64, v63
@@ -278,7 +278,7 @@ fn @pushValue(arg0: bytes1) {
   bb3:
     revert 0, 0
   bb4:
-    v6 = internal_call fn1, 1, 0
+    v6 = internal_call @__load_storage_bytes, 1, 0
     v7 = mload v6
     v8 = add v7, 1
     v9 = lt v8, v7
@@ -383,7 +383,7 @@ fn @pushValue(arg0: bytes1) {
 
 fn @pushZero() {
   bb0 (entry):
-    v0 = internal_call fn1, 1, 0
+    v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = mload v0
     v2 = add v1, 1
     v3 = lt v2, v1
@@ -487,7 +487,7 @@ fn @pushZero() {
 
 fn @popValue() {
   bb0 (entry):
-    v0 = internal_call fn1, 1, 0
+    v0 = internal_call @__load_storage_bytes, 1, 0
     v1 = mload v0
     br v1, bb2, bb1
   bb1:
@@ -588,8 +588,8 @@ fn @popValue() {
 fn @get() {
   bb0 (entry):
     mstore 128, 0
-    v0 = internal_call fn1, 1, 0
-    internal_call fn6, 0, v0
+    v0 = internal_call @__load_storage_bytes, 1, 0
+    internal_call @__ret_bytes, 0, v0
     invalid
 }
 

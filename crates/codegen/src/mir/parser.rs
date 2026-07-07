@@ -122,11 +122,23 @@ struct Parser<'a> {
     pos: usize,
     line: usize,
     col: usize,
+    /// Function names in declaration order, pre-scanned from the `fn @name(`
+    /// headers so `@name` call references resolve even when they point
+    /// forward.
+    function_names: Vec<&'a str>,
 }
 
 impl<'a> Parser<'a> {
     fn new(input: &'a str) -> Self {
-        Self { input, pos: 0, line: 1, col: 1 }
+        let function_names = input
+            .lines()
+            .filter_map(|line| {
+                let rest = line.strip_prefix("fn @")?;
+                let end = rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')?;
+                Some(&rest[..end])
+            })
+            .collect();
+        Self { input, pos: 0, line: 1, col: 1, function_names }
     }
 
     // ----- low-level cursor primitives -----
@@ -315,6 +327,19 @@ impl<'a> Parser<'a> {
         Ok(self.input[start..self.pos].to_string())
     }
 
+    /// Parses a function name: an identifier, optionally with `.`-joined
+    /// segments (`f.body`), as minted by the ABI lowering.
+    fn parse_function_name(&mut self) -> Result<&'a str, ParseError> {
+        self.skip_inline();
+        let start = self.pos;
+        self.parse_ident()?;
+        while self.peek_char() == Some('.') {
+            self.advance();
+            self.parse_ident()?;
+        }
+        Ok(&self.input[start..self.pos])
+    }
+
     fn parse_ident(&mut self) -> Result<&'a str, ParseError> {
         self.skip_inline();
         let start = self.pos;
@@ -422,7 +447,7 @@ impl<'a> Parser<'a> {
         self.expect_keyword("fn")?;
         self.skip_inline();
         self.expect_punct('@')?;
-        let name = self.parse_ident()?.to_string();
+        let name = self.parse_function_name()?.to_string();
         let func_ident = Ident::with_dummy_span(Symbol::intern(&name));
         let mut func = Function::new(func_ident);
 
@@ -821,10 +846,23 @@ impl<'a> Parser<'a> {
 
     fn parse_function_id(&mut self) -> Result<FunctionId, ParseError> {
         self.skip_inline();
+        if self.try_punct('@') {
+            let name = self.parse_function_name()?;
+            let mut matches = self.function_names.iter().enumerate().filter(|(_, n)| **n == name);
+            let Some((idx, _)) = matches.next() else {
+                return Err(self.error(format!("unknown function `@{name}`")));
+            };
+            if matches.next().is_some() {
+                return Err(self.error(format!(
+                    "function name `@{name}` is ambiguous; use the positional `fnN` form"
+                )));
+            }
+            return Ok(FunctionId::from_usize(idx));
+        }
         let id = self.parse_ident()?;
         let rest = id
             .strip_prefix("fn")
-            .ok_or_else(|| self.error(format!("expected `fnN`, got `{id}`")))?;
+            .ok_or_else(|| self.error(format!("expected `@name` or `fnN`, got `{id}`")))?;
         let idx: usize =
             rest.parse().map_err(|_| self.error(format!("invalid function index `{id}`")))?;
         Ok(FunctionId::from_usize(idx))
