@@ -1,4 +1,6 @@
 //@compile-flags: --pipeline-default
+//@filecheck: --match-full-lines
+// CHECK: ; module @PhasePipelineTransition [phase = optimized]
 // The canonical pipeline is a phase transition: the module comes out in
 // `optimized` and the header says so.
 ; module @PhasePipelineTransition
