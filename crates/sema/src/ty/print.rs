@@ -152,8 +152,9 @@ pub struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     mode: TyAbiPrinterMode,
-    /// Print structs by their canonical name instead of as a flattened tuple, and
-    /// print reference types with a `storage` data-location suffix.
+    /// Print structs and enums by their canonical name instead of as a
+    /// flattened tuple / `uint8`, and print reference types with a `storage`
+    /// data-location suffix.
     ///
     /// This matches the way solc encodes the signatures of `library` functions,
     /// which — unlike contract functions — may take `mapping`/`storage` reference
@@ -223,7 +224,12 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 }
                 TyAbiPrinterMode::Abi => self.buf.write_str("tuple"),
             },
-            TyKind::Enum(_) => self.buf.write_str("uint8"),
+            TyKind::Enum(id) => match self.mode {
+                TyAbiPrinterMode::Signature if self.structs_by_name => {
+                    write!(self.buf, "{}", self.gcx.item_canonical_name(id))
+                }
+                _ => self.buf.write_str("uint8"),
+            },
             TyKind::Udvt(ty, _) => self.print(ty),
             TyKind::Ref(ty, loc) => {
                 self.print(ty)?;
