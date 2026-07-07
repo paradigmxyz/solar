@@ -1765,11 +1765,10 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Returns the linked address of the library that defines `func_id`, when
-    /// one was supplied via `--libraries Name=0xADDRESS`. An optional
-    /// `path.sol:` prefix on the configured name is ignored.
+    /// one was supplied via `--libraries Name=0xADDRESS`.
     fn linked_library_address(&self, func_id: hir::FunctionId) -> Option<U256> {
-        let specs = &self.gcx.sess.opts.libraries;
-        if specs.is_empty() {
+        let libraries = &self.gcx.sess.opts.libraries;
+        if libraries.is_empty() {
             return None;
         }
         let contract_id = self.gcx.hir.function(func_id).contract?;
@@ -1777,19 +1776,9 @@ impl<'gcx> Lowerer<'gcx> {
         if !contract.kind.is_library() {
             return None;
         }
-        let lib_name = contract.name.as_str();
-        for spec in specs {
-            let Some((name, addr)) = spec.split_once('=') else { continue };
-            let name = name.rsplit(':').next().unwrap_or(name).trim();
-            if name != lib_name {
-                continue;
-            }
-            let addr = addr.trim().trim_start_matches("0x");
-            if let Ok(addr) = U256::from_str_radix(addr, 16) {
-                return Some(addr);
-            }
-        }
-        None
+        let name = contract.name.as_str();
+        let library = libraries.iter().find(|library| library.name == name)?;
+        Some(U256::from_be_slice(&library.address))
     }
 
     /// How a struct field travels across a linked-library call boundary.
