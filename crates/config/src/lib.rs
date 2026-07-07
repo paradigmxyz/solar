@@ -161,6 +161,16 @@ str_enum! {
     }
 }
 
+impl OptimizationMode {
+    /// Returns whether codegen should favor bytecode size over runtime gas
+    /// (`-O size`): multi-use helpers are shared through calls rather than
+    /// inlined at every site.
+    #[inline]
+    pub const fn is_size(self) -> bool {
+        matches!(self, Self::Size)
+    }
+}
+
 str_enum! {
     /// Type of output for the compiler to emit.
     #[strum(serialize_all = "kebab-case")]

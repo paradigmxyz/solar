@@ -1579,7 +1579,7 @@ impl<'gcx> Lowerer<'gcx> {
         // static frames and stack return addresses a call site costs a few
         // bytes, so sharing multi-use helpers now shrinks the output (the
         // opposite held under the old memory-frame protocol).
-        let size_mode = self.gcx.sess.opts.optimize_mir_for_size();
+        let size_mode = self.gcx.sess.opts.optimization.is_size();
 
         if func.returns.is_empty() {
             if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {
@@ -2072,7 +2072,7 @@ impl<'gcx> Lowerer<'gcx> {
 
             // `-O size`: share multi-use helpers through (cheap static-frame)
             // calls instead of duplicating their body at every call site.
-            let size_mode = self.gcx.sess.opts.optimize_mir_for_size();
+            let size_mode = self.gcx.sess.opts.optimization.is_size();
 
             if func.returns.is_empty() {
                 if size_mode || has_storage_ref_param || self.function_is_recursive(func_id) {

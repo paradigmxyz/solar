@@ -190,20 +190,6 @@ pub struct CompileOpts {
 }
 
 impl CompileOpts {
-    /// Returns whether MIR optimization passes should run during codegen.
-    #[inline]
-    pub const fn optimize_mir(&self) -> bool {
-        !matches!(self.optimization, OptimizationMode::None)
-    }
-
-    /// Returns whether codegen should favor bytecode size over runtime gas
-    /// (`-O size`): multi-use helpers are shared through calls rather than
-    /// inlined at every site.
-    #[inline]
-    pub const fn optimize_mir_for_size(&self) -> bool {
-        matches!(self.optimization, OptimizationMode::Size)
-    }
-
     /// Returns the number of threads to use.
     #[inline]
     pub fn threads(&self) -> NonZeroUsize {
