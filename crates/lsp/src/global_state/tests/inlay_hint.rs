@@ -458,6 +458,33 @@ TYPE : bytes memory
 }
 
 #[test]
+fn skips_abi_encode_call_parameter_hints_for_tuple_arity_mismatch() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /AbiEncodeCallArityMismatch.sol
+        interface I {
+            function target(uint256 amount, address account) external returns (uint256);
+        }
+
+        contract C {
+            function caller(address user) public pure returns (bytes memory) {
+                return abi.encodeCall(I.target, (1, user, 3));
+            }
+        }
+        "#,
+        "/AbiEncodeCallArityMismatch.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/AbiEncodeCallArityMismatch.sol",
+        str![[r#"
+TYPE : bytes memory
+
+"#]],
+    );
+}
+
+#[test]
 fn uses_target_parameter_names_for_single_abi_encode_call_argument() {
     let fixture = RequestFixture::new(
         r#"

@@ -186,7 +186,9 @@ impl<'gcx> InlayHintCollector<'gcx> {
 
         match arguments.kind {
             ExprKind::Tuple(components) => {
-                if components.iter().any(|component| component.is_none()) {
+                if components.len() != param_names.len()
+                    || components.iter().any(|component| component.is_none())
+                {
                     return;
                 }
                 self.push_parameter_hints_for_exprs_and_names(
