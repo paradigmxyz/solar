@@ -37,7 +37,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 toml_edit = { workspace = true, features = ["serde"] }
 tower.workspace = true
-tokio = { workspace = true, features = ["rt"] }
+tokio = { workspace = true, features = ["process", "rt", "time"] }
 tracing.workspace = true
 
 # This is needed because Windows does not support truly asynchronous pipes.

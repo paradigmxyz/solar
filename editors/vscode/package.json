@@ -82,6 +82,52 @@
           "type": "boolean",
           "default": true,
           "description": "Format files on save using forge fmt"
+        },
+        "solarLsp.flychecks": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "description": "Flycheck commands to run on save. Leave unset to auto-detect forge lint when available.",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "command"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "Stable diagnostic owner id for this flycheck"
+              },
+              "command": {
+                "type": "string",
+                "description": "Command to execute"
+              },
+              "args": {
+                "type": "array",
+                "default": [],
+                "items": {
+                  "type": "string"
+                },
+                "description": "Command arguments"
+              },
+              "cwd": {
+                "type": "string",
+                "description": "Working directory relative to the workspace root, or an absolute path"
+              },
+              "output": {
+                "type": "string",
+                "default": "solc-json",
+                "enum": [
+                  "solc-json",
+                  "forge-lint-json"
+                ],
+                "description": "JSON diagnostic output format"
+              }
+            }
+          }
         }
       }
     },

@@ -80,6 +80,7 @@ async function startLanguageServer(context: vscode.ExtensionContext) {
   const config = vscode.workspace.getConfiguration("solarLsp");
   const solarPath = config.get<string>("serverPath", "solar");
   const forgePath = config.get<string>("forgePath", "forge");
+  const flychecks = config.get("flychecks");
 
   // Check if solar is available first
   let serverCommand: string;
@@ -118,6 +119,10 @@ async function startLanguageServer(context: vscode.ExtensionContext) {
   // Define client options
   const clientOptions: LanguageClientOptions = {
     documentSelector: [{ scheme: "file", language: "solidity" }],
+    initializationOptions: {
+      forgePath,
+      flychecks,
+    },
     synchronize: {
       fileEvents: vscode.workspace.createFileSystemWatcher("**/*.sol"),
     },

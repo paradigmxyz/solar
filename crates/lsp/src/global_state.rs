@@ -1,7 +1,8 @@
 use crate::{
     NotifyResult,
     config::{Config, negotiate_capabilities},
-    proto,
+    diagnostics::{DiagnosticMap, DiagnosticOwner, DiagnosticStore},
+    flycheck, proto,
     symbols::SymbolTables,
     vfs::Vfs,
     workspace::WorkspacePathIndex,
@@ -40,8 +41,9 @@ pub(crate) struct GlobalState {
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    flycheck_version: Arc<AtomicUsize>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
-    published_diagnostic_uris: Arc<RwLock<FxHashSet<Url>>>,
+    diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
 impl GlobalState {
@@ -50,8 +52,9 @@ impl GlobalState {
             client,
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
+            flycheck_version: Arc::new(AtomicUsize::new(0)),
             symbol_tables: Arc::new(Default::default()),
-            published_diagnostic_uris: Arc::new(Default::default()),
+            diagnostics: Arc::new(Default::default()),
             config: Arc::new(Default::default()),
         }
     }
@@ -146,9 +149,37 @@ impl GlobalState {
 
             if snapshot.is_current(version) {
                 snapshot.set_symbol_tables(symbol_tables);
-                snapshot.publish_diagnostic_set(diagnostics);
+                snapshot.publish_diagnostics(DiagnosticOwner::Compiler, diagnostics);
             }
         });
+    }
+
+    pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
+        let version = self.flycheck_version.fetch_add(1, Ordering::AcqRel) + 1;
+        let flychecks = self.config.flychecks_for_path(&path);
+        if flychecks.is_empty() {
+            return;
+        }
+
+        for flycheck in flychecks {
+            let owner = flycheck.owner();
+            let id = flycheck.id.as_str().to_string();
+            let mut snapshot = self.snapshot();
+            tokio::spawn(async move {
+                let result = flycheck::run(flycheck).await;
+                if !snapshot.is_current_flycheck(version) {
+                    return;
+                }
+
+                match result {
+                    Ok(diagnostics) => snapshot.publish_diagnostics(owner, diagnostics),
+                    Err(error) => {
+                        tracing::warn!(%id, %error, "flycheck failed");
+                        snapshot.publish_diagnostics(owner, DiagnosticMap::default());
+                    }
+                }
+            });
+        }
     }
 
     fn snapshot(&self) -> GlobalStateSnapshot {
@@ -157,8 +188,9 @@ impl GlobalState {
             vfs: self.vfs.clone(),
             config: self.config.clone(),
             analysis_version: self.analysis_version.clone(),
+            flycheck_version: self.flycheck_version.clone(),
             symbol_tables: self.symbol_tables.clone(),
-            published_diagnostic_uris: self.published_diagnostic_uris.clone(),
+            diagnostics: self.diagnostics.clone(),
         }
     }
 
@@ -199,13 +231,18 @@ pub(crate) struct GlobalStateSnapshot {
     vfs: Arc<RwLock<Vfs>>,
     config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    flycheck_version: Arc<AtomicUsize>,
     symbol_tables: Arc<RwLock<SymbolTables>>,
-    published_diagnostic_uris: Arc<RwLock<FxHashSet<Url>>>,
+    diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
 impl GlobalStateSnapshot {
     fn is_current(&self, version: usize) -> bool {
         self.analysis_version.load(Ordering::Acquire) == version
+    }
+
+    fn is_current_flycheck(&self, version: usize) -> bool {
+        self.flycheck_version.load(Ordering::Acquire) == version
     }
 
     fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
@@ -280,18 +317,14 @@ impl GlobalStateSnapshot {
         Cow::Owned(vec![crate::workspace::Workspace::unconfigured()])
     }
 
-    fn publish_diagnostic_set(&mut self, mut diagnostics: FxHashMap<Url, Vec<Diagnostic>>) {
-        let mut uris = diagnostics.keys().cloned().collect::<FxHashSet<_>>();
+    fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) {
+        let batches = {
+            let mut store = self.diagnostics.write();
+            store.replace(owner, diagnostics);
+            store.publish_batches()
+        };
 
-        let mut published_diagnostic_uris = self.published_diagnostic_uris.write();
-        uris.extend(published_diagnostic_uris.iter().cloned());
-        for uri in uris {
-            let uri_diagnostics = diagnostics.remove(&uri).unwrap_or_default();
-            if !uri_diagnostics.is_empty() {
-                published_diagnostic_uris.insert(uri.clone());
-            } else {
-                published_diagnostic_uris.remove(&uri);
-            }
+        for (uri, uri_diagnostics) in batches {
             let _ = self.client.publish_diagnostics(PublishDiagnosticsParams::new(
                 uri,
                 uri_diagnostics,
@@ -376,8 +409,7 @@ mod tests {
     use crate::test_support::TestProject;
     use async_lsp::ClientSocket;
     use lsp_types::{
-        Diagnostic, DocumentSymbol, Position, Range, SymbolKind, WatchKind, WorkspaceSymbol,
-        notification::Notification,
+        DocumentSymbol, SymbolKind, WatchKind, WorkspaceSymbol, notification::Notification,
     };
 
     mod completion;
@@ -396,8 +428,9 @@ mod tests {
             vfs: Arc::new(RwLock::new(vfs)),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            flycheck_version: Arc::new(AtomicUsize::new(1)),
             symbol_tables: Arc::new(Default::default()),
-            published_diagnostic_uris: Arc::new(Default::default()),
+            diagnostics: Arc::new(Default::default()),
         }
     }
 
@@ -419,37 +452,15 @@ mod tests {
     }
 
     #[test]
-    fn publish_diagnostic_set_clears_stale_diagnostics() {
-        let clean_uri = Url::parse("file:///workspace/src/Clean.sol").unwrap();
-        let diagnostic_uri = Url::parse("file:///workspace/src/Error.sol").unwrap();
-        let stale_uri = Url::parse("file:///workspace/src/Stale.sol").unwrap();
-        let published_diagnostic_uris =
-            Arc::new(RwLock::new(FxHashSet::from_iter([clean_uri.clone(), stale_uri.clone()])));
-        let mut snapshot = GlobalStateSnapshot {
-            client: ClientSocket::new_closed(),
-            vfs: Arc::new(Default::default()),
-            config: Arc::new(Config::default()),
-            analysis_version: Arc::new(AtomicUsize::new(1)),
-            symbol_tables: Arc::new(Default::default()),
-            published_diagnostic_uris: published_diagnostic_uris.clone(),
-        };
+    fn saving_without_matching_flychecks_stales_previous_flycheck_results() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let snapshot = state.snapshot();
 
-        let diagnostic = Diagnostic::new_simple(
-            Range {
-                start: Position { line: 0, character: 0 },
-                end: Position { line: 0, character: 1 },
-            },
-            "error".into(),
-        );
-        snapshot.publish_diagnostic_set(FxHashMap::from_iter([(
-            diagnostic_uri.clone(),
-            vec![diagnostic],
-        )]));
+        assert!(snapshot.is_current_flycheck(0));
 
-        let published = published_diagnostic_uris.read();
-        assert!(!published.contains(&clean_uri));
-        assert!(published.contains(&diagnostic_uri));
-        assert!(!published.contains(&stale_uri));
+        state.run_flychecks_on_save(PathBuf::from("/workspace/Untracked.sol"));
+
+        assert!(!snapshot.is_current_flycheck(0));
     }
 
     #[test]

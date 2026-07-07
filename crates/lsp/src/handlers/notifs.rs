@@ -3,7 +3,7 @@ use crop::Rope;
 use lsp_types::{
     DidChangeConfigurationParams, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidChangeWorkspaceFoldersParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
-    FileChangeType,
+    DidSaveTextDocumentParams, FileChangeType,
 };
 use std::{ops::ControlFlow, sync::Arc};
 use tracing::{error, info};
@@ -67,6 +67,17 @@ pub(crate) fn did_close_text_document(
         let disk_path = path.as_path().map(ToOwned::to_owned);
         state.vfs.write().set_file_contents(path, None);
         state.recompute_with_disk_files(disk_path.into_iter().collect());
+    }
+
+    ControlFlow::Continue(())
+}
+
+pub(crate) fn did_save_text_document(
+    state: &mut GlobalState,
+    params: DidSaveTextDocumentParams,
+) -> NotifyResult {
+    if let Ok(path) = params.text_document.uri.to_file_path() {
+        state.run_flychecks_on_save(path);
     }
 
     ControlFlow::Continue(())
