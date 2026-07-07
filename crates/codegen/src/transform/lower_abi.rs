@@ -28,10 +28,11 @@
 //! not advance, so an `abi`-phase module always means every external function is
 //! a wrapper.
 //!
-//! This is opt-in: it is not part of the default pipeline, and the backend does
-//! not consume `abi`-phase modules. It is the staging ground for moving dispatch
-//! and ABI handling out of the backend, and composes with [`super::LowerDispatchPass`],
-//! which routes a selector switch to these argument-free wrappers.
+//! Together with [`super::LowerDispatchPass`], which routes a selector switch
+//! to these argument-free wrappers, this moves dispatch and ABI handling out of
+//! the backend. Both passes run by default in the codegen pipeline (opt out
+//! with `-Zno-mir-dispatch`); a module where this pass bails keeps its phase
+//! and is dispatched by the backend instead.
 
 use crate::{
     mir::{Function, FunctionId, InstKind, MirPhase, MirType, Module},

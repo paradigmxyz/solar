@@ -74,16 +74,18 @@ only when not the default). The phases, in order:
   the ABI wrappers through `tail_call` terminators (control transfers and does
   not return, matching the wrappers' external termination). Produced by the
   `lower-dispatch` pass, which requires the `abi` phase.
-- `evm-shaped`: builtins expanded into the shape the backend expects. Reserved;
-  nothing lowers to it yet, since builtins already lower to concrete `InstKind`s.
+- `evm-shaped`: every call edge either returns or is an explicit `tail_call`,
+  the shape the backend expects. Produced by the opt-in `lower-evm-shaped`
+  pass (run via `mir-opt --pass`); not in the default pipeline because the
+  backend does not yet set up callee frames for argument-carrying tail calls.
 
 The `lower-abi` and `lower-dispatch` passes are progressive MIR-to-MIR lowering,
-moving dispatch and ABI handling out of the backend. By default they are
-**opt-in** (run via `mir-opt --pass`), so the backend consumes
-`built`/`optimized` MIR and production bytecode is unaffected; under
-`-Zmir-dispatch` the codegen pipeline runs them and the backend consumes the
-`dispatch`-phase module, with the MIR `entry` as the runtime prologue and
-`tail_call` lowered to a jump. When extending them or adding the next phase, make the transition a
+moving dispatch and ABI handling out of the backend. They run **by default** in
+the codegen pipeline and the backend consumes the `dispatch`-phase module, with
+the MIR `entry` as the runtime prologue and `tail_call` lowered to a jump
+(opt out with `-Zno-mir-dispatch`). A module where `lower-abi` bails — currently
+when an external function returns a dynamic type, or the module has no external
+interface — keeps its phase and is dispatched by the backend. When extending them or adding the next phase, make the transition a
 named pass that advances the phase via `Module::advance_phase`, keep it
 conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
 and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.

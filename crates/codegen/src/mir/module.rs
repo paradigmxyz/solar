@@ -27,10 +27,10 @@ pub const IMMUTABLE_WORD_SIZE: usize = 32;
 ///
 /// Optimization runs on the compact high-level form first; the progressive
 /// lowering phases then rewrite high-level constructs into MIR itself instead
-/// of leaving them as backend special cases. Today the backend still consumes
-/// `built`/`optimized` MIR and performs dispatch and ABI handling implicitly;
-/// the lowering phases are produced by opt-in passes and are the staging ground
-/// for moving that work into MIR.
+/// of leaving them as backend special cases. The codegen pipeline runs
+/// `lower-abi` and `lower-dispatch` by default and the backend consumes the
+/// `dispatch`-phase module (opt out with `-Zno-mir-dispatch`); a module where
+/// lowering bails keeps its phase and is dispatched by the backend.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MirPhase {
     /// Fresh from HIR lowering: typed values, internal calls by function id,
@@ -48,9 +48,12 @@ pub enum MirPhase {
     /// function that routes to the ABI wrappers, instead of being generated
     /// inside the backend.
     Dispatch,
-    /// Builtin-level operations are expanded and functions take the shape the
-    /// backend expects. Reserved: nothing lowers to this phase yet, since
-    /// builtins already lower to concrete `InstKind`s.
+    /// Functions take the shape the backend expects: every call edge either
+    /// returns or is an explicit `tail_call` (a call to a callee that cannot
+    /// return is rewritten into one). Produced by the opt-in
+    /// `lower-evm-shaped` pass; not part of the default pipeline because the
+    /// backend does not yet set up callee frames for argument-carrying tail
+    /// calls.
     EvmShaped,
 }
 
