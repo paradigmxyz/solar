@@ -11,9 +11,15 @@
 //! [`Terminator::TailCall`], dropping the dead remainder of the block. The
 //! module comes out in the `evm-shaped` phase: every call edge either returns
 //! or is an explicit tail call, which is the control-flow shape the backend
-//! expects to consume.
+//! consumes.
+//!
+//! Arguments ride along: the backend stores them at the callee's compile-time
+//! frame addresses and jumps, pushing no return address. That addressing only
+//! exists for callees the backend gives a static frame (bodied, selectorless,
+//! non-recursive), so calls to any other callee are left as ordinary calls.
 
 use crate::{
+    analysis::CallGraphInfo,
     mir::{Function, InstKind, MirPhase, Module, Terminator},
     pass::ModulePass,
 };
@@ -43,21 +49,29 @@ impl LowerEvmShapedPass {
             return false;
         }
 
-        let cannot_return: Vec<bool> =
-            module.functions.iter().map(function_cannot_return).collect();
+        let call_graph = CallGraphInfo::new(module);
+        let tail_callable: Vec<bool> = module
+            .functions
+            .iter_enumerated()
+            .map(|(func_id, func)| {
+                function_cannot_return(func)
+                    && func.selector.is_none()
+                    && !func.attributes.is_receive
+                    && !func.attributes.is_fallback
+                    && !call_graph.is_recursive(func_id)
+            })
+            .collect();
 
         for func in module.functions.iter_mut() {
             for block_id in (0..func.blocks.len()).map(crate::mir::BlockId::from_usize) {
                 let insts = &func.blocks[block_id].instructions;
                 let Some(position) = insts.iter().position(|&inst_id| {
                     let inst = &func.instructions[inst_id];
-                    // Argument-carrying tail calls are not lowered by the
-                    // backend yet; keep those as ordinary calls.
                     inst.result_ty.is_none()
                         && matches!(
                             &inst.kind,
-                            InstKind::InternalCall { function, args, .. }
-                                if cannot_return[function.index()] && args.is_empty()
+                            InstKind::InternalCall { function, .. }
+                                if tail_callable[function.index()]
                         )
                 }) else {
                     continue;

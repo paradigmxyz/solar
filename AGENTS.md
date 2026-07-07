@@ -74,12 +74,13 @@ only when not the default). The phases, in order:
   the ABI wrappers through `tail_call` terminators (control transfers and does
   not return, matching the wrappers' external termination). Produced by the
   `lower-dispatch` pass, which requires the `abi` phase.
-- `evm-shaped`: every call edge either returns or is an explicit `tail_call`,
-  the shape the backend expects. Produced by the opt-in `lower-evm-shaped`
-  pass (run via `mir-opt --pass`); not in the default pipeline because the
-  backend does not yet set up callee frames for argument-carrying tail calls.
+- `evm-shaped`: every call edge either returns or is an explicit `tail_call`
+  (arguments included), the shape the backend expects. Produced by the
+  `lower-evm-shaped` pass; argument-carrying tail calls are only formed for
+  callees the backend statically frames, so their arguments store at
+  compile-time frame addresses with no return address pushed.
 
-The `lower-abi` and `lower-dispatch` passes are progressive MIR-to-MIR lowering,
+The `lower-abi`, `lower-dispatch`, and `lower-evm-shaped` passes are progressive MIR-to-MIR lowering,
 moving dispatch and ABI handling out of the backend. They run **by default** in
 the codegen pipeline and the backend consumes the `dispatch`-phase module, with
 the MIR `entry` as the runtime prologue and `tail_call` lowered to a jump

@@ -1,9 +1,11 @@
 //@compile-flags: --pass lower-evm-shaped
 // A resultless internal call to a callee that never returns (no `ret`, no
 // `stop` — it ends in `returndata`) models a returning edge that does not
-// exist. The evm-shaped phase rewrites it into a `tail_call` and drops the
-// dead remainder of the block. `@entry` is present so the module satisfies the
-// dispatch-phase contract.
+// exist. The evm-shaped phase rewrites it into a `tail_call` — arguments
+// included — and drops the dead remainder of the block. The rewrite only
+// applies to callees the backend statically frames: `@spin` cannot return
+// either, but it is recursive, so its call stays an ordinary `internal_call`.
+// `@entry` is present so the module satisfies the dispatch-phase contract.
 ; module @LowerEvmShaped [phase = dispatch]
 fn @entry() {
   bb0 (entry):
@@ -25,4 +27,9 @@ fn @fused(arg0: u256) {
   bb0 (entry):
     mstore 128, arg0
     returndata 128, 32
+}
+fn @spin(arg0: u256) {
+  bb0 (entry):
+    internal_call fn3, 0, arg0
+    revert 0, 0
 }

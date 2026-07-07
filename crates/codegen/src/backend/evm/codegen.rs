@@ -715,10 +715,7 @@ impl EvmCodegen {
         if self.mir_dispatch {
             crate::pass::run_pass(module, &crate::pass::LOWER_ABI_PASS);
             crate::pass::run_pass(module, &crate::pass::LOWER_DISPATCH_PASS);
-            // `lower-evm-shaped` stays out of this pipeline for now: its
-            // argument-carrying tail calls need callee frame setup the backend
-            // does not perform yet, while the wrapper's internal call to a
-            // fused body is fully supported.
+            crate::pass::run_pass(module, &crate::pass::LOWER_EVM_SHAPED_PASS);
         }
     }
 
@@ -3766,10 +3763,29 @@ impl EvmCodegen {
     ) {
         match term {
             Terminator::TailCall { function, args } => {
-                // Control transfers to the target and never returns: a plain
-                // jump to its entry label. Argument-carrying tail calls are not
-                // produced by the current lowering phases.
-                assert!(args.is_empty(), "tail_call with arguments is not lowered yet");
+                // Control transfers to the target and never returns: store the
+                // arguments at the callee's compile-time frame addresses and
+                // jump. No return address is pushed and the caller's tracked
+                // stack is not drained — whatever stays below the callee's
+                // model (including the caller's own inherited return address)
+                // is unreachable by model-relative operations, and the callee
+                // never executes a `ret` that would consume it.
+                if !args.is_empty() {
+                    // `lower-evm-shaped` only forms argument-carrying tail
+                    // calls to callees the backend statically frames.
+                    assert!(
+                        self.static_frame_functions.contains(function),
+                        "argument-carrying tail call to a non-static-frame callee"
+                    );
+                    for (i, &arg) in args.iter().enumerate() {
+                        self.emit_operand(func, arg);
+                        let addr = self.static_frame_addr(*function, 64 + (i as u64) * 32);
+                        self.asm.emit_push_deferred(addr);
+                        self.scheduler.stack.push_unknown();
+                        self.asm.emit_op(op::MSTORE);
+                        self.scheduler.instruction_executed(2, None);
+                    }
+                }
                 let label = self.function_labels[function];
                 self.asm.emit_push_label(label);
                 self.asm.emit_op(op::JUMP);

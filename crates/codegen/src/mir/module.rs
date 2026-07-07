@@ -50,10 +50,8 @@ pub enum MirPhase {
     Dispatch,
     /// Functions take the shape the backend expects: every call edge either
     /// returns or is an explicit `tail_call` (a call to a callee that cannot
-    /// return is rewritten into one). Produced by the opt-in
-    /// `lower-evm-shaped` pass; not part of the default pipeline because the
-    /// backend does not yet set up callee frames for argument-carrying tail
-    /// calls.
+    /// return is rewritten into one, arguments included). Produced by the
+    /// `lower-evm-shaped` pass.
     EvmShaped,
 }
 
