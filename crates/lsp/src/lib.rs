@@ -19,6 +19,7 @@ use tower::ServiceBuilder;
 mod config;
 mod global_state;
 mod handlers;
+mod inlay_hints;
 mod proto;
 mod serde;
 mod symbols;
@@ -49,6 +50,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
         .request::<req::References, _>(handlers::references)
+        .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
         .request::<req::Completion, _>(handlers::completion);
 
     // Workspace management

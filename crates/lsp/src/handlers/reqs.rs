@@ -3,8 +3,8 @@ use async_lsp::ResponseError;
 use crop::Rope;
 use lsp_types::{
     CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
-    GotoDefinitionParams, GotoDefinitionResponse, Position, ReferenceParams, Url,
-    WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    GotoDefinitionParams, GotoDefinitionResponse, InlayHint, InlayHintParams, Position,
+    ReferenceParams, Url, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
 use std::future::ready;
 
@@ -61,6 +61,14 @@ pub(crate) fn references(
         include_declaration,
     );
     ready(Ok(response))
+}
+
+pub(crate) fn inlay_hints(
+    state: &mut GlobalState,
+    params: InlayHintParams,
+) -> impl Future<Output = Result<Option<Vec<InlayHint>>, ResponseError>> + use<> {
+    let response = state.symbol_tables.read().inlay_hints(&params.text_document.uri, params.range);
+    ready(Ok(Some(response)))
 }
 
 pub(crate) fn completion(

@@ -1,6 +1,6 @@
 use lsp_types::{
-    CompletionItem, CompletionItemKind, DocumentSymbol, GotoDefinitionResponse, Location, OneOf,
-    Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
+    CompletionItem, CompletionItemKind, DocumentSymbol, GotoDefinitionResponse, InlayHint,
+    Location, OneOf, Position, Range, SymbolInformation, SymbolKind, Url, WorkspaceSymbol,
 };
 use solar_interface::{
     Span,
@@ -17,7 +17,7 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-use crate::proto;
+use crate::{inlay_hints::InlayHintIndex, proto};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
@@ -35,6 +35,7 @@ pub(crate) struct SymbolTables {
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, Vec<usize>>,
     symbol_references: FxHashMap<SymbolId, Vec<Location>>,
+    inlay_hints: InlayHintIndex,
 }
 
 newtype_index! {
@@ -204,6 +205,7 @@ impl SymbolTables {
         tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
         tables.build_references(gcx);
+        tables.inlay_hints = InlayHintIndex::build(gcx);
         tables.rebuild_indexes();
         tables
     }
@@ -231,6 +233,7 @@ impl SymbolTables {
         if self.builtin_member_completions.is_empty() {
             self.builtin_member_completions = std::mem::take(&mut other.builtin_member_completions);
         }
+        self.inlay_hints.extend(other.inlay_hints);
 
         if other.declarations.is_empty() {
             return;
@@ -274,6 +277,10 @@ impl SymbolTables {
         // merging symbol tables from separate analysis batches.
         self.symbols_by_key.clear();
         self.rebuild_indexes();
+    }
+
+    pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
+        self.inlay_hints.hints(uri, range)
     }
 
     pub(crate) fn document_symbols(&self, uri: &Url) -> Vec<DocumentSymbol> {
