@@ -1,7 +1,7 @@
 use super::{Gcx, Ty, TyFnKind, TyKind};
 use crate::hir;
 use alloy_json_abi as json;
-use solar_ast::ElementaryType;
+use solar_ast::{DataLocation, ElementaryType};
 use std::{fmt, ops::ControlFlow};
 
 impl<'gcx> Gcx<'gcx> {
@@ -10,10 +10,14 @@ impl<'gcx> Gcx<'gcx> {
         self,
         name: &str,
         tys: impl IntoIterator<Item = Ty<'gcx>>,
+        in_library: bool,
     ) -> String {
         let mut s = String::with_capacity(64);
         s.push_str(name);
-        TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Signature).print_tuple(tys).unwrap();
+        TyAbiPrinter::new(self, &mut s, TyAbiPrinterMode::Signature)
+            .with_in_library(in_library)
+            .print_tuple(tys)
+            .unwrap();
         s
     }
 
@@ -148,6 +152,12 @@ pub struct TyAbiPrinter<'gcx, W> {
     gcx: Gcx<'gcx>,
     buf: W,
     mode: TyAbiPrinterMode,
+    /// Print types in the library function signature form used by solc.
+    ///
+    /// Unlike contract functions, library functions may take `mapping`/`storage`
+    /// reference parameters and refer to structs, enums, and contracts by name
+    /// (e.g. `f(DataTypes.Reserve storage)`).
+    in_library: bool,
 }
 
 /// [`TyAbiPrinter`] configuration.
@@ -168,7 +178,13 @@ pub enum TyAbiPrinterMode {
 impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     /// Creates a new ABI printer.
     pub fn new(gcx: Gcx<'gcx>, buf: W, mode: TyAbiPrinterMode) -> Self {
-        Self { gcx, buf, mode }
+        Self { gcx, buf, mode, in_library: false }
+    }
+
+    /// Sets whether types are printed as a `library` function signature.
+    pub fn with_in_library(mut self, yes: bool) -> Self {
+        self.in_library = yes;
+        self
     }
 
     /// Returns a mutable reference to the underlying buffer.
@@ -185,9 +201,15 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
     pub fn print(&mut self, ty: Ty<'gcx>) -> fmt::Result {
         match ty.kind {
             TyKind::Elementary(ty) => ty.write_abi_str(&mut self.buf),
+            TyKind::Contract(id) if self.mode == TyAbiPrinterMode::Signature && self.in_library => {
+                write!(self.buf, "{}", self.gcx.item_canonical_name(id))
+            }
             TyKind::Contract(_) => self.buf.write_str("address"),
             TyKind::Fn(_) => self.buf.write_str("function"),
             TyKind::Struct(id) => match self.mode {
+                TyAbiPrinterMode::Signature if self.in_library => {
+                    write!(self.buf, "{}", self.gcx.item_canonical_name(id))
+                }
                 TyAbiPrinterMode::Signature => {
                     if self.gcx.struct_recursiveness(id).is_recursive() {
                         assert!(
@@ -201,9 +223,32 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
                 }
                 TyAbiPrinterMode::Abi => self.buf.write_str("tuple"),
             },
-            TyKind::Enum(_) => self.buf.write_str("uint8"),
+            TyKind::Enum(id) => match self.mode {
+                TyAbiPrinterMode::Signature if self.in_library => {
+                    write!(self.buf, "{}", self.gcx.item_canonical_name(id))
+                }
+                _ => self.buf.write_str("uint8"),
+            },
             TyKind::Udvt(ty, _) => self.print(ty),
-            TyKind::Ref(ty, _loc) => self.print(ty),
+            TyKind::Ref(ty, loc) => {
+                self.print(ty)?;
+                // solc encodes the `storage` location in `library` function
+                // signatures (e.g. `f(uint256[] storage)`), but never `memory`
+                // or `calldata`.
+                if self.in_library && loc == DataLocation::Storage {
+                    self.buf.write_str(" storage")?;
+                }
+                Ok(())
+            }
+            // A `mapping` can appear in a `library` function signature. solc prints
+            // it structurally as `mapping(key => value)`.
+            TyKind::Mapping(key, value) if self.mode == TyAbiPrinterMode::Signature => {
+                self.buf.write_str("mapping(")?;
+                self.print(key)?;
+                self.buf.write_str(" => ")?;
+                self.print(value)?;
+                self.buf.write_str(")")
+            }
             TyKind::DynArray(ty) => {
                 self.print(ty)?;
                 self.buf.write_str("[]")
@@ -219,6 +264,7 @@ impl<'gcx, W: fmt::Write> TyAbiPrinter<'gcx, W> {
             | TyKind::Tuple(_)
             | TyKind::Mapping(..)
             | TyKind::Super(_)
+            // ^ `Mapping` only reaches here in `Abi` mode; `Signature` mode handles it above.
             | TyKind::Error(..)
             | TyKind::Event(..)
             | TyKind::Module(_)
