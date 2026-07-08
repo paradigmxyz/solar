@@ -9,11 +9,11 @@ pub(super) fn parse(
     cwd: &Path,
     format: FlycheckOutput,
 ) -> Result<DiagnosticMap, ParseError> {
-    let values = parse_values(output)?;
     let mut diagnostics = DiagnosticMap::default();
 
-    for value in &values {
-        collect_diagnostics(value, cwd, format, &mut diagnostics);
+    let stream = serde_json::Deserializer::from_slice(output).into_iter::<Value>();
+    for value in stream {
+        collect_diagnostics(&value?, cwd, format, &mut diagnostics);
     }
 
     Ok(diagnostics)
@@ -23,11 +23,6 @@ pub(super) fn parse(
 pub(crate) enum ParseError {
     #[error("failed to parse flycheck JSON output: {0}")]
     Json(#[from] serde_json::Error),
-}
-
-fn parse_values(output: &[u8]) -> Result<Vec<Value>, ParseError> {
-    let stream = serde_json::Deserializer::from_slice(output).into_iter::<Value>();
-    stream.collect::<Result<Vec<_>, _>>().map_err(ParseError::Json)
 }
 
 fn collect_diagnostics(

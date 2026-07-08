@@ -50,8 +50,8 @@ async fn command_output(
         .stderr(Stdio::piped())
         .spawn()?;
 
-    let stdout = child.stdout.take().map(read_pipe);
-    let stderr = child.stderr.take().map(read_pipe);
+    let stdout = read_pipe(child.stdout.take().expect("stdout was piped"));
+    let stderr = read_pipe(child.stderr.take().expect("stderr was piped"));
     let status = match time::timeout(timeout, child.wait()).await {
         Ok(status) => status?,
         Err(_) => {
@@ -75,17 +75,12 @@ fn read_pipe(pipe: impl AsyncRead + Send + Unpin + 'static) -> JoinHandle<io::Re
     })
 }
 
-async fn collect_pipe(pipe: Option<JoinHandle<io::Result<Vec<u8>>>>) -> io::Result<Vec<u8>> {
-    match pipe {
-        Some(pipe) => pipe.await.map_err(io::Error::other)?,
-        None => Ok(Vec::new()),
-    }
+async fn collect_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) -> io::Result<Vec<u8>> {
+    pipe.await.map_err(io::Error::other)?
 }
 
-fn abort_pipe(pipe: Option<JoinHandle<io::Result<Vec<u8>>>>) {
-    if let Some(pipe) = pipe {
-        pipe.abort();
-    }
+fn abort_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) {
+    pipe.abort();
 }
 
 #[cfg(test)]
