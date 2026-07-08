@@ -25,7 +25,7 @@ workspace = true
 
 [dependencies]
 solar-config = { workspace = true, features = ["version"] }
-solar-interface.workspace = true
+solar-interface = { workspace = true, features = ["json"] }
 solar-sema.workspace = true
 
 async-lsp = { workspace = true, features = ["omni-trait"] }
