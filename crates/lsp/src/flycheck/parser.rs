@@ -1,7 +1,7 @@
 use crate::{diagnostics::DiagnosticMap, flycheck::config::FlycheckOutput};
 use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url};
 use serde_json::Value;
-use solar_interface::source_map::SourceMap;
+use solar_interface::{data_structures::map::FxHashMap, source_map::SourceMap};
 use std::path::{Path, PathBuf};
 
 pub(super) fn parse(
@@ -10,10 +10,11 @@ pub(super) fn parse(
     format: FlycheckOutput,
 ) -> Result<DiagnosticMap, ParseError> {
     let mut diagnostics = DiagnosticMap::default();
+    let mut range_cache = ByteRangeCache::default();
 
     let stream = serde_json::Deserializer::from_slice(output).into_iter::<Value>();
     for value in stream {
-        collect_diagnostics(&value?, cwd, format, &mut diagnostics);
+        collect_diagnostics(&value?, cwd, format, &mut diagnostics, &mut range_cache);
     }
 
     Ok(diagnostics)
@@ -30,22 +31,23 @@ fn collect_diagnostics(
     cwd: &Path,
     format: FlycheckOutput,
     diagnostics: &mut DiagnosticMap,
+    range_cache: &mut ByteRangeCache,
 ) {
     match value {
         Value::Array(values) => {
             for value in values {
-                collect_diagnostics(value, cwd, format, diagnostics);
+                collect_diagnostics(value, cwd, format, diagnostics, range_cache);
             }
         }
         Value::Object(object) => {
             for key in ["diagnostics", "findings", "errors"] {
                 if let Some(value) = object.get(key) {
-                    collect_diagnostics(value, cwd, format, diagnostics);
+                    collect_diagnostics(value, cwd, format, diagnostics, range_cache);
                     return;
                 }
             }
 
-            if let Some((uri, diagnostic)) = external_diagnostic(value, cwd, format) {
+            if let Some((uri, diagnostic)) = external_diagnostic(value, cwd, format, range_cache) {
                 diagnostics.entry(uri).or_default().push(diagnostic);
             }
         }
@@ -57,11 +59,12 @@ fn external_diagnostic(
     value: &Value,
     cwd: &Path,
     format: FlycheckOutput,
+    range_cache: &mut ByteRangeCache,
 ) -> Option<(Url, Diagnostic)> {
     let location = source_location(value);
     let path = resolve_path(cwd, location.file?);
     let uri = Url::from_file_path(&path).ok()?;
-    let range = location.range(&path)?;
+    let range = location.range(&path, range_cache)?;
     let message = message(value)?;
     let code = diagnostic_code(value);
 
@@ -179,9 +182,9 @@ impl<'a> ExternalLocation<'a> {
         }
     }
 
-    fn range(&self, path: &Path) -> Option<Range> {
+    fn range(&self, path: &Path, range_cache: &mut ByteRangeCache) -> Option<Range> {
         if let (Some(start), Some(end)) = (self.start, self.end) {
-            return byte_range(path, start as usize, end as usize);
+            return range_cache.range(path, start as usize, end as usize);
         }
 
         let line = self.line?;
@@ -203,30 +206,56 @@ fn bool_field(value: &Value, keys: &[&str]) -> Option<bool> {
     keys.iter().find_map(|key| value.get(*key).and_then(Value::as_bool))
 }
 
-fn byte_range(path: &Path, start: usize, end: usize) -> Option<Range> {
-    let source_map = SourceMap::empty();
-    let contents = source_map.file_loader().load_file(path).ok()?;
-    Some(Range { start: position_at_byte(&contents, start), end: position_at_byte(&contents, end) })
+#[derive(Default)]
+struct ByteRangeCache {
+    source_map: SourceMap,
+    files: FxHashMap<PathBuf, LineIndex>,
 }
 
-fn position_at_byte(contents: &str, byte: usize) -> Position {
-    let byte = byte.min(contents.len());
-    let mut line = 0u32;
-    let mut character = 0u32;
+impl ByteRangeCache {
+    fn range(&mut self, path: &Path, start: usize, end: usize) -> Option<Range> {
+        if !self.files.contains_key(path) {
+            let contents = self.source_map.file_loader().load_file(path).ok()?;
+            self.files.insert(path.to_path_buf(), LineIndex::new(contents));
+        }
 
-    for (idx, char) in contents.char_indices() {
-        if idx >= byte {
-            break;
+        let file = self.files.get(path)?;
+        Some(Range { start: file.position_at_byte(start), end: file.position_at_byte(end) })
+    }
+}
+
+struct LineIndex {
+    contents: String,
+    line_starts: Vec<usize>,
+}
+
+impl LineIndex {
+    fn new(contents: String) -> Self {
+        let mut line_starts = vec![0];
+        for (idx, byte) in contents.bytes().enumerate() {
+            if byte == b'\n' {
+                line_starts.push(idx + 1);
+            }
         }
-        if char == '\n' {
-            line += 1;
-            character = 0;
-        } else {
-            character += char.len_utf16() as u32;
-        }
+
+        Self { contents, line_starts }
     }
 
-    Position { line, character }
+    fn position_at_byte(&self, byte: usize) -> Position {
+        let byte = byte.min(self.contents.len());
+        let line = self.line_starts.partition_point(|start| *start <= byte).saturating_sub(1);
+        let line_start = self.line_starts[line];
+        let mut character = 0u32;
+
+        for (idx, char) in self.contents[line_start..].char_indices() {
+            if line_start + idx >= byte {
+                break;
+            }
+            character += char.len_utf16() as u32;
+        }
+
+        Position { line: line as u32, character }
+    }
 }
 
 fn one_based_position(line: u64, column: u64) -> Position {
