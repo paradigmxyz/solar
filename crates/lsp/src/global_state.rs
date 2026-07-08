@@ -17,7 +17,10 @@ use lsp_types::{
 use solar_config::{CompileOpts, version::SHORT_VERSION};
 use solar_interface::{
     Session,
-    data_structures::{map::FxHashSet, sync::RwLock},
+    data_structures::{
+        map::{FxHashMap, FxHashSet},
+        sync::RwLock,
+    },
     diagnostics::{DiagCtxt, InMemoryEmitter},
     source_map::{FileName, SourceMap},
 };
@@ -38,8 +41,8 @@ pub(crate) struct GlobalState {
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
-    flycheck_version: Arc<AtomicUsize>,
-    flycheck_cancels: Vec<oneshot::Sender<()>>,
+    flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
+    flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
@@ -50,8 +53,8 @@ impl GlobalState {
             client,
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
-            flycheck_version: Arc::new(AtomicUsize::new(0)),
-            flycheck_cancels: Vec::new(),
+            flycheck_versions: Arc::new(Default::default()),
+            flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
             config: Arc::new(Default::default()),
@@ -154,7 +157,6 @@ impl GlobalState {
     }
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
-        let version = self.begin_flycheck_epoch();
         let flychecks = self.config.flychecks_for_path(&path);
         if flychecks.is_empty() {
             return;
@@ -162,24 +164,26 @@ impl GlobalState {
 
         for flycheck in flychecks {
             let owner = flycheck.owner();
+            let version = self.begin_flycheck_epoch(&owner);
             let id = flycheck.id.as_str().to_string();
             let mut snapshot = self.snapshot();
             let (cancel, cancelled) = oneshot::channel();
+            let task_owner = owner.clone();
             tokio::spawn(async move {
                 let result = flycheck::run(flycheck, cancelled).await;
-                if !snapshot.is_current_flycheck(version) {
+                if !snapshot.is_current_flycheck(&task_owner, version) {
                     return;
                 }
 
                 match result {
-                    Ok(diagnostics) => snapshot.publish_diagnostics(owner, diagnostics),
+                    Ok(diagnostics) => snapshot.publish_diagnostics(task_owner, diagnostics),
                     Err(error) => {
                         tracing::warn!(%id, %error, "flycheck failed");
-                        snapshot.publish_diagnostics(owner, DiagnosticMap::default());
+                        snapshot.publish_diagnostics(task_owner, DiagnosticMap::default());
                     }
                 }
             });
-            self.flycheck_cancels.push(cancel);
+            self.flycheck_cancels.insert(owner, cancel);
         }
     }
 
@@ -187,7 +191,11 @@ impl GlobalState {
         &mut self,
         owners: impl IntoIterator<Item = DiagnosticOwner>,
     ) {
-        self.begin_flycheck_epoch();
+        let owners = owners.into_iter().collect::<Vec<_>>();
+        for owner in &owners {
+            self.begin_flycheck_epoch(owner);
+        }
+
         let mut snapshot = self.snapshot();
         for owner in owners {
             snapshot.publish_diagnostics(owner, DiagnosticMap::default());
@@ -198,13 +206,23 @@ impl GlobalState {
         &mut self,
         paths: impl IntoIterator<Item = PathBuf>,
     ) {
+        let paths = paths.into_iter().collect::<Vec<_>>();
         let uris =
-            paths.into_iter().filter_map(|path| Url::from_file_path(path).ok()).collect::<Vec<_>>();
+            paths.iter().filter_map(|path| Url::from_file_path(path).ok()).collect::<Vec<_>>();
         if uris.is_empty() {
             return;
         }
 
-        self.begin_flycheck_epoch();
+        let mut owners = FxHashSet::default();
+        for path in paths {
+            for flycheck in self.config.flychecks_for_path(&path) {
+                owners.insert(flycheck.owner());
+            }
+        }
+        for owner in owners {
+            self.begin_flycheck_epoch(&owner);
+        }
+
         let batches = {
             let mut store = self.diagnostics.write();
             store.clear_uris_and_publish_batches(uris)
@@ -219,14 +237,19 @@ impl GlobalState {
         }
     }
 
-    fn begin_flycheck_epoch(&mut self) -> usize {
-        let version = self.flycheck_version.fetch_add(1, Ordering::AcqRel) + 1;
-        self.cancel_flychecks();
+    fn begin_flycheck_epoch(&mut self, owner: &DiagnosticOwner) -> usize {
+        let version = {
+            let mut versions = self.flycheck_versions.write();
+            let version = versions.get(owner).copied().unwrap_or_default() + 1;
+            versions.insert(owner.clone(), version);
+            version
+        };
+        self.cancel_flycheck(owner);
         version
     }
 
-    fn cancel_flychecks(&mut self) {
-        for cancel in self.flycheck_cancels.drain(..) {
+    fn cancel_flycheck(&mut self, owner: &DiagnosticOwner) {
+        if let Some(cancel) = self.flycheck_cancels.remove(owner) {
             let _ = cancel.send(());
         }
     }
@@ -237,7 +260,7 @@ impl GlobalState {
             vfs: self.vfs.clone(),
             config: self.config.clone(),
             analysis_version: self.analysis_version.clone(),
-            flycheck_version: self.flycheck_version.clone(),
+            flycheck_versions: self.flycheck_versions.clone(),
             symbol_tables: self.symbol_tables.clone(),
             diagnostics: self.diagnostics.clone(),
         }
@@ -280,7 +303,7 @@ pub(crate) struct GlobalStateSnapshot {
     vfs: Arc<RwLock<Vfs>>,
     config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
-    flycheck_version: Arc<AtomicUsize>,
+    flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     symbol_tables: Arc<RwLock<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
@@ -290,8 +313,8 @@ impl GlobalStateSnapshot {
         self.analysis_version.load(Ordering::Acquire) == version
     }
 
-    fn is_current_flycheck(&self, version: usize) -> bool {
-        self.flycheck_version.load(Ordering::Acquire) == version
+    fn is_current_flycheck(&self, owner: &DiagnosticOwner, version: usize) -> bool {
+        self.flycheck_versions.read().get(owner).copied().unwrap_or_default() == version
     }
 
     fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
@@ -479,10 +502,14 @@ mod tests {
             vfs: Arc::new(RwLock::new(vfs)),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
-            flycheck_version: Arc::new(AtomicUsize::new(1)),
+            flycheck_versions: Arc::new(Default::default()),
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
         }
+    }
+
+    fn flycheck_owner(workspace: impl Into<PathBuf>) -> DiagnosticOwner {
+        DiagnosticOwner::Flycheck { id: "slow".into(), workspace: workspace.into() }
     }
 
     #[test]
@@ -503,27 +530,91 @@ mod tests {
     }
 
     #[test]
-    fn saving_without_matching_flychecks_stales_previous_flycheck_results() {
+    fn saving_without_matching_flychecks_keeps_previous_flycheck_results_current() {
         let mut state = GlobalState::new(ClientSocket::new_closed());
         let snapshot = state.snapshot();
+        let owner = flycheck_owner("/workspace");
 
-        assert!(snapshot.is_current_flycheck(0));
+        assert!(snapshot.is_current_flycheck(&owner, 0));
 
         state.run_flychecks_on_save(PathBuf::from("/workspace/Untracked.sol"));
 
-        assert!(!snapshot.is_current_flycheck(0));
+        assert!(snapshot.is_current_flycheck(&owner, 0));
     }
 
     #[test]
-    fn clearing_removed_flychecks_stales_previous_flycheck_results() {
+    fn clearing_removed_flychecks_without_owners_keeps_previous_flycheck_results_current() {
         let mut state = GlobalState::new(ClientSocket::new_closed());
         let snapshot = state.snapshot();
+        let owner = flycheck_owner("/workspace");
 
-        assert!(snapshot.is_current_flycheck(0));
+        assert!(snapshot.is_current_flycheck(&owner, 0));
 
         state.clear_removed_flycheck_diagnostics(Vec::new());
 
-        assert!(!snapshot.is_current_flycheck(0));
+        assert!(snapshot.is_current_flycheck(&owner, 0));
+    }
+
+    #[test]
+    fn clearing_removed_flychecks_stales_removed_owner_results() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let snapshot = state.snapshot();
+        let owner = flycheck_owner("/workspace");
+
+        assert!(snapshot.is_current_flycheck(&owner, 0));
+
+        state.clear_removed_flycheck_diagnostics([owner.clone()]);
+
+        assert!(!snapshot.is_current_flycheck(&owner, 0));
+    }
+
+    #[test]
+    fn clearing_removed_file_diagnostics_stales_matching_flycheck_owner_only() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /first/foundry.toml
+            [profile.default]
+            src = "src"
+            //- /second/foundry.toml
+            [profile.default]
+            src = "src"
+            "#,
+        );
+        let mut params = project.initialize_params_with_roots(&["/first", "/second"]);
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "slow",
+                "command": "slow",
+            }],
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+        let snapshot = state.snapshot();
+        let first_owner = flycheck_owner(project.path("/first"));
+        let second_owner = flycheck_owner(project.path("/second"));
+
+        assert!(snapshot.is_current_flycheck(&first_owner, 0));
+        assert!(snapshot.is_current_flycheck(&second_owner, 0));
+
+        state.clear_removed_file_diagnostics([project.path("/first/src/Deleted.sol")]);
+
+        assert!(!snapshot.is_current_flycheck(&first_owner, 0));
+        assert!(snapshot.is_current_flycheck(&second_owner, 0));
+    }
+
+    #[test]
+    fn beginning_flycheck_epoch_keeps_other_owner_cancel_pending() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let first_owner = flycheck_owner("/first");
+        let second_owner = flycheck_owner("/second");
+        let (cancel, mut cancelled) = oneshot::channel();
+        state.flycheck_cancels.insert(first_owner, cancel);
+
+        state.begin_flycheck_epoch(&second_owner);
+
+        assert!(matches!(cancelled.try_recv(), Err(oneshot::error::TryRecvError::Empty)));
     }
 
     #[cfg(unix)]
