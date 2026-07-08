@@ -92,6 +92,7 @@ fn source_location(value: &Value) -> ExternalLocation<'_> {
         .or_else(|| value.get("source_location"))
         .or_else(|| value.get("location"))
         .or_else(|| value.get("span"))
+        .or_else(|| rustc_primary_span(value))
         .map_or_else(|| ExternalLocation::from_value(value), ExternalLocation::from_value)
 }
 
@@ -103,6 +104,7 @@ fn message(value: &Value) -> Option<String> {
 
 fn diagnostic_code(value: &Value) -> Option<String> {
     string_field(value, &["errorCode", "error_code", "code", "lint", "id", "name"])
+        .or_else(|| value.get("code").and_then(|code| string_field(code, &["code"])))
         .map(ToOwned::to_owned)
 }
 
@@ -137,6 +139,14 @@ fn clean_rendered(rendered: &str) -> String {
     rendered.lines().next().unwrap_or(rendered).to_string()
 }
 
+fn rustc_primary_span(value: &Value) -> Option<&Value> {
+    let spans = value.get("spans")?.as_array()?;
+    spans
+        .iter()
+        .find(|span| bool_field(span, &["is_primary"]).unwrap_or(false))
+        .or_else(|| spans.first())
+}
+
 fn resolve_path(cwd: &Path, path: &str) -> PathBuf {
     let path = Path::new(path);
     if path.is_absolute() { path.to_path_buf() } else { cwd.join(path) }
@@ -155,15 +165,20 @@ struct ExternalLocation<'a> {
 impl<'a> ExternalLocation<'a> {
     fn from_value(value: &'a Value) -> Self {
         Self {
-            file: string_field(value, &["file", "path", "source", "filename"]).or_else(|| {
-                value
-                    .get("source")
-                    .and_then(|source| string_field(source, &["file", "path", "filename"]))
-            }),
+            file: string_field(value, &["file", "path", "source", "filename"])
+                .or_else(|| {
+                    value
+                        .get("source")
+                        .and_then(|source| string_field(source, &["file", "path", "filename"]))
+                })
+                .or_else(|| string_field(value, &["file_name"])),
             start: numeric_field(value, &["start", "byteStart", "byte_start"]),
             end: numeric_field(value, &["end", "byteEnd", "byte_end"]),
             line: numeric_field(value, &["line", "startLine", "lineStart", "line_start"]),
-            column: numeric_field(value, &["column", "col", "startColumn", "columnStart"]),
+            column: numeric_field(
+                value,
+                &["column", "col", "startColumn", "columnStart", "column_start"],
+            ),
             end_line: numeric_field(value, &["endLine", "lineEnd", "line_end"]),
             end_column: numeric_field(value, &["endColumn", "columnEnd", "column_end"]),
         }
@@ -187,6 +202,10 @@ impl<'a> ExternalLocation<'a> {
 
 fn numeric_field(value: &Value, keys: &[&str]) -> Option<u64> {
     keys.iter().find_map(|key| value.get(*key).and_then(Value::as_u64))
+}
+
+fn bool_field(value: &Value, keys: &[&str]) -> Option<bool> {
+    keys.iter().find_map(|key| value.get(*key).and_then(Value::as_bool))
 }
 
 fn byte_range(path: &Path, start: usize, end: usize) -> Option<Range> {
@@ -290,6 +309,70 @@ mod tests {
         assert_eq!(diagnostic.source.as_deref(), Some("forge-lint"));
         assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::WARNING));
         assert_eq!(diagnostic.code, Some(NumberOrString::String("mixed-case-variable".into())));
+    }
+
+    #[test]
+    fn parses_rustc_style_forge_lint_diagnostics() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test {
+                uint256 bad_name;
+
+                function bad_function() public {}
+            }
+            "#,
+        );
+        let contents = project.read_file("/src/Test.sol");
+        let variable_start = contents.find("bad_name").unwrap();
+        let variable_end = variable_start + "bad_name".len();
+        let function_start = contents.find("bad_function").unwrap();
+        let function_end = function_start + "bad_function".len();
+        let variable = serde_json::json!({
+            "$message_type": "diag",
+            "message": "mutable variables should use mixedCase",
+            "code": { "code": "mixed-case-variable", "explanation": null },
+            "level": "note",
+            "spans": [{
+                "file_name": "src/Test.sol",
+                "byte_start": variable_start,
+                "byte_end": variable_end,
+                "line_start": 2,
+                "line_end": 2,
+                "column_start": 25,
+                "column_end": 33,
+                "is_primary": true
+            }]
+        });
+        let function = serde_json::json!({
+            "$message_type": "diag",
+            "message": "function names should use mixedCase",
+            "code": { "code": "mixed-case-function", "explanation": null },
+            "level": "note",
+            "spans": [{
+                "file_name": "src/Test.sol",
+                "byte_start": function_start,
+                "byte_end": function_end,
+                "line_start": 4,
+                "line_end": 4,
+                "column_start": 26,
+                "column_end": 38,
+                "is_primary": true
+            }]
+        });
+        let output = format!("{variable}\n{function}\n");
+
+        let diagnostics =
+            parse(output.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
+
+        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        let diagnostics = &diagnostics[&uri];
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(diagnostics[0].source.as_deref(), Some("forge-lint"));
+        assert_eq!(diagnostics[0].message, "mutable variables should use mixedCase");
+        assert_eq!(diagnostics[0].code, Some(NumberOrString::String("mixed-case-variable".into())));
+        assert_eq!(diagnostics[1].message, "function names should use mixedCase");
+        assert_eq!(diagnostics[1].code, Some(NumberOrString::String("mixed-case-function".into())));
     }
 
     #[test]
