@@ -192,7 +192,7 @@ fn json_level_severity(level: &str) -> DiagnosticSeverity {
     match level {
         "error" | "fatal" | "error: internal compiler error" => DiagnosticSeverity::ERROR,
         "warning" => DiagnosticSeverity::WARNING,
-        "note" | "failure-note" => DiagnosticSeverity::INFORMATION,
+        "note" | "failure-note" | "gas" | "code-size" => DiagnosticSeverity::INFORMATION,
         "help" => DiagnosticSeverity::HINT,
         _ => DiagnosticSeverity::WARNING,
     }
@@ -374,10 +374,49 @@ mod tests {
         let diagnostics = &diagnostics[&uri];
         assert_eq!(diagnostics.len(), 2);
         assert_eq!(diagnostics[0].source.as_deref(), Some("forge-lint"));
+        assert_eq!(diagnostics[0].severity, Some(DiagnosticSeverity::INFORMATION));
         assert_eq!(diagnostics[0].message, "mutable variables should use mixedCase");
         assert_eq!(diagnostics[0].code, Some(NumberOrString::String("mixed-case-variable".into())));
         assert_eq!(diagnostics[1].message, "function names should use mixedCase");
         assert_eq!(diagnostics[1].code, Some(NumberOrString::String("mixed-case-function".into())));
+    }
+
+    #[test]
+    fn preserves_foundry_information_lint_severities() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Test.sol
+            contract Test {
+                uint256 bad_name;
+            }
+            "#,
+        );
+        let contents = project.read_file("/src/Test.sol");
+        let start = contents.find("bad_name").unwrap();
+        let end = start + "bad_name".len();
+        let levels = ["note", "gas", "code-size"];
+        let output = levels
+            .map(|level| {
+                serde_json::to_string(&json_diagnostic_fixture_with_level(
+                    start,
+                    end,
+                    level,
+                    level,
+                    "foundry lint",
+                ))
+                .unwrap()
+            })
+            .join("\n");
+
+        let diagnostics =
+            parse(output.as_bytes(), project.root(), FlycheckOutput::ForgeLintJson).unwrap();
+
+        let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
+        let diagnostics = &diagnostics[&uri];
+        assert_eq!(diagnostics.len(), levels.len());
+        for diagnostic in diagnostics {
+            assert_eq!(diagnostic.severity, Some(DiagnosticSeverity::INFORMATION));
+        }
     }
 
     #[test]
@@ -441,10 +480,20 @@ mod tests {
         code: &'static str,
         message: &'static str,
     ) -> JsonDiagnosticMessage<'static> {
+        json_diagnostic_fixture_with_level(start, end, "note", code, message)
+    }
+
+    fn json_diagnostic_fixture_with_level(
+        start: usize,
+        end: usize,
+        level: &'static str,
+        code: &'static str,
+        message: &'static str,
+    ) -> JsonDiagnosticMessage<'static> {
         JsonDiagnosticMessage::Diagnostic(JsonDiagnostic {
             message: Cow::Borrowed(message),
             code: Some(JsonDiagnosticCode { code: Cow::Borrowed(code), explanation: None }),
-            level: Cow::Borrowed("note"),
+            level: Cow::Borrowed(level),
             spans: vec![JsonDiagnosticSpan {
                 file_name: Cow::Borrowed("src/Test.sol"),
                 byte_start: start as u32,
