@@ -121,12 +121,15 @@ fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
 }
 
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
-    let flycheck_options =
-        FlycheckInitializationOptions::from_json(params.initialization_options.clone());
+    let capabilities = params.capabilities;
+    let initialization_options = params.initialization_options;
+    #[allow(deprecated)]
+    let root_uri = params.root_uri;
+    let workspace_folders = params.workspace_folders;
+    let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options);
 
     // todo: make this absolute guaranteed
-    #[allow(deprecated)]
-    let root_path = match params.root_uri.and_then(|it| it.to_file_path().ok()) {
+    let root_path = match root_uri.and_then(|it| it.to_file_path().ok()) {
         Some(it) => it,
         None => {
             // todo: unwrap
@@ -137,8 +140,6 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     // todo: make this absolute guaranteed
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
     // `root_uri`.
-    let capabilities = params.capabilities;
-
     let watched_file_dynamic_registration = capabilities
         .workspace
         .and_then(|workspace| workspace.did_change_watched_files)
@@ -150,8 +151,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
         .unwrap_or(false);
 
-    let workspace_roots = params
-        .workspace_folders
+    let workspace_roots = workspace_folders
         .map(|workspaces| {
             workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
         })
@@ -173,11 +173,10 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 TextDocumentSyncOptions {
                     open_close: Some(true),
                     change: Some(TextDocumentSyncKind::INCREMENTAL),
-                    will_save: None,
-                    will_save_wait_until: None,
                     save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
                         include_text: Some(false),
                     })),
+                    ..Default::default()
                 },
             )),
             workspace_symbol_provider: Some(OneOf::Left(true)),

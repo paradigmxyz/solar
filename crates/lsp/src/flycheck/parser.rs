@@ -2,10 +2,7 @@ use crate::{diagnostics::DiagnosticMap, flycheck::config::FlycheckOutput};
 use lsp_types::{Diagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url};
 use serde_json::Value;
 use solar_interface::source_map::SourceMap;
-use std::{
-    borrow::Cow,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 pub(super) fn parse(
     output: &[u8],
@@ -15,7 +12,7 @@ pub(super) fn parse(
     let values = parse_values(output)?;
     let mut diagnostics = DiagnosticMap::default();
 
-    for value in values {
+    for value in &values {
         collect_diagnostics(value, cwd, format, &mut diagnostics);
     }
 
@@ -29,20 +26,12 @@ pub(crate) enum ParseError {
 }
 
 fn parse_values(output: &[u8]) -> Result<Vec<Value>, ParseError> {
-    if output.iter().all(u8::is_ascii_whitespace) {
-        return Ok(Vec::new());
-    }
-
-    if let Ok(value) = serde_json::from_slice::<Value>(output) {
-        return Ok(vec![value]);
-    }
-
     let stream = serde_json::Deserializer::from_slice(output).into_iter::<Value>();
     stream.collect::<Result<Vec<_>, _>>().map_err(ParseError::Json)
 }
 
 fn collect_diagnostics(
-    value: Value,
+    value: &Value,
     cwd: &Path,
     format: FlycheckOutput,
     diagnostics: &mut DiagnosticMap,
@@ -53,17 +42,15 @@ fn collect_diagnostics(
                 collect_diagnostics(value, cwd, format, diagnostics);
             }
         }
-        Value::Object(mut object) => {
+        Value::Object(object) => {
             for key in ["diagnostics", "findings", "errors"] {
-                if let Some(value) = object.remove(key) {
+                if let Some(value) = object.get(key) {
                     collect_diagnostics(value, cwd, format, diagnostics);
                     return;
                 }
             }
 
-            if let Some((uri, diagnostic)) =
-                external_diagnostic(&Value::Object(object), cwd, format)
-            {
+            if let Some((uri, diagnostic)) = external_diagnostic(value, cwd, format) {
                 diagnostics.entry(uri).or_default().push(diagnostic);
             }
         }
@@ -76,8 +63,8 @@ fn external_diagnostic(
     cwd: &Path,
     format: FlycheckOutput,
 ) -> Option<(Url, Diagnostic)> {
-    let location = source_location(value)?;
-    let path = resolve_path(cwd, location.file.as_ref()?);
+    let location = source_location(value);
+    let path = resolve_path(cwd, location.file?);
     let uri = Url::from_file_path(&path).ok()?;
     let range = location.range(&path)?;
     let message = message(value)?;
@@ -87,7 +74,7 @@ fn external_diagnostic(
         uri,
         Diagnostic {
             range,
-            severity: Some(severity(value, format)),
+            severity: Some(severity(value)),
             code: code.map(NumberOrString::String),
             code_description: None,
             source: Some(source(format).into()),
@@ -99,14 +86,13 @@ fn external_diagnostic(
     ))
 }
 
-fn source_location(value: &Value) -> Option<ExternalLocation<'_>> {
+fn source_location(value: &Value) -> ExternalLocation<'_> {
     value
         .get("sourceLocation")
         .or_else(|| value.get("source_location"))
         .or_else(|| value.get("location"))
         .or_else(|| value.get("span"))
-        .and_then(ExternalLocation::from_value)
-        .or_else(|| ExternalLocation::from_value(value))
+        .map_or_else(|| ExternalLocation::from_value(value), ExternalLocation::from_value)
 }
 
 fn message(value: &Value) -> Option<String> {
@@ -120,12 +106,9 @@ fn diagnostic_code(value: &Value) -> Option<String> {
         .map(ToOwned::to_owned)
 }
 
-fn severity(value: &Value, format: FlycheckOutput) -> DiagnosticSeverity {
+fn severity(value: &Value) -> DiagnosticSeverity {
     let Some(severity) = string_field(value, &["severity", "level"]) else {
-        return match format {
-            FlycheckOutput::SolcJson => DiagnosticSeverity::WARNING,
-            FlycheckOutput::ForgeLintJson => DiagnosticSeverity::WARNING,
-        };
+        return DiagnosticSeverity::WARNING;
     };
 
     match severity {
@@ -160,7 +143,7 @@ fn resolve_path(cwd: &Path, path: &str) -> PathBuf {
 }
 
 struct ExternalLocation<'a> {
-    file: Option<Cow<'a, str>>,
+    file: Option<&'a str>,
     start: Option<u64>,
     end: Option<u64>,
     line: Option<u64>,
@@ -170,23 +153,20 @@ struct ExternalLocation<'a> {
 }
 
 impl<'a> ExternalLocation<'a> {
-    fn from_value(value: &'a Value) -> Option<Self> {
-        Some(Self {
-            file: string_field(value, &["file", "path", "source", "filename"])
-                .map(Cow::Borrowed)
-                .or_else(|| {
-                    value
-                        .get("source")
-                        .and_then(|source| string_field(source, &["file", "path", "filename"]))
-                        .map(Cow::Borrowed)
-                }),
+    fn from_value(value: &'a Value) -> Self {
+        Self {
+            file: string_field(value, &["file", "path", "source", "filename"]).or_else(|| {
+                value
+                    .get("source")
+                    .and_then(|source| string_field(source, &["file", "path", "filename"]))
+            }),
             start: numeric_field(value, &["start", "byteStart", "byte_start"]),
             end: numeric_field(value, &["end", "byteEnd", "byte_end"]),
             line: numeric_field(value, &["line", "startLine", "lineStart", "line_start"]),
             column: numeric_field(value, &["column", "col", "startColumn", "columnStart"]),
             end_line: numeric_field(value, &["endLine", "lineEnd", "line_end"]),
             end_column: numeric_field(value, &["endColumn", "columnEnd", "column_end"]),
-        })
+        }
     }
 
     fn range(&self, path: &Path) -> Option<Range> {

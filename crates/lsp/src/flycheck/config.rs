@@ -57,10 +57,9 @@ impl FlycheckInitializationOptions {
     }
 
     pub(crate) fn configs(&self, workspaces: &[Workspace]) -> Vec<FlycheckConfig> {
-        let forge_path = self.forge_path();
         match &self.flychecks {
             Some(templates) => expand_templates(templates, workspaces),
-            None => default_flychecks(workspaces, forge_path),
+            None => default_flychecks(workspaces, self.forge_path()),
         }
     }
 
