@@ -89,7 +89,8 @@ pub(crate) fn did_change_configuration(
 ) -> NotifyResult {
     // As stated in https://github.com/microsoft/language-server-protocol/issues/676,
     // this notification's parameters should be ignored and the actual config queried separately.
-    Arc::make_mut(&mut state.config).rediscover_workspaces();
+    let removed_owners = Arc::make_mut(&mut state.config).rediscover_workspaces();
+    state.clear_removed_flycheck_diagnostics(removed_owners);
     state.recompute();
     ControlFlow::Continue(())
 }
@@ -123,7 +124,8 @@ pub(crate) fn did_change_watched_files(
     }
 
     if should_rediscover {
-        Arc::make_mut(&mut state.config).rediscover_workspaces();
+        let removed_owners = Arc::make_mut(&mut state.config).rediscover_workspaces();
+        state.clear_removed_flycheck_diagnostics(removed_owners);
     }
     if should_rediscover || !disk_paths.is_empty() {
         state.recompute_with_disk_files(disk_paths);
@@ -148,7 +150,8 @@ pub(crate) fn did_change_workspace_folders(
     let added = params.event.added.into_iter().filter_map(|it| it.uri.to_file_path().ok());
     config.add_workspaces(added);
 
-    config.rediscover_workspaces();
+    let removed_owners = config.rediscover_workspaces();
+    state.clear_removed_flycheck_diagnostics(removed_owners);
     state.recompute();
 
     ControlFlow::Continue(())

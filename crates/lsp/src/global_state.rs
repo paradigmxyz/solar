@@ -182,6 +182,17 @@ impl GlobalState {
         }
     }
 
+    pub(crate) fn clear_removed_flycheck_diagnostics(
+        &mut self,
+        owners: impl IntoIterator<Item = DiagnosticOwner>,
+    ) {
+        self.flycheck_version.fetch_add(1, Ordering::AcqRel);
+        let mut snapshot = self.snapshot();
+        for owner in owners {
+            snapshot.publish_diagnostics(owner, DiagnosticMap::default());
+        }
+    }
+
     fn snapshot(&self) -> GlobalStateSnapshot {
         GlobalStateSnapshot {
             client: self.client.clone(),
@@ -459,6 +470,18 @@ mod tests {
         assert!(snapshot.is_current_flycheck(0));
 
         state.run_flychecks_on_save(PathBuf::from("/workspace/Untracked.sol"));
+
+        assert!(!snapshot.is_current_flycheck(0));
+    }
+
+    #[test]
+    fn clearing_removed_flychecks_stales_previous_flycheck_results() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let snapshot = state.snapshot();
+
+        assert!(snapshot.is_current_flycheck(0));
+
+        state.clear_removed_flycheck_diagnostics(Vec::new());
 
         assert!(!snapshot.is_current_flycheck(0));
     }

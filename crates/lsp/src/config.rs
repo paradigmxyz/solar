@@ -1,4 +1,5 @@
 use crate::{
+    diagnostics::DiagnosticOwner,
     flycheck::{FlycheckConfig, FlycheckInitializationOptions},
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
@@ -46,7 +47,7 @@ impl Config {
         self.flychecks.iter().filter(|flycheck| flycheck.applies_to(path)).cloned().collect()
     }
 
-    pub(crate) fn rediscover_workspaces(&mut self) {
+    pub(crate) fn rediscover_workspaces(&mut self) -> Vec<DiagnosticOwner> {
         let mut workspaces = Vec::new();
         let mut seen_manifests = FxHashSet::default();
         for root in &self.workspace_roots {
@@ -80,7 +81,7 @@ impl Config {
         }
         info!(workspaces = ?workspaces.iter().map(Workspace::kind).collect::<Vec<_>>(), "loaded workspaces");
         self.workspaces = workspaces;
-        self.refresh_flychecks();
+        self.refresh_flychecks()
     }
 
     pub(crate) fn remove_workspace(&mut self, path: &Path) {
@@ -109,9 +110,17 @@ impl Config {
         self.workspaces[idx].remove_source_file(path);
     }
 
-    fn refresh_flychecks(&mut self) {
+    fn refresh_flychecks(&mut self) -> Vec<DiagnosticOwner> {
+        let previous_owners =
+            self.flychecks.iter().map(FlycheckConfig::owner).collect::<FxHashSet<_>>();
         self.flychecks = self.flycheck_options.configs(&self.workspaces);
+        let current_owners =
+            self.flychecks.iter().map(FlycheckConfig::owner).collect::<FxHashSet<_>>();
+        let mut removed_owners =
+            previous_owners.difference(&current_owners).cloned().collect::<Vec<_>>();
+        removed_owners.sort();
         info!(flychecks = ?self.flychecks.iter().map(|it| it.id.as_str()).collect::<Vec<_>>(), "loaded flychecks");
+        removed_owners
     }
 }
 
@@ -296,6 +305,41 @@ mod tests {
         assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
         assert_eq!(flychecks[0].args, ["--json"]);
         assert_eq!(flychecks[0].cwd, project.root());
+    }
+
+    #[test]
+    fn rediscover_workspaces_reports_removed_flycheck_owners() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint",
+                "output": "solc-json"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        assert!(config.rediscover_workspaces().is_empty());
+
+        config.remove_workspace(project.root());
+        let removed_owners = config.rediscover_workspaces();
+
+        assert_eq!(
+            removed_owners,
+            vec![DiagnosticOwner::Flycheck {
+                id: "custom".into(),
+                workspace: project.root().to_path_buf()
+            }]
+        );
     }
 
     #[test]
