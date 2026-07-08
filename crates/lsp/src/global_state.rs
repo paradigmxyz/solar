@@ -343,8 +343,7 @@ impl GlobalStateSnapshot {
     fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) {
         let batches = {
             let mut store = self.diagnostics.write();
-            store.replace(owner, diagnostics);
-            store.publish_batches()
+            store.replace_and_publish_batches(owner, diagnostics)
         };
 
         for (uri, uri_diagnostics) in batches {

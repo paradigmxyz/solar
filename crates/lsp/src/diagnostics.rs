@@ -17,44 +17,64 @@ pub(crate) struct DiagnosticStore {
 }
 
 impl DiagnosticStore {
-    pub(crate) fn replace(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) {
-        if diagnostics.is_empty() {
-            self.diagnostics.remove(&owner);
-        } else {
-            self.diagnostics.insert(owner, diagnostics);
-        }
+    pub(crate) fn replace_and_publish_batches(
+        &mut self,
+        owner: DiagnosticOwner,
+        diagnostics: DiagnosticMap,
+    ) -> Vec<(Url, Vec<Diagnostic>)> {
+        let affected_uris = self.replace(owner, diagnostics);
+        self.publish_batches(affected_uris)
     }
 
-    pub(crate) fn publish_batches(&mut self) -> Vec<(Url, Vec<Diagnostic>)> {
-        let mut merged = DiagnosticMap::default();
+    fn replace(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> FxHashSet<Url> {
+        let mut affected_uris =
+            FxHashSet::with_capacity_and_hasher(diagnostics.len(), Default::default());
+        affected_uris.extend(diagnostics.keys().cloned());
+
+        let previous = if diagnostics.is_empty() {
+            self.diagnostics.remove(&owner)
+        } else {
+            self.diagnostics.insert(owner, diagnostics)
+        };
+
+        if let Some(previous) = previous {
+            affected_uris.extend(previous.into_keys());
+        }
+
+        affected_uris
+    }
+
+    fn publish_batches(&mut self, affected_uris: FxHashSet<Url>) -> Vec<(Url, Vec<Diagnostic>)> {
         let mut owners = self.diagnostics.keys().collect::<Vec<_>>();
         owners.sort();
 
-        for owner in owners {
-            for (uri, diagnostics) in &self.diagnostics[owner] {
-                merged.entry(uri.clone()).or_default().extend(diagnostics.iter().cloned());
-            }
-        }
-
-        let mut uris = merged.keys().cloned().collect::<FxHashSet<_>>();
-        uris.extend(self.published_uris.iter().cloned());
-        let mut uris = uris.into_iter().collect::<Vec<_>>();
+        let mut uris = affected_uris.into_iter().collect::<Vec<_>>();
         uris.sort_by(|lhs, rhs| lhs.as_str().cmp(rhs.as_str()));
 
-        let mut next_published_uris = FxHashSet::default();
-        let batches = uris
-            .into_iter()
-            .map(|uri| {
-                let diagnostics = merged.remove(&uri).unwrap_or_default();
-                if !diagnostics.is_empty() {
-                    next_published_uris.insert(uri.clone());
-                }
-                (uri, diagnostics)
-            })
-            .collect();
+        uris.into_iter()
+            .filter_map(|uri| {
+                let was_published = self.published_uris.contains(&uri);
+                let mut has_entry = false;
+                let mut diagnostics = Vec::new();
 
-        self.published_uris = next_published_uris;
-        batches
+                for owner in &owners {
+                    if let Some(owner_diagnostics) = self.diagnostics.get(*owner)
+                        && let Some(uri_diagnostics) = owner_diagnostics.get(&uri)
+                    {
+                        has_entry = true;
+                        diagnostics.extend(uri_diagnostics.iter().cloned());
+                    }
+                }
+
+                if diagnostics.is_empty() {
+                    self.published_uris.remove(&uri);
+                } else {
+                    self.published_uris.insert(uri.clone());
+                }
+
+                (has_entry || was_published).then_some((uri, diagnostics))
+            })
+            .collect()
     }
 }
 
@@ -82,19 +102,19 @@ mod tests {
         let file = uri("src/Test.sol");
         let mut store = DiagnosticStore::default();
 
-        store.replace(
+        let batches = store.replace_and_publish_batches(
             DiagnosticOwner::Compiler,
             DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
         );
-        store.replace(
+        assert_eq!(batches.len(), 1);
+
+        let batches = store.replace_and_publish_batches(
             DiagnosticOwner::Flycheck {
                 id: "forge-lint".into(),
                 workspace: PathBuf::from("/workspace"),
             },
             DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("lint")])]),
         );
-
-        let batches = store.publish_batches();
 
         assert_eq!(batches.len(), 1);
         assert_eq!(batches[0].0, file);
@@ -109,26 +129,24 @@ mod tests {
         let file = uri("src/Test.sol");
         let mut store = DiagnosticStore::default();
 
-        store.replace(
+        store.replace_and_publish_batches(
             DiagnosticOwner::Compiler,
             DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
         );
-        store.replace(
+        store.replace_and_publish_batches(
             DiagnosticOwner::Flycheck {
                 id: "forge-lint".into(),
                 workspace: PathBuf::from("/workspace"),
             },
             DiagnosticMap::from_iter([(file, vec![diagnostic("lint")])]),
         );
-        store.replace(
+        let batches = store.replace_and_publish_batches(
             DiagnosticOwner::Flycheck {
                 id: "forge-lint".into(),
                 workspace: PathBuf::from("/workspace"),
             },
             DiagnosticMap::default(),
         );
-
-        let batches = store.publish_batches();
 
         assert_eq!(batches.len(), 1);
         assert_eq!(
@@ -143,21 +161,49 @@ mod tests {
         let second = uri("src/Second.sol");
         let mut store = DiagnosticStore::default();
 
-        store.replace(
+        let initial = store.replace_and_publish_batches(
             DiagnosticOwner::Compiler,
             DiagnosticMap::from_iter([(first.clone(), vec![diagnostic("first")])]),
         );
-        let initial = store.publish_batches();
         assert_eq!(initial, vec![(first.clone(), vec![diagnostic("first")])]);
 
-        store.replace(
+        let batches = store.replace_and_publish_batches(
             DiagnosticOwner::Compiler,
             DiagnosticMap::from_iter([(second.clone(), vec![diagnostic("second")])]),
         );
-        let batches = store.publish_batches();
 
         assert_eq!(batches.len(), 2);
         assert_eq!(batches[0], (first, Vec::new()));
         assert_eq!(batches[1], (second, vec![diagnostic("second")]));
+    }
+
+    #[test]
+    fn owner_replacement_only_publishes_affected_uris() {
+        let first = uri("src/First.sol");
+        let second = uri("src/Second.sol");
+        let mut store = DiagnosticStore::default();
+
+        store.replace_and_publish_batches(
+            DiagnosticOwner::Compiler,
+            DiagnosticMap::from_iter([
+                (first.clone(), vec![diagnostic("first")]),
+                (second, vec![diagnostic("second")]),
+            ]),
+        );
+
+        let batches = store.replace_and_publish_batches(
+            DiagnosticOwner::Flycheck {
+                id: "forge-lint".into(),
+                workspace: PathBuf::from("/workspace"),
+            },
+            DiagnosticMap::from_iter([(first.clone(), vec![diagnostic("lint")])]),
+        );
+
+        assert_eq!(batches.len(), 1);
+        assert_eq!(batches[0].0, first);
+        assert_eq!(
+            batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
+            ["first", "lint"]
+        );
     }
 }
