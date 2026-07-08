@@ -26,6 +26,23 @@ impl DiagnosticStore {
         self.publish_batches(affected_uris)
     }
 
+    pub(crate) fn clear_uris_and_publish_batches(
+        &mut self,
+        uris: impl IntoIterator<Item = Url>,
+    ) -> Vec<(Url, Vec<Diagnostic>)> {
+        let affected_uris = uris.into_iter().collect::<FxHashSet<_>>();
+        if affected_uris.is_empty() {
+            return Vec::new();
+        }
+
+        self.diagnostics.retain(|_, owner_diagnostics| {
+            owner_diagnostics.retain(|uri, _| !affected_uris.contains(uri));
+            !owner_diagnostics.is_empty()
+        });
+
+        self.publish_batches(affected_uris)
+    }
+
     fn replace(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) -> FxHashSet<Url> {
         let mut affected_uris =
             FxHashSet::with_capacity_and_hasher(diagnostics.len(), Default::default());
@@ -203,5 +220,27 @@ mod tests {
             batches[0].1.iter().map(|diagnostic| diagnostic.message.as_str()).collect::<Vec<_>>(),
             ["first", "lint"]
         );
+    }
+
+    #[test]
+    fn clearing_uris_removes_diagnostics_from_all_owners() {
+        let file = uri("src/Deleted.sol");
+        let mut store = DiagnosticStore::default();
+
+        store.replace_and_publish_batches(
+            DiagnosticOwner::Compiler,
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("compiler")])]),
+        );
+        store.replace_and_publish_batches(
+            DiagnosticOwner::Flycheck {
+                id: "forge-lint".into(),
+                workspace: PathBuf::from("/workspace"),
+            },
+            DiagnosticMap::from_iter([(file.clone(), vec![diagnostic("lint")])]),
+        );
+
+        let batches = store.clear_uris_and_publish_batches([file.clone()]);
+
+        assert_eq!(batches, vec![(file, Vec::new())]);
     }
 }

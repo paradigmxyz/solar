@@ -100,6 +100,7 @@ pub(crate) fn did_change_watched_files(
 ) -> NotifyResult {
     let mut should_rediscover = false;
     let mut disk_paths = Vec::new();
+    let mut removed_paths = Vec::new();
 
     for event in params.changes {
         let Ok(path) = event.uri.to_file_path() else {
@@ -115,6 +116,7 @@ pub(crate) fn did_change_watched_files(
                     Arc::make_mut(&mut state.config).add_source_file(path.clone());
                 } else if event.typ == FileChangeType::DELETED {
                     Arc::make_mut(&mut state.config).remove_source_file(&path);
+                    removed_paths.push(path.clone());
                 }
                 disk_paths.push(path);
             }
@@ -125,6 +127,7 @@ pub(crate) fn did_change_watched_files(
     if should_rediscover {
         rediscover_workspaces(state);
     }
+    state.clear_removed_file_diagnostics(removed_paths);
     if should_rediscover || !disk_paths.is_empty() {
         state.recompute_with_disk_files(disk_paths);
     }

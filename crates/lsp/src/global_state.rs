@@ -197,6 +197,31 @@ impl GlobalState {
         }
     }
 
+    pub(crate) fn clear_removed_file_diagnostics(
+        &mut self,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) {
+        let uris =
+            paths.into_iter().filter_map(|path| Url::from_file_path(path).ok()).collect::<Vec<_>>();
+        if uris.is_empty() {
+            return;
+        }
+
+        self.begin_flycheck_epoch();
+        let batches = {
+            let mut store = self.diagnostics.write();
+            store.clear_uris_and_publish_batches(uris)
+        };
+
+        for (uri, uri_diagnostics) in batches {
+            let _ = self.client.publish_diagnostics(PublishDiagnosticsParams::new(
+                uri,
+                uri_diagnostics,
+                None,
+            ));
+        }
+    }
+
     fn begin_flycheck_epoch(&mut self) -> usize {
         let version = self.flycheck_version.fetch_add(1, Ordering::AcqRel) + 1;
         self.cancel_flychecks();
