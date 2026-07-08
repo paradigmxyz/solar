@@ -9,18 +9,15 @@ use crate::{
 };
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
-    Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
-    InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
-    PublishDiagnosticsParams, Registration, RegistrationParams, ServerInfo, Url, WatchKind,
+    DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern, InitializeParams,
+    InitializeResult, InitializedParams, LogMessageParams, MessageType, PublishDiagnosticsParams,
+    Registration, RegistrationParams, ServerInfo, Url, WatchKind,
     notification::{DidChangeWatchedFiles, Notification},
 };
 use solar_config::{CompileOpts, version::SHORT_VERSION};
 use solar_interface::{
     Session,
-    data_structures::{
-        map::{FxHashMap, FxHashSet},
-        sync::RwLock,
-    },
+    data_structures::{map::FxHashSet, sync::RwLock},
     diagnostics::{DiagCtxt, InMemoryEmitter},
     source_map::{FileName, SourceMap},
 };
@@ -126,7 +123,7 @@ impl GlobalState {
                 return;
             }
 
-            let mut diagnostics = FxHashMap::<Url, Vec<Diagnostic>>::default();
+            let mut diagnostics = DiagnosticMap::default();
             let mut symbol_tables = SymbolTables::default();
 
             for batch in batches {
@@ -256,7 +253,7 @@ impl GlobalState {
 }
 
 struct AnalysisResult {
-    diagnostics: FxHashMap<Url, Vec<Diagnostic>>,
+    diagnostics: DiagnosticMap,
     symbol_tables: SymbolTables,
 }
 
@@ -445,7 +442,7 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
             .read()
             .iter()
             .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
-            .fold(FxHashMap::<Url, Vec<Diagnostic>>::default(), |mut diagnostics, (uri, diag)| {
+            .fold(DiagnosticMap::default(), |mut diagnostics, (uri, diag)| {
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics
             });
@@ -457,16 +454,14 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use crate::test_support::process_exists;
     use crate::{config::negotiate_capabilities, test_support::TestProject};
     use async_lsp::ClientSocket;
     use lsp_types::{
         DocumentSymbol, SymbolKind, WatchKind, WorkspaceSymbol, notification::Notification,
     };
-    use std::{
-        path::Path,
-        process::{Command as StdCommand, Stdio},
-        time::Duration,
-    };
+    use std::{path::Path, time::Duration};
 
     mod completion;
     mod goto_definition;
@@ -618,17 +613,6 @@ mod tests {
             }
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
-    }
-
-    #[cfg(unix)]
-    fn process_exists(pid: u32) -> bool {
-        StdCommand::new("ps")
-            .args(["-p", &pid.to_string()])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
     }
 
     #[test]

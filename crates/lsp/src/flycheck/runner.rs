@@ -100,8 +100,9 @@ async fn collect_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) -> io::Result<Vec<u
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    use crate::test_support::process_exists;
     use crate::{config::negotiate_capabilities, test_support::TestProject};
-    use std::process::Command as StdCommand;
 
     #[test]
     fn forge_lint_json_diagnostics_are_read_from_stderr() {
@@ -160,17 +161,6 @@ mod tests {
         assert!(matches!(error, FlycheckError::Timeout));
         let pid = project.read_file("/flycheck-pid.txt").parse().unwrap();
         assert!(!process_exists(pid));
-    }
-
-    #[cfg(unix)]
-    fn process_exists(pid: u32) -> bool {
-        StdCommand::new("ps")
-            .args(["-p", &pid.to_string()])
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .is_ok_and(|status| status.success())
     }
 }
 
