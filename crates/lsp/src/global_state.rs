@@ -34,7 +34,7 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
-use tokio::task::JoinHandle;
+use tokio::{sync::oneshot, task::JoinHandle};
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
@@ -42,6 +42,7 @@ pub(crate) struct GlobalState {
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
     flycheck_version: Arc<AtomicUsize>,
+    flycheck_cancels: Vec<oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
     diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
@@ -53,6 +54,7 @@ impl GlobalState {
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
             flycheck_version: Arc::new(AtomicUsize::new(0)),
+            flycheck_cancels: Vec::new(),
             symbol_tables: Arc::new(Default::default()),
             diagnostics: Arc::new(Default::default()),
             config: Arc::new(Default::default()),
@@ -156,6 +158,7 @@ impl GlobalState {
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
         let version = self.flycheck_version.fetch_add(1, Ordering::AcqRel) + 1;
+        self.cancel_flychecks();
         let flychecks = self.config.flychecks_for_path(&path);
         if flychecks.is_empty() {
             return;
@@ -165,8 +168,9 @@ impl GlobalState {
             let owner = flycheck.owner();
             let id = flycheck.id.as_str().to_string();
             let mut snapshot = self.snapshot();
+            let (cancel, cancelled) = oneshot::channel();
             tokio::spawn(async move {
-                let result = flycheck::run(flycheck).await;
+                let result = flycheck::run(flycheck, cancelled).await;
                 if !snapshot.is_current_flycheck(version) {
                     return;
                 }
@@ -179,6 +183,7 @@ impl GlobalState {
                     }
                 }
             });
+            self.flycheck_cancels.push(cancel);
         }
     }
 
@@ -187,9 +192,16 @@ impl GlobalState {
         owners: impl IntoIterator<Item = DiagnosticOwner>,
     ) {
         self.flycheck_version.fetch_add(1, Ordering::AcqRel);
+        self.cancel_flychecks();
         let mut snapshot = self.snapshot();
         for owner in owners {
             snapshot.publish_diagnostics(owner, DiagnosticMap::default());
+        }
+    }
+
+    fn cancel_flychecks(&mut self) {
+        for cancel in self.flycheck_cancels.drain(..) {
+            let _ = cancel.send(());
         }
     }
 
@@ -417,10 +429,15 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::TestProject;
+    use crate::{config::negotiate_capabilities, test_support::TestProject};
     use async_lsp::ClientSocket;
     use lsp_types::{
         DocumentSymbol, SymbolKind, WatchKind, WorkspaceSymbol, notification::Notification,
+    };
+    use std::{
+        path::Path,
+        process::{Command as StdCommand, Stdio},
+        time::Duration,
     };
 
     mod completion;
@@ -486,6 +503,50 @@ mod tests {
         assert!(!snapshot.is_current_flycheck(0));
     }
 
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn saving_again_cancels_in_flight_flychecks() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let first_pid_path = project.path("/first-flycheck-pid.txt");
+        let second_pid_path = project.path("/second-flycheck-pid.txt");
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "slow",
+                "command": "/bin/sh",
+                "args": [
+                    "-c",
+                    "if [ ! -f \"$1\" ]; then printf '%s' \"$$\" > \"$1\"; exec sleep 120; fi; printf '%s' \"$$\" > \"$2\"; printf '{}\n'",
+                    "sh",
+                    first_pid_path.display().to_string(),
+                    second_pid_path.display().to_string(),
+                ],
+            }],
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        state.run_flychecks_on_save(project.path("/src/Test.sol"));
+        wait_for_path(&first_pid_path).await;
+        let first_pid = project.read_file("/first-flycheck-pid.txt").parse().unwrap();
+
+        state.run_flychecks_on_save(project.path("/src/Test.sol"));
+        wait_for_path(&second_pid_path).await;
+        wait_for_process_exit(first_pid).await;
+
+        assert!(!process_exists(first_pid));
+    }
+
     #[test]
     fn analysis_batches_read_tracked_disk_files() {
         let project = TestProject::from_fixture(
@@ -508,6 +569,38 @@ mod tests {
             batch.files,
             vec![(path, "contract C { function f() public { number+; } }".into())]
         );
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_path(path: &Path) {
+        for _ in 0..100 {
+            if path.exists() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("timed out waiting for {}", path.display());
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_process_exit(pid: u32) {
+        for _ in 0..100 {
+            if !process_exists(pid) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    }
+
+    #[cfg(unix)]
+    fn process_exists(pid: u32) -> bool {
+        StdCommand::new("ps")
+            .args(["-p", &pid.to_string()])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
     }
 
     #[test]

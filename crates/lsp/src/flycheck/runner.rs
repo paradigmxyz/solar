@@ -9,15 +9,19 @@ use std::{
 };
 use tokio::{
     io::{AsyncRead, AsyncReadExt},
-    process::Command,
+    process::{Child, Command},
+    sync::oneshot,
     task::JoinHandle,
     time,
 };
 
 const FLYCHECK_TIMEOUT: Duration = Duration::from_secs(30);
 
-pub(crate) async fn run(config: FlycheckConfig) -> Result<DiagnosticMap, FlycheckError> {
-    let output = command_output(&config, FLYCHECK_TIMEOUT).await?;
+pub(crate) async fn run(
+    config: FlycheckConfig,
+    cancel: oneshot::Receiver<()>,
+) -> Result<DiagnosticMap, FlycheckError> {
+    let output = command_output(&config, FLYCHECK_TIMEOUT, cancel).await?;
     let diagnostics = parser::parse(
         diagnostic_output(&output.stdout, &output.stderr, config.output),
         &config.cwd,
@@ -41,6 +45,7 @@ fn diagnostic_output<'a>(stdout: &'a [u8], stderr: &'a [u8], format: FlycheckOut
 async fn command_output(
     config: &FlycheckConfig,
     timeout: Duration,
+    mut cancel: oneshot::Receiver<()>,
 ) -> Result<Output, FlycheckError> {
     let mut child = Command::new(&config.command)
         .args(&config.args)
@@ -48,22 +53,35 @@ async fn command_output(
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .kill_on_drop(true)
         .spawn()?;
 
     let stdout = read_pipe(child.stdout.take().expect("stdout was piped"));
     let stderr = read_pipe(child.stderr.take().expect("stderr was piped"));
-    let status = match time::timeout(timeout, child.wait()).await {
-        Ok(status) => status?,
-        Err(_) => {
-            let kill_result = child.kill().await;
-            abort_pipe(stdout);
-            abort_pipe(stderr);
-            kill_result?;
+    let status = tokio::select! {
+        status = child.wait() => status?,
+        _ = time::sleep(timeout) => {
+            kill_child(&mut child, &stdout, &stderr).await?;
             return Err(FlycheckError::Timeout);
+        }
+        _ = &mut cancel => {
+            kill_child(&mut child, &stdout, &stderr).await?;
+            return Err(FlycheckError::Cancelled);
         }
     };
 
     Ok(Output { status, stdout: collect_pipe(stdout).await?, stderr: collect_pipe(stderr).await? })
+}
+
+async fn kill_child(
+    child: &mut Child,
+    stdout: &JoinHandle<io::Result<Vec<u8>>>,
+    stderr: &JoinHandle<io::Result<Vec<u8>>>,
+) -> io::Result<()> {
+    let result = child.kill().await;
+    abort_pipe(stdout);
+    abort_pipe(stderr);
+    result
 }
 
 fn read_pipe(pipe: impl AsyncRead + Send + Unpin + 'static) -> JoinHandle<io::Result<Vec<u8>>> {
@@ -79,7 +97,7 @@ async fn collect_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) -> io::Result<Vec<u
     pipe.await.map_err(io::Error::other)?
 }
 
-fn abort_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) {
+fn abort_pipe(pipe: &JoinHandle<io::Result<Vec<u8>>>) {
     pipe.abort();
 }
 
@@ -140,7 +158,8 @@ mod tests {
         let [config] =
             config.flychecks_for_path(&project.path("/src/Test.sol")).try_into().unwrap();
 
-        let error = command_output(&config, Duration::from_secs(1)).await.unwrap_err();
+        let (_cancel, cancelled) = oneshot::channel();
+        let error = command_output(&config, Duration::from_secs(1), cancelled).await.unwrap_err();
 
         assert!(matches!(error, FlycheckError::Timeout));
         let pid = project.read_file("/flycheck-pid.txt").parse().unwrap();
@@ -163,6 +182,8 @@ mod tests {
 pub(crate) enum FlycheckError {
     #[error("flycheck command timed out")]
     Timeout,
+    #[error("flycheck command cancelled")]
+    Cancelled,
     #[error("failed to run flycheck command: {0}")]
     Io(#[from] std::io::Error),
     #[error(transparent)]
