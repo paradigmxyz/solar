@@ -45,8 +45,8 @@ impl DiagnosticStore {
     }
 
     fn publish_batches(&mut self, affected_uris: FxHashSet<Url>) -> Vec<(Url, Vec<Diagnostic>)> {
-        let mut owners = self.diagnostics.keys().collect::<Vec<_>>();
-        owners.sort();
+        let mut owners = self.diagnostics.iter().collect::<Vec<_>>();
+        owners.sort_by_key(|(owner, _)| *owner);
 
         let mut uris = affected_uris.into_iter().collect::<Vec<_>>();
         uris.sort_by(|lhs, rhs| lhs.as_str().cmp(rhs.as_str()));
@@ -57,10 +57,8 @@ impl DiagnosticStore {
                 let mut has_entry = false;
                 let mut diagnostics = Vec::new();
 
-                for owner in &owners {
-                    if let Some(owner_diagnostics) = self.diagnostics.get(*owner)
-                        && let Some(uri_diagnostics) = owner_diagnostics.get(&uri)
-                    {
+                for (_, owner_diagnostics) in &owners {
+                    if let Some(uri_diagnostics) = owner_diagnostics.get(&uri) {
                         has_entry = true;
                         diagnostics.extend(uri_diagnostics.iter().cloned());
                     }

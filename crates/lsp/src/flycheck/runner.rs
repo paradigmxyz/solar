@@ -79,8 +79,8 @@ async fn kill_child(
     stderr: &JoinHandle<io::Result<Vec<u8>>>,
 ) -> io::Result<()> {
     let result = child.kill().await;
-    abort_pipe(stdout);
-    abort_pipe(stderr);
+    stdout.abort();
+    stderr.abort();
     result
 }
 
@@ -95,10 +95,6 @@ fn read_pipe(pipe: impl AsyncRead + Send + Unpin + 'static) -> JoinHandle<io::Re
 
 async fn collect_pipe(pipe: JoinHandle<io::Result<Vec<u8>>>) -> io::Result<Vec<u8>> {
     pipe.await.map_err(io::Error::other)?
-}
-
-fn abort_pipe(pipe: &JoinHandle<io::Result<Vec<u8>>>) {
-    pipe.abort();
 }
 
 #[cfg(test)]

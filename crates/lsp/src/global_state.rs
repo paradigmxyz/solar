@@ -157,8 +157,7 @@ impl GlobalState {
     }
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
-        let version = self.flycheck_version.fetch_add(1, Ordering::AcqRel) + 1;
-        self.cancel_flychecks();
+        let version = self.begin_flycheck_epoch();
         let flychecks = self.config.flychecks_for_path(&path);
         if flychecks.is_empty() {
             return;
@@ -191,12 +190,17 @@ impl GlobalState {
         &mut self,
         owners: impl IntoIterator<Item = DiagnosticOwner>,
     ) {
-        self.flycheck_version.fetch_add(1, Ordering::AcqRel);
-        self.cancel_flychecks();
+        self.begin_flycheck_epoch();
         let mut snapshot = self.snapshot();
         for owner in owners {
             snapshot.publish_diagnostics(owner, DiagnosticMap::default());
         }
+    }
+
+    fn begin_flycheck_epoch(&mut self) -> usize {
+        let version = self.flycheck_version.fetch_add(1, Ordering::AcqRel) + 1;
+        self.cancel_flychecks();
+        version
     }
 
     fn cancel_flychecks(&mut self) {

@@ -111,13 +111,15 @@ impl Config {
     }
 
     fn refresh_flychecks(&mut self) -> Vec<DiagnosticOwner> {
-        let previous_owners =
+        let mut removed_owners =
             self.flychecks.iter().map(FlycheckConfig::owner).collect::<FxHashSet<_>>();
         self.flychecks = self.flycheck_options.configs(&self.workspaces);
-        let current_owners =
-            self.flychecks.iter().map(FlycheckConfig::owner).collect::<FxHashSet<_>>();
-        let mut removed_owners =
-            previous_owners.difference(&current_owners).cloned().collect::<Vec<_>>();
+
+        for owner in self.flychecks.iter().map(FlycheckConfig::owner) {
+            removed_owners.remove(&owner);
+        }
+
+        let mut removed_owners = removed_owners.into_iter().collect::<Vec<_>>();
         removed_owners.sort();
         info!(flychecks = ?self.flychecks.iter().map(|it| it.id.as_str()).collect::<Vec<_>>(), "loaded flychecks");
         removed_owners
