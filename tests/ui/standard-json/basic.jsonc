@@ -16,6 +16,20 @@
     }
   },
   "settings": {
+    "metadata": {
+      "bytecodeHash": "none"
+    },
+    "libraries": {
+      "A.sol": {
+        "Counter": "0x0000000000000000000000000000000000000000"
+      }
+    },
+    "optimizer": {
+      "enabled": true,
+      "details": {
+        "yul": true
+      }
+    },
     "outputSelection": {
       "*": {
         "*": [

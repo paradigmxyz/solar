@@ -77,13 +77,16 @@ struct Settings<'a> {
     evm_version: Option<CowStr<'a>>,
     /// Optimizer settings. Only `enabled` is currently honored.
     #[serde(default)]
-    optimizer: Option<Optimizer>,
+    #[serde(borrow)]
+    optimizer: Option<Optimizer<'a>>,
     /// Output metadata settings; bytecode metadata is not emitted yet.
     #[serde(default)]
-    metadata: Option<Box<RawValue>>,
+    #[serde(borrow)]
+    metadata: Option<CowValue<'a>>,
     /// Library addresses for linking; linking is not supported yet.
     #[serde(default)]
-    libraries: Option<Box<RawValue>>,
+    #[serde(borrow)]
+    libraries: Option<CowValue<'a>>,
     /// Whether to compile via the Yul IR pipeline. We have a single pipeline, so
     /// there is nothing to switch.
     #[serde(default, rename = "viaIR")]
@@ -93,7 +96,7 @@ struct Settings<'a> {
 /// The solc Standard JSON `settings.optimizer` object.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Optimizer {
+struct Optimizer<'a> {
     /// Whether the optimizer is enabled. Mapped onto [`OptimizationMode::None`]
     /// when disabled.
     #[serde(default)]
@@ -103,7 +106,8 @@ struct Optimizer {
     runs: Option<u64>,
     /// Fine-grained optimizer toggles. Not used yet.
     #[serde(default)]
-    details: Option<Box<RawValue>>,
+    #[serde(borrow)]
+    details: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -443,6 +447,29 @@ impl<'de: 'a, 'a> Deserialize<'de> for CowStr<'a> {
         }
 
         deserializer.deserialize_str(CowStrVisitor)
+    }
+}
+
+/// JSON value wrapper that borrows its raw JSON representation from the
+/// standard-json input.
+///
+/// `Cow<'de, RawValue>` deserializes through its owned representation, so this
+/// wrapper selects the borrowing [`RawValue`] implementation instead.
+#[derive(Debug)]
+struct CowValue<'a>(Cow<'a, RawValue>);
+
+impl CowValue<'_> {
+    fn as_cow(&self) -> &Cow<'_, RawValue> {
+        &self.0
+    }
+}
+
+impl<'de: 'a, 'a> Deserialize<'de> for CowValue<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        <&RawValue>::deserialize(deserializer).map(|value| Self(Cow::Borrowed(value)))
     }
 }
 
@@ -824,6 +851,19 @@ impl InputCowStats {
             }
         }
     }
+
+    fn add_raw_value(&mut self, value: &CowValue<'_>) {
+        match value.as_cow() {
+            Cow::Borrowed(value) => {
+                self.borrowed += 1;
+                self.borrowed_bytes += value.get().len();
+            }
+            Cow::Owned(value) => {
+                self.owned += 1;
+                self.owned_bytes += value.get().len();
+            }
+        }
+    }
 }
 
 fn print_standard_json_stats(raw_input: &str, input: &CompilerInput<'_>) {
@@ -898,6 +938,17 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
     }
     if let Some(evm_version) = &input.settings.evm_version {
         stats.add(evm_version);
+    }
+    if let Some(metadata) = &input.settings.metadata {
+        stats.add_raw_value(metadata);
+    }
+    if let Some(libraries) = &input.settings.libraries {
+        stats.add_raw_value(libraries);
+    }
+    if let Some(optimizer) = &input.settings.optimizer
+        && let Some(details) = &optimizer.details
+    {
+        stats.add_raw_value(details);
     }
     for (source, contracts) in &input.settings.output_selection.0 {
         stats.add(source);
