@@ -4,7 +4,7 @@ use serde::{
     Deserialize, Serialize,
     de::{self, Visitor},
 };
-use serde_json::{Map, Value, json, value::RawValue};
+use serde_json::{Map, Value, json};
 use solar_codegen::{EvmCodegen, lower};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode,
@@ -39,45 +39,35 @@ type FxIndexMap<K, V> = IndexMap<K, V, FxBuildHasher>;
 struct CompilerInput<'a> {
     #[serde(default = "default_language")]
     language: CowStr<'a>,
-    #[serde(default)]
-    #[serde(borrow)]
+    #[serde(borrow, default)]
     sources: FxIndexMap<CowStr<'a>, SourceInput<'a>>,
-    #[serde(default)]
-    #[serde(borrow)]
+    #[serde(borrow, default)]
     settings: Settings<'a>,
-    #[serde(default)]
-    #[serde(borrow)]
-    auxiliary_input: Option<CowValue<'a>>,
+    // `auxiliaryInput` is only used by solc's SMT checker, which we do not support.
+    // #[serde(borrow, default)]
+    // auxiliary_input: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Deserialize)]
 struct SourceInput<'a> {
     #[serde(borrow)]
     content: Option<CowStr<'a>>,
-    #[serde(borrow)]
-    keccak256: Option<CowValue<'a>>,
-    #[serde(default)]
-    #[serde(borrow)]
+    #[serde(borrow, default)]
     urls: Vec<CowStr<'a>>,
-    #[serde(rename = "assemblyJson")]
-    #[serde(borrow)]
-    assembly_json: Option<CowValue<'a>>,
+    // `keccak256` validation and `assemblyJson` inputs are not supported yet.
+    // #[serde(borrow)]
+    // keccak256: Option<CowValue<'a>>,
+    // #[serde(borrow, rename = "assemblyJson")]
+    // assembly_json: Option<CowValue<'a>>,
 }
 
-/// A subset of the solc Standard JSON `settings` object.
-///
-/// Every field here is handled explicitly in [`compile`] — fields we don't act
-/// on yet are still parsed and bound (with a note) rather than silently dropped,
-/// so the set of recognized keys stays visible and intentional. Unknown keys are
-/// ignored by serde, matching solc.
+// The supported subset of solc's Standard JSON `settings` object.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct Settings<'a> {
-    #[serde(default)]
-    #[serde(borrow)]
+    #[serde(borrow, default)]
     remappings: Vec<CowStr<'a>>,
-    #[serde(default)]
-    #[serde(borrow)]
+    #[serde(borrow, default)]
     output_selection: OutputSelection<'a>,
     #[serde(borrow)]
     stop_after: Option<CowStr<'a>>,
@@ -85,42 +75,35 @@ struct Settings<'a> {
     evm_version: Option<CowStr<'a>>,
     /// Optimizer settings. Only `enabled` is currently honored.
     #[serde(default)]
-    #[serde(borrow)]
-    optimizer: Option<Optimizer<'a>>,
-    /// Output metadata settings; bytecode metadata is not emitted yet.
-    #[serde(default)]
-    #[serde(borrow)]
-    metadata: Option<CowValue<'a>>,
-    /// Library addresses for linking; linking is not supported yet.
-    #[serde(default)]
-    #[serde(borrow)]
-    libraries: Option<CowValue<'a>>,
-    /// Debugging settings are not supported yet.
-    #[serde(default)]
-    #[serde(borrow)]
-    debug: Option<CowValue<'a>>,
-    /// Experimental features are not supported yet.
-    #[serde(default)]
-    #[serde(borrow)]
-    experimental: Option<CowValue<'a>>,
-    /// Model checker settings are not supported yet.
-    #[serde(default)]
-    #[serde(borrow)]
-    model_checker: Option<CowValue<'a>>,
+    optimizer: Option<Optimizer>,
     /// Whether to compile via the Yul IR pipeline. We have a single pipeline, so
     /// there is nothing to switch.
     #[serde(default, rename = "viaIR")]
     via_ir: Option<bool>,
-    /// Whether to compile via the SSA CFG pipeline. Not supported yet.
-    #[serde(default, rename = "viaSSACFG")]
-    #[serde(borrow)]
-    via_ssa_cfg: Option<CowValue<'a>>,
+    // Metadata settings are ignored because bytecode metadata is not emitted.
+    // #[serde(borrow, default)]
+    // metadata: Option<CowValue<'a>>,
+    // Library addresses are ignored because linking is not supported.
+    // #[serde(borrow, default)]
+    // libraries: Option<CowValue<'a>>,
+    // Debug settings are ignored because we do not emit debug output.
+    // #[serde(borrow, default)]
+    // debug: Option<CowValue<'a>>,
+    // Experimental features are ignored because we do not support solc's experimental mode.
+    // #[serde(borrow, default)]
+    // experimental: Option<CowValue<'a>>,
+    // Model checker settings are ignored because we do not run an SMT checker.
+    // #[serde(borrow, default)]
+    // model_checker: Option<CowValue<'a>>,
+    // The SSA CFG pipeline is ignored because we have a single compilation pipeline.
+    // #[serde(borrow, default, rename = "viaSSACFG")]
+    // via_ssa_cfg: Option<CowValue<'a>>,
 }
 
 /// The solc Standard JSON `settings.optimizer` object.
 #[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase")]
-struct Optimizer<'a> {
+struct Optimizer {
     /// Whether the optimizer is enabled. Mapped onto [`OptimizationMode::None`]
     /// when disabled.
     #[serde(default)]
@@ -128,10 +111,9 @@ struct Optimizer<'a> {
     /// Number of optimizer runs. The MIR optimizer has no runs parameter yet.
     #[serde(default)]
     runs: Option<u64>,
-    /// Fine-grained optimizer toggles. Not used yet.
-    #[serde(default)]
-    #[serde(borrow)]
-    details: Option<CowValue<'a>>,
+    // Fine-grained optimizer settings are not supported yet.
+    // #[serde(borrow, default)]
+    // details: Option<CowValue<'a>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -147,8 +129,9 @@ struct CompilerOutput<'a> {
     sources: FxIndexMap<String, SourceOutput>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ethdebug: Option<CowValue<'static>>,
+    // Global `ethdebug` output is not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ethdebug: Option<CowValue<'static>>,
 }
 
 /// Result returned by a Standard JSON read callback.
@@ -261,7 +244,7 @@ fn compile(
     dcx: DiagCtxt,
     output: &mut CompilerOutput<'_>,
 ) {
-    let CompilerInput { language, sources, settings, auxiliary_input: _auxiliary_input } = input;
+    let CompilerInput { language, sources, settings } = input;
     // Destructure `Settings` so every recognized field is handled explicitly;
     // fields we don't act on yet are bound with a leading underscore and a note.
     // Adding a field to `Settings` then forces a decision here instead of it
@@ -272,13 +255,7 @@ fn compile(
         stop_after,
         evm_version,
         optimizer,
-        metadata: _metadata,
-        libraries: _libraries,
-        debug: _debug,
-        experimental: _experimental,
-        model_checker: _model_checker,
         via_ir: _via_ir,
-        via_ssa_cfg: _via_ssa_cfg,
     } = settings;
 
     let mut parsed_remappings = Vec::with_capacity(remappings.len());
@@ -313,7 +290,7 @@ fn compile(
     // override when the input explicitly disables the optimizer, leaving the
     // CLI-driven default otherwise. `runs` and `details` have no analogue in the
     // MIR optimizer yet, so they're parsed but unused.
-    if let Some(Optimizer { enabled: false, runs: _runs, details: _details }) = optimizer {
+    if let Some(Optimizer { enabled: false, runs: _runs }) = optimizer {
         opts.optimization = OptimizationMode::None;
     }
 
@@ -333,14 +310,8 @@ fn compile(
                 |pcx| {
                     let mut files = Vec::with_capacity(sources.len());
                     for (name, source) in sources {
-                        let SourceInput {
-                            content,
-                            keccak256: _keccak256,
-                            urls,
-                            assembly_json: _assembly_json,
-                        } = source;
-                        let Some(content) = content else {
-                            let message = if urls.is_empty() {
+                        let Some(content) = source.content else {
+                            let message = if source.urls.is_empty() {
                                 format!("source `{name}` is missing `content`")
                             } else {
                                 format!("source URLs are not supported for `{name}`")
@@ -486,43 +457,12 @@ impl<'de: 'a, 'a> Deserialize<'de> for CowStr<'a> {
     }
 }
 
-/// JSON value wrapper that borrows its raw JSON representation from the
-/// standard-json input.
-///
-/// `Cow<'de, RawValue>` deserializes through its owned representation, so this
-/// wrapper selects the borrowing [`RawValue`] implementation instead.
-#[derive(Debug)]
-struct CowValue<'a>(Cow<'a, RawValue>);
-
-impl CowValue<'_> {
-    fn as_cow(&self) -> &Cow<'_, RawValue> {
-        &self.0
-    }
-}
-
-impl<'de: 'a, 'a> Deserialize<'de> for CowValue<'a> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        <&RawValue>::deserialize(deserializer).map(|value| Self(Cow::Borrowed(value)))
-    }
-}
-
-impl Serialize for CowValue<'_> {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.0.as_ref().serialize(serializer)
-    }
-}
-
 #[derive(Debug, Serialize)]
 struct SourceOutput {
     id: u32,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ast: Option<CowValue<'static>>,
+    // AST output is not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ast: Option<CowValue<'static>>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -538,16 +478,17 @@ struct ContractOutput {
     devdoc: Option<DevDocumentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     storage_layout: Option<StorageLayoutOutput>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    transient_storage_layout: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ir: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ir_ast: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ir_optimized: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ir_optimized_ast: Option<CowValue<'static>>,
+    // Transient storage layouts and Yul IR output are not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // transient_storage_layout: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ir: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ir_ast: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ir_optimized: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ir_optimized_ast: Option<CowValue<'static>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     evm: Option<EvmOutput>,
 }
@@ -682,16 +623,17 @@ type StorageLayoutMember = StorageLayoutEntry;
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EvmOutput {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    assembly: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    legacy_assembly: Option<CowValue<'static>>,
+    // Assembly, gas estimates, and Yul CFG output are not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // assembly: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // legacy_assembly: Option<CowValue<'static>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     method_identifiers: FxIndexMap<String, String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    gas_estimates: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    yul_cfg_json: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // gas_estimates: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // yul_cfg_json: Option<CowValue<'static>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bytecode: Option<BytecodeOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -702,10 +644,11 @@ struct EvmOutput {
 #[serde(rename_all = "camelCase")]
 struct BytecodeOutput {
     object: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ethdebug: Option<CowValue<'static>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    function_debug_data: Option<CowValue<'static>>,
+    // Ethdebug, function debug data, and generated sources are not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // ethdebug: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // function_debug_data: Option<CowValue<'static>>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     opcodes: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -714,8 +657,8 @@ struct BytecodeOutput {
     link_references: LinkReferences,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     immutable_references: ImmutableReferences,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    generated_sources: Option<CowValue<'static>>,
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // generated_sources: Option<CowValue<'static>>,
 }
 
 type LinkReferences = FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>;
@@ -922,19 +865,6 @@ impl InputCowStats {
             }
         }
     }
-
-    fn add_raw_value(&mut self, value: &CowValue<'_>) {
-        match value.as_cow() {
-            Cow::Borrowed(value) => {
-                self.borrowed += 1;
-                self.borrowed_bytes += value.get().len();
-            }
-            Cow::Owned(value) => {
-                self.owned += 1;
-                self.owned_bytes += value.get().len();
-            }
-        }
-    }
 }
 
 fn print_standard_json_stats(raw_input: &str, input: &CompilerInput<'_>) {
@@ -992,22 +922,13 @@ fn print_standard_json_stats(raw_input: &str, input: &CompilerInput<'_>) {
 
 fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
     stats.add(&input.language);
-    if let Some(auxiliary_input) = &input.auxiliary_input {
-        stats.add_raw_value(auxiliary_input);
-    }
     for (name, source) in &input.sources {
         stats.add(name);
         if let Some(content) = &source.content {
             stats.add(content);
         }
-        if let Some(keccak256) = &source.keccak256 {
-            stats.add_raw_value(keccak256);
-        }
         for url in &source.urls {
             stats.add(url);
-        }
-        if let Some(assembly_json) = &source.assembly_json {
-            stats.add_raw_value(assembly_json);
         }
     }
     for remapping in &input.settings.remappings {
@@ -1018,29 +939,6 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
     }
     if let Some(evm_version) = &input.settings.evm_version {
         stats.add(evm_version);
-    }
-    if let Some(metadata) = &input.settings.metadata {
-        stats.add_raw_value(metadata);
-    }
-    if let Some(libraries) = &input.settings.libraries {
-        stats.add_raw_value(libraries);
-    }
-    if let Some(debug) = &input.settings.debug {
-        stats.add_raw_value(debug);
-    }
-    if let Some(experimental) = &input.settings.experimental {
-        stats.add_raw_value(experimental);
-    }
-    if let Some(model_checker) = &input.settings.model_checker {
-        stats.add_raw_value(model_checker);
-    }
-    if let Some(optimizer) = &input.settings.optimizer
-        && let Some(details) = &optimizer.details
-    {
-        stats.add_raw_value(details);
-    }
-    if let Some(via_ssa_cfg) = &input.settings.via_ssa_cfg {
-        stats.add_raw_value(via_ssa_cfg);
     }
     for (source, contracts) in &input.settings.output_selection.0 {
         stats.add(source);
@@ -1061,10 +959,7 @@ fn source_outputs_from_compiler(
         .sources
         .iter_enumerated()
         .map(|(id, source)| {
-            (
-                standard_json_source_name(&source.file.name),
-                SourceOutput { id: id.index() as u32, ast: None },
-            )
+            (standard_json_source_name(&source.file.name), SourceOutput { id: id.index() as u32 })
         })
         .collect()
 }
@@ -1824,22 +1719,13 @@ impl ContractOutput {
             && self.userdoc.is_none()
             && self.devdoc.is_none()
             && self.storage_layout.is_none()
-            && self.transient_storage_layout.is_none()
-            && self.ir.is_none()
-            && self.ir_ast.is_none()
-            && self.ir_optimized.is_none()
-            && self.ir_optimized_ast.is_none()
             && self.evm.is_none()
     }
 }
 
 impl EvmOutput {
     fn is_empty(&self) -> bool {
-        self.assembly.is_none()
-            && self.legacy_assembly.is_none()
-            && self.method_identifiers.is_empty()
-            && self.gas_estimates.is_none()
-            && self.yul_cfg_json.is_none()
+        self.method_identifiers.is_empty()
             && self.bytecode.is_none()
             && self.deployed_bytecode.is_none()
     }
