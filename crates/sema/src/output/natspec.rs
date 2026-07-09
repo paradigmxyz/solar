@@ -68,6 +68,18 @@ impl Documentation {
     }
 }
 
+impl DocumentationItem {
+    fn is_empty(&self) -> bool {
+        self.notice.is_none()
+            && self.author.is_none()
+            && self.details.is_none()
+            && self.params.is_none()
+            && self.r#return.is_none()
+            && self.returns.is_none()
+            && self.custom.is_none()
+    }
+}
+
 impl<'gcx> Gcx<'gcx> {
     /// Returns the developer documentation for the given contract.
     pub fn dev_documentation(self, contract_id: hir::ContractId) -> Documentation {
@@ -160,6 +172,75 @@ impl<'gcx> Gcx<'gcx> {
 
         documentation
     }
+
+    /// Returns the user documentation for the given contract.
+    pub fn user_documentation(self, contract_id: hir::ContractId) -> Documentation {
+        let contract = self.hir.contract(contract_id);
+        let mut documentation = Documentation::new(DocumentationKind::User);
+        documentation.notice =
+            natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Notice));
+
+        if let Some(constructor) = contract.ctor
+            && let Some(notice) = natspec_text(self, self.hir.function(constructor).doc, |kind| {
+                matches!(kind, hir::NatSpecKind::Notice)
+            })
+        {
+            documentation.methods.insert(
+                "constructor".into(),
+                DocumentationItem { notice: Some(notice), ..Default::default() },
+            );
+        }
+
+        for interface_function in self.interface_functions(contract_id) {
+            let function_id = interface_function.id;
+            let function = self.hir.function(function_id);
+            let doc = function.gettee.map_or(function.doc, |gettee| self.hir.variable(gettee).doc);
+            if let Some(notice) =
+                natspec_text(self, doc, |kind| matches!(kind, hir::NatSpecKind::Notice))
+            {
+                documentation.methods.insert(
+                    self.item_signature(function_id.into()).to_string(),
+                    DocumentationItem { notice: Some(notice), ..Default::default() },
+                );
+            }
+        }
+
+        let mut event_signatures = FxHashSet::default();
+        for item in self.hir.contract_item_ids(contract_id) {
+            match item {
+                hir::ItemId::Event(event_id) => {
+                    let event = self.hir.event(event_id);
+                    let signature = self.item_signature(event_id.into()).to_string();
+                    if !event_signatures.insert(signature.clone()) {
+                        continue;
+                    }
+                    if let Some(notice) = natspec_text(self, event.doc, |kind| {
+                        matches!(kind, hir::NatSpecKind::Notice)
+                    }) {
+                        documentation.events.insert(
+                            signature,
+                            DocumentationItem { notice: Some(notice), ..Default::default() },
+                        );
+                    }
+                }
+                hir::ItemId::Error(error_id) => {
+                    let error = self.hir.error(error_id);
+                    if let Some(notice) = natspec_text(self, error.doc, |kind| {
+                        matches!(kind, hir::NatSpecKind::Notice)
+                    }) {
+                        documentation
+                            .errors
+                            .entry(self.item_signature(error_id.into()).to_string())
+                            .or_default()
+                            .push(DocumentationItem { notice: Some(notice), ..Default::default() });
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        documentation
+    }
 }
 
 fn natspec_text(
@@ -232,87 +313,4 @@ fn return_docs(
         })
         .collect::<FxIndexMap<_, _>>();
     (!docs.is_empty()).then_some(docs)
-}
-
-impl DocumentationItem {
-    fn is_empty(&self) -> bool {
-        self.notice.is_none()
-            && self.author.is_none()
-            && self.details.is_none()
-            && self.params.is_none()
-            && self.r#return.is_none()
-            && self.returns.is_none()
-            && self.custom.is_none()
-    }
-}
-
-impl<'gcx> Gcx<'gcx> {
-    /// Returns the user documentation for the given contract.
-    pub fn user_documentation(self, contract_id: hir::ContractId) -> Documentation {
-        let contract = self.hir.contract(contract_id);
-        let mut documentation = Documentation::new(DocumentationKind::User);
-        documentation.notice =
-            natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Notice));
-
-        if let Some(constructor) = contract.ctor
-            && let Some(notice) = natspec_text(self, self.hir.function(constructor).doc, |kind| {
-                matches!(kind, hir::NatSpecKind::Notice)
-            })
-        {
-            documentation.methods.insert(
-                "constructor".into(),
-                DocumentationItem { notice: Some(notice), ..Default::default() },
-            );
-        }
-
-        for interface_function in self.interface_functions(contract_id) {
-            let function_id = interface_function.id;
-            let function = self.hir.function(function_id);
-            let doc = function.gettee.map_or(function.doc, |gettee| self.hir.variable(gettee).doc);
-            if let Some(notice) =
-                natspec_text(self, doc, |kind| matches!(kind, hir::NatSpecKind::Notice))
-            {
-                documentation.methods.insert(
-                    self.item_signature(function_id.into()).to_string(),
-                    DocumentationItem { notice: Some(notice), ..Default::default() },
-                );
-            }
-        }
-
-        let mut event_signatures = FxHashSet::default();
-        for item in self.hir.contract_item_ids(contract_id) {
-            match item {
-                hir::ItemId::Event(event_id) => {
-                    let event = self.hir.event(event_id);
-                    let signature = self.item_signature(event_id.into()).to_string();
-                    if !event_signatures.insert(signature.clone()) {
-                        continue;
-                    }
-                    if let Some(notice) = natspec_text(self, event.doc, |kind| {
-                        matches!(kind, hir::NatSpecKind::Notice)
-                    }) {
-                        documentation.events.insert(
-                            signature,
-                            DocumentationItem { notice: Some(notice), ..Default::default() },
-                        );
-                    }
-                }
-                hir::ItemId::Error(error_id) => {
-                    let error = self.hir.error(error_id);
-                    if let Some(notice) = natspec_text(self, error.doc, |kind| {
-                        matches!(kind, hir::NatSpecKind::Notice)
-                    }) {
-                        documentation
-                            .errors
-                            .entry(self.item_signature(error_id.into()).to_string())
-                            .or_default()
-                            .push(DocumentationItem { notice: Some(notice), ..Default::default() });
-                    }
-                }
-                _ => {}
-            }
-        }
-
-        documentation
-    }
 }
