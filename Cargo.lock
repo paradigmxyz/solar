@@ -3390,6 +3390,7 @@ dependencies = [
  "once_map",
  "paste",
  "rayon",
+ "serde",
  "snapbox",
  "solar-ast",
  "solar-data-structures",

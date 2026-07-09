@@ -32,6 +32,7 @@ use std::{
 use thread_local::ThreadLocal;
 
 mod print;
+pub(crate) use print::TySolcPrinter;
 pub use print::{TyAbiPrinter, TyAbiPrinterMode};
 
 mod common;

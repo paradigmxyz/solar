@@ -34,6 +34,8 @@ pub use parse::{ParsingContext, Source, Sources};
 pub mod builtins;
 pub mod eval;
 
+pub mod output;
+
 pub mod hir;
 pub use hir::Hir;
 
