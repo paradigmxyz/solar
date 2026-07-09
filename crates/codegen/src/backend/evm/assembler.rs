@@ -183,6 +183,74 @@ impl Assembler {
         *self.push_values.get(index)
     }
 
+    /// Outlines repeated large constants into shared push stubs.
+    ///
+    /// Event topics and EIP-712 typehashes are 32-byte keccak constants pushed
+    /// inline at every use site — 33 bytes each time. When the same constant
+    /// appears at several sites and the arithmetic pays, each site becomes a
+    /// call-shaped `PUSH2 ret PUSH2 stub JUMP JUMPDEST` (8 bytes) to a shared
+    /// `JUMPDEST PUSH<n> value SWAP1 JUMP` stub appended after the program's
+    /// terminal instruction. The rewrite is stack-neutral: one value is pushed
+    /// either way. Skipped entirely when optimization is disabled.
+    fn outline_repeated_pushes(&mut self, program: &mut EvmAsmProgram) {
+        if self.config.optimization == OptimizationMode::None {
+            return;
+        }
+
+        // Count the sites of every interned (large) push value.
+        let mut counts: FxHashMap<PushValueId, u32> = FxHashMap::default();
+        for inst in &program.instructions {
+            if let AsmInstKind::Push(index) = inst.kind() {
+                *counts.entry(index).or_default() += 1;
+            }
+        }
+        // A site shrinks from the value's real emitted encoding (compact
+        // shapes like `PUSH1 0x1f NOT` can be far narrower than the value's
+        // byte length) to 8 bytes; the stub costs the encoding plus 3.
+        // Outline when the total saving is worth the jump indirection.
+        const SITE_BYTES: usize = 8;
+        const MIN_SAVING: usize = 8;
+        let mut stubs: FxHashMap<PushValueId, Label> = FxHashMap::default();
+        let mut order = Vec::new();
+        let sizer = BytecodeAssembler::new(self.config.clone());
+        for (&index, &count) in &counts {
+            let len = sizer.encoded_push_len(self.push_value(index));
+            let count = count as usize;
+            let inline = count * len;
+            let outlined = count * SITE_BYTES + len + 3;
+            if count >= 2 && inline >= outlined + MIN_SAVING {
+                stubs.insert(index, self.new_label());
+                order.push(index);
+            }
+        }
+        if stubs.is_empty() {
+            return;
+        }
+        order.sort_unstable();
+
+        let mut rewritten = Vec::with_capacity(program.instructions.len());
+        for &inst in &program.instructions {
+            if let AsmInstKind::Push(index) = inst.kind()
+                && let Some(&stub) = stubs.get(&index)
+            {
+                let ret = self.new_label();
+                rewritten.push(AsmInst::push_label(ret));
+                rewritten.push(AsmInst::push_label(stub));
+                rewritten.push(AsmInst::op(op::JUMP));
+                rewritten.push(AsmInst::label(ret));
+            } else {
+                rewritten.push(inst);
+            }
+        }
+        for index in order {
+            rewritten.push(AsmInst::label(stubs[&index]));
+            rewritten.push(AsmInst::push(index));
+            rewritten.push(AsmInst::op(op::SWAP1));
+            rewritten.push(AsmInst::op(op::JUMP));
+        }
+        program.instructions = rewritten;
+    }
+
     pub(super) fn inst_push_value(&self, inst: AsmInst) -> Option<U256> {
         match inst.kind() {
             AsmInstKind::PushInline(value) => Some(U256::from(value)),
@@ -222,6 +290,7 @@ impl Assembler {
         Self::remove_unreferenced_labels(&mut program.instructions);
         Self::dedup_terminal_spans(&mut program.instructions);
         Self::remove_unreferenced_labels(&mut program.instructions);
+        self.outline_repeated_pushes(&mut program);
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
