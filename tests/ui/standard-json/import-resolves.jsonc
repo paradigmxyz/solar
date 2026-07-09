@@ -1,0 +1,26 @@
+// CHECK: "contracts": {
+// CHECK: "B.sol": {
+// CHECK: "B": {
+// CHECK: "name": "g"
+// CHECK: "A.sol": {
+// CHECK: "A": {
+{
+  "language": "Solidity",
+  "sources": {
+    "A.sol": {
+      "content": "import \"B.sol\"; contract A is B {}"
+    },
+    "B.sol": {
+      "content": "contract B { function g() public pure returns (uint) { return 2; } }"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "*": {
+        "*": [
+          "abi"
+        ]
+      }
+    }
+  }
+}

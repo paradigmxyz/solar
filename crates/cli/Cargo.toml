@@ -51,9 +51,6 @@ libc.workspace = true
 
 tikv-jemallocator = { version = "0.7", optional = true }
 
-[dev-dependencies]
-snapbox.workspace = true
-
 [features]
 default = ["mimalloc", "tracing"]
 lsp = ["dep:solar-lsp", "dep:tokio"]

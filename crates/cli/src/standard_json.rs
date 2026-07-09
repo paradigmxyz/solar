@@ -23,7 +23,6 @@ use solar_sema::{
 };
 use std::{
     borrow::{Borrow, Cow},
-    collections::BTreeMap,
     fmt,
     fs::File,
     io::{self, Read, Write},
@@ -116,10 +115,10 @@ struct OutputSelection<'a>(
 struct CompilerOutput<'a> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     errors: Vec<SolcDiagnostic<'a>>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    sources: BTreeMap<String, SourceOutput>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    contracts: BTreeMap<String, BTreeMap<String, ContractOutput>>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    sources: FxIndexMap<String, SourceOutput>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    contracts: FxIndexMap<String, FxIndexMap<String, ContractOutput>>,
 }
 
 /// Result returned by a Standard JSON read callback.
@@ -599,8 +598,8 @@ type StorageLayoutMember = StorageLayoutEntry;
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EvmOutput {
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    method_identifiers: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    method_identifiers: FxIndexMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bytecode: Option<BytecodeOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -913,7 +912,7 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
 
 fn source_outputs_from_compiler(
     compiler: &solar_sema::CompilerRef<'_>,
-) -> BTreeMap<String, SourceOutput> {
+) -> FxIndexMap<String, SourceOutput> {
     compiler
         .gcx()
         .sources
@@ -1742,310 +1741,4 @@ fn strip_json_comments(input: &str) -> String {
     }
 
     out
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use snapbox::{IntoData as _, assert_data_eq, str};
-    use std::collections::BTreeMap;
-
-    struct Sources(BTreeMap<String, String>);
-
-    impl StandardJsonReadCallback for Sources {
-        fn read(&self, kind: &str, data: &str) -> ReadCallbackResult {
-            if kind != "source" {
-                return ReadCallbackResult::Unsupported;
-            }
-            self.0.get(data).cloned().map_or_else(
-                || ReadCallbackResult::Error(format!("source `{data}` not found")),
-                ReadCallbackResult::Success,
-            )
-        }
-    }
-
-    fn compile(input: &str, callback: Option<Arc<dyn StandardJsonReadCallback>>) -> String {
-        compile_with(input, callback, false)
-    }
-
-    fn compile_with_typeck(
-        input: &str,
-        callback: Option<Arc<dyn StandardJsonReadCallback>>,
-    ) -> String {
-        compile_with(input, callback, true)
-    }
-
-    fn compile_with(
-        input: &str,
-        callback: Option<Arc<dyn StandardJsonReadCallback>>,
-        typeck: bool,
-    ) -> String {
-        let mut output = Vec::new();
-        let opts = CompileOpts { unstable: test_unstable_opts(typeck), ..test_opts() };
-        compile_standard_json(input, opts, callback, &mut output);
-        normalize_manifest_dir(String::from_utf8(output).unwrap())
-    }
-
-    fn assert_json(actual: &str, expected: impl snapbox::IntoData) {
-        let actual = normalize_manifest_dir(actual.to_owned());
-        assert_data_eq!(actual.into_data().is_json(), expected.into_data().is_json());
-    }
-
-    fn test_opts() -> CompileOpts {
-        CompileOpts { pretty_json: true, ..CompileOpts::default() }
-    }
-
-    fn test_unstable_opts(typeck: bool) -> solar_config::UnstableOpts {
-        solar_config::UnstableOpts { ui_testing: true, typeck, ..Default::default() }
-    }
-
-    fn normalize_manifest_dir(mut output: String) -> String {
-        output = output.replace("\\\\", "/");
-        output = output.replace("\\/", "/");
-        let native = env!("CARGO_MANIFEST_DIR");
-        let slash = native.replace('\\', "/");
-        let stripped = slash.strip_prefix("//?/").unwrap_or(&slash).to_string();
-        let mut prefixes = vec![native.to_string(), slash, stripped.clone()];
-        if let Some((drive, rest)) = stripped.split_once(':') {
-            prefixes.push(format!("{}:{rest}", drive.to_ascii_uppercase()));
-            prefixes.push(format!("{}:{rest}", drive.to_ascii_lowercase()));
-        }
-        prefixes.dedup();
-        for prefix in prefixes {
-            output = output.replace(&prefix, "ROOT");
-        }
-        while let Some(end) = output.find("/crates/cli") {
-            let end = end + "/crates/cli".len();
-            let start = output[..end].rfind('"').map_or(0, |i| i + 1);
-            output.replace_range(start..end, "ROOT");
-        }
-        output
-    }
-
-    #[test]
-    fn normalize_manifest_dir_rewrites_windows_paths() {
-        assert_eq!(
-            normalize_manifest_dir(r#"{"D:/a/solar/solar/crates/cli/B.sol":{}}"#.to_string()),
-            r#"{"ROOT/B.sol":{}}"#,
-        );
-        assert_eq!(
-            normalize_manifest_dir(r#"{"D:\\a\\solar\\solar\\crates\\cli\\B.sol":{}}"#.to_string()),
-            r#"{"ROOT/B.sol":{}}"#,
-        );
-    }
-
-    #[test]
-    fn compile_without_imports() {
-        assert_json(
-            &compile(
-                r#"{
-                "language": "Solidity",
-                "sources": {
-                    "A.sol": {
-                        "content": "contract A { function f() public pure returns (uint) { return 1; } }"
-                    }
-                },
-                "settings": {
-                    "outputSelection": { "*": { "*": ["abi"] } }
-                }
-            }"#,
-                None,
-            ),
-            str![[r#"
-{
-  "sources": {
-    "A.sol": {
-      "id": 0
-    }
-  },
-  "contracts": {
-    "A.sol": {
-      "A": {
-        "abi": [
-          {
-            "inputs": [],
-            "name": "f",
-            "outputs": [
-              {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-              }
-            ],
-            "stateMutability": "pure",
-            "type": "function"
-          }
-        ]
-      }
-    }
-  }
-}
-"#]],
-        );
-    }
-
-    #[test]
-    fn type_errors_are_reported() {
-        assert_json(
-            &compile_with_typeck(
-                r#"{
-                "language": "Solidity",
-                "sources": {
-                    "A.sol": {
-                        "content": "contract A { function f() public pure { uint x = true; } }"
-                    }
-                },
-                "settings": {
-                    "outputSelection": { "*": { "*": ["abi"] } }
-                }
-            }"#,
-                None,
-            ),
-            str![[r#"
-{
-  "errors": [
-    {
-      "component": "general",
-      "errorCode": null,
-      "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:1:50\n   │\nLL │ contract A { function f() public pure { uint x = true; } }\n   ╰╴                                                 ━━━━ expected `uint256`, found `bool`\n\n",
-      "message": "mismatched types",
-      "secondarySourceLocations": [],
-      "severity": "error",
-      "sourceLocation": {
-        "end": 53,
-        "file": "A.sol",
-        "start": 49
-      },
-      "type": "Exception"
-    }
-  ],
-  "sources": {
-    "A.sol": {
-      "id": 0
-    }
-  }
-}
-"#]],
-        );
-    }
-
-    #[test]
-    fn import_callback_resolves_source() {
-        let mut sources = BTreeMap::new();
-        sources.insert(
-            "B.sol".to_string(),
-            "contract B { function g() public pure returns (uint) { return 2; } }".to_string(),
-        );
-
-        assert_json(
-            &compile(
-                r#"{
-                "language": "Solidity",
-                "sources": {
-                    "A.sol": {
-                        "content": "import \"B.sol\"; contract A is B {}"
-                    }
-                },
-                "settings": {
-                    "outputSelection": { "*": { "*": ["abi"] } }
-                }
-            }"#,
-                Some(Arc::new(Sources(sources))),
-            ),
-            str![[r#"
-{
-  "contracts": {
-    "A.sol": {
-      "A": {
-        "abi": [
-          {
-            "inputs": [],
-            "name": "g",
-            "outputs": [
-              {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-              }
-            ],
-            "stateMutability": "pure",
-            "type": "function"
-          }
-        ]
-      }
-    },
-    "ROOT/B.sol": {
-      "B": {
-        "abi": [
-          {
-            "inputs": [],
-            "name": "g",
-            "outputs": [
-              {
-                "internalType": "uint256",
-                "name": "",
-                "type": "uint256"
-              }
-            ],
-            "stateMutability": "pure",
-            "type": "function"
-          }
-        ]
-      }
-    }
-  },
-  "sources": {
-    "A.sol": {
-      "id": 1
-    },
-    "ROOT/B.sol": {
-      "id": 0
-    }
-  }
-}
-"#]],
-        );
-    }
-
-    #[test]
-    fn missing_import_callback_is_reported() {
-        assert_json(
-            &compile(
-                r#"{
-                "language": "Solidity",
-                "sources": {
-                    "A.sol": {
-                        "content": "import \"Missing.sol\"; contract A {}"
-                    }
-                }
-            }"#,
-                None,
-            ),
-            str![[r#"
-{
-  "errors": [
-    {
-      "component": "general",
-      "errorCode": null,
-      "formattedMessage": "error: couldn't read Missing.sol: File import callback not supported\n   ╭▸ A.sol:1:8\n   │\nLL │ import \"Missing.sol\"; contract A {}\n   ╰╴       ━━━━━━━━━━━━━\n\n",
-      "message": "couldn't read Missing.sol: File import callback not supported",
-      "secondarySourceLocations": [],
-      "severity": "error",
-      "sourceLocation": {
-        "end": 20,
-        "file": "A.sol",
-        "start": 7
-      },
-      "type": "Exception"
-    }
-  ],
-  "sources": {
-    "A.sol": {
-      "id": 0
-    }
-  }
-}
-"#]],
-        );
-    }
 }

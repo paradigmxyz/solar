@@ -3206,7 +3206,6 @@ dependencies = [
  "mimalloc",
  "serde",
  "serde_json",
- "snapbox",
  "solar-codegen",
  "solar-config",
  "solar-data-structures",
