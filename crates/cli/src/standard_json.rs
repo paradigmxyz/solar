@@ -76,10 +76,6 @@ struct Settings<'a> {
     /// Optimizer settings. Only `enabled` is currently honored.
     #[serde(default)]
     optimizer: Option<Optimizer>,
-    /// Whether to compile via the Yul IR pipeline. We have a single pipeline, so
-    /// there is nothing to switch.
-    #[serde(default, rename = "viaIR")]
-    via_ir: Option<bool>,
     // Metadata settings are ignored because bytecode metadata is not emitted.
     // #[serde(borrow, default)]
     // metadata: Option<CowValue<'a>>,
@@ -95,9 +91,12 @@ struct Settings<'a> {
     // Model checker settings are ignored because we do not run an SMT checker.
     // #[serde(borrow, default)]
     // model_checker: Option<CowValue<'a>>,
+    // The IR pipeline is ignored because we have a single compilation pipeline.
+    // #[serde(default, rename = "viaIR")]
+    // via_ir: Option<bool>,
     // The SSA CFG pipeline is ignored because we have a single compilation pipeline.
     // #[serde(borrow, default, rename = "viaSSACFG")]
-    // via_ssa_cfg: Option<CowValue<'a>>,
+    // via_ssa_cfg: Option<bool>,
 }
 
 /// The solc Standard JSON `settings.optimizer` object.
@@ -249,14 +248,7 @@ fn compile(
     // fields we don't act on yet are bound with a leading underscore and a note.
     // Adding a field to `Settings` then forces a decision here instead of it
     // being silently ignored.
-    let Settings {
-        remappings,
-        output_selection,
-        stop_after,
-        evm_version,
-        optimizer,
-        via_ir: _via_ir,
-    } = settings;
+    let Settings { remappings, output_selection, stop_after, evm_version, optimizer } = settings;
 
     let mut parsed_remappings = Vec::with_capacity(remappings.len());
     for remapping in &remappings {
