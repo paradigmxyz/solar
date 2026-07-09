@@ -394,9 +394,24 @@ impl Assembler {
             i += 1;
         }
 
+        // A span whose body's emitted size is provably larger than an
+        // explicit `PUSH2 <label> JUMP` (conservative lower bound: pushes are
+        // at least two bytes).
+        fn body_outweighs_jump(body: &[AsmInst]) -> bool {
+            let lower_bound: usize = body
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum();
+            lower_bound > 6
+        }
+
         let mut representatives: FxHashMap<Vec<AsmInst>, Label> = FxHashMap::default();
         let mut alias: FxHashMap<Label, Label> = FxHashMap::default();
         let mut delete: Vec<(usize, usize)> = Vec::new();
+        let mut convert: Vec<(usize, usize, Label)> = Vec::new();
         for span in &spans {
             let body = instructions[span.start + 1..=span.end].to_vec();
             match representatives.entry(body) {
@@ -407,6 +422,12 @@ impl Assembler {
                     if span.start > 0 && is_terminal(instructions[span.start - 1]) {
                         alias.insert(span.label, *rep.get());
                         delete.push((span.start, span.end));
+                    } else if body_outweighs_jump(&instructions[span.start + 1..=span.end]) {
+                        // Something falls into this copy, so it cannot be
+                        // deleted — but its body can become a jump to the
+                        // representative.
+                        alias.insert(span.label, *rep.get());
+                        convert.push((span.start, span.end, *rep.get()));
                     }
                 }
             }
@@ -422,9 +443,22 @@ impl Assembler {
                 *inst = AsmInst::push_label(rep);
             }
         }
-        delete.sort_unstable();
-        for &(start, end) in delete.iter().rev() {
-            instructions.drain(start..=end);
+        let mut edits: Vec<(usize, usize, Option<Label>)> = delete
+            .into_iter()
+            .map(|(start, end)| (start, end, None))
+            .chain(convert.into_iter().map(|(start, end, rep)| (start, end, Some(rep))))
+            .collect();
+        edits.sort_unstable_by_key(|&(start, _, _)| start);
+        for &(start, end, rep) in edits.iter().rev() {
+            match rep {
+                None => {
+                    instructions.drain(start..=end);
+                }
+                Some(rep) => {
+                    instructions
+                        .splice(start + 1..=end, [AsmInst::push_label(rep), AsmInst::op(op::JUMP)]);
+                }
+            }
         }
     }
 
