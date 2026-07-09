@@ -94,7 +94,7 @@ struct Settings<'a> {
     // #[serde(default)]
     // via_ir: Option<bool>,
     // The SSA CFG pipeline is ignored because we have a single compilation pipeline.
-    // #[serde(borrow, default)]
+    // #[serde(default)]
     // via_ssa_cfg: Option<bool>,
 }
 
