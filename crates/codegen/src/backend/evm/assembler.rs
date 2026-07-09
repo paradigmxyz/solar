@@ -195,9 +195,9 @@ impl Assembler {
     /// Suffixes containing label definitions are never merged, and a cut only
     /// happens when the suffix's conservative emitted size (pushes counted as
     /// two bytes) exceeds the jump that replaces it.
-    fn merge_terminal_suffixes(&mut self, instructions: &mut Vec<AsmInst>) {
+    fn merge_terminal_suffixes(&mut self, instructions: &mut Vec<AsmInst>) -> bool {
         if self.config.optimization == OptimizationMode::None {
-            return;
+            return false;
         }
         fn is_terminal(inst: AsmInst) -> bool {
             matches!(
@@ -268,7 +268,7 @@ impl Assembler {
             }
         }
         if merges.is_empty() {
-            return;
+            return false;
         }
 
         // One label per (representative, suffix length) cut point.
@@ -306,6 +306,7 @@ impl Assembler {
                 }
             }
         }
+        true
     }
 
     /// Outlines repeated large constants into shared push stubs.
@@ -415,7 +416,15 @@ impl Assembler {
         Self::remove_unreferenced_labels(&mut program.instructions);
         Self::dedup_terminal_spans(&mut program.instructions);
         Self::remove_unreferenced_labels(&mut program.instructions);
-        self.merge_terminal_suffixes(&mut program.instructions);
+        // Suffix cuts create new identical spans and tails; iterate the merge
+        // with the dedup chain to a capped fixpoint.
+        for _ in 0..4 {
+            if !self.merge_terminal_suffixes(&mut program.instructions) {
+                break;
+            }
+            Self::dedup_terminal_spans(&mut program.instructions);
+            Self::remove_unreferenced_labels(&mut program.instructions);
+        }
         self.outline_repeated_pushes(&mut program);
 
         // We need to iterate until PUSH widths stabilize
