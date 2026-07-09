@@ -80,13 +80,9 @@ fn collect_solc_json(
         SolcJsonRecord::Diagnostic(diagnostic) => {
             push_diagnostic(diagnostics, solc_diagnostic(diagnostic, cwd, source, range_cache));
         }
-        SolcJsonRecord::Diagnostics(diagnostics_) => {
+        SolcJsonRecord::Diagnostics(diagnostics_)
+        | SolcJsonRecord::Errors(SolcJsonErrors { errors: diagnostics_ }) => {
             for diagnostic in diagnostics_ {
-                push_diagnostic(diagnostics, solc_diagnostic(diagnostic, cwd, source, range_cache));
-            }
-        }
-        SolcJsonRecord::Errors(output) => {
-            for diagnostic in output.errors {
                 push_diagnostic(diagnostics, solc_diagnostic(diagnostic, cwd, source, range_cache));
             }
         }
