@@ -1,0 +1,141 @@
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f(uint256)": {
+              "notice": "Returns x"
+            },
+            "count()": {
+              "notice": "Returns the count"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "f(uint256)": {
+              "details": "Base function",
+              "params": {
+                "x": "The input"
+              },
+              "returns": {
+                "y": "The output"
+              }
+            }
+          },
+          "author": "Alice",
+          "details": "Tracks the counter",
+          "stateVariables": {
+            "count": {
+              "details": "The stored count",
+              "return": "count value",
+              "returns": {
+                "_0": "count value"
+              }
+            }
+          },
+          "title": "Counter",
+          "custom:security": "contact security@example.com",
+          "version": 1
+        },
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 0,
+              "contract": "A.sol:A",
+              "label": "base",
+              "offset": 0,
+              "slot": "10",
+              "type": "t_uint8"
+            },
+            {
+              "astId": 1,
+              "contract": "A.sol:A",
+              "label": "count",
+              "offset": 0,
+              "slot": "11",
+              "type": "t_uint256"
+            },
+            {
+              "astId": 2,
+              "contract": "A.sol:A",
+              "label": "pair",
+              "offset": 0,
+              "slot": "12",
+              "type": "t_struct(Pair)0_storage"
+            },
+            {
+              "astId": 3,
+              "contract": "A.sol:A",
+              "label": "owners",
+              "offset": 0,
+              "slot": "13",
+              "type": "t_mapping(t_uint256,t_address)"
+            }
+          ],
+          "types": {
+            "t_uint8": {
+              "encoding": "inplace",
+              "label": "uint8",
+              "numberOfBytes": "1"
+            },
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_struct(Pair)0_storage": {
+              "encoding": "inplace",
+              "label": "struct A.Pair",
+              "numberOfBytes": "32",
+              "members": [
+                {
+                  "astId": 4,
+                  "contract": "A.sol:A",
+                  "label": "left",
+                  "offset": 0,
+                  "slot": "0",
+                  "type": "t_uint128"
+                },
+                {
+                  "astId": 5,
+                  "contract": "A.sol:A",
+                  "label": "right",
+                  "offset": 16,
+                  "slot": "0",
+                  "type": "t_uint128"
+                }
+              ]
+            },
+            "t_uint128": {
+              "encoding": "inplace",
+              "label": "uint128",
+              "numberOfBytes": "16"
+            },
+            "t_mapping(t_uint256,t_address)": {
+              "encoding": "mapping",
+              "label": "mapping(uint256 => address)",
+              "numberOfBytes": "32",
+              "key": "t_uint256",
+              "value": "t_address"
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            }
+          }
+        }
+      }
+    }
+  }
+}
