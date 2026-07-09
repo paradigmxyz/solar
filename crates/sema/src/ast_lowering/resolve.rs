@@ -2318,12 +2318,30 @@ impl Declarations {
         decl: Declaration,
         declarations: &[Declaration],
     ) -> Option<Declaration> {
+        use crate::builtins::Builtin as BuiltinKind;
         use Res::*;
         use hir::ItemId::*;
 
         if declarations.is_empty() {
             return None;
         }
+
+        let filtered;
+        let declarations = if matches!(decl.res, Item(Event(_) | Error(_))) {
+            filtered = declarations
+                .iter()
+                .copied()
+                .filter(|other| {
+                    !matches!(other.res, Res::Builtin(BuiltinKind::This | BuiltinKind::Super))
+                })
+                .collect::<SmallVec<[_; 4]>>();
+            if filtered.is_empty() {
+                return None;
+            }
+            filtered.as_slice()
+        } else {
+            declarations
+        };
 
         // https://github.com/argotorg/solidity/blob/de1a017ccb935d149ed6bcbdb730d89883f8ce02/libsolidity/analysis/DeclarationContainer.cpp#L35
         if matches!(decl.res, Item(Function(_) | Event(_))) {

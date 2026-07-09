@@ -2320,6 +2320,21 @@ impl<'gcx> TypeChecker<'gcx> {
             _ => {}
         }
 
+        if let WantOne::One(builtin) = res
+            .iter()
+            .filter(|res| matches!(res, hir::Res::Builtin(Builtin::This | Builtin::Super)))
+            .collect::<WantOne<_>>()
+            && res.iter().all(|res| {
+                matches!(
+                    res,
+                    hir::Res::Builtin(Builtin::This | Builtin::Super)
+                        | hir::Res::Item(hir::ItemId::Event(_) | hir::ItemId::Error(_))
+                )
+            })
+        {
+            return Ok(*builtin);
+        }
+
         match res.iter().filter(|res| res.as_variable().is_some()).collect::<WantOne<_>>() {
             WantOne::Zero => Err(OverloadError::NotFound),
             WantOne::One(var) => Ok(*var),
