@@ -1,3 +1,4 @@
+use alloy_primitives::U256;
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Serialize,
@@ -14,7 +15,12 @@ use solar_interface::{
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::FileLoader,
 };
-use solar_sema::hir::ContractId;
+use solar_sema::{
+    Gcx, Ty,
+    ast::{DataLocation, ElementaryType},
+    hir::{self, ContractId},
+    ty::TyKind,
+};
 use std::{
     borrow::{Borrow, Cow},
     collections::BTreeMap,
@@ -454,9 +460,9 @@ struct ContractOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    userdoc: Option<DocumentationOutput>,
+    userdoc: Option<UserDocumentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    devdoc: Option<DocumentationOutput>,
+    devdoc: Option<DevDocumentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -464,28 +470,80 @@ struct ContractOutput {
 }
 
 #[derive(Debug, Serialize)]
-struct DocumentationOutput {
-    kind: &'static str,
-    methods: FxIndexMap<String, DocumentationMethod>,
+struct UserDocumentation {
+    kind: DocumentationKind,
+    methods: FxIndexMap<String, UserDocNotice>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    events: FxIndexMap<String, UserDocNotice>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    errors: FxIndexMap<String, Vec<UserDocNotice>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    notice: Option<String>,
     version: u8,
 }
 
 #[derive(Debug, Default, Serialize)]
-struct DocumentationMethod {
+struct UserDocNotice {
+    notice: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DevDocumentation {
+    kind: DocumentationKind,
+    methods: FxIndexMap<String, DevDocItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    notice: Option<String>,
+    author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<String>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    events: FxIndexMap<String, DevDocItem>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    errors: FxIndexMap<String, Vec<DevDocItem>>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    state_variables: FxIndexMap<String, StateVariableDoc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    title: Option<String>,
+    #[serde(flatten)]
+    custom: FxIndexMap<String, String>,
+    version: u8,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "lowercase")]
+enum DocumentationKind {
+    User,
+    Dev,
+}
+
+#[derive(Debug, Default, Serialize)]
+struct DevDocItem {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     details: Option<String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     params: FxIndexMap<String, String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     returns: FxIndexMap<String, String>,
+    #[serde(flatten)]
+    custom: FxIndexMap<String, String>,
 }
 
-impl DocumentationOutput {
-    fn new(kind: &'static str) -> Self {
-        Self { kind, methods: FxIndexMap::default(), version: 1 }
-    }
+#[derive(Debug, Default, Serialize)]
+struct StateVariableDoc {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    author: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<String>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    params: FxIndexMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "return")]
+    return_doc: Option<String>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    returns: FxIndexMap<String, String>,
+    #[serde(flatten)]
+    custom: FxIndexMap<String, String>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -507,10 +565,10 @@ struct StorageLayoutEntry {
     ty: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct StorageLayoutType {
-    encoding: String,
+    encoding: StorageEncoding,
     label: String,
     number_of_bytes: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -523,17 +581,20 @@ struct StorageLayoutType {
     members: Vec<StorageLayoutMember>,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct StorageLayoutMember {
-    ast_id: u64,
-    contract: String,
-    label: String,
-    offset: u64,
-    slot: String,
-    #[serde(rename = "type")]
-    ty: String,
+#[derive(Debug, Default, Serialize)]
+enum StorageEncoding {
+    #[serde(rename = "inplace")]
+    #[default]
+    Inplace,
+    #[serde(rename = "mapping")]
+    Mapping,
+    #[serde(rename = "dynamic_array")]
+    DynamicArray,
+    #[serde(rename = "bytes")]
+    Bytes,
 }
+
+type StorageLayoutMember = StorageLayoutEntry;
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -863,8 +924,592 @@ fn source_outputs_from_compiler(
         .collect()
 }
 
+fn user_documentation(gcx: Gcx<'_>, contract_id: ContractId) -> UserDocumentation {
+    let contract = gcx.hir.contract(contract_id);
+    let mut documentation = UserDocumentation {
+        kind: DocumentationKind::User,
+        methods: FxIndexMap::default(),
+        events: FxIndexMap::default(),
+        errors: FxIndexMap::default(),
+        notice: natspec_text(gcx, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Notice)),
+        version: 1,
+    };
+
+    if let Some(constructor) = contract.ctor
+        && let Some(notice) = natspec_text(gcx, gcx.hir.function(constructor).doc, |kind| {
+            matches!(kind, hir::NatSpecKind::Notice)
+        })
+    {
+        documentation.methods.insert("constructor".into(), UserDocNotice { notice });
+    }
+
+    for interface_function in gcx.interface_functions(contract_id) {
+        let function_id = interface_function.id;
+        let function = gcx.hir.function(function_id);
+        let doc = function.gettee.map_or(function.doc, |gettee| gcx.hir.variable(gettee).doc);
+        if let Some(notice) =
+            natspec_text(gcx, doc, |kind| matches!(kind, hir::NatSpecKind::Notice))
+        {
+            documentation.methods.insert(
+                gcx.item_signature(function_id.into()).to_string(),
+                UserDocNotice { notice },
+            );
+        }
+    }
+
+    let mut event_signatures = FxHashSet::default();
+    for item in gcx.hir.contract_item_ids(contract_id) {
+        match item {
+            hir::ItemId::Event(event_id) => {
+                let event = gcx.hir.event(event_id);
+                let signature = gcx.item_signature(event_id.into()).to_string();
+                if !event_signatures.insert(signature.clone()) {
+                    continue;
+                }
+                if let Some(notice) =
+                    natspec_text(gcx, event.doc, |kind| matches!(kind, hir::NatSpecKind::Notice))
+                {
+                    documentation.events.insert(signature, UserDocNotice { notice });
+                }
+            }
+            hir::ItemId::Error(error_id) => {
+                let error = gcx.hir.error(error_id);
+                if let Some(notice) =
+                    natspec_text(gcx, error.doc, |kind| matches!(kind, hir::NatSpecKind::Notice))
+                {
+                    documentation
+                        .errors
+                        .entry(gcx.item_signature(error_id.into()).to_string())
+                        .or_default()
+                        .push(UserDocNotice { notice });
+                }
+            }
+            _ => {}
+        }
+    }
+
+    documentation
+}
+
+fn dev_documentation(gcx: Gcx<'_>, contract_id: ContractId) -> DevDocumentation {
+    let contract = gcx.hir.contract(contract_id);
+    let contract_doc = dev_doc_item(gcx, contract.doc);
+    let mut documentation = DevDocumentation {
+        kind: DocumentationKind::Dev,
+        methods: FxIndexMap::default(),
+        author: contract_doc.author,
+        details: contract_doc.details,
+        events: FxIndexMap::default(),
+        errors: FxIndexMap::default(),
+        state_variables: FxIndexMap::default(),
+        title: natspec_text(gcx, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Title)),
+        custom: contract_doc.custom,
+        version: 1,
+    };
+
+    if let Some(constructor) = contract.ctor {
+        let documentation_item = dev_doc_item(gcx, gcx.hir.function(constructor).doc);
+        if !documentation_item.is_empty() {
+            documentation.methods.insert("constructor".into(), documentation_item);
+        }
+    }
+
+    for interface_function in gcx.interface_functions(contract_id) {
+        let function_id = interface_function.id;
+        let function = gcx.hir.function(function_id);
+        if function.is_getter() {
+            continue;
+        }
+
+        let mut documentation_item = dev_doc_item(gcx, function.doc);
+        documentation_item.returns = return_docs(gcx, function.doc, function.returns);
+        if !documentation_item.is_empty() {
+            documentation
+                .methods
+                .insert(gcx.item_signature(function_id.into()).to_string(), documentation_item);
+        }
+    }
+
+    for variable_id in contract.variables() {
+        let variable = gcx.hir.variable(variable_id);
+        let mut documentation_item =
+            StateVariableDoc::from_dev_doc_item(dev_doc_item(gcx, variable.doc));
+        let return_text = natspec_items(gcx, variable.doc)
+            .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
+            .map(|item| item.content().to_string())
+            .collect::<String>();
+        if !return_text.is_empty() {
+            documentation_item.return_doc = Some(return_text);
+        }
+        if let Some(getter) = variable.getter {
+            documentation_item.returns =
+                return_docs(gcx, variable.doc, gcx.hir.function(getter).returns);
+        }
+        if !documentation_item.is_empty() {
+            documentation
+                .state_variables
+                .insert(variable.name.unwrap().to_string(), documentation_item);
+        }
+    }
+
+    let mut event_signatures = FxHashSet::default();
+    for item in gcx.hir.contract_item_ids(contract_id) {
+        match item {
+            hir::ItemId::Event(event_id) => {
+                let event = gcx.hir.event(event_id);
+                let signature = gcx.item_signature(event_id.into()).to_string();
+                if !event_signatures.insert(signature.clone()) {
+                    continue;
+                }
+                let documentation_item = dev_doc_item(gcx, event.doc);
+                if !documentation_item.is_empty() {
+                    documentation.events.insert(signature, documentation_item);
+                }
+            }
+            hir::ItemId::Error(error_id) => {
+                let error = gcx.hir.error(error_id);
+                let documentation_item = dev_doc_item(gcx, error.doc);
+                if !documentation_item.is_empty() {
+                    documentation
+                        .errors
+                        .entry(gcx.item_signature(error_id.into()).to_string())
+                        .or_default()
+                        .push(documentation_item);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    documentation
+}
+
+fn natspec_items(gcx: Gcx<'_>, doc_id: hir::DocId) -> impl Iterator<Item = hir::NatSpecItem> + '_ {
+    gcx.natspec_doc_comments(doc_id).iter().copied()
+}
+
+fn natspec_text(
+    gcx: Gcx<'_>,
+    doc_id: hir::DocId,
+    mut matches: impl FnMut(hir::NatSpecKind) -> bool,
+) -> Option<String> {
+    let text = natspec_items(gcx, doc_id)
+        .filter(|item| matches(item.kind))
+        .map(|item| item.content().to_string())
+        .collect::<String>();
+    (!text.is_empty()).then_some(text)
+}
+
+fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DevDocItem {
+    let mut documentation = DevDocItem::default();
+    for item in natspec_items(gcx, doc_id) {
+        let content = item.content();
+        match item.kind {
+            hir::NatSpecKind::Author => append_doc(&mut documentation.author, content),
+            hir::NatSpecKind::Dev => append_doc(&mut documentation.details, content),
+            hir::NatSpecKind::Param { name } => {
+                documentation.params.entry(name.name.to_string()).or_default().push_str(content);
+            }
+            hir::NatSpecKind::Custom { name } => {
+                documentation
+                    .custom
+                    .entry(format!("custom:{}", name.name))
+                    .or_default()
+                    .push_str(content);
+            }
+            hir::NatSpecKind::Title
+            | hir::NatSpecKind::Notice
+            | hir::NatSpecKind::Return { .. }
+            | hir::NatSpecKind::Inheritdoc { .. }
+            | hir::NatSpecKind::Internal { .. } => {}
+        }
+    }
+    documentation
+}
+
+fn append_doc(target: &mut Option<String>, content: &str) {
+    target.get_or_insert_default().push_str(content);
+}
+
+fn return_docs(
+    gcx: Gcx<'_>,
+    doc_id: hir::DocId,
+    returns: &[hir::VariableId],
+) -> FxIndexMap<String, String> {
+    natspec_items(gcx, doc_id)
+        .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
+        .enumerate()
+        .filter_map(|(index, item)| {
+            let variable = gcx.hir.variable(*returns.get(index)?);
+            let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
+            (!item.content().is_empty()).then_some((name, item.content().to_string()))
+        })
+        .collect()
+}
+
+impl DevDocItem {
+    fn is_empty(&self) -> bool {
+        self.author.is_none()
+            && self.details.is_none()
+            && self.params.is_empty()
+            && self.returns.is_empty()
+            && self.custom.is_empty()
+    }
+}
+
+impl StateVariableDoc {
+    fn from_dev_doc_item(documentation: DevDocItem) -> Self {
+        Self {
+            author: documentation.author,
+            details: documentation.details,
+            params: documentation.params,
+            return_doc: None,
+            returns: documentation.returns,
+            custom: documentation.custom,
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.author.is_none()
+            && self.details.is_none()
+            && self.params.is_empty()
+            && self.return_doc.is_none()
+            && self.returns.is_empty()
+            && self.custom.is_empty()
+    }
+}
+
+fn storage_layout(gcx: Gcx<'_>, contract_id: ContractId) -> StorageLayoutOutput {
+    StorageLayoutBuilder::new(gcx, contract_id).build()
+}
+
+struct StorageLayoutBuilder<'gcx> {
+    gcx: Gcx<'gcx>,
+    contract_id: ContractId,
+    contract_name: String,
+    types: FxIndexMap<String, StorageLayoutType>,
+}
+
+impl<'gcx> StorageLayoutBuilder<'gcx> {
+    fn new(gcx: Gcx<'gcx>, contract_id: ContractId) -> Self {
+        Self {
+            gcx,
+            contract_id,
+            contract_name: gcx.contract_fully_qualified_name(contract_id).to_string(),
+            types: FxIndexMap::default(),
+        }
+    }
+
+    fn build(mut self) -> StorageLayoutOutput {
+        let contract = self.gcx.hir.contract(self.contract_id);
+        let base_slot = contract.layout.map_or(U256::ZERO, |layout| {
+            solar_sema::eval::ConstantEvaluator::new(self.gcx)
+                .eval(layout)
+                .ok()
+                .and_then(|value| value.as_u256())
+                .unwrap_or_default()
+        });
+        let bases = if contract.linearized_bases.is_empty() {
+            std::slice::from_ref(&self.contract_id)
+        } else {
+            contract.linearized_bases
+        }
+        .iter()
+        .rev()
+        .copied()
+        .collect::<Vec<_>>();
+        let mut cursor = StorageCursor::new(base_slot);
+        let mut storage = Vec::new();
+
+        for base in bases {
+            for variable_id in self.gcx.hir.contract(base).variables() {
+                let variable = self.gcx.hir.variable(variable_id);
+                if variable.is_constant()
+                    || variable.is_immutable()
+                    || variable.data_location == Some(DataLocation::Transient)
+                {
+                    continue;
+                }
+
+                let ty = self.gcx.type_of_item(variable_id.into());
+                let ty_name = self.generate_type(ty);
+                let (slot, offset) = self.place_type(ty, &mut cursor);
+                storage.push(self.storage_entry(variable_id, slot, offset, ty_name));
+            }
+        }
+
+        StorageLayoutOutput { storage, types: self.types }
+    }
+
+    fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {
+        let mut cursor = StorageCursor::new(U256::ZERO);
+        let mut members = Vec::with_capacity(fields.len());
+        for &field in fields {
+            let ty = self.gcx.type_of_item(field.into());
+            let ty_name = self.generate_type(ty);
+            let (slot, offset) = self.place_type(ty, &mut cursor);
+            members.push(self.storage_entry(field, slot, offset, ty_name));
+        }
+        (members, cursor.size())
+    }
+
+    fn storage_entry(
+        &self,
+        variable_id: hir::VariableId,
+        slot: U256,
+        offset: u64,
+        ty: String,
+    ) -> StorageLayoutEntry {
+        StorageLayoutEntry {
+            ast_id: variable_id.index() as u64,
+            contract: self.contract_name.clone(),
+            label: self.gcx.hir.variable(variable_id).name.unwrap().to_string(),
+            offset,
+            slot: slot.to_string(),
+            ty,
+        }
+    }
+
+    fn place_type(&mut self, ty: Ty<'gcx>, cursor: &mut StorageCursor) -> (U256, u64) {
+        let bytes = self.storage_bytes(ty);
+        if !self.is_packable(ty) {
+            cursor.align();
+            let slot = cursor.slot;
+            cursor.advance(slots_for(bytes));
+            return (slot, 0);
+        }
+
+        let bytes = bytes.to::<u64>();
+        if cursor.offset + bytes > 32 {
+            cursor.align();
+        }
+        let (slot, offset) = (cursor.slot, cursor.offset);
+        cursor.offset += bytes;
+        if cursor.offset == 32 {
+            cursor.advance(U256::from(1));
+        }
+        (slot, offset)
+    }
+
+    fn generate_type(&mut self, ty: Ty<'gcx>) -> String {
+        let key = self.storage_type_key(ty);
+        if self.types.contains_key(&key) {
+            return key;
+        }
+        self.types.insert(key.clone(), StorageLayoutType::default());
+
+        let ty = ty.peel_refs();
+        let mut info = StorageLayoutType {
+            encoding: StorageEncoding::Inplace,
+            label: self.storage_type_label(ty),
+            number_of_bytes: self.storage_bytes(ty).to_string(),
+            ..Default::default()
+        };
+        match ty.kind {
+            TyKind::Struct(struct_id) => {
+                let (members, _) = self.layout_members(self.gcx.hir.strukt(struct_id).fields);
+                info.members = members;
+            }
+            TyKind::Mapping(key_ty, value_ty) => {
+                info.encoding = StorageEncoding::Mapping;
+                info.key = Some(self.generate_type(key_ty));
+                info.value = Some(self.generate_type(value_ty));
+            }
+            TyKind::Array(base, _) => {
+                info.base = Some(self.generate_type(base));
+            }
+            TyKind::DynArray(base) => {
+                info.encoding = StorageEncoding::DynamicArray;
+                info.base = Some(self.generate_type(base));
+            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                info.encoding = StorageEncoding::Bytes;
+            }
+            TyKind::Elementary(_)
+            | TyKind::Contract(_)
+            | TyKind::Enum(_)
+            | TyKind::Fn(_)
+            | TyKind::Udvt(..) => {}
+            _ => unreachable!("invalid storage type: {ty:?}"),
+        }
+        self.types.insert(key.clone(), info);
+        key
+    }
+
+    fn storage_type_key(&self, ty: Ty<'gcx>) -> String {
+        match ty.kind {
+            TyKind::Ref(inner, location) => {
+                let key = self.storage_type_key(inner);
+                if matches!(inner.peel_refs().kind, TyKind::Mapping(..)) {
+                    key
+                } else {
+                    format!("{key}_{location}")
+                }
+            }
+            TyKind::Elementary(ty) => format!("t_{}", ty.to_string().replace(' ', "_")),
+            TyKind::Array(base, length) => {
+                format!("t_array({}){length}", self.storage_type_key(base))
+            }
+            TyKind::DynArray(base) => format!("t_array({})dyn", self.storage_type_key(base)),
+            TyKind::Mapping(key, value) => format!(
+                "t_mapping({},{})",
+                self.storage_type_key(key),
+                self.storage_type_key(value)
+            ),
+            TyKind::Contract(id) => format!("t_contract({}){}", self.gcx.item_name(id), id.index()),
+            TyKind::Struct(id) => format!("t_struct({}){}", self.gcx.item_name(id), id.index()),
+            TyKind::Enum(id) => format!("t_enum({}){}", self.gcx.item_name(id), id.index()),
+            TyKind::Udvt(_, id) => {
+                format!("t_userDefinedValueType({}){}", self.gcx.item_name(id), id.index())
+            }
+            TyKind::Fn(function) => {
+                let kind = if function.is_external() { "external" } else { "internal" };
+                let params = function
+                    .parameters
+                    .iter()
+                    .map(|ty| self.storage_type_key(*ty))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let returns = function
+                    .returns
+                    .iter()
+                    .map(|ty| self.storage_type_key(*ty))
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!(
+                    "t_function_{kind}_{}({params})returns({returns})",
+                    function.state_mutability
+                )
+            }
+            _ => unreachable!("invalid storage type: {ty:?}"),
+        }
+    }
+
+    fn storage_type_label(&self, ty: Ty<'gcx>) -> String {
+        match ty.kind {
+            TyKind::Ref(inner, _) => self.storage_type_label(inner),
+            TyKind::Elementary(ty) => ty.to_string(),
+            TyKind::Array(base, length) => format!("{}[{length}]", self.storage_type_label(base)),
+            TyKind::DynArray(base) => format!("{}[]", self.storage_type_label(base)),
+            TyKind::Mapping(key, value) => format!(
+                "mapping({} => {})",
+                self.storage_type_label(key),
+                self.storage_type_label(value)
+            ),
+            TyKind::Contract(id) => format!("contract {}", self.gcx.item_name(id)),
+            TyKind::Struct(id) => format!("struct {}", self.gcx.item_canonical_name(id)),
+            TyKind::Enum(id) => format!("enum {}", self.gcx.item_name(id)),
+            TyKind::Udvt(_, id) => self.gcx.item_name(id).to_string(),
+            TyKind::Fn(function) => {
+                let params = function
+                    .parameters
+                    .iter()
+                    .map(|ty| self.storage_type_label(*ty))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let kind = if function.is_external() { "external" } else { "internal" };
+                let mut label = format!("function ({params}) {kind}");
+                if function.state_mutability != hir::StateMutability::NonPayable {
+                    label.push(' ');
+                    label.push_str(&function.state_mutability.to_string());
+                }
+                if !function.returns.is_empty() {
+                    let returns = function
+                        .returns
+                        .iter()
+                        .map(|ty| self.storage_type_label(*ty))
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    label.push_str(&format!(" returns ({returns})"));
+                }
+                label
+            }
+            _ => unreachable!("invalid storage type: {ty:?}"),
+        }
+    }
+
+    fn storage_bytes(&mut self, ty: Ty<'gcx>) -> U256 {
+        match ty.kind {
+            TyKind::Ref(inner, _) => self.storage_bytes(inner),
+            TyKind::Elementary(ty) => match ty {
+                ElementaryType::Address(_) => U256::from(20),
+                ElementaryType::Bool => U256::from(1),
+                ElementaryType::String | ElementaryType::Bytes => U256::from(32),
+                ElementaryType::Fixed(size, _)
+                | ElementaryType::UFixed(size, _)
+                | ElementaryType::Int(size)
+                | ElementaryType::UInt(size)
+                | ElementaryType::FixedBytes(size) => U256::from(size.bytes()),
+            },
+            TyKind::Array(base, length) => {
+                slots_for(self.storage_bytes(base) * length) * U256::from(32)
+            }
+            TyKind::DynArray(_) | TyKind::Mapping(..) => U256::from(32),
+            TyKind::Struct(struct_id) => {
+                self.layout_members(self.gcx.hir.strukt(struct_id).fields).1
+            }
+            TyKind::Contract(_) => U256::from(20),
+            TyKind::Enum(_) => U256::from(1),
+            TyKind::Udvt(inner, _) => self.storage_bytes(inner),
+            TyKind::Fn(function) if function.is_external() => U256::from(24),
+            TyKind::Fn(_) => U256::from(8),
+            _ => unreachable!("invalid storage type: {ty:?}"),
+        }
+    }
+
+    fn is_packable(&self, ty: Ty<'gcx>) -> bool {
+        matches!(
+            ty.peel_refs().kind,
+            TyKind::Elementary(
+                ElementaryType::Address(_)
+                    | ElementaryType::Bool
+                    | ElementaryType::Fixed(..)
+                    | ElementaryType::UFixed(..)
+                    | ElementaryType::Int(_)
+                    | ElementaryType::UInt(_)
+                    | ElementaryType::FixedBytes(_)
+            ) | TyKind::Contract(_)
+                | TyKind::Enum(_)
+                | TyKind::Udvt(..)
+                | TyKind::Fn(_)
+        )
+    }
+}
+
+#[derive(Clone, Copy)]
+struct StorageCursor {
+    slot: U256,
+    offset: u64,
+}
+
+impl StorageCursor {
+    fn new(slot: U256) -> Self {
+        Self { slot, offset: 0 }
+    }
+
+    fn align(&mut self) {
+        if self.offset != 0 {
+            self.slot += U256::from(1);
+            self.offset = 0;
+        }
+    }
+
+    fn advance(&mut self, slots: U256) {
+        self.slot += slots;
+        self.offset = 0;
+    }
+
+    fn size(self) -> U256 {
+        (self.slot + U256::from(u8::from(self.offset != 0))) * U256::from(32)
+    }
+}
+
+fn slots_for(bytes: U256) -> U256 {
+    (bytes + U256::from(31)) / U256::from(32)
+}
+
 fn make_contract_output(
-    gcx: solar_sema::Gcx<'_>,
+    gcx: Gcx<'_>,
     contract_id: solar_sema::hir::ContractId,
     output_selection: &OutputSelection<'_>,
     source_name: &str,
@@ -877,13 +1522,13 @@ fn make_contract_output(
         output.abi = Some(gcx.contract_abi(contract_id));
     }
     if output_selection.selects(source_name, contract_name, &["userdoc"]) {
-        output.userdoc = Some(DocumentationOutput::new("user"));
+        output.userdoc = Some(user_documentation(gcx, contract_id));
     }
     if output_selection.selects(source_name, contract_name, &["devdoc"]) {
-        output.devdoc = Some(DocumentationOutput::new("dev"));
+        output.devdoc = Some(dev_documentation(gcx, contract_id));
     }
     if output_selection.selects(source_name, contract_name, &["storageLayout"]) {
-        output.storage_layout = Some(StorageLayoutOutput::default());
+        output.storage_layout = Some(storage_layout(gcx, contract_id));
     }
 
     let mut evm = EvmOutput::default();
@@ -1231,6 +1876,253 @@ mod tests {
             "type": "function"
           }
         ]
+      }
+    }
+  }
+}
+"#]],
+        );
+    }
+
+    #[test]
+    fn emits_natspec_and_storage_layout() {
+        assert_json(
+            &compile_with_typeck(
+                r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "contract Base { uint8 base; } \n/// @author Alice\n/// @title Counter\n/// @dev Tracks the counter\n/// @custom:security contact security@example.com\ncontract A is Base layout at 10 { struct Pair { uint128 left; uint128 right; } \n/// @notice Returns the count\n/// @dev The stored count\n/// @return count value\nuint public count; \n/// @notice A count changed\n/// @dev Emitted after a change\n/// @param value The new count\nevent Changed(uint value); \n/// @notice An invalid count\n/// @dev Raised for invalid input\n/// @param value The invalid count\nerror Invalid(uint value); Pair pair; mapping(uint => address) owners; }"
+                    }
+                },
+                "settings": {
+                    "outputSelection": {
+                        "A.sol": {
+                            "A": ["userdoc", "devdoc", "storageLayout"]
+                        }
+                    }
+                }
+            }"#,
+                None,
+            ),
+            str![[r#"
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "count()": {
+              "notice": "Returns the count"
+            }
+          },
+          "events": {
+            "Changed(uint256)": {
+              "notice": "A count changed"
+            }
+          },
+          "errors": {
+            "Invalid(uint256)": [
+              {
+                "notice": "An invalid count"
+              }
+            ]
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {},
+          "author": "Alice",
+          "details": "Tracks the counter",
+          "events": {
+            "Changed(uint256)": {
+              "details": "Emitted after a change",
+              "params": {
+                "value": "The new count"
+              }
+            }
+          },
+          "errors": {
+            "Invalid(uint256)": [
+              {
+                "details": "Raised for invalid input",
+                "params": {
+                  "value": "The invalid count"
+                }
+              }
+            ]
+          },
+          "stateVariables": {
+            "count": {
+              "details": "The stored count",
+              "return": "count value",
+              "returns": {
+                "_0": "count value"
+              }
+            }
+          },
+          "title": "Counter",
+          "custom:security": "contact security@example.com",
+          "version": 1
+        },
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 0,
+              "contract": "A.sol:A",
+              "label": "base",
+              "offset": 0,
+              "slot": "10",
+              "type": "t_uint8"
+            },
+            {
+              "astId": 1,
+              "contract": "A.sol:A",
+              "label": "count",
+              "offset": 0,
+              "slot": "11",
+              "type": "t_uint256"
+            },
+            {
+              "astId": 2,
+              "contract": "A.sol:A",
+              "label": "pair",
+              "offset": 0,
+              "slot": "12",
+              "type": "t_struct(Pair)0_storage"
+            },
+            {
+              "astId": 3,
+              "contract": "A.sol:A",
+              "label": "owners",
+              "offset": 0,
+              "slot": "13",
+              "type": "t_mapping(t_uint256,t_address)"
+            }
+          ],
+          "types": {
+            "t_uint8": {
+              "encoding": "inplace",
+              "label": "uint8",
+              "numberOfBytes": "1"
+            },
+            "t_uint256": {
+              "encoding": "inplace",
+              "label": "uint256",
+              "numberOfBytes": "32"
+            },
+            "t_struct(Pair)0_storage": {
+              "encoding": "inplace",
+              "label": "struct A.Pair",
+              "numberOfBytes": "32",
+              "members": [
+                {
+                  "astId": 4,
+                  "contract": "A.sol:A",
+                  "label": "left",
+                  "offset": 0,
+                  "slot": "0",
+                  "type": "t_uint128"
+                },
+                {
+                  "astId": 5,
+                  "contract": "A.sol:A",
+                  "label": "right",
+                  "offset": 16,
+                  "slot": "0",
+                  "type": "t_uint128"
+                }
+              ]
+            },
+            "t_uint128": {
+              "encoding": "inplace",
+              "label": "uint128",
+              "numberOfBytes": "16"
+            },
+            "t_mapping(t_uint256,t_address)": {
+              "encoding": "mapping",
+              "label": "mapping(uint256 => address)",
+              "numberOfBytes": "32",
+              "key": "t_uint256",
+              "value": "t_address"
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+"#]],
+        );
+    }
+
+    #[test]
+    fn emits_inherited_natspec() {
+        assert_json(
+            &compile_with_typeck(
+                r#"{
+                "language": "Solidity",
+                "sources": {
+                    "A.sol": {
+                        "content": "contract Base { /// @notice Returns x\n/// @dev Base function\n/// @param x The input\n/// @return y The output\nfunction f(uint x) public virtual returns (uint y) { return x; } } contract A is Base { /// @inheritdoc Base\nfunction f(uint x) public override returns (uint y) { return x; } }"
+                    }
+                },
+                "settings": {
+                    "outputSelection": {
+                        "A.sol": {
+                            "A": ["userdoc", "devdoc"]
+                        }
+                    }
+                }
+            }"#,
+                None,
+            ),
+            str![[r#"
+{
+  "sources": {
+    "A.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "A.sol": {
+      "A": {
+        "userdoc": {
+          "kind": "user",
+          "methods": {
+            "f(uint256)": {
+              "notice": "Returns x"
+            }
+          },
+          "version": 1
+        },
+        "devdoc": {
+          "kind": "dev",
+          "methods": {
+            "f(uint256)": {
+              "details": "Base function",
+              "params": {
+                "x": "The input"
+              },
+              "returns": {
+                "y": "The output"
+              }
+            }
+          },
+          "version": 1
+        }
       }
     }
   }
