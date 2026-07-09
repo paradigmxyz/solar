@@ -49,6 +49,7 @@ struct CompilerInput<'a> {
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SourceInput<'a> {
     #[serde(borrow)]
     content: Option<CowStr<'a>>,
@@ -57,7 +58,7 @@ struct SourceInput<'a> {
     // `keccak256` validation and `assemblyJson` inputs are not supported yet.
     // #[serde(borrow)]
     // keccak256: Option<CowValue<'a>>,
-    // #[serde(borrow, rename = "assemblyJson")]
+    // #[serde(borrow)]
     // assembly_json: Option<CowValue<'a>>,
 }
 
@@ -92,10 +93,10 @@ struct Settings<'a> {
     // #[serde(borrow, default)]
     // model_checker: Option<CowValue<'a>>,
     // The IR pipeline is ignored because we have a single compilation pipeline.
-    // #[serde(default, rename = "viaIR")]
+    // #[serde(default)]
     // via_ir: Option<bool>,
     // The SSA CFG pipeline is ignored because we have a single compilation pipeline.
-    // #[serde(borrow, default, rename = "viaSSACFG")]
+    // #[serde(borrow, default)]
     // via_ssa_cfg: Option<bool>,
 }
 
@@ -547,6 +548,7 @@ struct DevDocItem {
 }
 
 #[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
 struct StateVariableDoc {
     #[serde(skip_serializing_if = "Option::is_none")]
     author: Option<String>,
@@ -554,8 +556,8 @@ struct StateVariableDoc {
     details: Option<String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     params: FxIndexMap<String, String>,
-    #[serde(skip_serializing_if = "Option::is_none", rename = "return")]
-    return_doc: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    r#return: Option<String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     returns: FxIndexMap<String, String>,
     #[serde(flatten)]
@@ -577,8 +579,7 @@ struct StorageLayoutEntry {
     label: String,
     offset: u64,
     slot: String,
-    #[serde(rename = "type")]
-    ty: String,
+    r#type: String,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -598,15 +599,12 @@ struct StorageLayoutType {
 }
 
 #[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "snake_case")]
 enum StorageEncoding {
-    #[serde(rename = "inplace")]
     #[default]
     Inplace,
-    #[serde(rename = "mapping")]
     Mapping,
-    #[serde(rename = "dynamic_array")]
     DynamicArray,
-    #[serde(rename = "bytes")]
     Bytes,
 }
 
@@ -1071,7 +1069,7 @@ fn dev_documentation(gcx: Gcx<'_>, contract_id: ContractId) -> DevDocumentation 
             .map(|item| item.content().to_string())
             .collect::<String>();
         if !return_text.is_empty() {
-            documentation_item.return_doc = Some(return_text);
+            documentation_item.r#return = Some(return_text);
         }
         if let Some(getter) = variable.getter {
             documentation_item.returns =
@@ -1195,7 +1193,7 @@ impl StateVariableDoc {
             author: documentation.author,
             details: documentation.details,
             params: documentation.params,
-            return_doc: None,
+            r#return: None,
             returns: documentation.returns,
             custom: documentation.custom,
         }
@@ -1205,7 +1203,7 @@ impl StateVariableDoc {
         self.author.is_none()
             && self.details.is_none()
             && self.params.is_empty()
-            && self.return_doc.is_none()
+            && self.r#return.is_none()
             && self.returns.is_empty()
             && self.custom.is_empty()
     }
@@ -1298,7 +1296,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             label: self.gcx.hir.variable(variable_id).name.unwrap().to_string(),
             offset,
             slot: slot.to_string(),
-            ty,
+            r#type: ty,
         }
     }
 
