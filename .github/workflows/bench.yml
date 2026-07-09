@@ -10,7 +10,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SOLC_VERSION: 0.8.35
+  SOLC_VERSION: 0.8.36
   BENCHMARK_REPOSITORY: walnuthq/solidity-compiler-benchmarks
   BENCHMARK_REF: 759b27b596ca6632717465832859863eccbe41a2
   BENCHMARK_PATH: solidity-compiler-benchmarks
@@ -46,7 +46,7 @@ jobs:
           cache-on-failure: true
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@c7450ba673e133f5ee30098b3b54f444d3a2ca2d # v1.8.0
+        uses: foundry-rs/foundry-toolchain@b00af27efadbc7b4ca8b82abbd903b17cc874d2a # v1.9.0
         with:
           version: stable
 
