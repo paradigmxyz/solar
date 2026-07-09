@@ -8,43 +8,46 @@ use serde::Serialize;
 use solar_ast::{DataLocation, ElementaryType};
 use solar_data_structures::map::FxIndexMap;
 
+/// Storage layout in solc's Standard JSON `storageLayout` output field.
+///
+/// Created by [`Gcx::storage_layout`].
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageLayoutOutput {
-    storage: Vec<StorageLayoutEntry>,
-    types: FxIndexMap<String, StorageLayoutType>,
+    pub storage: Vec<StorageLayoutEntry>,
+    pub types: FxIndexMap<String, StorageLayoutType>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct StorageLayoutEntry {
-    ast_id: u64,
-    contract: String,
-    label: String,
-    offset: u64,
-    slot: String,
-    r#type: String,
+pub struct StorageLayoutEntry {
+    pub ast_id: u64,
+    pub contract: String,
+    pub label: String,
+    pub offset: u64,
+    pub slot: String,
+    pub r#type: String,
 }
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct StorageLayoutType {
-    encoding: StorageEncoding,
-    label: String,
-    number_of_bytes: String,
+pub struct StorageLayoutType {
+    pub encoding: StorageEncoding,
+    pub label: String,
+    pub number_of_bytes: String,
     #[serde(skip_serializing_if = "Option::is_none")]
-    base: Option<String>,
+    pub base: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    key: Option<String>,
+    pub key: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    value: Option<String>,
+    pub value: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    members: Vec<StorageLayoutMember>,
+    pub members: Vec<StorageLayoutMember>,
 }
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "snake_case")]
-enum StorageEncoding {
+pub enum StorageEncoding {
     #[default]
     Inplace,
     Mapping,
@@ -52,7 +55,7 @@ enum StorageEncoding {
     Bytes,
 }
 
-type StorageLayoutMember = StorageLayoutEntry;
+pub type StorageLayoutMember = StorageLayoutEntry;
 
 impl<'gcx> Gcx<'gcx> {
     /// Returns the storage layout for the given contract.

@@ -9,6 +9,7 @@
 #[macro_use]
 extern crate tracing;
 
+use indexmap as _;
 use rayon::prelude::*;
 use solar_interface::{Result, Session, config::CompilerStage};
 use std::ops::ControlFlow;

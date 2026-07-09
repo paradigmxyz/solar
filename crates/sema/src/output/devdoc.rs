@@ -3,57 +3,60 @@ use crate::{hir, ty::Gcx};
 use serde::Serialize;
 use solar_data_structures::map::{FxHashSet, FxIndexMap};
 
+/// Developer documentation in solc's Standard JSON `devdoc` output field.
+///
+/// Created by [`Gcx::dev_documentation`].
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DevDocumentation {
-    kind: DocumentationKind,
-    methods: FxIndexMap<String, DevDocItem>,
+    pub kind: DocumentationKind,
+    pub methods: FxIndexMap<String, DevDocItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    author: Option<String>,
+    pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    details: Option<String>,
+    pub details: Option<String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    events: FxIndexMap<String, DevDocItem>,
+    pub events: FxIndexMap<String, DevDocItem>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    errors: FxIndexMap<String, Vec<DevDocItem>>,
+    pub errors: FxIndexMap<String, Vec<DevDocItem>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    state_variables: FxIndexMap<String, StateVariableDoc>,
+    pub state_variables: FxIndexMap<String, StateVariableDoc>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    title: Option<String>,
+    pub title: Option<String>,
     #[serde(flatten)]
-    custom: FxIndexMap<String, String>,
-    version: u8,
+    pub custom: FxIndexMap<String, String>,
+    pub version: u8,
 }
 
 #[derive(Debug, Default, Serialize)]
-struct DevDocItem {
+pub struct DevDocItem {
     #[serde(skip_serializing_if = "Option::is_none")]
-    author: Option<String>,
+    pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    details: Option<String>,
+    pub details: Option<String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    params: FxIndexMap<String, String>,
+    pub params: FxIndexMap<String, String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    returns: FxIndexMap<String, String>,
+    pub returns: FxIndexMap<String, String>,
     #[serde(flatten)]
-    custom: FxIndexMap<String, String>,
+    pub custom: FxIndexMap<String, String>,
 }
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct StateVariableDoc {
+pub struct StateVariableDoc {
     #[serde(skip_serializing_if = "Option::is_none")]
-    author: Option<String>,
+    pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    details: Option<String>,
+    pub details: Option<String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    params: FxIndexMap<String, String>,
+    pub params: FxIndexMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    r#return: Option<String>,
+    pub r#return: Option<String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    returns: FxIndexMap<String, String>,
+    pub returns: FxIndexMap<String, String>,
     #[serde(flatten)]
-    custom: FxIndexMap<String, String>,
+    pub custom: FxIndexMap<String, String>,
 }
 
 impl<'gcx> Gcx<'gcx> {

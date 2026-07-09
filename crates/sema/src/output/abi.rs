@@ -8,6 +8,8 @@ use std::ops::ControlFlow;
 impl<'gcx> Gcx<'gcx> {
     /// Returns the ABI of the given contract.
     ///
+    /// Matches solc's Standard JSON `abi` output field.
+    ///
     /// Reference: <https://docs.soliditylang.org/en/develop/abi-spec.html>
     pub fn contract_abi<'a>(self, id: hir::ContractId) -> Vec<json::AbiItem<'a>> {
         let mut items = Vec::<json::AbiItem<'a>>::new();

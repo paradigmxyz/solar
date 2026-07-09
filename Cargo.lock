@@ -3385,6 +3385,7 @@ dependencies = [
  "comfy-table",
  "derive_more",
  "either",
+ "indexmap",
  "num-bigint",
  "num-traits",
  "once_map",

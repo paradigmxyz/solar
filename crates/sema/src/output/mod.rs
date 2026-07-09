@@ -5,13 +5,16 @@ mod devdoc;
 mod storage_layout;
 mod userdoc;
 
-pub use devdoc::DevDocumentation;
-pub use storage_layout::StorageLayoutOutput;
-pub use userdoc::UserDocumentation;
+pub use devdoc::{DevDocItem, DevDocumentation, StateVariableDoc};
+pub use storage_layout::{
+    StorageEncoding, StorageLayoutEntry, StorageLayoutMember, StorageLayoutOutput,
+    StorageLayoutType,
+};
+pub use userdoc::{UserDocNotice, UserDocumentation};
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
-enum DocumentationKind {
+pub enum DocumentationKind {
     User,
     Dev,
 }

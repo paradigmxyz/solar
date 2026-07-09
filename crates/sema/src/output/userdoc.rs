@@ -3,22 +3,25 @@ use crate::{hir, ty::Gcx};
 use serde::Serialize;
 use solar_data_structures::map::{FxHashSet, FxIndexMap};
 
+/// User documentation in solc's Standard JSON `userdoc` output field.
+///
+/// Created by [`Gcx::user_documentation`].
 #[derive(Debug, Serialize)]
 pub struct UserDocumentation {
-    kind: DocumentationKind,
-    methods: FxIndexMap<String, UserDocNotice>,
+    pub kind: DocumentationKind,
+    pub methods: FxIndexMap<String, UserDocNotice>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    events: FxIndexMap<String, UserDocNotice>,
+    pub events: FxIndexMap<String, UserDocNotice>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    errors: FxIndexMap<String, Vec<UserDocNotice>>,
+    pub errors: FxIndexMap<String, Vec<UserDocNotice>>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    notice: Option<String>,
-    version: u8,
+    pub notice: Option<String>,
+    pub version: u8,
 }
 
 #[derive(Debug, Default, Serialize)]
-struct UserDocNotice {
-    notice: String,
+pub struct UserDocNotice {
+    pub notice: String,
 }
 
 impl<'gcx> Gcx<'gcx> {
