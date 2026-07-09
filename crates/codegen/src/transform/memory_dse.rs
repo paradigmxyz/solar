@@ -73,6 +73,7 @@ impl MemoryStoreEliminator {
         for block_id in block_ids {
             self.process_block(func, block_id);
         }
+        self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
 
         self.eliminated_count
@@ -246,6 +247,78 @@ impl MemoryStoreEliminator {
         }
 
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+    }
+
+    /// Removes constant stores made redundant by a constant store on the sole
+    /// path into the block.
+    ///
+    /// Mapping-slot staging writes the slot constant to scratch `0x20` before
+    /// every access; two accesses to the same mapping restage the identical
+    /// constant, but the checked-arithmetic underflow branch between them puts
+    /// the stores in separate blocks, out of the block-local pass's reach.
+    /// Only constant address and constant value are tracked, so availability
+    /// needs no SSA reasoning: a single-predecessor block inherits its
+    /// predecessor's exit constants, and a store matching one is dead.
+    fn remove_cross_block_equal_const_stores(&mut self, func: &mut Function) {
+        let const_store = |func: &Function, addr: ValueId, value: ValueId| {
+            let (Value::Immediate(a), Value::Immediate(v)) = (func.value(addr), func.value(value))
+            else {
+                return None;
+            };
+            Some((a.as_u256()?.try_into().ok()?, v.as_u256()?))
+        };
+
+        let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
+        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+
+        // Block index order approximates reverse postorder for this builder,
+        // so a single predecessor is usually already computed; when it is not,
+        // the block simply starts from no known constants.
+        for block_id in func.blocks.indices() {
+            let preds = &func.blocks[block_id].predecessors;
+            let mut known: FxHashMap<u64, U256> = match preds.as_slice() {
+                [pred] => exit.get(pred).cloned().unwrap_or_default(),
+                _ => FxHashMap::default(),
+            };
+
+            for &inst_id in &func.blocks[block_id].instructions {
+                match &func.instructions[inst_id].kind {
+                    InstKind::MStore(addr, value) => match const_store(func, *addr, *value) {
+                        Some((a, v)) => {
+                            if known.get(&a) == Some(&v) {
+                                dead.insert(inst_id);
+                                self.eliminated_count += 1;
+                            } else {
+                                known.insert(a, v);
+                            }
+                        }
+                        None => match Self::mem_addr_key(func, *addr) {
+                            // A non-constant value written to a constant scratch
+                            // slot makes its contents unknown.
+                            Some(MemAddrKey::Const(a)) => {
+                                known.remove(&a);
+                            }
+                            // An address we cannot pin could alias anything.
+                            _ => known.clear(),
+                        },
+                    },
+                    kind if Self::can_mutate_memory(kind) => known.clear(),
+                    // A byte store may touch any slot.
+                    InstKind::MStore8(_, _) => known.clear(),
+                    // Loads and keccak read memory but never write it.
+                    _ => {}
+                }
+            }
+
+            exit.insert(block_id, known);
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|id| !dead.contains(id));
+        }
     }
 
     fn remove_cross_block_overwrites(&mut self, func: &mut Function) {
