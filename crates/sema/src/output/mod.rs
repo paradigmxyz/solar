@@ -4,9 +4,7 @@ mod abi;
 mod natspec;
 mod storage_layout;
 
-pub use natspec::{
-    DevDocItem, DevDocumentation, StateVariableDoc, UserDocNotice, UserDocumentation,
-};
+pub use natspec::{Documentation, DocumentationItem};
 pub use storage_layout::{
     StorageEncoding, StorageLayoutEntry, StorageLayoutMember, StorageLayoutOutput,
     StorageLayoutType,

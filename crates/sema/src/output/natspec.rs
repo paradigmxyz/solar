@@ -5,79 +5,80 @@ use crate::{hir, ty::Gcx};
 use serde::Serialize;
 use solar_data_structures::map::{FxHashSet, FxIndexMap};
 
-/// Developer documentation in solc's Standard JSON `devdoc` output field.
+/// NatSpec documentation in solc's Standard JSON `userdoc` and `devdoc` output fields.
 ///
-/// Created by [`Gcx::dev_documentation`].
+/// Created by [`Gcx::user_documentation`] and [`Gcx::dev_documentation`].
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct DevDocumentation {
+pub struct Documentation {
     pub kind: DocumentationKind,
-    pub methods: FxIndexMap<String, DevDocItem>,
+    pub methods: FxIndexMap<String, DocumentationItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub events: FxIndexMap<String, DevDocItem>,
+    pub events: FxIndexMap<String, DocumentationItem>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub errors: FxIndexMap<String, Vec<DevDocItem>>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub state_variables: FxIndexMap<String, StateVariableDoc>,
+    pub errors: FxIndexMap<String, Vec<DocumentationItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub state_variables: Option<FxIndexMap<String, DocumentationItem>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    #[serde(flatten)]
-    pub custom: FxIndexMap<String, String>,
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub custom: Option<FxIndexMap<String, String>>,
     pub version: u8,
 }
 
 #[derive(Debug, Default, Serialize)]
-pub struct DevDocItem {
+pub struct DocumentationItem {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub notice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub params: FxIndexMap<String, String>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub returns: FxIndexMap<String, String>,
-    #[serde(flatten)]
-    pub custom: FxIndexMap<String, String>,
-}
-
-#[derive(Debug, Default, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct StateVariableDoc {
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub author: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub details: Option<String>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub params: FxIndexMap<String, String>,
+    pub params: Option<FxIndexMap<String, String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#return: Option<String>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub returns: FxIndexMap<String, String>,
-    #[serde(flatten)]
-    pub custom: FxIndexMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub returns: Option<FxIndexMap<String, String>>,
+    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    pub custom: Option<FxIndexMap<String, String>>,
+}
+
+impl Documentation {
+    fn new(kind: DocumentationKind) -> Self {
+        Self {
+            kind,
+            methods: FxIndexMap::default(),
+            author: None,
+            details: None,
+            events: FxIndexMap::default(),
+            errors: FxIndexMap::default(),
+            state_variables: None,
+            notice: None,
+            title: None,
+            custom: None,
+            version: 1,
+        }
+    }
 }
 
 impl<'gcx> Gcx<'gcx> {
     /// Returns the developer documentation for the given contract.
-    pub fn dev_documentation(self, contract_id: hir::ContractId) -> DevDocumentation {
+    pub fn dev_documentation(self, contract_id: hir::ContractId) -> Documentation {
         let contract = self.hir.contract(contract_id);
         let contract_doc = dev_doc_item(self, contract.doc);
-        let mut documentation = DevDocumentation {
-            kind: DocumentationKind::Dev,
-            methods: FxIndexMap::default(),
-            author: contract_doc.author,
-            details: contract_doc.details,
-            events: FxIndexMap::default(),
-            errors: FxIndexMap::default(),
-            state_variables: FxIndexMap::default(),
-            title: natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Title)),
-            custom: contract_doc.custom,
-            version: 1,
-        };
+        let mut documentation = Documentation::new(DocumentationKind::Dev);
+        documentation.author = contract_doc.author;
+        documentation.details = contract_doc.details;
+        documentation.title =
+            natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Title));
+        documentation.custom = contract_doc.custom;
 
         if let Some(constructor) = contract.ctor {
             let documentation_item = dev_doc_item(self, self.hir.function(constructor).doc);
@@ -105,8 +106,7 @@ impl<'gcx> Gcx<'gcx> {
 
         for variable_id in contract.variables() {
             let variable = self.hir.variable(variable_id);
-            let mut documentation_item =
-                StateVariableDoc::from_dev_doc_item(dev_doc_item(self, variable.doc));
+            let mut documentation_item = dev_doc_item(self, variable.doc);
             let return_text = self
                 .natspec_doc_comments(variable.doc)
                 .iter()
@@ -124,6 +124,7 @@ impl<'gcx> Gcx<'gcx> {
             if !documentation_item.is_empty() {
                 documentation
                     .state_variables
+                    .get_or_insert_default()
                     .insert(variable.name.unwrap().to_string(), documentation_item);
             }
         }
@@ -176,19 +177,25 @@ fn natspec_text(
     (!text.is_empty()).then_some(text)
 }
 
-fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DevDocItem {
-    let mut documentation = DevDocItem::default();
+fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DocumentationItem {
+    let mut documentation = DocumentationItem::default();
     for item in gcx.natspec_doc_comments(doc_id).iter().copied() {
         let content = item.content();
         match item.kind {
             hir::NatSpecKind::Author => append_doc(&mut documentation.author, content),
             hir::NatSpecKind::Dev => append_doc(&mut documentation.details, content),
             hir::NatSpecKind::Param { name } => {
-                documentation.params.entry(name.name.to_string()).or_default().push_str(content);
+                documentation
+                    .params
+                    .get_or_insert_default()
+                    .entry(name.name.to_string())
+                    .or_default()
+                    .push_str(content);
             }
             hir::NatSpecKind::Custom { name } => {
                 documentation
                     .custom
+                    .get_or_insert_default()
                     .entry(format!("custom:{}", name.name))
                     .or_default()
                     .push_str(content);
@@ -211,8 +218,9 @@ fn return_docs(
     gcx: Gcx<'_>,
     doc_id: hir::DocId,
     returns: &[hir::VariableId],
-) -> FxIndexMap<String, String> {
-    gcx.natspec_doc_comments(doc_id)
+) -> Option<FxIndexMap<String, String>> {
+    let docs = gcx
+        .natspec_doc_comments(doc_id)
         .iter()
         .copied()
         .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
@@ -222,83 +230,39 @@ fn return_docs(
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
             (!item.content().is_empty()).then_some((name, item.content().to_string()))
         })
-        .collect()
+        .collect::<FxIndexMap<_, _>>();
+    (!docs.is_empty()).then_some(docs)
 }
 
-impl DevDocItem {
+impl DocumentationItem {
     fn is_empty(&self) -> bool {
-        self.author.is_none()
+        self.notice.is_none()
+            && self.author.is_none()
             && self.details.is_none()
-            && self.params.is_empty()
-            && self.returns.is_empty()
-            && self.custom.is_empty()
-    }
-}
-
-impl StateVariableDoc {
-    fn from_dev_doc_item(documentation: DevDocItem) -> Self {
-        Self {
-            author: documentation.author,
-            details: documentation.details,
-            params: documentation.params,
-            r#return: None,
-            returns: documentation.returns,
-            custom: documentation.custom,
-        }
-    }
-
-    fn is_empty(&self) -> bool {
-        self.author.is_none()
-            && self.details.is_none()
-            && self.params.is_empty()
+            && self.params.is_none()
             && self.r#return.is_none()
-            && self.returns.is_empty()
-            && self.custom.is_empty()
+            && self.returns.is_none()
+            && self.custom.is_none()
     }
-}
-
-/// User documentation in solc's Standard JSON `userdoc` output field.
-///
-/// Created by [`Gcx::user_documentation`].
-#[derive(Debug, Serialize)]
-pub struct UserDocumentation {
-    pub kind: DocumentationKind,
-    pub methods: FxIndexMap<String, UserDocNotice>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub events: FxIndexMap<String, UserDocNotice>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    pub errors: FxIndexMap<String, Vec<UserDocNotice>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub notice: Option<String>,
-    pub version: u8,
-}
-
-#[derive(Debug, Default, Serialize)]
-pub struct UserDocNotice {
-    pub notice: String,
 }
 
 impl<'gcx> Gcx<'gcx> {
     /// Returns the user documentation for the given contract.
-    pub fn user_documentation(self, contract_id: hir::ContractId) -> UserDocumentation {
+    pub fn user_documentation(self, contract_id: hir::ContractId) -> Documentation {
         let contract = self.hir.contract(contract_id);
-        let mut documentation = UserDocumentation {
-            kind: DocumentationKind::User,
-            methods: FxIndexMap::default(),
-            events: FxIndexMap::default(),
-            errors: FxIndexMap::default(),
-            notice: natspec_text(self, contract.doc, |kind| {
-                matches!(kind, hir::NatSpecKind::Notice)
-            }),
-            version: 1,
-        };
+        let mut documentation = Documentation::new(DocumentationKind::User);
+        documentation.notice =
+            natspec_text(self, contract.doc, |kind| matches!(kind, hir::NatSpecKind::Notice));
 
         if let Some(constructor) = contract.ctor
             && let Some(notice) = natspec_text(self, self.hir.function(constructor).doc, |kind| {
                 matches!(kind, hir::NatSpecKind::Notice)
             })
         {
-            documentation.methods.insert("constructor".into(), UserDocNotice { notice });
+            documentation.methods.insert(
+                "constructor".into(),
+                DocumentationItem { notice: Some(notice), ..Default::default() },
+            );
         }
 
         for interface_function in self.interface_functions(contract_id) {
@@ -310,7 +274,7 @@ impl<'gcx> Gcx<'gcx> {
             {
                 documentation.methods.insert(
                     self.item_signature(function_id.into()).to_string(),
-                    UserDocNotice { notice },
+                    DocumentationItem { notice: Some(notice), ..Default::default() },
                 );
             }
         }
@@ -327,7 +291,10 @@ impl<'gcx> Gcx<'gcx> {
                     if let Some(notice) = natspec_text(self, event.doc, |kind| {
                         matches!(kind, hir::NatSpecKind::Notice)
                     }) {
-                        documentation.events.insert(signature, UserDocNotice { notice });
+                        documentation.events.insert(
+                            signature,
+                            DocumentationItem { notice: Some(notice), ..Default::default() },
+                        );
                     }
                 }
                 hir::ItemId::Error(error_id) => {
@@ -339,7 +306,7 @@ impl<'gcx> Gcx<'gcx> {
                             .errors
                             .entry(self.item_signature(error_id.into()).to_string())
                             .or_default()
-                            .push(UserDocNotice { notice });
+                            .push(DocumentationItem { notice: Some(notice), ..Default::default() });
                     }
                 }
                 _ => {}

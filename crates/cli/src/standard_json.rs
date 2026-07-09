@@ -17,7 +17,7 @@ use solar_interface::{
 use solar_sema::{
     Gcx,
     hir::ContractId,
-    output::{DevDocumentation, StorageLayoutOutput, UserDocumentation},
+    output::{Documentation, StorageLayoutOutput},
 };
 use std::{
     borrow::{Borrow, Cow},
@@ -464,9 +464,9 @@ struct ContractOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    userdoc: Option<UserDocumentation>,
+    userdoc: Option<Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    devdoc: Option<DevDocumentation>,
+    devdoc: Option<Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     storage_layout: Option<StorageLayoutOutput>,
     // Transient storage layouts and Yul IR output are not supported yet.
