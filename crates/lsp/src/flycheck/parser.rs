@@ -1,4 +1,5 @@
 use crate::{diagnostics::DiagnosticMap, flycheck::config::FlycheckOutput};
+use crop::Rope;
 use lsp_types::{
     Diagnostic as LspDiagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url,
 };
@@ -213,53 +214,28 @@ fn resolve_path(cwd: &Path, path: &str) -> PathBuf {
 #[derive(Default)]
 struct ByteRangeCache {
     source_map: SourceMap,
-    files: FxHashMap<PathBuf, LineIndex>,
+    files: FxHashMap<PathBuf, Rope>,
 }
 
 impl ByteRangeCache {
     fn range(&mut self, path: &Path, start: usize, end: usize) -> Option<Range> {
         if !self.files.contains_key(path) {
             let contents = self.source_map.file_loader().load_file(path).ok()?;
-            self.files.insert(path.to_path_buf(), LineIndex::new(contents));
+            self.files.insert(path.to_path_buf(), Rope::from(contents));
         }
 
         let file = self.files.get(path)?;
-        Some(Range { start: file.position_at_byte(start), end: file.position_at_byte(end) })
+        Some(Range { start: position_at_byte(file, start), end: position_at_byte(file, end) })
     }
 }
 
-struct LineIndex {
-    contents: String,
-    line_starts: Vec<usize>,
-}
+fn position_at_byte(file: &Rope, byte: usize) -> Position {
+    let byte = byte.min(file.byte_len());
+    let line = file.line_of_byte(byte);
+    let line_start = file.byte_of_line(line);
+    let character = file.utf16_code_unit_of_byte(byte) - file.utf16_code_unit_of_byte(line_start);
 
-impl LineIndex {
-    fn new(contents: String) -> Self {
-        let mut line_starts = vec![0];
-        for (idx, byte) in contents.bytes().enumerate() {
-            if byte == b'\n' {
-                line_starts.push(idx + 1);
-            }
-        }
-
-        Self { contents, line_starts }
-    }
-
-    fn position_at_byte(&self, byte: usize) -> Position {
-        let byte = byte.min(self.contents.len());
-        let line = self.line_starts.partition_point(|start| *start <= byte).saturating_sub(1);
-        let line_start = self.line_starts[line];
-        let mut character = 0u32;
-
-        for (idx, char) in self.contents[line_start..].char_indices() {
-            if line_start + idx >= byte {
-                break;
-            }
-            character += char.len_utf16() as u32;
-        }
-
-        Position { line: line as u32, character }
-    }
+    Position { line: line as u32, character: character as u32 }
 }
 
 #[cfg(test)]

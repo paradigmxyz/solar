@@ -9,9 +9,9 @@ use crate::{
 };
 use async_lsp::{ClientSocket, LanguageClient, ResponseError};
 use lsp_types::{
-    DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern, InitializeParams,
-    InitializeResult, InitializedParams, LogMessageParams, MessageType, PublishDiagnosticsParams,
-    Registration, RegistrationParams, ServerInfo, Url, WatchKind,
+    Diagnostic, DidChangeWatchedFilesRegistrationOptions, FileSystemWatcher, GlobPattern,
+    InitializeParams, InitializeResult, InitializedParams, LogMessageParams, MessageType,
+    PublishDiagnosticsParams, Registration, RegistrationParams, ServerInfo, Url, WatchKind,
     notification::{DidChangeWatchedFiles, Notification},
 };
 use solar_config::{CompileOpts, version::SHORT_VERSION};
@@ -157,15 +157,10 @@ impl GlobalState {
     }
 
     pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
-        let flychecks = self.config.flychecks_for_path(&path);
-        if flychecks.is_empty() {
-            return;
-        }
-
-        for flycheck in flychecks {
+        for flycheck in self.config.flychecks_for_path(&path) {
             let owner = flycheck.owner();
             let version = self.begin_flycheck_epoch(&owner);
-            let id = flycheck.id.as_str().to_string();
+            let id = flycheck.id.clone();
             let mut snapshot = self.snapshot();
             let (cancel, cancelled) = oneshot::channel();
             let task_owner = owner.clone();
@@ -228,13 +223,7 @@ impl GlobalState {
             store.clear_uris_and_publish_batches(uris)
         };
 
-        for (uri, uri_diagnostics) in batches {
-            let _ = self.client.publish_diagnostics(PublishDiagnosticsParams::new(
-                uri,
-                uri_diagnostics,
-                None,
-            ));
-        }
+        publish_diagnostic_batches(&mut self.client, batches);
     }
 
     fn begin_flycheck_epoch(&mut self, owner: &DiagnosticOwner) -> usize {
@@ -295,6 +284,16 @@ fn watched_file_registration_params() -> RegistrationParams {
             method: DidChangeWatchedFiles::METHOD.into(),
             register_options: Some(serde_json::to_value(options).unwrap()),
         }],
+    }
+}
+
+fn publish_diagnostic_batches(
+    client: &mut ClientSocket,
+    batches: impl IntoIterator<Item = (Url, Vec<Diagnostic>)>,
+) {
+    for (uri, uri_diagnostics) in batches {
+        let _ =
+            client.publish_diagnostics(PublishDiagnosticsParams::new(uri, uri_diagnostics, None));
     }
 }
 
@@ -395,13 +394,7 @@ impl GlobalStateSnapshot {
             store.replace_and_publish_batches(owner, diagnostics)
         };
 
-        for (uri, uri_diagnostics) in batches {
-            let _ = self.client.publish_diagnostics(PublishDiagnosticsParams::new(
-                uri,
-                uri_diagnostics,
-                None,
-            ));
-        }
+        publish_diagnostic_batches(&mut self.client, batches);
     }
 }
 

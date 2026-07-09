@@ -8,22 +8,9 @@ use std::{
     process::{Command, Stdio},
 };
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub(crate) struct FlycheckId(String);
-
-impl FlycheckId {
-    fn new(id: impl Into<String>) -> Self {
-        Self(id.into())
-    }
-
-    pub(crate) fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
 #[derive(Clone, Debug)]
 pub(crate) struct FlycheckConfig {
-    pub(crate) id: FlycheckId,
+    pub(crate) id: String,
     pub(crate) command: PathBuf,
     pub(crate) args: Vec<String>,
     pub(crate) cwd: PathBuf,
@@ -37,10 +24,7 @@ impl FlycheckConfig {
     }
 
     pub(crate) fn owner(&self) -> DiagnosticOwner {
-        DiagnosticOwner::Flycheck {
-            id: self.id.as_str().to_string(),
-            workspace: self.workspace_root.clone(),
-        }
+        DiagnosticOwner::Flycheck { id: self.id.clone(), workspace: self.workspace_root.clone() }
     }
 }
 
@@ -102,7 +86,7 @@ fn expand_templates(
                     |cwd| resolve_workspace_path(&workspace_root, cwd),
                 );
                 FlycheckConfig {
-                    id: FlycheckId::new(template.id.clone()),
+                    id: template.id.clone(),
                     command: template.command.clone(),
                     args: template.args.clone(),
                     cwd,
@@ -121,7 +105,7 @@ fn default_flychecks(workspaces: &[Workspace], forge_path: PathBuf) -> Vec<Flych
         .filter_map(workspace_root)
         .filter(|root| forge_lint_available(&forge_path, root))
         .map(|workspace_root| FlycheckConfig {
-            id: FlycheckId::new("forge-lint"),
+            id: "forge-lint".into(),
             command: forge_path.clone(),
             args: vec!["lint".into(), "--json".into()],
             cwd: workspace_root.clone(),
@@ -178,7 +162,7 @@ mod tests {
         let configs = options.configs(project.config().workspaces());
 
         assert_eq!(configs.len(), 1);
-        assert_eq!(configs[0].id.as_str(), "custom");
+        assert_eq!(configs[0].id, "custom");
         assert_eq!(configs[0].command, PathBuf::from("custom-lint"));
         assert_eq!(configs[0].args, ["--json"]);
         assert_eq!(configs[0].cwd, project.path("/tools"));

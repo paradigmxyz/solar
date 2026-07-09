@@ -121,7 +121,7 @@ impl Config {
 
         let mut removed_owners = removed_owners.into_iter().collect::<Vec<_>>();
         removed_owners.sort();
-        info!(flychecks = ?self.flychecks.iter().map(|it| it.id.as_str()).collect::<Vec<_>>(), "loaded flychecks");
+        info!(flychecks = ?self.flychecks.iter().map(|it| &it.id).collect::<Vec<_>>(), "loaded flychecks");
         removed_owners
     }
 }
@@ -303,7 +303,7 @@ mod tests {
         let flychecks = config.flychecks_for_path(&project.path("/src/Test.sol"));
 
         assert_eq!(flychecks.len(), 1);
-        assert_eq!(flychecks[0].id.as_str(), "custom");
+        assert_eq!(flychecks[0].id, "custom");
         assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
         assert_eq!(flychecks[0].args, ["--json"]);
         assert_eq!(flychecks[0].cwd, project.root());
