@@ -9,30 +9,30 @@
       "Counter": {
         "abi": [
           {
-            "inputs": [],
+            "type": "function",
             "name": "number",
+            "inputs": [],
             "outputs": [
               {
-                "internalType": "uint256",
                 "name": "",
-                "type": "uint256"
+                "type": "uint256",
+                "internalType": "uint256"
               }
             ],
-            "stateMutability": "view",
-            "type": "function"
+            "stateMutability": "view"
           },
           {
+            "type": "function",
+            "name": "setNumber",
             "inputs": [
               {
-                "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "internalType": "uint256"
               }
             ],
-            "name": "setNumber",
             "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
+            "stateMutability": "nonpayable"
           }
         ],
         "evm": {
