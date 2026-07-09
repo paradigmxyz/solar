@@ -10,9 +10,13 @@
 // CHECK: "number()":
 {
   "language": "Solidity",
+  "auxiliaryInput": {
+    "smtlib2responses": {}
+  },
   "sources": {
     "A.sol": {
-      "content": "contract Counter { uint256 public number; function setNumber(uint256 value) public { number = value; } }"
+      "content": "contract Counter { uint256 public number; function setNumber(uint256 value) public { number = value; } }",
+      "keccak256": "0xaf8d3f3b739b6d673bd61f63e23dfd3be0734fd7799c07d60f73ed1ea3b14256"
     }
   },
   "settings": {
@@ -24,12 +28,23 @@
         "Counter": "0x0000000000000000000000000000000000000000"
       }
     },
+    "debug": {
+      "revertStrings": "default",
+      "debugInfo": [
+        "location"
+      ]
+    },
+    "experimental": false,
+    "modelChecker": {
+      "engine": "none"
+    },
     "optimizer": {
       "enabled": true,
       "details": {
         "yul": true
       }
     },
+    "viaSSACFG": false,
     "outputSelection": {
       "*": {
         "*": [
