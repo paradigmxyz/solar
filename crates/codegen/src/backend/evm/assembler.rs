@@ -183,6 +183,131 @@ impl Assembler {
         *self.push_values.get(index)
     }
 
+    /// Merges identical terminal suffixes of distinct spans.
+    ///
+    /// Function epilogues repeat: `LOG3 ... MSTORE ... RETURN` tails compile
+    /// identically for every `approve`-shaped function, but the spans differ
+    /// earlier, so whole-span dedup cannot merge them. An identical
+    /// instruction suffix behaves as a function of the stack it consumes —
+    /// each predecessor supplies its own values positionally, exactly as the
+    /// inlined copy would have — so a duplicate suffix can be cut and replaced
+    /// with a jump into the representative's tail at a freshly inserted label.
+    /// Suffixes containing label definitions are never merged, and a cut only
+    /// happens when the suffix's conservative emitted size (pushes counted as
+    /// two bytes) exceeds the jump that replaces it.
+    fn merge_terminal_suffixes(&mut self, instructions: &mut Vec<AsmInst>) {
+        if self.config.optimization == OptimizationMode::None {
+            return;
+        }
+        fn is_terminal(inst: AsmInst) -> bool {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID | op::SELFDESTRUCT,
+                )
+            )
+        }
+        fn lower_bound(insts: &[AsmInst]) -> usize {
+            insts
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum()
+        }
+
+        // Terminal spans: label .. first terminal, with no label inside.
+        let mut spans: Vec<(usize, usize)> = Vec::new();
+        let mut i = 0;
+        while i < instructions.len() {
+            if let AsmInstKind::Label(_) = instructions[i].kind() {
+                let mut j = i + 1;
+                while j < instructions.len() {
+                    if matches!(instructions[j].kind(), AsmInstKind::Label(_)) {
+                        break;
+                    }
+                    if is_terminal(instructions[j]) {
+                        spans.push((i + 1, j));
+                        break;
+                    }
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+
+        // Greedy: each span merges into the earlier span sharing its longest
+        // terminal suffix, when that suffix outweighs the jump plus the
+        // representative's inserted `JUMPDEST`.
+        let mut reps: Vec<(usize, usize)> = Vec::new();
+        // (span_start, span_end, rep_index, suffix_len)
+        let mut merges: Vec<(usize, usize, usize, usize)> = Vec::new();
+        for &(start, end) in &spans {
+            let body = &instructions[start..=end];
+            let mut best: Option<(usize, usize)> = None;
+            for (rep_idx, &(rep_start, rep_end)) in reps.iter().enumerate() {
+                let rep_body = &instructions[rep_start..=rep_end];
+                let max = body.len().min(rep_body.len());
+                let mut common = 0;
+                while common < max
+                    && body[body.len() - 1 - common] == rep_body[rep_body.len() - 1 - common]
+                {
+                    common += 1;
+                }
+                if common > best.map_or(0, |(_, len)| len) {
+                    best = Some((rep_idx, common));
+                }
+            }
+            if let Some((rep_idx, common)) = best
+                && lower_bound(&body[body.len() - common..]) > 5
+            {
+                merges.push((start, end, rep_idx, common));
+            } else {
+                reps.push((start, end));
+            }
+        }
+        if merges.is_empty() {
+            return;
+        }
+
+        // One label per (representative, suffix length) cut point.
+        let mut cut_labels: FxHashMap<(usize, usize), Label> = FxHashMap::default();
+        for &(_, _, rep_idx, common) in &merges {
+            cut_labels.entry((rep_idx, common)).or_insert_with(|| self.new_label());
+        }
+
+        // Apply from the back so earlier indices stay valid: suffix cuts on
+        // merged spans, then label insertions into representatives.
+        let mut edits: Vec<(usize, Edit)> = Vec::new();
+        enum Edit {
+            /// Replace `at..=end` with a jump to the label.
+            Cut { end: usize, target: Label },
+            /// Insert a label definition at `at`.
+            Mid { label: Label },
+        }
+        for &(start, end, rep_idx, common) in &merges {
+            let target = cut_labels[&(rep_idx, common)];
+            edits.push((end + 1 - common, Edit::Cut { end, target }));
+        }
+        for (&(rep_idx, common), &label) in &cut_labels {
+            let (_, rep_end) = reps[rep_idx];
+            edits.push((rep_end + 1 - common, Edit::Mid { label }));
+        }
+        edits.sort_unstable_by_key(|&(at, _)| at);
+        for &(at, ref edit) in edits.iter().rev() {
+            match *edit {
+                Edit::Cut { end, target } => {
+                    instructions
+                        .splice(at..=end, [AsmInst::push_label(target), AsmInst::op(op::JUMP)]);
+                }
+                Edit::Mid { label } => {
+                    instructions.insert(at, AsmInst::label(label));
+                }
+            }
+        }
+    }
+
     /// Outlines repeated large constants into shared push stubs.
     ///
     /// Event topics and EIP-712 typehashes are 32-byte keccak constants pushed
@@ -290,6 +415,7 @@ impl Assembler {
         Self::remove_unreferenced_labels(&mut program.instructions);
         Self::dedup_terminal_spans(&mut program.instructions);
         Self::remove_unreferenced_labels(&mut program.instructions);
+        self.merge_terminal_suffixes(&mut program.instructions);
         self.outline_repeated_pushes(&mut program);
 
         // We need to iterate until PUSH widths stabilize
