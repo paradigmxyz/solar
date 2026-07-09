@@ -50,11 +50,11 @@ impl OutlineRevertsPass {
         // Collect every constant revert block, keyed by shape.
         let mut shapes: FxHashMap<RevertShape, Vec<(usize, usize)>> = FxHashMap::default();
         for (func_idx, func) in module.functions.iter().enumerate() {
-            for (block_idx, block) in func.blocks.iter().enumerate() {
-                if let Some(shape) = constant_revert_shape(func, block_idx) {
-                    if estimated_inline_size(&shape) >= MIN_OUTLINED_SIZE {
-                        shapes.entry(shape).or_default().push((func_idx, block_idx));
-                    }
+            for block_idx in 0..func.blocks.len() {
+                if let Some(shape) = constant_revert_shape(func, block_idx)
+                    && estimated_inline_size(&shape) >= MIN_OUTLINED_SIZE
+                {
+                    shapes.entry(shape).or_default().push((func_idx, block_idx));
                 }
             }
         }

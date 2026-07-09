@@ -286,7 +286,7 @@ impl Assembler {
             /// Insert a label definition at `at`.
             Mid { label: Label },
         }
-        for &(start, end, rep_idx, common) in &merges {
+        for &(_start, end, rep_idx, common) in &merges {
             let target = cut_labels[&(rep_idx, common)];
             edits.push((end + 1 - common, Edit::Cut { end, target }));
         }
@@ -338,7 +338,7 @@ impl Assembler {
         const MIN_SAVING: usize = 8;
         let mut stubs: FxHashMap<PushValueId, Label> = FxHashMap::default();
         let mut order = Vec::new();
-        let sizer = BytecodeAssembler::new(self.config.clone());
+        let sizer = BytecodeAssembler::new(self.config);
         for (&index, &count) in &counts {
             let len = sizer.encoded_push_len(self.push_value(index));
             let count = count as usize;
