@@ -255,6 +255,39 @@ where
             ]);
         }
 
+        // `DUP1 PUSH a MSTORE DUP1 PUSH a MSTORE -> DUP1 PUSH a MSTORE`: the
+        // second store writes the same value (the top of stack is unchanged
+        // after the first store) to the same address, back to back. This
+        // arises when a value's spill slot and its callee frame slot resolve
+        // to the same address, which is only visible after deferred-constant
+        // resolution — exactly where this pass runs.
+        if stack.len() >= 6
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::MSTORE))
+            && matches!(stack[2].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+            && matches!(stack[3].kind(), AsmInstKind::Op(op::MSTORE))
+            && matches!(stack[5].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+            && let (Some(a), Some(b)) =
+                ((self.inst_push_value)(stack[1]), (self.inst_push_value)(stack[4]))
+            && a == b
+        {
+            return peephole!(6 => [stack[5], stack[4], stack[3]]);
+        }
+
+        // `DUP1 PUSH a MSTORE POP PUSH a MLOAD -> DUP1 PUSH a MSTORE`: the
+        // reload reads back exactly the value that was just stored and then
+        // popped; keep it on the stack instead.
+        if stack.len() >= 6
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::MLOAD))
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::POP))
+            && matches!(stack[3].kind(), AsmInstKind::Op(op::MSTORE))
+            && matches!(stack[5].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+            && let (Some(a), Some(b)) =
+                ((self.inst_push_value)(stack[1]), (self.inst_push_value)(stack[4]))
+            && a == b
+        {
+            return peephole!(6 => [stack[5], stack[4], stack[3]]);
+        }
+
         // `EQ ISZERO <label> JUMPI -> SUB <label> JUMPI`: jump-if-not-equal
         // only needs a nonzero word, which the difference already is.
         if stack.len() >= 4
@@ -380,6 +413,83 @@ mod tests {
 
         assert_eq!(result.label_offsets[&label], 2);
         assert_eq!(result.bytecode, vec![0x60, 42, op::JUMPDEST, 0x60, 2, op::JUMP]);
+    }
+
+    #[test]
+    fn drops_adjacent_duplicate_store() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, op::DUP1, 0x60, 0x80, op::MSTORE, op::STOP]);
+    }
+
+    #[test]
+    fn forwards_store_pop_reload() {
+        let mut asm = Assembler::new();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.emit_op(op::POP);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MLOAD);
+        asm.emit_op(op::STOP);
+
+        let result = asm.assemble();
+
+        assert_eq!(result.bytecode, vec![0x60, 42, op::DUP1, 0x60, 0x80, op::MSTORE, op::STOP]);
+    }
+
+    #[test]
+    fn keeps_duplicate_store_across_label() {
+        let mut asm = Assembler::new();
+        let label = asm.new_label();
+
+        asm.emit_push(U256::from(42));
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.define_label(label);
+        asm.emit_op(op::DUP1);
+        asm.emit_push(U256::from(0x80));
+        asm.emit_op(op::MSTORE);
+        asm.emit_push_label(label);
+        asm.emit_op(op::JUMP);
+
+        let result = asm.assemble();
+
+        // The label between the stores is a jump target: the second store is
+        // reachable without the first and must stay.
+        assert_eq!(
+            result.bytecode,
+            vec![
+                0x60,
+                42,
+                op::DUP1,
+                0x60,
+                0x80,
+                op::MSTORE,
+                op::JUMPDEST,
+                op::DUP1,
+                0x60,
+                0x80,
+                op::MSTORE,
+                0x60,
+                6,
+                op::JUMP
+            ]
+        );
     }
 
     #[test]
