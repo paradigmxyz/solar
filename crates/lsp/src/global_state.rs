@@ -1,7 +1,8 @@
 use crate::{
     NotifyResult,
     config::{Config, negotiate_capabilities},
-    proto,
+    diagnostics::{DiagnosticMap, DiagnosticOwner, DiagnosticStore},
+    flycheck, proto,
     symbols::SymbolTables,
     vfs::Vfs,
     workspace::WorkspacePathIndex,
@@ -33,15 +34,17 @@ use std::{
         atomic::{AtomicUsize, Ordering},
     },
 };
-use tokio::task::JoinHandle;
+use tokio::{sync::oneshot, task::JoinHandle};
 
 pub(crate) struct GlobalState {
     client: ClientSocket,
     pub(crate) vfs: Arc<RwLock<Vfs>>,
     pub(crate) config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
+    flycheck_cancels: FxHashMap<DiagnosticOwner, oneshot::Sender<()>>,
     pub(crate) symbol_tables: Arc<RwLock<SymbolTables>>,
-    published_diagnostic_uris: Arc<RwLock<FxHashSet<Url>>>,
+    diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
 impl GlobalState {
@@ -50,8 +53,10 @@ impl GlobalState {
             client,
             vfs: Arc::new(Default::default()),
             analysis_version: Arc::new(AtomicUsize::new(0)),
+            flycheck_versions: Arc::new(Default::default()),
+            flycheck_cancels: FxHashMap::default(),
             symbol_tables: Arc::new(Default::default()),
-            published_diagnostic_uris: Arc::new(Default::default()),
+            diagnostics: Arc::new(Default::default()),
             config: Arc::new(Default::default()),
         }
     }
@@ -121,7 +126,7 @@ impl GlobalState {
                 return;
             }
 
-            let mut diagnostics = FxHashMap::<Url, Vec<Diagnostic>>::default();
+            let mut diagnostics = DiagnosticMap::default();
             let mut symbol_tables = SymbolTables::default();
 
             for batch in batches {
@@ -146,9 +151,96 @@ impl GlobalState {
 
             if snapshot.is_current(version) {
                 snapshot.set_symbol_tables(symbol_tables);
-                snapshot.publish_diagnostic_set(diagnostics);
+                snapshot.publish_diagnostics(DiagnosticOwner::Compiler, diagnostics);
             }
         });
+    }
+
+    pub(crate) fn run_flychecks_on_save(&mut self, path: PathBuf) {
+        for flycheck in self.config.flychecks_for_path(&path) {
+            let owner = flycheck.owner();
+            let version = self.begin_flycheck_epoch(&owner);
+            let id = flycheck.id.clone();
+            let mut snapshot = self.snapshot();
+            let (cancel, cancelled) = oneshot::channel();
+            let task_owner = owner.clone();
+            tokio::spawn(async move {
+                let result = flycheck::run(flycheck, cancelled).await;
+                if !snapshot.is_current_flycheck(&task_owner, version) {
+                    return;
+                }
+
+                match result {
+                    Ok(diagnostics) => snapshot.publish_diagnostics(task_owner, diagnostics),
+                    Err(error) => {
+                        tracing::warn!(%id, %error, "flycheck failed");
+                        snapshot.publish_diagnostics(task_owner, DiagnosticMap::default());
+                    }
+                }
+            });
+            self.flycheck_cancels.insert(owner, cancel);
+        }
+    }
+
+    pub(crate) fn clear_removed_flycheck_diagnostics(
+        &mut self,
+        owners: impl IntoIterator<Item = DiagnosticOwner>,
+    ) {
+        let owners = owners.into_iter().collect::<Vec<_>>();
+        for owner in &owners {
+            self.begin_flycheck_epoch(owner);
+        }
+
+        let mut snapshot = self.snapshot();
+        for owner in owners {
+            snapshot.publish_diagnostics(owner, DiagnosticMap::default());
+        }
+    }
+
+    pub(crate) fn clear_removed_file_diagnostics(
+        &mut self,
+        paths: impl IntoIterator<Item = PathBuf>,
+    ) {
+        let paths = paths.into_iter().collect::<Vec<_>>();
+        let uris =
+            paths.iter().filter_map(|path| Url::from_file_path(path).ok()).collect::<Vec<_>>();
+        if uris.is_empty() {
+            return;
+        }
+
+        let mut owners = FxHashSet::default();
+        for path in paths {
+            for flycheck in self.config.flychecks_for_path(&path) {
+                owners.insert(flycheck.owner());
+            }
+        }
+        for owner in owners {
+            self.begin_flycheck_epoch(&owner);
+        }
+
+        let batches = {
+            let mut store = self.diagnostics.write();
+            store.clear_uris_and_publish_batches(uris)
+        };
+
+        publish_diagnostic_batches(&mut self.client, batches);
+    }
+
+    fn begin_flycheck_epoch(&mut self, owner: &DiagnosticOwner) -> usize {
+        let version = {
+            let mut versions = self.flycheck_versions.write();
+            let version = versions.get(owner).copied().unwrap_or_default() + 1;
+            versions.insert(owner.clone(), version);
+            version
+        };
+        self.cancel_flycheck(owner);
+        version
+    }
+
+    fn cancel_flycheck(&mut self, owner: &DiagnosticOwner) {
+        if let Some(cancel) = self.flycheck_cancels.remove(owner) {
+            let _ = cancel.send(());
+        }
     }
 
     fn snapshot(&self) -> GlobalStateSnapshot {
@@ -157,8 +249,9 @@ impl GlobalState {
             vfs: self.vfs.clone(),
             config: self.config.clone(),
             analysis_version: self.analysis_version.clone(),
+            flycheck_versions: self.flycheck_versions.clone(),
             symbol_tables: self.symbol_tables.clone(),
-            published_diagnostic_uris: self.published_diagnostic_uris.clone(),
+            diagnostics: self.diagnostics.clone(),
         }
     }
 
@@ -172,7 +265,7 @@ impl GlobalState {
 }
 
 struct AnalysisResult {
-    diagnostics: FxHashMap<Url, Vec<Diagnostic>>,
+    diagnostics: DiagnosticMap,
     symbol_tables: SymbolTables,
 }
 
@@ -194,18 +287,33 @@ fn watched_file_registration_params() -> RegistrationParams {
     }
 }
 
+fn publish_diagnostic_batches(
+    client: &mut ClientSocket,
+    batches: impl IntoIterator<Item = (Url, Vec<Diagnostic>)>,
+) {
+    for (uri, uri_diagnostics) in batches {
+        let _ =
+            client.publish_diagnostics(PublishDiagnosticsParams::new(uri, uri_diagnostics, None));
+    }
+}
+
 pub(crate) struct GlobalStateSnapshot {
     client: ClientSocket,
     vfs: Arc<RwLock<Vfs>>,
     config: Arc<Config>,
     analysis_version: Arc<AtomicUsize>,
+    flycheck_versions: Arc<RwLock<FxHashMap<DiagnosticOwner, usize>>>,
     symbol_tables: Arc<RwLock<SymbolTables>>,
-    published_diagnostic_uris: Arc<RwLock<FxHashSet<Url>>>,
+    diagnostics: Arc<RwLock<DiagnosticStore>>,
 }
 
 impl GlobalStateSnapshot {
     fn is_current(&self, version: usize) -> bool {
         self.analysis_version.load(Ordering::Acquire) == version
+    }
+
+    fn is_current_flycheck(&self, owner: &DiagnosticOwner, version: usize) -> bool {
+        self.flycheck_versions.read().get(owner).copied().unwrap_or_default() == version
     }
 
     fn analysis_batches(&self, disk_paths: Vec<PathBuf>) -> Vec<AnalysisBatch> {
@@ -280,24 +388,13 @@ impl GlobalStateSnapshot {
         Cow::Owned(vec![crate::workspace::Workspace::unconfigured()])
     }
 
-    fn publish_diagnostic_set(&mut self, mut diagnostics: FxHashMap<Url, Vec<Diagnostic>>) {
-        let mut uris = diagnostics.keys().cloned().collect::<FxHashSet<_>>();
+    fn publish_diagnostics(&mut self, owner: DiagnosticOwner, diagnostics: DiagnosticMap) {
+        let batches = {
+            let mut store = self.diagnostics.write();
+            store.replace_and_publish_batches(owner, diagnostics)
+        };
 
-        let mut published_diagnostic_uris = self.published_diagnostic_uris.write();
-        uris.extend(published_diagnostic_uris.iter().cloned());
-        for uri in uris {
-            let uri_diagnostics = diagnostics.remove(&uri).unwrap_or_default();
-            if !uri_diagnostics.is_empty() {
-                published_diagnostic_uris.insert(uri.clone());
-            } else {
-                published_diagnostic_uris.remove(&uri);
-            }
-            let _ = self.client.publish_diagnostics(PublishDiagnosticsParams::new(
-                uri,
-                uri_diagnostics,
-                None,
-            ));
-        }
+        publish_diagnostic_batches(&mut self.client, batches);
     }
 }
 
@@ -361,7 +458,7 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
             .read()
             .iter()
             .filter_map(|diag| proto::diagnostic(compiler.sess().source_map(), diag))
-            .fold(FxHashMap::<Url, Vec<Diagnostic>>::default(), |mut diagnostics, (uri, diag)| {
+            .fold(DiagnosticMap::default(), |mut diagnostics, (uri, diag)| {
                 diagnostics.entry(uri).or_default().push(diag);
                 diagnostics
             });
@@ -373,12 +470,14 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_support::TestProject;
+    #[cfg(unix)]
+    use crate::test_support::process_exists;
+    use crate::{config::negotiate_capabilities, test_support::TestProject};
     use async_lsp::ClientSocket;
     use lsp_types::{
-        Diagnostic, DocumentSymbol, Position, Range, SymbolKind, WatchKind, WorkspaceSymbol,
-        notification::Notification,
+        DocumentSymbol, SymbolKind, WatchKind, WorkspaceSymbol, notification::Notification,
     };
+    use std::{path::Path, time::Duration};
 
     mod completion;
     mod goto_definition;
@@ -396,9 +495,14 @@ mod tests {
             vfs: Arc::new(RwLock::new(vfs)),
             config: Arc::new(config),
             analysis_version: Arc::new(AtomicUsize::new(1)),
+            flycheck_versions: Arc::new(Default::default()),
             symbol_tables: Arc::new(Default::default()),
-            published_diagnostic_uris: Arc::new(Default::default()),
+            diagnostics: Arc::new(Default::default()),
         }
+    }
+
+    fn flycheck_owner(workspace: impl Into<PathBuf>) -> DiagnosticOwner {
+        DiagnosticOwner::Flycheck { id: "slow".into(), workspace: workspace.into() }
     }
 
     #[test]
@@ -419,37 +523,135 @@ mod tests {
     }
 
     #[test]
-    fn publish_diagnostic_set_clears_stale_diagnostics() {
-        let clean_uri = Url::parse("file:///workspace/src/Clean.sol").unwrap();
-        let diagnostic_uri = Url::parse("file:///workspace/src/Error.sol").unwrap();
-        let stale_uri = Url::parse("file:///workspace/src/Stale.sol").unwrap();
-        let published_diagnostic_uris =
-            Arc::new(RwLock::new(FxHashSet::from_iter([clean_uri.clone(), stale_uri.clone()])));
-        let mut snapshot = GlobalStateSnapshot {
-            client: ClientSocket::new_closed(),
-            vfs: Arc::new(Default::default()),
-            config: Arc::new(Config::default()),
-            analysis_version: Arc::new(AtomicUsize::new(1)),
-            symbol_tables: Arc::new(Default::default()),
-            published_diagnostic_uris: published_diagnostic_uris.clone(),
-        };
+    fn saving_without_matching_flychecks_keeps_previous_flycheck_results_current() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let snapshot = state.snapshot();
+        let owner = flycheck_owner("/workspace");
 
-        let diagnostic = Diagnostic::new_simple(
-            Range {
-                start: Position { line: 0, character: 0 },
-                end: Position { line: 0, character: 1 },
-            },
-            "error".into(),
+        assert!(snapshot.is_current_flycheck(&owner, 0));
+
+        state.run_flychecks_on_save(PathBuf::from("/workspace/Untracked.sol"));
+
+        assert!(snapshot.is_current_flycheck(&owner, 0));
+    }
+
+    #[test]
+    fn clearing_removed_flychecks_without_owners_keeps_previous_flycheck_results_current() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let snapshot = state.snapshot();
+        let owner = flycheck_owner("/workspace");
+
+        assert!(snapshot.is_current_flycheck(&owner, 0));
+
+        state.clear_removed_flycheck_diagnostics(Vec::new());
+
+        assert!(snapshot.is_current_flycheck(&owner, 0));
+    }
+
+    #[test]
+    fn clearing_removed_flychecks_stales_removed_owner_results() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let snapshot = state.snapshot();
+        let owner = flycheck_owner("/workspace");
+
+        assert!(snapshot.is_current_flycheck(&owner, 0));
+
+        state.clear_removed_flycheck_diagnostics([owner.clone()]);
+
+        assert!(!snapshot.is_current_flycheck(&owner, 0));
+    }
+
+    #[test]
+    fn clearing_removed_file_diagnostics_stales_matching_flycheck_owner_only() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /first/foundry.toml
+            [profile.default]
+            src = "src"
+            //- /second/foundry.toml
+            [profile.default]
+            src = "src"
+            "#,
         );
-        snapshot.publish_diagnostic_set(FxHashMap::from_iter([(
-            diagnostic_uri.clone(),
-            vec![diagnostic],
-        )]));
+        let mut params = project.initialize_params_with_roots(&["/first", "/second"]);
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "slow",
+                "command": "slow",
+            }],
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+        let snapshot = state.snapshot();
+        let first_owner = flycheck_owner(project.path("/first"));
+        let second_owner = flycheck_owner(project.path("/second"));
 
-        let published = published_diagnostic_uris.read();
-        assert!(!published.contains(&clean_uri));
-        assert!(published.contains(&diagnostic_uri));
-        assert!(!published.contains(&stale_uri));
+        assert!(snapshot.is_current_flycheck(&first_owner, 0));
+        assert!(snapshot.is_current_flycheck(&second_owner, 0));
+
+        state.clear_removed_file_diagnostics([project.path("/first/src/Deleted.sol")]);
+
+        assert!(!snapshot.is_current_flycheck(&first_owner, 0));
+        assert!(snapshot.is_current_flycheck(&second_owner, 0));
+    }
+
+    #[test]
+    fn beginning_flycheck_epoch_keeps_other_owner_cancel_pending() {
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        let first_owner = flycheck_owner("/first");
+        let second_owner = flycheck_owner("/second");
+        let (cancel, mut cancelled) = oneshot::channel();
+        state.flycheck_cancels.insert(first_owner, cancel);
+
+        state.begin_flycheck_epoch(&second_owner);
+
+        assert!(matches!(cancelled.try_recv(), Err(oneshot::error::TryRecvError::Empty)));
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn saving_again_cancels_in_flight_flychecks() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let first_pid_path = project.path("/first-flycheck-pid.txt");
+        let second_pid_path = project.path("/second-flycheck-pid.txt");
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "slow",
+                "command": "/bin/sh",
+                "args": [
+                    "-c",
+                    "if [ ! -f \"$1\" ]; then printf '%s' \"$$\" > \"$1\"; exec sleep 120; fi; printf '%s' \"$$\" > \"$2\"; printf '{}\n'",
+                    "sh",
+                    first_pid_path.display().to_string(),
+                    second_pid_path.display().to_string(),
+                ],
+            }],
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+
+        state.run_flychecks_on_save(project.path("/src/Test.sol"));
+        wait_for_path(&first_pid_path).await;
+        let first_pid = project.read_file("/first-flycheck-pid.txt").parse().unwrap();
+
+        state.run_flychecks_on_save(project.path("/src/Test.sol"));
+        wait_for_path(&second_pid_path).await;
+        wait_for_process_exit(first_pid).await;
+
+        assert!(!process_exists(first_pid));
     }
 
     #[test]
@@ -474,6 +676,27 @@ mod tests {
             batch.files,
             vec![(path, "contract C { function f() public { number+; } }".into())]
         );
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_path(path: &Path) {
+        for _ in 0..100 {
+            if path.exists() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        panic!("timed out waiting for {}", path.display());
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_process_exit(pid: u32) {
+        for _ in 0..100 {
+            if !process_exists(pid) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
     }
 
     #[test]

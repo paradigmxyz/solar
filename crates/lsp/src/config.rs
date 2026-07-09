@@ -1,7 +1,12 @@
-use crate::workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest};
+use crate::{
+    diagnostics::DiagnosticOwner,
+    flycheck::{FlycheckConfig, FlycheckInitializationOptions},
+    workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
+};
 use lsp_types::{
-    CompletionOptions, DeclarationCapability, InitializeParams, OneOf, ServerCapabilities,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    CompletionOptions, DeclarationCapability, InitializeParams, OneOf, SaveOptions,
+    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TextDocumentSyncSaveOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -19,6 +24,8 @@ use tracing::{info, warn};
 pub(crate) struct Config {
     workspace_roots: Vec<PathBuf>,
     workspaces: Vec<Workspace>,
+    flycheck_options: FlycheckInitializationOptions,
+    flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
     hierarchical_document_symbol_support: bool,
 }
@@ -36,7 +43,11 @@ impl Config {
         &self.workspaces
     }
 
-    pub(crate) fn rediscover_workspaces(&mut self) {
+    pub(crate) fn flychecks_for_path(&self, path: &Path) -> Vec<FlycheckConfig> {
+        self.flychecks.iter().filter(|flycheck| flycheck.applies_to(path)).cloned().collect()
+    }
+
+    pub(crate) fn rediscover_workspaces(&mut self) -> Vec<DiagnosticOwner> {
         let mut workspaces = Vec::new();
         let mut seen_manifests = FxHashSet::default();
         for root in &self.workspace_roots {
@@ -70,6 +81,7 @@ impl Config {
         }
         info!(workspaces = ?workspaces.iter().map(Workspace::kind).collect::<Vec<_>>(), "loaded workspaces");
         self.workspaces = workspaces;
+        self.refresh_flychecks()
     }
 
     pub(crate) fn remove_workspace(&mut self, path: &Path) {
@@ -97,6 +109,21 @@ impl Config {
         let idx = WorkspacePathIndex::new(&self.workspaces).workspace_idx_for_path(path);
         self.workspaces[idx].remove_source_file(path);
     }
+
+    fn refresh_flychecks(&mut self) -> Vec<DiagnosticOwner> {
+        let mut removed_owners =
+            self.flychecks.iter().map(FlycheckConfig::owner).collect::<FxHashSet<_>>();
+        self.flychecks = self.flycheck_options.configs(&self.workspaces);
+
+        for owner in self.flychecks.iter().map(FlycheckConfig::owner) {
+            removed_owners.remove(&owner);
+        }
+
+        let mut removed_owners = removed_owners.into_iter().collect::<Vec<_>>();
+        removed_owners.sort();
+        info!(flychecks = ?self.flychecks.iter().map(|it| &it.id).collect::<Vec<_>>(), "loaded flychecks");
+        removed_owners
+    }
 }
 
 fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
@@ -105,9 +132,15 @@ fn push_workspace(workspaces: &mut Vec<Workspace>, mut workspace: Workspace) {
 }
 
 pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabilities, Config) {
-    // todo: make this absolute guaranteed
+    let capabilities = params.capabilities;
+    let initialization_options = params.initialization_options;
     #[allow(deprecated)]
-    let root_path = match params.root_uri.and_then(|it| it.to_file_path().ok()) {
+    let root_uri = params.root_uri;
+    let workspace_folders = params.workspace_folders;
+    let flycheck_options = FlycheckInitializationOptions::from_json(initialization_options);
+
+    // todo: make this absolute guaranteed
+    let root_path = match root_uri.and_then(|it| it.to_file_path().ok()) {
         Some(it) => it,
         None => {
             // todo: unwrap
@@ -118,8 +151,6 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     // todo: make this absolute guaranteed
     // The latest LSP spec mandates clients report `workspace_folders`, but some might still report
     // `root_uri`.
-    let capabilities = params.capabilities;
-
     let watched_file_dynamic_registration = capabilities
         .workspace
         .and_then(|workspace| workspace.did_change_watched_files)
@@ -131,8 +162,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
         .unwrap_or(false);
 
-    let workspace_roots = params
-        .workspace_folders
+    let workspace_roots = workspace_folders
         .map(|workspaces| {
             workspaces.into_iter().filter_map(|it| it.uri.to_file_path().ok()).collect::<Vec<_>>()
         })
@@ -154,8 +184,9 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
                 TextDocumentSyncOptions {
                     open_close: Some(true),
                     change: Some(TextDocumentSyncKind::INCREMENTAL),
-                    will_save: None,
-                    will_save_wait_until: None,
+                    save: Some(TextDocumentSyncSaveOptions::SaveOptions(SaveOptions {
+                        include_text: Some(false),
+                    })),
                     ..Default::default()
                 },
             )),
@@ -164,6 +195,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         },
         Config {
             workspace_roots,
+            flycheck_options,
             watched_file_dynamic_registration,
             hierarchical_document_symbol_support,
             ..Default::default()
@@ -177,7 +209,8 @@ mod tests {
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, OneOf,
-        TextDocumentClientCapabilities, WorkspaceClientCapabilities,
+        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
+        WorkspaceClientCapabilities,
     };
 
     #[test]
@@ -211,6 +244,17 @@ mod tests {
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.workspace_symbol_provider, Some(OneOf::Left(true)));
+
+        let TextDocumentSyncCapability::Options(sync_options) =
+            capabilities.text_document_sync.unwrap()
+        else {
+            panic!("expected text document sync options");
+        };
+        let TextDocumentSyncSaveOptions::SaveOptions(save_options) = sync_options.save.unwrap()
+        else {
+            panic!("expected save options");
+        };
+        assert_eq!(save_options.include_text, Some(false));
     }
 
     #[test]
@@ -230,6 +274,74 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_hierarchical_document_symbols());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_configured_flychecks() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint",
+                "args": ["--json"],
+                "output": "solc-json"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+
+        let flychecks = config.flychecks_for_path(&project.path("/src/Test.sol"));
+
+        assert_eq!(flychecks.len(), 1);
+        assert_eq!(flychecks[0].id, "custom");
+        assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
+        assert_eq!(flychecks[0].args, ["--json"]);
+        assert_eq!(flychecks[0].cwd, project.root());
+    }
+
+    #[test]
+    fn rediscover_workspaces_reports_removed_flycheck_owners() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [profile.default]
+            src = "src"
+
+            //- /src/Test.sol
+            contract Test {}
+            "#,
+        );
+        let mut params = project.initialize_params();
+        params.initialization_options = Some(serde_json::json!({
+            "flychecks": [{
+                "id": "custom",
+                "command": "custom-lint",
+                "output": "solc-json"
+            }]
+        }));
+        let (_, mut config) = negotiate_capabilities(params);
+        assert!(config.rediscover_workspaces().is_empty());
+
+        config.remove_workspace(project.root());
+        let removed_owners = config.rediscover_workspaces();
+
+        assert_eq!(
+            removed_owners,
+            vec![DiagnosticOwner::Flycheck {
+                id: "custom".into(),
+                workspace: project.root().to_path_buf()
+            }]
+        );
     }
 
     #[test]

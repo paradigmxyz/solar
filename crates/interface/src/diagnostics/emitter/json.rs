@@ -5,7 +5,7 @@ use crate::{
     source_map::{LineInfo, SourceFile, SourceMap},
 };
 use anstream::ColorChoice;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use solar_config::HumanEmitterKind;
 use std::{borrow::Cow, io, sync::Arc};
 
@@ -26,7 +26,7 @@ impl Emitter for JsonEmitter {
     fn emit_diagnostic_ref(&mut self, diagnostic: &Diag) {
         if self.rustc_like {
             let diagnostic = self.diagnostic(diagnostic);
-            self.emit(&EmitTyped::Diagnostic(diagnostic))
+            self.emit(&JsonDiagnosticMessage::Diagnostic(diagnostic))
         } else {
             let diagnostic = self.solc_diagnostic(diagnostic);
             self.emit(&diagnostic)
@@ -86,7 +86,7 @@ impl JsonEmitter {
         Emitter::source_map(self).unwrap()
     }
 
-    fn diagnostic(&mut self, diagnostic: &Diag) -> Diagnostic {
+    fn diagnostic(&mut self, diagnostic: &Diag) -> JsonDiagnostic<'static> {
         // Unlike the human emitter, all suggestions are preserved as separate diagnostic children.
         let children = diagnostic
             .children
@@ -95,30 +95,31 @@ impl JsonEmitter {
             .chain(diagnostic.suggestions.iter().map(|sugg| self.suggestion_to_diagnostic(sugg)))
             .collect();
 
-        Diagnostic {
-            message: diagnostic.label().into_owned(),
-            code: diagnostic
-                .id()
-                .map(|code| DiagnosticCode { code: code.to_string(), explanation: None }),
-            level: diagnostic.level.to_str(),
+        JsonDiagnostic {
+            message: Cow::Owned(diagnostic.label().into_owned()),
+            code: diagnostic.id().map(|code| JsonDiagnosticCode {
+                code: Cow::Owned(code.to_string()),
+                explanation: None,
+            }),
+            level: Cow::Borrowed(diagnostic.level.to_str()),
             spans: self.spans(&diagnostic.span),
             children,
-            rendered: Some(self.emit_diagnostic_to_buffer(diagnostic)),
+            rendered: Some(Cow::Owned(self.emit_diagnostic_to_buffer(diagnostic))),
         }
     }
 
-    fn sub_diagnostic(&self, diagnostic: &SubDiagnostic) -> Diagnostic {
-        Diagnostic {
-            message: diagnostic.label().into_owned(),
+    fn sub_diagnostic(&self, diagnostic: &SubDiagnostic) -> JsonDiagnostic<'static> {
+        JsonDiagnostic {
+            message: Cow::Owned(diagnostic.label().into_owned()),
             code: None,
-            level: diagnostic.level.to_str(),
+            level: Cow::Borrowed(diagnostic.level.to_str()),
             spans: self.spans(&diagnostic.span),
             children: vec![],
             rendered: None,
         }
     }
 
-    fn suggestion_to_diagnostic(&self, sugg: &CodeSuggestion) -> Diagnostic {
+    fn suggestion_to_diagnostic(&self, sugg: &CodeSuggestion) -> JsonDiagnostic<'static> {
         // Collect all spans from all substitutions
         let spans = sugg
             .substitutions
@@ -127,27 +128,27 @@ impl JsonEmitter {
             .map(|part| self.span_with_suggestion(part.span, part.snippet.to_string()))
             .collect();
 
-        Diagnostic {
-            message: sugg.msg.as_str().to_string(),
+        JsonDiagnostic {
+            message: Cow::Owned(sugg.msg.as_str().to_string()),
             code: None,
-            level: "help",
+            level: Cow::Borrowed("help"),
             spans,
             children: vec![],
             rendered: None,
         }
     }
 
-    fn spans(&self, msp: &MultiSpan) -> Vec<DiagnosticSpan> {
+    fn spans(&self, msp: &MultiSpan) -> Vec<JsonDiagnosticSpan<'static>> {
         msp.span_labels().iter().map(|label| self.span(label)).collect()
     }
 
-    fn span(&self, label: &SpanLabel) -> DiagnosticSpan {
+    fn span(&self, label: &SpanLabel) -> JsonDiagnosticSpan<'static> {
         let sm = &**self.source_map();
         let span = label.span;
         let start = sm.lookup_char_pos(span.lo());
         let end = sm.lookup_char_pos(span.hi());
-        DiagnosticSpan {
-            file_name: sm.filename_for_diagnostics(&start.file.name).to_string(),
+        JsonDiagnosticSpan {
+            file_name: Cow::Owned(sm.filename_for_diagnostics(&start.file.name).to_string()),
             byte_start: start.file.original_relative_byte_pos(span.lo()).0,
             byte_end: start.file.original_relative_byte_pos(span.hi()).0,
             line_start: start.line,
@@ -156,17 +157,17 @@ impl JsonEmitter {
             column_end: end.col.0 + 1,
             is_primary: label.is_primary,
             text: self.span_lines(span),
-            label: label.label.as_ref().map(|msg| msg.as_str().into()),
+            label: label.label.as_ref().map(|msg| Cow::Owned(msg.as_str().to_string())),
             suggested_replacement: None,
         }
     }
 
-    fn span_with_suggestion(&self, span: Span, replacement: String) -> DiagnosticSpan {
+    fn span_with_suggestion(&self, span: Span, replacement: String) -> JsonDiagnosticSpan<'static> {
         let sm = &**self.source_map();
         let start = sm.lookup_char_pos(span.lo());
         let end = sm.lookup_char_pos(span.hi());
-        DiagnosticSpan {
-            file_name: sm.filename_for_diagnostics(&start.file.name).to_string(),
+        JsonDiagnosticSpan {
+            file_name: Cow::Owned(sm.filename_for_diagnostics(&start.file.name).to_string()),
             byte_start: start.file.original_relative_byte_pos(span.lo()).0,
             byte_end: start.file.original_relative_byte_pos(span.hi()).0,
             line_start: start.line,
@@ -176,19 +177,21 @@ impl JsonEmitter {
             is_primary: true,
             text: self.span_lines(span),
             label: None,
-            suggested_replacement: Some(replacement),
+            suggested_replacement: Some(Cow::Owned(replacement)),
         }
     }
 
-    fn span_lines(&self, span: Span) -> Vec<DiagnosticSpanLine> {
+    fn span_lines(&self, span: Span) -> Vec<JsonDiagnosticSpanLine<'static>> {
         let Ok(f) = self.source_map().span_to_lines(span) else { return Vec::new() };
         let sf = &*f.file;
         f.data.iter().map(|line| self.span_line(sf, line)).collect()
     }
 
-    fn span_line(&self, sf: &SourceFile, line: &LineInfo) -> DiagnosticSpanLine {
-        DiagnosticSpanLine {
-            text: sf.get_line(line.line_index).map_or_else(String::new, |l| l.to_string()),
+    fn span_line(&self, sf: &SourceFile, line: &LineInfo) -> JsonDiagnosticSpanLine<'static> {
+        JsonDiagnosticSpanLine {
+            text: Cow::Owned(
+                sf.get_line(line.line_index).map_or_else(String::new, |l| l.to_string()),
+            ),
             highlight_start: line.start_col.0 + 1,
             highlight_end: line.end_col.0 + 1,
         }
@@ -286,70 +289,98 @@ impl JsonEmitter {
 
 // Rustc-like JSON format.
 
-#[derive(Serialize)]
+/// A rustc-like JSON message emitted by [`JsonEmitter::rustc_like`].
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "$message_type", rename_all = "snake_case")]
-enum EmitTyped {
-    Diagnostic(Diagnostic),
+pub enum JsonDiagnosticMessage<'a> {
+    /// A diagnostic message.
+    Diagnostic(#[serde(borrow)] JsonDiagnostic<'a>),
 }
 
-#[derive(Serialize)]
-struct Diagnostic {
+/// A rustc-like JSON diagnostic emitted by [`JsonEmitter`].
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JsonDiagnostic<'a> {
     /// The primary error message.
-    message: String,
-    code: Option<DiagnosticCode>,
+    #[serde(borrow)]
+    pub message: Cow<'a, str>,
+    /// The diagnostic code.
+    #[serde(borrow)]
+    pub code: Option<JsonDiagnosticCode<'a>>,
     /// "error", "warning", "note", "help".
-    level: &'static str,
-    spans: Vec<DiagnosticSpan>,
+    #[serde(borrow)]
+    pub level: Cow<'a, str>,
+    /// The diagnostic spans.
+    #[serde(borrow)]
+    pub spans: Vec<JsonDiagnosticSpan<'a>>,
     /// Associated diagnostic messages.
-    children: Vec<Self>,
+    #[serde(borrow)]
+    pub children: Vec<Self>,
     /// The message as the compiler would render it.
-    rendered: Option<String>,
+    #[serde(borrow)]
+    pub rendered: Option<Cow<'a, str>>,
 }
 
-#[derive(Serialize)]
-struct DiagnosticSpan {
-    file_name: String,
-    byte_start: u32,
-    byte_end: u32,
+/// A source span in a rustc-like JSON diagnostic.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JsonDiagnosticSpan<'a> {
+    /// The diagnostic file name.
+    #[serde(borrow)]
+    pub file_name: Cow<'a, str>,
+    /// The start byte offset.
+    pub byte_start: u32,
+    /// The end byte offset.
+    pub byte_end: u32,
     /// 1-based.
-    line_start: usize,
-    line_end: usize,
+    pub line_start: usize,
+    /// 1-based.
+    pub line_end: usize,
     /// 1-based, character offset.
-    column_start: usize,
-    column_end: usize,
+    pub column_start: usize,
+    /// 1-based, character offset.
+    pub column_end: usize,
     /// Is this a "primary" span -- meaning the point, or one of the points,
     /// where the error occurred?
-    is_primary: bool,
+    pub is_primary: bool,
     /// Source text from the start of line_start to the end of line_end.
-    text: Vec<DiagnosticSpanLine>,
-    /// Label that should be placed at this location (if any)
-    label: Option<String>,
+    #[serde(borrow)]
+    pub text: Vec<JsonDiagnosticSpanLine<'a>>,
+    /// Label that should be placed at this location, if any.
+    #[serde(borrow)]
+    pub label: Option<Cow<'a, str>>,
     /// If we are suggesting a replacement, this will contain text
     /// that should be sliced in atop this span.
-    suggested_replacement: Option<String>,
+    #[serde(borrow)]
+    pub suggested_replacement: Option<Cow<'a, str>>,
 }
 
-#[derive(Serialize)]
-struct DiagnosticSpanLine {
-    text: String,
+/// A source line in a rustc-like JSON diagnostic span.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JsonDiagnosticSpanLine<'a> {
+    /// The source text.
+    #[serde(borrow)]
+    pub text: Cow<'a, str>,
 
     /// 1-based, character offset in self.text.
-    highlight_start: usize,
+    pub highlight_start: usize,
 
-    highlight_end: usize,
+    /// 1-based, character offset in self.text.
+    pub highlight_end: usize,
 }
 
-#[derive(Serialize)]
-struct DiagnosticCode {
+/// A diagnostic code in a rustc-like JSON diagnostic.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JsonDiagnosticCode<'a> {
     /// The code itself.
-    code: String,
+    #[serde(borrow)]
+    pub code: Cow<'a, str>,
     /// An explanation for the code.
-    explanation: Option<&'static str>,
+    #[serde(borrow)]
+    pub explanation: Option<Cow<'a, str>>,
 }
 
 // Solc JSON format.
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SolcDiagnostic<'a> {
     #[serde(borrow)]
@@ -376,7 +407,7 @@ impl SolcDiagnostic<'_> {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SourceLocation<'a> {
     #[serde(borrow)]
     pub file: Cow<'a, str>,
@@ -388,7 +419,7 @@ pub struct SourceLocation<'a> {
     pub message: Option<Cow<'a, str>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
