@@ -21,14 +21,14 @@ pub struct Documentation {
     pub events: FxIndexMap<String, DocumentationItem>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     pub errors: FxIndexMap<String, Vec<DocumentationItem>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub state_variables: Option<FxIndexMap<String, DocumentationItem>>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    pub state_variables: FxIndexMap<String, DocumentationItem>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub notice: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
-    #[serde(flatten, skip_serializing_if = "Option::is_none")]
-    pub custom: Option<FxIndexMap<String, String>>,
+    #[serde(flatten)]
+    pub custom: FxIndexMap<String, String>,
     pub version: u8,
 }
 
@@ -40,14 +40,14 @@ pub struct DocumentationItem {
     pub author: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub details: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub params: Option<FxIndexMap<String, String>>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    pub params: FxIndexMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub r#return: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub returns: Option<FxIndexMap<String, String>>,
-    #[serde(flatten, skip_serializing_if = "Option::is_none")]
-    pub custom: Option<FxIndexMap<String, String>>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    pub returns: FxIndexMap<String, String>,
+    #[serde(flatten)]
+    pub custom: FxIndexMap<String, String>,
 }
 
 impl Documentation {
@@ -59,10 +59,10 @@ impl Documentation {
             details: None,
             events: FxIndexMap::default(),
             errors: FxIndexMap::default(),
-            state_variables: None,
+            state_variables: FxIndexMap::default(),
             notice: None,
             title: None,
-            custom: None,
+            custom: FxIndexMap::default(),
             version: 1,
         }
     }
@@ -73,10 +73,10 @@ impl DocumentationItem {
         self.notice.is_none()
             && self.author.is_none()
             && self.details.is_none()
-            && self.params.is_none()
+            && self.params.is_empty()
             && self.r#return.is_none()
-            && self.returns.is_none()
-            && self.custom.is_none()
+            && self.returns.is_empty()
+            && self.custom.is_empty()
     }
 }
 
@@ -136,7 +136,6 @@ impl<'gcx> Gcx<'gcx> {
             if !documentation_item.is_empty() {
                 documentation
                     .state_variables
-                    .get_or_insert_default()
                     .insert(variable.name.unwrap().to_string(), documentation_item);
             }
         }
@@ -266,17 +265,11 @@ fn dev_doc_item(gcx: Gcx<'_>, doc_id: hir::DocId) -> DocumentationItem {
             hir::NatSpecKind::Author => append_doc(&mut documentation.author, content),
             hir::NatSpecKind::Dev => append_doc(&mut documentation.details, content),
             hir::NatSpecKind::Param { name } => {
-                documentation
-                    .params
-                    .get_or_insert_default()
-                    .entry(name.name.to_string())
-                    .or_default()
-                    .push_str(content);
+                documentation.params.entry(name.name.to_string()).or_default().push_str(content);
             }
             hir::NatSpecKind::Custom { name } => {
                 documentation
                     .custom
-                    .get_or_insert_default()
                     .entry(format!("custom:{}", name.name))
                     .or_default()
                     .push_str(content);
@@ -299,9 +292,8 @@ fn return_docs(
     gcx: Gcx<'_>,
     doc_id: hir::DocId,
     returns: &[hir::VariableId],
-) -> Option<FxIndexMap<String, String>> {
-    let docs = gcx
-        .natspec_doc_comments(doc_id)
+) -> FxIndexMap<String, String> {
+    gcx.natspec_doc_comments(doc_id)
         .iter()
         .copied()
         .filter(|item| matches!(item.kind, hir::NatSpecKind::Return { .. }))
@@ -311,6 +303,5 @@ fn return_docs(
             let name = variable.name.map_or_else(|| format!("_{index}"), |name| name.to_string());
             (!item.content().is_empty()).then_some((name, item.content().to_string()))
         })
-        .collect::<FxIndexMap<_, _>>();
-    (!docs.is_empty()).then_some(docs)
+        .collect()
 }
