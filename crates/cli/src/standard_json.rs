@@ -3,7 +3,7 @@ use serde::{
     Deserialize, Serialize,
     de::{self, Visitor},
 };
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value, json, value::RawValue};
 use solar_codegen::{EvmCodegen, lower};
 use solar_config::{
     CompileOpts, CompilerStage, EvmVersion, ImportRemapping, Language, OptimizationMode,
@@ -75,10 +75,10 @@ struct Settings<'a> {
     optimizer: Option<Optimizer>,
     /// Output metadata settings; bytecode metadata is not emitted yet.
     #[serde(default)]
-    metadata: Option<Value>,
+    metadata: Option<Box<RawValue>>,
     /// Library addresses for linking; linking is not supported yet.
     #[serde(default)]
-    libraries: Option<Value>,
+    libraries: Option<Box<RawValue>>,
     /// Whether to compile via the Yul IR pipeline. We have a single pipeline, so
     /// there is nothing to switch.
     #[serde(default, rename = "viaIR")]
@@ -98,7 +98,7 @@ struct Optimizer {
     runs: Option<u64>,
     /// Fine-grained optimizer toggles. Not used yet.
     #[serde(default)]
-    details: Option<Value>,
+    details: Option<Box<RawValue>>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -450,17 +450,89 @@ struct SourceOutput {
 #[serde(rename_all = "camelCase")]
 struct ContractOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
-    abi: Option<Value>,
+    abi: Option<Vec<alloy_json_abi::AbiItem<'static>>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    userdoc: Option<Value>,
+    userdoc: Option<DocumentationOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    devdoc: Option<Value>,
+    devdoc: Option<DocumentationOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    storage_layout: Option<Value>,
+    storage_layout: Option<StorageLayoutOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
     evm: Option<EvmOutput>,
+}
+
+#[derive(Debug, Serialize)]
+struct DocumentationOutput {
+    kind: &'static str,
+    methods: FxIndexMap<String, DocumentationMethod>,
+    version: u8,
+}
+
+#[derive(Debug, Default, Serialize)]
+struct DocumentationMethod {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    notice: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    details: Option<String>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    params: FxIndexMap<String, String>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    returns: FxIndexMap<String, String>,
+}
+
+impl DocumentationOutput {
+    fn new(kind: &'static str) -> Self {
+        Self { kind, methods: FxIndexMap::default(), version: 1 }
+    }
+}
+
+#[derive(Debug, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StorageLayoutOutput {
+    storage: Vec<StorageLayoutEntry>,
+    types: FxIndexMap<String, StorageLayoutType>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StorageLayoutEntry {
+    ast_id: u64,
+    contract: String,
+    label: String,
+    offset: u64,
+    slot: String,
+    #[serde(rename = "type")]
+    ty: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StorageLayoutType {
+    encoding: String,
+    label: String,
+    number_of_bytes: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    base: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    members: Vec<StorageLayoutMember>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StorageLayoutMember {
+    ast_id: u64,
+    contract: String,
+    label: String,
+    offset: u64,
+    slot: String,
+    #[serde(rename = "type")]
+    ty: String,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -482,10 +554,19 @@ struct BytecodeOutput {
     opcodes: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     source_map: String,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    link_references: BTreeMap<String, Value>,
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    immutable_references: BTreeMap<String, Value>,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    link_references: LinkReferences,
+    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    immutable_references: ImmutableReferences,
+}
+
+type LinkReferences = FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>;
+type ImmutableReferences = FxIndexMap<String, Vec<OffsetLength>>;
+
+#[derive(Debug, Serialize)]
+struct OffsetLength {
+    start: u32,
+    length: u32,
 }
 
 struct GeneratedBytecodes {
@@ -793,16 +874,16 @@ fn make_contract_output(
     let mut output = ContractOutput::default();
 
     if output_selection.selects(source_name, contract_name, &["abi"]) {
-        output.abi = Some(serde_json::to_value(gcx.contract_abi(contract_id)).unwrap());
+        output.abi = Some(gcx.contract_abi(contract_id));
     }
     if output_selection.selects(source_name, contract_name, &["userdoc"]) {
-        output.userdoc = Some(json!({ "kind": "user", "methods": {}, "version": 1 }));
+        output.userdoc = Some(DocumentationOutput::new("user"));
     }
     if output_selection.selects(source_name, contract_name, &["devdoc"]) {
-        output.devdoc = Some(json!({ "kind": "dev", "methods": {}, "version": 1 }));
+        output.devdoc = Some(DocumentationOutput::new("dev"));
     }
     if output_selection.selects(source_name, contract_name, &["storageLayout"]) {
-        output.storage_layout = Some(json!({ "storage": [], "types": {} }));
+        output.storage_layout = Some(StorageLayoutOutput::default());
     }
 
     let mut evm = EvmOutput::default();

@@ -3197,6 +3197,7 @@ dependencies = [
 name = "solar-cli"
 version = "0.2.0"
 dependencies = [
+ "alloy-json-abi",
  "alloy-primitives",
  "cfg-if",
  "clap",

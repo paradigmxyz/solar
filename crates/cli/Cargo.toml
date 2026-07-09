@@ -23,6 +23,7 @@ solar-interface = { workspace = true, features = ["json"] }
 solar-sema.workspace = true
 
 alloy-primitives.workspace = true
+alloy-json-abi.workspace = true
 cfg-if.workspace = true
 clap = { workspace = true, features = ["derive"] }
 indexmap = { workspace = true, features = ["serde"] }
