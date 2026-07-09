@@ -712,6 +712,10 @@ impl EvmCodegen {
                     ..PipelineOptions::default()
                 },
             );
+            // After the pipeline has settled the shapes: panic and constant
+            // custom-error revert blocks repeat at every check site, and the
+            // assembler cannot dedup them (they are reached by fallthrough).
+            crate::pass::run_pass(module, &crate::pass::OUTLINE_REVERTS_PASS);
         }
         // Progressive lowering: materialize ABI wrappers, the dispatcher, and
         // tail-call edges as MIR. Each pass bails without advancing the phase

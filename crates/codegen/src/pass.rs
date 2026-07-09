@@ -26,8 +26,9 @@ use crate::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, MemoryDsePass, PrePass, PureEvalPass,
-        SccpTransformPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        LowerDispatchPass, LowerEvmShapedPass, MemoryDsePass, OutlineRevertsPass, PrePass,
+        PureEvalPass, SccpTransformPass, StorageDsePass, StorageLoadCsePass,
+        StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -98,6 +99,9 @@ macro_rules! declare_passes {
 declare_passes! {
     /// Internal MIR function inlining.
     pub const INLINE_PASS -> "inline" = InlinePass;
+
+    /// Outline duplicate constant revert blocks into shared helpers.
+    pub const OUTLINE_REVERTS_PASS -> "outline-reverts" = OutlineRevertsPass::default();
 
     /// Dead internal function elimination.
     pub const FUNCTION_DCE_PASS -> "function-dce" = FunctionDcePass;
@@ -214,6 +218,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
     LOWER_EVM_SHAPED_PASS,
+    OUTLINE_REVERTS_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
