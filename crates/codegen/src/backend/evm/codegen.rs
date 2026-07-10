@@ -319,6 +319,11 @@ pub struct EvmCodegen {
     function_spill_sizes: FxHashMap<FunctionId, u64>,
     /// Internal-call frame-size constants waiting for exact callee spill sizes.
     pending_frame_size_consts: Vec<(DeferredConst, FunctionId, u64)>,
+    /// Deferred spill-slot address pushes of the external body being emitted,
+    /// keyed by the slot's allocation offset, with their reference counts.
+    /// Resolved hottest-first at body end so the most reloaded slots take the
+    /// shortest addresses.
+    spill_addr_consts: FxHashMap<u64, (DeferredConst, usize)>,
     /// Callees whose internal-call frame can be deallocated after return.
     restorable_internal_frames: FxHashSet<FunctionId>,
     /// Functions whose frame lives at a compile-time-fixed address (static
@@ -371,6 +376,7 @@ impl EvmCodegen {
             function_static_frame_sizes: FxHashMap::default(),
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
+            spill_addr_consts: FxHashMap::default(),
             restorable_internal_frames: FxHashSet::default(),
             static_frame_functions: FxHashSet::default(),
             static_frame_addr_consts: FxHashMap::default(),
@@ -1192,6 +1198,7 @@ impl EvmCodegen {
 
         // Reset scheduler
         self.scheduler = StackScheduler::new();
+        self.spill_addr_consts.clear();
 
         self.preallocate_cross_block_spills(func, liveness);
 
@@ -1331,6 +1338,8 @@ impl EvmCodegen {
                 block_entry_stacks.insert(target, self.scheduler.stack.clone());
             }
         }
+
+        self.assign_ranked_spill_addrs(func);
     }
 
     /// Returns the target of a stack-preservable jump: the block ends in
@@ -2970,9 +2979,36 @@ impl EvmCodegen {
         } else if self.in_constructor {
             self.asm.emit_push(U256::from(slot.byte_offset()));
         } else {
-            self.asm.emit_push(U256::from(
-                Self::external_spill_base(func) + u64::from(slot.offset) * 32,
-            ));
+            // Route the address through a deferred constant and count the
+            // reference; `assign_ranked_spill_addrs` renumbers the body's
+            // slots hottest-first when it completes.
+            let key = u64::from(slot.offset);
+            let id = if let Some(entry) = self.spill_addr_consts.get_mut(&key) {
+                entry.1 += 1;
+                entry.0
+            } else {
+                let id = self.asm.new_deferred_const();
+                self.spill_addr_consts.insert(key, (id, 1));
+                id
+            };
+            self.asm.emit_push_deferred(id);
+        }
+    }
+
+    /// Assigns the external body's spill-slot addresses by reference count,
+    /// hottest first, so the most reloaded slots take the shortest push
+    /// widths. The assignment is a bijection over the same slot area — every
+    /// site of a slot goes through one deferred constant — so sizes and
+    /// disjointness are unchanged.
+    fn assign_ranked_spill_addrs(&mut self, func: &Function) {
+        if self.spill_addr_consts.is_empty() {
+            return;
+        }
+        let base = Self::external_spill_base(func);
+        let mut slots: Vec<(u64, (DeferredConst, usize))> = self.spill_addr_consts.drain().collect();
+        slots.sort_by(|a, b| b.1.1.cmp(&a.1.1).then(a.0.cmp(&b.0)));
+        for (rank, (_, (id, _))) in slots.into_iter().enumerate() {
+            self.asm.set_deferred_const(id, U256::from(base + rank as u64 * 32));
         }
     }
 
