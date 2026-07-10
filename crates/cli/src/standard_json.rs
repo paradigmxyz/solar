@@ -593,19 +593,24 @@ impl<'input> OutputSelection<'input> {
 }
 
 impl ContractOutputSelection<'_, '_> {
-    fn selects(&self, keys: &[&str]) -> bool {
+    fn selects(&self, key: &str) -> bool {
+        self.items
+            .iter()
+            .flatten()
+            .any(|items| items.iter().any(|item| selection_matches(item, key)))
+    }
+
+    fn selects_any(&self, keys: &[&str]) -> bool {
         self.items.iter().flatten().any(|items| {
-            items.iter().any(|item| {
-                item.as_ref() == "*"
-                    || keys.iter().any(|key| {
-                        item.as_ref() == *key
-                            || key
-                                .strip_prefix(item.as_ref())
-                                .is_some_and(|rest| rest.starts_with('.'))
-                    })
-            })
+            items.iter().any(|item| keys.iter().any(|key| selection_matches(item, key)))
         })
     }
+}
+
+fn selection_matches(item: &CowStr<'_>, key: &str) -> bool {
+    item.as_ref() == "*"
+        || item.as_ref() == key
+        || key.strip_prefix(item.as_ref()).is_some_and(|rest| rest.starts_with('.'))
 }
 
 fn contract_items<'a, 'input>(
@@ -870,24 +875,24 @@ fn make_contract_output(
 ) -> ContractOutput {
     let mut output = ContractOutput::default();
 
-    if output_selection.selects(&["abi"]) {
+    if output_selection.selects("abi") {
         output.abi = Some(gcx.contract_abi(contract_id));
     }
-    if output_selection.selects(&["userdoc"]) {
+    if output_selection.selects("userdoc") {
         output.userdoc = Some(gcx.user_documentation(contract_id));
     }
-    if output_selection.selects(&["devdoc"]) {
+    if output_selection.selects("devdoc") {
         output.devdoc = Some(gcx.dev_documentation(contract_id));
     }
-    if output_selection.selects(&["storageLayout"]) {
+    if output_selection.selects("storageLayout") {
         output.storage_layout = Some(gcx.storage_layout(contract_id));
     }
-    if output_selection.selects(&["transientStorageLayout"]) {
+    if output_selection.selects("transientStorageLayout") {
         output.transient_storage_layout = Some(gcx.transient_storage_layout(contract_id));
     }
 
     let mut evm = EvmOutput::default();
-    if output_selection.selects(&["evm.methodIdentifiers"]) {
+    if output_selection.selects("evm.methodIdentifiers") {
         for function in gcx.interface_functions(contract_id) {
             evm.method_identifiers.insert(
                 gcx.item_signature(function.id.into()).to_string(),
@@ -902,7 +907,7 @@ fn make_contract_output(
     // `object` for now, the two selectors currently produce identical output.
     // Honoring the finer-grained `.object`/`.opcodes`/`.sourceMap` selectors is
     // part of the larger effort to match solc's input->output key mapping.
-    if output_selection.selects(&["evm.bytecode", "evm.bytecode.object"]) {
+    if output_selection.selects_any(&["evm.bytecode", "evm.bytecode.object"]) {
         evm.bytecode = Some(
             bytecodes
                 .and_then(|bytecodes| bytecodes.get(&contract_id))
@@ -910,7 +915,7 @@ fn make_contract_output(
                 .unwrap_or_else(BytecodeOutput::empty),
         );
     }
-    if output_selection.selects(&["evm.deployedBytecode", "evm.deployedBytecode.object"]) {
+    if output_selection.selects_any(&["evm.deployedBytecode", "evm.deployedBytecode.object"]) {
         evm.deployed_bytecode = Some(
             bytecodes
                 .and_then(|bytecodes| bytecodes.get(&contract_id))
@@ -930,7 +935,7 @@ fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSele
         let source = gcx.hir.source(contract.source);
         let source_name = source.file.name.display().to_string();
         let contract_name = contract.name.to_string();
-        output_selection.contract(&source_name, &contract_name).selects(&[
+        output_selection.contract(&source_name, &contract_name).selects_any(&[
             "evm.bytecode",
             "evm.bytecode.object",
             "evm.deployedBytecode",
