@@ -12,7 +12,11 @@ use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
-const MIN_COMPACT_MASK_WIDTH: u8 = EVM_WORD_BYTES as u8 / 2;
+// The synthesized mask is 5 bytes on Shanghai (6 before), and `compact_push`
+// only picks it when strictly smaller than the literal, so any mask of five
+// or more bytes can profit: a `uint64` timestamp mask alone is 9 bytes as a
+// literal.
+const MIN_COMPACT_MASK_WIDTH: u8 = 5;
 
 /// Shortest closed run worth outlining into a shared stub.
 const MIN_CLOSED_RUN: usize = 4;
@@ -1218,10 +1222,8 @@ impl BytecodeAssembler {
         }
 
         // `PUSH0 NOT PUSH1 <shift> SHR` is fixed-size apart from PUSH0
-        // availability: 5 bytes on Shanghai+, 6 bytes before Shanghai. Keep
-        // this shape for half-word-or-wider masks only: small masks are common
-        // immediates, while wide masks are where the bytecode-size win is
-        // substantial.
+        // availability: 5 bytes on Shanghai+, 6 bytes before Shanghai; the
+        // `consider` comparison keeps the literal whenever it is not larger.
         if width >= MIN_COMPACT_MASK_WIDTH {
             let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
             let start = EVM_WORD_BYTES - width as usize;
