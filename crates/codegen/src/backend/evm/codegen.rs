@@ -754,7 +754,9 @@ impl EvmCodegen {
             }
         }
 
+        self.asm.set_structural_outlining(true);
         let result = self.asm.assemble();
+        self.asm.set_structural_outlining(false);
         self.runtime_immutable_refs = result.immutable_refs;
         result.bytecode
     }

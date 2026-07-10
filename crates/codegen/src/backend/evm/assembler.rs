@@ -14,6 +14,12 @@ const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = EVM_WORD_BYTES as u8 / 2;
 
+/// Shortest closed run worth outlining into a shared stub.
+const MIN_CLOSED_RUN: usize = 6;
+
+/// A closed-run occurrence: `(start index, length, net stack height)`.
+type ClosedRunSite = (usize, usize, u16);
+
 mod id_counter;
 use id_counter::IdCounter;
 
@@ -87,6 +93,10 @@ pub struct Assembler {
     next_deferred: IdCounter<DeferredConst>,
     /// Resolved values for deferred constants.
     deferred_values: FxHashMap<DeferredConst, U256>,
+    /// Whether to run structural outlining that changes the emitted length in
+    /// content-dependent ways. Off for constructor code, whose argument offset
+    /// is resolved by a separate length fixpoint that such passes would break.
+    run_structural_outlining: bool,
 }
 
 impl Assembler {
@@ -106,7 +116,13 @@ impl Assembler {
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
             deferred_values: FxHashMap::default(),
+            run_structural_outlining: false,
         }
+    }
+
+    /// Enables or disables structural outlining for the next `assemble`.
+    pub(in crate::backend::evm) fn set_structural_outlining(&mut self, enabled: bool) {
+        self.run_structural_outlining = enabled;
     }
 
     /// Clears all emitted instructions and local identifiers while retaining allocated storage.
@@ -309,6 +325,182 @@ impl Assembler {
         true
     }
 
+    /// Net stack effect of an opcode from a small verified whitelist:
+    /// `(reads_below_needed, pops, pushes)`. `reads_below_needed` is how deep
+    /// below the top the opcode inspects (its pops, or the index for
+    /// `DUP`/`SWAP`); a run stays closed only while the running height covers
+    /// it. Returns `None` for anything not on the whitelist, so a run
+    /// containing an unmodeled opcode is never outlined.
+    fn whitelisted_effect(inst: AsmInst) -> Option<(u16, u16, u16)> {
+        Some(match inst.kind() {
+            AsmInstKind::PushInline(_)
+            | AsmInstKind::Push(_)
+            | AsmInstKind::PushLabel(_)
+            | AsmInstKind::PushDeferred(_)
+            | AsmInstKind::PushImmutable(_) => (0, 0, 1),
+            AsmInstKind::Op(op) => match op {
+                op::CALLDATASIZE | op::PUSH0 | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => {
+                    (0, 0, 1)
+                }
+                op::ISZERO | op::NOT | op::CALLDATALOAD | op::MLOAD => (1, 1, 1),
+                op::ADD
+                | op::SUB
+                | op::MUL
+                | op::AND
+                | op::OR
+                | op::XOR
+                | op::SHL
+                | op::SHR
+                | op::LT
+                | op::GT
+                | op::SLT
+                | op::SGT
+                | op::EQ
+                | op::DIV => (2, 2, 1),
+                op::MSTORE => (2, 2, 0),
+                op::POP => (1, 1, 0),
+                d if (op::DUP1..=op::DUP1 + 15).contains(&d) => {
+                    let n = u16::from(d - op::DUP1) + 1;
+                    (n, 0, 1)
+                }
+                sw if (op::SWAP1..=op::SWAP1 + 15).contains(&sw) => {
+                    let n = u16::from(sw - op::SWAP1) + 1;
+                    (n + 1, 0, 0)
+                }
+                _ => return None,
+            },
+            _ => return None,
+        })
+    }
+
+    /// Outlines identical stack-closed straight-line computations.
+    ///
+    /// ABI decode prologues repeat — an address argument's dirty-word check or
+    /// the calldata-size guard compile identically at each site — but they end
+    /// by falling through, not at a terminal, so neither span dedup nor suffix
+    /// merging reaches them. A run that reads nothing below its entry and
+    /// leaves at most one value behaves as a nullary-or-unary closed
+    /// computation: a caller reaches a shared stub with only its return address
+    /// on the stack, the stub's produced value (if any) ends up above that
+    /// address, and a final `SWAP1` (for one output) then `JUMP` returns it.
+    /// Runs are outlined only when structural outlining is enabled (runtime
+    /// code, not constructor code), every opcode is on the verified whitelist,
+    /// the run never inspects below its entry, its net height is 0 or 1, and
+    /// the shared stub is smaller than the sites it replaces.
+    fn outline_closed_computations(&mut self, program: &mut EvmAsmProgram) {
+        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+            return;
+        }
+        let insts = &program.instructions;
+
+        #[derive(Clone, PartialEq, Eq, Hash)]
+        struct Key(Vec<AsmInst>);
+
+        let mut candidates: FxHashMap<Key, Vec<ClosedRunSite>> = FxHashMap::default();
+        let mut i = 0;
+        while i < insts.len() {
+            if matches!(insts[i].kind(), AsmInstKind::Label(_)) {
+                i += 1;
+                continue;
+            }
+            let mut height: i32 = 0;
+            let mut j = i;
+            while j < insts.len() {
+                if matches!(insts[j].kind(), AsmInstKind::Label(_)) {
+                    break;
+                }
+                let Some((reads, pops, pushes)) = Self::whitelisted_effect(insts[j]) else {
+                    break;
+                };
+                if height < i32::from(reads) {
+                    break;
+                }
+                height = height - i32::from(pops) + i32::from(pushes);
+                j += 1;
+                let len = j - i;
+                if len >= MIN_CLOSED_RUN && (height == 0 || height == 1) {
+                    candidates.entry(Key(insts[i..j].to_vec())).or_default().push((
+                        i,
+                        len,
+                        height as u16,
+                    ));
+                }
+            }
+            i += 1;
+        }
+
+        let mut groups: Vec<(&Key, &Vec<ClosedRunSite>)> =
+            candidates.iter().filter(|(_, sites)| sites.len() >= 2).collect();
+        groups.sort_by_key(|(key, _)| std::cmp::Reverse(key.0.len()));
+
+        let mut claimed: Vec<bool> = vec![false; insts.len()];
+        let mut chosen: Vec<(Vec<usize>, usize, u16)> = Vec::new();
+        for (_, sites) in groups {
+            let (run_len, height) = (sites[0].1, sites[0].2);
+            let free: Vec<usize> = sites
+                .iter()
+                .filter(|&&(start, len, _)| (start..start + len).all(|k| !claimed[k]))
+                .map(|&(start, _, _)| start)
+                .collect();
+            if free.len() < 2 {
+                continue;
+            }
+            let run_lb: usize = insts[free[0]..free[0] + run_len]
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum();
+            let stub = 1 + run_lb + usize::from(height) + 1;
+            if free.len() * run_lb < free.len() * 8 + stub + 8 {
+                continue;
+            }
+            for &start in &free {
+                claimed[start..start + run_len].fill(true);
+            }
+            chosen.push((free, run_len, height));
+        }
+        if chosen.is_empty() {
+            return;
+        }
+
+        let stub_labels: Vec<Label> = chosen.iter().map(|_| self.new_label()).collect();
+        let mut site_to_group: FxHashMap<usize, usize> = FxHashMap::default();
+        for (g, (sites, _, _)) in chosen.iter().enumerate() {
+            for &site in sites {
+                site_to_group.insert(site, g);
+            }
+        }
+
+        let mut out = Vec::with_capacity(program.instructions.len());
+        let mut k = 0;
+        while k < program.instructions.len() {
+            if let Some(&g) = site_to_group.get(&k) {
+                let run_len = chosen[g].1;
+                let ret = self.new_label();
+                out.push(AsmInst::push_label(ret));
+                out.push(AsmInst::push_label(stub_labels[g]));
+                out.push(AsmInst::op(op::JUMP));
+                out.push(AsmInst::label(ret));
+                k += run_len;
+            } else {
+                out.push(program.instructions[k]);
+                k += 1;
+            }
+        }
+        for (g, (sites, run_len, height)) in chosen.iter().enumerate() {
+            let body = program.instructions[sites[0]..sites[0] + run_len].to_vec();
+            out.push(AsmInst::label(stub_labels[g]));
+            out.extend_from_slice(&body);
+            if *height == 1 {
+                out.push(AsmInst::op(op::SWAP1));
+            }
+            out.push(AsmInst::op(op::JUMP));
+        }
+        program.instructions = out;
+    }
+
     /// Outlines repeated large constants into shared push stubs.
     ///
     /// Event topics and EIP-712 typehashes are 32-byte keccak constants pushed
@@ -425,6 +617,7 @@ impl Assembler {
             Self::dedup_terminal_spans(&mut program.instructions);
             Self::remove_unreferenced_labels(&mut program.instructions);
         }
+        self.outline_closed_computations(&mut program);
         self.outline_repeated_pushes(&mut program);
 
         // We need to iterate until PUSH widths stabilize
@@ -1335,17 +1528,9 @@ mod tests {
 
         assert_eq!(
             result.bytecode,
-            vec![
-                op::PUSH1,
-                3,
-                op::JUMP,
-                op::JUMPDEST,
-                op::STOP,
-                op::JUMPDEST,
-                op::PUSH0,
-                op::PUSH0,
-                op::REVERT,
-            ]
+            // The unreferenced cold block's `JUMPDEST` is elided: nothing
+            // jumps to it, so it is a dead byte.
+            vec![op::PUSH1, 3, op::JUMP, op::JUMPDEST, op::STOP, op::PUSH0, op::PUSH0, op::REVERT,]
         );
     }
 
@@ -1368,7 +1553,8 @@ mod tests {
 
         assert_eq!(
             result.bytecode,
-            vec![op::PUSH1, 1, op::JUMPDEST, op::PUSH0, op::PUSH0, op::REVERT]
+            // The unreferenced cold `JUMPDEST` is elided.
+            vec![op::PUSH1, 1, op::PUSH0, op::PUSH0, op::REVERT]
         );
     }
 
