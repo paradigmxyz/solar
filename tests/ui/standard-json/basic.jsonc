@@ -21,8 +21,12 @@
   "settings": {
     "outputSelection": {
       "*": {
+        "Counter": [
+          "abi"
+        ]
+      },
+      "A.sol": {
         "*": [
-          "abi",
           "evm.methodIdentifiers",
           "evm.bytecode.object",
           "evm.deployedBytecode.object"

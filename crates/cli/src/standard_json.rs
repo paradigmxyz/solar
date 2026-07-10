@@ -124,6 +124,10 @@ struct OutputSelection<'a>(
     #[serde(borrow)] FxIndexMap<CowStr<'a>, FxIndexMap<CowStr<'a>, Vec<CowStr<'a>>>>,
 );
 
+struct ContractOutputSelection<'a, 'input> {
+    items: [Option<&'a [CowStr<'input>]>; 4],
+}
+
 #[derive(Debug, Default, Serialize)]
 struct CompilerOutput<'a> {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -337,12 +341,12 @@ fn compile(
                     let source = gcx.hir.source(contract.source);
                     let source_name = standard_json_source_name(&source.file.name);
                     let contract_name = contract.name.to_string();
+                    let contract_selection =
+                        output_selection.contract(&source_name, &contract_name);
                     let contract_output = make_contract_output(
                         gcx,
                         contract_id,
-                        &output_selection,
-                        &source_name,
-                        &contract_name,
+                        &contract_selection,
                         bytecodes.as_ref(),
                     );
                     if !contract_output.is_empty() {
@@ -573,36 +577,42 @@ where
     serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
 }
 
-impl OutputSelection<'_> {
-    fn selects(&self, source: &str, contract: &str, keys: &[&str]) -> bool {
-        self.source_maps(source).any(|contracts| {
-            contract_maps(contracts, contract).any(|items| {
-                items.iter().any(|item| {
-                    item.as_ref() == "*"
-                        || keys.iter().any(|key| {
-                            item.as_ref() == *key
-                                || key
-                                    .strip_prefix(item.as_ref())
-                                    .is_some_and(|rest| rest.starts_with('.'))
-                        })
-                })
-            })
-        })
-    }
-
-    fn source_maps(
-        &self,
-        source: &str,
-    ) -> impl Iterator<Item = &FxIndexMap<CowStr<'_>, Vec<CowStr<'_>>>> {
-        [source, "*"].into_iter().filter_map(|source| self.0.get(source))
+impl<'input> OutputSelection<'input> {
+    fn contract<'a>(&'a self, source: &str, contract: &str) -> ContractOutputSelection<'a, 'input> {
+        let source_items = self.0.get(source);
+        let wildcard_items = self.0.get("*");
+        ContractOutputSelection {
+            items: [
+                contract_items(source_items, contract),
+                contract_items(source_items, "*"),
+                contract_items(wildcard_items, contract),
+                contract_items(wildcard_items, "*"),
+            ],
+        }
     }
 }
 
-fn contract_maps<'a, 'b>(
-    contracts: &'a FxIndexMap<CowStr<'b>, Vec<CowStr<'b>>>,
-    contract: &'a str,
-) -> impl Iterator<Item = &'a Vec<CowStr<'b>>> {
-    [contract, "*"].into_iter().filter_map(|contract| contracts.get(contract))
+impl ContractOutputSelection<'_, '_> {
+    fn selects(&self, keys: &[&str]) -> bool {
+        self.items.iter().flatten().any(|items| {
+            items.iter().any(|item| {
+                item.as_ref() == "*"
+                    || keys.iter().any(|key| {
+                        item.as_ref() == *key
+                            || key
+                                .strip_prefix(item.as_ref())
+                                .is_some_and(|rest| rest.starts_with('.'))
+                    })
+            })
+        })
+    }
+}
+
+fn contract_items<'a, 'input>(
+    contracts: Option<&'a FxIndexMap<CowStr<'input>, Vec<CowStr<'input>>>>,
+    contract: &str,
+) -> Option<&'a [CowStr<'input>]> {
+    contracts.and_then(|contracts| contracts.get(contract)).map(Vec::as_slice)
 }
 
 fn default_language<'a>() -> CowStr<'a> {
@@ -855,31 +865,29 @@ fn source_outputs_from_compiler(
 fn make_contract_output(
     gcx: Gcx<'_>,
     contract_id: solar_sema::hir::ContractId,
-    output_selection: &OutputSelection<'_>,
-    source_name: &str,
-    contract_name: &str,
+    output_selection: &ContractOutputSelection<'_, '_>,
     bytecodes: Option<&FxHashMap<ContractId, GeneratedBytecodes>>,
 ) -> ContractOutput {
     let mut output = ContractOutput::default();
 
-    if output_selection.selects(source_name, contract_name, &["abi"]) {
+    if output_selection.selects(&["abi"]) {
         output.abi = Some(gcx.contract_abi(contract_id));
     }
-    if output_selection.selects(source_name, contract_name, &["userdoc"]) {
+    if output_selection.selects(&["userdoc"]) {
         output.userdoc = Some(gcx.user_documentation(contract_id));
     }
-    if output_selection.selects(source_name, contract_name, &["devdoc"]) {
+    if output_selection.selects(&["devdoc"]) {
         output.devdoc = Some(gcx.dev_documentation(contract_id));
     }
-    if output_selection.selects(source_name, contract_name, &["storageLayout"]) {
+    if output_selection.selects(&["storageLayout"]) {
         output.storage_layout = Some(gcx.storage_layout(contract_id));
     }
-    if output_selection.selects(source_name, contract_name, &["transientStorageLayout"]) {
+    if output_selection.selects(&["transientStorageLayout"]) {
         output.transient_storage_layout = Some(gcx.transient_storage_layout(contract_id));
     }
 
     let mut evm = EvmOutput::default();
-    if output_selection.selects(source_name, contract_name, &["evm.methodIdentifiers"]) {
+    if output_selection.selects(&["evm.methodIdentifiers"]) {
         for function in gcx.interface_functions(contract_id) {
             evm.method_identifiers.insert(
                 gcx.item_signature(function.id.into()).to_string(),
@@ -894,11 +902,7 @@ fn make_contract_output(
     // `object` for now, the two selectors currently produce identical output.
     // Honoring the finer-grained `.object`/`.opcodes`/`.sourceMap` selectors is
     // part of the larger effort to match solc's input->output key mapping.
-    if output_selection.selects(
-        source_name,
-        contract_name,
-        &["evm.bytecode", "evm.bytecode.object"],
-    ) {
+    if output_selection.selects(&["evm.bytecode", "evm.bytecode.object"]) {
         evm.bytecode = Some(
             bytecodes
                 .and_then(|bytecodes| bytecodes.get(&contract_id))
@@ -906,11 +910,7 @@ fn make_contract_output(
                 .unwrap_or_else(BytecodeOutput::empty),
         );
     }
-    if output_selection.selects(
-        source_name,
-        contract_name,
-        &["evm.deployedBytecode", "evm.deployedBytecode.object"],
-    ) {
+    if output_selection.selects(&["evm.deployedBytecode", "evm.deployedBytecode.object"]) {
         evm.deployed_bytecode = Some(
             bytecodes
                 .and_then(|bytecodes| bytecodes.get(&contract_id))
@@ -930,16 +930,12 @@ fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSele
         let source = gcx.hir.source(contract.source);
         let source_name = source.file.name.display().to_string();
         let contract_name = contract.name.to_string();
-        output_selection.selects(
-            &source_name,
-            &contract_name,
-            &[
-                "evm.bytecode",
-                "evm.bytecode.object",
-                "evm.deployedBytecode",
-                "evm.deployedBytecode.object",
-            ],
-        )
+        output_selection.contract(&source_name, &contract_name).selects(&[
+            "evm.bytecode",
+            "evm.bytecode.object",
+            "evm.deployedBytecode",
+            "evm.deployedBytecode.object",
+        ])
     })
 }
 
