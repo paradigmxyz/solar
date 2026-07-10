@@ -389,8 +389,8 @@ fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSele
     gcx.hir.contracts_enumerated().any(|(_, contract)| {
         let source = gcx.hir.source(contract.source);
         let source_name = source.file.name.display().to_string();
-        let contract_name = contract.name.to_string();
-        output_selection.contract(&source_name, &contract_name).intersects(
+        let contract_name = contract.name.as_str();
+        output_selection.contract(&source_name, contract_name).intersects(
             OutputSelectionFlags::BYTECODE_OBJECT | OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT,
         )
     })
