@@ -1,1 +1,1 @@
-{"contracts":{"ROOT/tests/ui/codegen/yul_return.sol:R":{"bin-runtime":"60a060405234603a573615603a575f3560e01c80636279e43c146020575f5ffd5b366004900360209012603e575f6080526004355f5260205ff35b5f5ffd5b5f80fd"}},"version":"VERSION"}
+{"contracts":{"ROOT/tests/ui/codegen/yul_return.sol:R":{"bin-runtime":"60a06040523460365736156036575f3560e01c80636279e43c146020575f5ffd5b366004900360209012603a576004355f5260205ff35b5f5ffd5b5f80fd"}},"version":"VERSION"}
