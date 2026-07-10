@@ -736,6 +736,7 @@ impl Assembler {
         }
         self.outline_closed_computations(&mut program);
         self.outline_repeated_pushes(&mut program);
+        self.hoist_hot_terminal_spans(&mut program.instructions);
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
@@ -776,6 +777,124 @@ impl Assembler {
         let result = self.emit_bytecode(&program, label_offsets, &push_widths);
         self.clear();
         result
+    }
+
+    /// Moves the most-referenced small terminal spans (shared revert and
+    /// panic stubs, merged return tails) to the front of the program, right
+    /// after its first terminating instruction, so their addresses fit in one
+    /// byte and every `PUSH2 <label>` reference relaxes to `PUSH1` — one byte
+    /// per reference. Placement is control-flow-neutral: a candidate span is
+    /// preceded by a terminating instruction (no fallthrough in), ends with
+    /// one itself (no fallthrough out), and the insertion point directly
+    /// follows a terminating instruction. Runtime only: reordering moves the
+    /// width relaxation, which the constructor's appended-argument offset
+    /// fixpoint does not track.
+    fn hoist_hot_terminal_spans(&self, instructions: &mut Vec<AsmInst>) {
+        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+            return;
+        }
+
+        fn is_terminal(inst: AsmInst) -> bool {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID | op::SELFDESTRUCT,
+                )
+            )
+        }
+        // Pessimistic emitted size, before width relaxation. Only steers the
+        // hoist budget; the exact widths come from the relaxation loop.
+        let inst_size = |inst: AsmInst| -> usize {
+            match inst.kind() {
+                AsmInstKind::Op(_) | AsmInstKind::Label(_) => 1,
+                AsmInstKind::PushLabel(_) | AsmInstKind::PushDeferred(_) => 3,
+                AsmInstKind::PushInline(value) => 1 + U256::from(value).byte_len(),
+                AsmInstKind::Push(id) => 1 + self.push_values.get(id).byte_len(),
+                AsmInstKind::PushImmutable(_) => 33,
+            }
+        };
+
+        let Some(first_terminal) = instructions.iter().position(|&inst| is_terminal(inst)) else {
+            return;
+        };
+        let insert_at = first_terminal + 1;
+        let insert_offset: usize = instructions[..insert_at].iter().map(|&i| inst_size(i)).sum();
+        if insert_offset >= 0xff {
+            return;
+        }
+
+        let mut refs: FxHashMap<Label, usize> = FxHashMap::default();
+        for inst in instructions.iter() {
+            if let AsmInstKind::PushLabel(label) = inst.kind() {
+                *refs.entry(label).or_default() += 1;
+            }
+        }
+
+        // Candidate spans: `label: ... <terminal>` with no interior labels,
+        // preceded by a terminal, past the insertion point, and small.
+        struct Candidate {
+            start: usize,
+            end: usize,
+            size: usize,
+            refs: usize,
+        }
+        let mut candidates: Vec<Candidate> = Vec::new();
+        let mut i = insert_at;
+        while i < instructions.len() {
+            if let AsmInstKind::Label(label) = instructions[i].kind()
+                && i > 0
+                && is_terminal(instructions[i - 1])
+            {
+                let mut j = i + 1;
+                while j < instructions.len()
+                    && !matches!(instructions[j].kind(), AsmInstKind::Label(_))
+                {
+                    if is_terminal(instructions[j]) {
+                        let size: usize =
+                            instructions[i..=j].iter().map(|&inst| inst_size(inst)).sum();
+                        let refs = refs.get(&label).copied().unwrap_or(0);
+                        if size <= 16 && refs >= 2 {
+                            candidates.push(Candidate { start: i, end: j, size, refs });
+                        }
+                        break;
+                    }
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+        if candidates.is_empty() {
+            return;
+        }
+
+        // Most-referenced first; hoist while the span still lands below the
+        // one-byte address boundary.
+        candidates.sort_by(|a, b| b.refs.cmp(&a.refs).then(a.start.cmp(&b.start)));
+        let mut budget = 0xff_usize.saturating_sub(insert_offset);
+        let mut picked: Vec<Candidate> = Vec::new();
+        for cand in candidates {
+            if cand.size <= budget {
+                budget -= cand.size;
+                picked.push(cand);
+            }
+        }
+        if picked.is_empty() {
+            return;
+        }
+
+        // Extract in descending start order so earlier ranges stay valid,
+        // then splice at the insertion point in rank order.
+        let mut extraction = picked.iter().map(|c| (c.start, c.end)).collect::<Vec<_>>();
+        extraction.sort_by_key(|&(start, _)| std::cmp::Reverse(start));
+        let mut moved: FxHashMap<usize, Vec<AsmInst>> = FxHashMap::default();
+        for (start, end) in extraction {
+            moved.insert(start, instructions.drain(start..=end).collect());
+        }
+        let mut block = Vec::new();
+        for cand in &picked {
+            block.extend(moved.remove(&cand.start).expect("extracted span"));
+        }
+        instructions.splice(insert_at..insert_at, block);
     }
 
     /// Deletes label definitions that nothing references: such a block can
