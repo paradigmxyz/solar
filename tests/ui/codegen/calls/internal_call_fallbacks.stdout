@@ -1,0 +1,105 @@
+// === ROOT/tests/ui/codegen/calls/internal_call_fallbacks.sol:InternalCallFallbacks ===
+; module @InternalCallFallbacks
+fn @recurse(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = internal_call @a, 1, arg0
+    mstore 128, v3
+    returndata 128, 32
+}
+
+fn @a(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = eq arg0, 0
+    br v1, bb1, bb2
+  bb1:
+    mstore 0, 0 !metadata(memory=scratch)
+    jump bb3
+  bb2:
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    br v3, bb4, bb5
+  bb3:
+    v5 = mload 0 !metadata(memory=scratch)
+    ret v5
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    v4 = internal_call @b, 1, v2
+    mstore 0, v4 !metadata(memory=scratch)
+    jump bb3
+}
+
+fn @b(arg0: u256) -> u256 {
+  bb0 (entry):
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = eq arg0, 0
+    br v1, bb1, bb2
+  bb1:
+    mstore 0, 0 !metadata(memory=scratch)
+    jump bb3
+  bb2:
+    v2 = sub arg0, 1
+    v3 = lt arg0, 1
+    br v3, bb4, bb5
+  bb3:
+    v5 = mload 0 !metadata(memory=scratch)
+    ret v5
+  bb4:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb5:
+    v4 = internal_call @a, 1, v2
+    mstore 0, v4 !metadata(memory=scratch)
+    jump bb3
+}
+
+fn @multi(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 160, 0
+    v3 = internal_call @pair, 2, arg0
+    v4 = mload 32 !metadata(memory=scratch)
+    mstore 128, v3
+    v5 = add 128, 32
+    mstore v5, v4
+    returndata 128, 64
+}
+
+fn @pair(arg0: u256) -> (u256, u256) {
+  bb0 (entry):
+    v0 = internal_frame_addr 128
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = internal_frame_addr 192
+    mstore v1, 0 !metadata(memory=internal_frame)
+    v2 = add arg0, 1
+    v3 = lt v2, arg0
+    br v3, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb2:
+    ret arg0, v2
+}
+

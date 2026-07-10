@@ -3,6 +3,6 @@
 
 contract C {
     function f() public {
-        new uint256[1]; //~ ERROR: cannot instantiate static arrays
+        new uint256[1]; //~ ERROR: length has to be placed in parentheses after the array type
     }
 }

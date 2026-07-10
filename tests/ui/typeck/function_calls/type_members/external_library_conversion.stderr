@@ -1,0 +1,14 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/external_library_conversion.sol:LL:CC
+   │
+LL │         run(L.f);
+   ╰╴            ━━━ expected `function (uint256) external returns (uint256)`, found `function (uint256) returns (uint256)`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/external_library_conversion.sol:LL:CC
+   │
+LL │         function(uint256) external returns (uint256) operation = L.f;
+   ╰╴                                                                 ━━━ expected `function (uint256) external returns (uint256)`, found `function (uint256) returns (uint256)`
+
+error: aborting due to 2 previous errors
+

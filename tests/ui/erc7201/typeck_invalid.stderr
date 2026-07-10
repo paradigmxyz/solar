@@ -1,0 +1,44 @@
+error: wrong argument count for function call: 0 arguments given but expected 1
+   ╭▸ ROOT/tests/ui/erc7201/typeck_invalid.sol:LL:CC
+   │
+LL │     uint x = erc7201();
+   │              ━━━━━━━┬─
+   │                     │
+   ╰╴                    expected 1 argument, found 0
+
+error: wrong argument count for function call: 2 arguments given but expected 1
+   ╭▸ ROOT/tests/ui/erc7201/typeck_invalid.sol:LL:CC
+   │
+LL │     uint y = erc7201("12", "34");
+   │              ━━━━━━━┬───────────
+   │                     │
+   ╰╴                    expected 1 argument, found 2
+
+error: wrong argument count for function call: 3 arguments given but expected 1
+   ╭▸ ROOT/tests/ui/erc7201/typeck_invalid.sol:LL:CC
+   │
+LL │     uint z = erc7201("A", "BC", "D");
+   │              ━━━━━━━┬───────────────
+   │                     │
+   ╰╴                    expected 1 argument, found 3
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/erc7201/typeck_invalid.sol:LL:CC
+   │
+LL │         return erc7201(BYTES_ARG);
+   ╰╴                       ━━━━━━━━━ expected `string memory`, found `bytes memory`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/erc7201/typeck_invalid.sol:LL:CC
+   │
+LL │         return erc7201(hex"001122FF");
+   ╰╴                       ━━━━━━━━━━━━━ expected `string memory`, found `bytes_string_literal[4]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/erc7201/typeck_invalid.sol:LL:CC
+   │
+LL │         return erc7201(123);
+   ╰╴                       ━━━ expected `string memory`, found `int_literal[7]`
+
+error: aborting due to 6 previous errors
+

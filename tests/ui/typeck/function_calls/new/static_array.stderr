@@ -1,4 +1,4 @@
-error: cannot instantiate static arrays
+error: length has to be placed in parentheses after the array type for new expression
    ╭▸ ROOT/tests/ui/typeck/function_calls/new/static_array.sol:LL:CC
    │
 LL │         new uint256[1];

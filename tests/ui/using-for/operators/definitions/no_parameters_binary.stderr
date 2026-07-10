@@ -1,0 +1,16 @@
+error: function `f` does not have any parameters and therefore cannot be attached
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/no_parameters_binary.sol:LL:CC
+   │
+LL │ using {f as +} for Int global;
+   │        ━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/no_parameters_binary.sol:LL:CC
+   │
+LL │ ┏ function f() returns (Int) {
+LL │ ┃     return Int.wrap(0);
+LL │ ┃ }
+   ╰╴┗━┛
+
+error: aborting due to 1 previous error
+

@@ -176,7 +176,27 @@ Do not add a full stop or other trailing punctuation after the path.
 Place these after initial UI metadata directives such as `//@ compile-flags`,
 `//@ error-in-other-file`, and `//@ check-fail`; if the file has no UI metadata,
 put the attribution at the top.
-Only add attribution if you're actually porting the semantics of the test 1-1 from Solc, not just "covering the error message". Renames are OK.
+Only add attribution when the test ports the upstream case semantically, not merely
+when it happens to cover the same diagnostic or feature. The local test must retain
+the source program constructs and conditions that trigger the behavior, together
+with equivalent accepted/rejected behavior and equivalent diagnostic annotations,
+output checks, or other assertions. Renaming declarations, adapting UI-test syntax,
+and splitting embedded sources into `auxiliary/` files are fine when they do not
+change what is tested.
+
+Multiple upstream tests may share one local test only when every attributed case is
+still independently present and asserted, or when the compiler necessarily rejects
+an earlier shared construct before the upstream variants can differ. Do not merge
+cases merely because their diagnostics look similar. Identical cases that differ
+only in names or other negligible details may be represented once. Split tests that
+accumulate many attributions or unrelated failures so attribution and coverage stay
+readable.
+
+Solc semantic tests can contain compile-time expectations followed by runtime calls
+and expected values. Port the compile-time behavior and checks, but do not claim the
+runtime expectations are covered: UI tests currently compile these cases without
+executing their runtime test sections. Runtime-only differences may therefore be
+ignored for now and should not be translated into fake compile-time assertions.
 
 ### Updating Solc
 

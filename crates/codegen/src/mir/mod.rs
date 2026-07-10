@@ -89,6 +89,23 @@ mod round_trip {
             .join("codegen")
     }
 
+    fn sol_files(dir: &Path) -> Vec<PathBuf> {
+        let mut files = Vec::new();
+        let mut dirs = vec![dir.to_path_buf()];
+        while let Some(dir) = dirs.pop() {
+            for entry in std::fs::read_dir(dir).unwrap() {
+                let path = entry.unwrap().path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if path.extension().and_then(|s| s.to_str()) == Some("sol") {
+                    files.push(path);
+                }
+            }
+        }
+        files.sort();
+        files
+    }
+
     /// Returns the (line index, line A, line B) of the first divergence between
     /// two strings, or `None` if they're equal. Used to keep failure messages
     /// readable when the printed MIR is large.
@@ -107,11 +124,7 @@ mod round_trip {
 
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("sol") {
-                continue;
-            }
+        for path in sol_files(&dir) {
             count += 1;
             if let Err(e) = round_trip_sol(&path) {
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();
@@ -134,11 +147,7 @@ mod round_trip {
         let dir = ui_codegen_dir();
         let mut failures: Vec<String> = Vec::new();
         let mut count = 0usize;
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let path = entry.unwrap().path();
-            if path.extension().and_then(|s| s.to_str()) != Some("sol") {
-                continue;
-            }
+        for path in sol_files(&dir) {
             count += 1;
             if let Err(e) = validate_sol(&path) {
                 let name = path.file_name().unwrap().to_string_lossy().into_owned();

@@ -1,5 +1,3 @@
-// ported-from: test/libsolidity/semanticTests/using/using_global_invisible.sol
-
 type T is uint256;
 
 library L {

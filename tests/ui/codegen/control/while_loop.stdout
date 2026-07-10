@@ -1,0 +1,122 @@
+// === ROOT/tests/ui/codegen/control/while_loop.sol:WhileLoop ===
+; module @WhileLoop
+fn @count_down(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 160, arg0
+    jump bb3
+  bb3:
+    v3 = mload 160
+    v4 = gt v3, 0
+    br v4, bb5, bb7
+  bb4:
+    v8 = mload 160
+    mstore 128, v8
+    returndata 128, 32
+  bb5:
+    v5 = mload 160
+    v6 = sub v5, 1
+    v7 = lt v5, 1
+    br v7, bb8, bb9
+  bb6:
+    jump bb3
+  bb7:
+    jump bb4
+  bb8:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb9:
+    mstore 160, v6
+    jump bb6
+}
+
+fn @do_at_least_once(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 160, 0
+    jump bb3
+  bb3:
+    v3 = mload 160
+    v4 = add v3, 1
+    v5 = lt v4, v3
+    br v5, bb5, bb6
+  bb4:
+    v8 = mload 160
+    mstore 128, v8
+    returndata 128, 32
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore 160, v4
+    v6 = mload 160
+    v7 = lt v6, arg0
+    br v7, bb7, bb9
+  bb7:
+    jump bb3
+  bb8:
+    jump bb3
+  bb9:
+    jump bb4
+}
+
+fn @break_when_found(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    mstore 160, 0
+    jump bb3
+  bb3:
+    v3 = mload 160
+    v4 = lt v3, arg0
+    br v4, bb5, bb7
+  bb4:
+    v10 = mload 160
+    mstore 128, v10
+    returndata 128, 32
+  bb5:
+    v5 = mload 160
+    v6 = eq v5, arg1
+    br v6, bb8, bb9
+  bb6:
+    jump bb3
+  bb7:
+    jump bb4
+  bb8:
+    jump bb4
+  bb9:
+    v7 = mload 160
+    v8 = add v7, 1
+    v9 = lt v8, v7
+    br v9, bb10, bb11
+  bb10:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb11:
+    mstore 160, v8
+    jump bb6
+}
+

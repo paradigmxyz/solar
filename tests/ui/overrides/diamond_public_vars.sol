@@ -1,12 +1,6 @@
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/public_vars_multiple_diamond.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/public_vars_multiple_diamond1.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/public_vars_multiple_diamond2.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/diamond_interface_empty_intermediate_public_state_variable_and_function.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/diamond_interface_intermediate_public_state_variable.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/diamond_interface_intermediate_public_state_variable_and_function.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/diamond_interface_intermediate_public_state_variable_and_function_implemented.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/diamond_top_implemented_intermediate_empty_bottom_public_state_variable.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/diamond_top_implemented_intermediate_implemented_public_state_variable.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/diamond_top_implemented_intermediate_public_state_variable.sol
 
 // ==== Valid: public var can override single interface function ====
@@ -45,14 +39,17 @@ contract Bad1 is FuncB, FuncC {
 
 // ==== Invalid: wrong contracts in override list ====
 contract FuncD is FuncBase {
-    function foo2() external virtual view returns(uint) { return 6; }
+    uint public override foo;
+    //~^ ERROR: cannot override non-virtual function
+    //~| ERROR: cannot override public state variable
 }
 contract FuncE is FuncBase {
-    function foo2() external virtual view returns(uint) { return 7; }
+    function foo() external virtual override view returns(uint) { return 7; }
 }
 contract Bad2 is FuncD, FuncE {
-    uint public override(FuncBase, FuncE) foo2;
-    //~^ ERROR: Public state variable needs to specify overridden contracts
+    uint public override(FuncBase, FuncE) foo;
+    //~^ ERROR: identifier `foo` already declared
+    //~| ERROR: Public state variable needs to specify overridden contract
     //~| ERROR: invalid contract specified in override list
 }
 

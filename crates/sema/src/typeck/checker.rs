@@ -9,7 +9,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_ast::{
-    DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
+    DataLocation, ElementaryType, LitKind, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
 use solar_data_structures::{Never, pluralize, smallvec::SmallVec};
 use solar_interface::{
@@ -84,6 +84,27 @@ impl<'gcx> TypeChecker<'gcx> {
     }
 
     fn check_storage_layout_base_slot(&mut self, slot: &'gcx hir::Expr<'gcx>) {
+        if matches!(slot.kind, hir::ExprKind::Lit(lit) if matches!(lit.kind, LitKind::Address(_))) {
+            self.dcx()
+                .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
+            return;
+        }
+
+        if let hir::ExprKind::Binary(lhs, op, rhs) = slot.kind
+            && op.kind == hir::BinOpKind::Div
+        {
+            let mut evaluator = ConstantEvaluator::new(self.gcx);
+            if let Ok(lhs) = evaluator.try_eval(lhs)
+                && let Ok(rhs) = evaluator.try_eval(rhs)
+                && let Ok(remainder) = lhs.binop(rhs, hir::BinOpKind::Rem)
+                && !remainder.is_zero()
+            {
+                self.dcx()
+                    .emit_err(slot.span, "base slot of storage layout must evaluate to an integer");
+                return;
+            }
+        }
+
         let mut evaluator = ConstantEvaluator::new(self.gcx);
         match evaluator.try_eval_value(slot) {
             Ok(ConstValue::Integer(value)) => {
@@ -199,6 +220,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Assign(lhs, op, rhs) => {
+                let lhs = lhs.peel_parens();
                 let ty = self.require_lvalue(lhs);
                 self.check_assign(ty, lhs);
                 if ty.is_tuple() {
@@ -268,10 +290,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = match callee_ty.kind {
                     TyKind::Fn(f) => {
                         if f.is_declaration() {
-                            return self.gcx.mk_ty_err(self.dcx().emit_err(
-                                expr.span,
-                                "cannot call function via contract type name",
-                            ));
+                            let message = if f
+                                .function_id
+                                .is_some_and(|id| self.gcx.hir.function(id).body.is_none())
+                            {
+                                "cannot call unimplemented base function"
+                            } else {
+                                "cannot call function via contract type name"
+                            };
+                            return self.gcx.mk_ty_err(self.dcx().emit_err(expr.span, message));
                         }
                         if self.results.builtin_callee(callee.id) == Some(Builtin::AbiDecode) {
                             let args_result = self.check_abi_decode_call_args(expr.span, args);
@@ -352,7 +379,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
             }
             hir::ExprKind::Ident(res) => {
-                let res = self.resolve_overloads(res, expr.span);
+                let res = if let Some(expected) = expected {
+                    self.resolve_overloads_with_expected(res, expected, expr.span)
+                } else {
+                    self.resolve_overloads(res, expr.span)
+                };
                 if let Some(reason) = self.res_not_lvalue_reason(res) {
                     self.try_set_not_lvalue(reason);
                 }
@@ -511,7 +542,11 @@ impl<'gcx> TypeChecker<'gcx> {
                     TyKind::Contract(id) => {
                         let c = self.gcx.hir.contract(id);
                         if !c.kind.is_contract() {
-                            let msg = format!("cannot instantiate {}s", c.kind);
+                            let msg = if c.kind.is_library() {
+                                "cannot instantiate libraries".to_owned()
+                            } else {
+                                format!("cannot instantiate {}s", c.kind)
+                            };
                             self.gcx.mk_ty_err(self.dcx().emit_err(hir_ty.span, msg))
                         } else {
                             let mut parameters: &[Ty<'_>] = &[];
@@ -525,8 +560,10 @@ impl<'gcx> TypeChecker<'gcx> {
                         }
                     }
                     TyKind::Array(..) => {
-                        let mut err =
-                            self.dcx().err("cannot instantiate static arrays").span(hir_ty.span);
+                        let mut err = self
+                            .dcx()
+                            .err("length has to be placed in parentheses after the array type for new expression")
+                            .span(hir_ty.span);
                         if let hir::TypeKind::Array(hir::TypeArray {
                             element: _,
                             size: Some(size_expr),
@@ -2309,6 +2346,37 @@ impl<'gcx> TypeChecker<'gcx> {
                     OverloadError::Ambiguous => "no unique declarations found",
                 };
                 hir::Res::Err(self.dcx().emit_err(span, msg))
+            }
+        }
+    }
+
+    fn resolve_overloads_with_expected(
+        &self,
+        res: &[hir::Res],
+        expected: Ty<'gcx>,
+        span: Span,
+    ) -> hir::Res {
+        if let &[res] = res {
+            return res;
+        }
+        if let Some(&res @ hir::Res::Err(_)) = res.iter().find(|res| res.is_err()) {
+            return res;
+        }
+
+        match res
+            .iter()
+            .copied()
+            .filter(|&res| {
+                self.type_of_res(res).try_convert_implicit_to(expected, self.gcx).is_ok()
+            })
+            .collect::<WantOne<_>>()
+        {
+            WantOne::One(res) => res,
+            WantOne::Zero => {
+                hir::Res::Err(self.dcx().emit_err(span, "no matching declarations found"))
+            }
+            WantOne::Many => {
+                hir::Res::Err(self.dcx().emit_err(span, "no unique declarations found"))
             }
         }
     }

@@ -1,0 +1,18 @@
+error: cannot apply builtin operator `!=` to `function ()` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons/internal_external.sol:LL:CC
+   │
+LL │             internalPointer != externalPointer &&
+   │             ┬────────────── ━━ ─────────────── function () external
+   │             │
+   ╰╴            function ()
+
+error: cannot apply builtin operator `!=` to `function ()` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons/internal_external.sol:LL:CC
+   │
+LL │             internalTestFunction != this.externalTestFunction
+   │             ┬─────────────────── ━━ ───────────────────────── function () external
+   │             │
+   ╰╴            function ()
+
+error: aborting due to 2 previous errors
+

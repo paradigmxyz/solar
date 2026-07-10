@@ -1,0 +1,32 @@
+// === ROOT/tests/ui/codegen/calls/base_constructor.sol:Base ===
+; module @Base
+fn @value() {
+  bb0 (entry):
+    mstore 128, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @_anonymous(arg0: u256) {
+  bb0 (entry):
+    sstore 0, arg0 !metadata(storage=slot(0))
+    stop
+}
+
+// === ROOT/tests/ui/codegen/calls/base_constructor.sol:Derived ===
+; module @Derived
+fn @_anonymous(arg0: u256) {
+  bb0 (entry):
+    sstore 0, arg0 !metadata(storage=slot(0))
+    stop
+}
+
+fn @value() {
+  bb0 (entry):
+    mstore 128, 0
+    v0 = sload 0 !metadata(storage=slot(0))
+    mstore 128, v0
+    returndata 128, 32
+}
+

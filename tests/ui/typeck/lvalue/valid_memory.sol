@@ -1,65 +1,41 @@
 //@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/lvalues/valid_lvalues.sol
-// Valid lvalue assignments for memory variables
 
-struct S {
-    uint256 x;
-    uint256 y;
-}
-
-contract Test {
-    function testLocalVar() external pure {
-        uint256 local;
+contract C {
+    struct S {
         uint256 x;
-        local = x;
-    }
-    
-    function testMemoryStruct() external pure {
-        S memory s;
-        uint256 x;
-        s.x = x;
-        s.y = x;
-    }
-    
-    function testMemoryStructReassign() external pure {
-        S memory s;
-        S memory other;
-        s = other;
-    }
-    
-    function testTupleAssign() external pure {
-        uint256 x;
-        uint256 y;
-        (x, y) = (y, x);
-    }
-    
-    function testTuplePartialAssign() external pure {
-        uint256 x;
-        uint256 y;
-        uint256 z;
-        (x, y, z) = (z, y, x);
     }
 
-    function testTupleAssignWithHoles() external pure {
-        uint256 x;
-        (x, ) = (1, true);
-        (, x) = (false, 2);
+    function i() internal pure {}
+    function e() external pure {}
+
+    uint256[] s1;
+
+    function f(uint256 x, bytes32 y) external {
+        x = 42;
+        y = bytes32(0);
+        (x, y) = (23, bytes32(0));
+        S memory ms1;
+        S memory ms2;
+        ms1 = ms2;
+        ms1.x = x;
+        uint256[] memory a = new uint256[](2);
+        uint256[] memory b = new uint256[](3);
+        a = b;
+        a[0] = x;
+        s1[0] = x;
+        s1 = a;
     }
-    
-    function testFunctionParam(uint256 param) external pure {
-        uint256 x;
-        param = x;
+
+    function g(function() internal pure x) internal view {
+        x = i;
+        function(uint256, bytes32) external y;
+        y = this.f;
     }
 
-    function internalFunction() internal pure {}
-
-    function externalFunction() external pure {}
-
-    function testInternalFunctionParam(function() internal pure param) internal pure {
-        param = internalFunction;
-    }
-
-    function testExternalFunctionParam(function() external pure param) external view {
-        param = this.externalFunction;
+    function g(function() external pure x) external view {
+        x = this.e;
+        function(function() internal pure) internal view y;
+        y = g;
     }
 }

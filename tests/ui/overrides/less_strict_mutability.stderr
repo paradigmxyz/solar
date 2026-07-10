@@ -1,0 +1,32 @@
+error[6959]: overriding function changes state mutability from `pure` to `view`
+   ╭▸ ROOT/tests/ui/overrides/less_strict_mutability.sol:LL:CC
+   │
+LL │     function foo() external view override virtual returns (uint256) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6959]: overriding function changes state mutability from `pure` to `nonpayable`
+   ╭▸ ROOT/tests/ui/overrides/less_strict_mutability.sol:LL:CC
+   │
+LL │     function foo() external override(B, C) virtual returns (uint256) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6959]: overriding function changes state mutability from `view` to `nonpayable`
+   ╭▸ ROOT/tests/ui/overrides/less_strict_mutability.sol:LL:CC
+   │
+LL │     function foo() external override(B, C) virtual returns (uint256) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6959]: overriding function changes state mutability from `view` to `payable`
+   ╭▸ ROOT/tests/ui/overrides/less_strict_mutability.sol:LL:CC
+   │
+LL │     function foo() external payable override(B, C) virtual returns (uint256) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6959]: overriding function changes state mutability from `pure` to `payable`
+   ╭▸ ROOT/tests/ui/overrides/less_strict_mutability.sol:LL:CC
+   │
+LL │     function foo() external payable override(B, C) virtual returns (uint256) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
+

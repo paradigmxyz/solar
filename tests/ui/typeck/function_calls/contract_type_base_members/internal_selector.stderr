@@ -1,0 +1,8 @@
+error: member `selector` not found on type `function () view returns (bytes4)`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members/internal_selector.sol:LL:CC
+   │
+LL │         return f.selector;
+   ╰╴                 ━━━━━━━━
+
+error: aborting due to 1 previous error
+

@@ -1,8 +1,20 @@
 error: expected item, found builtin
    ╭▸ ROOT/tests/ui/resolve/super_meta_type.sol:LL:CC
    │
-LL │         type(super).name;
-   ╰╴             ━━━━━
+LL │         r.push(type(super).name);
+   ╰╴                    ━━━━━
 
-error: aborting due to 1 previous error
+error: expected item, found builtin
+   ╭▸ ROOT/tests/ui/resolve/super_meta_type.sol:LL:CC
+   │
+LL │         r.push(type(super).name);
+   ╰╴                    ━━━━━
+
+error: expected item, found builtin
+   ╭▸ ROOT/tests/ui/resolve/super_meta_type.sol:LL:CC
+   │
+LL │         r.push(type(super).name);
+   ╰╴                    ━━━━━
+
+error: aborting due to 3 previous errors
 

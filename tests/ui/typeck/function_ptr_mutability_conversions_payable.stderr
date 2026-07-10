@@ -1,0 +1,14 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_mutability_conversions_payable.sol:LL:CC
+   │
+LL │         function() pure external g = this.h;
+   ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () payable external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_mutability_conversions_payable.sol:LL:CC
+   │
+LL │         function() view external g = this.h;
+   ╰╴                                     ━━━━━━ expected `function () view external`, found `function () payable external`
+
+error: aborting due to 2 previous errors
+

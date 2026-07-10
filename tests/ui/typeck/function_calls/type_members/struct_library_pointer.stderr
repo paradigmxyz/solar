@@ -1,0 +1,8 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/struct_library_pointer.sol:LL:CC
+   │
+LL │         function(L.Item memory) external ptr = L.get;
+   ╰╴                                               ━━━━━ expected `function (struct L.Item memory) external`, found `function (struct L.Item memory)`
+
+error: aborting due to 1 previous error
+

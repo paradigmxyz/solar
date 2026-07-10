@@ -1,12 +1,14 @@
 //@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/029_create_abstract_contract.sol
 
-abstract contract A {
-    function a() public virtual;
+contract Base { //~ ERROR: contract `Base` has unimplemented functions
+    function foo() public virtual;
 }
 
-contract C {
-    function f() public {
-        new A(); //~ ERROR: cannot instantiate abstract contracts
+contract Derived {
+    Base b;
+
+    function foo() public {
+        b = new Base();
     }
 }

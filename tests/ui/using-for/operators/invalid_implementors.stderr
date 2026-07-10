@@ -1,36 +1,94 @@
 error: only file-level functions and library functions can be attached to a type in a `using` statement
    ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
    │
-LL │ using {C.add as +} for U global;
+LL │ using {C.add as +} for ContractInt global;
    ╰╴       ━━━━━
 
 error: only pure free functions can be used to define operators
    ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
    │
-LL │ using {C.add as +} for U global;
+LL │ using {C.add as +} for ContractInt global;
    │        ━━━━━
    ╰╴
 note: function defined here
    ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
    │
-LL │ ┏     function add(U a, U b) public pure returns (U) {
-LL │ ┃         return U.wrap(U.unwrap(a) + U.unwrap(b));
+LL │ ┏     function add(ContractInt, ContractInt) public pure returns (ContractInt) {
+LL │ ┃         return ContractInt.wrap(0);
 LL │ ┃     }
    ╰╴┗━━━━━┛
 
 error: only pure free functions can be used to define operators
    ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
    │
-LL │ using {L.add as -} for U global;
-   │        ━━━━━
+LL │ using {ExternalLibrary.binaryOperator as +} for ExternalInt global;
+   │        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    ╰╴
 note: function defined here
    ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
    │
-LL │ ┏     function add(U a, U b) internal pure returns (U) {
-LL │ ┃         return U.wrap(U.unwrap(a) + U.unwrap(b));
-LL │ ┃     }
-   ╰╴┗━━━━━┛
+LL │     function binaryOperator(ExternalInt, ExternalInt) external pure returns (ExternalInt) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 3 previous errors
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ using {ExternalLibrary.unaryOperator as -} for ExternalInt global;
+   │        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │     function unaryOperator(ExternalInt) external pure returns (ExternalInt) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ using {InternalLibrary.binaryOperator as +} for InternalInt global;
+   │        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │     function binaryOperator(InternalInt, InternalInt) internal pure returns (InternalInt) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ using {InternalLibrary.unaryOperator as -} for InternalInt global;
+   │        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │     function unaryOperator(InternalInt) internal pure returns (InternalInt) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ using {PublicLibrary.binaryOperator as +} for PublicInt global;
+   │        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │     function binaryOperator(PublicInt, PublicInt) public pure returns (PublicInt) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: only pure free functions can be used to define operators
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │ using {PublicLibrary.unaryOperator as -} for PublicInt global;
+   │        ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function defined here
+   ╭▸ ROOT/tests/ui/using-for/operators/invalid_implementors.sol:LL:CC
+   │
+LL │     function unaryOperator(PublicInt) public pure returns (PublicInt) {}
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 8 previous errors
 

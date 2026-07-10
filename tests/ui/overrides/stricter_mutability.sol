@@ -1,39 +1,8 @@
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability1.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability2.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability3.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability4.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability5.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability6.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/override/override_stricter_mutability7.sol
-// ported-from: test/libsolidity/syntaxTests/inheritance/override/override_less_strict_mutability.sol
-
-// ==== Valid: pure can override view ====
-contract ViewBase {
-    function foo() internal view virtual returns (uint256) {}
-}
-contract PureOverridesView is ViewBase {
-    function foo() internal pure override virtual returns (uint256) {}
-}
-
-// ==== Valid: view can override view ====
-contract ViewOverridesView is ViewBase {
-    function foo() internal view override virtual returns (uint256) {}
-}
-
-// ==== Valid: diamond with pure overriding both pure and view ====
-contract DiamondPureA is ViewBase {
-    function foo() internal pure override virtual returns (uint256) {}
-}
-contract DiamondViewC is ViewBase {
-    function foo() internal view override virtual returns (uint256) {}
-}
-contract DiamondD is DiamondPureA, DiamondViewC {
-    function foo() internal pure override(DiamondPureA, DiamondViewC) virtual returns (uint256) {}
-}
-contract DiamondE is DiamondViewC, DiamondPureA {
-    function foo() internal pure override(DiamondPureA, DiamondViewC) virtual returns (uint256) {}
-}
 
 // ==== Invalid: payable -> nonpayable ====
 contract PayableBase1 {
@@ -72,40 +41,4 @@ contract ViewBase2 {
 contract Bad5 is ViewBase2 {
     function foo() public payable override virtual returns (uint256) {}
     //~^ ERROR: overriding function changes state mutability from `view` to `payable`
-}
-
-// ==== Invalid: pure -> view (less strict) ====
-contract PureBase {
-    function foo() external pure virtual returns (uint256) {}
-}
-contract Bad6 is PureBase {
-    function foo() external view override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from `pure` to `view`
-}
-
-// ==== Invalid: multiple less strict overrides ====
-contract PureViewDiamondB is PureBase {
-    function foo() external pure override virtual returns (uint256) {}
-}
-contract PureViewDiamondC is PureBase {
-    function foo() external view override virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from `pure` to `view`
-}
-contract Bad7 is PureViewDiamondB, PureViewDiamondC {
-    // nonpayable is less strict than both pure and view
-    function foo() external override(PureViewDiamondB, PureViewDiamondC) virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from `pure` to `nonpayable`
-    //~| ERROR: overriding function changes state mutability from `view` to `nonpayable`
-}
-
-// ==== Valid: pure overriding both ====
-contract Good1 is PureViewDiamondC, PureViewDiamondB {
-    function foo() external pure override(PureViewDiamondB, PureViewDiamondC) virtual returns (uint256) {}
-}
-
-// ==== Invalid: payable is less strict than everything ====
-contract Bad8 is PureViewDiamondC, PureViewDiamondB {
-    function foo() external payable override(PureViewDiamondB, PureViewDiamondC) virtual returns (uint256) {}
-    //~^ ERROR: overriding function changes state mutability from `view` to `payable`
-    //~| ERROR: overriding function changes state mutability from `pure` to `payable`
 }

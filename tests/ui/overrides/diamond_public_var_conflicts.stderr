@@ -1,0 +1,134 @@
+error: identifier `f1` already declared
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public override f1;
+   │                          ━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public override f1;
+   ╰╴                         ━━
+
+error: identifier `f2` already declared
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     function f2() external virtual returns (uint);
+   │              ━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public f2;
+   ╰╴                ━━
+
+error: identifier `f3` already declared
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     function f3() external virtual returns (uint);
+   │              ━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public f3;
+   ╰╴                ━━
+
+error: identifier `f4` already declared
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     function f4() external virtual returns (uint) { return 2; }
+   │              ━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public f4;
+   ╰╴                ━━
+
+error: identifier `f5` already declared
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     function f5() external pure virtual override returns (uint) { return 2; }
+   │              ━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public override f5;
+   ╰╴                         ━━
+
+error[4334]: cannot override non-virtual function
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public override f1;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overriding public state variable is here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public override f1;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: add `virtual` to the base function to allow overriding
+
+error[1452]: cannot override public state variable
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public override f1;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overriding public state variable is here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public override f1;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: change the inheritance layout or rename the functions
+
+error[4327]: Public state variable needs to specify overridden contracts `Var1` and `Function1`
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │     uint public override f1;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━
+
+error[6480]: derived contract must override function `f2`
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │ abstract contract Bottom2 is Var2, Function2 {}
+   │                   ━━━━━━━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ├ note: defined in: `Var2`, `Function2`
+   ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
+
+error[6480]: derived contract must override function `f3`
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │ abstract contract Bottom3 is Var3, Function3 {}
+   │                   ━━━━━━━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ├ note: defined in: `Var3`, `Function3`
+   ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
+
+error[6480]: derived contract must override function `f4`
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │ abstract contract Bottom4 is Var4, Function4 {}
+   │                   ━━━━━━━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ├ note: defined in: `Var4`, `Function4`
+   ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
+
+error[6480]: derived contract must override function `f5`
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_var_conflicts.sol:LL:CC
+   │
+LL │ contract Bottom5 is Var5, Function5 {}
+   │          ━━━━━━━
+   │
+   ├ note: two or more base classes define function with same name and parameter types
+   ├ note: defined in: `Var5`, `Function5`
+   ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
+
+error: aborting due to 12 previous errors
+

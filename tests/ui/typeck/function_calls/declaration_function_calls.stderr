@@ -34,5 +34,11 @@ error: cannot call function via contract type name
 LL │         BaseMembers.externalMember();
    ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-error: aborting due to 6 previous errors
+error: member `selector` not found on type `function ()`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/declaration_function_calls.sol:LL:CC
+   │
+LL │         BaseMembers.internalMember.selector;
+   ╰╴                                   ━━━━━━━━
+
+error: aborting due to 7 previous errors
 

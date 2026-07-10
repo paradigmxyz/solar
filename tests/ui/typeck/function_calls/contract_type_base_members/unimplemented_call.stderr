@@ -1,0 +1,8 @@
+error: cannot call unimplemented base function
+   ╭▸ ROOT/tests/ui/typeck/function_calls/contract_type_base_members/unimplemented_call.sol:LL:CC
+   │
+LL │         B.f();
+   ╰╴        ━━━━━
+
+error: aborting due to 1 previous error
+

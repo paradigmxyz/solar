@@ -1,0 +1,358 @@
+// === ROOT/tests/ui/codegen/calls/recursive_memory_return.sol:C ===
+; module @C
+fn @build(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = mload 64 !metadata(memory=scratch)
+    v4 = add v3, 64
+    mstore 64, v4 !metadata(memory=scratch)
+    mstore 128, v3
+    v5 = eq arg0, 0
+    br v5, bb3, bb4
+  bb3:
+    v6 = mload 64 !metadata(memory=scratch)
+    v7 = add v6, 64
+    mstore 64, v7 !metadata(memory=scratch)
+    mstore v6, 0
+    v8 = add v6, 32
+    mstore v8, 0
+    v9 = mload v6
+    mstore 128, v9
+    v10 = add 128, 32
+    v11 = add v6, 32
+    v12 = mload v11
+    mstore v10, v12
+    v13 = add v10, 32
+    returndata 128, 64
+  bb4:
+    v14 = sub arg0, 1
+    v15 = lt arg0, 1
+    br v15, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v16 = internal_call fn1, 1, v14
+    v17 = mload 64 !metadata(memory=scratch)
+    v18 = add v17, 64
+    mstore 64, v18 !metadata(memory=scratch)
+    v19 = mload v16
+    v20 = add v19, arg0
+    v21 = lt v20, v19
+    br v21, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    mstore v17, v20
+    v22 = add v16, 32
+    v23 = mload v22
+    v24 = add v23, 1
+    v25 = lt v24, v23
+    br v25, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    v26 = add v17, 32
+    mstore v26, v24
+    v27 = mload v17
+    mstore 128, v27
+    v28 = add 128, 32
+    v29 = add v17, 32
+    v30 = mload v29
+    mstore v28, v30
+    v31 = add v28, 32
+    returndata 128, 64
+}
+
+fn @build(arg0: u256) -> memptr {
+  bb0 (entry):
+    v0 = internal_frame_addr 128
+    v1 = mload 64 !metadata(memory=scratch)
+    v2 = add v1, 64
+    mstore 64, v2 !metadata(memory=scratch)
+    mstore v0, v1 !metadata(memory=internal_frame)
+    v3 = eq arg0, 0
+    br v3, bb1, bb2
+  bb1:
+    v4 = mload 64 !metadata(memory=scratch)
+    v5 = add v4, 64
+    mstore 64, v5 !metadata(memory=scratch)
+    mstore v4, 0
+    v6 = add v4, 32
+    mstore v6, 0
+    ret v4
+  bb2:
+    v7 = sub arg0, 1
+    v8 = lt arg0, 1
+    br v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v9 = internal_call fn1, 1, v7
+    v10 = mload 64 !metadata(memory=scratch)
+    v11 = add v10, 64
+    mstore 64, v11 !metadata(memory=scratch)
+    v12 = mload v9
+    v13 = add v12, arg0
+    v14 = lt v13, v12
+    br v14, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    mstore v10, v13
+    v15 = add v9, 32
+    v16 = mload v15
+    v17 = add v16, 1
+    v18 = lt v17, v16
+    br v18, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v19 = add v10, 32
+    mstore v19, v17
+    ret v10
+}
+
+fn @mkArr(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = mload 64 !metadata(memory=scratch)
+    mstore v3, arg0
+    v4 = mul arg0, 32
+    v5 = div v4, 32
+    v6 = eq v5, arg0
+    br v6, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v7 = add v4, 32
+    v8 = lt v7, v4
+    br v8, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v9 = add v3, v7
+    v10 = lt v9, v3
+    br v10, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v11 = gt v9, 0xffffffffffffffff
+    br v11, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    mstore 64, v9 !metadata(memory=scratch)
+    v12 = add v3, 32
+    v13 = calldatasize
+    calldatacopy v12, v13, v4
+    mstore 160, 0
+    jump bb11
+  bb11:
+    v14 = mload 160
+    v15 = lt v14, arg0
+    br v15, bb14, bb15
+  bb12:
+    v32 = mload 64 !metadata(memory=scratch)
+    v33 = add v32, 32
+    mstore 64, v33 !metadata(memory=scratch)
+    v34 = add v32, 32
+    v35 = sub v34, v32
+    mstore v32, v35
+    v36 = mload v3
+    mstore v34, v36
+    v37 = mul v36, 32
+    v38 = add v34, 32
+    v39 = add v3, 32
+    v40 = add v38, v37
+    mcopy v38, v39, v37
+    v41 = sub v40, v32
+    returndata v32, v41
+  bb13:
+    v29 = mload 160
+    v30 = add v29, 1
+    v31 = lt v30, v29
+    br v31, bb20, bb21
+  bb14:
+    v16 = mload 160
+    v17 = mul v16, 10
+    v18 = iszero 10
+    v19 = div v17, 10
+    v20 = eq v19, v16
+    v21 = or v18, v20
+    v22 = iszero v21
+    br v22, bb16, bb17
+  bb15:
+    jump bb12
+  bb16:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb17:
+    v23 = mload 160
+    v24 = mul v23, 32
+    v25 = mload v3
+    v26 = lt v23, v25
+    br v26, bb19, bb18
+  bb18:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb19:
+    v27 = add v3, 32
+    v28 = add v27, v24
+    mstore v28, v17
+    jump bb13
+  bb20:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb21:
+    mstore 160, v30
+    jump bb11
+}
+
+fn @fillImpl(arg0: memptr, arg1: u256) -> memptr {
+  bb0 (entry):
+    v0 = internal_frame_addr 160
+    mstore v0, 0 !metadata(memory=internal_frame)
+    v1 = mload arg0
+    v2 = eq arg1, v1
+    br v2, bb1, bb2
+  bb1:
+    ret arg0
+  bb2:
+    v3 = mul arg1, arg1
+    v4 = iszero arg1
+    v5 = div v3, arg1
+    v6 = eq v5, arg1
+    v7 = or v4, v6
+    v8 = iszero v7
+    br v8, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v9 = mul arg1, 32
+    v10 = mload arg0
+    v11 = lt arg1, v10
+    br v11, bb6, bb5
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v12 = add arg0, 32
+    v13 = add v12, v9
+    mstore v13, v3
+    v14 = add arg1, 1
+    v15 = lt v14, arg1
+    br v15, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v16 = internal_call @fillImpl, 1, arg0, v14
+    ret v16
+}
+
+fn @squares(arg0: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = mload 64 !metadata(memory=scratch)
+    mstore v3, arg0
+    v4 = mul arg0, 32
+    v5 = div v4, 32
+    v6 = eq v5, arg0
+    br v6, bb4, bb3
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v7 = add v4, 32
+    v8 = lt v7, v4
+    br v8, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v9 = add v3, v7
+    v10 = lt v9, v3
+    br v10, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v11 = gt v9, 0xffffffffffffffff
+    br v11, bb9, bb10
+  bb9:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb10:
+    mstore 64, v9 !metadata(memory=scratch)
+    v12 = add v3, 32
+    v13 = calldatasize
+    calldatacopy v12, v13, v4
+    v14 = internal_call @fillImpl, 1, v3, 0
+    v15 = mload 64 !metadata(memory=scratch)
+    v16 = add v15, 32
+    mstore 64, v16 !metadata(memory=scratch)
+    v17 = add v15, 32
+    v18 = sub v17, v15
+    mstore v15, v18
+    v19 = mload v14
+    mstore v17, v19
+    v20 = mul v19, 32
+    v21 = add v17, 32
+    v22 = add v14, 32
+    v23 = add v21, v20
+    mcopy v21, v22, v20
+    v24 = sub v23, v15
+    returndata v15, v24
+}
+

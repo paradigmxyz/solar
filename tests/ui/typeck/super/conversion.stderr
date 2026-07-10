@@ -1,26 +1,26 @@
 error: cannot convert to the super type
    ╭▸ ROOT/tests/ui/typeck/super/conversion.sol:LL:CC
    │
-LL │         super();
+LL │         super().x;
    ╰╴        ━━━━━━━
 
 error: cannot convert to the super type
    ╭▸ ROOT/tests/ui/typeck/super/conversion.sol:LL:CC
    │
-LL │         super(this);
+LL │         super(this).f();
    ╰╴        ━━━━━━━━━━━
 
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/super/conversion.sol:LL:CC
    │
-LL │         C(super);
-   ╰╴        ━━━━━━━━ cannot convert `type(contract super C)` to `contract C`
+LL │         o = S(super).foo();
+   ╰╴            ━━━━━━━━ cannot convert `type(contract super B)` to `contract S`
 
 error: invalid explicit type conversion
    ╭▸ ROOT/tests/ui/typeck/super/conversion.sol:LL:CC
    │
 LL │         address(super);
-   ╰╴        ━━━━━━━━━━━━━━ cannot convert `type(contract super C)` to `address`
+   ╰╴        ━━━━━━━━━━━━━━ cannot convert `type(contract super AddressConversion)` to `address`
 
 error: aborting due to 4 previous errors
 

@@ -1,0 +1,21 @@
+error: wrong parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/two_parameters_unary.sol:LL:CC
+   │
+LL │ function bitnot(Int, Int) pure returns (Int) {}
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/two_parameters_unary.sol:LL:CC
+   │
+LL │ using {bitnot as ~} for Int global;
+   │        ━━━━━━
+   ╰ help: function `bitnot` needs to have exactly one parameter of type `Int` to be used for operator `~`
+
+error: cannot apply unary operator `~` to `Int`
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/two_parameters_unary.sol:LL:CC
+   │
+LL │         ~Int.wrap(1);
+   ╰╴        ━━━━━━━━━━━━
+
+error: aborting due to 2 previous errors
+

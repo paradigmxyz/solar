@@ -1,0 +1,8 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/using-for/attached_function_members/assignment.sol:LL:CC
+   │
+LL │         function(uint256, uint256) internal pure returns (uint256) ptr = x.foo;
+   ╰╴                                                                         ━━━━━ attached functions cannot be converted into unattached functions
+
+error: aborting due to 1 previous error
+

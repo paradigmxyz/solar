@@ -1,0 +1,8 @@
+error: base slot of storage layout must evaluate to an integer
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_address.sol:LL:CC
+   │
+LL │ contract HexAddress layout at 0xdCad3a6d3569DF655070DEd06cb7A1b2Ccd1D3AF {}
+   ╰╴                              ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 1 previous error
+

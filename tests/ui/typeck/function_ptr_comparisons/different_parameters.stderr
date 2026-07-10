@@ -1,0 +1,38 @@
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons/different_parameters.sol:LL:CC
+   │
+LL │         function() external pointer1 = this.externalTestFunction1;
+   ╰╴                                       ━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `function () external`, found `function (uint256) external`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons/different_parameters.sol:LL:CC
+   │
+LL │         function() external pointer2 = this.externalTestFunction2;
+   ╰╴                                       ━━━━━━━━━━━━━━━━━━━━━━━━━━ expected `function () external`, found `function (bool) external`
+
+error: cannot apply builtin operator `==` to `function (uint256) external` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons/different_parameters.sol:LL:CC
+   │
+LL │             this.externalTestFunction1 == pointer1 &&
+   │             ┬───────────────────────── ━━ ──────── function () external
+   │             │
+   ╰╴            function (uint256) external
+
+error: cannot apply builtin operator `==` to `function (bool) external` and `function () external`
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons/different_parameters.sol:LL:CC
+   │
+LL │             this.externalTestFunction2 == pointer2
+   │             ┬───────────────────────── ━━ ──────── function () external
+   │             │
+   ╰╴            function (bool) external
+
+error: cannot apply builtin operator `!=` to `function (bool) external` and `function (uint256) external`
+   ╭▸ ROOT/tests/ui/typeck/function_ptr_comparisons/different_parameters.sol:LL:CC
+   │
+LL │             this.externalTestFunction2 != this.externalTestFunction1
+   │             ┬───────────────────────── ━━ ────────────────────────── function (uint256) external
+   │             │
+   ╰╴            function (bool) external
+
+error: aborting due to 5 previous errors
+

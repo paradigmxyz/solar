@@ -1,0 +1,20 @@
+error: file ./does-not-exist.sol not found
+   ╭▸ ROOT/tests/ui/codegen/backend/member_call_unresolved.sol:LL:CC
+   │
+LL │ import {Missing} from "./does-not-exist.sol";
+   ╰╴                      ━━━━━━━━━━━━━━━━━━━━━━
+
+error: unresolved symbol `Missing`
+   ╭▸ ROOT/tests/ui/codegen/backend/member_call_unresolved.sol:LL:CC
+   │
+LL │     function f(Missing m) external {
+   ╰╴               ━━━━━━━
+
+error: codegen does not support this `.push` member call yet
+   ╭▸ ROOT/tests/ui/codegen/backend/member_call_unresolved.sol:LL:CC
+   │
+LL │         m.push(1);
+   ╰╴          ━━━━
+
+error: aborting due to 3 previous errors
+

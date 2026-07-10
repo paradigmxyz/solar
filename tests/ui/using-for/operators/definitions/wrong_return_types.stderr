@@ -1,0 +1,80 @@
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ function add(Int, Int) pure returns (int256) {}
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ using {add as +, div as /, unsub as -, bitnot as ~, gt as >, lt as <} for Int global;
+   │        ━━━
+   ╰ help: function `add` needs to return `Int` to be used for operator `+`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ function div(Int, Int) pure {}
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ using {add as +, div as /, unsub as -, bitnot as ~, gt as >, lt as <} for Int global;
+   │                  ━━━
+   ╰ help: function `div` needs to return `Int` to be used for operator `/`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ function unsub(Int) pure returns (Int, Int) {}
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ using {add as +, div as /, unsub as -, bitnot as ~, gt as >, lt as <} for Int global;
+   │                            ━━━━━
+   ╰ help: function `unsub` needs to return `Int` to be used for operator `-`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ function bitnot(Int) pure returns (int256) {}
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ using {add as +, div as /, unsub as -, bitnot as ~, gt as >, lt as <} for Int global;
+   │                                        ━━━━━━
+   ╰ help: function `bitnot` needs to return `Int` to be used for operator `~`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ function gt(Int, Int) pure returns (Int) {}
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ using {add as +, div as /, unsub as -, bitnot as ~, gt as >, lt as <} for Int global;
+   │                                                     ━━
+   ╰ help: function `gt` needs to return `bool` to be used for operator `>`
+
+error: wrong return parameters in operator definition
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ function lt(Int, Int) pure returns (bool, Int) {}
+   │ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: function was used to implement an operator here
+   ╭▸ ROOT/tests/ui/using-for/operators/definitions/wrong_return_types.sol:LL:CC
+   │
+LL │ using {add as +, div as /, unsub as -, bitnot as ~, gt as >, lt as <} for Int global;
+   │                                                              ━━
+   ╰ help: function `lt` needs to return `bool` to be used for operator `<`
+
+error: aborting due to 6 previous errors
+

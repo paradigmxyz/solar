@@ -1,20 +1,20 @@
-error: member `currentOnly` not found on type `type(contract super B)`
+error: member `currentOnly` not found on type `type(contract super CurrentDerived)`
    ╭▸ ROOT/tests/ui/typeck/super/member_access.sol:LL:CC
    │
 LL │         super.currentOnly();
    ╰╴              ━━━━━━━━━━━
 
-error: member `externalOnly` not found on type `type(contract super B)`
+error: member `f` not found on type `type(contract super ExternalDerived)`
    ╭▸ ROOT/tests/ui/typeck/super/member_access.sol:LL:CC
    │
-LL │         super.externalOnly();
-   ╰╴              ━━━━━━━━━━━━
+LL │         super.f();
+   ╰╴              ━
 
-error: member `unimplemented` not found on type `type(contract super B)`
+error: member `f` not found on type `type(contract super AbstractDerived)`
    ╭▸ ROOT/tests/ui/typeck/super/member_access.sol:LL:CC
    │
-LL │         return super.unimplemented();
-   ╰╴                     ━━━━━━━━━━━━━
+LL │         super.f();
+   ╰╴              ━
 
 error: aborting due to 3 previous errors
 

@@ -1,20 +1,58 @@
+error: identifier `foo` already declared
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
+   │
+LL │     uint public override(FuncBase, FuncE) foo;
+   │                                           ━━━
+   ╰╴
+note: previous declaration declared here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
+   │
+LL │     uint public override foo;
+   ╰╴                         ━━━
+
 error[4327]: Public state variable needs to specify overridden contracts `FuncB` and `FuncC`
    ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
    │
 LL │     uint public override foo;
    ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━
 
+error[4334]: cannot override non-virtual function
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
+   │
+LL │     uint public override foo;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overriding public state variable is here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
+   │
+LL │     uint public override(FuncBase, FuncE) foo;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: add `virtual` to the base function to allow overriding
+
+error[1452]: cannot override public state variable
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
+   │
+LL │     uint public override foo;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰╴
+note: overriding public state variable is here
+   ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
+   │
+LL │     uint public override(FuncBase, FuncE) foo;
+   │     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+   ╰ help: change the inheritance layout or rename the functions
+
 error[4327]: Public state variable needs to specify overridden contracts `FuncD`
    ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
    │
-LL │     uint public override(FuncBase, FuncE) foo2;
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │     uint public override(FuncBase, FuncE) foo;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[2353]: invalid contract specified in override list: `FuncBase`
    ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
    │
-LL │     uint public override(FuncBase, FuncE) foo2;
-   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │     uint public override(FuncBase, FuncE) foo;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 error[6480]: derived contract must override function `x`
    ╭▸ ROOT/tests/ui/overrides/diamond_public_vars.sol:LL:CC
@@ -26,5 +64,5 @@ LL │ contract Bad3 is ImplVarA, ImplVarB {}
    ├ note: defined in: `ImplBase`, `ImplVarA`
    ╰ help: since one of the bases defines a public state variable which cannot be overridden, change the inheritance layout or rename the functions
 
-error: aborting due to 4 previous errors
+error: aborting due to 7 previous errors
 

@@ -1,7 +1,7 @@
 error: expected one of `!=`, `%`, `&`, `*`, `+`, `-`, `/`, `<=`, `<`, `==`, `>=`, `>`, `^`, `|`, or `~`, found keyword `new`
    ╭▸ ROOT/tests/ui/parser/using_operator_not_user_definable.sol:LL:CC
    │
-LL │ using {f as new} for uint;
+LL │ using {f as new} for uint256;
    ╰╴            ━━━ expected one of 15 possible tokens
 
 error: aborting due to 1 previous error

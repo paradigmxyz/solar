@@ -1,0 +1,38 @@
+error: event invocations have to be prefixed by `emit`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/event_library_function.sol:LL:CC
+   │
+LL │         Test(L.f);
+   ╰╴        ━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/event_library_function.sol:LL:CC
+   │
+LL │         Test(L.f);
+   ╰╴             ━━━ expected `function () external`, found `function ()`
+
+error: event invocations have to be prefixed by `emit`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/event_library_function.sol:LL:CC
+   │
+LL │         Test(L.f);
+   ╰╴        ━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/event_library_function.sol:LL:CC
+   │
+LL │         Test(L.f);
+   ╰╴             ━━━ expected `function () external`, found `function ()`
+
+error: event invocations have to be prefixed by `emit`
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/event_library_function.sol:LL:CC
+   │
+LL │         Test(D.f);
+   ╰╴        ━━━━━━━━━
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/function_calls/type_members/event_library_function.sol:LL:CC
+   │
+LL │         Test(D.f);
+   ╰╴             ━━━ expected `function () external`, found `function D.f()`
+
+error: aborting due to 6 previous errors
+

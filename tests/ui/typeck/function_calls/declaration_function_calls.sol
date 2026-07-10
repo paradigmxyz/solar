@@ -34,10 +34,12 @@ contract Derived is Base {
 
 contract BaseMembers {
     function externalMember() external {}
+    function internalMember() internal {}
 }
 
 contract DerivedMembers is BaseMembers {
     function memberCall() public {
         BaseMembers.externalMember(); //~ ERROR: cannot call function via contract type name
+        BaseMembers.internalMember.selector; //~ ERROR: member `selector` not found
     }
 }

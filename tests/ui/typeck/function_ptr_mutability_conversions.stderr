@@ -16,35 +16,5 @@ error: mismatched types
 LL │         function() view external g = this.h;
    ╰╴                                     ━━━━━━ expected `function () view external`, found `function () external`
 
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_ptr_mutability_conversions.sol:LL:CC
-   │
-LL │         function() pure external g = this.h;
-   ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () payable external`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_ptr_mutability_conversions.sol:LL:CC
-   │
-LL │         function() view external g = this.h;
-   ╰╴                                     ━━━━━━ expected `function () view external`, found `function () payable external`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_ptr_mutability_conversions.sol:LL:CC
-   │
-LL │         function() payable external g = this.h;
-   ╰╴                                        ━━━━━━ expected `function () payable external`, found `function () pure external`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_ptr_mutability_conversions.sol:LL:CC
-   │
-LL │         function() payable external g = this.h;
-   ╰╴                                        ━━━━━━ expected `function () payable external`, found `function () view external`
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_ptr_mutability_conversions.sol:LL:CC
-   │
-LL │         function() pure external g = this.h;
-   ╰╴                                     ━━━━━━ expected `function () pure external`, found `function () view external`
-
-error: aborting due to 8 previous errors
+error: aborting due to 3 previous errors
 

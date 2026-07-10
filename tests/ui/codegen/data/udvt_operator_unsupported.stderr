@@ -1,0 +1,10 @@
+error: user-defined operators are not supported in codegen yet
+   ╭▸ ROOT/tests/ui/codegen/data/udvt_operator_unsupported.sol:LL:CC
+   │
+LL │         return a + b;
+   │                ━━━━━
+   │
+   ╰ help: unwrap the user-defined value type before using this operator
+
+error: aborting due to 1 previous error
+

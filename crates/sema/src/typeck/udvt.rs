@@ -69,7 +69,11 @@ pub(super) fn check_using_operator<'gcx>(
         _ => using_ty,
     };
     let returns = function_ty.returns;
-    if returns.len() != 1 || returns[0] != return_ty {
+    let return_matches_params = return_ty == gcx.types.bool
+        || returns
+            .first()
+            .is_some_and(|return_ty| params.first().is_none_or(|param_ty| param_ty == return_ty));
+    if returns.len() != 1 || returns[0] != return_ty || !return_matches_params {
         gcx.dcx()
             .err("wrong return parameters in operator definition")
             .span(function.span)

@@ -1,34 +1,8 @@
 error: errors can only be used with revert statements
    ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/error_used_elsewhere.sol:LL:CC
    │
-LL │         MyError(404, "not found");
-   ╰╴        ━━━━━━━━━━━━━━━━━━━━━━━━━
+LL │     E();
+   ╰╴    ━━━
 
-error: errors can only be used with revert statements
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/error_used_elsewhere.sol:LL:CC
-   │
-LL │         uint x = MyError(404, "not found");
-   ╰╴                 ━━━━━━━━━━━━━━━━━━━━━━━━━
-
-error: mismatched number of components
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/error_used_elsewhere.sol:LL:CC
-   │
-LL │         uint x = MyError(404, "not found");
-   │         ━━━━━━━━━┬────────────────────────━
-   │                  │
-   ╰╴                 expected a tuple with 1 element, found one with 0 elements
-
-error: errors can only be used with revert statements
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/error_used_elsewhere.sol:LL:CC
-   │
-LL │         this.takeBytes(EmptyError());
-   ╰╴                       ━━━━━━━━━━━━
-
-error: mismatched types
-   ╭▸ ROOT/tests/ui/typeck/function_calls/event_error/error_used_elsewhere.sol:LL:CC
-   │
-LL │         this.takeBytes(EmptyError());
-   ╰╴                       ━━━━━━━━━━━━ expected `bytes memory`, found `tuple()`
-
-error: aborting due to 5 previous errors
+error: aborting due to 1 previous error
 

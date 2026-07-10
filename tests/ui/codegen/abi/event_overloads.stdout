@@ -1,0 +1,26 @@
+// === ROOT/tests/ui/codegen/abi/event_overloads.sol:EventOverloads ===
+; module @EventOverloads
+fn @emitBoth(arg0: address, arg1: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 0, arg1 !metadata(memory=scratch)
+    log1 0, 32, 0x248dd4076d0a389d795107efafd558ce7f31ae37b441ccb9a599c60868f480d5
+    mstore 0, arg0 !metadata(memory=scratch)
+    mstore 32, arg1 !metadata(memory=scratch)
+    log1 0, 64, 0x69ca02dd4edd7bf0a4abb9ed3b7af3f14778db5d61921c7dc7cd545266326de2
+    stop
+}
+

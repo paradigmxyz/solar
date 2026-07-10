@@ -1,0 +1,251 @@
+// === ROOT/tests/ui/codegen/calls/low_level_call_returndata.sol:LowLevelCallReturndata ===
+; module @LowLevelCallReturndata
+fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = calldataload 36
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = eq v6, v7
+    br v8, bb6, bb5
+  bb5:
+    revert 0, 0
+  bb6:
+    v9 = mload 64 !metadata(memory=scratch)
+    mstore v9, 0xa9059cbb00000000000000000000000000000000000000000000000000000000
+    v10 = add v9, 4
+    mstore v10, arg1
+    v11 = add v10, 32
+    mstore v11, arg2
+    v12 = add 64, 4
+    v13 = add v12, 31
+    v14 = not 31
+    v15 = and v13, v14
+    v16 = add v9, v15
+    mstore 64, v16 !metadata(memory=scratch)
+    v17 = gas
+    v18 = call v17, arg0, 0, v9, v12, 0, 0
+    mstore 128, v18
+    v19 = returndatasize
+    v20 = add v19, 31
+    v21 = not 31
+    v22 = and v20, v21
+    v23 = add v22, 32
+    v24 = mload 64 !metadata(memory=scratch)
+    v25 = add v24, v23
+    mstore 64, v25 !metadata(memory=scratch)
+    mstore v24, v19
+    v26 = add v24, 32
+    returndatacopy v26, 0, v19
+    mstore 160, v24
+    v27 = mload 128
+    br v27, bb7, bb8
+  bb7:
+    v28 = mload 160
+    v29 = mload v28
+    v30 = eq v29, 0
+    br v30, bb10, bb9
+  bb8:
+    v41 = phi [bb6: 0], [bb10: v40]
+    v42 = iszero v41
+    br v42, bb15, bb16
+  bb9:
+    v31 = mload 160
+    v32 = mload v31
+    v33 = lt v32, 32
+    br v33, bb11, bb12
+  bb10:
+    v40 = phi [bb7: 1], [bb14: v37]
+    jump bb8
+  bb11:
+    revert 0, 0
+  bb12:
+    v34 = add v31, 32
+    v35 = mload v34
+    v36 = iszero v35
+    v37 = iszero v36
+    v38 = eq v35, v37
+    v39 = iszero v38
+    br v39, bb13, bb14
+  bb13:
+    revert 0, 0
+  bb14:
+    jump bb10
+  bb15:
+    internal_call @__revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
+    invalid
+  bb16:
+    stop
+}
+
+fn @__revert_error(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
+}
+
+fn @balanceOf(arg0: address) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    mstore 128, 0
+    v6 = address
+    v7 = and v6, 0xffffffffffffffffffffffffffffffffffffffff
+    v8 = mload 64 !metadata(memory=scratch)
+    mstore v8, 0x70a0823100000000000000000000000000000000000000000000000000000000
+    v9 = add v8, 4
+    mstore v9, v7
+    v10 = add 32, 4
+    v11 = add v10, 31
+    v12 = not 31
+    v13 = and v11, v12
+    v14 = add v8, v13
+    mstore 64, v14 !metadata(memory=scratch)
+    v15 = gas
+    v16 = staticcall v15, arg0, v8, v10, 0, 0
+    mstore 160, v16
+    v17 = returndatasize
+    v18 = add v17, 31
+    v19 = not 31
+    v20 = and v18, v19
+    v21 = add v20, 32
+    v22 = mload 64 !metadata(memory=scratch)
+    v23 = add v22, v21
+    mstore 64, v23 !metadata(memory=scratch)
+    mstore v22, v17
+    v24 = add v22, 32
+    returndatacopy v24, 0, v17
+    mstore 192, v22
+    v25 = mload 160
+    v26 = iszero v25
+    br v26, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v27 = mload 192
+    v28 = mload v27
+    v29 = lt v28, 32
+    br v29, bb7, bb8
+  bb7:
+    revert 0, 0
+  bb8:
+    v30 = add v27, 32
+    v31 = mload v30
+    mstore 128, v31
+    returndata 128, 32
+}
+
+fn @forward(arg0: address, arg1: memptr) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 64
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 4
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = add 4, arg1
+    v7 = calldataload v6
+    v8 = add v7, 31
+    v9 = not 31
+    v10 = and v8, v9
+    v11 = add v10, 32
+    v12 = mload 64 !metadata(memory=scratch)
+    v13 = add v12, v11
+    mstore 64, v13 !metadata(memory=scratch)
+    mstore v12, v7
+    v14 = add v12, 32
+    v15 = add v6, 32
+    calldatacopy v14, v15, v7
+    mstore 128, 0
+    v16 = add v12, 32
+    v17 = mload v12
+    v18 = gas
+    v19 = call v18, arg0, 0, v16, v17, 0, 0
+    mstore 160, v19
+    v20 = returndatasize
+    v21 = add v20, 31
+    v22 = not 31
+    v23 = and v21, v22
+    v24 = add v23, 32
+    v25 = mload 64 !metadata(memory=scratch)
+    v26 = add v25, v24
+    mstore 64, v26 !metadata(memory=scratch)
+    mstore v25, v20
+    v27 = add v25, 32
+    returndatacopy v27, 0, v20
+    mstore 192, v25
+    v28 = mload 160
+    v29 = iszero v28
+    br v29, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v30 = mload 192
+    internal_call @__ret_bytes, 0, v30
+    invalid
+}
+
+fn @__ret_bytes(arg0: memptr) {
+  bb0 (entry):
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = add v0, 32
+    v3 = sub v2, v0
+    mstore v0, v3
+    v4 = mload arg0
+    mstore v2, v4
+    v5 = not 31
+    v6 = add v4, 31
+    v7 = and v6, v5
+    v8 = add v2, 32
+    v9 = iszero v7
+    br v9, bb2, bb1
+  bb1:
+    v10 = sub v7, 32
+    v11 = add v8, v10
+    mstore v11, 0
+    jump bb2
+  bb2:
+    v12 = add arg0, 32
+    v13 = add v8, v7
+    mcopy v8, v12, v4
+    v14 = sub v13, v0
+    returndata v0, v14
+}
+
