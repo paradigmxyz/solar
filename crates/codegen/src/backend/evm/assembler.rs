@@ -199,6 +199,48 @@ impl Assembler {
         *self.push_values.get(index)
     }
 
+    /// Threads jump references through pure `label: PUSH2 target JUMP` thunks so
+    /// the thunks become unreferenced and the dedup chain deletes them. Runtime
+    /// only: it changes the emitted length, which the constructor's argument
+    /// offset fixpoint would not track.
+    fn thread_jump_thunks(instructions: &mut [AsmInst]) -> bool {
+        let mut thunks: FxHashMap<Label, Label> = FxHashMap::default();
+        for window in instructions.windows(3) {
+            if let AsmInstKind::Label(label) = window[0].kind()
+                && let AsmInstKind::PushLabel(target) = window[1].kind()
+                && matches!(window[2].kind(), AsmInstKind::Op(op::JUMP))
+                && label != target
+            {
+                thunks.insert(label, target);
+            }
+        }
+        if thunks.is_empty() {
+            return false;
+        }
+        let resolve = |mut label: Label| {
+            let mut hops = 0;
+            while let Some(&next) = thunks.get(&label) {
+                label = next;
+                hops += 1;
+                if hops > thunks.len() {
+                    break;
+                }
+            }
+            label
+        };
+        let mut changed = false;
+        for inst in instructions.iter_mut() {
+            if let AsmInstKind::PushLabel(label) = inst.kind() {
+                let target = resolve(label);
+                if target != label {
+                    *inst = AsmInst::push_label(target);
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
     /// Shares one `revert(0, 0)` stub by inverting the branches that skip it.
     ///
     /// A failed check compiles as `PUSH2 cont JUMPI; PUSH0 DUP1 REVERT; cont:`
@@ -683,7 +725,10 @@ impl Assembler {
         // Suffix cuts create new identical spans and tails; iterate the merge
         // with the dedup chain to a capped fixpoint.
         for _ in 0..4 {
-            if !self.merge_terminal_suffixes(&mut program.instructions) {
+            let merged = self.merge_terminal_suffixes(&mut program.instructions);
+            let threaded =
+                self.run_structural_outlining && Self::thread_jump_thunks(&mut program.instructions);
+            if !merged && !threaded {
                 break;
             }
             Self::dedup_terminal_spans(&mut program.instructions);
