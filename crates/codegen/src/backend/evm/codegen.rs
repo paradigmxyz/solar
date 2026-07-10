@@ -1949,9 +1949,9 @@ impl EvmCodegen {
 
     /// Returns true when `value` needs no spill before the instruction that
     /// is about to consume it: it owns no reserved cross-block slot, it is
-    /// not live out of the block, and more than one stack copy exists at
-    /// this point (every caller consumes at most one of them net of its own
-    /// duplication). Later in-block uses DUP the survivor, or deep-spill it
+    /// not live out of the block, and more stack copies exist at this point
+    /// than the instruction will consume net of the emissions still to come
+    /// (`consumed`). Later in-block uses DUP the survivor, or deep-spill it
     /// on demand if it sinks past `MAX_STACK_ACCESS`, so skipping the store
     /// cannot strand the value and adds no stack depth.
     fn block_local_copy_survives(
@@ -1959,10 +1959,11 @@ impl EvmCodegen {
         liveness: &Liveness,
         block: BlockId,
         value: ValueId,
+        consumed: usize,
     ) -> bool {
         self.scheduler.spills.get(value).is_none()
             && !liveness.live_out(block).contains(value)
-            && self.scheduler.stack.iter().flatten().filter(|&v| v == value).count() > 1
+            && self.scheduler.stack.iter().flatten().filter(|&v| v == value).count() > consumed
     }
 
     fn spill_top_value_if_live(
@@ -3543,7 +3544,7 @@ impl EvmCodegen {
         // Special case: same operand used twice (e.g., a + a, a - a)
         if a == b {
             self.emit_value(func, a);
-            if !self.block_local_copy_survives(liveness, block, a) {
+            if !self.block_local_copy_survives(liveness, block, a, 1) {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
             }
             // DUP for the second operand
@@ -3580,7 +3581,7 @@ impl EvmCodegen {
             self.emit_value(func, a);
             if a_is_live
                 && !Self::is_rematerializable_value(func, a)
-                && !self.block_local_copy_survives(liveness, block, a)
+                && !self.block_local_copy_survives(liveness, block, a, 1)
             {
                 self.spill_value_if_needed(func, a);
             }
@@ -3594,7 +3595,7 @@ impl EvmCodegen {
         {
             // a is in place; emit b above it and swap into [b, a].
             self.emit_value(func, b);
-            if !self.block_local_copy_survives(liveness, block, b) {
+            if !self.block_local_copy_survives(liveness, block, b, 1) {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             }
             self.asm.emit_op(op::SWAP1);
@@ -3613,7 +3614,7 @@ impl EvmCodegen {
         if !a_can_emit && b_can_emit && has_untracked {
             // a is an untracked value on top of stack, emit b, then SWAP
             self.emit_value(func, b);
-            if !self.block_local_copy_survives(liveness, block, b) {
+            if !self.block_local_copy_survives(liveness, block, b, 1) {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             }
             self.asm.emit_op(op::SWAP1);
@@ -3624,7 +3625,7 @@ impl EvmCodegen {
             // Spill a if live-after (it's now at depth 0)
             if a_is_live
                 && !Self::is_rematerializable_value(func, a)
-                && !self.block_local_copy_survives(liveness, block, a)
+                && !self.block_local_copy_survives(liveness, block, a, 1)
             {
                 self.spill_value_if_needed(func, a);
             }
@@ -3636,14 +3637,14 @@ impl EvmCodegen {
         } else {
             // Normal case: emit b first (bottom), then a (top)
             self.emit_value(func, b);
-            if !self.block_local_copy_survives(liveness, block, b) {
+            if !self.block_local_copy_survives(liveness, block, b, 1) {
                 self.spill_top_value_if_live(func, liveness, block, inst_idx, b);
             }
             self.emit_value(func, a);
             // Spill a if live-after (it's now at depth 0)
             if a_is_live
                 && !Self::is_rematerializable_value(func, a)
-                && !self.block_local_copy_survives(liveness, block, a)
+                && !self.block_local_copy_survives(liveness, block, a, 1)
             {
                 self.spill_value_if_needed(func, a);
             }
@@ -3667,7 +3668,7 @@ impl EvmCodegen {
         inst_idx: usize,
     ) {
         self.emit_value(func, a);
-        if !self.block_local_copy_survives(liveness, block, a) {
+        if !self.block_local_copy_survives(liveness, block, a, 1) {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, a);
         }
 
@@ -3698,7 +3699,13 @@ impl EvmCodegen {
                 // Repeated operands (e.g. duplicate topics) need their own stack item.
                 self.emit_operand(func, operand);
             }
-            self.spill_top_value_if_live(func, liveness, block, inst_idx, operand);
+            // Occurrences of `operand` emitted so far, this one included: the
+            // instruction consumes that many copies net of the occurrences
+            // still to be pushed.
+            let seen = operands[..=i].iter().filter(|&&op| op == operand).count();
+            if !self.block_local_copy_survives(liveness, block, operand, seen) {
+                self.spill_top_value_if_live(func, liveness, block, inst_idx, operand);
+            }
         }
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(operands.len(), None);
@@ -3723,12 +3730,18 @@ impl EvmCodegen {
 
         // Emit val
         self.emit_value(func, val);
-        self.spill_top_value_if_live(func, liveness, block, inst_idx, val);
+        if !self.block_local_copy_survives(liveness, block, val, 1) {
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, val);
+        }
 
         // Emit addr
         self.emit_operand(func, addr);
         // Spill addr if live-after (it's now at depth 0)
-        if addr_is_live && !Self::is_rematerializable_value(func, addr) {
+        let addr_consumed = if addr == val { 2 } else { 1 };
+        if addr_is_live
+            && !Self::is_rematerializable_value(func, addr)
+            && !self.block_local_copy_survives(liveness, block, addr, addr_consumed)
+        {
             self.spill_value_if_needed(func, addr);
         }
 
@@ -3756,7 +3769,11 @@ impl EvmCodegen {
                 // Repeated operands need their own stack item each.
                 self.emit_operand(func, op);
             }
-            self.spill_top_value_if_live(func, liveness, block, inst_idx, op);
+            // See `emit_log`: copies consumed net of occurrences still to come.
+            let seen = operands[..=i].iter().filter(|&&o| o == op).count();
+            if !self.block_local_copy_survives(liveness, block, op, seen) {
+                self.spill_top_value_if_live(func, liveness, block, inst_idx, op);
+            }
         }
 
         self.asm.emit_op(opcode);
