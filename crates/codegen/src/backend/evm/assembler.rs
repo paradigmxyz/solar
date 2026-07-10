@@ -15,7 +15,7 @@ const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
 const MIN_COMPACT_MASK_WIDTH: u8 = EVM_WORD_BYTES as u8 / 2;
 
 /// Shortest closed run worth outlining into a shared stub.
-const MIN_CLOSED_RUN: usize = 6;
+const MIN_CLOSED_RUN: usize = 4;
 
 /// A closed-run occurrence: `(start index, length, net stack height)`.
 type ClosedRunSite = (usize, usize, u16);
@@ -453,7 +453,7 @@ impl Assembler {
                 })
                 .sum();
             let stub = 1 + run_lb + usize::from(height) + 1;
-            if free.len() * run_lb < free.len() * 8 + stub + 8 {
+            if free.len() * run_lb < free.len() * 8 + stub + 2 {
                 continue;
             }
             for &start in &free {
