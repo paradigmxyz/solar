@@ -566,7 +566,13 @@ impl Assembler {
                 })
                 .sum();
             let stub = 1 + run_lb + usize::from(height) + 1;
-            if free.len() * run_lb < free.len() * 8 + stub + 2 {
+            // Per-site replacement is `PUSH2 ret PUSH2 stub JUMP JUMPDEST`,
+            // but a heavily-referenced stub is a small hot terminal span the
+            // hoist pass places below the one-byte boundary, relaxing its
+            // push at every site: credit that byte only when the group's
+            // reference count makes it a certain hoist pick.
+            let per_site = if free.len() >= 4 { 7 } else { 8 };
+            if free.len() * run_lb < free.len() * per_site + stub + 2 {
                 continue;
             }
             for &start in &free {
