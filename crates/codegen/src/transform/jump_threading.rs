@@ -247,6 +247,7 @@ impl JumpThreader {
             | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
+            | Terminator::TailCall { .. }
             | Terminator::Invalid => {}
         }
     }
@@ -447,6 +448,7 @@ impl JumpThreader {
             | Terminator::ReturnData { .. }
             | Terminator::Stop
             | Terminator::SelfDestruct { .. }
+            | Terminator::TailCall { .. }
             | Terminator::Invalid => false,
         }
     }

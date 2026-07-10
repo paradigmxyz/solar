@@ -11,7 +11,7 @@ fn @value() {
 fn @_anonymous(arg0: u256) {
   bb0 (entry):
     v0 = and arg0, 7
-    v1 = internal_call fn2, 1, v0
+    v1 = internal_call @helper, 1, v0
     sstore 0, v1 !metadata(storage=slot(0))
     stop
 }
@@ -45,7 +45,7 @@ fn @helper(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v10 = internal_call fn2, 1, v8
+    v10 = internal_call @helper, 1, v8
     v11 = add v2, v10
     v12 = lt v11, v2
     br v12, bb7, bb8

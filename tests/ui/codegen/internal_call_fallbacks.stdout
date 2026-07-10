@@ -10,7 +10,7 @@ fn @recurse(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = internal_call fn1, 1, arg0
+    v3 = internal_call @a, 1, arg0
     mstore 128, v3
     returndata 128, 32
 }
@@ -36,7 +36,7 @@ fn @a(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v4 = internal_call fn2, 1, v2
+    v4 = internal_call @b, 1, v2
     mstore 0, v4 !metadata(memory=scratch)
     jump bb3
 }
@@ -62,7 +62,7 @@ fn @b(arg0: u256) -> u256 {
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb5:
-    v4 = internal_call fn1, 1, v2
+    v4 = internal_call @a, 1, v2
     mstore 0, v4 !metadata(memory=scratch)
     jump bb3
 }
@@ -78,7 +78,7 @@ fn @multi(arg0: u256) {
   bb2:
     mstore 128, 0
     mstore 160, 0
-    v3 = internal_call fn4, 2, arg0
+    v3 = internal_call @pair, 2, arg0
     v4 = mload 32 !metadata(memory=scratch)
     mstore 128, v3
     v5 = add 128, 32

@@ -558,30 +558,36 @@ fn @decodeBytes(arg0: memptr) {
     mstore v38, 0
     v39 = add v21, 32
     mcopy v36, v39, v22
-    v40 = mload 64 !metadata(memory=scratch)
-    v41 = add v40, 32
-    mstore 64, v41 !metadata(memory=scratch)
-    v42 = add v40, 32
-    v43 = sub v42, v40
-    mstore v40, v43
-    v44 = mload v34
-    mstore v42, v44
-    v45 = not 31
-    v46 = add v44, 31
-    v47 = and v46, v45
-    v48 = add v42, 32
-    v49 = iszero v47
-    br v49, bb20, bb19
-  bb19:
-    v50 = sub v47, 32
-    v51 = add v48, v50
-    mstore v51, 0
-    jump bb20
-  bb20:
-    v52 = add v34, 32
-    v53 = add v48, v47
-    mcopy v48, v52, v44
-    v54 = sub v53, v40
-    returndata v40, v54
+    internal_call @__ret_bytes, 0, v34
+    invalid
+}
+
+fn @__ret_bytes(arg0: memptr) {
+  bb0 (entry):
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = add v0, 32
+    v3 = sub v2, v0
+    mstore v0, v3
+    v4 = mload arg0
+    mstore v2, v4
+    v5 = not 31
+    v6 = add v4, 31
+    v7 = and v6, v5
+    v8 = add v2, 32
+    v9 = iszero v7
+    br v9, bb2, bb1
+  bb1:
+    v10 = sub v7, 32
+    v11 = add v8, v10
+    mstore v11, 0
+    jump bb2
+  bb2:
+    v12 = add arg0, 32
+    v13 = add v8, v7
+    mcopy v8, v12, v4
+    v14 = sub v13, v0
+    returndata v0, v14
 }
 

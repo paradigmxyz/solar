@@ -1,0 +1,36 @@
+// === ROOT/tests/ui/codegen/mir/phase_pass_bounds.mir (after lower-dispatch,lower-abi,lower-dispatch,dce) ===
+; module @PhasePassBounds [phase = dispatch]
+fn @get() {
+  bb0 (entry):
+    v0 = calldataload 4
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @get.body(arg0: u256) {
+  bb0 (entry):
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @entry() {
+  bb0 (entry):
+    v0 = callvalue
+    br v0, bb6, bb1
+  bb1:
+    v1 = calldatasize
+    v2 = eq v1, 0
+    br v2, bb2, bb3
+  bb2:
+    jump bb6
+  bb3:
+    v3 = calldataload 0
+    v4 = shr 224, v3
+    switch v4, default bb5, [0x9507d39a => bb4]
+  bb4:
+    tail_call @get
+  bb5:
+    jump bb6
+  bb6:
+    revert 0, 0
+}

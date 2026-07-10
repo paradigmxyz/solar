@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/mir/phase_pipeline_transition.mir (after pipeline-default) ===
+; module @PhasePipelineTransition [phase = optimized]
+fn @f(arg0: u256) {
+  bb0 (entry):
+    v0 = add arg0, 1
+    mstore 128, v0
+    returndata 128, 32
+}

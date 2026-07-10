@@ -130,30 +130,36 @@ fn @materialized(arg0: u16, arg1: memptr, arg2: bool) {
     mstore v20, v29
     v34 = add v20, v33
     mstore 64, v34 !metadata(memory=scratch)
-    v35 = mload 64 !metadata(memory=scratch)
-    v36 = add v35, 32
-    mstore 64, v36 !metadata(memory=scratch)
-    v37 = add v35, 32
-    v38 = sub v37, v35
-    mstore v35, v38
-    v39 = mload v20
-    mstore v37, v39
-    v40 = not 31
-    v41 = add v39, 31
-    v42 = and v41, v40
-    v43 = add v37, 32
-    v44 = iszero v42
-    br v44, bb8, bb7
-  bb7:
-    v45 = sub v42, 32
-    v46 = add v43, v45
-    mstore v46, 0
-    jump bb8
-  bb8:
-    v47 = add v20, 32
-    v48 = add v43, v42
-    mcopy v43, v47, v39
-    v49 = sub v48, v35
-    returndata v35, v49
+    internal_call @__ret_bytes, 0, v20
+    invalid
+}
+
+fn @__ret_bytes(arg0: memptr) {
+  bb0 (entry):
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = add v0, 32
+    v3 = sub v2, v0
+    mstore v0, v3
+    v4 = mload arg0
+    mstore v2, v4
+    v5 = not 31
+    v6 = add v4, 31
+    v7 = and v6, v5
+    v8 = add v2, 32
+    v9 = iszero v7
+    br v9, bb2, bb1
+  bb1:
+    v10 = sub v7, 32
+    v11 = add v8, v10
+    mstore v11, 0
+    jump bb2
+  bb2:
+    v12 = add arg0, 32
+    v13 = add v8, v7
+    mcopy v8, v12, v4
+    v14 = sub v13, v0
+    returndata v0, v14
 }
 

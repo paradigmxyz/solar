@@ -122,11 +122,23 @@ struct Parser<'a> {
     pos: usize,
     line: usize,
     col: usize,
+    /// Function names in declaration order, pre-scanned from the `fn @name(`
+    /// headers so `@name` call references resolve even when they point
+    /// forward.
+    function_names: Vec<&'a str>,
 }
 
 impl<'a> Parser<'a> {
     fn new(input: &'a str) -> Self {
-        Self { input, pos: 0, line: 1, col: 1 }
+        let function_names = input
+            .lines()
+            .filter_map(|line| {
+                let rest = line.strip_prefix("fn @")?;
+                let end = rest.find(|c: char| !c.is_alphanumeric() && c != '_' && c != '.')?;
+                Some(&rest[..end])
+            })
+            .collect();
+        Self { input, pos: 0, line: 1, col: 1, function_names }
     }
 
     // ----- low-level cursor primitives -----
@@ -297,6 +309,37 @@ impl<'a> Parser<'a> {
     }
 
     /// Consume an identifier: `[a-zA-Z_][a-zA-Z0-9_]*`.
+    /// Parses a phase name such as `evm-shaped`. Unlike an identifier, a phase
+    /// name may contain internal hyphens.
+    fn parse_phase_name(&mut self) -> Result<String, ParseError> {
+        self.skip_inline();
+        let start = self.pos;
+        while let Some(c) = self.peek_char() {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+        if self.pos == start {
+            return Err(self.error("expected phase name"));
+        }
+        Ok(self.input[start..self.pos].to_string())
+    }
+
+    /// Parses a function name: an identifier, optionally with `.`-joined
+    /// segments (`f.body`), as minted by the ABI lowering.
+    fn parse_function_name(&mut self) -> Result<&'a str, ParseError> {
+        self.skip_inline();
+        let start = self.pos;
+        self.parse_ident()?;
+        while self.peek_char() == Some('.') {
+            self.advance();
+            self.parse_ident()?;
+        }
+        Ok(&self.input[start..self.pos])
+    }
+
     fn parse_ident(&mut self) -> Result<&'a str, ParseError> {
         self.skip_inline();
         let start = self.pos;
@@ -352,13 +395,25 @@ impl<'a> Parser<'a> {
     fn parse_module(&mut self) -> Result<Module, ParseError> {
         self.skip_blank_and_comments();
 
-        // Optional `; module @Name` header (the printer always emits it,
-        // but we accept input without it).
+        // Optional `; module @Name [phase = ...]` header (the printer always
+        // emits the name; the phase is printed only when not the default).
+        let mut phase = super::MirPhase::default();
         let module_name = if self.try_punct(';') {
             self.expect_keyword("module")?;
             self.skip_inline();
             self.expect_punct('@')?;
             let name = self.parse_ident()?.to_string();
+            self.skip_inline_whitespace();
+            if self.try_punct('[') {
+                self.expect_keyword("phase")?;
+                self.skip_inline_whitespace();
+                self.expect_punct('=')?;
+                self.skip_inline_whitespace();
+                let phase_name = self.parse_phase_name()?;
+                phase = super::MirPhase::by_name(&phase_name)
+                    .ok_or_else(|| self.error(format!("unknown MIR phase `{phase_name}`")))?;
+                self.expect_punct(']')?;
+            }
             self.skip_to_eol();
             self.skip_blank_and_comments();
             name
@@ -368,6 +423,7 @@ impl<'a> Parser<'a> {
 
         let module_ident = Ident::with_dummy_span(Symbol::intern(&module_name));
         let mut module = Module::new(module_ident);
+        module.phase = phase;
 
         while !self.is_eof() {
             self.skip_blank_and_comments();
@@ -391,7 +447,7 @@ impl<'a> Parser<'a> {
         self.expect_keyword("fn")?;
         self.skip_inline();
         self.expect_punct('@')?;
-        let name = self.parse_ident()?.to_string();
+        let name = self.parse_function_name()?.to_string();
         let func_ident = Ident::with_dummy_span(Symbol::intern(&name));
         let mut func = Function::new(func_ident);
 
@@ -637,6 +693,11 @@ impl<'a> Parser<'a> {
                     let selector = self.u256_to_u32(selector)?;
                     func.selector = Some(selector.to_be_bytes());
                 }
+                "receive" => func.attributes.is_receive = true,
+                "fallback" => func.attributes.is_fallback = true,
+                "payable" => {
+                    func.attributes.state_mutability = hir::StateMutability::Payable;
+                }
                 _ => return Err(self.error(format!("unknown function attribute `{key}`"))),
             }
 
@@ -785,10 +846,23 @@ impl<'a> Parser<'a> {
 
     fn parse_function_id(&mut self) -> Result<FunctionId, ParseError> {
         self.skip_inline();
+        if self.try_punct('@') {
+            let name = self.parse_function_name()?;
+            let mut matches = self.function_names.iter().enumerate().filter(|(_, n)| **n == name);
+            let Some((idx, _)) = matches.next() else {
+                return Err(self.error(format!("unknown function `@{name}`")));
+            };
+            if matches.next().is_some() {
+                return Err(self.error(format!(
+                    "function name `@{name}` is ambiguous; use the positional `fnN` form"
+                )));
+            }
+            return Ok(FunctionId::from_usize(idx));
+        }
         let id = self.parse_ident()?;
         let rest = id
             .strip_prefix("fn")
-            .ok_or_else(|| self.error(format!("expected `fnN`, got `{id}`")))?;
+            .ok_or_else(|| self.error(format!("expected `@name` or `fnN`, got `{id}`")))?;
         let idx: usize =
             rest.parse().map_err(|_| self.error(format!("invalid function index `{id}`")))?;
         Ok(FunctionId::from_usize(idx))
@@ -939,6 +1013,16 @@ impl<'a> Parser<'a> {
             }
             "invalid" => {
                 self.set_terminator(func, block, Terminator::Invalid);
+                self.skip_to_eol();
+                return Ok(());
+            }
+            "tail_call" => {
+                let function = self.parse_function_id()?;
+                let mut args = smallvec::SmallVec::new();
+                while self.try_punct(',') {
+                    args.push(self.parse_value(func, arg_values, value_labels)?);
+                }
+                self.set_terminator(func, block, Terminator::TailCall { function, args });
                 self.skip_to_eol();
                 return Ok(());
             }
@@ -1662,6 +1746,50 @@ mod tests {
     fn with_session<F: FnOnce() + Send>(f: F) {
         let sess = Session::builder().with_buffer_emitter(ColorChoice::Never).build();
         sess.enter(f);
+    }
+
+    #[test]
+    fn parse_module_phase_header() {
+        with_session(|| {
+            let src =
+                "; module @Phased [phase = optimized]\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let module = parse_module(src).unwrap();
+            assert_eq!(module.phase, crate::mir::MirPhase::Optimized);
+            // Round-trips through the printer.
+            let printed = module.to_text().to_string();
+            assert!(printed.starts_with("; module @Phased [phase = optimized]"), "{printed}");
+            let reparsed = parse_module(&printed).unwrap();
+            assert_eq!(reparsed.phase, crate::mir::MirPhase::Optimized);
+
+            // The default phase is not printed, and parses back as built.
+            let src = "; module @Fresh\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let module = parse_module(src).unwrap();
+            assert_eq!(module.phase, crate::mir::MirPhase::Built);
+            assert!(module.to_text().to_string().starts_with("; module @Fresh\n"));
+
+            // Unknown phase names are rejected.
+            let src = "; module @Bogus [phase = shiny]\nfn @f() {\n  bb0 (entry):\n    stop\n}\n";
+            let err = parse_module(src).unwrap_err();
+            assert!(err.to_string().contains("unknown MIR phase `shiny`"), "{err}");
+
+            // Every phase name round-trips through parse and print.
+            for phase in [
+                crate::mir::MirPhase::Built,
+                crate::mir::MirPhase::Optimized,
+                crate::mir::MirPhase::Abi,
+                crate::mir::MirPhase::Dispatch,
+                crate::mir::MirPhase::EvmShaped,
+            ] {
+                let src = format!(
+                    "; module @P [phase = {}]\nfn @f() {{\n  bb0 (entry):\n    stop\n}}\n",
+                    phase.name()
+                );
+                let module = parse_module(&src).unwrap();
+                assert_eq!(module.phase, phase, "parse `{}`", phase.name());
+                let reparsed = parse_module(&module.to_text().to_string()).unwrap();
+                assert_eq!(reparsed.phase, phase, "round-trip `{}`", phase.name());
+            }
+        });
     }
 
     #[test]

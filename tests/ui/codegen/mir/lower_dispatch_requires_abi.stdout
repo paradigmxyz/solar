@@ -1,0 +1,6 @@
+// === ROOT/tests/ui/codegen/mir/lower_dispatch_requires_abi.mir (after lower-dispatch) ===
+; module @LowerDispatchRequiresAbi
+fn @takesArg(arg0: u256) -> u256 {
+  bb0 (entry):
+    ret arg0
+}

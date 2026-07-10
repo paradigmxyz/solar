@@ -84,34 +84,19 @@ fn @safeTransfer(arg0: address, arg1: address, arg2: u256) {
   bb14:
     jump bb10
   bb15:
-    v43 = mload 64 !metadata(memory=scratch)
-    v44 = add v43, 64
-    mstore 64, v44 !metadata(memory=scratch)
-    mstore v43, 2
-    v45 = add v43, 32
-    v46 = add v45, 0
-    mstore v46, 0x5446000000000000000000000000000000000000000000000000000000000000
-    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
-    mstore 4, 32 !metadata(memory=scratch)
-    v47 = mload v43
-    mstore 36, v47 !metadata(memory=scratch)
-    v48 = add v47, 31
-    v49 = and v48, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
-    v50 = iszero v49
-    v51 = iszero v50
-    br v51, bb17, bb18
+    internal_call @__revert_error, 0, 2, 0x5446000000000000000000000000000000000000000000000000000000000000
+    invalid
   bb16:
     stop
-  bb17:
-    v52 = sub v49, 32
-    v53 = add 68, v52
-    mstore v53, 0
-    jump bb18
-  bb18:
-    v54 = add v43, 32
-    mcopy 68, v54, v47 !metadata(memory=scratch)
-    v55 = add 68, v49
-    revert 0, v55
+}
+
+fn @__revert_error(arg0: u256, arg1: u256) {
+  bb0 (entry):
+    mstore 0, 0x8c379a000000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 32 !metadata(memory=scratch)
+    mstore 36, arg0 !metadata(memory=scratch)
+    mstore 68, arg1 !metadata(memory=scratch)
+    revert 0, 100
 }
 
 fn @balanceOf(arg0: address) {
@@ -231,30 +216,36 @@ fn @forward(arg0: address, arg1: memptr) {
     revert 0, 0
   bb6:
     v30 = mload 192
-    v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 32
-    mstore 64, v32 !metadata(memory=scratch)
-    v33 = add v31, 32
-    v34 = sub v33, v31
-    mstore v31, v34
-    v35 = mload v30
-    mstore v33, v35
-    v36 = not 31
-    v37 = add v35, 31
-    v38 = and v37, v36
-    v39 = add v33, 32
-    v40 = iszero v38
-    br v40, bb8, bb7
-  bb7:
-    v41 = sub v38, 32
-    v42 = add v39, v41
-    mstore v42, 0
-    jump bb8
-  bb8:
-    v43 = add v30, 32
-    v44 = add v39, v38
-    mcopy v39, v43, v35
-    v45 = sub v44, v31
-    returndata v31, v45
+    internal_call @__ret_bytes, 0, v30
+    invalid
+}
+
+fn @__ret_bytes(arg0: memptr) {
+  bb0 (entry):
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = add v0, 32
+    v3 = sub v2, v0
+    mstore v0, v3
+    v4 = mload arg0
+    mstore v2, v4
+    v5 = not 31
+    v6 = add v4, 31
+    v7 = and v6, v5
+    v8 = add v2, 32
+    v9 = iszero v7
+    br v9, bb2, bb1
+  bb1:
+    v10 = sub v7, 32
+    v11 = add v8, v10
+    mstore v11, 0
+    jump bb2
+  bb2:
+    v12 = add arg0, 32
+    v13 = add v8, v7
+    mcopy v8, v12, v4
+    v14 = sub v13, v0
+    returndata v0, v14
 }
 

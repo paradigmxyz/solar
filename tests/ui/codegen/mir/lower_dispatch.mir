@@ -1,0 +1,14 @@
+//@compile-flags: --pass lower-dispatch
+// The dispatch phase synthesizes an `entry` function that reads the selector
+// (calldataload(0) >> 224) and switches to one argument-free internal call per
+// external wrapper, defaulting to a revert. It requires the `abi` phase, whose
+// wrappers are already argument-free.
+; module @LowerDispatch [phase = abi]
+fn @ping() [selector=0x5c36b186] {
+  bb0 (entry):
+    stop
+}
+fn @pong() [selector=0x8d3a3e57] {
+  bb0 (entry):
+    stop
+}

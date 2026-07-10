@@ -1,0 +1,3 @@
+error: invalid MIR input:
+  [fn1] tail_call to `callee` passes 0 argument(s), expected 1
+  [fn2] tail_call targets nonexistent function fn9

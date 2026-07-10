@@ -1,0 +1,14 @@
+//@compile-flags: --pass lower-dispatch
+// When every external entry rejects value, the callvalue check is hoisted to
+// the top of `entry` once instead of being repeated per case, mirroring the
+// backend dispatcher. No receive/fallback: empty calldata and unknown
+// selectors both revert.
+; module @DispatchHoisted [phase = abi]
+fn @a() [selector=0x00000001] {
+  bb0 (entry):
+    stop
+}
+fn @b() [selector=0x00000002] {
+  bb0 (entry):
+    stop
+}

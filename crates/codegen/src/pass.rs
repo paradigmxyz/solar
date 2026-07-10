@@ -21,13 +21,13 @@
 
 use crate::{
     analysis::Validator,
-    mir::{Function, Module},
+    mir::{Function, MirPhase, Module},
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
-        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, MemoryDsePass, PrePass,
-        PureEvalPass, SccpTransformPass, StorageDsePass, StorageLoadCsePass,
-        StorageScalarPromotionPass,
+        JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
+        LowerDispatchPass, LowerEvmShapedPass, MemoryDsePass, PrePass, PureEvalPass,
+        SccpTransformPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -42,12 +42,36 @@ pub struct PassInfo {
     pub name: &'static str,
     /// Human-readable help text.
     pub description: &'static str,
+    /// Earliest [`MirPhase`] this pass may run on.
+    pub min_phase: MirPhase,
+    /// Latest [`MirPhase`] this pass may run on.
+    pub max_phase: MirPhase,
     make_pass: PassFactory,
 }
 
 impl PassInfo {
     const fn new(name: &'static str, description: &'static str, make_pass: PassFactory) -> Self {
-        Self { name, description, make_pass }
+        Self {
+            name,
+            description,
+            min_phase: MirPhase::Built,
+            max_phase: MirPhase::EvmShaped,
+            make_pass,
+        }
+    }
+
+    /// Restricts the phases this pass may run on: the pass manager skips it,
+    /// rather than running it, on modules outside the range.
+    const fn phases(mut self, min: MirPhase, max: MirPhase) -> Self {
+        self.min_phase = min;
+        self.max_phase = max;
+        self
+    }
+
+    /// Whether this pass's declared phase range admits the module's phase.
+    #[must_use]
+    pub fn admits(&self, module: &Module) -> bool {
+        self.min_phase <= module.phase && module.phase <= self.max_phase
     }
 
     fn make_pass(&self) -> Box<dyn ModulePass> {
@@ -137,7 +161,31 @@ declare_passes! {
 
     /// Aggressive dead-code elimination for dead control regions.
     pub const ADCE_PASS -> "adce" = AdcePass;
+
+    /// ABI phase lowering: external functions become self-decoding wrappers.
+    const LOWER_ABI_PASS_BASE -> "lower-abi" = LowerAbiPass::default();
+
+    /// Dispatch phase lowering: synthesize the selector-switch `entry` function.
+    const LOWER_DISPATCH_PASS_BASE -> "lower-dispatch" = LowerDispatchPass::default();
+
+    /// EVM-shape lowering: non-returning internal calls become tail calls.
+    const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
 }
+
+/// ABI phase lowering with its phase range declared: consumes
+/// `built`/`optimized` MIR and produces the `abi` phase.
+pub const LOWER_ABI_PASS: PassInfo =
+    LOWER_ABI_PASS_BASE.phases(MirPhase::Built, MirPhase::Optimized);
+
+/// Dispatch phase lowering with its phase range declared: consumes exactly
+/// `abi`-phase MIR and produces the `dispatch` phase.
+pub const LOWER_DISPATCH_PASS: PassInfo =
+    LOWER_DISPATCH_PASS_BASE.phases(MirPhase::Abi, MirPhase::Abi);
+
+/// EVM-shape lowering with its phase range declared: consumes exactly
+/// `dispatch`-phase MIR and produces the `evm-shaped` phase.
+pub const LOWER_EVM_SHAPED_PASS: PassInfo =
+    LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::Dispatch, MirPhase::Dispatch);
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub const PASS_REGISTRY: &[PassInfo] = &[
@@ -163,6 +211,9 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     FRAME_SLOT_PROMOTION_PASS,
     MEMORY_DSE_PASS,
     STORAGE_PROMOTION_PASS,
+    LOWER_ABI_PASS,
+    LOWER_DISPATCH_PASS,
+    LOWER_EVM_SHAPED_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
@@ -244,6 +295,11 @@ pub fn run_pass(module: &mut Module, pass: &PassInfo) -> bool {
 }
 
 fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
+    // Passes declare which phases they operate on; the manager enforces it so a
+    // pipeline entry cannot silently corrupt a module in the wrong phase.
+    if !pass.admits(module) {
+        return false;
+    }
     let mut pm = PassManager::new();
     pm.set_validate_after_each(options.validate_after_each);
     pm.add_pass(pass.make_pass());
@@ -282,10 +338,15 @@ pub fn run_default_pipeline(module: &mut Module) -> bool {
 }
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen with options.
+///
+/// This is a phase transition: the module comes out in [`MirPhase::Optimized`].
+/// Ad-hoc pass lists run through [`run_pipeline`], such as `solar mir-opt`
+/// invocations, deliberately do not advance the phase.
 pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineOptions) -> bool {
     let mut changed = run_pipeline_with_options(module, DEFAULT_PIPELINE, options);
     changed |=
         run_cleanup_pipeline_to_fixpoint(module, DEFAULT_CLEANUP_PIPELINE, options, "cleanup");
+    module.advance_phase(crate::mir::MirPhase::Optimized);
     changed
 }
 

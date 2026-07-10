@@ -596,6 +596,11 @@ pub struct MirInlineConfig {
     pub max_caller_inlined_instructions: usize,
     /// Minimum estimated internal-call protocol gas saved before inlining.
     pub min_call_savings: u64,
+    /// Size-aware backstop: once a module's estimated runtime bytecode reaches
+    /// this many bytes, stop inlining (which grows code) so the contract stays
+    /// under the EIP-170 deployable-code limit. Small contracts never reach it
+    /// and inline normally.
+    pub max_module_code_size: usize,
 }
 
 impl Default for MirInlineConfig {
@@ -610,7 +615,28 @@ impl Default for MirInlineConfig {
             max_hot_code_growth: 512,
             max_caller_inlined_instructions: 64,
             min_call_savings: 120,
+            // Budget in `estimated_code_size` units (a per-instruction proxy that
+            // runs well below final bytecode because it does not model stack
+            // scheduling/spills). Calibrated as a conservative backstop: a module
+            // already this large has little headroom under the EIP-170 24576-byte
+            // limit, so further (growth-only) inlining is skipped to keep it
+            // deployable. Ordinary contracts are far smaller and inline normally.
+            max_module_code_size: 7450,
         }
+    }
+}
+
+impl MirInlineConfig {
+    /// Configuration for `-O size`: a module budget of zero disables all MIR
+    /// inlining, which only ever grows emitted code on real contracts (both
+    /// multi-use duplication and the cascades that single-call inlining sets
+    /// off were measured to increase size). Lowering-time inlining of tiny
+    /// single-return helpers is deliberately kept: solar's internal-call
+    /// protocol (memory frame setup) costs more bytes than those bodies, so
+    /// sharing them was measured to *increase* code size as well.
+    #[must_use]
+    pub fn for_size() -> Self {
+        Self { max_module_code_size: 0, ..Self::default() }
     }
 }
 
@@ -643,6 +669,7 @@ struct MirInlineSummary {
     has_unsupported_terminator: bool,
     is_entry_point: bool,
     is_constructor: bool,
+    no_inline: bool,
 }
 
 /// Module-level MIR internal-call inliner.
@@ -663,7 +690,12 @@ impl ModulePass for InlinePass {
     }
 
     fn run(&mut self, module: &mut Module) -> bool {
-        MirInliner::default().run(module).inlined != 0
+        let config = if module.optimize_for_size {
+            MirInlineConfig::for_size()
+        } else {
+            MirInlineConfig::default()
+        };
+        MirInliner::new(config).run(module).inlined != 0
     }
 }
 
@@ -686,6 +718,12 @@ impl MirInliner {
         let mut summaries = self.summarize_module(module);
         let mut call_counts = self.call_counts(module);
         let recursive_functions = self.recursive_functions(module);
+
+        // Size-aware backstop: inlining grows emitted code, so track the module's
+        // estimated runtime bytecode and stop inlining once it reaches the budget,
+        // keeping large contracts under the EIP-170 deployable-code limit. Small
+        // contracts never reach the budget and inline normally.
+        let mut module_code_size: usize = summaries.values().map(|s| s.estimated_code_size).sum();
 
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
             let loop_depths = block_loop_depths(module.function(caller_id));
@@ -710,7 +748,8 @@ impl MirInliner {
                     s.instruction_count.saturating_sub(base_instructions)
                         > self.config.max_caller_inlined_instructions
                 });
-                if grew_too_much
+                if module_code_size >= self.config.max_module_code_size
+                    || grew_too_much
                     || recursive_functions.contains(&site.callee)
                     || !self.is_inlineable(caller_id, site, summary, call_count)
                 {
@@ -719,10 +758,16 @@ impl MirInliner {
                 }
 
                 let callee = module.function(site.callee).clone();
+                let old_size =
+                    summaries.get(&caller_id).map(|s| s.estimated_code_size).unwrap_or_default();
                 let caller = module.function_mut(caller_id);
                 if inline_call(caller, site.block, site.inst_index, &callee) {
                     stats.inlined += 1;
-                    summaries.insert(caller_id, summarize_function(module.function(caller_id)));
+                    let new_summary = summarize_function(module.function(caller_id));
+                    module_code_size = module_code_size
+                        .saturating_sub(old_size)
+                        .saturating_add(new_summary.estimated_code_size);
+                    summaries.insert(caller_id, new_summary);
                     call_counts = self.call_counts(module);
                     cursor = (site.block.index(), 0);
                 } else {
@@ -835,7 +880,11 @@ impl MirInliner {
     ) -> bool {
         let single_call = self.config.inline_single_call && call_count == 1;
 
+        // `no_inline` prevents cloning a shared helper into every caller; with
+        // a single call site there is nothing to duplicate, and absorbing the
+        // helper removes the call protocol around its only use.
         if caller == site.callee
+            || (summary.no_inline && !single_call)
             || summary.is_entry_point
             || summary.is_constructor
             || summary.has_phi
@@ -905,6 +954,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
             || func.attributes.is_receive
             || func.selector.is_some(),
         is_constructor: func.attributes.is_constructor,
+        no_inline: func.attributes.no_inline,
         ..MirInlineSummary::default()
     };
 
@@ -962,6 +1012,7 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
             Some(Terminator::ReturnData { .. })
             | Some(Terminator::Stop)
             | Some(Terminator::SelfDestruct { .. })
+            | Some(Terminator::TailCall { .. })
             | None => summary.has_unsupported_terminator = true,
             Some(Terminator::Invalid) => {}
         }
@@ -1066,6 +1117,7 @@ fn estimate_terminator_cost(term: &Terminator) -> MirCost {
         Terminator::Revert { .. } | Terminator::ReturnData { .. } => (20, 4),
         Terminator::Stop => (0, 1),
         Terminator::SelfDestruct { .. } => (5_000, 1),
+        Terminator::TailCall { args, .. } => (8 + 3 * args.len() as u64, 4 + args.len()),
         Terminator::Invalid => (0, 1),
     };
     MirCost { runtime_gas, code_size }
@@ -1490,7 +1542,10 @@ impl<'a> InlineCloner<'a> {
                 offset: self.clone_value(*offset)?,
                 size: self.clone_value(*size)?,
             },
-            Terminator::ReturnData { .. } | Terminator::Stop | Terminator::SelfDestruct { .. } => {
+            Terminator::ReturnData { .. }
+            | Terminator::Stop
+            | Terminator::SelfDestruct { .. }
+            | Terminator::TailCall { .. } => {
                 return None;
             }
             Terminator::Invalid => Terminator::Invalid,

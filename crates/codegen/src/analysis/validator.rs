@@ -43,6 +43,7 @@ use crate::{
     pass::AnalysisPass,
 };
 use solar_data_structures::map::FxHashMap;
+use solar_interface::sym;
 use std::fmt;
 
 /// MIR validation query.
@@ -315,7 +316,75 @@ impl Validator {
                 all.push(err);
             }
         }
+        all.extend(Self::validate_tail_calls(module));
+        all.extend(Self::validate_phase(module));
         all
+    }
+
+    /// Checks the cross-function invariants of `tail_call` terminators: the
+    /// callee exists and the argument count matches its parameters.
+    fn validate_tail_calls(module: &Module) -> Vec<ValidationError> {
+        let mut errors = Vec::new();
+        for (id, func) in module.iter_functions() {
+            for block in func.blocks.iter() {
+                let Some(crate::mir::Terminator::TailCall { function, args }) = &block.terminator
+                else {
+                    continue;
+                };
+                let Some(callee) = module.functions.get(*function) else {
+                    errors.push(ValidationError::new(format!(
+                        "[fn{}] tail_call targets nonexistent function fn{}",
+                        id.index(),
+                        function.index()
+                    )));
+                    continue;
+                };
+                if args.len() != callee.params.len() {
+                    errors.push(ValidationError::new(format!(
+                        "[fn{}] tail_call to `{}` passes {} argument(s), expected {}",
+                        id.index(),
+                        callee.name,
+                        args.len(),
+                        callee.params.len()
+                    )));
+                }
+            }
+        }
+        errors
+    }
+
+    /// Checks that the module's content satisfies its declared
+    /// [`MirPhase`](crate::mir::MirPhase), so
+    /// the phase is a real contract rather than a label.
+    fn validate_phase(module: &Module) -> Vec<ValidationError> {
+        let mut errors = Vec::new();
+        // From the `dispatch` phase on, routing is materialized: a module with
+        // bodied selector functions must contain the synthesized `entry`.
+        if module.phase >= crate::mir::MirPhase::Dispatch
+            && module.functions.iter().any(|f| f.selector.is_some() && !f.blocks.is_empty())
+            && !module.functions.iter().any(|f| f.name.name == sym::entry)
+        {
+            errors.push(ValidationError::new(format!(
+                "module is in the `{}` phase but has no `entry` dispatcher function",
+                module.phase.name()
+            )));
+        }
+        // From the `abi` phase on, every bodied external (selector-bearing)
+        // function is an argument-free self-decoding wrapper.
+        if module.phase >= crate::mir::MirPhase::Abi {
+            for (id, func) in module.iter_functions() {
+                if func.selector.is_some() && !func.blocks.is_empty() && !func.params.is_empty() {
+                    errors.push(ValidationError::new(format!(
+                        "[fn{}] selector function `{}` still takes arguments in the `{}` phase \
+                         (expected an argument-free ABI wrapper)",
+                        id.index(),
+                        func.name,
+                        module.phase.name()
+                    )));
+                }
+            }
+        }
+        errors
     }
 }
 

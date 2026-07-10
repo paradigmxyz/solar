@@ -42,31 +42,37 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
     v7 = add 96, 32
     v8 = add v3, v7
     mstore 64, v8 !metadata(memory=scratch)
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, 32
-    mstore 64, v10 !metadata(memory=scratch)
-    v11 = add v9, 32
-    v12 = sub v11, v9
-    mstore v9, v12
-    v13 = mload v3
-    mstore v11, v13
-    v14 = not 31
-    v15 = add v13, 31
-    v16 = and v15, v14
-    v17 = add v11, 32
-    v18 = iszero v16
-    br v18, bb4, bb3
-  bb3:
-    v19 = sub v16, 32
-    v20 = add v17, v19
-    mstore v20, 0
-    jump bb4
-  bb4:
-    v21 = add v3, 32
-    v22 = add v17, v16
-    mcopy v17, v21, v13
-    v23 = sub v22, v9
-    returndata v9, v23
+    internal_call @__ret_bytes, 0, v3
+    invalid
+}
+
+fn @__ret_bytes(arg0: memptr) {
+  bb0 (entry):
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = add v0, 32
+    v3 = sub v2, v0
+    mstore v0, v3
+    v4 = mload arg0
+    mstore v2, v4
+    v5 = not 31
+    v6 = add v4, 31
+    v7 = and v6, v5
+    v8 = add v2, 32
+    v9 = iszero v7
+    br v9, bb2, bb1
+  bb1:
+    v10 = sub v7, 32
+    v11 = add v8, v10
+    mstore v11, 0
+    jump bb2
+  bb2:
+    v12 = add arg0, 32
+    v13 = add v8, v7
+    mcopy v8, v12, v4
+    v14 = sub v13, v0
+    returndata v0, v14
 }
 
 fn @encodeDynamic(arg0: u256, arg1: memptr) {
@@ -121,31 +127,8 @@ fn @encodeDynamic(arg0: u256, arg1: memptr) {
     v29 = add v28, 32
     v30 = add v13, v29
     mstore 64, v30 !metadata(memory=scratch)
-    v31 = mload 64 !metadata(memory=scratch)
-    v32 = add v31, 32
-    mstore 64, v32 !metadata(memory=scratch)
-    v33 = add v31, 32
-    v34 = sub v33, v31
-    mstore v31, v34
-    v35 = mload v13
-    mstore v33, v35
-    v36 = not 31
-    v37 = add v35, 31
-    v38 = and v37, v36
-    v39 = add v33, 32
-    v40 = iszero v38
-    br v40, bb6, bb5
-  bb5:
-    v41 = sub v38, 32
-    v42 = add v39, v41
-    mstore v42, 0
-    jump bb6
-  bb6:
-    v43 = add v13, 32
-    v44 = add v39, v38
-    mcopy v39, v43, v35
-    v45 = sub v44, v31
-    returndata v31, v45
+    internal_call @__ret_bytes, 0, v13
+    invalid
 }
 
 fn @hashDynamic(arg0: u256, arg1: memptr) {

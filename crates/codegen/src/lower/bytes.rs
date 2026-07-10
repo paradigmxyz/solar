@@ -21,7 +21,15 @@ impl<'gcx> Lowerer<'gcx> {
         lit: &hir::Lit<'_>,
     ) -> Option<ValueId> {
         let LitKind::Str(_, bytes, _) = &lit.kind else { return None };
-        let bytes = bytes.as_byte_str();
+        Some(self.lower_string_bytes_to_memory(builder, bytes.as_byte_str()))
+    }
+
+    /// Materializes constant bytes as a `[length][data...]` memory string.
+    pub(super) fn lower_string_bytes_to_memory(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        bytes: &[u8],
+    ) -> ValueId {
         let len = bytes.len();
         let aligned = len.div_ceil(32) * 32;
         let ptr = self.allocate_memory(builder, (32 + aligned) as u64);
@@ -39,7 +47,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, val);
         }
 
-        Some(ptr)
+        ptr
     }
 
     pub(super) fn lower_expr_as_memory_bytes(
@@ -96,6 +104,58 @@ impl<'gcx> Lowerer<'gcx> {
         ptr
     }
 
+    /// Copies a calldata bytes/string SLICE `base[start:end]` into Solidity's
+    /// memory bytes layout (`[length][data...]`). `head` is the ABI head of
+    /// `base`; `start`/`end` default to `0` and `base.length`.
+    pub(super) fn materialize_calldata_slice(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        head: ValueId,
+        start: Option<ValueId>,
+        end: Option<ValueId>,
+    ) -> ValueId {
+        let four = builder.imm_u64(4);
+        let len_pos = builder.add(four, head);
+        let base_len = builder.calldataload(len_pos);
+        let word_size = builder.imm_u64(32);
+        let base_data_pos = builder.add(len_pos, word_size);
+
+        let start = match start {
+            Some(s) => s,
+            None => builder.imm_u64(0),
+        };
+        let end = match end {
+            Some(e) => e,
+            None => base_len,
+        };
+        let len = builder.sub(end, start);
+        let slice_pos = builder.add(base_data_pos, start);
+
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(len, thirty_one);
+        let rounded_overflow = builder.lt(rounded, len);
+        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let is_empty = builder.iszero(padded);
+        let data_size = builder.select(is_empty, word_size, padded);
+        let total_size = builder.add(word_size, data_size);
+        let total_overflow = builder.lt(total_size, data_size);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        builder.mstore(ptr, len);
+
+        let data_ptr = builder.add(ptr, word_size);
+        let zero = builder.imm_u64(0);
+        let last_word_offset = builder.sub(data_size, word_size);
+        let last_word = builder.add(data_ptr, last_word_offset);
+        builder.mstore(last_word, zero);
+
+        builder.calldatacopy(data_ptr, slice_pos, len);
+        ptr
+    }
+
     pub(super) fn var_expects_memory_bytes_value(&self, var: &hir::Variable<'_>) -> bool {
         matches!(
             var.ty.kind,
@@ -104,6 +164,66 @@ impl<'gcx> Lowerer<'gcx> {
             var.data_location,
             Some(solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage)
         )
+    }
+
+    /// Whether a declared variable wants a MEMORY dynamic-array value: a
+    /// calldata-array initializer must materialize as a memory copy.
+    pub(super) fn var_expects_memory_dyn_array_value(&self, var: &hir::Variable<'_>) -> bool {
+        matches!(&var.ty.kind, hir::TypeKind::Array(arr) if arr.size.is_none())
+            && !matches!(
+                var.data_location,
+                Some(solar_ast::DataLocation::Calldata | solar_ast::DataLocation::Storage)
+            )
+    }
+
+    /// Whether an assignment target wants a MEMORY dynamic-array value.
+    pub(super) fn lhs_expects_memory_dyn_array_value(&self, lhs: &hir::Expr<'_>) -> bool {
+        let ExprKind::Ident(res_slice) = &lhs.kind else { return false };
+        let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
+            return false;
+        };
+        self.var_expects_memory_dyn_array_value(self.gcx.hir.variable(*var_id))
+    }
+
+    /// Lowers an expression whose consumer needs a MEMORY dynamic array: a
+    /// calldata dynamic array materializes as a `[length][elems...]` copy;
+    /// anything else lowers normally (it is already a memory pointer).
+    pub(super) fn lower_expr_as_memory_dyn_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) -> ValueId {
+        if let Some((head, false)) = self.calldata_dyn_head(expr) {
+            return self.materialize_calldata_dyn_array(builder, head);
+        }
+        self.lower_expr(builder, expr)
+    }
+
+    /// Copies a calldata dynamic array of word elements into Solidity's
+    /// memory array layout (`[length][elems...]`).
+    pub(super) fn materialize_calldata_dyn_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        head: ValueId,
+    ) -> ValueId {
+        let four = builder.imm_u64(4);
+        let len_pos = builder.add(four, head);
+        let len = builder.calldataload(len_pos);
+
+        let word_size = builder.imm_u64(32);
+        // Guard `len * 32` overflow before sizing the allocation.
+        let shift = builder.imm_u64(251);
+        let too_big = builder.shr(shift, len);
+        self.emit_panic_if(builder, too_big, PanicCode::MemoryAllocationOverflow);
+        let byte_len = builder.mul(len, word_size);
+        let total_size = builder.add(word_size, byte_len);
+
+        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        builder.mstore(ptr, len);
+        let data_ptr = builder.add(ptr, word_size);
+        let data_pos = builder.add(len_pos, word_size);
+        builder.calldatacopy(data_ptr, data_pos, byte_len);
+        ptr
     }
 
     pub(super) fn lhs_expects_memory_bytes_value(&self, lhs: &hir::Expr<'_>) -> bool {
@@ -323,6 +443,26 @@ impl<'gcx> Lowerer<'gcx> {
         false
     }
 
+    /// Whether an expression is an lvalue of storage-located `bytes`/`string`
+    /// type: a state variable, a storage-reference local, or a `bytes` field
+    /// reached through one (e.g. `state.part` with `S storage state`). Unlike
+    /// [`Self::is_storage_bytes_expr`], this covers member/index receivers and
+    /// is meant to be paired with `lower_lvalue_slot`, which resolves the slot
+    /// for exactly these shapes.
+    pub(super) fn expr_is_storage_bytes_lvalue(&self, expr: &hir::Expr<'_>) -> bool {
+        if self.is_storage_bytes_expr(expr) {
+            return true;
+        }
+        let Some(ty) = self.get_expr_type(expr) else { return false };
+        if let TyKind::Ref(inner, solar_ast::DataLocation::Storage) = ty.kind {
+            return matches!(
+                inner.kind,
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
+            );
+        }
+        false
+    }
+
     /// Copies the returndata of the call that was just lowered into a fresh
     /// `bytes memory` allocation (`[length][data...]`) and returns the pointer.
     ///
@@ -464,6 +604,17 @@ impl<'gcx> Lowerer<'gcx> {
             let word = builder.imm_u64(32);
             let data = builder.add(ptr, word);
             let len = builder.mload(ptr);
+            return (data, len);
+        }
+
+        // A `bytes`/`string` calldata value: copy it into memory (a low-level
+        // call reads its input from memory), then use that region. This arises in
+        // proxy fallbacks such as `impl.delegatecall(data)` with `bytes calldata`.
+        if let Some((head, _)) = self.calldata_dyn_head(expr) {
+            let ptr = self.materialize_calldata_bytes(builder, head);
+            let word = builder.imm_u64(32);
+            let len = builder.mload(ptr);
+            let data = builder.add(ptr, word);
             return (data, len);
         }
 

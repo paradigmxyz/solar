@@ -2,7 +2,7 @@
 
 use crate::{
     ColorChoice, CompilerOutput, CompilerStage, Dump, ErrorFormat, EvmVersion, HumanEmitterKind,
-    ImportRemapping, Language, OptimizationMode, Threads,
+    ImportRemapping, Language, LibraryAddress, OptimizationMode, Threads,
 };
 use std::{num::NonZeroUsize, path::PathBuf};
 
@@ -99,6 +99,18 @@ pub struct CompileOpts {
     #[cfg_attr(feature = "clap", arg(short = 'O', long = "optimize", value_enum, default_value_t))]
     pub optimization: OptimizationMode,
 
+    /// Library addresses for linking, as `LibraryName=0xADDRESS`.
+    ///
+    /// An optional `path.sol:` prefix on the name is accepted and ignored. A
+    /// `public`/`external` library function whose library has a linked address
+    /// is called through `DELEGATECALL` at that address instead of being
+    /// inlined into the caller.
+    #[cfg_attr(
+        feature = "clap",
+        arg(long = "libraries", value_name = "NAME=ADDRESS", value_delimiter = ',')
+    )]
+    pub libraries: Vec<LibraryAddress>,
+
     /// Directory to write output files.
     #[cfg_attr(feature = "clap", arg(long, value_hint = ValueHint::DirPath))]
     pub out_dir: Option<PathBuf>,
@@ -179,12 +191,6 @@ pub struct CompileOpts {
 }
 
 impl CompileOpts {
-    /// Returns whether MIR optimization passes should run during codegen.
-    #[inline]
-    pub const fn optimize_mir(&self) -> bool {
-        !matches!(self.optimization, OptimizationMode::None)
-    }
-
     /// Returns the number of threads to use.
     #[inline]
     pub fn threads(&self) -> NonZeroUsize {
@@ -362,6 +368,18 @@ pub struct UnstableOpts {
     /// stable, solc-compatible behavior.
     #[cfg_attr(feature = "clap", arg(long))]
     pub codegen: bool,
+
+    /// Disable MIR-phase dispatch lowering.
+    ///
+    /// Generates the dispatcher inside the EVM backend instead of lowering
+    /// dispatch and ABI handling as MIR phases. By default the phases run and
+    /// the backend consumes them. A module falls back to the backend
+    /// dispatcher when `lower-abi` cannot wrap every external function yet —
+    /// the wrappers do not implement returndata encoding, so any returning
+    /// external function (getters included) keeps the module on the backend
+    /// path — or when there is no external interface at all.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub no_mir_dispatch: bool,
 
     // ----------------------------------------
     // Please add new options above this point!

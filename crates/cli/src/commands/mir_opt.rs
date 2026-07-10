@@ -180,6 +180,16 @@ fn process_mir(args: &MirOptArgs) -> Result<(), String> {
                 return;
             }
         };
+        // Hand-written MIR is untrusted input: reject invalid modules with a
+        // diagnostic instead of tripping the post-pass validator ICE.
+        let errors = solar_codegen::analysis::validate_module(&module);
+        if !errors.is_empty() {
+            result = Err(format!(
+                "invalid MIR input:\n{}",
+                errors.iter().map(|e| format!("  {e}")).collect::<Vec<_>>().join("\n")
+            ));
+            return;
+        }
         // Use a fixed name for .mir input — the parser interns whatever the
         // file declared (or "module" by default).
         let name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();

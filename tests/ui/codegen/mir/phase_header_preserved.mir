@@ -1,0 +1,10 @@
+//@compile-flags: --pass dce
+//@filecheck: --match-full-lines
+// CHECK: ; module @PhaseHeaderPreserved [phase = optimized]
+// An explicit phase in the header round-trips through single-pass runs:
+// ad-hoc pass lists neither advance nor reset the phase.
+; module @PhaseHeaderPreserved [phase = optimized]
+fn @f() {
+  bb0 (entry):
+    stop
+}

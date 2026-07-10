@@ -55,7 +55,10 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.calldataload(element_pos);
         }
 
-        if self.is_storage_bytes_expr(base) {
+        // Storage `bytes`/`string` (state variable or a field reached through a
+        // storage reference): its value lowers to a `[length][data...]` memory
+        // copy; index into that with a bounds check.
+        if self.expr_is_storage_bytes_lvalue(base) {
             let base_val = self.lower_expr(builder, base);
             let index_val = self.lower_index_or_zero(builder, index);
             let len = builder.mload(base_val);
@@ -133,7 +136,7 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
 
-        if self.is_storage_bytes_expr(base)
+        if self.expr_is_storage_bytes_lvalue(base)
             && let Some(slot) = self.lower_lvalue_slot(builder, base)
         {
             let index_val = self.lower_index_or_zero(builder, index);

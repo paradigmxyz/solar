@@ -17,6 +17,71 @@ use solar_interface::Ident;
 /// constructor patch loop instead of blindly patching with `MSTORE`.
 pub const IMMUTABLE_WORD_SIZE: usize = 32;
 
+/// The lowering phase a [`Module`] is in.
+///
+/// MIR is a phased IR, like rustc's MIR: the same data structures pass through
+/// well-defined phases, and passes declare what phase they expect and produce.
+/// Phases only move forward. The enum order is the lowering order, so
+/// [`MirPhase`] derives `Ord` and [`Module::advance_phase`] can assert
+/// monotonicity.
+///
+/// Optimization runs on the compact high-level form first; the progressive
+/// lowering phases then rewrite high-level constructs into MIR itself instead
+/// of leaving them as backend special cases. The codegen pipeline runs
+/// `lower-abi` and `lower-dispatch` by default and the backend consumes the
+/// `dispatch`-phase module (opt out with `-Zno-mir-dispatch`); a module where
+/// lowering bails keeps its phase and is dispatched by the backend.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum MirPhase {
+    /// Fresh from HIR lowering: typed values, internal calls by function id,
+    /// dispatch and ABI handling not yet materialized as MIR.
+    #[default]
+    Built,
+    /// The canonical optimization pipeline has run.
+    Optimized,
+    /// Every external function has been rewritten into a self-decoding wrapper:
+    /// it decodes calldata into typed arguments and calls the original body as
+    /// an internal function; the body keeps its fused external termination.
+    /// The wrapper keeps its selector but takes no MIR arguments.
+    Abi,
+    /// The selector switch has been materialized as an ordinary MIR `entry`
+    /// function that routes to the ABI wrappers, instead of being generated
+    /// inside the backend.
+    Dispatch,
+    /// Functions take the shape the backend expects: every call edge either
+    /// returns or is an explicit `tail_call` (a call to a callee that cannot
+    /// return is rewritten into one, arguments included). Produced by the
+    /// `lower-evm-shaped` pass.
+    EvmShaped,
+}
+
+impl MirPhase {
+    /// Stable textual name, as printed in the module header.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Built => "built",
+            Self::Optimized => "optimized",
+            Self::Abi => "abi",
+            Self::Dispatch => "dispatch",
+            Self::EvmShaped => "evm-shaped",
+        }
+    }
+
+    /// Looks up a phase by its textual name.
+    #[must_use]
+    pub fn by_name(name: &str) -> Option<Self> {
+        Some(match name {
+            "built" => Self::Built,
+            "optimized" => Self::Optimized,
+            "abi" => Self::Abi,
+            "dispatch" => Self::Dispatch,
+            "evm-shaped" => Self::EvmShaped,
+            _ => return None,
+        })
+    }
+}
+
 /// A MIR module representing a compiled contract.
 #[derive(Clone, Debug)]
 pub struct Module {
@@ -32,6 +97,11 @@ pub struct Module {
     pub immutables: Vec<ImmutableSlot>,
     /// Whether this is an interface (no bytecode generation).
     pub is_interface: bool,
+    /// Whether optimization passes should favor bytecode size over runtime
+    /// gas (`-O size`): multi-use functions are called rather than inlined.
+    pub optimize_for_size: bool,
+    /// The lowering phase this module is in.
+    pub phase: MirPhase,
 }
 
 impl Module {
@@ -45,7 +115,23 @@ impl Module {
             storage_layout: Vec::new(),
             immutables: Vec::new(),
             is_interface: false,
+            optimize_for_size: false,
+            phase: MirPhase::Built,
         }
+    }
+
+    /// Advances this module to a later phase.
+    ///
+    /// Phases only move forward; a pipeline that would regress the phase is a
+    /// bug in pass scheduling.
+    pub fn advance_phase(&mut self, phase: MirPhase) {
+        debug_assert!(
+            phase >= self.phase,
+            "MIR phase cannot regress: {} -> {}",
+            self.phase.name(),
+            phase.name()
+        );
+        self.phase = phase;
     }
 
     /// Adds a function to the module.
@@ -100,11 +186,18 @@ impl Module {
     /// Returns the human-readable textual MIR representation of this module.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
-            writeln!(f, "; module @{}", self.name)?;
+            if self.phase == MirPhase::default() {
+                writeln!(f, "; module @{}", self.name)?;
+            } else {
+                writeln!(f, "; module @{} [phase = {}]", self.name, self.phase.name())?;
+            }
             write!(
                 f,
                 "{}",
-                self.functions.iter().map(super::display::display_function_text).format("\n")
+                self.functions
+                    .iter()
+                    .map(|func| super::display::display_function_text(func, Some(&self.functions)))
+                    .format("\n")
             )
         })
     }
@@ -115,7 +208,10 @@ impl Module {
             write!(
                 f,
                 "{}",
-                self.functions.iter().map(super::display::display_function_dot).format("\n\n")
+                self.functions
+                    .iter()
+                    .map(|func| super::display::display_function_dot(func, Some(&self.functions)))
+                    .format("\n\n")
             )
         })
     }

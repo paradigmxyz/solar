@@ -54,6 +54,44 @@ Pipeline: Lexing -> Parsing -> Semantic Analysis -> MIR -> EVM backend -> byteco
 - Keep the layers separate: MIR should not grow EVM stack-layout details, and
   EVM IR should not rediscover high-level Solidity typing or call semantics.
 
+### MIR Phases
+
+MIR is a phased IR, like rustc's MIR: a `Module` carries a `MirPhase`, phases
+only move forward (the enum order is the lowering order), and the phase
+round-trips through the text format as `; module @Name [phase = ...]` (printed
+only when not the default). The phases, in order:
+
+- `built`: fresh from HIR lowering — one MIR function per Solidity function,
+  typed values, dispatch and ABI handling not yet materialized as MIR.
+- `optimized`: the canonical pass pipeline has run
+  (`run_default_pipeline_with_options` is the phase transition; ad-hoc
+  `mir-opt` pass lists do not advance the phase).
+- `abi`: each external function is a self-decoding wrapper — it decodes
+  calldata into typed arguments and calls the original body as an internal
+  function; the body keeps its fused external termination. Produced by the
+  `lower-abi` pass.
+- `dispatch`: the selector switch is an ordinary MIR `entry` function routing to
+  the ABI wrappers through `tail_call` terminators (control transfers and does
+  not return, matching the wrappers' external termination). Produced by the
+  `lower-dispatch` pass, which requires the `abi` phase.
+- `evm-shaped`: every call edge either returns or is an explicit `tail_call`
+  (arguments included), the shape the backend expects. Produced by the
+  `lower-evm-shaped` pass; argument-carrying tail calls are only formed for
+  callees the backend statically frames, so their arguments store at
+  compile-time frame addresses with no return address pushed.
+
+The `lower-abi`, `lower-dispatch`, and `lower-evm-shaped` passes are progressive MIR-to-MIR lowering,
+moving dispatch and ABI handling out of the backend. They run **by default** in
+the codegen pipeline and the backend consumes the `dispatch`-phase module, with
+the MIR `entry` as the runtime prologue and `tail_call` lowered to a jump
+(opt out with `-Zno-mir-dispatch`). A module where `lower-abi` bails — when any
+external function has returns (the wrappers do not implement returndata
+encoding yet), or there is no external interface — keeps its phase and is
+dispatched by the backend. When extending them or adding the next phase, make the transition a
+named pass that advances the phase via `Module::advance_phase`, keep it
+conservative (bail rather than miscompile — `lower-abi` skips dynamic types),
+and pin it with `.mir` UI tests under `tests/ui/codegen/mir/`.
+
 ### Visitor Pattern
 
 Use `type BreakValue = Never` if visitor never breaks. Override `visit_*` methods and always call `walk_*` to continue traversal:
@@ -232,7 +270,8 @@ Default format (conventional commits): `type: description` (feat, fix, perf, cho
 
 ## Notes
 
-- **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to `crates/macros/src/symbols.rs`.
+- **Symbol comparisons**: Use `sym::name` or `kw::Keyword` instead of `.as_str()` for performance. Add new symbols to the `symbols! { ... }` list in `crates/interface/src/symbol.rs`.
+- **No inline interning of fixed strings**: Never call `Symbol::intern("...")` with a string literal. Add the name to the pre-interned `symbols!` set and use `sym::name`; `Symbol::intern` is only for strings built at runtime.
 - **Arena allocation**: AST nodes use arenas for performance.
 - **Benchmarks**: See @benches/README.md to benchmark when working on performance-critical code.
 - Do not describe Solar in the third person. This repository is the project:

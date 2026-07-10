@@ -42,6 +42,11 @@ Options:
           [default: gas]
           [possible values: none, gas, size]
 
+      --libraries <NAME=ADDRESS>
+          Library addresses for linking, as `LibraryName=0xADDRESS`.
+          
+          An optional `path.sol:` prefix on the name is accepted and ignored. A `public`/`external` library function whose library has a linked address is called through `DELEGATECALL` at that address instead of being inlined into the caller.
+
       --out-dir <OUT_DIR>
           Directory to write output files
 

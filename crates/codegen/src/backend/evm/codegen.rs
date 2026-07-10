@@ -24,7 +24,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use solar_interface::Session;
+use solar_interface::{Session, sym};
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
 // 0x80 is used as the static ABI return buffer. Keep the internal-call frame
@@ -45,6 +45,8 @@ pub struct EvmCodegenConfig {
     pub optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     pub mir_print_after_each: bool,
+    /// Lower dispatch/ABI as MIR phases and consume them here.
+    pub mir_dispatch: bool,
     /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
     ///
     /// Off by default: the default bytecode path must stay byte-for-byte
@@ -64,6 +66,7 @@ impl EvmCodegenConfig {
             evm_version: sess.opts.evm_version,
             optimization: sess.opts.optimization,
             mir_print_after_each: sess.opts.unstable.mir_print_after_each,
+            mir_dispatch: !sess.opts.unstable.no_mir_dispatch,
             // Keep the experimental EVM IR stack scheduler off in every default
             // compilation path so produced bytecode is unchanged.
             evm_ir_stack_schedule: false,
@@ -318,6 +321,20 @@ pub struct EvmCodegen {
     pending_frame_size_consts: Vec<(DeferredConst, FunctionId, u64)>,
     /// Callees whose internal-call frame can be deallocated after return.
     restorable_internal_frames: FxHashSet<FunctionId>,
+    /// Functions whose frame lives at a compile-time-fixed address (static
+    /// frames): internal-convention, non-recursive functions in the runtime
+    /// passes. Their arg/local/spill accesses are absolute pushes and their
+    /// call sites skip all frame-pointer and free-pointer bookkeeping.
+    static_frame_functions: FxHashSet<FunctionId>,
+    /// Interned deferred constants for absolute static-frame addresses, keyed
+    /// by (function, byte offset within its frame). Resolved at the end of
+    /// the pass, once every body's exact spill size is known.
+    static_frame_addr_consts: FxHashMap<(FunctionId, u64), DeferredConst>,
+    /// Per-external-entry free-memory-pointer constants, resolved at the end
+    /// of the pass: the heap must start above the static frame region.
+    pending_free_memory_consts: Vec<(DeferredConst, FunctionId)>,
+    /// The internal-convention function currently being emitted.
+    current_internal_function: Option<FunctionId>,
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
@@ -335,6 +352,7 @@ pub struct EvmCodegen {
     optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     mir_print_after_each: bool,
+    mir_dispatch: bool,
 }
 
 impl EvmCodegen {
@@ -351,6 +369,10 @@ impl EvmCodegen {
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
             restorable_internal_frames: FxHashSet::default(),
+            static_frame_functions: FxHashSet::default(),
+            static_frame_addr_consts: FxHashMap::default(),
+            pending_free_memory_consts: Vec::new(),
+            current_internal_function: None,
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
@@ -359,6 +381,7 @@ impl EvmCodegen {
             in_internal_function: false,
             optimization: config.optimization,
             mir_print_after_each: config.mir_print_after_each,
+            mir_dispatch: config.mir_dispatch,
         }
     }
 
@@ -580,6 +603,10 @@ impl EvmCodegen {
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
             self.restorable_internal_frames.clear();
+            self.static_frame_functions.clear();
+            self.static_frame_addr_consts.clear();
+            self.pending_free_memory_consts.clear();
+            self.current_internal_function = None;
             self.stack_phi_sources.clear();
 
             for (func_id, func) in module.functions.iter_enumerated() {
@@ -671,16 +698,25 @@ impl EvmCodegen {
 
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
-        if self.optimization == OptimizationMode::None {
-            return;
+        module.optimize_for_size = self.optimization == OptimizationMode::Size;
+        if self.optimization != OptimizationMode::None {
+            run_default_pipeline_with_options(
+                module,
+                PipelineOptions {
+                    print_after_each: self.mir_print_after_each,
+                    ..PipelineOptions::default()
+                },
+            );
         }
-        run_default_pipeline_with_options(
-            module,
-            PipelineOptions {
-                print_after_each: self.mir_print_after_each,
-                ..PipelineOptions::default()
-            },
-        );
+        // Progressive lowering: materialize ABI wrappers, the dispatcher, and
+        // tail-call edges as MIR. Each pass bails without advancing the phase
+        // when the module is outside its scope, in which case runtime
+        // generation falls back to the backend dispatcher.
+        if self.mir_dispatch {
+            crate::pass::run_pass(module, &crate::pass::LOWER_ABI_PASS);
+            crate::pass::run_pass(module, &crate::pass::LOWER_DISPATCH_PASS);
+            crate::pass::run_pass(module, &crate::pass::LOWER_EVM_SHAPED_PASS);
+        }
     }
 
     /// Generates runtime bytecode for a module.
@@ -692,17 +728,118 @@ impl EvmCodegen {
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
         self.restorable_internal_frames.clear();
+        self.static_frame_functions.clear();
+        self.static_frame_addr_consts.clear();
+        self.pending_free_memory_consts.clear();
+        self.current_internal_function = None;
         self.block_copies.clear();
         self.stack_phi_sources.clear();
 
         if !module.functions.is_empty() {
-            // The dispatcher generates function bodies inline
-            self.generate_dispatcher(module);
+            if module.phase >= crate::mir::MirPhase::Dispatch {
+                self.generate_mir_dispatched(module);
+            } else {
+                // The dispatcher generates function bodies inline
+                self.generate_dispatcher(module);
+            }
         }
 
         let result = self.asm.assemble();
         self.runtime_immutable_refs = result.immutable_refs;
         result.bytecode
+    }
+
+    /// Generates the runtime from a `dispatch`-phase module: the MIR `entry`
+    /// function is the runtime prologue, its `tail_call`s jump to the ABI
+    /// wrappers, and no backend dispatcher is synthesized.
+    ///
+    /// Selector matching, receive/fallback routing, and callvalue checks all
+    /// live in the MIR `entry`, so wrappers are emitted without the selector
+    /// pop and payable check the backend dispatcher would add.
+    fn generate_mir_dispatched(&mut self, module: &Module) {
+        let Some((entry_id, _)) = module
+            .functions
+            .iter_enumerated()
+            .find(|(_, f)| f.selector.is_none() && f.name.name == sym::entry)
+        else {
+            // Phase says dispatch but there is nothing to route; fall back.
+            self.generate_dispatcher(module);
+            return;
+        };
+
+        let call_graph = CallGraphInfo::new(module);
+        let internal_targets = call_graph.reachable_bodies_from(
+            module.functions.iter_enumerated().filter_map(|(func_id, func)| {
+                (func_id == entry_id || Self::is_external_entry(func)).then_some(func_id)
+            }),
+        );
+
+        for (func_id, func) in module.functions.iter_enumerated() {
+            self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
+            if !func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::MemPtr)) {
+                self.restorable_internal_frames.insert(func_id);
+            }
+            // Non-recursive internal functions get compile-time-fixed frames.
+            if func_id != entry_id
+                && !Self::is_external_entry(func)
+                && Self::has_body(func)
+                && !call_graph.is_recursive(func_id)
+            {
+                self.static_frame_functions.insert(func_id);
+            }
+        }
+
+        // Labels for every tail-call and internal-call target.
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func_id == entry_id {
+                continue;
+            }
+            let needs_body = Self::is_external_entry(func)
+                || (Self::has_body(func) && internal_targets.contains(&func_id));
+            if needs_body {
+                let label = self.asm.new_label();
+                self.function_labels.insert(func_id, label);
+            }
+        }
+
+        // The MIR entry is the runtime prologue.
+        self.in_internal_function = false;
+        let entry_free = self.emit_external_free_memory_start();
+        self.generate_function_body(&module.functions[entry_id]);
+        self.record_function_spill_size(entry_id);
+        self.pending_free_memory_consts.push((entry_free, entry_id));
+
+        // External entries, reached only through `tail_call` jumps.
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func_id == entry_id || !Self::is_external_entry(func) {
+                continue;
+            }
+            let Some(&label) = self.function_labels.get(&func_id) else { continue };
+            self.asm.define_label(label);
+            let free_memory_start = self.emit_external_free_memory_start();
+            self.in_internal_function = false;
+            self.generate_function_body(func);
+            self.record_function_spill_size(func_id);
+            self.pending_free_memory_consts.push((free_memory_start, func_id));
+        }
+
+        // Internal-call targets, exactly as in the backend dispatcher path.
+        for (func_id, func) in module.functions.iter_enumerated() {
+            if func_id == entry_id || Self::is_external_entry(func) || !Self::has_body(func) {
+                continue;
+            }
+            let Some(&label) = self.function_labels.get(&func_id) else { continue };
+            self.asm.define_label(label);
+            self.in_internal_function = true;
+            self.current_internal_function = Some(func_id);
+            self.generate_function_body(func);
+            self.in_internal_function = false;
+            self.current_internal_function = None;
+            self.record_function_spill_size(func_id);
+        }
+
+        self.resolve_pending_frame_size_consts(module);
+        self.resolve_static_frames(module);
     }
 
     /// Generates the function dispatcher.
@@ -738,6 +875,13 @@ impl EvmCodegen {
             self.function_static_frame_sizes.insert(func_id, func.internal_frame_size);
             if !func.params.iter().chain(&func.returns).any(|ty| matches!(ty, MirType::MemPtr)) {
                 self.restorable_internal_frames.insert(func_id);
+            }
+            // Non-recursive internal functions get compile-time-fixed frames.
+            if !Self::is_external_entry(func)
+                && Self::has_body(func)
+                && !call_graph.is_recursive(func_id)
+            {
+                self.static_frame_functions.insert(func_id);
             }
         }
 
@@ -840,15 +984,12 @@ impl EvmCodegen {
             self.in_internal_function = false;
             self.generate_function_body(func);
 
-            let spill_size = self.record_function_spill_size(func_id);
-            self.asm.set_deferred_const(
-                free_memory_start,
-                U256::from(Self::external_spill_base(func) + spill_size),
-            );
+            self.record_function_spill_size(func_id);
+            self.pending_free_memory_consts.push((free_memory_start, func_id));
         }
 
-        // Define internal-call targets once. Calls jump here and return through the frame's
-        // saved return address.
+        // Define internal-call targets once. Calls jump here and return
+        // through the stack-passed return address.
         for (func_id, func) in module.functions.iter_enumerated() {
             if Self::is_external_entry(func) || !Self::has_body(func) {
                 continue;
@@ -856,8 +997,10 @@ impl EvmCodegen {
             let Some(label) = func_labels[func_id.index()] else { continue };
             self.asm.define_label(label);
             self.in_internal_function = true;
+            self.current_internal_function = Some(func_id);
             self.generate_function_body(func);
             self.in_internal_function = false;
+            self.current_internal_function = None;
             self.record_function_spill_size(func_id);
         }
 
@@ -868,6 +1011,7 @@ impl EvmCodegen {
         self.asm.emit_op(op::REVERT);
 
         self.resolve_pending_frame_size_consts(module);
+        self.resolve_static_frames(module);
     }
 
     /// Records the exact spill area size of the function body that just emitted.
@@ -1486,7 +1630,37 @@ impl EvmCodegen {
                 }
             }
         }
+        // A cheap-recomputable value that is live-out is re-executed in the
+        // successor block instead of spilled. That recomputation needs its
+        // non-rematerializable operand leaves, which may be live only within the
+        // defining block; spill those leaves too, or the recomputation reads a
+        // value that is neither on the stack nor stored.
+        let seeds: Vec<ValueId> = values.iter().copied().collect();
+        for val in seeds {
+            if Self::is_cheap_recomputable_value(func, val) {
+                Self::collect_recompute_leaves(func, val, &mut values);
+            }
+        }
         values
+    }
+
+    /// Adds the non-rematerializable values that recomputing `val` depends on:
+    /// operands are followed through further cheap-recomputable values, and
+    /// every other non-rematerializable operand is a leaf that must be spilled.
+    fn collect_recompute_leaves(func: &Function, val: ValueId, out: &mut FxHashSet<ValueId>) {
+        let crate::mir::Value::Inst(inst_id) = func.value(val) else {
+            return;
+        };
+        for op in func.instructions[*inst_id].kind.operands() {
+            if Self::is_rematerializable_value(func, op) {
+                continue;
+            }
+            if Self::is_cheap_recomputable_value(func, op) {
+                Self::collect_recompute_leaves(func, op, out);
+            } else {
+                out.insert(op);
+            }
+        }
     }
 
     /// Spills all live-out values that are currently on the stack to memory.
@@ -1715,6 +1889,16 @@ impl EvmCodegen {
         }
     }
 
+    /// Values that are always re-emitted at each use instead of being kept on
+    /// the stack or spilled.
+    ///
+    /// `Arg` MUST stay in this set. With static frames an argument reload is a
+    /// 3-4 byte `PUSH addr; MLOAD`/`CALLDATALOAD`, cheaper than the spill
+    /// traffic that tracking would create — and the spill machinery assumes
+    /// arguments never own slots: making `Arg` non-rematerializable was
+    /// measured to REGRESS every bench contract's size (erc20 +61 B, maple
+    /// +72 B, fractional +127 B) and to break 4 of 8 bench harnesses at
+    /// runtime. Do not re-attempt without redesigning argument spilling.
     fn is_rematerializable_value(func: &Function, value: ValueId) -> bool {
         matches!(func.value(value), crate::mir::Value::Immediate(_) | crate::mir::Value::Arg { .. })
     }
@@ -2378,7 +2562,7 @@ impl EvmCodegen {
             }
 
             InstKind::InternalFrameAddr(offset) => {
-                self.emit_current_internal_frame_addr(*offset);
+                self.emit_own_frame_addr(*offset);
                 if let Some(result) = result_value {
                     self.scheduler.stack.push(result);
                 }
@@ -2387,48 +2571,51 @@ impl EvmCodegen {
             // Log operations
             InstKind::Log0(offset, size) => {
                 // LOG0(offset, size) - stack order: offset on top, then size
-                self.emit_value(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG0);
-                self.scheduler.instruction_executed(2, None);
+                self.emit_log(func, op::LOG0, &[*size, *offset], liveness, block, inst_idx);
             }
             InstKind::Log1(offset, size, topic1) => {
                 // LOG1(offset, size, topic1) - stack order: offset, size, topic1
-                self.emit_value(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG1);
-                self.scheduler.instruction_executed(3, None);
+                self.emit_log(
+                    func,
+                    op::LOG1,
+                    &[*topic1, *size, *offset],
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
             InstKind::Log2(offset, size, topic1, topic2) => {
                 // LOG2(offset, size, topic1, topic2) - stack order: offset, size, topic1, topic2
-                self.emit_value(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG2);
-                self.scheduler.instruction_executed(4, None);
+                self.emit_log(
+                    func,
+                    op::LOG2,
+                    &[*topic2, *topic1, *size, *offset],
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
             InstKind::Log3(offset, size, topic1, topic2, topic3) => {
                 // LOG3(offset, size, topic1, topic2, topic3)
-                self.emit_value(func, *topic3);
-                self.emit_operand(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG3);
-                self.scheduler.instruction_executed(5, None);
+                self.emit_log(
+                    func,
+                    op::LOG3,
+                    &[*topic3, *topic2, *topic1, *size, *offset],
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
             InstKind::Log4(offset, size, topic1, topic2, topic3, topic4) => {
                 // LOG4(offset, size, topic1, topic2, topic3, topic4)
-                self.emit_value(func, *topic4);
-                self.emit_operand(func, *topic3);
-                self.emit_operand(func, *topic2);
-                self.emit_operand(func, *topic1);
-                self.emit_operand(func, *size);
-                self.emit_operand(func, *offset);
-                self.asm.emit_op(op::LOG4);
-                self.scheduler.instruction_executed(6, None);
+                self.emit_log(
+                    func,
+                    op::LOG4,
+                    &[*topic4, *topic3, *topic2, *topic1, *size, *offset],
+                    liveness,
+                    block,
+                    inst_idx,
+                );
             }
 
             // Memory copy operations
@@ -2550,12 +2737,154 @@ impl EvmCodegen {
         self.scheduler.instruction_executed(2, None);
     }
 
+    /// Address of `offset` within whatever frame the frame-pointer slot
+    /// currently holds. Dynamic call sites use this to reach the callee frame
+    /// right after a call (before the pointer is restored); dynamic functions
+    /// use it for their own frame. For accesses that are statically about the
+    /// CURRENT function's own frame, use [`Self::emit_own_frame_addr`], which
+    /// resolves to an absolute address when the function has a static frame.
     fn emit_current_internal_frame_addr(&mut self, offset: u64) {
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MLOAD);
         if offset != 0 {
             self.asm.emit_push(U256::from(offset));
             self.asm.emit_op(op::ADD);
+        }
+    }
+
+    /// Address of `offset` within the current function's own frame: a single
+    /// absolute push for static-frame functions, the frame-pointer indirection
+    /// otherwise.
+    fn emit_own_frame_addr(&mut self, offset: u64) {
+        if let Some(func_id) = self.current_internal_function
+            && self.static_frame_functions.contains(&func_id)
+        {
+            let addr = self.static_frame_addr(func_id, offset);
+            self.asm.emit_push_deferred(addr);
+            return;
+        }
+        self.emit_current_internal_frame_addr(offset);
+    }
+
+    /// Interns the deferred constant for absolute address `base(func_id) +
+    /// offset`. The value is set by [`Self::resolve_static_frames`] once every
+    /// body has emitted and exact spill sizes are known; the assembler then
+    /// encodes it as a minimal-width push.
+    fn static_frame_addr(&mut self, func_id: FunctionId, offset: u64) -> DeferredConst {
+        if let Some(&id) = self.static_frame_addr_consts.get(&(func_id, offset)) {
+            return id;
+        }
+        let id = self.asm.new_deferred_const();
+        self.static_frame_addr_consts.insert((func_id, offset), id);
+        id
+    }
+
+    /// Total frame size of `func_id`: the fixed prefix plus the exact spill
+    /// area recorded after its body emitted (conservative when unavailable).
+    fn emitted_frame_size(&self, module: &Module, func_id: FunctionId) -> u64 {
+        let func = &module.functions[func_id];
+        let spill = self
+            .function_spill_sizes
+            .get(&func_id)
+            .copied()
+            .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
+        64 + ((func.params.len() + func.returns.len()) as u64) * 32
+            + func.internal_frame_size
+            + spill
+    }
+
+    /// Places every referenced static frame and resolves the address and
+    /// free-memory-pointer constants recorded during this pass.
+    ///
+    /// Placement is an overlay: `base(f) = region_start + depth(f)`, where
+    /// `depth(f)` is the longest chain of static frames that can be live below
+    /// an activation of `f`. Depth propagates along every call edge — a static
+    /// caller contributes its frame size, a dynamic caller (recursive, or an
+    /// external entry whose locals live below the region) only forwards its
+    /// own depth, so a static function reached THROUGH a dynamic one is still
+    /// placed above its static ancestors. Static functions are acyclic by
+    /// construction, so every cycle in the graph is weight-zero and the
+    /// relaxation converges. Functions that can never be simultaneously live
+    /// end up sharing addresses; that is the point of the overlay.
+    ///
+    /// The heap floor moves up to `region_end`: each entry's free-pointer
+    /// constant is the maximum entry frame end when no static frame was
+    /// referenced (today's behavior), and `region_end` otherwise.
+    fn resolve_static_frames(&mut self, module: &Module) {
+        let entry_bases: Vec<(DeferredConst, u64)> =
+            std::mem::take(&mut self.pending_free_memory_consts)
+                .into_iter()
+                .map(|(id, func_id)| {
+                    let func = &module.functions[func_id];
+                    let spill = self
+                        .function_spill_sizes
+                        .get(&func_id)
+                        .copied()
+                        .unwrap_or_else(|| Self::conservative_spill_frame_size(func));
+                    (id, Self::external_spill_base(func) + spill)
+                })
+                .collect();
+
+        if self.static_frame_addr_consts.is_empty() {
+            for (id, base) in entry_bases {
+                self.asm.set_deferred_const(id, U256::from(base));
+            }
+            return;
+        }
+
+        let region_start = entry_bases
+            .iter()
+            .map(|&(_, base)| base)
+            .max()
+            .unwrap_or(0)
+            .max(INTERNAL_FRAME_PTR_SLOT + 32);
+
+        // Longest live-chain depth below each function, over all call edges.
+        let mut edges = Vec::new();
+        for (func_id, func) in module.functions.iter_enumerated() {
+            for inst in &func.instructions {
+                if let InstKind::InternalCall { function, .. } = inst.kind {
+                    edges.push((func_id, function));
+                }
+            }
+            for block in func.blocks.iter() {
+                if let Some(Terminator::TailCall { function, .. }) = &block.terminator {
+                    edges.push((func_id, *function));
+                }
+            }
+        }
+        let mut depth: FxHashMap<FunctionId, u64> = FxHashMap::default();
+        for _ in 0..=module.functions.len() {
+            let mut changed = false;
+            for &(caller, callee) in &edges {
+                let mut contribution = depth.get(&caller).copied().unwrap_or(0);
+                if self.static_frame_functions.contains(&caller) {
+                    contribution += self.emitted_frame_size(module, caller);
+                }
+                if contribution > depth.get(&callee).copied().unwrap_or(0) {
+                    depth.insert(callee, contribution);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        let placed: FxHashSet<FunctionId> =
+            self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
+        let mut region_end = region_start;
+        let mut bases = FxHashMap::default();
+        for &func_id in &placed {
+            let base = region_start + depth.get(&func_id).copied().unwrap_or(0);
+            region_end = region_end.max(base + self.emitted_frame_size(module, func_id));
+            bases.insert(func_id, base);
+        }
+        for (&(func_id, offset), &id) in &self.static_frame_addr_consts {
+            self.asm.set_deferred_const(id, U256::from(bases[&func_id] + offset));
+        }
+        for (id, _) in entry_bases {
+            self.asm.set_deferred_const(id, U256::from(region_end));
         }
     }
 
@@ -2595,7 +2924,7 @@ impl EvmCodegen {
         if self.in_internal_function {
             let spill_base =
                 64 + (func.params.len() as u64) * 32 + (func.returns.len() as u64) * 32;
-            self.emit_current_internal_frame_addr(
+            self.emit_own_frame_addr(
                 spill_base + func.internal_frame_size + u64::from(slot.offset) * 32,
             );
         } else if self.in_constructor {
@@ -2608,7 +2937,7 @@ impl EvmCodegen {
     }
 
     fn emit_internal_arg_load(&mut self, index: u32) {
-        self.emit_current_internal_frame_addr(64 + u64::from(index) * 32);
+        self.emit_own_frame_addr(64 + u64::from(index) * 32);
         self.asm.emit_op(op::MLOAD);
     }
 
@@ -2628,9 +2957,31 @@ impl EvmCodegen {
             return;
         };
         let return_label = self.asm.new_label();
+
+        // A static-frame callee needs none of the frame-pointer or
+        // free-pointer bookkeeping below: its addresses are compile-time
+        // constants.
+        if self.static_frame_functions.contains(&callee) {
+            self.emit_internal_call_static(
+                func,
+                callee,
+                callee_label,
+                return_label,
+                args,
+                returns,
+                result,
+                liveness,
+                block,
+                inst_idx,
+            );
+            return;
+        }
+
         let static_local_frame_size =
             self.function_static_frame_sizes.get(&callee).copied().unwrap_or_default();
-        // Frame layout: [return addr][saved frame ptr][args][returns][locals][spills].
+        // Frame layout: [reserved][saved frame ptr][args][returns][locals][spills].
+        // The first slot is reserved (the return address used to live there;
+        // it now travels on the EVM stack) so downstream offsets stay stable.
         // The spill suffix is only known after the callee body has emitted.
         let static_frame_size = 64 + ((args.len() + returns) as u64) * 32 + static_local_frame_size;
         let frame_size = self.asm.new_deferred_const();
@@ -2644,11 +2995,6 @@ impl EvmCodegen {
         self.spill_live_stack_values(func, liveness, block, inst_idx);
 
         self.emit_new_internal_frame_base_tracked();
-
-        // frame[0] = return label
-        self.asm.emit_push_label(return_label);
-        self.scheduler.stack.push_unknown();
-        self.emit_internal_frame_store_from_top_preserving_base(0);
 
         // frame[32] = previous frame pointer
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
@@ -2670,6 +3016,15 @@ impl EvmCodegen {
         self.pop_all_stack_values();
         self.scheduler.clear_stack();
 
+        // The return address travels on the EVM stack, not in the frame: it is
+        // pushed after the caller's stack is fully drained, so it is the only
+        // physical value below the callee's execution. It is deliberately not
+        // tracked by the scheduler — the model only describes the region above
+        // it and every emitted DUP/SWAP/POP is model-relative, so nothing in
+        // the callee can reach it. The callee's return consumes it with a bare
+        // JUMP, and a tail call within the callee forwards it untouched.
+        self.asm.emit_push_label(return_label);
+
         self.asm.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
@@ -2682,6 +3037,11 @@ impl EvmCodegen {
             self.emit_current_internal_frame_addr(64 + (args.len() as u64) * 32);
             self.asm.emit_op(op::MLOAD);
             self.scheduler.stack.push(result);
+            // Store the result to its reserved slot now, while it is on top.
+            // Other value-producing instructions do this; internal calls did
+            // not, so a reserved result (e.g. a recompute leaf of a live-out
+            // cheap value) was never stored. No-op unless reserved and live.
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         }
 
         // Copy return values 2..N from the callee frame into scratch memory at
@@ -2717,6 +3077,68 @@ impl EvmCodegen {
         self.asm.emit_op(op::MLOAD);
         self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
         self.asm.emit_op(op::MSTORE);
+    }
+
+    /// Call to a static-frame callee: arguments are stored at absolute
+    /// addresses, the return address rides the EVM stack (same invariants as
+    /// the dynamic path), and there is no frame-pointer save/update/restore
+    /// and no free-pointer traffic — the callee's frame is a fixed region
+    /// below the heap that its single live activation owns.
+    #[allow(clippy::too_many_arguments)]
+    fn emit_internal_call_static(
+        &mut self,
+        func: &Function,
+        callee: FunctionId,
+        callee_label: Label,
+        return_label: Label,
+        args: &[ValueId],
+        returns: usize,
+        result: Option<ValueId>,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        // Spill values that are live after this call BEFORE consuming the
+        // arguments (see the dynamic path).
+        self.spill_live_stack_values(func, liveness, block, inst_idx);
+
+        for (i, &arg) in args.iter().enumerate() {
+            self.emit_operand(func, arg);
+            let addr = self.static_frame_addr(callee, 64 + (i as u64) * 32);
+            self.asm.emit_push_deferred(addr);
+            self.scheduler.stack.push_unknown();
+            self.asm.emit_op(op::MSTORE);
+            self.scheduler.instruction_executed(2, None);
+        }
+
+        self.pop_all_stack_values();
+        self.scheduler.clear_stack();
+
+        self.asm.emit_push_label(return_label);
+        self.asm.emit_push_label(callee_label);
+        self.asm.emit_op(op::JUMP);
+
+        self.asm.define_label(return_label);
+        self.scheduler.clear_stack();
+
+        if let Some(result) = result
+            && returns > 0
+        {
+            let addr = self.static_frame_addr(callee, 64 + (args.len() as u64) * 32);
+            self.asm.emit_push_deferred(addr);
+            self.asm.emit_op(op::MLOAD);
+            self.scheduler.stack.push(result);
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
+        }
+
+        // Copy return values 2..N into scratch, matching the dynamic path.
+        for i in 1..returns {
+            let addr = self.static_frame_addr(callee, 64 + ((args.len() + i) as u64) * 32);
+            self.asm.emit_push_deferred(addr);
+            self.asm.emit_op(op::MLOAD);
+            self.asm.emit_push(U256::from((i as u64) * 32));
+            self.asm.emit_op(op::MSTORE);
+        }
     }
 
     fn spill_live_stack_values(
@@ -2792,11 +3214,7 @@ impl EvmCodegen {
                 }
                 ScheduledOp::LoadArg(index) => {
                     if self.in_internal_function {
-                        self.asm.emit_push(U256::from(INTERNAL_FRAME_PTR_SLOT));
-                        self.asm.emit_op(op::MLOAD);
-                        self.asm.emit_push(U256::from(64 + u64::from(index) * 32));
-                        self.asm.emit_op(op::ADD);
-                        self.asm.emit_op(op::MLOAD);
+                        self.emit_internal_arg_load(index);
                     } else if self.in_constructor {
                         // Constructor args were copied to memory at 0x80
                         // Load from memory: 0x80 + index * 32
@@ -2861,6 +3279,20 @@ impl EvmCodegen {
                             self.asm.emit_op(op::GAS);
                             self.scheduler.stack.push(val);
                         }
+                        crate::mir::InstKind::LoadImmutable(offset) => {
+                            // Same emission as the scheduled path: a patched
+                            // placeholder at runtime, the staged scratch word
+                            // inside the running constructor.
+                            if self.in_constructor {
+                                self.asm.emit_push(U256::from(
+                                    IMMUTABLE_SCRATCH_BASE + u64::from(*offset),
+                                ));
+                                self.asm.emit_op(op::MLOAD);
+                            } else {
+                                self.asm.emit_push_immutable(*offset);
+                            }
+                            self.scheduler.stack.push(val);
+                        }
                         crate::mir::InstKind::CallValue => {
                             self.asm.emit_op(op::CALLVALUE);
                             self.scheduler.stack.push(val);
@@ -2878,7 +3310,7 @@ impl EvmCodegen {
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::InternalFrameAddr(offset) => {
-                            self.emit_current_internal_frame_addr(*offset);
+                            self.emit_own_frame_addr(*offset);
                             self.scheduler.stack.push(val);
                         }
                         crate::mir::InstKind::Timestamp => {
@@ -2940,6 +3372,33 @@ impl EvmCodegen {
                         crate::mir::InstKind::Shr(shift, value) => {
                             self.emit_fresh_binary(func, val, *shift, *value, op::SHR, false);
                         }
+                        crate::mir::InstKind::Div(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::DIV, false);
+                        }
+                        crate::mir::InstKind::SDiv(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::SDIV, false);
+                        }
+                        crate::mir::InstKind::Mod(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::MOD, false);
+                        }
+                        crate::mir::InstKind::SMod(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::SMOD, false);
+                        }
+                        crate::mir::InstKind::Lt(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::LT, false);
+                        }
+                        crate::mir::InstKind::Gt(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::GT, false);
+                        }
+                        crate::mir::InstKind::SLt(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::SLT, false);
+                        }
+                        crate::mir::InstKind::SGt(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::SGT, false);
+                        }
+                        crate::mir::InstKind::Eq(a, b) => {
+                            self.emit_fresh_binary(func, val, *a, *b, op::EQ, true);
+                        }
                         crate::mir::InstKind::Sar(shift, value) => {
                             self.emit_fresh_binary(func, val, *shift, *value, op::SAR, false);
                         }
@@ -2953,15 +3412,36 @@ impl EvmCodegen {
                             self.scheduler.stack.pop();
                             self.scheduler.stack.push(val);
                         }
-                        other => {
-                            // For other instruction results that aren't spilled and can't be
-                            // re-executed, this is a bug - the lowering
-                            // should have ensured all CALL operands are
-                            // either immediates, spilled, or re-executable instructions.
-                            panic!(
-                                "emit_value_fresh: unhandled instruction kind {other:?} for value {val:?}. \
-                                 CALL operands should be immediates, spilled values, GAS, or MLOAD."
-                            );
+                        _ => {
+                            // A value that cannot be re-executed (e.g. an
+                            // internal-call result used to compute a CALL
+                            // operand) is live on the stack: duplicate it rather
+                            // than re-running it. If it is buried too deep to
+                            // `DUP`, spill it to a reserved slot and reload.
+                            if let Some(depth) = self.scheduler.stack.find(val) {
+                                if depth < 16 {
+                                    self.asm.emit_op(op::DUP1 + depth as u8);
+                                    self.scheduler.stack.push(val);
+                                } else {
+                                    let slot = self.scheduler.spills.allocate(val);
+                                    self.spill_deep_stack_value(func, val, slot, depth);
+                                    self.emit_spill_slot_addr(func, slot);
+                                    self.asm.emit_op(op::MLOAD);
+                                    self.scheduler.stack.push(val);
+                                }
+                            } else if let Some(slot) = self.scheduler.spills.get(val) {
+                                // Tracked in a spill slot even though not flagged
+                                // stored; reloading its address is still correct.
+                                self.emit_spill_slot_addr(func, slot);
+                                self.asm.emit_op(op::MLOAD);
+                                self.scheduler.stack.push(val);
+                            } else {
+                                panic!(
+                                    "emit_value_fresh: value {val:?} ({:?}) is neither on the \
+                                     stack, spilled, nor re-executable",
+                                    func.instruction(*inst_id).kind
+                                );
+                            }
                         }
                     }
                 }
@@ -3090,6 +3570,35 @@ impl EvmCodegen {
 
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(1, result);
+    }
+
+    /// Emits a `LOG0`..=`LOG4` instruction. `operands` are given in stack order
+    /// (deepest first, top last) and pushed in that order; the `LOG` then
+    /// consumes all of them. Each operand still live after this instruction is
+    /// spilled once it reaches the top, so a later use in the same block can
+    /// reload it — the same operand-liveness handling as the arithmetic, store
+    /// and copy paths. Without it, a topic value consumed by the `LOG` and used
+    /// again later (e.g. an event that also stores its data word) would be lost.
+    fn emit_log(
+        &mut self,
+        func: &Function,
+        opcode: u8,
+        operands: &[ValueId],
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
+    ) {
+        for (i, &operand) in operands.iter().enumerate() {
+            if i == 0 {
+                self.emit_value(func, operand);
+            } else {
+                // Repeated operands (e.g. duplicate topics) need their own stack item.
+                self.emit_operand(func, operand);
+            }
+            self.spill_top_value_if_live(func, liveness, block, inst_idx, operand);
+        }
+        self.asm.emit_op(opcode);
+        self.scheduler.instruction_executed(operands.len(), None);
     }
 
     /// Emits a store operation with liveness awareness.
@@ -3233,14 +3742,14 @@ impl EvmCodegen {
         let return_base = 64 + (func.params.len() as u64) * 32;
         for (i, &value) in values.iter().enumerate() {
             self.emit_operand(func, value);
-            self.emit_current_internal_frame_addr(return_base + (i as u64) * 32);
+            self.emit_own_frame_addr(return_base + (i as u64) * 32);
             self.asm.emit_op(op::MSTORE);
             self.scheduler.stack.pop();
         }
 
         self.pop_all_stack_values();
-        self.emit_current_internal_frame_addr(0);
-        self.asm.emit_op(op::MLOAD);
+        // The caller's return address is the untracked value at the bottom of
+        // the stack; after popping every tracked value it is on top.
         self.asm.emit_op(op::JUMP);
     }
 
@@ -3253,6 +3762,34 @@ impl EvmCodegen {
         preserve_stack: bool,
     ) {
         match term {
+            Terminator::TailCall { function, args } => {
+                // Control transfers to the target and never returns: store the
+                // arguments at the callee's compile-time frame addresses and
+                // jump. No return address is pushed and the caller's tracked
+                // stack is not drained — whatever stays below the callee's
+                // model (including the caller's own inherited return address)
+                // is unreachable by model-relative operations, and the callee
+                // never executes a `ret` that would consume it.
+                if !args.is_empty() {
+                    // `lower-evm-shaped` only forms argument-carrying tail
+                    // calls to callees the backend statically frames.
+                    assert!(
+                        self.static_frame_functions.contains(function),
+                        "argument-carrying tail call to a non-static-frame callee"
+                    );
+                    for (i, &arg) in args.iter().enumerate() {
+                        self.emit_operand(func, arg);
+                        let addr = self.static_frame_addr(*function, 64 + (i as u64) * 32);
+                        self.asm.emit_push_deferred(addr);
+                        self.scheduler.stack.push_unknown();
+                        self.asm.emit_op(op::MSTORE);
+                        self.scheduler.instruction_executed(2, None);
+                    }
+                }
+                let label = self.function_labels[function];
+                self.asm.emit_push_label(label);
+                self.asm.emit_op(op::JUMP);
+            }
             Terminator::Jump(target) => {
                 // Pop any remaining values from the stack before jumping.
                 // Each block normally starts with an empty stack, so we must
@@ -3386,7 +3923,9 @@ impl EvmCodegen {
             }
 
             Terminator::ReturnData { offset, size } => {
-                debug_assert!(!self.in_internal_function);
+                // Valid in internal functions too: a fused external body called
+                // through an ABI wrapper returns straight to the external
+                // caller, abandoning the internal frame.
                 self.emit_value(func, *size);
                 self.emit_operand(func, *offset);
                 self.asm.emit_op(op::RETURN);

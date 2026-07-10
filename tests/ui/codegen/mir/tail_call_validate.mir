@@ -1,0 +1,18 @@
+//@compile-flags: --pass dce
+//@failure-status: 1
+// The module validator enforces `tail_call` cross-function contracts: the
+// callee must exist and the argument count must match its parameters. Invalid
+// hand-written MIR is rejected with a diagnostic, not an ICE.
+; module @TailCallValidate
+fn @callee(arg0: u256) {
+  bb0 (entry):
+    stop
+}
+fn @wrongArity() {
+  bb0 (entry):
+    tail_call fn0
+}
+fn @unknownTarget() {
+  bb0 (entry):
+    tail_call fn9
+}

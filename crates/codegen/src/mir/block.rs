@@ -91,6 +91,18 @@ pub enum Terminator {
         /// The address to send remaining funds to.
         recipient: ValueId,
     },
+    /// Transfer control to another function without returning.
+    ///
+    /// Unlike an internal call, control never comes back to the current
+    /// function: the callee's own terminators end the execution (or transfer
+    /// it further). The dispatch phase uses this to route `entry` switch cases
+    /// to the ABI wrappers, which terminate externally with `RETURN`/`REVERT`.
+    TailCall {
+        /// The function to transfer control to.
+        function: super::FunctionId,
+        /// The arguments, matching the callee's parameters.
+        args: SmallVec<[ValueId; 2]>,
+    },
     /// Invalid operation (unreachable code).
     Invalid,
 }
@@ -117,6 +129,7 @@ impl Terminator {
             | Self::ReturnData { .. }
             | Self::Stop
             | Self::SelfDestruct { .. }
+            | Self::TailCall { .. }
             | Self::Invalid => SmallVec::new(),
         }
     }
@@ -133,6 +146,7 @@ impl Terminator {
             Self::ReturnData { .. } => "returndata",
             Self::Stop => "stop",
             Self::SelfDestruct { .. } => "selfdestruct",
+            Self::TailCall { .. } => "tail_call",
             Self::Invalid => "invalid",
         }
     }
@@ -158,6 +172,7 @@ impl Terminator {
             }
             Self::Stop | Self::Invalid => {}
             Self::SelfDestruct { recipient } => out.push(*recipient),
+            Self::TailCall { args, .. } => out.extend(args.iter().copied()),
         }
         out
     }
@@ -202,6 +217,13 @@ impl fmt::Display for Terminator {
             Self::Stop => write!(f, "stop"),
             Self::SelfDestruct { recipient } => {
                 write!(f, "selfdestruct v{}", recipient.index())
+            }
+            Self::TailCall { function, args } => {
+                write!(f, "tail_call fn{}", function.index())?;
+                for arg in args {
+                    write!(f, ", v{}", arg.index())?;
+                }
+                Ok(())
             }
             Self::Invalid => write!(f, "invalid"),
         }

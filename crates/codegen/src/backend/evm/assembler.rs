@@ -215,6 +215,7 @@ impl Assembler {
         }
         let mut program = ir_program.to_asm_program();
         self.run_assembler_passes(&mut program);
+        Self::dedup_terminal_spans(&mut program.instructions);
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
@@ -255,6 +256,83 @@ impl Assembler {
         let result = self.emit_bytecode(&program, label_offsets, &push_widths);
         self.clear();
         result
+    }
+
+    /// Merges byte-identical label-started spans that end in a terminating
+    /// opcode, across the whole program (functions included): duplicates are
+    /// deleted and every reference to their label is rewritten to the first
+    /// occurrence. MIR-level dedup is per function; the shared panic, revert,
+    /// and helper-call tails that repeat across functions land here.
+    ///
+    /// A duplicate is only removed when the instruction before its label is
+    /// itself terminating, so no fallthrough path can enter it, and spans
+    /// contain no interior label definitions, so no jump can land mid-span.
+    fn dedup_terminal_spans(instructions: &mut Vec<AsmInst>) {
+        fn is_terminal(inst: AsmInst) -> bool {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID | op::SELFDESTRUCT,
+                )
+            )
+        }
+
+        struct Span {
+            label: Label,
+            start: usize,
+            end: usize,
+        }
+        let mut spans = Vec::new();
+        let mut i = 0;
+        while i < instructions.len() {
+            if let AsmInstKind::Label(label) = instructions[i].kind() {
+                let mut j = i + 1;
+                while j < instructions.len() {
+                    if matches!(instructions[j].kind(), AsmInstKind::Label(_)) {
+                        break;
+                    }
+                    if is_terminal(instructions[j]) {
+                        spans.push(Span { label, start: i, end: j });
+                        break;
+                    }
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+
+        let mut representatives: FxHashMap<Vec<AsmInst>, Label> = FxHashMap::default();
+        let mut alias: FxHashMap<Label, Label> = FxHashMap::default();
+        let mut delete: Vec<(usize, usize)> = Vec::new();
+        for span in &spans {
+            let body = instructions[span.start + 1..=span.end].to_vec();
+            match representatives.entry(body) {
+                std::collections::hash_map::Entry::Vacant(slot) => {
+                    slot.insert(span.label);
+                }
+                std::collections::hash_map::Entry::Occupied(rep) => {
+                    if span.start > 0 && is_terminal(instructions[span.start - 1]) {
+                        alias.insert(span.label, *rep.get());
+                        delete.push((span.start, span.end));
+                    }
+                }
+            }
+        }
+        if alias.is_empty() {
+            return;
+        }
+
+        for inst in instructions.iter_mut() {
+            if let AsmInstKind::PushLabel(label) = inst.kind()
+                && let Some(&rep) = alias.get(&label)
+            {
+                *inst = AsmInst::push_label(rep);
+            }
+        }
+        delete.sort_unstable();
+        for &(start, end) in delete.iter().rev() {
+            instructions.drain(start..=end);
+        }
     }
 
     /// Computes label offsets given current PUSH widths.

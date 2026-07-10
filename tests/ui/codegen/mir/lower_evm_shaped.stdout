@@ -1,0 +1,30 @@
+// === ROOT/tests/ui/codegen/mir/lower_evm_shaped.mir (after lower-evm-shaped) ===
+; module @LowerEvmShaped [phase = evm-shaped]
+fn @entry() {
+  bb0 (entry):
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    switch v1, default bb2, [7 => bb1]
+  bb1:
+    tail_call @caller
+  bb2:
+    revert 0, 0
+}
+
+fn @caller() {
+  bb0 (entry):
+    v0 = calldataload 4
+    tail_call @fused, v0
+}
+
+fn @fused(arg0: u256) {
+  bb0 (entry):
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @spin(arg0: u256) {
+  bb0 (entry):
+    internal_call @spin, 0, arg0
+    revert 0, 0
+}

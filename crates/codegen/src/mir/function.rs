@@ -314,12 +314,12 @@ impl Function {
 
     /// Returns the human-readable textual MIR representation of this function.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
-        super::display::display_function_text(self)
+        super::display::display_function_text(self, None)
     }
 
     /// Returns this function's DOT-format CFG.
     pub fn to_dot(&self) -> impl fmt::Display + '_ {
-        super::display::display_function_dot(self)
+        super::display::display_function_dot(self, None)
     }
 }
 
@@ -336,6 +336,10 @@ pub struct FunctionAttributes {
     pub is_fallback: bool,
     /// Whether this is a receive function.
     pub is_receive: bool,
+    /// Never clone this function into multiple callers (synthesized shared
+    /// helpers whose whole point is existing once per module). A sole call
+    /// site may still absorb it: with one caller there is nothing to share.
+    pub no_inline: bool,
 }
 
 impl Default for FunctionAttributes {
@@ -346,6 +350,7 @@ impl Default for FunctionAttributes {
             is_constructor: false,
             is_fallback: false,
             is_receive: false,
+            no_inline: false,
         }
     }
 }

@@ -214,6 +214,8 @@ impl<'gcx> Lowerer<'gcx> {
         let initial_value = if let Some(init) = var.initializer {
             if self.var_expects_memory_bytes_value(var) {
                 self.lower_expr_as_memory_bytes(builder, init)
+            } else if self.var_expects_memory_dyn_array_value(var) {
+                self.lower_expr_as_memory_dyn_array(builder, init)
             } else {
                 self.lower_expr(builder, init)
             }
@@ -446,7 +448,60 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
+    /// Assigns a multi-valued RHS to a tuple of EXISTING lvalues, `(a, b) = rhs`.
+    /// Mirrors [`Self::lower_multi_var_decl`] but stores through the existing
+    /// lvalues (via [`Self::lower_assign`]) instead of allocating fresh locals.
+    /// Holes in the tuple (`(x, )`) are skipped.
+    pub(super) fn lower_tuple_assign(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        elements: &[Option<&hir::Expr<'_>>],
+        rhs: &hir::Expr<'_>,
+    ) {
+        // Tuple RHS, `(a, b) = (x, y)` (including swaps `(a, b) = (b, a)`):
+        // evaluate every RHS element before assigning any, so a swap reads the
+        // old values.
+        if let hir::ExprKind::Tuple(rhs_elems) = &rhs.kind {
+            let vals: Vec<Option<ValueId>> =
+                rhs_elems.iter().map(|e| e.map(|e| self.lower_expr(builder, e))).collect();
+            for (i, &elem) in elements.iter().enumerate() {
+                if let Some(elem) = elem
+                    && let Some(Some(val)) = vals.get(i)
+                {
+                    self.lower_assign(builder, elem, *val);
+                }
+            }
+            return;
+        }
+
+        if self.is_low_level_call_expr(rhs) {
+            // `(ok, data) = addr.call(...)`: the call lowering yields the success
+            // flag; the full returndata is copied out right after the call.
+            let success = self.lower_expr(builder, rhs);
+            for (i, &elem) in elements.iter().enumerate() {
+                let Some(elem) = elem else { continue };
+                let val = if i == 0 { success } else { self.materialize_returndata_bytes(builder) };
+                self.lower_assign(builder, elem, val);
+            }
+            return;
+        }
+
+        // A call returning multiple values leaves the first in the returned MIR
+        // value and the rest at memory offsets 32, 64, ...
+        let first_val = self.lower_expr(builder, rhs);
+        for (i, &elem) in elements.iter().enumerate() {
+            let Some(elem) = elem else { continue };
+            let val = if i == 0 {
+                first_val
+            } else {
+                let mem_offset = builder.imm_u64((i * 32) as u64);
+                builder.mload(mem_offset)
+            };
+            self.lower_assign(builder, elem, val);
+        }
+    }
+
+    pub(super) fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
         let ExprKind::Call(callee, ..) = &expr.kind else { return false };
         let ExprKind::Member(base, member) = &callee.kind else { return false };
         matches!(member.name, kw::Call | kw::Staticcall | kw::Delegatecall)
@@ -834,7 +889,11 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(success_block);
         if let Some(returns_clause) = try_stmt.clauses.first() {
             if !returns_clause.args.is_empty() {
-                panic!("codegen does not support try/catch return bindings yet");
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support try/catch return bindings yet")
+                    .span(try_stmt.expr.span)
+                    .emit();
             }
             self.lower_block(builder, &returns_clause.block);
         }
@@ -844,13 +903,21 @@ impl<'gcx> Lowerer<'gcx> {
         builder.switch_to_block(catch_block);
         let catch_clauses = &try_stmt.clauses[1..];
         if catch_clauses.len() > 1 {
-            panic!("codegen does not support multiple try/catch handlers yet");
+            self.gcx
+                .dcx()
+                .err("codegen does not support multiple try/catch handlers yet")
+                .span(try_stmt.expr.span)
+                .emit();
         }
 
         // The catch clauses are after the first (returns) clause.
         for clause in try_stmt.clauses.iter().skip(1) {
             if clause.name.is_some() || !clause.args.is_empty() {
-                panic!("codegen does not support typed try/catch handlers yet");
+                self.gcx
+                    .dcx()
+                    .err("codegen does not support typed try/catch handlers yet")
+                    .span(try_stmt.expr.span)
+                    .emit();
             }
             self.lower_block(builder, &clause.block);
         }

@@ -3,23 +3,30 @@
 //! Includes DOT format CFG generation for visualization.
 
 use super::{
-    BasicBlock, BlockId, EffectKind, Function, InstId, InstKind, Instruction, MemoryRegion,
-    StorageAlias, Terminator, Value, ValueId,
+    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction,
+    MemoryRegion, StorageAlias, Terminator, Value, ValueId,
 };
 use smallvec::SmallVec;
 use solar_data_structures::fmt::{self, FmtIteratorExt};
 use solar_sema::hir;
 
 /// Displays a DOT format CFG for a function.
-pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
-    fn display_dot_node(func: &Function, block_id: BlockId) -> impl fmt::Display + '_ {
+pub(crate) fn display_function_dot<'a>(
+    func: &'a Function,
+    funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
+) -> impl fmt::Display + 'a {
+    fn display_dot_node<'a>(
+        func: &'a Function,
+        funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
+        block_id: BlockId,
+    ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let block_idx = block_id.index();
             let is_entry = block_id == func.entry_block;
             let color = if is_entry { ", fillcolor=\"#e0ffe0\", style=filled" } else { "" };
 
             write!(f, "    bb{block_idx} [label=\"")?;
-            write_dot_block_label(f, func, block_id)?;
+            write_dot_block_label(f, func, funcs, block_id)?;
             writeln!(f, "\"{color}];")
         })
     }
@@ -27,6 +34,7 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
     fn write_dot_block_label(
         f: &mut fmt::Formatter<'_>,
         func: &Function,
+        funcs: Option<&solar_data_structures::index::IndexVec<FunctionId, Function>>,
         block_id: BlockId,
     ) -> fmt::Result {
         let block = &func.blocks[block_id];
@@ -40,18 +48,22 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
             block.instructions.iter().format_with("", |f, inst_id| write!(
                 f,
                 "{}",
-                display_dot_instruction(func, *inst_id)
+                display_dot_instruction(func, funcs, *inst_id)
             ))
         )?;
 
         if let Some(term) = &block.terminator {
-            write!(f, "  {}\\l", display_terminator(term, func))?;
+            write!(f, "  {}\\l", display_terminator(term, func, funcs))?;
         }
 
         Ok(())
     }
 
-    fn display_dot_instruction(func: &Function, inst_id: InstId) -> impl fmt::Display + '_ {
+    fn display_dot_instruction<'a>(
+        func: &'a Function,
+        funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
+        inst_id: InstId,
+    ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let inst = &func.instructions[inst_id];
 
@@ -59,12 +71,13 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
             if inst.result_ty.is_some() {
                 write!(f, "v{} = ", inst_result_index(func, inst_id))?;
             }
-            write!(f, "{}\\l", display_inst_kind(&inst.kind, func))
+            write!(f, "{}\\l", display_inst_kind(&inst.kind, func, funcs))
         })
     }
 
     fn display_dot_edges<'a>(
         func: &'a Function,
+        funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
         block_id: BlockId,
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
@@ -112,6 +125,15 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
                         })
                     )
                 }
+                Terminator::TailCall { function, .. } => {
+                    writeln!(
+                        f,
+                        "    bb{} -> fn{} [style=dashed, label=\"tail_call {}\"];",
+                        block_idx,
+                        function.index(),
+                        display_function_ref(*function, funcs)
+                    )
+                }
                 Terminator::Return { .. }
                 | Terminator::Revert { .. }
                 | Terminator::ReturnData { .. }
@@ -134,7 +156,7 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
             func.blocks.iter_enumerated().format_with("", |f, (block_id, _)| write!(
                 f,
                 "{}",
-                display_dot_node(func, block_id)
+                display_dot_node(func, funcs, block_id)
             ))
         )?;
 
@@ -144,7 +166,7 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
             f,
             "{}",
             func.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
-                write!(f, "{}", display_dot_edges(func, block_id, block))
+                write!(f, "{}", display_dot_edges(func, funcs, block_id, block))
             })
         )?;
 
@@ -166,9 +188,13 @@ pub(crate) fn display_function_dot(func: &Function) -> impl fmt::Display + '_ {
 ///     ret arg0
 /// }
 /// ```
-pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
+pub(crate) fn display_function_text<'a>(
+    func: &'a Function,
+    funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
+) -> impl fmt::Display + 'a {
     fn display_text_block<'a>(
         func: &'a Function,
+        funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
         block_id: BlockId,
         block: &'a BasicBlock,
     ) -> impl fmt::Display + 'a {
@@ -182,18 +208,22 @@ pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
                 block.instructions.iter().format_with("", |f, inst_id| write!(
                     f,
                     "{}",
-                    display_text_instruction(func, *inst_id)
+                    display_text_instruction(func, funcs, *inst_id)
                 ))
             )?;
 
             if let Some(term) = &block.terminator {
-                writeln!(f, "    {}", display_terminator(term, func))?;
+                writeln!(f, "    {}", display_terminator(term, func, funcs))?;
             }
             Ok(())
         })
     }
 
-    fn display_text_instruction(func: &Function, inst_id: InstId) -> impl fmt::Display + '_ {
+    fn display_text_instruction<'a>(
+        func: &'a Function,
+        funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
+        inst_id: InstId,
+    ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             let inst = &func.instructions[inst_id];
 
@@ -201,7 +231,12 @@ pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
             if inst.result_ty.is_some() {
                 write!(f, "v{} = ", inst_result_index(func, inst_id))?;
             }
-            writeln!(f, "{}{}", display_inst_kind(&inst.kind, func), display_metadata(inst, func))
+            writeln!(
+                f,
+                "{}{}",
+                display_inst_kind(&inst.kind, func, funcs),
+                display_metadata(inst, func)
+            )
         })
     }
 
@@ -231,7 +266,7 @@ pub(crate) fn display_function_text(func: &Function) -> impl fmt::Display + '_ {
             f,
             "{}",
             func.blocks.iter_enumerated().format_with("", |f, (block_id, block)| {
-                write!(f, "{}", display_text_block(func, block_id, block))
+                write!(f, "{}", display_text_block(func, funcs, block_id, block))
             })
         )?;
 
@@ -252,7 +287,11 @@ fn inst_result_index(func: &Function, inst_id: InstId) -> usize {
 }
 
 /// Formats an instruction kind for display.
-fn display_inst_kind<'a>(kind: &'a InstKind, func: &'a Function) -> impl fmt::Display + 'a {
+fn display_inst_kind<'a>(
+    kind: &'a InstKind,
+    func: &'a Function,
+    funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
+) -> impl fmt::Display + 'a {
     fn display_inst_operands(
         f: &mut fmt::Formatter<'_>,
         kind: &InstKind,
@@ -273,7 +312,7 @@ fn display_inst_kind<'a>(kind: &'a InstKind, func: &'a Function) -> impl fmt::Di
     fmt::from_fn(move |f| match kind {
         InstKind::LoadImmutable(offset) => write!(f, "loadimmutable {offset}"),
         InstKind::InternalCall { function, args, returns } => {
-            write!(f, "internal_call fn{}, {returns}", function.index())?;
+            write!(f, "internal_call {}, {returns}", display_function_ref(*function, funcs))?;
             if !args.is_empty() {
                 write!(f, ", {}", args.iter().map(|arg| display_val(*arg, func)).format(", "))?;
             }
@@ -298,6 +337,26 @@ fn display_inst_kind<'a>(kind: &'a InstKind, func: &'a Function) -> impl fmt::Di
 }
 
 /// Format a value reference.
+/// Formats a function reference as `@name` when the module's functions are
+/// available (module-level printing), falling back to the positional `fnN`
+/// form when they are not (single-function display has no name table) or when
+/// the name is shared by an overload and would not round-trip unambiguously.
+fn display_function_ref(
+    function: FunctionId,
+    funcs: Option<&solar_data_structures::index::IndexVec<FunctionId, Function>>,
+) -> impl fmt::Display + '_ {
+    fmt::from_fn(move |f| {
+        if let Some(funcs) = funcs
+            && let Some(callee) = funcs.get(function)
+            && funcs.iter().filter(|other| other.name == callee.name).count() == 1
+        {
+            write!(f, "@{}", callee.name)
+        } else {
+            write!(f, "fn{}", function.index())
+        }
+    })
+}
+
 fn display_val(vid: ValueId, func: &Function) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| match &func.values[vid] {
         Value::Immediate(imm) if let Some(u256) = imm.as_u256() => {
@@ -396,7 +455,11 @@ fn display_metadata<'a>(inst: &'a Instruction, func: &'a Function) -> impl fmt::
 }
 
 /// Format a terminator for display, rendering operands via [`display_val`].
-fn display_terminator<'a>(term: &'a Terminator, func: &'a Function) -> impl fmt::Display + 'a {
+fn display_terminator<'a>(
+    term: &'a Terminator,
+    func: &'a Function,
+    funcs: Option<&'a solar_data_structures::index::IndexVec<FunctionId, Function>>,
+) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| match term {
         Terminator::Jump(target) => write!(f, "jump bb{}", target.index()),
         Terminator::Branch { condition, then_block, else_block } => write!(
@@ -435,6 +498,13 @@ fn display_terminator<'a>(term: &'a Terminator, func: &'a Function) -> impl fmt:
             write!(f, "returndata {}, {}", display_val(*offset, func), display_val(*size, func))
         }
         Terminator::Stop => write!(f, "stop"),
+        Terminator::TailCall { function, args } => {
+            write!(f, "tail_call {}", display_function_ref(*function, funcs))?;
+            for arg in args {
+                write!(f, ", {}", display_val(*arg, func))?;
+            }
+            Ok(())
+        }
         Terminator::SelfDestruct { recipient } => {
             write!(f, "selfdestruct {}", display_val(*recipient, func))
         }

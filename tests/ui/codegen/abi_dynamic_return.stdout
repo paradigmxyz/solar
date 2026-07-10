@@ -10,31 +10,37 @@ fn @bytesLiteral() {
     v2 = add v0, 32
     v3 = add v2, 0
     mstore v3, 0x102030000000000000000000000000000000000000000000000000000000000
-    v4 = mload 64 !metadata(memory=scratch)
-    v5 = add v4, 32
-    mstore 64, v5 !metadata(memory=scratch)
-    v6 = add v4, 32
-    v7 = sub v6, v4
-    mstore v4, v7
-    v8 = mload v0
-    mstore v6, v8
-    v9 = not 31
-    v10 = add v8, 31
-    v11 = and v10, v9
-    v12 = add v6, 32
-    v13 = iszero v11
-    br v13, bb2, bb1
+    internal_call @__ret_bytes, 0, v0
+    invalid
+}
+
+fn @__ret_bytes(arg0: memptr) {
+  bb0 (entry):
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = add v0, 32
+    v3 = sub v2, v0
+    mstore v0, v3
+    v4 = mload arg0
+    mstore v2, v4
+    v5 = not 31
+    v6 = add v4, 31
+    v7 = and v6, v5
+    v8 = add v2, 32
+    v9 = iszero v7
+    br v9, bb2, bb1
   bb1:
-    v14 = sub v11, 32
-    v15 = add v12, v14
-    mstore v15, 0
+    v10 = sub v7, 32
+    v11 = add v8, v10
+    mstore v11, 0
     jump bb2
   bb2:
-    v16 = add v0, 32
-    v17 = add v12, v11
-    mcopy v12, v16, v8
-    v18 = sub v17, v4
-    returndata v4, v18
+    v12 = add arg0, 32
+    v13 = add v8, v7
+    mcopy v8, v12, v4
+    v14 = sub v13, v0
+    returndata v0, v14
 }
 
 fn @stringLiteral() {
@@ -47,30 +53,7 @@ fn @stringLiteral() {
     v2 = add v0, 32
     v3 = add v2, 0
     mstore v3, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
-    v4 = mload 64 !metadata(memory=scratch)
-    v5 = add v4, 32
-    mstore 64, v5 !metadata(memory=scratch)
-    v6 = add v4, 32
-    v7 = sub v6, v4
-    mstore v4, v7
-    v8 = mload v0
-    mstore v6, v8
-    v9 = not 31
-    v10 = add v8, 31
-    v11 = and v10, v9
-    v12 = add v6, 32
-    v13 = iszero v11
-    br v13, bb2, bb1
-  bb1:
-    v14 = sub v11, 32
-    v15 = add v12, v14
-    mstore v15, 0
-    jump bb2
-  bb2:
-    v16 = add v0, 32
-    v17 = add v12, v11
-    mcopy v12, v16, v8
-    v18 = sub v17, v4
-    returndata v4, v18
+    internal_call @__ret_bytes, 0, v0
+    invalid
 }
 

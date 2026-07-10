@@ -162,6 +162,15 @@ str_enum! {
     }
 }
 
+impl OptimizationMode {
+    /// Returns whether codegen should favor bytecode size over runtime gas
+    /// (`-O size`).
+    #[inline]
+    pub const fn is_size(self) -> bool {
+        matches!(self, Self::Size)
+    }
+}
+
 str_enum! {
     /// Type of output for the compiler to emit.
     #[strum(serialize_all = "kebab-case")]
@@ -296,6 +305,66 @@ impl fmt::Display for ImportRemapping {
 impl fmt::Debug for ImportRemapping {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "ImportRemapping({self})")
+    }
+}
+
+/// A single library address for linking: `[path.sol:]Name=0xADDRESS`.
+#[derive(Clone, PartialEq, Eq)]
+pub struct LibraryAddress {
+    /// The library name, with any `path.sol:` prefix stripped.
+    pub name: String,
+    /// The library's deployed address, as big-endian bytes.
+    pub address: [u8; 20],
+}
+
+impl std::str::FromStr for LibraryAddress {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let Some((name, addr)) = s.split_once('=') else {
+            return Err("missing '='");
+        };
+        let name = name.rsplit(':').next_back().unwrap_or(name).trim();
+        if name.is_empty() {
+            return Err("empty library name");
+        }
+        let addr = addr.trim();
+        let digits = addr.strip_prefix("0x").unwrap_or(addr);
+        if digits.is_empty() || digits.len() > 40 {
+            return Err("address must be at most 20 hexadecimal bytes");
+        }
+        // Right-align the digits in the 40-nibble (20-byte) address and fold
+        // each nibble into its byte; a leading half-byte lands in the high
+        // nibble of its position.
+        let mut address = [0u8; 20];
+        let start = 40 - digits.len();
+        for (i, b) in digits.bytes().enumerate() {
+            let nibble = match b {
+                b'0'..=b'9' => b - b'0',
+                b'a'..=b'f' => b - b'a' + 10,
+                b'A'..=b'F' => b - b'A' + 10,
+                _ => return Err("address contains a non-hexadecimal digit"),
+            };
+            let pos = start + i;
+            address[pos / 2] |= nibble << (4 * (1 - pos % 2));
+        }
+        Ok(Self { name: name.into(), address })
+    }
+}
+
+impl fmt::Display for LibraryAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}=0x", self.name)?;
+        for b in self.address {
+            write!(f, "{b:02x}")?;
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for LibraryAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "LibraryAddress({self})")
     }
 }
 

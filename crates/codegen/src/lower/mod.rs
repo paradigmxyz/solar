@@ -105,6 +105,19 @@ pub struct Lowerer<'gcx> {
     lowering_constructor: bool,
     /// Whether local memory slots should be addressed through the internal-call frame.
     lowering_internal_function: bool,
+    /// The module's shared `Error(string)` revert helper, synthesized on first
+    /// use: constant short revert messages call it instead of materializing
+    /// and ABI-encoding the string at every site.
+    revert_error_helper: Option<FunctionId>,
+    /// The module's shared single-`bytes`/`string` external-return helper:
+    /// every `returns (string memory)`-shaped wrapper calls it instead of
+    /// ABI-encoding the value in place.
+    ret_bytes_helper: Option<FunctionId>,
+    /// The module's shared storage-`bytes`/`string` load helper: decodes the
+    /// packed short/long form into a fresh `[length][data...]` memory copy.
+    storage_bytes_helper: Option<FunctionId>,
+    /// Guards helper synthesis against routing through itself.
+    synthesizing_helper: bool,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
     in_unchecked_block: bool,
     /// Sema return types of the function currently being lowered (one per declared
@@ -163,6 +176,10 @@ impl<'gcx> Lowerer<'gcx> {
             lowering_functions: FxHashSet::default(),
             lowering_constructor: false,
             lowering_internal_function: false,
+            revert_error_helper: None,
+            ret_bytes_helper: None,
+            storage_bytes_helper: None,
+            synthesizing_helper: false,
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
@@ -417,6 +434,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: true,
             is_fallback: false,
             is_receive: false,
+            no_inline: false,
         };
 
         {
@@ -563,6 +581,94 @@ impl<'gcx> Lowerer<'gcx> {
         mir_id
     }
 
+    /// Returns the module's shared `Error(string)` revert helper, synthesizing
+    /// it on first use.
+    ///
+    /// The helper takes the message length (1..=32) and its bytes left-aligned
+    /// in one word, and reverts with the standard `Error(string)` encoding:
+    /// selector, head offset, length, one padded data word — 100 bytes of
+    /// revert data, matching what the generic in-line path produces for short
+    /// messages. Sharing this cold path saves the string materialization and
+    /// ABI-encode boilerplate (~60-90 bytes) at every `require`/`revert` site
+    /// with a constant short message.
+    pub(super) fn ensure_revert_error_helper(&mut self) -> FunctionId {
+        let Self { revert_error_helper, module, .. } = self;
+        *revert_error_helper.get_or_insert_with(|| {
+            let name = Ident::new(sym::__revert_error, Span::DUMMY);
+            let mut func = Function::new(name);
+            func.attributes.no_inline = true;
+            {
+                let mut builder = FunctionBuilder::new(&mut func);
+                let len = builder.add_param(MirType::UInt(256));
+                let data = builder.add_param(MirType::UInt(256));
+                let selector = builder.imm_u256(U256::from(0x08c3_79a0u64) << 224);
+                let zero = builder.imm_u64(0);
+                builder.mstore(zero, selector);
+                let selector_size = builder.imm_u64(4);
+                let head_offset = builder.imm_u64(32);
+                builder.mstore(selector_size, head_offset);
+                let len_offset = builder.imm_u64(36);
+                builder.mstore(len_offset, len);
+                let data_offset = builder.imm_u64(68);
+                builder.mstore(data_offset, data);
+                let size = builder.imm_u64(100);
+                builder.revert(zero, size);
+            }
+            module.add_function(func)
+        })
+    }
+
+    /// Returns the module's shared single-`bytes`/`string` external-return
+    /// helper, synthesizing it on first use: it ABI-encodes its memory-bytes
+    /// argument (offset word, length, padded data) and terminates with
+    /// `ReturnData`, so wrappers pay one cheap call instead of an inline
+    /// encode each. Never inlined back: it has no MIR return values.
+    pub(super) fn ensure_ret_bytes_helper(&mut self, ty: Ty<'gcx>) -> FunctionId {
+        // Not `get_or_insert_with`: synthesis re-enters `self` lowering
+        // methods, which the closure borrow would forbid.
+        if let Some(id) = self.ret_bytes_helper {
+            return id;
+        }
+        let name = Ident::new(sym::__ret_bytes, Span::DUMMY);
+        let mut func = Function::new(name);
+        func.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let ptr = builder.add_param(MirType::MemPtr);
+            self.synthesizing_helper = true;
+            self.emit_abi_return(&mut builder, &[(ptr, ty)]);
+            self.synthesizing_helper = false;
+        }
+        let id = self.module.add_function(func);
+        self.ret_bytes_helper = Some(id);
+        id
+    }
+
+    /// Returns the module's shared storage-`bytes`/`string` load helper,
+    /// synthesizing it on first use: takes the slot, decodes the packed
+    /// short/long form, and returns a fresh `[length][data...]` memory copy.
+    /// Marked `no_inline` — the whole point is existing once per module.
+    pub(super) fn ensure_load_storage_bytes_helper(&mut self) -> FunctionId {
+        if let Some(id) = self.storage_bytes_helper {
+            return id;
+        }
+        let name = Ident::new(sym::__load_storage_bytes, Span::DUMMY);
+        let mut func = Function::new(name);
+        func.attributes.no_inline = true;
+        {
+            let mut builder = FunctionBuilder::new(&mut func);
+            let slot = builder.add_param(MirType::uint256());
+            builder.add_return(MirType::MemPtr);
+            self.synthesizing_helper = true;
+            let ptr = self.materialize_storage_bytes_inline(&mut builder, slot);
+            self.synthesizing_helper = false;
+            builder.ret([ptr]);
+        }
+        let id = self.module.add_function(func);
+        self.storage_bytes_helper = Some(id);
+        id
+    }
+
     /// Lowers a public function with the internal-frame calling convention so it
     /// can be called via `internal_call` (e.g. recursion). The result is cached
     /// separately from the external entry; the id is registered before the body
@@ -624,6 +730,7 @@ impl<'gcx> Lowerer<'gcx> {
             is_constructor: hir_func.kind == hir::FunctionKind::Constructor,
             is_fallback: hir_func.kind == hir::FunctionKind::Fallback,
             is_receive: hir_func.kind == hir::FunctionKind::Receive,
+            no_inline: false,
         };
 
         // Only regular public/external functions get selectors. An internal copy
@@ -691,11 +798,18 @@ impl<'gcx> Lowerer<'gcx> {
                     AbiParamSource::ExternalCalldata
                 };
 
-                if decodes_abi_params && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind {
+                // Storage-reference parameters (a `mapping`, or a struct/array in
+                // `storage` — legal for library functions) travel as their slot:
+                // one plain word, never field-expanded from calldata.
+                if decodes_abi_params
+                    && !self.param_is_storage_ref(param_id)
+                    && let TyKind::Struct(struct_id) = param_ty.peel_refs().kind
+                {
                     // Struct parameters: copy fields from calldata to memory
                     let strukt = self.gcx.hir.strukt(struct_id);
                     let field_ids = strukt.fields;
                     let num_fields = field_ids.len();
+                    let field_tys = self.gcx.struct_field_types(struct_id);
 
                     // Allocate memory for the struct
                     let struct_size = (num_fields as u64) * 32;
@@ -714,20 +828,59 @@ impl<'gcx> Lowerer<'gcx> {
                             abi_param_source,
                         );
 
+                        // A dynamic array/bytes field's head word is the tail
+                        // offset relative to the args start: materialize the
+                        // `[len][data...]` tail into fresh memory so the body
+                        // sees an ordinary memory array/bytes. (A raw word
+                        // would be a caller-memory pointer, meaningless here.)
+                        let stored_val =
+                            match field_tys.get(field_idx).and_then(|&f| self.linked_field_kind(f))
+                            {
+                                Some(
+                                    kind @ (call::LinkedFieldKind::DynArray
+                                    | call::LinkedFieldKind::DynBytes),
+                                ) => {
+                                    let four = builder.imm_u64(4);
+                                    let pos = builder.add(four, field_val);
+                                    let len = builder.calldataload(pos);
+                                    let word = builder.imm_u64(32);
+                                    let byte_len = if kind == call::LinkedFieldKind::DynBytes {
+                                        let thirty_one = builder.imm_u64(31);
+                                        let padded = builder.add(len, thirty_one);
+                                        let mask = builder.imm_u256(U256::MAX - U256::from(31));
+                                        builder.and(padded, mask)
+                                    } else {
+                                        builder.mul(len, word)
+                                    };
+                                    let free_ptr = builder.imm_u64(0x40);
+                                    let ptr = builder.mload(free_ptr);
+                                    let alloc = builder.add(word, byte_len);
+                                    let new_free = builder.add(ptr, alloc);
+                                    builder.mstore(free_ptr, new_free);
+                                    builder.mstore(ptr, len);
+                                    let dst = builder.add(ptr, word);
+                                    let src = builder.add(pos, word);
+                                    builder.calldatacopy(dst, src, byte_len);
+                                    ptr
+                                }
+                                _ => field_val,
+                            };
+
                         // Store the field value into the struct memory
                         let field_offset = (field_idx as u64) * 32;
                         if field_offset == 0 {
-                            builder.mstore(struct_ptr, field_val);
+                            builder.mstore(struct_ptr, stored_val);
                         } else {
                             let offset_val = builder.imm_u64(field_offset);
                             let field_addr = builder.add(struct_ptr, offset_val);
-                            builder.mstore(field_addr, field_val);
+                            builder.mstore(field_addr, stored_val);
                         }
                     }
 
                     // Store the memory pointer as the local (not the Arg value)
                     self.locals.insert(param_id, struct_ptr);
                 } else if decodes_abi_params
+                    && !self.param_is_storage_ref(param_id)
                     && let Some(len) = self.fixed_word_array_param_len(param)
                 {
                     // Fixed-size array of word elements (memory or calldata):
@@ -838,6 +991,13 @@ impl<'gcx> Lowerer<'gcx> {
                         );
                     }
                     self.locals.insert(param_id, val);
+                    // A storage-reference parameter (`mapping`/`storage`) is passed
+                    // by slot: its value *is* the base slot, so mark it so mapping
+                    // indexing and struct/array reads through it use storage, and
+                    // so passing it onward resolves back to the slot.
+                    if self.param_is_storage_ref(param_id) {
+                        self.storage_ref_locals.insert(param_id);
+                    }
                 }
             }
 

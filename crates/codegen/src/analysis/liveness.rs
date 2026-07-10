@@ -287,29 +287,7 @@ impl Liveness {
 
 /// Collects all value uses from a terminator.
 fn collect_terminator_uses(term: &Terminator, out: &mut SmallVec<[ValueId; 8]>) {
-    match term {
-        Terminator::Jump(_) => {}
-        Terminator::Branch { condition, .. } => {
-            out.push(*condition);
-        }
-        Terminator::Switch { value, cases, .. } => {
-            out.push(*value);
-            for (case_val, _) in cases {
-                out.push(*case_val);
-            }
-        }
-        Terminator::Return { values } => {
-            out.extend(values.iter().copied());
-        }
-        Terminator::Revert { offset, size } | Terminator::ReturnData { offset, size } => {
-            out.push(*offset);
-            out.push(*size);
-        }
-        Terminator::Stop | Terminator::Invalid => {}
-        Terminator::SelfDestruct { recipient } => {
-            out.push(*recipient);
-        }
-    }
+    out.extend(term.operands());
 }
 
 #[cfg(test)]

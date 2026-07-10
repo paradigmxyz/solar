@@ -198,7 +198,14 @@ fn @nestedSecond(arg0: address, arg1: memptr) {
 fn @skey() {
   bb0 (entry):
     mstore 128, 0
-    v0 = sload 3 !metadata(storage=slot(3))
+    v0 = internal_call @__load_storage_bytes, 1, 3
+    internal_call @__ret_bytes, 0, v0
+    invalid
+}
+
+fn @__load_storage_bytes(arg0: u256) -> memptr {
+  bb0 (entry):
+    v0 = sload arg0 !metadata(storage=symbolic(arg0))
     v1 = and v0, 1
     v2 = eq v1, 1
     v3 = and v0, 255
@@ -225,7 +232,7 @@ fn @skey() {
     mstore v17, v18
     jump bb3
   bb2:
-    mstore v13, 3
+    mstore v13, arg0
     v19 = keccak256 v13, 32
     v20 = div v9, 32
     v21 = add v13, 32
@@ -235,20 +242,7 @@ fn @skey() {
     mstore v22, v19
     jump bb4
   bb3:
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, 32
-    mstore 64, v33 !metadata(memory=scratch)
-    v34 = add v32, 32
-    v35 = sub v34, v32
-    mstore v32, v35
-    v36 = mload v15
-    mstore v34, v36
-    v37 = not 31
-    v38 = add v36, 31
-    v39 = and v38, v37
-    v40 = add v34, 32
-    v41 = iszero v39
-    br v41, bb7, bb6
+    ret v15
   bb4:
     v23 = mload v21
     v24 = gt v23, 0
@@ -266,17 +260,35 @@ fn @skey() {
     v31 = sub v30, 1
     mstore v21, v31
     jump bb4
-  bb6:
-    v42 = sub v39, 32
-    v43 = add v40, v42
-    mstore v43, 0
-    jump bb7
-  bb7:
-    v44 = add v15, 32
-    v45 = add v40, v39
-    mcopy v40, v44, v36
-    v46 = sub v45, v32
-    returndata v32, v46
+}
+
+fn @__ret_bytes(arg0: memptr) {
+  bb0 (entry):
+    v0 = mload 64 !metadata(memory=scratch)
+    v1 = add v0, 32
+    mstore 64, v1 !metadata(memory=scratch)
+    v2 = add v0, 32
+    v3 = sub v2, v0
+    mstore v0, v3
+    v4 = mload arg0
+    mstore v2, v4
+    v5 = not 31
+    v6 = add v4, 31
+    v7 = and v6, v5
+    v8 = add v2, 32
+    v9 = iszero v7
+    br v9, bb2, bb1
+  bb1:
+    v10 = sub v7, 32
+    v11 = add v8, v10
+    mstore v11, 0
+    jump bb2
+  bb2:
+    v12 = add arg0, 32
+    v13 = add v8, v7
+    mcopy v8, v12, v4
+    v14 = sub v13, v0
+    returndata v0, v14
 }
 
 fn @setLit(arg0: u256) {
@@ -559,70 +571,17 @@ fn @setViaStorageKey(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = sload 3 !metadata(storage=slot(3))
-    v4 = and v3, 1
-    v5 = eq v4, 1
-    v6 = and v3, 255
-    v7 = shr 1, v6
-    v8 = shr 1, v3
-    v9 = select v5, v8, v7
-    v10 = not 31
-    v11 = add v9, 31
-    v12 = and v11, v10
-    v13 = iszero v12
-    v14 = select v13, 32, v12
-    v15 = add 32, v14
-    v16 = mload 64 !metadata(memory=scratch)
-    v17 = add v16, 96
-    mstore 64, v17 !metadata(memory=scratch)
-    v18 = mload 64 !metadata(memory=scratch)
-    v19 = add v18, v15
-    mstore 64, v19 !metadata(memory=scratch)
-    mstore v18, v9
-    v20 = add v18, 32
-    br v5, bb4, bb3
-  bb3:
-    v21 = and v3, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v20, v21
-    jump bb5
-  bb4:
-    mstore v16, 3
-    v22 = keccak256 v16, 32
-    v23 = div v12, 32
-    v24 = add v16, 32
-    v25 = add v16, 64
-    mstore v16, v20
-    mstore v24, v23
-    mstore v25, v22
-    jump bb6
-  bb5:
-    v35 = mload v18
-    v36 = add v18, 32
-    v37 = mload 64 !metadata(memory=scratch)
-    mcopy v37, v36, v35
-    v38 = add v37, v35
-    mstore v38, 0
-    v39 = add v35, 32
-    v40 = keccak256 v37, v39
-    sstore v40, arg0 !metadata(storage=symbolic(v40))
+    v3 = internal_call @__load_storage_bytes, 1, 3
+    v4 = mload v3
+    v5 = add v3, 32
+    v6 = mload 64 !metadata(memory=scratch)
+    mcopy v6, v5, v4
+    v7 = add v6, v4
+    mstore v7, 0
+    v8 = add v4, 32
+    v9 = keccak256 v6, v8
+    sstore v9, arg0 !metadata(storage=symbolic(v9))
     stop
-  bb6:
-    v26 = mload v24
-    v27 = gt v26, 0
-    br v27, bb7, bb5
-  bb7:
-    v28 = mload v25
-    v29 = sload v28 !metadata(storage=symbolic(v28))
-    v30 = mload v16
-    mstore v30, v29
-    v31 = add v28, 1
-    mstore v25, v31
-    v32 = add v30, 32
-    mstore v16, v32
-    v33 = mload v24
-    v34 = sub v33, 1
-    mstore v24, v34
-    jump bb6
 }
 
 fn @setThenAlloc(arg0: memptr, arg1: u256) {

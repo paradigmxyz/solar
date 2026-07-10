@@ -1,5 +1,5 @@
 // === ROOT/tests/ui/codegen/mir/check_elim_pipeline_loop.mir (after pipeline-default) ===
-; module @CheckElimPipelineLoop
+; module @CheckElimPipelineLoop [phase = optimized]
 fn @sum(arg0: u256) {
   bb0 (entry):
     mstore 128, 0

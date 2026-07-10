@@ -1,0 +1,20 @@
+// === ROOT/tests/ui/codegen/mir/tail_call_roundtrip.mir (after dce) ===
+; module @TailCallRoundtrip [phase = dispatch]
+fn @wrapper(arg0: u256) {
+  bb0 (entry):
+    mstore 128, arg0
+    returndata 128, 32
+}
+
+fn @entry() {
+  bb0 (entry):
+    v0 = calldataload 0
+    v1 = shr 224, v0
+    v2 = eq v1, 0x9507d39a
+    br v2, bb1, bb2
+  bb1:
+    v3 = calldataload 4
+    tail_call @wrapper, v3
+  bb2:
+    revert 0, 0
+}
