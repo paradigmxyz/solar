@@ -2843,20 +2843,41 @@ impl EvmCodegen {
     /// offset`. The value is set by [`Self::resolve_static_frames`] once every
     /// body has emitted and exact spill sizes are known; the assembler then
     /// encodes it as a minimal-width push.
-    /// Computes which arguments of each static-frame callee can be passed on
-    /// the stack: argument `i` qualifies when every call site in the module
-    /// passes a value the caller can re-emit raw after its stack drain — an
-    /// immediate, or a caller argument whose own reload is position
-    /// independent (calldata for external entries, a compile-time frame
-    /// address for static-framed internal callers). A callee reached by an
+    /// Computes which arguments of each static-frame callee pass on the
+    /// stack. A site can always deliver a stack argument: raw re-emission
+    /// after the drain for immediates and position-independently reloadable
+    /// caller arguments, or a spill-slot reload for computed values. The
+    /// per-argument choice is scored across all sites — raw and
+    /// already-stored (cross-block) values save the four-byte frame store,
+    /// while a fresh block-local value must first pay its own spill — and an
+    /// argument passes on the stack when the sites' savings outweigh the
+    /// callee's one-time prologue store. A callee reached by an
     /// argument-carrying tail call keeps the plain convention.
     fn compute_stack_arg_masks(&mut self, module: &Module) {
-        let mut masks: FxHashMap<FunctionId, Vec<bool>> = FxHashMap::default();
+        let mut scores: FxHashMap<FunctionId, Vec<i32>> = FxHashMap::default();
         let mut excluded: FxHashSet<FunctionId> = FxHashSet::default();
         for (caller_id, func) in module.functions.iter_enumerated() {
             let caller_is_entry = Self::is_external_entry(func);
             let caller_static = self.static_frame_functions.contains(&caller_id);
-            for block in func.blocks.iter() {
+            let raw_leaves_ok = caller_is_entry || caller_static;
+            // Where each instruction result is defined, to spot cross-block
+            // arguments (already stored at their definition).
+            let mut inst_block: FxHashMap<InstId, usize> = FxHashMap::default();
+            let mut use_counts: FxHashMap<ValueId, usize> = FxHashMap::default();
+            for (block_idx, block) in func.blocks.iter().enumerate() {
+                for &inst_id in &block.instructions {
+                    inst_block.insert(inst_id, block_idx);
+                    for operand in func.instructions[inst_id].kind.operands() {
+                        *use_counts.entry(operand).or_default() += 1;
+                    }
+                }
+                if let Some(term) = &block.terminator {
+                    for operand in term.operands() {
+                        *use_counts.entry(operand).or_default() += 1;
+                    }
+                }
+            }
+            for (block_idx, block) in func.blocks.iter().enumerate() {
                 if let Some(Terminator::TailCall { function, args }) = &block.terminator
                     && !args.is_empty()
                 {
@@ -2868,31 +2889,72 @@ impl EvmCodegen {
                     else {
                         continue;
                     };
-                    let mask =
-                        masks.entry(*function).or_insert_with(|| vec![true; args.len()]);
-                    if mask.len() != args.len() {
+                    let score =
+                        scores.entry(*function).or_insert_with(|| vec![0; args.len()]);
+                    if score.len() != args.len() {
                         excluded.insert(*function);
                         continue;
                     }
                     for (i, &arg) in args.iter().enumerate() {
-                        let raw_ok = match func.value(arg) {
-                            crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
-                            crate::mir::Value::Arg { .. } => caller_is_entry || caller_static,
-                            _ => false,
+                        score[i] += if Self::raw_arg_emittable(func, raw_leaves_ok, arg) {
+                            // The frame store disappears outright.
+                            4
+                        } else if !raw_leaves_ok {
+                            // A dynamic-frame caller cannot reload a spill
+                            // slot without its frame pointer; it can only
+                            // deliver raw values, so this argument must stay
+                            // frame-passed everywhere.
+                            -100_000
+                        } else {
+                            match func.value(arg) {
+                                crate::mir::Value::Inst(def)
+                                    if inst_block.get(def) != Some(&block_idx) =>
+                                {
+                                    // Cross-block values are stored at their
+                                    // definition; the site keeps only the
+                                    // slot reload it would have paid anyway.
+                                    4
+                                }
+                                crate::mir::Value::Inst(_)
+                                    if use_counts.get(&arg).copied().unwrap_or(0) > 1 =>
+                                {
+                                    // Multi-use block-local values usually
+                                    // have a stack copy; the extra spill is
+                                    // partially amortized.
+                                    1
+                                }
+                                // A fresh single-use value pays a spill it
+                                // did not need before.
+                                _ => -5,
+                            }
                         };
-                        if !raw_ok {
-                            mask[i] = false;
-                        }
                     }
                 }
             }
         }
-        masks.retain(|func_id, mask| {
-            self.static_frame_functions.contains(func_id)
-                && !excluded.contains(func_id)
-                && mask.iter().any(|&stack| stack)
+        scores.retain(|func_id, _| {
+            self.static_frame_functions.contains(func_id) && !excluded.contains(func_id)
         });
+        let mut masks: FxHashMap<FunctionId, Vec<bool>> = FxHashMap::default();
+        for (func_id, score) in scores {
+            // The callee prologue pays one store per stack argument.
+            let mask: Vec<bool> = score.iter().map(|&benefit| benefit > 4).collect();
+            if mask.iter().any(|&stack| stack) {
+                masks.insert(func_id, mask);
+            }
+        }
         self.stack_arg_masks = masks;
+    }
+
+    /// Returns true when the caller can re-emit `val` raw (untracked) after
+    /// its stack drain: an immediate, or a caller argument whose reload is
+    /// position independent.
+    fn raw_arg_emittable(func: &Function, raw_leaves_ok: bool, val: ValueId) -> bool {
+        match func.value(val) {
+            crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
+            crate::mir::Value::Arg { .. } => raw_leaves_ok,
+            _ => false,
+        }
     }
 
     /// Emits a mask-qualified argument without touching the scheduler model:
@@ -2916,7 +2978,16 @@ impl EvmCodegen {
                     self.asm.emit_op(op::CALLDATALOAD);
                 }
             }
-            other => unreachable!("stack-arg mask admitted a non-rematerializable value: {other:?}"),
+            crate::mir::Value::Inst(_) => {
+                let slot = self
+                    .scheduler
+                    .spills
+                    .get(val)
+                    .expect("computed stack argument has a spill slot");
+                self.emit_spill_slot_addr(func, slot);
+                self.asm.emit_op(op::MLOAD);
+            }
+            other => unreachable!("stack-arg mask admitted an unsupported value: {other:?}"),
         }
     }
 
@@ -3308,6 +3379,24 @@ impl EvmCodegen {
             self.scheduler.stack.push_unknown();
             self.asm.emit_op(op::MSTORE);
             self.scheduler.instruction_executed(2, None);
+        }
+
+        // A stack-passed computed argument survives the drain in its spill
+        // slot and is reloaded raw after it; make sure the slot is written
+        // while the value is still reachable.
+        if let Some(mask) = &stack_mask {
+            for (i, &arg) in args.iter().enumerate() {
+                if mask[i]
+                    && matches!(func.value(arg), crate::mir::Value::Inst(_))
+                    && !self.scheduler.spills.is_stored(arg)
+                {
+                    self.spill_value_if_needed(func, arg);
+                    debug_assert!(
+                        self.scheduler.spills.is_stored(arg),
+                        "stack argument neither on the stack nor stored"
+                    );
+                }
+            }
         }
 
         self.pop_all_stack_values();
