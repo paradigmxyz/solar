@@ -8,9 +8,10 @@ use serde::Serialize;
 use solar_ast::{DataLocation, ElementaryType};
 use solar_data_structures::map::FxIndexMap;
 
-/// Storage layout in solc's Standard JSON `storageLayout` output field.
+/// Storage layout in solc's Standard JSON `storageLayout` and `transientStorageLayout` output
+/// fields.
 ///
-/// Created by [`Gcx::storage_layout`].
+/// Created by [`Gcx::storage_layout`] and [`Gcx::transient_storage_layout`].
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageLayoutOutput {
@@ -60,7 +61,12 @@ pub type StorageLayoutMember = StorageLayoutEntry;
 impl<'gcx> Gcx<'gcx> {
     /// Returns the storage layout for the given contract.
     pub fn storage_layout(self, contract_id: hir::ContractId) -> StorageLayoutOutput {
-        StorageLayoutBuilder::new(self, contract_id).build()
+        StorageLayoutBuilder::new(self, contract_id, DataLocation::Storage).build()
+    }
+
+    /// Returns the transient storage layout for the given contract.
+    pub fn transient_storage_layout(self, contract_id: hir::ContractId) -> StorageLayoutOutput {
+        StorageLayoutBuilder::new(self, contract_id, DataLocation::Transient).build()
     }
 }
 
@@ -68,28 +74,34 @@ struct StorageLayoutBuilder<'gcx> {
     gcx: Gcx<'gcx>,
     contract_id: hir::ContractId,
     contract_name: String,
+    location: DataLocation,
     types: FxIndexMap<String, StorageLayoutType>,
 }
 
 impl<'gcx> StorageLayoutBuilder<'gcx> {
-    fn new(gcx: Gcx<'gcx>, contract_id: hir::ContractId) -> Self {
+    fn new(gcx: Gcx<'gcx>, contract_id: hir::ContractId, location: DataLocation) -> Self {
         Self {
             gcx,
             contract_id,
             contract_name: gcx.contract_fully_qualified_name(contract_id).to_string(),
+            location,
             types: FxIndexMap::default(),
         }
     }
 
     fn build(mut self) -> StorageLayoutOutput {
         let contract = self.gcx.hir.contract(self.contract_id);
-        let base_slot = contract.layout.map_or(U256::ZERO, |layout| {
-            ConstantEvaluator::new(self.gcx)
-                .eval(layout)
-                .ok()
-                .and_then(|value| value.as_u256())
-                .unwrap_or_default()
-        });
+        let base_slot = match self.location {
+            DataLocation::Storage => contract.layout.map_or(U256::ZERO, |layout| {
+                ConstantEvaluator::new(self.gcx)
+                    .eval(layout)
+                    .ok()
+                    .and_then(|value| value.as_u256())
+                    .unwrap_or_default()
+            }),
+            DataLocation::Transient => U256::ZERO,
+            DataLocation::Memory | DataLocation::Calldata => unreachable!(),
+        };
         let bases = if contract.linearized_bases.is_empty() {
             std::slice::from_ref(&self.contract_id)
         } else {
@@ -105,9 +117,10 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         for base in bases {
             for variable_id in self.gcx.hir.contract(base).variables() {
                 let variable = self.gcx.hir.variable(variable_id);
+                let is_transient = variable.data_location == Some(DataLocation::Transient);
                 if variable.is_constant()
                     || variable.is_immutable()
-                    || variable.data_location == Some(DataLocation::Transient)
+                    || is_transient != matches!(self.location, DataLocation::Transient)
                 {
                     continue;
                 }

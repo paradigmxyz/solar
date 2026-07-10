@@ -469,9 +469,9 @@ struct ContractOutput {
     devdoc: Option<Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
     storage_layout: Option<StorageLayoutOutput>,
-    // Transient storage layouts and Yul IR output are not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // transient_storage_layout: Option<CowValue<'static>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    transient_storage_layout: Option<StorageLayoutOutput>,
+    // Yul IR output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ir: Option<CowValue<'static>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -850,6 +850,9 @@ fn make_contract_output(
     if output_selection.selects(source_name, contract_name, &["storageLayout"]) {
         output.storage_layout = Some(gcx.storage_layout(contract_id));
     }
+    if output_selection.selects(source_name, contract_name, &["transientStorageLayout"]) {
+        output.transient_storage_layout = Some(gcx.transient_storage_layout(contract_id));
+    }
 
     let mut evm = EvmOutput::default();
     if output_selection.selects(source_name, contract_name, &["evm.methodIdentifiers"]) {
@@ -999,6 +1002,7 @@ impl ContractOutput {
             && self.userdoc.is_none()
             && self.devdoc.is_none()
             && self.storage_layout.is_none()
+            && self.transient_storage_layout.is_none()
             && self.evm.is_none()
     }
 }
