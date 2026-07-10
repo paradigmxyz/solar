@@ -319,6 +319,15 @@ pub struct EvmCodegen {
     function_spill_sizes: FxHashMap<FunctionId, u64>,
     /// Internal-call frame-size constants waiting for exact callee spill sizes.
     pending_frame_size_consts: Vec<(DeferredConst, FunctionId, u64)>,
+    /// Per static-frame callee: which argument indices every runtime call
+    /// site can re-emit after the stack drain, so they ride the stack above
+    /// the return address instead of being stored to the callee frame at
+    /// each site. The callee prologue stores them once.
+    stack_arg_masks: FxHashMap<FunctionId, Vec<bool>>,
+    /// Whether the current assembly is the runtime (stack-passed arguments
+    /// apply). The constructor assembly emits its own copies of internal
+    /// functions with the plain frame-store convention.
+    runtime_stack_args: bool,
     /// Deferred spill-slot address pushes of the external body being emitted,
     /// keyed by the slot's allocation offset, with their reference counts.
     /// Resolved hottest-first at body end so the most reloaded slots take the
@@ -376,6 +385,8 @@ impl EvmCodegen {
             function_static_frame_sizes: FxHashMap::default(),
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
+            stack_arg_masks: FxHashMap::default(),
+            runtime_stack_args: false,
             spill_addr_consts: FxHashMap::default(),
             restorable_internal_frames: FxHashSet::default(),
             static_frame_functions: FxHashSet::default(),
@@ -614,6 +625,8 @@ impl EvmCodegen {
             self.pending_frame_size_consts.clear();
             self.restorable_internal_frames.clear();
             self.static_frame_functions.clear();
+            self.stack_arg_masks.clear();
+            self.runtime_stack_args = false;
             self.static_frame_addr_consts.clear();
             self.runtime_free_memory_const = None;
             self.runtime_entry_funcs.clear();
@@ -750,6 +763,8 @@ impl EvmCodegen {
         self.current_internal_function = None;
         self.block_copies.clear();
         self.stack_phi_sources.clear();
+        self.stack_arg_masks.clear();
+        self.runtime_stack_args = true;
 
         if !module.functions.is_empty() {
             if module.phase >= crate::mir::MirPhase::Dispatch {
@@ -806,6 +821,7 @@ impl EvmCodegen {
                 self.static_frame_functions.insert(func_id);
             }
         }
+        self.compute_stack_arg_masks(module);
 
         // Labels for every tail-call and internal-call target.
         for (func_id, func) in module.functions.iter_enumerated() {
@@ -849,6 +865,7 @@ impl EvmCodegen {
             }
             let Some(&label) = self.function_labels.get(&func_id) else { continue };
             self.asm.define_label(label);
+            self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
             self.current_internal_function = Some(func_id);
             self.generate_function_body(func);
@@ -903,6 +920,7 @@ impl EvmCodegen {
                 self.static_frame_functions.insert(func_id);
             }
         }
+        self.compute_stack_arg_masks(module);
 
         // Create labels for externally reachable runtime entry points and internal-call targets.
         let mut func_labels: Vec<Option<Label>> = Vec::new();
@@ -1024,6 +1042,7 @@ impl EvmCodegen {
             }
             let Some(label) = func_labels[func_id.index()] else { continue };
             self.asm.define_label(label);
+            self.emit_stack_arg_prologue(func_id, func);
             self.in_internal_function = true;
             self.current_internal_function = Some(func_id);
             self.generate_function_body(func);
@@ -2824,6 +2843,104 @@ impl EvmCodegen {
     /// offset`. The value is set by [`Self::resolve_static_frames`] once every
     /// body has emitted and exact spill sizes are known; the assembler then
     /// encodes it as a minimal-width push.
+    /// Computes which arguments of each static-frame callee can be passed on
+    /// the stack: argument `i` qualifies when every call site in the module
+    /// passes a value the caller can re-emit raw after its stack drain — an
+    /// immediate, or a caller argument whose own reload is position
+    /// independent (calldata for external entries, a compile-time frame
+    /// address for static-framed internal callers). A callee reached by an
+    /// argument-carrying tail call keeps the plain convention.
+    fn compute_stack_arg_masks(&mut self, module: &Module) {
+        let mut masks: FxHashMap<FunctionId, Vec<bool>> = FxHashMap::default();
+        let mut excluded: FxHashSet<FunctionId> = FxHashSet::default();
+        for (caller_id, func) in module.functions.iter_enumerated() {
+            let caller_is_entry = Self::is_external_entry(func);
+            let caller_static = self.static_frame_functions.contains(&caller_id);
+            for block in func.blocks.iter() {
+                if let Some(Terminator::TailCall { function, args }) = &block.terminator
+                    && !args.is_empty()
+                {
+                    excluded.insert(*function);
+                }
+                for &inst_id in &block.instructions {
+                    let InstKind::InternalCall { function, args, .. } =
+                        &func.instructions[inst_id].kind
+                    else {
+                        continue;
+                    };
+                    let mask =
+                        masks.entry(*function).or_insert_with(|| vec![true; args.len()]);
+                    if mask.len() != args.len() {
+                        excluded.insert(*function);
+                        continue;
+                    }
+                    for (i, &arg) in args.iter().enumerate() {
+                        let raw_ok = match func.value(arg) {
+                            crate::mir::Value::Immediate(imm) => imm.as_u256().is_some(),
+                            crate::mir::Value::Arg { .. } => caller_is_entry || caller_static,
+                            _ => false,
+                        };
+                        if !raw_ok {
+                            mask[i] = false;
+                        }
+                    }
+                }
+            }
+        }
+        masks.retain(|func_id, mask| {
+            self.static_frame_functions.contains(func_id)
+                && !excluded.contains(func_id)
+                && mask.iter().any(|&stack| stack)
+        });
+        self.stack_arg_masks = masks;
+    }
+
+    /// Emits a mask-qualified argument without touching the scheduler model:
+    /// the value lands on the physical stack for the callee prologue, below
+    /// everything the caller's model describes.
+    fn emit_raw_stack_arg(&mut self, func: &Function, val: ValueId) {
+        match func.value(val) {
+            crate::mir::Value::Immediate(imm) => {
+                self.asm.emit_push(imm.as_u256().expect("mask requires a word immediate"));
+            }
+            crate::mir::Value::Arg { index, .. } => {
+                if self.in_internal_function {
+                    let func_id = self
+                        .current_internal_function
+                        .expect("internal caller has a current function");
+                    let addr = self.static_frame_addr(func_id, 64 + u64::from(*index) * 32);
+                    self.asm.emit_push_deferred(addr);
+                    self.asm.emit_op(op::MLOAD);
+                } else {
+                    self.asm.emit_push(U256::from(4 + u64::from(*index) * 32));
+                    self.asm.emit_op(op::CALLDATALOAD);
+                }
+            }
+            other => unreachable!("stack-arg mask admitted a non-rematerializable value: {other:?}"),
+        }
+    }
+
+    /// Stores the stack-passed arguments of `func_id` into their frame slots.
+    /// Arguments were pushed in index order, so the highest index is on top;
+    /// after the last store only the return address remains above the
+    /// caller's drained stack.
+    fn emit_stack_arg_prologue(&mut self, func_id: FunctionId, func: &Function) {
+        if !self.runtime_stack_args {
+            return;
+        }
+        let Some(mask) = self.stack_arg_masks.get(&func_id).cloned() else { return };
+        if mask.len() != func.params.len() {
+            return;
+        }
+        for i in (0..mask.len()).rev() {
+            if mask[i] {
+                let addr = self.static_frame_addr(func_id, 64 + i as u64 * 32);
+                self.asm.emit_push_deferred(addr);
+                self.asm.emit_op(op::MSTORE);
+            }
+        }
+    }
+
     fn static_frame_addr(&mut self, func_id: FunctionId, offset: u64) -> DeferredConst {
         if let Some(&id) = self.static_frame_addr_consts.get(&(func_id, offset)) {
             return id;
@@ -3178,7 +3295,13 @@ impl EvmCodegen {
         // arguments (see the dynamic path).
         self.spill_live_stack_values(func, liveness, block, inst_idx);
 
+        let stack_mask =
+            if self.runtime_stack_args { self.stack_arg_masks.get(&callee).cloned() } else { None };
+
         for (i, &arg) in args.iter().enumerate() {
+            if stack_mask.as_ref().is_some_and(|mask| mask[i]) {
+                continue;
+            }
             self.emit_operand(func, arg);
             let addr = self.static_frame_addr(callee, 64 + (i as u64) * 32);
             self.asm.emit_push_deferred(addr);
@@ -3191,6 +3314,16 @@ impl EvmCodegen {
         self.scheduler.clear_stack();
 
         self.asm.emit_push_label(return_label);
+        // Stack-passed arguments ride above the return address, untracked by
+        // the model like the return address itself; the callee prologue
+        // stores them into its frame before its body runs.
+        if let Some(mask) = &stack_mask {
+            for (i, &arg) in args.iter().enumerate() {
+                if mask[i] {
+                    self.emit_raw_stack_arg(func, arg);
+                }
+            }
+        }
         self.asm.emit_push_label(callee_label);
         self.asm.emit_op(op::JUMP);
 
