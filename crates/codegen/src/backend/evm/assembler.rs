@@ -863,7 +863,7 @@ impl Assembler {
                         let size: usize =
                             instructions[i..=j].iter().map(|&inst| inst_size(inst)).sum();
                         let refs = refs.get(&label).copied().unwrap_or(0);
-                        if size <= 16 && refs >= 2 {
+                        if size <= 32 && refs >= 2 {
                             candidates.push(Candidate { start: i, end: j, size, refs });
                         }
                         break;
@@ -877,9 +877,15 @@ impl Assembler {
             return;
         }
 
-        // Most-referenced first; hoist while the span still lands below the
-        // one-byte address boundary.
-        candidates.sort_by(|a, b| b.refs.cmp(&a.refs).then(a.start.cmp(&b.start)));
+        // Best saving per budget byte first (each reference saves one byte,
+        // the span consumes its size from the one-byte address window), with
+        // reference count and position as deterministic tie-breaks.
+        candidates.sort_by(|a, b| {
+            (b.refs * a.size)
+                .cmp(&(a.refs * b.size))
+                .then(b.refs.cmp(&a.refs))
+                .then(a.start.cmp(&b.start))
+        });
         let mut budget = 0xff_usize.saturating_sub(insert_offset);
         let mut picked: Vec<Candidate> = Vec::new();
         for cand in candidates {
