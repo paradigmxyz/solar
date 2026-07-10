@@ -235,6 +235,52 @@ impl MemoryStoreEliminator {
                         *size,
                     );
                 }
+                // Keccak and logs only *read* memory. A read over a constant
+                // range observes only the stores that fall in it, so a later
+                // overwrite of a disjoint slot still kills its earlier store.
+                // Modelling the range (instead of clearing) lets a return-value
+                // slot's dead default-init survive the mapping-hash keccaks and
+                // event logs that sit between it and its real store.
+                InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
+                    Self::retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut overwritten,
+                        *offset,
+                        *size,
+                    );
+                }
+                InstKind::Log1(offset, size, _) => {
+                    Self::retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut overwritten,
+                        *offset,
+                        *size,
+                    );
+                }
+                InstKind::Log2(offset, size, _, _) => {
+                    Self::retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut overwritten,
+                        *offset,
+                        *size,
+                    );
+                }
+                InstKind::Log3(offset, size, _, _, _) => {
+                    Self::retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut overwritten,
+                        *offset,
+                        *size,
+                    );
+                }
+                InstKind::Log4(offset, size, _, _, _, _) => {
+                    Self::retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut overwritten,
+                        *offset,
+                        *size,
+                    );
+                }
                 kind if Self::is_memory_or_gas_observer(kind) => {
                     overwritten.clear();
                 }
@@ -247,6 +293,33 @@ impl MemoryStoreEliminator {
         }
 
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+    }
+
+    /// Keeps only the overwritten slots a constant-range memory read cannot
+    /// observe. A slot provably outside `[offset, offset + size)` survives; a
+    /// non-constant range or a symbolic slot is assumed observed (dropped),
+    /// which only ever keeps a store alive — never eliminates a live one.
+    fn retain_overwritten_disjoint_from_read(
+        func: &Function,
+        overwritten: &mut FxHashSet<MemAddrKey>,
+        offset: ValueId,
+        size: ValueId,
+    ) {
+        let (Some(read_offset), Some(read_size)) =
+            (func.value_u64(offset), func.value_u64(size))
+        else {
+            overwritten.clear();
+            return;
+        };
+        if read_size == 0 {
+            return;
+        }
+        overwritten.retain(|&key| match key {
+            MemAddrKey::Const(addr) => {
+                !mir_utils::ranges_overlap(addr, 32, read_offset, read_size)
+            }
+            MemAddrKey::BaseOffset { .. } => false,
+        });
     }
 
     /// Removes constant stores made redundant by a constant store on the sole
@@ -1007,6 +1080,48 @@ mod tests {
             panic!("expected return terminator");
         };
         assert_eq!(values.as_slice(), &[zero]);
+    }
+
+    #[test]
+    fn dead_store_survives_disjoint_keccak_read() {
+        // mstore(128, 0); keccak256(0, 64); mstore(128, 1) — the keccak reads
+        // scratch [0, 64), disjoint from 128, so the default-init store is dead.
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let slot = builder.imm_u64(128);
+        let zero = builder.imm_u64(0);
+        let one = builder.imm_u64(1);
+        let size = builder.imm_u64(64);
+        builder.mstore(slot, zero);
+        builder.keccak256(zero, size);
+        builder.mstore(slot, one);
+        builder.stop();
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run(&mut func), 1);
+        // The keccak and the surviving store remain.
+        assert_eq!(func.blocks[func.entry_block].instructions.len(), 2);
+    }
+
+    #[test]
+    fn overlapping_keccak_read_blocks_store_elimination() {
+        // The keccak reads [96, 160), which covers 128, so the earlier store is
+        // observed and must be kept.
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let slot = builder.imm_u64(128);
+        let read_start = builder.imm_u64(96);
+        let zero = builder.imm_u64(0);
+        let one = builder.imm_u64(1);
+        let size = builder.imm_u64(64);
+        builder.mstore(slot, zero);
+        builder.keccak256(read_start, size);
+        builder.mstore(slot, one);
+        builder.stop();
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run(&mut func), 0);
+        assert_eq!(func.blocks[func.entry_block].instructions.len(), 3);
     }
 
     #[test]
