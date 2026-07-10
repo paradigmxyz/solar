@@ -2,7 +2,7 @@ use alloy_primitives::Bytes;
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Serialize,
-    de::{self, Visitor},
+    de::{self, SeqAccess, Visitor},
 };
 use serde_json::{Map, Value, json};
 use solar_codegen::{EvmCodegen, lower};
@@ -121,11 +121,21 @@ struct Optimizer {
 
 #[derive(Debug, Default, Deserialize)]
 struct OutputSelection<'a>(
-    #[serde(borrow)] FxIndexMap<CowStr<'a>, FxIndexMap<CowStr<'a>, Vec<CowStr<'a>>>>,
+    #[serde(borrow)] FxIndexMap<CowStr<'a>, FxIndexMap<CowStr<'a>, OutputSelectionFlags>>,
 );
 
-struct ContractOutputSelection<'a, 'input> {
-    items: [Option<&'a [CowStr<'input>]>; 4],
+bitflags::bitflags! {
+    #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+    struct OutputSelectionFlags: u16 {
+        const ABI = 1 << 0;
+        const USERDOC = 1 << 1;
+        const DEVDOC = 1 << 2;
+        const STORAGE_LAYOUT = 1 << 3;
+        const TRANSIENT_STORAGE_LAYOUT = 1 << 4;
+        const METHOD_IDENTIFIERS = 1 << 5;
+        const BYTECODE = 1 << 6;
+        const DEPLOYED_BYTECODE = 1 << 7;
+    }
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -346,7 +356,7 @@ fn compile(
                     let contract_output = make_contract_output(
                         gcx,
                         contract_id,
-                        &contract_selection,
+                        contract_selection,
                         bytecodes.as_ref(),
                     );
                     if !contract_output.is_empty() {
@@ -578,46 +588,73 @@ where
 }
 
 impl<'input> OutputSelection<'input> {
-    fn contract<'a>(&'a self, source: &str, contract: &str) -> ContractOutputSelection<'a, 'input> {
-        let source_items = self.0.get(source);
-        let wildcard_items = self.0.get("*");
-        ContractOutputSelection {
-            items: [
-                contract_items(source_items, contract),
-                contract_items(source_items, "*"),
-                contract_items(wildcard_items, contract),
-                contract_items(wildcard_items, "*"),
-            ],
+    fn contract(&self, source: &str, contract: &str) -> OutputSelectionFlags {
+        let source_contracts = self.0.get(source);
+        let wildcard_contracts = self.0.get("*");
+        contract_flags(source_contracts, contract)
+            | contract_flags(source_contracts, "*")
+            | contract_flags(wildcard_contracts, contract)
+            | contract_flags(wildcard_contracts, "*")
+    }
+}
+
+impl OutputSelectionFlags {
+    fn from_key(key: &str) -> Self {
+        match key {
+            "*" => Self::all(),
+            "abi" => Self::ABI,
+            "userdoc" => Self::USERDOC,
+            "devdoc" => Self::DEVDOC,
+            "storageLayout" => Self::STORAGE_LAYOUT,
+            "transientStorageLayout" => Self::TRANSIENT_STORAGE_LAYOUT,
+            "evm" => Self::METHOD_IDENTIFIERS | Self::BYTECODE | Self::DEPLOYED_BYTECODE,
+            "evm.methodIdentifiers" => Self::METHOD_IDENTIFIERS,
+            "evm.bytecode" | "evm.bytecode.object" => Self::BYTECODE,
+            "evm.deployedBytecode" | "evm.deployedBytecode.object" => Self::DEPLOYED_BYTECODE,
+            _ => Self::empty(),
         }
     }
 }
 
-impl ContractOutputSelection<'_, '_> {
-    fn selects(&self, key: &str) -> bool {
-        self.items
-            .iter()
-            .flatten()
-            .any(|items| items.iter().any(|item| selection_matches(item, key)))
-    }
+impl<'de> Deserialize<'de> for OutputSelectionFlags {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct OutputSelectionFlagsVisitor;
 
-    fn selects_any(&self, keys: &[&str]) -> bool {
-        self.items.iter().flatten().any(|items| {
-            items.iter().any(|item| keys.iter().any(|key| selection_matches(item, key)))
-        })
+        impl<'de> Visitor<'de> for OutputSelectionFlagsVisitor {
+            type Value = OutputSelectionFlags;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("an array of output selection strings")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> std::result::Result<Self::Value, A::Error>
+            where
+                A: SeqAccess<'de>,
+            {
+                let mut flags = OutputSelectionFlags::empty();
+                while let Some(key) = seq.next_element::<CowStr<'de>>()? {
+                    flags |= OutputSelectionFlags::from_key(&key);
+                    if flags.is_all() {
+                        while seq.next_element::<CowStr<'de>>()?.is_some() {}
+                        break;
+                    }
+                }
+                Ok(flags)
+            }
+        }
+
+        deserializer.deserialize_seq(OutputSelectionFlagsVisitor)
     }
 }
 
-fn selection_matches(item: &CowStr<'_>, key: &str) -> bool {
-    item.as_ref() == "*"
-        || item.as_ref() == key
-        || key.strip_prefix(item.as_ref()).is_some_and(|rest| rest.starts_with('.'))
-}
-
-fn contract_items<'a, 'input>(
-    contracts: Option<&'a FxIndexMap<CowStr<'input>, Vec<CowStr<'input>>>>,
+fn contract_flags(
+    contracts: Option<&FxIndexMap<CowStr<'_>, OutputSelectionFlags>>,
     contract: &str,
-) -> Option<&'a [CowStr<'input>]> {
-    contracts.and_then(|contracts| contracts.get(contract)).map(Vec::as_slice)
+) -> OutputSelectionFlags {
+    contracts.and_then(|contracts| contracts.get(contract)).copied().unwrap_or_default()
 }
 
 fn default_language<'a>() -> CowStr<'a> {
@@ -845,11 +882,8 @@ fn count_input_cows(input: &CompilerInput<'_>, stats: &mut InputCowStats) {
     }
     for (source, contracts) in &input.settings.output_selection.0 {
         stats.add(source);
-        for (contract, items) in contracts {
+        for contract in contracts.keys() {
             stats.add(contract);
-            for item in items {
-                stats.add(item);
-            }
         }
     }
 }
@@ -870,29 +904,29 @@ fn source_outputs_from_compiler(
 fn make_contract_output(
     gcx: Gcx<'_>,
     contract_id: solar_sema::hir::ContractId,
-    output_selection: &ContractOutputSelection<'_, '_>,
+    output_selection: OutputSelectionFlags,
     bytecodes: Option<&FxHashMap<ContractId, GeneratedBytecodes>>,
 ) -> ContractOutput {
     let mut output = ContractOutput::default();
 
-    if output_selection.selects("abi") {
+    if output_selection.contains(OutputSelectionFlags::ABI) {
         output.abi = Some(gcx.contract_abi(contract_id));
     }
-    if output_selection.selects("userdoc") {
+    if output_selection.contains(OutputSelectionFlags::USERDOC) {
         output.userdoc = Some(gcx.user_documentation(contract_id));
     }
-    if output_selection.selects("devdoc") {
+    if output_selection.contains(OutputSelectionFlags::DEVDOC) {
         output.devdoc = Some(gcx.dev_documentation(contract_id));
     }
-    if output_selection.selects("storageLayout") {
+    if output_selection.contains(OutputSelectionFlags::STORAGE_LAYOUT) {
         output.storage_layout = Some(gcx.storage_layout(contract_id));
     }
-    if output_selection.selects("transientStorageLayout") {
+    if output_selection.contains(OutputSelectionFlags::TRANSIENT_STORAGE_LAYOUT) {
         output.transient_storage_layout = Some(gcx.transient_storage_layout(contract_id));
     }
 
     let mut evm = EvmOutput::default();
-    if output_selection.selects("evm.methodIdentifiers") {
+    if output_selection.contains(OutputSelectionFlags::METHOD_IDENTIFIERS) {
         for function in gcx.interface_functions(contract_id) {
             evm.method_identifiers.insert(
                 gcx.item_signature(function.id.into()).to_string(),
@@ -907,7 +941,7 @@ fn make_contract_output(
     // `object` for now, the two selectors currently produce identical output.
     // Honoring the finer-grained `.object`/`.opcodes`/`.sourceMap` selectors is
     // part of the larger effort to match solc's input->output key mapping.
-    if output_selection.selects_any(&["evm.bytecode", "evm.bytecode.object"]) {
+    if output_selection.contains(OutputSelectionFlags::BYTECODE) {
         evm.bytecode = Some(
             bytecodes
                 .and_then(|bytecodes| bytecodes.get(&contract_id))
@@ -915,7 +949,7 @@ fn make_contract_output(
                 .unwrap_or_else(BytecodeOutput::empty),
         );
     }
-    if output_selection.selects_any(&["evm.deployedBytecode", "evm.deployedBytecode.object"]) {
+    if output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE) {
         evm.deployed_bytecode = Some(
             bytecodes
                 .and_then(|bytecodes| bytecodes.get(&contract_id))
@@ -935,12 +969,9 @@ fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSele
         let source = gcx.hir.source(contract.source);
         let source_name = source.file.name.display().to_string();
         let contract_name = contract.name.to_string();
-        output_selection.contract(&source_name, &contract_name).selects_any(&[
-            "evm.bytecode",
-            "evm.bytecode.object",
-            "evm.deployedBytecode",
-            "evm.deployedBytecode.object",
-        ])
+        output_selection
+            .contract(&source_name, &contract_name)
+            .intersects(OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE)
     })
 }
 
@@ -1086,4 +1117,85 @@ fn strip_json_comments(input: &str) -> String {
     }
 
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn selection_flags(input: &str) -> OutputSelectionFlags {
+        serde_json::from_str(input).unwrap()
+    }
+
+    #[test]
+    fn output_selection_exact_keys() {
+        let flags = selection_flags(
+            r#"[
+                "abi",
+                "userdoc",
+                "devdoc",
+                "storageLayout",
+                "transientStorageLayout",
+                "evm.methodIdentifiers",
+                "evm.bytecode.object",
+                "evm.deployedBytecode.object"
+            ]"#,
+        );
+
+        assert_eq!(flags, OutputSelectionFlags::all());
+    }
+
+    #[test]
+    fn output_selection_parent_keys() {
+        assert_eq!(
+            selection_flags(r#"["evm"]"#),
+            OutputSelectionFlags::METHOD_IDENTIFIERS
+                | OutputSelectionFlags::BYTECODE
+                | OutputSelectionFlags::DEPLOYED_BYTECODE
+        );
+        assert_eq!(
+            selection_flags(r#"["evm.bytecode", "evm.deployedBytecode"]"#),
+            OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE
+        );
+    }
+
+    #[test]
+    fn output_selection_wildcard_and_unknown_keys() {
+        assert_eq!(selection_flags(r#"["unknown", "*", "abi"]"#), OutputSelectionFlags::all());
+        assert!(selection_flags(r#"["metadata", "evm.bytecode.opcodes"]"#).is_empty());
+    }
+
+    #[test]
+    fn output_selection_merges_source_and_contract_wildcards() {
+        let selection = serde_json::from_str::<OutputSelection<'_>>(
+            r#"{
+                "A.sol": {
+                    "A": ["abi"],
+                    "*": ["userdoc"]
+                },
+                "*": {
+                    "A": ["devdoc"],
+                    "*": ["storageLayout"]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            selection.contract("A.sol", "A"),
+            OutputSelectionFlags::ABI
+                | OutputSelectionFlags::USERDOC
+                | OutputSelectionFlags::DEVDOC
+                | OutputSelectionFlags::STORAGE_LAYOUT
+        );
+        assert_eq!(
+            selection.contract("A.sol", "B"),
+            OutputSelectionFlags::USERDOC | OutputSelectionFlags::STORAGE_LAYOUT
+        );
+        assert_eq!(
+            selection.contract("B.sol", "A"),
+            OutputSelectionFlags::DEVDOC | OutputSelectionFlags::STORAGE_LAYOUT
+        );
+        assert_eq!(selection.contract("B.sol", "B"), OutputSelectionFlags::STORAGE_LAYOUT);
+    }
 }
