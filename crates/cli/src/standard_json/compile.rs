@@ -172,7 +172,7 @@ fn compile(
     let _ = crate::commands::compile::run_compiler_session_with(
         sess,
         |compiler| {
-            let compile_result = crate::commands::compile::run_pipeline(
+            let _control_flow = crate::commands::compile::run_pipeline(
                 compiler,
                 |pcx| {
                     let mut files = Vec::with_capacity(sources.len());
@@ -190,43 +190,39 @@ fn compile(
                     pcx.par_load_files_with_contents(files)
                 },
                 |compiler| output.sources = source_outputs_from_compiler(compiler),
-            );
+            )?;
 
-            if compile_result.is_ok() && compiler.dcx().has_errors().is_ok() {
-                let gcx = compiler.gcx();
-                // Code generation is experimental and gated behind `-Zcodegen`;
-                // without it, no bytecode is produced even when requested.
-                let bytecodes = if gcx.sess.opts.unstable.codegen
-                    && needs_bytecode_output(gcx, &output_selection)
-                {
-                    Some(generate_contract_bytecodes(gcx)?)
-                } else {
-                    None
-                };
+            let gcx = compiler.gcx();
 
-                for (contract_id, contract) in gcx.hir.contracts_enumerated() {
-                    let source = gcx.hir.source(contract.source);
-                    let source_name = standard_json_source_name(&source.file.name);
-                    let contract_name = contract.name.to_string();
-                    let contract_selection =
-                        output_selection.contract(&source_name, &contract_name);
-                    let contract_output = make_contract_output(
-                        gcx,
-                        contract_id,
-                        contract_selection,
-                        bytecodes.as_ref(),
-                    );
-                    if !contract_output.is_empty() {
-                        output
-                            .contracts
-                            .entry(source_name)
-                            .or_default()
-                            .insert(contract_name, contract_output);
-                    }
+            // Code generation is experimental and gated behind `-Zcodegen`;
+            // without it, no bytecode is produced even when requested.
+            let bytecodes = if gcx.sess.opts.unstable.codegen
+                && needs_bytecode_output(gcx, &output_selection)
+            {
+                Some(generate_contract_bytecodes(gcx)?)
+            } else {
+                None
+            };
+
+            gcx.dcx().has_errors()?;
+
+            for (contract_id, contract) in gcx.hir.contracts_enumerated() {
+                let source = gcx.hir.source(contract.source);
+                let source_name = standard_json_source_name(&source.file.name);
+                let contract_name = contract.name.as_str();
+                let contract_selection = output_selection.contract(&source_name, contract_name);
+                let contract_output =
+                    make_contract_output(gcx, contract_id, contract_selection, bytecodes.as_ref());
+                if !contract_output.is_empty() {
+                    output
+                        .contracts
+                        .entry(source_name)
+                        .or_default()
+                        .insert(contract_name.to_string(), contract_output);
                 }
             }
 
-            compile_result.map(|_| ())
+            Ok(())
         },
         false,
     );
