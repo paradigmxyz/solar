@@ -186,6 +186,9 @@ bitflags::bitflags! {
             | Self::BYTECODE_ETHDEBUG.bits()
             | Self::DEPLOYED_BYTECODE_ETHDEBUG.bits();
         const GLOBAL = Self::ETHDEBUG_RESOURCES.bits() | Self::ETHDEBUG_COMPILATION.bits();
+        /// Outputs selected by `*` in Solidity mode.
+        ///
+        /// Unlike `Self::all()`, this excludes experimental Yul IR and exact-only ethdebug outputs.
         const WILDCARD = Self::SOURCE.bits()
             | Self::ABI.bits()
             | Self::METADATA.bits()
