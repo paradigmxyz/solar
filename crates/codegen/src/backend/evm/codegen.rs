@@ -3764,6 +3764,35 @@ impl EvmCodegen {
         // Check if addr is still live after this instruction
         let addr_is_live = !liveness.is_dead_after(addr, block, inst_idx);
 
+        // Operands already sitting on top of the tracked stack are consumed
+        // in place when they are dead afterwards and own no reserved spill
+        // slot, instead of being re-emitted and the stale copies popped later
+        // (`DUP2 DUP2 MSTORE ... POP POP` becomes `MSTORE`). Mirrors the
+        // binary-op fast paths.
+        let addr_dead_free =
+            !addr_is_live && self.scheduler.spills.get(addr).is_none();
+        let val_dead_free = liveness.is_dead_after(val, block, inst_idx)
+            && self.scheduler.spills.get(val).is_none();
+        if addr_dead_free && val_dead_free && self.scheduler.stack.depth() >= 2 {
+            if self.scheduler.stack.top() == Some(addr)
+                && self.scheduler.stack.peek(1) == Some(val)
+            {
+                // The stack is already [addr, val].
+                self.asm.emit_op(opcode);
+                self.scheduler.instruction_executed(2, None);
+                return;
+            }
+            if self.scheduler.stack.top() == Some(val)
+                && self.scheduler.stack.peek(1) == Some(addr)
+            {
+                self.asm.emit_op(op::SWAP1);
+                self.scheduler.stack_swapped();
+                self.asm.emit_op(opcode);
+                self.scheduler.instruction_executed(2, None);
+                return;
+            }
+        }
+
         // Emit val
         self.emit_value(func, val);
         if !self.block_local_copy_survives(liveness, block, val, 1) {
