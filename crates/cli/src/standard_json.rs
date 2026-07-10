@@ -126,15 +126,89 @@ struct OutputSelection<'a>(
 
 bitflags::bitflags! {
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-    struct OutputSelectionFlags: u16 {
-        const ABI = 1 << 0;
-        const USERDOC = 1 << 1;
-        const DEVDOC = 1 << 2;
-        const STORAGE_LAYOUT = 1 << 3;
-        const TRANSIENT_STORAGE_LAYOUT = 1 << 4;
-        const METHOD_IDENTIFIERS = 1 << 5;
-        const BYTECODE = 1 << 6;
-        const DEPLOYED_BYTECODE = 1 << 7;
+    struct OutputSelectionFlags: u64 {
+        const AST = 1 << 0;
+        const ABI = 1 << 1;
+        const METADATA = 1 << 2;
+        const USERDOC = 1 << 3;
+        const DEVDOC = 1 << 4;
+        const STORAGE_LAYOUT = 1 << 5;
+        const TRANSIENT_STORAGE_LAYOUT = 1 << 6;
+        const IR = 1 << 7;
+        const IR_AST = 1 << 8;
+        const IR_OPTIMIZED = 1 << 9;
+        const IR_OPTIMIZED_AST = 1 << 10;
+        const YUL_CFG_JSON = 1 << 11;
+        const ASSEMBLY = 1 << 12;
+        const LEGACY_ASSEMBLY = 1 << 13;
+        const METHOD_IDENTIFIERS = 1 << 14;
+        const GAS_ESTIMATES = 1 << 15;
+        const BYTECODE_OBJECT = 1 << 16;
+        const BYTECODE_OPCODES = 1 << 17;
+        const BYTECODE_SOURCE_MAP = 1 << 18;
+        const BYTECODE_FUNCTION_DEBUG_DATA = 1 << 19;
+        const BYTECODE_GENERATED_SOURCES = 1 << 20;
+        const BYTECODE_LINK_REFERENCES = 1 << 21;
+        const BYTECODE_ETHDEBUG = 1 << 22;
+        const DEPLOYED_BYTECODE_OBJECT = 1 << 23;
+        const DEPLOYED_BYTECODE_OPCODES = 1 << 24;
+        const DEPLOYED_BYTECODE_SOURCE_MAP = 1 << 25;
+        const DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA = 1 << 26;
+        const DEPLOYED_BYTECODE_GENERATED_SOURCES = 1 << 27;
+        const DEPLOYED_BYTECODE_LINK_REFERENCES = 1 << 28;
+        const DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES = 1 << 29;
+        const DEPLOYED_BYTECODE_ETHDEBUG = 1 << 30;
+        const ETHDEBUG_RESOURCES = 1 << 31;
+        const ETHDEBUG_COMPILATION = 1 << 32;
+
+        const YUL = Self::IR.bits()
+            | Self::IR_AST.bits()
+            | Self::IR_OPTIMIZED.bits()
+            | Self::IR_OPTIMIZED_AST.bits()
+            | Self::YUL_CFG_JSON.bits();
+        const BYTECODE = Self::BYTECODE_OBJECT.bits()
+            | Self::BYTECODE_OPCODES.bits()
+            | Self::BYTECODE_SOURCE_MAP.bits()
+            | Self::BYTECODE_FUNCTION_DEBUG_DATA.bits()
+            | Self::BYTECODE_GENERATED_SOURCES.bits()
+            | Self::BYTECODE_LINK_REFERENCES.bits();
+        const DEPLOYED_BYTECODE = Self::DEPLOYED_BYTECODE_OBJECT.bits()
+            | Self::DEPLOYED_BYTECODE_OPCODES.bits()
+            | Self::DEPLOYED_BYTECODE_SOURCE_MAP.bits()
+            | Self::DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA.bits()
+            | Self::DEPLOYED_BYTECODE_GENERATED_SOURCES.bits()
+            | Self::DEPLOYED_BYTECODE_LINK_REFERENCES.bits()
+            | Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES.bits();
+        const EVM = Self::ASSEMBLY.bits()
+            | Self::LEGACY_ASSEMBLY.bits()
+            | Self::METHOD_IDENTIFIERS.bits()
+            | Self::GAS_ESTIMATES.bits()
+            | Self::BYTECODE.bits()
+            | Self::DEPLOYED_BYTECODE.bits();
+        const ETHDEBUG = Self::BYTECODE_ETHDEBUG.bits()
+            | Self::DEPLOYED_BYTECODE_ETHDEBUG.bits()
+            | Self::ETHDEBUG_RESOURCES.bits()
+            | Self::ETHDEBUG_COMPILATION.bits();
+        const SOURCE = Self::AST.bits();
+        const CONTRACT = Self::ABI.bits()
+            | Self::METADATA.bits()
+            | Self::USERDOC.bits()
+            | Self::DEVDOC.bits()
+            | Self::STORAGE_LAYOUT.bits()
+            | Self::TRANSIENT_STORAGE_LAYOUT.bits()
+            | Self::YUL.bits()
+            | Self::EVM.bits()
+            | Self::BYTECODE_ETHDEBUG.bits()
+            | Self::DEPLOYED_BYTECODE_ETHDEBUG.bits();
+        const GLOBAL = Self::ETHDEBUG_RESOURCES.bits() | Self::ETHDEBUG_COMPILATION.bits();
+        const WILDCARD = Self::SOURCE.bits()
+            | Self::ABI.bits()
+            | Self::METADATA.bits()
+            | Self::USERDOC.bits()
+            | Self::DEVDOC.bits()
+            | Self::STORAGE_LAYOUT.bits()
+            | Self::TRANSIENT_STORAGE_LAYOUT.bits()
+            | Self::EVM.bits();
     }
 }
 
@@ -504,7 +578,7 @@ struct ContractOutput {
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ir_optimized_ast: Option<CowValue<'static>>,
     // Yul CFG output is not supported yet.
-    // #[serde(skip_serializing_if = "Option::is_none")]
+    // #[serde(rename = "yulCFGJson", skip_serializing_if = "Option::is_none")]
     // yul_cfg_json: Option<CowValue<'static>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     evm: Option<EvmOutput>,
@@ -591,26 +665,56 @@ impl<'input> OutputSelection<'input> {
     fn contract(&self, source: &str, contract: &str) -> OutputSelectionFlags {
         let source_contracts = self.0.get(source);
         let wildcard_contracts = self.0.get("*");
-        contract_flags(source_contracts, contract)
+        (contract_flags(source_contracts, contract)
             | contract_flags(source_contracts, "*")
             | contract_flags(wildcard_contracts, contract)
-            | contract_flags(wildcard_contracts, "*")
+            | contract_flags(wildcard_contracts, "*"))
+            & OutputSelectionFlags::CONTRACT
     }
 }
 
 impl OutputSelectionFlags {
     fn from_key(key: &str) -> Self {
         match key {
-            "*" => Self::all(),
+            "*" => Self::WILDCARD,
+            "ast" => Self::AST,
             "abi" => Self::ABI,
+            "metadata" => Self::METADATA,
             "userdoc" => Self::USERDOC,
             "devdoc" => Self::DEVDOC,
             "storageLayout" => Self::STORAGE_LAYOUT,
             "transientStorageLayout" => Self::TRANSIENT_STORAGE_LAYOUT,
-            "evm" => Self::METHOD_IDENTIFIERS | Self::BYTECODE | Self::DEPLOYED_BYTECODE,
+            "ir" => Self::IR,
+            "irAst" => Self::IR_AST,
+            "irOptimized" => Self::IR_OPTIMIZED,
+            "irOptimizedAst" => Self::IR_OPTIMIZED_AST,
+            "yulCFGJson" => Self::YUL_CFG_JSON,
+            "evm" => Self::EVM,
+            "evm.assembly" => Self::ASSEMBLY,
+            "evm.legacyAssembly" => Self::LEGACY_ASSEMBLY,
             "evm.methodIdentifiers" => Self::METHOD_IDENTIFIERS,
-            "evm.bytecode" | "evm.bytecode.object" => Self::BYTECODE,
-            "evm.deployedBytecode" | "evm.deployedBytecode.object" => Self::DEPLOYED_BYTECODE,
+            "evm.gasEstimates" => Self::GAS_ESTIMATES,
+            "evm.bytecode" => Self::BYTECODE,
+            "evm.bytecode.object" => Self::BYTECODE_OBJECT,
+            "evm.bytecode.opcodes" => Self::BYTECODE_OPCODES,
+            "evm.bytecode.sourceMap" => Self::BYTECODE_SOURCE_MAP,
+            "evm.bytecode.functionDebugData" => Self::BYTECODE_FUNCTION_DEBUG_DATA,
+            "evm.bytecode.generatedSources" => Self::BYTECODE_GENERATED_SOURCES,
+            "evm.bytecode.linkReferences" => Self::BYTECODE_LINK_REFERENCES,
+            "evm.bytecode.ethdebug" => Self::BYTECODE_ETHDEBUG,
+            "evm.deployedBytecode" => Self::DEPLOYED_BYTECODE,
+            "evm.deployedBytecode.object" => Self::DEPLOYED_BYTECODE_OBJECT,
+            "evm.deployedBytecode.opcodes" => Self::DEPLOYED_BYTECODE_OPCODES,
+            "evm.deployedBytecode.sourceMap" => Self::DEPLOYED_BYTECODE_SOURCE_MAP,
+            "evm.deployedBytecode.functionDebugData" => Self::DEPLOYED_BYTECODE_FUNCTION_DEBUG_DATA,
+            "evm.deployedBytecode.generatedSources" => Self::DEPLOYED_BYTECODE_GENERATED_SOURCES,
+            "evm.deployedBytecode.linkReferences" => Self::DEPLOYED_BYTECODE_LINK_REFERENCES,
+            "evm.deployedBytecode.immutableReferences" => {
+                Self::DEPLOYED_BYTECODE_IMMUTABLE_REFERENCES
+            }
+            "evm.deployedBytecode.ethdebug" => Self::DEPLOYED_BYTECODE_ETHDEBUG,
+            "ethdebug.resources" => Self::ETHDEBUG_RESOURCES,
+            "ethdebug.compilation" => Self::ETHDEBUG_COMPILATION,
             _ => Self::empty(),
         }
     }
@@ -941,7 +1045,7 @@ fn make_contract_output(
     // `object` for now, the two selectors currently produce identical output.
     // Honoring the finer-grained `.object`/`.opcodes`/`.sourceMap` selectors is
     // part of the larger effort to match solc's input->output key mapping.
-    if output_selection.contains(OutputSelectionFlags::BYTECODE) {
+    if output_selection.contains(OutputSelectionFlags::BYTECODE_OBJECT) {
         evm.bytecode = Some(
             bytecodes
                 .and_then(|bytecodes| bytecodes.get(&contract_id))
@@ -949,7 +1053,7 @@ fn make_contract_output(
                 .unwrap_or_else(BytecodeOutput::empty),
         );
     }
-    if output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE) {
+    if output_selection.contains(OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT) {
         evm.deployed_bytecode = Some(
             bytecodes
                 .and_then(|bytecodes| bytecodes.get(&contract_id))
@@ -969,9 +1073,9 @@ fn needs_bytecode_output(gcx: solar_sema::Gcx<'_>, output_selection: &OutputSele
         let source = gcx.hir.source(contract.source);
         let source_name = source.file.name.display().to_string();
         let contract_name = contract.name.to_string();
-        output_selection
-            .contract(&source_name, &contract_name)
-            .intersects(OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE)
+        output_selection.contract(&source_name, &contract_name).intersects(
+            OutputSelectionFlags::BYTECODE_OBJECT | OutputSelectionFlags::DEPLOYED_BYTECODE_OBJECT,
+        )
     })
 }
 
@@ -1131,14 +1235,39 @@ mod tests {
     fn output_selection_exact_keys() {
         let flags = selection_flags(
             r#"[
+                "ast",
                 "abi",
+                "metadata",
                 "userdoc",
                 "devdoc",
                 "storageLayout",
                 "transientStorageLayout",
+                "ir",
+                "irAst",
+                "irOptimized",
+                "irOptimizedAst",
+                "yulCFGJson",
+                "evm.assembly",
+                "evm.legacyAssembly",
                 "evm.methodIdentifiers",
+                "evm.gasEstimates",
                 "evm.bytecode.object",
-                "evm.deployedBytecode.object"
+                "evm.bytecode.opcodes",
+                "evm.bytecode.sourceMap",
+                "evm.bytecode.functionDebugData",
+                "evm.bytecode.generatedSources",
+                "evm.bytecode.linkReferences",
+                "evm.bytecode.ethdebug",
+                "evm.deployedBytecode.object",
+                "evm.deployedBytecode.opcodes",
+                "evm.deployedBytecode.sourceMap",
+                "evm.deployedBytecode.functionDebugData",
+                "evm.deployedBytecode.generatedSources",
+                "evm.deployedBytecode.linkReferences",
+                "evm.deployedBytecode.immutableReferences",
+                "evm.deployedBytecode.ethdebug",
+                "ethdebug.resources",
+                "ethdebug.compilation"
             ]"#,
         );
 
@@ -1147,22 +1276,24 @@ mod tests {
 
     #[test]
     fn output_selection_parent_keys() {
-        assert_eq!(
-            selection_flags(r#"["evm"]"#),
-            OutputSelectionFlags::METHOD_IDENTIFIERS
-                | OutputSelectionFlags::BYTECODE
-                | OutputSelectionFlags::DEPLOYED_BYTECODE
-        );
+        assert_eq!(selection_flags(r#"["evm"]"#), OutputSelectionFlags::EVM);
         assert_eq!(
             selection_flags(r#"["evm.bytecode", "evm.deployedBytecode"]"#),
             OutputSelectionFlags::BYTECODE | OutputSelectionFlags::DEPLOYED_BYTECODE
         );
+        assert!(!OutputSelectionFlags::EVM.intersects(OutputSelectionFlags::ETHDEBUG));
     }
 
     #[test]
     fn output_selection_wildcard_and_unknown_keys() {
-        assert_eq!(selection_flags(r#"["unknown", "*", "abi"]"#), OutputSelectionFlags::all());
-        assert!(selection_flags(r#"["metadata", "evm.bytecode.opcodes"]"#).is_empty());
+        assert_eq!(selection_flags(r#"["unknown", "*"]"#), OutputSelectionFlags::WILDCARD);
+        assert_eq!(
+            selection_flags(r#"["*", "ir", "evm.bytecode.ethdebug"]"#),
+            OutputSelectionFlags::WILDCARD
+                | OutputSelectionFlags::IR
+                | OutputSelectionFlags::BYTECODE_ETHDEBUG
+        );
+        assert!(selection_flags(r#"["unknown", "evm.bytecode.unknown"]"#).is_empty());
     }
 
     #[test]
@@ -1197,5 +1328,28 @@ mod tests {
             OutputSelectionFlags::DEVDOC | OutputSelectionFlags::STORAGE_LAYOUT
         );
         assert_eq!(selection.contract("B.sol", "B"), OutputSelectionFlags::STORAGE_LAYOUT);
+    }
+
+    #[test]
+    fn output_selection_contract_scope() {
+        let selection = serde_json::from_str::<OutputSelection<'_>>(
+            r#"{
+                "A.sol": {
+                    "A": ["ast", "abi", "ethdebug.compilation"]
+                },
+                "*": {
+                    "A": ["devdoc", "ethdebug.compilation"],
+                    "*": ["storageLayout", "ethdebug.resources"]
+                }
+            }"#,
+        )
+        .unwrap();
+
+        assert_eq!(
+            selection.contract("A.sol", "A"),
+            OutputSelectionFlags::ABI
+                | OutputSelectionFlags::DEVDOC
+                | OutputSelectionFlags::STORAGE_LAYOUT
+        );
     }
 }
