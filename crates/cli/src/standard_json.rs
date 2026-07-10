@@ -54,11 +54,13 @@ struct SourceInput<'a> {
     content: Option<CowStr<'a>>,
     #[serde(borrow, default)]
     urls: Vec<CowStr<'a>>,
-    // `keccak256` validation, AST, and EVM assembly inputs are not supported yet.
+    // `keccak256` validation is not supported yet.
     // #[serde(borrow)]
     // keccak256: Option<CowValue<'a>>,
+    // AST inputs are not supported yet.
     // #[serde(borrow)]
     // ast: Option<CowValue<'a>>,
+    // EVM assembly inputs are not supported yet.
     // #[serde(borrow)]
     // assembly_json: Option<CowValue<'a>>,
 }
@@ -464,8 +466,9 @@ struct SourceOutput {
 struct ContractOutput {
     #[serde(skip_serializing_if = "Option::is_none")]
     abi: Option<Vec<alloy_json_abi::AbiItem<'static>>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    metadata: Option<String>,
+    // Metadata output is not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // metadata: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     userdoc: Option<Documentation>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -477,10 +480,13 @@ struct ContractOutput {
     // Yul IR output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ir: Option<CowValue<'static>>,
+    // Yul IR AST output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ir_ast: Option<CowValue<'static>>,
+    // Optimized Yul IR output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ir_optimized: Option<CowValue<'static>>,
+    // Optimized Yul IR AST output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ir_optimized_ast: Option<CowValue<'static>>,
     // Yul CFG output is not supported yet.
@@ -493,13 +499,15 @@ struct ContractOutput {
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EvmOutput {
-    // Assembly and gas estimates are not supported yet.
+    // Assembly output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // assembly: Option<CowValue<'static>>,
+    // Legacy assembly output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // legacy_assembly: Option<CowValue<'static>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
     method_identifiers: FxIndexMap<String, String>,
+    // Gas estimates are not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // gas_estimates: Option<CowValue<'static>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -513,28 +521,35 @@ struct EvmOutput {
 struct BytecodeOutput {
     #[serde(serialize_with = "serialize_hex_bytes")]
     object: Bytes,
-    // Ethdebug, function debug data, and generated sources are not supported yet.
+    // Ethdebug output is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ethdebug: Option<CowValue<'static>>,
+    // Function debug data is not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // function_debug_data: Option<CowValue<'static>>,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    opcodes: String,
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    source_map: String,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    link_references: FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>,
-    #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    immutable_references: FxIndexMap<String, Vec<OffsetLength>>,
+    // Opcode output is not supported yet.
+    // #[serde(default, skip_serializing_if = "String::is_empty")]
+    // opcodes: String,
+    // Source map output is not supported yet.
+    // #[serde(default, skip_serializing_if = "String::is_empty")]
+    // source_map: String,
+    // Link references are not supported yet.
+    // #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    // link_references: FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>,
+    // Immutable references are not supported yet.
+    // #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
+    // immutable_references: FxIndexMap<String, Vec<OffsetLength>>,
+    // Generated sources are not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // generated_sources: Option<CowValue<'static>>,
 }
 
-#[derive(Debug, Serialize)]
-struct OffsetLength {
-    start: u32,
-    length: u32,
-}
+// Link and immutable reference offsets are not supported yet.
+// #[derive(Debug, Serialize)]
+// struct OffsetLength {
+//     start: u32,
+//     length: u32,
+// }
 
 struct GeneratedBytecodes {
     deployment: Bytes,
@@ -547,7 +562,7 @@ impl BytecodeOutput {
     }
 
     fn new(object: Bytes) -> Self {
-        Self { object, ..Self::default() }
+        Self { object }
     }
 }
 
@@ -876,8 +891,7 @@ fn make_contract_output(
     // (`object`, `opcodes`, `sourceMap`, `linkReferences`, ...) and
     // `evm.bytecode.object` selects only the `object` hex sub-field. We match
     // either selector and emit a `BytecodeOutput`; since we only populate
-    // `object` for now (the other sub-fields are left empty and skipped during
-    // serialization), the two selectors currently produce identical output.
+    // `object` for now, the two selectors currently produce identical output.
     // Honoring the finer-grained `.object`/`.opcodes`/`.sourceMap` selectors is
     // part of the larger effort to match solc's input->output key mapping.
     if output_selection.selects(
@@ -1004,7 +1018,6 @@ fn ensure_contract_bytecode(
 impl ContractOutput {
     fn is_empty(&self) -> bool {
         self.abi.is_none()
-            && self.metadata.is_none()
             && self.userdoc.is_none()
             && self.devdoc.is_none()
             && self.storage_layout.is_none()
