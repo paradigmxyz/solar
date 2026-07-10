@@ -100,9 +100,10 @@ str_enum! {
         Paris,
         Shanghai,
         Cancun,
-        #[default]
         Prague,
+        #[default]
         Osaka,
+        Amsterdam,
     }
 }
 

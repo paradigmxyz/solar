@@ -5,6 +5,278 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
+
+### Bug Fixes
+
+- [sema] Encode library function signatures like solc ([#926](https://github.com/paradigmxyz/solar/issues/926))
+- [sema] Resolve public constant member over its getter ([#927](https://github.com/paradigmxyz/solar/issues/927))
+- [release] Require crate changelogs ([#924](https://github.com/paradigmxyz/solar/issues/924))
+- [release] Default vergen metadata on error ([#923](https://github.com/paradigmxyz/solar/issues/923))
+- [config] Handle packaged version builds ([#922](https://github.com/paradigmxyz/solar/issues/922))
+- [parser] Recover malformed member access ([#914](https://github.com/paradigmxyz/solar/issues/914))
+- [docs] Avoid rustdoc ICE on re-exports ([#912](https://github.com/paradigmxyz/solar/issues/912))
+- [lsp] Only scan open files without workspace ([#898](https://github.com/paradigmxyz/solar/issues/898))
+- [parser] Clear error literal denominations ([#896](https://github.com/paradigmxyz/solar/issues/896))
+- Avoid unused ui_test patch warning ([#894](https://github.com/paradigmxyz/solar/issues/894))
+- [foundry] Clean up solc wrapper ([#889](https://github.com/paradigmxyz/solar/issues/889))
+- [sema] Stabilize diagnostic order ([#879](https://github.com/paradigmxyz/solar/issues/879))
+- Align import resolution with solc ([#860](https://github.com/paradigmxyz/solar/issues/860))
+- [bench] Preserve single-threaded session ([#859](https://github.com/paradigmxyz/solar/issues/859))
+- Add codes to warnings ([#839](https://github.com/paradigmxyz/solar/issues/839))
+- [parse] Preserve hex escape bytes ([#831](https://github.com/paradigmxyz/solar/issues/831))
+- [sema] Check variadic builtins ([#815](https://github.com/paradigmxyz/solar/issues/815))
+- [sema] Allow struct NatSpec params ([#827](https://github.com/paradigmxyz/solar/issues/827))
+- [sema] Inherit public variable getter docs ([#825](https://github.com/paradigmxyz/solar/issues/825))
+- [sema] Expose inherited function selectors ([#824](https://github.com/paradigmxyz/solar/issues/824))
+- [sema] Attach functions to function values ([#801](https://github.com/paradigmxyz/solar/issues/801))
+- [sema] Expose contract type members ([#814](https://github.com/paradigmxyz/solar/issues/814))
+- [sema] Reject oversized memory arrays ([#803](https://github.com/paradigmxyz/solar/issues/803))
+- [sema] Expose contract scoped type members ([#793](https://github.com/paradigmxyz/solar/issues/793))
+- [sema] Handle storage call lvalues ([#808](https://github.com/paradigmxyz/solar/issues/808))
+- [sema] Allow tuple assignment holes ([#798](https://github.com/paradigmxyz/solar/issues/798))
+- [sema] Validate storage layout base slots ([#810](https://github.com/paradigmxyz/solar/issues/810))
+- [sema] Cast library names to address ([#804](https://github.com/paradigmxyz/solar/issues/804))
+- [sema] Prefer most derived call target ([#800](https://github.com/paradigmxyz/solar/issues/800))
+- [sema] Validate inline array literals ([#794](https://github.com/paradigmxyz/solar/issues/794))
+- [sema] Index calldata slices ([#807](https://github.com/paradigmxyz/solar/issues/807))
+- [sema] Type yul address literals as words ([#799](https://github.com/paradigmxyz/solar/issues/799))
+- [sema] Bind storage array methods ([#802](https://github.com/paradigmxyz/solar/issues/802))
+- [sema] Ignore index args for lvalues ([#796](https://github.com/paradigmxyz/solar/issues/796))
+- [sema] Reject invalid using modifiers ([#790](https://github.com/paradigmxyz/solar/issues/790))
+- [sema] Follow up function member kinds ([#788](https://github.com/paradigmxyz/solar/issues/788))
+- [sema] Model function member kinds ([#786](https://github.com/paradigmxyz/solar/issues/786))
+- [sema] Type yul string literals as words ([#785](https://github.com/paradigmxyz/solar/issues/785))
+- [sema] Typeck yul ([#774](https://github.com/paradigmxyz/solar/issues/774))
+- [typeck] Allow dynamic array new args ([#784](https://github.com/paradigmxyz/solar/issues/784))
+- [typeck] Preserve mapping element locations ([#783](https://github.com/paradigmxyz/solar/issues/783))
+- [typeck] Allow address literal casts ([#782](https://github.com/paradigmxyz/solar/issues/782))
+- [typeck] Locate dynamic casts ([#781](https://github.com/paradigmxyz/solar/issues/781))
+- [typeck] Allow implicit fixed bytes literals ([#780](https://github.com/paradigmxyz/solar/issues/780))
+- [typeck] Allow immutable construction writes ([#778](https://github.com/paradigmxyz/solar/issues/778))
+- [sema] Coerce private function pointers ([#776](https://github.com/paradigmxyz/solar/issues/776))
+- [sema] Convert hex literals to fixed bytes ([#775](https://github.com/paradigmxyz/solar/issues/775))
+- [typeck] Cap literal constant evaluation
+- [sema] Align natspec validation ([#771](https://github.com/paradigmxyz/solar/issues/771))
+- [interface] Honor no_warnings in DiagCtxtFlags::update_from_opts ([#744](https://github.com/paradigmxyz/solar/issues/744))
+- [parser] Parse exponentiation right-assoc ([#767](https://github.com/paradigmxyz/solar/issues/767))
+- [sema] Canonicalize bare integer aliases ([#761](https://github.com/paradigmxyz/solar/issues/761))
+- Address clippy and fmt CI failures
+- [typeck] Explicit type check for payable address ([#690](https://github.com/paradigmxyz/solar/issues/690))
+- [bench] Skip useless tables and plots in benchmark output ([#676](https://github.com/paradigmxyz/solar/issues/676))
+- [sema] Add handling for event/error failures ([#660](https://github.com/paradigmxyz/solar/issues/660))
+- [typeck] Mark event/error typechecking todo ([#658](https://github.com/paradigmxyz/solar/issues/658))
+- [parse] Ignore mid-line '@' in doc cmnts ([#597](https://github.com/paradigmxyz/solar/issues/597))
+- Replace unnecessary repetitions of structure name ([#581](https://github.com/paradigmxyz/solar/issues/581))
+- [interface] Strip prefix from import resolution context ([#577](https://github.com/paradigmxyz/solar/issues/577))
+- [lowering] Bring `this` and `super` into scope for constructor inheritance ([#570](https://github.com/paradigmxyz/solar/issues/570))
+- Do not break on close paren for struct ([#562](https://github.com/paradigmxyz/solar/issues/562))
+- [parser] Neg. exp. empty check, disallow plus ([#561](https://github.com/paradigmxyz/solar/issues/561))
+
+### Dependencies
+
+- [deps] Bump the ci-weekly group with 4 updates ([#919](https://github.com/paradigmxyz/solar/issues/919))
+- [deps] Bump the npm-weekly group in /editors/vscode with 2 updates ([#920](https://github.com/paradigmxyz/solar/issues/920))
+- Bump inturn to 0.2.0 ([#916](https://github.com/paradigmxyz/solar/issues/916))
+- [zed] Bump solidity grammar ([#908](https://github.com/paradigmxyz/solar/issues/908))
+- [deps] Bump the ci-weekly group with 4 updates ([#904](https://github.com/paradigmxyz/solar/issues/904))
+- [deps] Bump the npm-weekly group in /editors/vscode with 4 updates ([#905](https://github.com/paradigmxyz/solar/issues/905))
+- Bump vergen to v10 ([#899](https://github.com/paradigmxyz/solar/issues/899))
+- [deps] Weekly `cargo update` ([#891](https://github.com/paradigmxyz/solar/issues/891))
+- [deps] Bump the ci-weekly group with 5 updates ([#876](https://github.com/paradigmxyz/solar/issues/876))
+- [deps] Weekly `cargo update` ([#875](https://github.com/paradigmxyz/solar/issues/875))
+- [deps] Weekly `cargo update` ([#851](https://github.com/paradigmxyz/solar/issues/851))
+- [deps] Weekly `cargo update` ([#843](https://github.com/paradigmxyz/solar/issues/843))
+- [deps] Weekly `cargo update` ([#832](https://github.com/paradigmxyz/solar/issues/832))
+- [deps] Weekly `cargo update` ([#813](https://github.com/paradigmxyz/solar/issues/813))
+- Bump MSRV ([#764](https://github.com/paradigmxyz/solar/issues/764))
+- [deps] Weekly `cargo update` ([#738](https://github.com/paradigmxyz/solar/issues/738))
+- [deps] Weekly `cargo update` ([#736](https://github.com/paradigmxyz/solar/issues/736))
+- [deps] Weekly `cargo update` ([#732](https://github.com/paradigmxyz/solar/issues/732))
+- [deps] Bump bytes from 1.11.0 to 1.11.1 ([#730](https://github.com/paradigmxyz/solar/issues/730))
+- [deps] Weekly `cargo update` ([#729](https://github.com/paradigmxyz/solar/issues/729))
+- Optimize non-critical deps for size ([#728](https://github.com/paradigmxyz/solar/issues/728))
+- [deps] Weekly `cargo update` ([#725](https://github.com/paradigmxyz/solar/issues/725))
+- [deps] Bump vergen to 10 ([#461](https://github.com/paradigmxyz/solar/issues/461))
+- [deps] Weekly `cargo update` ([#720](https://github.com/paradigmxyz/solar/issues/720))
+- Bump benches/analyze dependencies ([#724](https://github.com/paradigmxyz/solar/issues/724))
+- [deps] Weekly `cargo update` ([#673](https://github.com/paradigmxyz/solar/issues/673))
+- [deps] Run cargo shear ([#670](https://github.com/paradigmxyz/solar/issues/670))
+- [deps] Weekly `cargo update` ([#668](https://github.com/paradigmxyz/solar/issues/668))
+- [deps] Weekly `cargo update` ([#635](https://github.com/paradigmxyz/solar/issues/635))
+-  test: bump solidity submodule to 0.8.31 ([#608](https://github.com/paradigmxyz/solar/issues/608))
+- [deps] Weekly `cargo update` ([#607](https://github.com/paradigmxyz/solar/issues/607))
+- [deps] Bump actions/checkout from 5 to 6 ([#604](https://github.com/paradigmxyz/solar/issues/604))
+- [deps] Weekly `cargo update` ([#603](https://github.com/paradigmxyz/solar/issues/603))
+- [deps] Weekly `cargo update` ([#601](https://github.com/paradigmxyz/solar/issues/601))
+- [deps] Weekly `cargo update` ([#599](https://github.com/paradigmxyz/solar/issues/599))
+- [deps] Bump actions/upload-artifact from 4 to 5 ([#589](https://github.com/paradigmxyz/solar/issues/589))
+- [deps] Bump actions/download-artifact from 4 to 6 ([#590](https://github.com/paradigmxyz/solar/issues/590))
+- [deps] Weekly `cargo update` ([#583](https://github.com/paradigmxyz/solar/issues/583))
+- [deps] Weekly `cargo update` ([#582](https://github.com/paradigmxyz/solar/issues/582))
+- [deps] Weekly `cargo update` ([#571](https://github.com/paradigmxyz/solar/issues/571))
+- [deps] Weekly `cargo update` ([#558](https://github.com/paradigmxyz/solar/issues/558))
+
+### Documentation
+
+- Document FileCheck UI annotations
+- Update SECURITY.md
+- Update benchmarks for 0.1.8 ([#553](https://github.com/paradigmxyz/solar/issues/553))
+- Typo in CHANGELOG.md ([#552](https://github.com/paradigmxyz/solar/issues/552))
+
+### Features
+
+- [lsp] Add inlay hints ([#918](https://github.com/paradigmxyz/solar/issues/918))
+- [lsp] Add auto-completion support ([#915](https://github.com/paradigmxyz/solar/issues/915))
+- Add solsmith and solreduce tools ([#911](https://github.com/paradigmxyz/solar/issues/911))
+- [lsp] Add symbol navigation index ([#909](https://github.com/paradigmxyz/solar/issues/909))
+- [lsp] Add symbol providers ([#906](https://github.com/paradigmxyz/solar/issues/906))
+- [vscode] Add syntax highlighting ([#907](https://github.com/paradigmxyz/solar/issues/907))
+- [hir] Add pretty printer ([#903](https://github.com/paradigmxyz/solar/issues/903))
+- Add HIR stats flag ([#893](https://github.com/paradigmxyz/solar/issues/893))
+- [lsp] Extract declaration symbol tables ([#888](https://github.com/paradigmxyz/solar/issues/888))
+- Show AST enum variant sizes ([#892](https://github.com/paradigmxyz/solar/issues/892))
+-   feat(lsp): load workspace config across lifecycle events ([#881](https://github.com/paradigmxyz/solar/issues/881))
+- Add Fandango source code and runtime fuzzing ([#882](https://github.com/paradigmxyz/solar/issues/882))
+- Port editor extensions to main repo ([#883](https://github.com/paradigmxyz/solar/issues/883))
+- Introduce EVM IR ([#868](https://github.com/paradigmxyz/solar/issues/868))
+- [lsp] Register watched file notifications ([#880](https://github.com/paradigmxyz/solar/issues/880))
+- [lsp] Add initial language server support ([#870](https://github.com/paradigmxyz/solar/issues/870))
+- Add erc7201 builtin ([#877](https://github.com/paradigmxyz/solar/issues/877))
+- Update solidity to 0.8.35 ([#874](https://github.com/paradigmxyz/solar/issues/874))
+- [codegen] Cost-model load PRE insertions ([#863](https://github.com/paradigmxyz/solar/issues/863))
+- [codegen] Preserve stack across branch edges ([#862](https://github.com/paradigmxyz/solar/issues/862))
+- Mem2reg improvements and evm codegen fixes ([#861](https://github.com/paradigmxyz/solar/issues/861))
+- Codegen ([#822](https://github.com/paradigmxyz/solar/issues/822))
+- Add solc-compatible wasm API ([#850](https://github.com/paradigmxyz/solar/issues/850))
+- Continue after frontend errors ([#838](https://github.com/paradigmxyz/solar/issues/838))
+- Allow warnings by code ([#837](https://github.com/paradigmxyz/solar/issues/837))
+- Improve parser/lowering ([#835](https://github.com/paradigmxyz/solar/issues/835))
+- Expose expr types after typeck ([#833](https://github.com/paradigmxyz/solar/issues/833))
+- [sema] Allow require custom errors ([#819](https://github.com/paradigmxyz/solar/issues/819))
+- [cli] Support standard json pipeline ([#829](https://github.com/paradigmxyz/solar/issues/829))
+- [sema] Add implicit tuple conversions ([#828](https://github.com/paradigmxyz/solar/issues/828))
+- [parser] Add import callback ([#823](https://github.com/paradigmxyz/solar/issues/823))
+- [sema] Implement using for ([#773](https://github.com/paradigmxyz/solar/issues/773))
+- [typeck] Implement constant folding for integer literal type preservation ([#649](https://github.com/paradigmxyz/solar/issues/649))
+- [sema] Lower inline yul to hir ([#769](https://github.com/paradigmxyz/solar/issues/769))
+- [sema] Lower natspec ([#768](https://github.com/paradigmxyz/solar/issues/768))
+- [sema] Implement override checker ([#685](https://github.com/paradigmxyz/solar/issues/685))
+- SIMD optimizations, bug fixes, and struct codegen improvements
+- [sema] Implement call type checking ([#717](https://github.com/paradigmxyz/solar/issues/717))
+- [sema] Add internal function pointer check and improve check_assign ([#718](https://github.com/paradigmxyz/solar/issues/718))
+- [sema] Implement variable declaration rules ([#681](https://github.com/paradigmxyz/solar/issues/681))
+- [sema] Add implicit function pointer conversions ([#715](https://github.com/paradigmxyz/solar/issues/715))
+- [sema] Add implicit tuple conversions ([#713](https://github.com/paradigmxyz/solar/issues/713))
+- [sema] Add implicit fixed bytes conversions ([#712](https://github.com/paradigmxyz/solar/issues/712))
+- [sema] Add implicit integer width conversions ([#711](https://github.com/paradigmxyz/solar/issues/711))
+- [sema] Add bytes <-> string explicit conversions ([#708](https://github.com/paradigmxyz/solar/issues/708))
+- [sema] Add function implementation checks ([#691](https://github.com/paradigmxyz/solar/issues/691))
+- [sema] Integer explicit conversions ([#633](https://github.com/paradigmxyz/solar/issues/633))
+- [sema] Implicit bytes literal conversion to bytes dynamic/fixed ([#642](https://github.com/paradigmxyz/solar/issues/642))
+- [typeck] Support negative integer literal coercion  ([#648](https://github.com/paradigmxyz/solar/issues/648))
+- [typeck] Implement implicit integer literal coercion ([#647](https://github.com/paradigmxyz/solar/issues/647))
+- [ast] Change TypeSize to store bits instead of bytes ([#671](https://github.com/paradigmxyz/solar/issues/671))
+- [typeck] Contracts/address explicit conversions ([#646](https://github.com/paradigmxyz/solar/issues/646))
+- [cli] Add tracing-samply ([#669](https://github.com/paradigmxyz/solar/issues/669))
+- [typeck] Contracts implicit conversions ([#634](https://github.com/paradigmxyz/solar/issues/634))
+- [typeck] Check lvalue ([#641](https://github.com/paradigmxyz/solar/issues/641))
+- [typeck,ast_lowering] Constructor base arguments validation ([#580](https://github.com/paradigmxyz/solar/issues/580))
+- Fix mapping ICE + impl data location coercion ([#637](https://github.com/paradigmxyz/solar/issues/637))
+- [sema] Explicit bytes conversion ([#632](https://github.com/paradigmxyz/solar/issues/632))
+- [sema] Address explicit conversion ([#626](https://github.com/paradigmxyz/solar/issues/626))
+- [sema] Implement explicit conversions for fixed-size byte arrays ([#624](https://github.com/paradigmxyz/solar/issues/624))
+- Switch default emitter kind to unicode ([#629](https://github.com/paradigmxyz/solar/issues/629))
+- [sema] Enum explicit conversion ([#625](https://github.com/paradigmxyz/solar/issues/625))
+- [sema] Implement array slice implicit conversion ([#623](https://github.com/paradigmxyz/solar/issues/623))
+- [typeck] Payable address implicit conversion ([#622](https://github.com/paradigmxyz/solar/issues/622))
+- Implement HIR builder ([#559](https://github.com/paradigmxyz/solar/issues/559))
+- [ast] Naive natspec ([#470](https://github.com/paradigmxyz/solar/issues/470))
+- [sema] Experimental typeck ([#563](https://github.com/paradigmxyz/solar/issues/563))
+- Complete hir visitor ([#557](https://github.com/paradigmxyz/solar/issues/557))
+- [ast] Add some methods to BinOpKind, DataLocation ([#555](https://github.com/paradigmxyz/solar/issues/555))
+
+### Miscellaneous Tasks
+
+- Fix changelog script
+- Update crossbeam-epoch
+- Link zed rust-analyzer project ([#901](https://github.com/paradigmxyz/solar/issues/901))
+- Improve AGENTS.md
+- Group npm dependabot updates
+- Update dependabot
+- Rename benchmarks ([#857](https://github.com/paradigmxyz/solar/issues/857))
+- Dep upgrades ([#852](https://github.com/paradigmxyz/solar/issues/852))
+- [meta] Add .config/nextest.toml
+- [meta] Stupid bot
+- Migrate benchmarks to Gungraun ([#766](https://github.com/paradigmxyz/solar/issues/766))
+- Tmp ignore ([#765](https://github.com/paradigmxyz/solar/issues/765))
+- [meta] Remove RUSTFLAGS from AGENTS.md
+- [meta] Ignore bincode advisory
+- Display bits for `int_literal[n]` instead of bytes ([#672](https://github.com/paradigmxyz/solar/issues/672))
+- [meta] Add fuzz directory ([#665](https://github.com/paradigmxyz/solar/issues/665))
+- [sema] Remove todo ([#656](https://github.com/paradigmxyz/solar/issues/656))
+- [meta] Compress AGENTS.md, add note about symbols ([#644](https://github.com/paradigmxyz/solar/issues/644))
+- Sync annotate_snippets impl ([#630](https://github.com/paradigmxyz/solar/issues/630))
+- [meta] Rename CLAUDE.md to AGENTS.md ([#628](https://github.com/paradigmxyz/solar/issues/628))
+- [meta] Set issue types on issue templates ([#616](https://github.com/paradigmxyz/solar/issues/616))
+- Warn instead err on invalid natspec tag ([#600](https://github.com/paradigmxyz/solar/issues/600))
+- Disable clippy::test_attr_in_doctest ([#598](https://github.com/paradigmxyz/solar/issues/598))
+- [interface] Expose semver MIN_SOLIDITY_VERSION ([#593](https://github.com/paradigmxyz/solar/issues/593))
+- [meta] Add dependabot for GHA ([#587](https://github.com/paradigmxyz/solar/issues/587))
+- [parse] Natspec w/ ws after '@' is valid ([#585](https://github.com/paradigmxyz/solar/issues/585))
+- [lowering] Allow empty sources ([#572](https://github.com/paradigmxyz/solar/issues/572))
+- [interface] Expose minimum supported solidity version ([#573](https://github.com/paradigmxyz/solar/issues/573))
+- Update Cargo.lock
+- Fix -Zdump path parser ([#554](https://github.com/paradigmxyz/solar/issues/554))
+
+### Other
+
+- Update to tempoxyz ([#721](https://github.com/paradigmxyz/solar/issues/721))
+- Revert "feat: SIMD optimizations, bug fixes, and struct codegen improvements"
+- Update permissions ([#591](https://github.com/paradigmxyz/solar/issues/591))
+- Add codeql for GHA ([#588](https://github.com/paradigmxyz/solar/issues/588))
+- Use `actions/checkout@v5` ([#565](https://github.com/paradigmxyz/solar/issues/565))
+
+### Performance
+
+- [sema] Skip unnecessary visitor walks ([#772](https://github.com/paradigmxyz/solar/issues/772))
+- Use thin LTO for dist profile ([#727](https://github.com/paradigmxyz/solar/issues/727))
+
+### Refactor
+
+- [codegen] Pre-phases lowering cleanups ([#928](https://github.com/paradigmxyz/solar/issues/928))
+- Print stats with comfy-table ([#897](https://github.com/paradigmxyz/solar/issues/897))
+- [codegen] Deduplicate MIR helpers ([#864](https://github.com/paradigmxyz/solar/issues/864))
+- Add shared bitset data structures ([#865](https://github.com/paradigmxyz/solar/issues/865))
+- [evm] Clean up assembler ([#858](https://github.com/paradigmxyz/solar/issues/858))
+- [sema] Cache override checker ([#856](https://github.com/paradigmxyz/solar/issues/856))
+- Add diagnostic span helper ([#820](https://github.com/paradigmxyz/solar/issues/820))
+- [sema] Preintern error type ([#811](https://github.com/paradigmxyz/solar/issues/811))
+- [sema] Store empty variable docs
+- [sema] Defer type flag checks ([#770](https://github.com/paradigmxyz/solar/issues/770))
+- Replace index_vec with oxc_index ([#742](https://github.com/paradigmxyz/solar/issues/742))
+- [sema] Split try_convert_explicit_to into two functions ([#719](https://github.com/paradigmxyz/solar/issues/719))
+- [sema] Use one match in implicit conversion; use enum globs ([#631](https://github.com/paradigmxyz/solar/issues/631))
+- [parser] Move mapping key type validation to semantic analysis ([#574](https://github.com/paradigmxyz/solar/issues/574))
+- [interface] Update annotation_snippets emitter ([#602](https://github.com/paradigmxyz/solar/issues/602))
+- [sema] Rename abi module to print ([#556](https://github.com/paradigmxyz/solar/issues/556))
+
+### Styling
+
+- [lsp] Add shared test fixtures ([#900](https://github.com/paradigmxyz/solar/issues/900))
+- Revert "fix: address clippy and fmt CI failures"
+
+### Testing
+
+- [foundry] Use tempdirs for artifacts ([#902](https://github.com/paradigmxyz/solar/issues/902))
+- Add FileCheck support to UI runner ([#890](https://github.com/paradigmxyz/solar/issues/890))
+- Update ui test harness ([#845](https://github.com/paradigmxyz/solar/issues/845))
+- Split ported UI tests ([#816](https://github.com/paradigmxyz/solar/issues/816))
+- Normalize solc port annotations ([#779](https://github.com/paradigmxyz/solar/issues/779))
+- Add implicit array conversions ([#714](https://github.com/paradigmxyz/solar/issues/714))
+- Add unimplemented constructor test ([#692](https://github.com/paradigmxyz/solar/issues/692))
+- Add bytes and contract type to mapping key type check test ([#636](https://github.com/paradigmxyz/solar/issues/636))
+
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
 
 Notable changes:

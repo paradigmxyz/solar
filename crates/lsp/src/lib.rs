@@ -17,6 +17,8 @@ use std::ops::ControlFlow;
 use tower::ServiceBuilder;
 
 mod config;
+mod diagnostics;
+mod flycheck;
 mod global_state;
 mod handlers;
 mod inlay_hints;
@@ -63,6 +65,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .notification::<notif::DidOpenTextDocument>(handlers::did_open_text_document)
         .notification::<notif::DidCloseTextDocument>(handlers::did_close_text_document)
         .notification::<notif::DidChangeTextDocument>(handlers::did_change_text_document)
+        .notification::<notif::DidSaveTextDocument>(handlers::did_save_text_document)
         .notification::<notif::DidChangeConfiguration>(handlers::did_change_configuration);
 
     router
@@ -102,9 +105,10 @@ mod tests {
     use super::*;
     use async_lsp::{AnyNotification, LanguageServer, LspService, router::Router};
     use lsp_types::{
-        DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams, FileChangeType,
-        FileEvent, InitializeParams, InitializedParams, WorkspaceClientCapabilities,
-        notification as notif, notification::Notification, request,
+        DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
+        DidSaveTextDocumentParams, FileChangeType, FileEvent, InitializeParams, InitializedParams,
+        TextDocumentIdentifier, WorkspaceClientCapabilities, notification as notif,
+        notification::Notification, request,
     };
     use std::ops::ControlFlow;
     use tokio::sync::oneshot;
@@ -121,6 +125,24 @@ mod tests {
         };
         let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
             "method": notif::DidChangeWatchedFiles::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_document_saves() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = DidSaveTextDocumentParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+            },
+            text: None,
+        };
+        let notification = serde_json::from_value::<AnyNotification>(serde_json::json!({
+            "method": notif::DidSaveTextDocument::METHOD,
             "params": params,
         }))
         .unwrap();

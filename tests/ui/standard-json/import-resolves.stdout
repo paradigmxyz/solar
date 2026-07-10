@@ -1,0 +1,50 @@
+{
+  "sources": {
+    "B.sol": {
+      "id": 0
+    },
+    "A.sol": {
+      "id": 1
+    }
+  },
+  "contracts": {
+    "B.sol": {
+      "B": {
+        "abi": [
+          {
+            "type": "function",
+            "name": "g",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "pure"
+          }
+        ]
+      }
+    },
+    "A.sol": {
+      "A": {
+        "abi": [
+          {
+            "type": "function",
+            "name": "g",
+            "inputs": [],
+            "outputs": [
+              {
+                "name": "",
+                "type": "uint256",
+                "internalType": "uint256"
+              }
+            ],
+            "stateMutability": "pure"
+          }
+        ]
+      }
+    }
+  }
+}

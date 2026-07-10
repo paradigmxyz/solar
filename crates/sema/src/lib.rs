@@ -9,6 +9,7 @@
 #[macro_use]
 extern crate tracing;
 
+use indexmap as _;
 use rayon::prelude::*;
 use solar_interface::{Result, Session, config::CompilerStage};
 use std::ops::ControlFlow;
@@ -33,6 +34,8 @@ pub use parse::{ParsingContext, Source, Sources};
 
 pub mod builtins;
 pub mod eval;
+
+pub mod output;
 
 pub mod hir;
 pub use hir::Hir;

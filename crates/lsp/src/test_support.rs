@@ -12,6 +12,17 @@ use std::{
 };
 use tempfile::TempDir;
 
+#[cfg(unix)]
+pub(crate) fn process_exists(pid: u32) -> bool {
+    std::process::Command::new("ps")
+        .args(["-p", &pid.to_string()])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|status| status.success())
+}
+
 pub(crate) struct TestProject {
     tmp: TempDir,
     open_files: Vec<(PathBuf, String)>,

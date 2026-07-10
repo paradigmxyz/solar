@@ -31,10 +31,12 @@ strum.workspace = true
 alloy-primitives.workspace = true
 bumpalo.workspace = true
 either.workspace = true
+indexmap = { workspace = true, features = ["serde"] }
 num-bigint.workspace = true
 num-traits.workspace = true
 once_map.workspace = true
 rayon.workspace = true
+serde = { workspace = true, features = ["derive"] }
 thread_local.workspace = true
 tracing.workspace = true
 

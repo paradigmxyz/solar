@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0](https://github.com/paradigmxyz/solar/releases/tag/v0.2.0)
+
+### Bug Fixes
+
+- [docs] Avoid rustdoc ICE on re-exports ([#912](https://github.com/paradigmxyz/solar/issues/912))
+- Align import resolution with solc ([#860](https://github.com/paradigmxyz/solar/issues/860))
+
+### Features
+
+- Update solidity to 0.8.35 ([#874](https://github.com/paradigmxyz/solar/issues/874))
+- Codegen ([#822](https://github.com/paradigmxyz/solar/issues/822))
+
+### Refactor
+
+- Add shared bitset data structures ([#865](https://github.com/paradigmxyz/solar/issues/865))
+- Replace index_vec with oxc_index ([#742](https://github.com/paradigmxyz/solar/issues/742))
+- [interface] Update annotation_snippets emitter ([#602](https://github.com/paradigmxyz/solar/issues/602))
+
 ## [0.1.8](https://github.com/paradigmxyz/solar/releases/tag/v0.1.8)
 
 ### Features
