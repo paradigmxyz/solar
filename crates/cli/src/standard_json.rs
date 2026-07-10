@@ -1,3 +1,4 @@
+use alloy_primitives::Bytes;
 use indexmap::IndexMap;
 use serde::{
     Deserialize, Serialize,
@@ -507,7 +508,8 @@ struct EvmOutput {
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct BytecodeOutput {
-    object: String,
+    #[serde(serialize_with = "serialize_hex_bytes")]
+    object: Bytes,
     // Ethdebug, function debug data, and generated sources are not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ethdebug: Option<CowValue<'static>>,
@@ -518,15 +520,12 @@ struct BytecodeOutput {
     #[serde(default, skip_serializing_if = "String::is_empty")]
     source_map: String,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    link_references: LinkReferences,
+    link_references: FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>,
     #[serde(default, skip_serializing_if = "FxIndexMap::is_empty")]
-    immutable_references: ImmutableReferences,
+    immutable_references: FxIndexMap<String, Vec<OffsetLength>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // generated_sources: Option<CowValue<'static>>,
 }
-
-type LinkReferences = FxIndexMap<String, FxIndexMap<String, Vec<OffsetLength>>>;
-type ImmutableReferences = FxIndexMap<String, Vec<OffsetLength>>;
 
 #[derive(Debug, Serialize)]
 struct OffsetLength {
@@ -535,8 +534,8 @@ struct OffsetLength {
 }
 
 struct GeneratedBytecodes {
-    deployment: String,
-    runtime: String,
+    deployment: Bytes,
+    runtime: Bytes,
 }
 
 impl BytecodeOutput {
@@ -544,9 +543,16 @@ impl BytecodeOutput {
         Self::default()
     }
 
-    fn new(object: String) -> Self {
+    fn new(object: Bytes) -> Self {
         Self { object, ..Self::default() }
     }
+}
+
+fn serialize_hex_bytes<S>(bytes: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
 }
 
 impl OutputSelection<'_> {
@@ -942,10 +948,7 @@ fn generate_contract_bytecodes(
             let (deployment, runtime) = codegen.generate_deployment_bytecode(&mut module);
             bytecodes.insert(
                 contract_id,
-                GeneratedBytecodes {
-                    deployment: alloy_primitives::hex::encode(deployment),
-                    runtime: alloy_primitives::hex::encode(runtime),
-                },
+                GeneratedBytecodes { deployment: deployment.into(), runtime: runtime.into() },
             );
         }
     }
