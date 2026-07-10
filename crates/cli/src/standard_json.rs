@@ -54,9 +54,11 @@ struct SourceInput<'a> {
     content: Option<CowStr<'a>>,
     #[serde(borrow, default)]
     urls: Vec<CowStr<'a>>,
-    // `keccak256` validation and `assemblyJson` inputs are not supported yet.
+    // `keccak256` validation, AST, and EVM assembly inputs are not supported yet.
     // #[serde(borrow)]
     // keccak256: Option<CowValue<'a>>,
+    // #[serde(borrow)]
+    // ast: Option<CowValue<'a>>,
     // #[serde(borrow)]
     // assembly_json: Option<CowValue<'a>>,
 }
@@ -481,6 +483,9 @@ struct ContractOutput {
     // ir_optimized: Option<CowValue<'static>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // ir_optimized_ast: Option<CowValue<'static>>,
+    // Yul CFG output is not supported yet.
+    // #[serde(skip_serializing_if = "Option::is_none")]
+    // yul_cfg_json: Option<CowValue<'static>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     evm: Option<EvmOutput>,
 }
@@ -488,7 +493,7 @@ struct ContractOutput {
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct EvmOutput {
-    // Assembly, gas estimates, and Yul CFG output are not supported yet.
+    // Assembly and gas estimates are not supported yet.
     // #[serde(skip_serializing_if = "Option::is_none")]
     // assembly: Option<CowValue<'static>>,
     // #[serde(skip_serializing_if = "Option::is_none")]
@@ -497,8 +502,6 @@ struct EvmOutput {
     method_identifiers: FxIndexMap<String, String>,
     // #[serde(skip_serializing_if = "Option::is_none")]
     // gas_estimates: Option<CowValue<'static>>,
-    // #[serde(skip_serializing_if = "Option::is_none")]
-    // yul_cfg_json: Option<CowValue<'static>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bytecode: Option<BytecodeOutput>,
     #[serde(skip_serializing_if = "Option::is_none")]
