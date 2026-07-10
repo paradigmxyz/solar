@@ -438,6 +438,13 @@ where
 
 impl<'input> OutputSelection<'input> {
     pub(super) fn contract(&self, source: &str, contract: &str) -> OutputSelectionFlags {
+        fn contract_flags(
+            contracts: Option<&FxIndexMap<CowStr<'_>, OutputSelectionFlags>>,
+            contract: &str,
+        ) -> OutputSelectionFlags {
+            contracts.and_then(|contracts| contracts.get(contract)).copied().unwrap_or_default()
+        }
+
         let source_contracts = self.0.get(source);
         let wildcard_contracts = self.0.get("*");
         (contract_flags(source_contracts, contract)
@@ -527,13 +534,6 @@ impl<'de> Deserialize<'de> for OutputSelectionFlags {
 
         deserializer.deserialize_seq(OutputSelectionFlagsVisitor)
     }
-}
-
-fn contract_flags(
-    contracts: Option<&FxIndexMap<CowStr<'_>, OutputSelectionFlags>>,
-    contract: &str,
-) -> OutputSelectionFlags {
-    contracts.and_then(|contracts| contracts.get(contract)).copied().unwrap_or_default()
 }
 
 fn default_language<'a>() -> CowStr<'a> {
