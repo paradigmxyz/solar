@@ -1,12 +1,12 @@
 // CHECK: "sources": {
-// CHECK: "A.sol": {
-// CHECK-NEXT: "id": 3
+// CHECK: "D.sol": {
+// CHECK-NEXT: "id": 0
 // CHECK: "B.sol": {
 // CHECK-NEXT: "id": 1
 // CHECK: "C.sol": {
 // CHECK-NEXT: "id": 2
-// CHECK: "D.sol": {
-// CHECK-NEXT: "id": 0
+// CHECK: "A.sol": {
+// CHECK-NEXT: "id": 3
 {
   "language": "Solidity",
   "sources": {

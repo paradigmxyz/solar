@@ -9,36 +9,42 @@
       "Counter": {
         "abi": [
           {
-            "inputs": [],
+            "type": "function",
             "name": "number",
+            "inputs": [],
             "outputs": [
               {
-                "internalType": "uint256",
                 "name": "",
-                "type": "uint256"
+                "type": "uint256",
+                "internalType": "uint256"
               }
             ],
-            "stateMutability": "view",
-            "type": "function"
+            "stateMutability": "view"
           },
           {
+            "type": "function",
+            "name": "setNumber",
             "inputs": [
               {
-                "internalType": "uint256",
                 "name": "value",
-                "type": "uint256"
+                "type": "uint256",
+                "internalType": "uint256"
               }
             ],
-            "name": "setNumber",
             "outputs": [],
-            "stateMutability": "nonpayable",
-            "type": "function"
+            "stateMutability": "nonpayable"
           }
         ],
         "evm": {
           "methodIdentifiers": {
             "number()": "8381f58a",
             "setNumber(uint256)": "3fb5c1cb"
+          },
+          "bytecode": {
+            "object": "60608060095f395ff334605c5736600b57605c565b5f3560e01c80633fb5c1cb1460395780638381f58a14602857605c565b5060a06040525f5460805260206080f35b50608060405236600481039050602081129050156055575b5f80fd5b6004355f55005b5f5ffd"
+          },
+          "deployedBytecode": {
+            "object": "34605c5736600b57605c565b5f3560e01c80633fb5c1cb1460395780638381f58a14602857605c565b5060a06040525f5460805260206080f35b50608060405236600481039050602081129050156055575b5f80fd5b6004355f55005b5f5ffd"
           }
         }
       }

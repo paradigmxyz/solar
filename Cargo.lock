@@ -3197,7 +3197,9 @@ dependencies = [
 name = "solar-cli"
 version = "0.2.0"
 dependencies = [
+ "alloy-json-abi",
  "alloy-primitives",
+ "bitflags 2.13.0",
  "cfg-if",
  "clap",
  "indexmap",
@@ -3205,7 +3207,6 @@ dependencies = [
  "mimalloc",
  "serde",
  "serde_json",
- "snapbox",
  "solar-codegen",
  "solar-config",
  "solar-data-structures",
@@ -3385,11 +3386,13 @@ dependencies = [
  "comfy-table",
  "derive_more",
  "either",
+ "indexmap",
  "num-bigint",
  "num-traits",
  "once_map",
  "paste",
  "rayon",
+ "serde",
  "snapbox",
  "solar-ast",
  "solar-data-structures",

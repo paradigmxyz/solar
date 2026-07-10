@@ -1,3 +1,4 @@
+//@ compile-flags: -Zcodegen
 // CHECK: "sources": {
 // CHECK: "A.sol": {
 // CHECK: "id": 0
@@ -8,6 +9,8 @@
 // CHECK: "name": "number"
 // CHECK: "methodIdentifiers": {
 // CHECK: "number()":
+// CHECK: "bytecode": {
+// CHECK: "deployedBytecode": {
 {
   "language": "Solidity",
   "sources": {
@@ -18,9 +21,15 @@
   "settings": {
     "outputSelection": {
       "*": {
+        "Counter": [
+          "abi"
+        ]
+      },
+      "A.sol": {
         "*": [
-          "abi",
-          "evm.methodIdentifiers"
+          "evm.methodIdentifiers",
+          "evm.bytecode.object",
+          "evm.deployedBytecode.object"
         ]
       }
     }
