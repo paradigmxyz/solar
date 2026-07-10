@@ -288,6 +288,17 @@ where
             return peephole!(6 => [stack[5], stack[4], stack[3]]);
         }
 
+        // `ISZERO ISZERO <label> JUMPI -> <label> JUMPI`: JUMPI tests
+        // truthiness, which double negation preserves.
+        if stack.len() >= 4
+            && matches!(stack[0].kind(), AsmInstKind::Op(op::JUMPI))
+            && matches!(stack[1].kind(), AsmInstKind::PushLabel(_))
+            && matches!(stack[2].kind(), AsmInstKind::Op(op::ISZERO))
+            && matches!(stack[3].kind(), AsmInstKind::Op(op::ISZERO))
+        {
+            return peephole!(4 => [stack[1], AsmInst::op(op::JUMPI)]);
+        }
+
         // `EQ ISZERO <label> JUMPI -> SUB <label> JUMPI`: jump-if-not-equal
         // only needs a nonzero word, which the difference already is.
         if stack.len() >= 4

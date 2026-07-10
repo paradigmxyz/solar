@@ -199,6 +199,77 @@ impl Assembler {
         *self.push_values.get(index)
     }
 
+    /// Shares one `revert(0, 0)` stub by inverting the branches that skip it.
+    ///
+    /// A failed check compiles as `PUSH2 cont JUMPI; PUSH0 DUP1 REVERT; cont:`
+    /// — a three-byte stub per site, reached by fallthrough (so span dedup
+    /// cannot merge it). Inverting the condition makes every site jump to one
+    /// shared stub: `ISZERO PUSH2 shared JUMPI` falls through into `cont`. The
+    /// inserted `ISZERO` folds with an existing negation in the later peephole
+    /// (`ISZERO ISZERO <label> JUMPI -> <label> JUMPI`), so already-inverted
+    /// checks get the stub removed for free. Runtime-only: constructor code
+    /// resolves its argument offset with a separate length fixpoint that a
+    /// content-dependent length change would break.
+    fn invert_branches_over_empty_reverts(&mut self, instructions: &mut Vec<AsmInst>) {
+        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+            return;
+        }
+        let is_zero_push = |inst: AsmInst| matches!(inst.kind(), AsmInstKind::PushInline(0));
+        let mut shared: Option<Label> = None;
+        let mut alias: FxHashMap<Label, Label> = FxHashMap::default();
+        let mut out = Vec::with_capacity(instructions.len());
+        let mut i = 0;
+        while i < instructions.len() {
+            if let AsmInstKind::PushLabel(cont) = instructions[i].kind()
+                && i + 1 < instructions.len()
+                && matches!(instructions[i + 1].kind(), AsmInstKind::Op(op::JUMPI))
+            {
+                let mut j = i + 2;
+                let stub_label = if j < instructions.len()
+                    && let AsmInstKind::Label(stub) = instructions[j].kind()
+                {
+                    j += 1;
+                    Some(stub)
+                } else {
+                    None
+                };
+                if j + 3 < instructions.len()
+                    && is_zero_push(instructions[j])
+                    && matches!(instructions[j + 1].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+                    && matches!(instructions[j + 2].kind(), AsmInstKind::Op(op::REVERT))
+                    && matches!(instructions[j + 3].kind(), AsmInstKind::Label(l) if l == cont)
+                {
+                    let target = *shared.get_or_insert_with(|| self.new_label());
+                    if let Some(stub) = stub_label {
+                        alias.insert(stub, target);
+                    }
+                    out.push(AsmInst::op(op::ISZERO));
+                    out.push(AsmInst::push_label(target));
+                    out.push(AsmInst::op(op::JUMPI));
+                    i = j + 3;
+                    continue;
+                }
+            }
+            out.push(instructions[i]);
+            i += 1;
+        }
+        let Some(target) = shared else { return };
+        out.push(AsmInst::label(target));
+        out.push(AsmInst::push_inline(0).unwrap());
+        out.push(AsmInst::op(op::DUP1));
+        out.push(AsmInst::op(op::REVERT));
+        if !alias.is_empty() {
+            for inst in out.iter_mut() {
+                if let AsmInstKind::PushLabel(label) = inst.kind()
+                    && let Some(&rep) = alias.get(&label)
+                {
+                    *inst = AsmInst::push_label(rep);
+                }
+            }
+        }
+        *instructions = out;
+    }
+
     /// Merges identical terminal suffixes of distinct spans.
     ///
     /// Function epilogues repeat: `LOG3 ... MSTORE ... RETURN` tails compile
@@ -600,6 +671,7 @@ impl Assembler {
             ir_program.optimize_with_evm_ir(self);
         }
         let mut program = ir_program.to_asm_program();
+        self.invert_branches_over_empty_reverts(&mut program.instructions);
         self.run_assembler_passes(&mut program);
         // Dedup first at the original span granularity, then drop the labels
         // nothing references (which merges fallthrough-split spans), and
