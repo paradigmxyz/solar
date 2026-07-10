@@ -27,7 +27,7 @@ use crate::{
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
         LowerDispatchPass, LowerEvmShapedPass, MemoryDsePass, OutlineRevertsPass, PrePass,
-        PureEvalPass, SccpTransformPass, StorageDsePass, StorageLoadCsePass,
+        PureEvalPass, SccpTransformPass, StaticAllocPass, StorageDsePass, StorageLoadCsePass,
         StorageScalarPromotionPass,
     },
 };
@@ -160,6 +160,9 @@ declare_passes! {
     /// Local dead memory-store elimination.
     pub const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
 
+    /// Place provably local fmp-bump allocations at static frame addresses.
+    pub const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
+
     /// Dead Code Elimination (fixed-point).
     pub const DCE_PASS -> "dce" = DcePass;
 
@@ -214,6 +217,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     FRAME_SLOT_PROMOTION_PASS,
     MEMORY_DSE_PASS,
+    STATIC_ALLOC_PASS,
     STORAGE_PROMOTION_PASS,
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
@@ -248,6 +252,7 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
     MEMORY_DSE_PASS,
+    STATIC_ALLOC_PASS,
     ADCE_PASS,
     DCE_PASS,
 ];
