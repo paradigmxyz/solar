@@ -17,7 +17,7 @@ use solar_interface::{
     diagnostics::{DiagCtxt, InMemoryEmitter, JsonEmitter, SolcDiagnostic},
     source_map::FileLoader,
 };
-use solar_sema::{Gcx, hir::ContractId, output::DocumentationKind};
+use solar_sema::{Gcx, hir::ContractId};
 use std::{
     borrow::Cow,
     fs::File,
@@ -334,10 +334,10 @@ fn make_contract_output(
         output.abi = Some(gcx.contract_abi(contract_id));
     }
     if output_selection.contains(OutputSelectionFlags::USERDOC) {
-        output.userdoc = Some(gcx.documentation(contract_id, DocumentationKind::User));
+        output.userdoc = Some(gcx.user_documentation(contract_id));
     }
     if output_selection.contains(OutputSelectionFlags::DEVDOC) {
-        output.devdoc = Some(gcx.documentation(contract_id, DocumentationKind::Dev));
+        output.devdoc = Some(gcx.dev_documentation(contract_id));
     }
     if output_selection.contains(OutputSelectionFlags::STORAGE_LAYOUT) {
         output.storage_layout = Some(gcx.storage_layout(contract_id));

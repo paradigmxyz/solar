@@ -7,7 +7,7 @@ use solar_data_structures::map::{FxHashSet, FxIndexMap};
 
 /// NatSpec documentation in solc's Standard JSON `userdoc` and `devdoc` output fields.
 ///
-/// Created by [`Gcx::documentation`].
+/// Created by [`Gcx::user_documentation`] and [`Gcx::dev_documentation`].
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Documentation {
@@ -81,20 +81,8 @@ impl DocumentationItem {
 }
 
 impl<'gcx> Gcx<'gcx> {
-    /// Returns the requested documentation for the given contract.
-    pub fn documentation(
-        self,
-        contract_id: hir::ContractId,
-        kind: DocumentationKind,
-    ) -> Documentation {
-        match kind {
-            DocumentationKind::User => self.user_documentation(contract_id),
-            DocumentationKind::Dev => self.dev_documentation(contract_id),
-        }
-    }
-
     /// Returns the developer documentation for the given contract.
-    fn dev_documentation(self, contract_id: hir::ContractId) -> Documentation {
+    pub fn dev_documentation(self, contract_id: hir::ContractId) -> Documentation {
         let contract = self.hir.contract(contract_id);
         let contract_doc = dev_doc_item(self, contract.doc);
         let mut documentation = Documentation::new(DocumentationKind::Dev);
@@ -185,7 +173,7 @@ impl<'gcx> Gcx<'gcx> {
     }
 
     /// Returns the user documentation for the given contract.
-    fn user_documentation(self, contract_id: hir::ContractId) -> Documentation {
+    pub fn user_documentation(self, contract_id: hir::ContractId) -> Documentation {
         let contract = self.hir.contract(contract_id);
         let mut documentation = Documentation::new(DocumentationKind::User);
         documentation.notice =
