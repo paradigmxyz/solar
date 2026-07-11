@@ -35,6 +35,11 @@ const CONSTRUCTOR_FREE_MEMORY_START: u64 = 0x4000;
 const CONSTRUCTOR_SPILL_BASE: u64 = 0x1000;
 const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
+const GLOBAL_STACK_LAYOUT_LIMIT: usize = 8;
+const GLOBAL_STACK_MAX_ARGS: usize = 3;
+const GLOBAL_STACK_MIN_BLOCKS: usize = 8;
+const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
+const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
 
 /// Configuration for the EVM backend.
 #[derive(Clone, Copy, Debug, Default)]
@@ -135,6 +140,230 @@ struct StackPhiPlan {
 struct StackPhiEdge {
     sources: Vec<ValueId>,
     results: Vec<ValueId>,
+}
+
+/// Canonical argument layouts carried between MIR basic blocks.
+///
+/// A block-local scheduler normally discards its model at every join. Function
+/// arguments are special: they have one identity on every incoming edge and can
+/// always be rematerialized as a safe fallback. Agreeing on one layout for all
+/// predecessors lets the first load remain stack-resident through diamonds and
+/// loops instead of repeating `CALLDATALOAD` or frame `MLOAD` in every block.
+#[derive(Clone, Debug, Default)]
+struct GlobalStackPlan {
+    entries: FxHashMap<BlockId, Vec<ValueId>>,
+}
+
+impl GlobalStackPlan {
+    fn analyze(func: &Function, liveness: &Liveness, stack_phi_plan: &StackPhiPlan) -> Self {
+        let cfg = CfgInfo::new(func);
+        let mut entries = FxHashMap::default();
+        let args_by_index: FxHashMap<_, _> = func
+            .values
+            .iter_enumerated()
+            .filter_map(|(value, kind)| match kind {
+                crate::mir::Value::Arg { index, .. } => Some((*index, value)),
+                _ => None,
+            })
+            .collect();
+        if func.selector.is_none()
+            || !(2..=GLOBAL_STACK_MAX_ARGS).contains(&args_by_index.len())
+            || cfg.reachable().len() < GLOBAL_STACK_MIN_BLOCKS
+        {
+            return Self::default();
+        }
+        let mut decode_blocks = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                let InstKind::CalldataLoad(offset) = &func.instructions[inst_id].kind else {
+                    continue;
+                };
+                let Some(offset) = func.value_u64(*offset) else {
+                    continue;
+                };
+                if offset >= 4
+                    && (offset - 4) % 32 == 0
+                    && let Ok(index) = u32::try_from((offset - 4) / 32)
+                    && let Some(&arg) = args_by_index.get(&index)
+                {
+                    decode_blocks.entry(arg).or_insert(block_id);
+                }
+            }
+        }
+
+        for block_id in func.blocks.indices() {
+            if block_id == func.entry_block
+                || !cfg.is_reachable(block_id)
+                || func.blocks[block_id].predecessors.is_empty()
+                || stack_phi_plan.entries.contains_key(&block_id)
+                || Self::is_terminal_block(func, block_id)
+            {
+                continue;
+            }
+
+            let values: Vec<_> = liveness
+                .live_in(block_id)
+                .iter()
+                .filter(|&value| {
+                    matches!(func.value(value), crate::mir::Value::Arg { .. })
+                        && decode_blocks.get(&value).is_none_or(|&decode| {
+                            decode != block_id && cfg.dominators().dominates(decode, block_id)
+                        })
+                })
+                .take(GLOBAL_STACK_LAYOUT_LIMIT)
+                .collect();
+            if !values.is_empty() {
+                entries.insert(block_id, values);
+            }
+        }
+
+        // A branch leaves one physical stack for both outgoing edges after its
+        // condition is consumed. Its successors therefore have to agree on the
+        // same canonical layout. Use the union so an argument needed by either
+        // live successor remains available. Terminal siblings are excluded:
+        // carried words are harmless below their abort operands. Iterate
+        // because sibling constraints can connect several diamonds.
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for block_id in func.blocks.indices() {
+                let Some(Terminator::Branch { then_block, else_block, .. }) =
+                    func.blocks[block_id].terminator.as_ref()
+                else {
+                    continue;
+                };
+                if Self::is_terminal_block(func, *then_block)
+                    || Self::is_terminal_block(func, *else_block)
+                {
+                    continue;
+                }
+                let mut common = entries.get(then_block).cloned().unwrap_or_default();
+                for &value in entries.get(else_block).into_iter().flatten() {
+                    if common.len() == GLOBAL_STACK_LAYOUT_LIMIT {
+                        break;
+                    }
+                    if !common.contains(&value) {
+                        common.push(value);
+                    }
+                }
+                common.sort_by_key(|value| value.index());
+                changed |= Self::set_entry(&mut entries, *then_block, &common);
+                changed |= Self::set_entry(&mut entries, *else_block, &common);
+            }
+        }
+
+        // Switch lowering owns the selector stack, and stack-phi loop headers
+        // own their edge layouts. Disable their whole branch-sibling component
+        // so every predecessor of every affected block still agrees.
+        let mut disabled = FxHashSet::default();
+        disabled.extend(stack_phi_plan.entries.keys().copied());
+        for block_id in func.blocks.indices() {
+            if let Some(Terminator::Switch { default, cases, .. }) =
+                func.blocks[block_id].terminator.as_ref()
+            {
+                disabled.insert(*default);
+                disabled.extend(cases.iter().map(|&(_, target)| target));
+            }
+        }
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for block_id in func.blocks.indices() {
+                let Some(Terminator::Branch { then_block, else_block, .. }) =
+                    func.blocks[block_id].terminator.as_ref()
+                else {
+                    continue;
+                };
+                if Self::is_terminal_block(func, *then_block)
+                    || Self::is_terminal_block(func, *else_block)
+                {
+                    continue;
+                }
+                if disabled.contains(then_block) || disabled.contains(else_block) {
+                    changed |= disabled.insert(*then_block);
+                    changed |= disabled.insert(*else_block);
+                }
+            }
+        }
+        entries.retain(|block, _| !disabled.contains(block));
+
+        // Canonicalization pays DUP/SWAP/POP traffic on every planned edge.
+        // Require enough real argument reuse to recover that fixed cost, and
+        // reject dense layout plans unless a long CFG can amortize them.
+        let mut arg_uses = 0usize;
+        for block in func.blocks.iter() {
+            for &inst_id in &block.instructions {
+                arg_uses += func.instructions[inst_id]
+                    .kind
+                    .operands()
+                    .iter()
+                    .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
+                    .count();
+            }
+            if let Some(term) = &block.terminator {
+                arg_uses += term
+                    .operands()
+                    .iter()
+                    .filter(|&&value| matches!(func.value(value), crate::mir::Value::Arg { .. }))
+                    .count();
+            }
+        }
+        if arg_uses < GLOBAL_STACK_MIN_ARG_USES
+            || (entries.len() * 2 > cfg.reachable().len()
+                && cfg.reachable().len() < GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS)
+        {
+            entries.clear();
+        }
+        Self { entries }
+    }
+
+    fn set_entry(
+        entries: &mut FxHashMap<BlockId, Vec<ValueId>>,
+        block: BlockId,
+        layout: &[ValueId],
+    ) -> bool {
+        if entries.get(&block).map_or(layout.is_empty(), |old| old == layout) {
+            return false;
+        }
+        if layout.is_empty() {
+            entries.remove(&block);
+        } else {
+            entries.insert(block, layout.to_vec());
+        }
+        true
+    }
+
+    fn entry(&self, block: BlockId) -> Option<&[ValueId]> {
+        self.entries.get(&block).map(Vec::as_slice)
+    }
+
+    fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    fn edge_layout(&self, func: &Function, term: &Terminator) -> Option<&[ValueId]> {
+        match term {
+            Terminator::Jump(target) => self.entry(*target),
+            Terminator::Branch { then_block, else_block, .. } => {
+                if Self::is_terminal_block(func, *then_block) {
+                    return self.entry(*else_block);
+                }
+                if Self::is_terminal_block(func, *else_block) {
+                    return self.entry(*then_block);
+                }
+                let then_layout = self.entry(*then_block)?;
+                (self.entry(*else_block) == Some(then_layout)).then_some(then_layout)
+            }
+            _ => None,
+        }
+    }
+
+    fn is_terminal_block(func: &Function, block: BlockId) -> bool {
+        matches!(
+            func.blocks[block].terminator,
+            Some(Terminator::Revert { .. } | Terminator::Invalid)
+        )
+    }
 }
 
 impl StackPhiPlan {
@@ -356,6 +585,8 @@ pub struct EvmCodegen {
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
     stack_phi_sources: FxHashMap<BlockId, FxHashSet<ValueId>>,
+    /// Whether the current function has canonical cross-block argument layouts.
+    global_stack_active: bool,
     /// Immutable `PUSH32` placeholders in the last assembled runtime code.
     runtime_immutable_refs: Vec<ImmutableRef>,
     /// Whether we're currently generating constructor code.
@@ -403,6 +634,7 @@ impl EvmCodegen {
             current_internal_function: None,
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
+            global_stack_active: false,
             runtime_immutable_refs: Vec::new(),
             in_constructor: false,
             constructor_param_count: 0,
@@ -1225,6 +1457,8 @@ impl EvmCodegen {
         }
         let stack_phi_plan = StackPhiPlan::analyze(func);
         self.stack_phi_sources = stack_phi_plan.edge_sources.clone();
+        let global_stack_plan = GlobalStackPlan::analyze(func, liveness, &stack_phi_plan);
+        self.global_stack_active = !global_stack_plan.is_empty();
 
         // Reset scheduler
         self.scheduler = StackScheduler::new();
@@ -1275,6 +1509,9 @@ impl EvmCodegen {
                     // Live-ins not on the carried stack still arrive in memory.
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else if let Some(entry) = stack_phi_plan.entries.get(&block_id) {
+                    self.set_stack_to_values(entry);
+                    self.mark_live_in_spills(func, liveness, block_id);
+                } else if let Some(entry) = global_stack_plan.entry(block_id) {
                     self.set_stack_to_values(entry);
                     self.mark_live_in_spills(func, liveness, block_id);
                 } else {
@@ -1344,10 +1581,24 @@ impl EvmCodegen {
                     Vec::new()
                 };
 
+            let global_stack_preserved = if !preserve_stack_to_fallthrough
+                && preserve_jump_target.is_none()
+                && preserve_branch_targets.is_empty()
+                && !stack_phi_preserved
+                && let Some(term) = block.terminator.as_ref()
+                && let Some(layout) = global_stack_plan.edge_layout(func, term)
+            {
+                self.spill_live_out_values_except(func, liveness, block_id, layout);
+                self.try_emit_global_stack_edge(func, term, layout)
+            } else {
+                false
+            };
+
             let preserve_stack = preserve_stack_to_fallthrough
                 || preserve_jump_target.is_some()
                 || !preserve_branch_targets.is_empty()
-                || stack_phi_preserved;
+                || stack_phi_preserved
+                || global_stack_preserved;
 
             // Spill all live-out values before the terminator so they can be reloaded in successor
             // blocks. For a preserved edge, keep stack values live instead.
@@ -1518,6 +1769,37 @@ impl EvmCodegen {
         for &value in values.iter().rev() {
             self.scheduler.stack.push(value);
         }
+    }
+
+    fn try_emit_global_stack_edge(
+        &mut self,
+        func: &Function,
+        term: &Terminator,
+        layout: &[ValueId],
+    ) -> bool {
+        if layout.is_empty() || layout.len() > GLOBAL_STACK_LAYOUT_LIMIT {
+            return false;
+        }
+
+        let mut needed = Vec::with_capacity(layout.len() + 1);
+        if let Terminator::Branch { condition, .. } = term {
+            needed.push(*condition);
+        }
+        needed.extend_from_slice(layout);
+
+        self.pop_stack_values_not_needed_by(&needed);
+        for value in Self::missing_stack_phi_sources(&self.scheduler.stack, &needed) {
+            self.emit_operand(func, value);
+        }
+
+        let target: Vec<_> = needed.iter().copied().map(TargetSlot::Value).collect();
+        let shuffle = self.scheduler.shuffle_to_layout(&target);
+        for op in shuffle.ops {
+            self.asm.emit_op(op.opcode());
+        }
+
+        self.scheduler.depth() == needed.len()
+            && self.scheduler.stack.iter().eq(needed.iter().copied().map(Some))
     }
 
     fn try_emit_stack_phi_edge(&mut self, func: &Function, edge: &StackPhiEdge) -> bool {
@@ -2038,9 +2320,22 @@ impl EvmCodegen {
         inst_idx: usize,
         result_value: Option<ValueId>,
     ) {
+        let operands = kind.operands();
+        // Keep one lazy stack copy of an argument when this instruction is not
+        // its last use. The consuming occurrence uses a DUP of that copy, so
+        // later blocks can inherit it without an eager prologue load.
+        for &operand in &operands {
+            if self.global_stack_active
+                && matches!(func.value(operand), crate::mir::Value::Arg { .. })
+                && !self.scheduler.stack.contains(operand)
+                && !liveness.is_dead_after(operand, block, inst_idx)
+            {
+                self.emit_value(func, operand);
+            }
+        }
+
         // Spill any operands that are live-out before they get consumed.
         // This ensures cross-block values are preserved in memory.
-        let operands = kind.operands();
         self.spill_live_out_operands(func, liveness, block, &operands);
 
         match kind {
