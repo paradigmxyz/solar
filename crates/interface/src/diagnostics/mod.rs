@@ -1123,6 +1123,19 @@ note: mutable variables should use mixedCase
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
     }
 
+    #[cfg(feature = "json")]
+    #[test]
+    fn test_solc_diagnostic_color() {
+        let sm = Arc::new(source_map::SourceMap::empty());
+        sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
+        let mut emitter =
+            JsonEmitter::new(Box::new(std::io::sink()), sm).color(ColorChoice::Always);
+        let diagnostic = Diag::new(Level::Error, "mismatched types");
+
+        let formatted = emitter.solc_diagnostic(&diagnostic).formatted_message.unwrap();
+        assert!(formatted.contains("\x1b["), "{formatted:?}");
+    }
+
     #[test]
     fn test_allowed_diagnostic_code_suppresses_warning() {
         let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)

@@ -50,6 +50,13 @@ impl JsonEmitter {
         }
     }
 
+    /// Sets the color choice for rendered messages.
+    pub fn color(mut self, color_choice: ColorChoice) -> Self {
+        let source_map = Arc::clone(self.source_map());
+        self.human_emitter = HumanBufferEmitter::new(color_choice).source_map(Some(source_map));
+        self
+    }
+
     /// Sets whether to pretty print the JSON.
     pub fn pretty(mut self, pretty: bool) -> Self {
         self.pretty = pretty;
