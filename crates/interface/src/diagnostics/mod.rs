@@ -466,7 +466,6 @@ impl ConfusionType {
 /// to determine whether it should be automatically applied or if the user should be consulted
 /// before applying the suggestion.
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "json", serde(rename_all = "kebab-case"))]
 #[derive(Copy, Clone, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Applicability {
     /// The suggestion is definitely what the user intended, or maintains the exact meaning of the
@@ -1658,7 +1657,7 @@ help: consider changing visibility and mutability
           "line_end": 4,
           "line_start": 4,
           "suggested_replacement": "myVar",
-          "suggestion_applicability": "machine-applicable",
+          "suggestion_applicability": "MachineApplicable",
           "expansion": null,
           "text": [
             {
@@ -1744,7 +1743,7 @@ help: consider changing visibility and mutability
           "line_end": 3,
           "line_start": 3,
           "suggested_replacement": "external",
-          "suggestion_applicability": "maybe-incorrect",
+          "suggestion_applicability": "MaybeIncorrect",
           "expansion": null,
           "text": [
             {
@@ -1765,7 +1764,7 @@ help: consider changing visibility and mutability
           "line_end": 3,
           "line_start": 3,
           "suggested_replacement": "pure",
-          "suggestion_applicability": "maybe-incorrect",
+          "suggestion_applicability": "MaybeIncorrect",
           "expansion": null,
           "text": [
             {

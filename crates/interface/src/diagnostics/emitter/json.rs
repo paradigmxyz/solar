@@ -508,7 +508,7 @@ mod tests {
         source_map
             .new_source_file(crate::source_map::FileName::custom("test.sol"), "foo\nbar\n")
             .unwrap();
-        let emitter = JsonEmitter::new(Box::new(io::sink()), source_map);
+        let emitter = JsonEmitter::new(Box::new(io::sink()), source_map, ColorChoice::Never);
 
         let span = emitter.span_with_suggestion(
             Span::new(crate::BytePos(0), crate::BytePos(3)),
