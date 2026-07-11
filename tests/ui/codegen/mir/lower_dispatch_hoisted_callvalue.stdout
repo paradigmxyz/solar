@@ -13,10 +13,10 @@ fn @b() {
 fn @entry() {
   bb0 (entry):
     v0 = callvalue
-    br v0, bb6, bb1
+    br v0, bb5, bb1
   bb1:
     v1 = calldatasize
-    br v1, bb2, bb6
+    br v1, bb2, bb5
   bb2:
     v2 = calldataload 0
     v3 = shr 224, v2
@@ -26,7 +26,5 @@ fn @entry() {
   bb4:
     tail_call @b
   bb5:
-    jump bb6
-  bb6:
     revert 0, 0
 }

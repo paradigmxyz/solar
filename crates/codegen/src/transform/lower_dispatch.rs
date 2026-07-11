@@ -147,7 +147,7 @@ impl LowerDispatchPass {
                 (receive.is_some() || fallback.is_some()).then(|| builder.create_block());
             let select_block = builder.create_block();
             let case_blocks: Vec<_> = routes.iter().map(|_| builder.create_block()).collect();
-            let default_block = builder.create_block();
+            let default_block = fallback.map(|_| builder.create_block());
             let revert_block = builder.create_block();
 
             // Optional hoisted callvalue check.
@@ -188,18 +188,18 @@ impl LowerDispatchPass {
                 .zip(&case_blocks)
                 .map(|((sel, _), block)| (builder.imm_u64(u64::from(*sel)), *block))
                 .collect();
-            builder.switch(selector, default_block, cases);
+            builder.switch(selector, default_block.unwrap_or(revert_block), cases);
 
-            builder.switch_to_block(default_block);
-            if let Some(target) = fallback {
+            if let Some(default_block) = default_block
+                && let Some(target) = fallback
+            {
+                builder.switch_to_block(default_block);
                 self.guarded_tail_call(
                     &mut builder,
                     target,
                     fallback_rejects && !hoist_callvalue,
                     revert_block,
                 );
-            } else {
-                builder.jump(revert_block);
             }
 
             // Each case tail-calls its argument-free wrapper directly. A
