@@ -189,7 +189,7 @@ impl DiagCtxt {
             ErrorFormat::Json | ErrorFormat::RustcJson => {
                 // `io::Stderr` is not buffered.
                 let writer = Box::new(std::io::BufWriter::new(std::io::stderr()));
-                let json = crate::diagnostics::JsonEmitter::new(writer, source_map)
+                let json = crate::diagnostics::JsonEmitter::new(writer, source_map, opts.color)
                     .pretty(opts.pretty_json_err)
                     .rustc_like(matches!(opts.error_format, ErrorFormat::RustcJson))
                     .ui_testing(opts.unstable.ui_testing)
