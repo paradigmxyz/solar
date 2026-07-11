@@ -1,6 +1,7 @@
 //! Diagnostics implementation.
 //!
-//! Modified from [`rustc_errors`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_errors/src/diagnostic.rs).
+//! Modified from rustc's [`diagnostic.rs`](https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/diagnostic.rs)
+//! and [`lib.rs`](https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/lib.rs).
 
 use crate::{SourceMap, Span};
 use anstyle::{AnsiColor, Color};
@@ -27,7 +28,8 @@ pub use emitter::{
 #[cfg(feature = "json")]
 pub use emitter::{
     JsonDiagnostic, JsonDiagnosticCode, JsonDiagnosticMessage, JsonDiagnosticSpan,
-    JsonDiagnosticSpanLine, JsonEmitter, Severity, SolcDiagnostic, SourceLocation,
+    JsonDiagnosticSpanLine, JsonDiagnosticSpanMacroExpansion, JsonEmitter, Severity,
+    SolcDiagnostic, SourceLocation,
 };
 
 mod message;
@@ -225,13 +227,14 @@ impl Level {
     #[inline]
     pub fn is_error(self) -> bool {
         match self {
-            Self::Bug | Self::Fatal | Self::Error | Self::FailureNote => true,
+            Self::Bug | Self::Fatal | Self::Error => true,
 
             Self::Warning
             | Self::Note
             | Self::OnceNote
             | Self::Help
             | Self::OnceHelp
+            | Self::FailureNote
             | Self::Allow => false,
         }
     }
@@ -275,7 +278,7 @@ impl Level {
     /// Returns the ANSI color of this level.
     #[inline]
     pub const fn ansi_color(self) -> Option<AnsiColor> {
-        // https://github.com/rust-lang/rust/blob/99472c7049783605444ab888a97059d0cce93a12/compiler/rustc_errors/src/lib.rs#L1768
+        // https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/lib.rs#L1646
         match self {
             Self::Bug | Self::Fatal | Self::Error => Some(AnsiColor::BrightRed),
             Self::Warning => {
@@ -285,6 +288,12 @@ impl Level {
             Self::Help | Self::OnceHelp => Some(AnsiColor::BrightCyan),
             Self::FailureNote | Self::Allow => None,
         }
+    }
+}
+
+impl fmt::Display for Level {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.to_str().fmt(f)
     }
 }
 
@@ -316,7 +325,6 @@ impl Style {
         /// See [rust-lang/rust#36178](https://github.com/rust-lang/rust/pull/36178).
         const BRIGHT_BLUE: Color = Color::Ansi(if cfg!(windows) { BrightCyan } else { BrightBlue });
         const GREEN: Color = Color::Ansi(BrightGreen);
-        const MAGENTA: Color = Color::Ansi(BrightMagenta);
         const RED: Color = Color::Ansi(BrightRed);
         const WHITE: Color = Color::Ansi(BrightWhite);
 
@@ -332,7 +340,7 @@ impl Style {
             Self::UnderlineSecondary | Self::LabelSecondary => s.fg_color(Some(BRIGHT_BLUE)).bold(),
             Self::HeaderMsg | Self::NoStyle => s,
             Self::Level(level2) => s.fg_color(level2.color()).bold(),
-            Self::Highlight => s.fg_color(Some(MAGENTA)).bold(),
+            Self::Highlight => s.fg_color(Some(Color::Ansi(Magenta))).bold(),
         }
     }
 }
@@ -753,6 +761,12 @@ impl Diag {
         self
     }
 
+    /// Sets the primary message of this diagnostic.
+    pub fn primary_message(&mut self, msg: impl Into<DiagMsg>) -> &mut Self {
+        self.messages[0] = (msg.into(), Style::NoStyle);
+        self
+    }
+
     /// Adds a span/label to be included in the resulting snippet.
     ///
     /// This is pushed onto the [`MultiSpan`] that was created when the diagnostic
@@ -776,6 +790,22 @@ impl Diag {
         let label = label.into();
         for span in spans {
             self.span_label(span, label.clone());
+        }
+        self
+    }
+
+    /// Replaces the primary span while preserving secondary labels.
+    pub fn replace_span_with(&mut self, after: Span, keep_label: bool) -> &mut Self {
+        let before = self.span.clone();
+        self.span(after);
+        for span_label in before.span_labels() {
+            if let Some(label) = span_label.label {
+                if span_label.is_primary && keep_label {
+                    self.span.push_span_label(after, label);
+                } else {
+                    self.span.push_span_label(span_label.span, label);
+                }
+            }
         }
         self
     }
@@ -819,6 +849,15 @@ impl Diag {
         self.sub_with_highlights(Level::Note, messages, MultiSpan::new())
     }
 
+    /// Adds a note with a span and customizable highlighted messages.
+    pub fn highlighted_span_note(
+        &mut self,
+        span: impl Into<MultiSpan>,
+        messages: Vec<(impl Into<DiagMsg>, Style)>,
+    ) -> &mut Self {
+        self.sub_with_highlights(Level::Note, messages, span.into())
+    }
+
     /// Prints the span with a note above it.
     /// This is like [`Diag::note()`], but it gets emitted only once.
     pub fn note_once(&mut self, msg: impl Into<DiagMsg>) -> &mut Self {
@@ -849,6 +888,15 @@ impl Diag {
     /// Add a help message attached to this diagnostic with a customizable highlighted message.
     pub fn highlighted_help(&mut self, msgs: Vec<(impl Into<DiagMsg>, Style)>) -> &mut Self {
         self.sub_with_highlights(Level::Help, msgs, MultiSpan::new())
+    }
+
+    /// Adds a help message with a span and customizable highlighted messages.
+    pub fn highlighted_span_help(
+        &mut self,
+        span: impl Into<MultiSpan>,
+        messages: Vec<(impl Into<DiagMsg>, Style)>,
+    ) -> &mut Self {
+        self.sub_with_highlights(Level::Help, messages, span.into())
     }
 
     /// Prints the span with some help above it.
@@ -958,9 +1006,14 @@ impl Diag {
         applicability: Applicability,
         style: SuggestionStyle,
     ) -> &mut Self {
+        let suggestion = suggestion.into();
+        debug_assert!(
+            !(span.lo() == span.hi() && suggestion.is_empty()),
+            "span must not be empty and have no suggestion"
+        );
         self.push_suggestion(CodeSuggestion {
             substitutions: vec![Substitution {
-                parts: vec![SubstitutionPart { snippet: suggestion.into(), span }],
+                parts: vec![SubstitutionPart { snippet: suggestion, span }],
             }],
             msg: msg.into(),
             style,
@@ -969,7 +1022,120 @@ impl Diag {
         self
     }
 
-    /// Show a suggestion that has multiple parts to it.
+    /// Always shows the suggested change as its own subdiagnostic.
+    pub fn span_suggestion_verbose(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestion: impl Into<DiagMsg>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.span_suggestion_with_style(
+            span,
+            msg,
+            suggestion,
+            applicability,
+            SuggestionStyle::ShowAlways,
+        )
+    }
+
+    /// Prints a message with multiple alternative suggested edits of the same span.
+    pub fn span_suggestions(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestions: impl IntoIterator<Item = DiagMsg>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.span_suggestions_with_style(
+            span,
+            msg,
+            suggestions,
+            applicability,
+            SuggestionStyle::ShowAlways,
+        )
+    }
+
+    /// [`Diag::span_suggestions()`] but with a configurable [`SuggestionStyle`].
+    pub fn span_suggestions_with_style(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestions: impl IntoIterator<Item = DiagMsg>,
+        applicability: Applicability,
+        style: SuggestionStyle,
+    ) -> &mut Self {
+        let substitutions = suggestions
+            .into_iter()
+            .map(|snippet| {
+                debug_assert!(
+                    !(span.lo() == span.hi() && snippet.is_empty()),
+                    "span `{span:?}` must not be empty and have no suggestion"
+                );
+                Substitution { parts: vec![SubstitutionPart { span, snippet }] }
+            })
+            .collect();
+        self.push_suggestion(CodeSuggestion {
+            substitutions,
+            msg: msg.into(),
+            style,
+            applicability,
+        });
+        self
+    }
+
+    /// Prints a suggestion inline without displaying its replacement code.
+    pub fn span_suggestion_short(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestion: impl Into<DiagMsg>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.span_suggestion_with_style(
+            span,
+            msg,
+            suggestion,
+            applicability,
+            SuggestionStyle::HideCodeInline,
+        )
+    }
+
+    /// Prints a suggestion message without displaying its replacement code.
+    pub fn span_suggestion_hidden(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestion: impl Into<DiagMsg>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.span_suggestion_with_style(
+            span,
+            msg,
+            suggestion,
+            applicability,
+            SuggestionStyle::HideCodeAlways,
+        )
+    }
+
+    /// Adds a suggestion for tools without displaying it in human-readable output.
+    pub fn tool_only_span_suggestion(
+        &mut self,
+        span: Span,
+        msg: impl Into<DiagMsg>,
+        suggestion: impl Into<DiagMsg>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.span_suggestion_with_style(
+            span,
+            msg,
+            suggestion,
+            applicability,
+            SuggestionStyle::CompletelyHidden,
+        )
+    }
+
+    /// Shows a multipart suggestion as its own subdiagnostic.
     /// In other words, multiple changes need to be applied as part of this suggestion.
     pub fn multipart_suggestion(
         &mut self,
@@ -981,7 +1147,7 @@ impl Diag {
             msg,
             substitutions,
             applicability,
-            SuggestionStyle::ShowCode,
+            SuggestionStyle::ShowAlways,
         );
         self
     }
@@ -990,19 +1156,92 @@ impl Diag {
     pub fn multipart_suggestion_with_style(
         &mut self,
         msg: impl Into<DiagMsg>,
-        substitutions: Vec<(Span, DiagMsg)>,
+        mut substitutions: Vec<(Span, DiagMsg)>,
         applicability: Applicability,
         style: SuggestionStyle,
     ) -> &mut Self {
+        let mut seen = solar_data_structures::map::FxHashSet::default();
+        substitutions.retain(|(span, msg)| seen.insert((span.lo(), span.hi(), msg.clone())));
+
+        let parts = substitutions
+            .into_iter()
+            .map(|(span, snippet)| SubstitutionPart { span, snippet })
+            .collect::<Vec<_>>();
+
+        assert!(!parts.is_empty());
+        debug_assert_eq!(
+            parts.iter().find(|part| part.span.lo() == part.span.hi() && part.snippet.is_empty()),
+            None,
+            "span must not be empty and have no suggestion",
+        );
+        debug_assert_eq!(
+            parts.windows(2).find(|parts| parts[0].span.overlaps(parts[1].span)),
+            None,
+            "suggestion must not have overlapping parts",
+        );
+
         self.push_suggestion(CodeSuggestion {
-            substitutions: vec![Substitution {
-                parts: substitutions
-                    .into_iter()
-                    .map(|(span, snippet)| SubstitutionPart { span, snippet })
-                    .collect(),
-            }],
+            substitutions: vec![Substitution { parts }],
             msg: msg.into(),
             style,
+            applicability,
+        });
+        self
+    }
+
+    /// Adds a multipart suggestion for tools without displaying it in human-readable output.
+    pub fn tool_only_multipart_suggestion(
+        &mut self,
+        msg: impl Into<DiagMsg>,
+        substitutions: Vec<(Span, DiagMsg)>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        self.multipart_suggestion_with_style(
+            msg,
+            substitutions,
+            applicability,
+            SuggestionStyle::CompletelyHidden,
+        )
+    }
+
+    /// Prints multiple alternative multipart suggestions.
+    pub fn multipart_suggestions(
+        &mut self,
+        msg: impl Into<DiagMsg>,
+        suggestions: impl IntoIterator<Item = Vec<(Span, DiagMsg)>>,
+        applicability: Applicability,
+    ) -> &mut Self {
+        let substitutions = suggestions
+            .into_iter()
+            .map(|suggestion| {
+                let mut parts = suggestion
+                    .into_iter()
+                    .map(|(span, snippet)| SubstitutionPart { span, snippet })
+                    .collect::<Vec<_>>();
+                parts.sort_unstable_by_key(|part| part.span);
+
+                assert!(!parts.is_empty());
+                debug_assert_eq!(
+                    parts
+                        .iter()
+                        .find(|part| part.span.lo() == part.span.hi() && part.snippet.is_empty()),
+                    None,
+                    "span must not be empty and have no suggestion",
+                );
+                debug_assert_eq!(
+                    parts.windows(2).find(|parts| parts[0].span.overlaps(parts[1].span)),
+                    None,
+                    "suggestion must not have overlapping parts",
+                );
+
+                Substitution { parts }
+            })
+            .collect();
+
+        self.push_suggestion(CodeSuggestion {
+            substitutions,
+            msg: msg.into(),
+            style: SuggestionStyle::ShowAlways,
             applicability,
         });
         self
@@ -1052,6 +1291,7 @@ mod tests {
     #[cfg(feature = "json")]
     use snapbox::IntoData as _;
     use snapbox::{assert_data_eq, str};
+    use solar_config::HumanEmitterKind;
 
     #[test]
     fn test_styled_messages() {
@@ -1071,6 +1311,22 @@ mod tests {
         assert_data_eq!(
             &*sub.label_with_style(true),
             str!["plain text [91mremoved[0m middle [92madded[0m"]
+        );
+    }
+
+    #[test]
+    fn test_short_message_has_no_extra_separator() {
+        let mut emitter =
+            HumanBufferEmitter::new(ColorChoice::Never).human_kind(HumanEmitterKind::Short);
+        emitter.inner_mut().set_ui_testing(true);
+        emitter.emit_diagnostic(&mut Diag::new(Level::Error, "boom"));
+
+        assert_data_eq!(
+            emitter.buffer(),
+            str![[r#"
+error: boom
+
+"#]]
         );
     }
 
@@ -1124,6 +1380,31 @@ note: mutable variables should use mixedCase
     }
 
     #[test]
+    fn test_inline_suggestion_marks_confusable_case() {
+        let span = Span::new(BytePos(43), BytePos(47));
+        let mut diag = Diag::new(Level::Warning, "confusable spelling");
+        diag.span(span).span_suggestion(
+            span,
+            "capitalize this",
+            "View",
+            Applicability::MachineApplicable,
+        );
+
+        assert_data_eq!(
+            emit_human_diagnostics(diag),
+            str![[r#"
+warning: confusable spelling
+  ╭▸ <test.sol>:3:27
+  │
+3 │     function foo() public view {
+  ╰╴                          ━━━━ help: capitalize this (notice the capitalization): `View`
+
+
+"#]]
+        );
+    }
+
+    #[test]
     fn test_allowed_diagnostic_code_suppresses_warning() {
         let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
             .with_allowed_diagnostic_codes(["1234".to_string()]);
@@ -1146,6 +1427,70 @@ note: mutable variables should use mixedCase
 
         assert!(dcx.has_errors().is_err());
         assert!(dcx.emitted_diagnostics().unwrap().to_string().contains("emitted error"));
+    }
+
+    #[test]
+    fn test_reset_err_count_clears_deduplication_cache() {
+        let (emitter, diagnostics) = InMemoryEmitter::new();
+        let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+            flags.track_diagnostics = false;
+        });
+
+        for _ in 0..2 {
+            let _ = dcx.err("duplicate").emit();
+        }
+        assert_eq!(dcx.err_count(), 2);
+        assert_eq!(diagnostics.read().len(), 1);
+
+        dcx.reset_err_count();
+        assert_eq!(dcx.err_count(), 0);
+
+        let _ = dcx.err("duplicate").emit();
+        assert_eq!(dcx.err_count(), 1);
+        assert_eq!(diagnostics.read().len(), 2);
+    }
+
+    #[test]
+    fn test_once_subdiagnostic_is_collected_once() {
+        let (emitter, diagnostics) = InMemoryEmitter::new();
+        let dcx = DiagCtxt::new(Box::new(emitter)).with_flags(|flags| {
+            flags.track_diagnostics = false;
+        });
+
+        let _ = dcx.err("first").note_once("shared note").emit();
+        let _ = dcx.err("second").note_once("shared note").emit();
+
+        let diagnostics = diagnostics.read();
+        assert_eq!(diagnostics.len(), 2);
+        assert_eq!(diagnostics[0].children.len(), 1);
+        assert!(diagnostics[1].children.is_empty());
+    }
+
+    #[test]
+    fn test_treat_first_error_as_bug() {
+        let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never).with_flags(|flags| {
+            flags.track_diagnostics = false;
+            flags.treat_err_as_bug = std::num::NonZeroUsize::new(1);
+        });
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            dcx.err("boom").emit();
+        }));
+
+        assert!(result.is_err());
+        assert_data_eq!(
+            dcx.emitted_diagnostics().unwrap().to_string(),
+            str![[r#"
+error: internal compiler error: boom
+
+
+"#]]
+        );
+    }
+
+    #[test]
+    fn test_failure_note_is_not_an_error() {
+        assert!(!Level::FailureNote.is_error());
     }
 
     #[test]
@@ -1225,19 +1570,19 @@ help: mutable variables should use mixedCase
 
     #[test]
     fn test_multispan_suggestion() {
-        let (pub_span, pub_sugg) = (Span::new(BytePos(36), BytePos(42)), "external".into());
-        let (view_span, view_sugg) = (Span::new(BytePos(43), BytePos(47)), "pure".into());
+        let (pub_span, pub_sugg) = (Span::new(BytePos(36), BytePos(42)), DiagMsg::from("external"));
+        let (view_span, view_sugg) = (Span::new(BytePos(43), BytePos(47)), DiagMsg::from("pure"));
         let mut diag = Diag::new(Level::Warning, "inefficient visibility and mutability");
         diag.span(vec![pub_span, view_span]).multipart_suggestion(
             "consider changing visibility and mutability",
-            vec![(pub_span, pub_sugg), (view_span, view_sugg)],
+            vec![(pub_span, pub_sugg.clone()), (pub_span, pub_sugg), (view_span, view_sugg)],
             Applicability::MaybeIncorrect,
         );
 
         assert_eq!(diag.suggestions[0].substitutions.len(), 1);
         assert_eq!(diag.suggestions[0].substitutions[0].parts.len(), 2);
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
-        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
 
         assert_data_eq!(
             emit_human_diagnostics(diag),
@@ -1299,6 +1644,8 @@ help: consider changing visibility and mutability
           "line_end": 4,
           "line_start": 4,
           "suggested_replacement": "myVar",
+          "suggestion_applicability": "machine-applicable",
+          "expansion": null,
           "text": [
             {
               "highlight_end": 23,
@@ -1326,6 +1673,8 @@ help: consider changing visibility and mutability
       "line_end": 4,
       "line_start": 4,
       "suggested_replacement": null,
+      "suggestion_applicability": null,
+      "expansion": null,
       "text": [
         {
           "highlight_end": 23,
@@ -1355,7 +1704,7 @@ help: consider changing visibility and mutability
         assert_eq!(diag.suggestions[0].substitutions.len(), 1);
         assert_eq!(diag.suggestions[0].substitutions[0].parts.len(), 2);
         assert_eq!(diag.suggestions[0].applicability, Applicability::MaybeIncorrect);
-        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
+        assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowAlways);
 
         assert_data_eq!(
             emit_json_diagnostics(diag),
@@ -1381,6 +1730,8 @@ help: consider changing visibility and mutability
           "line_end": 3,
           "line_start": 3,
           "suggested_replacement": "external",
+          "suggestion_applicability": "maybe-incorrect",
+          "expansion": null,
           "text": [
             {
               "highlight_end": 26,
@@ -1400,6 +1751,8 @@ help: consider changing visibility and mutability
           "line_end": 3,
           "line_start": 3,
           "suggested_replacement": "pure",
+          "suggestion_applicability": "maybe-incorrect",
+          "expansion": null,
           "text": [
             {
               "highlight_end": 31,
@@ -1427,6 +1780,8 @@ help: consider changing visibility and mutability
       "line_end": 3,
       "line_start": 3,
       "suggested_replacement": null,
+      "suggestion_applicability": null,
+      "expansion": null,
       "text": [
         {
           "highlight_end": 26,
@@ -1446,6 +1801,8 @@ help: consider changing visibility and mutability
       "line_end": 3,
       "line_start": 3,
       "suggested_replacement": null,
+      "suggestion_applicability": null,
+      "expansion": null,
       "text": [
         {
           "highlight_end": 31,
