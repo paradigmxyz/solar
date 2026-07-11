@@ -245,6 +245,43 @@ impl Assembler {
         changed
     }
 
+    /// Removes instruction runs that can never execute: code following an
+    /// unconditional control transfer with no label to enter it. Thunk
+    /// threading and fallthrough-elided jumps leave such corpses behind (the
+    /// `PUSH2 target JUMP` body of a threaded thunk whose label was dropped
+    /// still occupies bytes). Removing the run also drops its outgoing label
+    /// references, letting the unreferenced-label pass cascade. Runtime only,
+    /// like the other length-changing cleanups.
+    fn remove_unreachable_code(instructions: &mut Vec<AsmInst>) -> bool {
+        let is_terminator = |inst: &AsmInst| {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::JUMP
+                        | op::RETURN
+                        | op::REVERT
+                        | op::STOP
+                        | op::INVALID
+                        | op::SELFDESTRUCT
+                )
+            )
+        };
+        let before = instructions.len();
+        let mut reachable = true;
+        instructions.retain(|inst| {
+            if matches!(inst.kind(), AsmInstKind::Label(_)) {
+                reachable = true;
+                return true;
+            }
+            let keep = reachable;
+            if keep && is_terminator(inst) {
+                reachable = false;
+            }
+            keep
+        });
+        instructions.len() != before
+    }
+
     /// Shares one `revert(0, 0)` stub by inverting the branches that skip it.
     ///
     /// A failed check compiles as `PUSH2 cont JUMPI; PUSH0 DUP1 REVERT; cont:`
@@ -733,12 +770,16 @@ impl Assembler {
         Self::dedup_terminal_spans(&mut program.instructions);
         Self::remove_unreferenced_labels(&mut program.instructions);
         // Suffix cuts create new identical spans and tails; iterate the merge
-        // with the dedup chain to a capped fixpoint.
-        for _ in 0..4 {
+        // with the dedup chain to a capped fixpoint. The unreachable-code
+        // sweep needs the label drop at the end of the previous iteration to
+        // expose a threaded thunk's corpse, so give the fixpoint headroom.
+        for _ in 0..6 {
             let merged = self.merge_terminal_suffixes(&mut program.instructions);
             let threaded =
                 self.run_structural_outlining && Self::thread_jump_thunks(&mut program.instructions);
-            if !merged && !threaded {
+            let swept = self.run_structural_outlining
+                && Self::remove_unreachable_code(&mut program.instructions);
+            if !merged && !threaded && !swept {
                 break;
             }
             Self::dedup_terminal_spans(&mut program.instructions);

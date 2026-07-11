@@ -64,3 +64,37 @@ pub use storage_load_cse::{StorageLoadCse, StorageLoadCsePass};
 pub use storage_promotion::{
     StoragePromotionStats, StorageScalarPromoter, StorageScalarPromotionPass,
 };
+
+/// Whether an external entry must reject nonzero callvalue, mirroring the
+/// backend dispatcher's rule.
+pub(crate) fn rejects_callvalue(func: &crate::mir::Function) -> bool {
+    use solar_sema::hir::StateMutability;
+    matches!(
+        func.attributes.state_mutability,
+        StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
+    )
+}
+
+/// Whether the dispatch entry hoists a single callvalue check: every bodied
+/// external entry (selector-bearing, receive, or fallback) rejects value.
+///
+/// [`LowerAbiPass`] and [`LowerDispatchPass`] both key off this: when it does
+/// not hold, `lower-abi` injects the check into each rejecting wrapper's
+/// prologue and `lower-dispatch` routes selector cases unguarded, so the two
+/// passes MUST agree — a mismatch would leave a nonpayable entry unchecked.
+pub(crate) fn dispatch_hoists_callvalue(module: &crate::mir::Module) -> bool {
+    let mut any = false;
+    for func in module.functions.iter() {
+        let external = func.selector.is_some()
+            || func.attributes.is_receive
+            || func.attributes.is_fallback;
+        if !external || func.blocks.is_empty() || func.attributes.is_constructor {
+            continue;
+        }
+        if !rejects_callvalue(func) {
+            return false;
+        }
+        any = true;
+    }
+    any
+}

@@ -2,16 +2,14 @@
 ; module @LowerAbiRetargets [phase = abi]
 fn @pub() {
   bb0 (entry):
-    v1 = calldataload 4
-    v0 = add v1, 1
+    v0 = add arg0, 1
     mstore 128, v0
     returndata 128, 32
 }
 
 fn @caller() {
   bb0 (entry):
-    v1 = calldataload 4
-    v0 = internal_call @pub.body, 1, v1
+    v0 = internal_call @pub.body, 1, arg0
     mstore 128, v0
     returndata 128, 32
 }

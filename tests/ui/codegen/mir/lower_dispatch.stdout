@@ -13,23 +13,20 @@ fn @pong() {
 fn @entry() {
   bb0 (entry):
     v0 = callvalue
-    br v0, bb7, bb1
+    br v0, bb6, bb1
   bb1:
     v1 = calldatasize
-    v2 = eq v1, 0
-    br v2, bb2, bb3
+    br v1, bb2, bb6
   bb2:
-    jump bb7
+    v2 = calldataload 0
+    v3 = shr 224, v2
+    switch v3, default bb5, [0x5c36b186 => bb3, 0x8d3a3e57 => bb4]
   bb3:
-    v3 = calldataload 0
-    v4 = shr 224, v3
-    switch v4, default bb6, [0x5c36b186 => bb4, 0x8d3a3e57 => bb5]
-  bb4:
     tail_call @ping
-  bb5:
+  bb4:
     tail_call @pong
+  bb5:
+    jump bb6
   bb6:
-    jump bb7
-  bb7:
     revert 0, 0
 }

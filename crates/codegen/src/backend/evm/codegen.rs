@@ -365,6 +365,13 @@ pub struct EvmCodegen {
     constructor_param_count: u32,
     /// Whether we're emitting an internal function body.
     in_internal_function: bool,
+    /// Whether we're emitting the MIR dispatch `entry` function. Its switch
+    /// keeps the selector on the physical stack through the case chain and
+    /// leaves it inert below the taken arm, like the backend dispatcher. Only
+    /// sound there: the entry runs once and every arm terminates externally,
+    /// so the leftover word can neither accumulate nor disturb an internal
+    /// return.
+    emitting_dispatch_entry: bool,
     /// Optimization mode for MIR passes and bytecode assembly.
     optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
@@ -400,6 +407,7 @@ impl EvmCodegen {
             in_constructor: false,
             constructor_param_count: 0,
             in_internal_function: false,
+            emitting_dispatch_entry: false,
             optimization: config.optimization,
             mir_print_after_each: config.mir_print_after_each,
             mir_dispatch: config.mir_dispatch,
@@ -765,6 +773,7 @@ impl EvmCodegen {
         self.stack_phi_sources.clear();
         self.stack_arg_masks.clear();
         self.runtime_stack_args = true;
+        self.emitting_dispatch_entry = false;
 
         if !module.functions.is_empty() {
             if module.phase >= crate::mir::MirPhase::Dispatch {
@@ -839,9 +848,11 @@ impl EvmCodegen {
         // The MIR entry is the runtime prologue: one shared free-memory
         // store covers every wrapper reached through it.
         self.in_internal_function = false;
+        self.emitting_dispatch_entry = true;
         let entry_free = self.emit_external_free_memory_start();
         self.runtime_free_memory_const = Some(entry_free);
         self.generate_function_body(&module.functions[entry_id]);
+        self.emitting_dispatch_entry = false;
         self.record_function_spill_size(entry_id);
         self.runtime_entry_funcs.push(entry_id);
 
@@ -3077,8 +3088,16 @@ impl EvmCodegen {
         let region_start = max_entry_base.max(INTERNAL_FRAME_PTR_SLOT + 32);
 
         // Longest live-chain depth below each function, over all call edges.
+        // Only emitted callers count: an unemitted function (an internal
+        // `.body` clone nobody calls, dispatched-away dead code) stacks no
+        // real frame below its callees, and its conservative spill estimate
+        // would inflate every callee's depth — and with it the free-memory
+        // start and the width of every frame push in the runtime.
         let mut edges = Vec::new();
         for (func_id, func) in module.functions.iter_enumerated() {
+            if !self.function_labels.contains_key(&func_id) {
+                continue;
+            }
             for inst in &func.instructions {
                 if let InstKind::InternalCall { function, .. } = inst.kind {
                     edges.push((func_id, function));
@@ -4279,16 +4298,33 @@ impl EvmCodegen {
             }
 
             Terminator::Switch { value, default, cases } => {
-                let mut operands = Vec::with_capacity(cases.len() + 1);
-                operands.push(*value);
-                operands.extend(cases.iter().map(|(case_val, _)| *case_val));
-                self.spill_values_before_stack_clear(func, &operands);
+                if self.emitting_dispatch_entry {
+                    // The dispatch entry's selector switch mirrors the backend
+                    // dispatcher's shape: the just-computed selector stays on
+                    // the stack through the case chain — no spill, clear and
+                    // reload — and is left inert below the taken arm instead
+                    // of paying a POP ("popping it per wrapper was a wasted
+                    // byte each"). Every successor terminates externally and
+                    // the entry runs once, so the leftover word is unreachable
+                    // and cannot accumulate.
+                    self.emit_value(func, *value);
+                    while self.scheduler.depth() > 1 {
+                        self.emit_stack_op(StackOp::Swap(1));
+                        self.emit_stack_op(StackOp::Pop);
+                    }
+                } else {
+                    let mut operands = Vec::with_capacity(cases.len() + 1);
+                    operands.push(*value);
+                    operands.extend(cases.iter().map(|(case_val, _)| *case_val));
+                    self.spill_values_before_stack_clear(func, &operands);
 
-                // Pop all stack values first (live-out values are already spilled)
-                self.pop_all_stack_values();
+                    // Pop all stack values first (live-out values are already
+                    // spilled)
+                    self.pop_all_stack_values();
 
-                // Emit the switch value (will reload from spill if needed)
-                self.emit_value(func, *value);
+                    // Emit the switch value (will reload from spill if needed)
+                    self.emit_value(func, *value);
+                }
 
                 for (case_val, target) in cases {
                     // DUP the value, compare, jump if equal
@@ -4302,9 +4338,11 @@ impl EvmCodegen {
                     self.scheduler.instruction_executed(1, None); // JUMPI consumes condition
                 }
 
-                // Pop the value and jump to default
-                self.asm.emit_op(op::POP);
-                self.scheduler.stack.pop();
+                if !self.emitting_dispatch_entry {
+                    // Pop the value before the default edge.
+                    self.asm.emit_op(op::POP);
+                    self.scheduler.stack.pop();
+                }
                 if Some(*default) != fallthrough {
                     self.asm.emit_push_label(self.block_labels[default]);
                     self.asm.emit_op(op::JUMP);
