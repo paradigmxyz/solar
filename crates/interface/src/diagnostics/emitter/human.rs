@@ -165,18 +165,18 @@ impl HumanEmitter {
 
     /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
     pub fn ui_testing(mut self, yes: bool) -> Self {
-        self.set_ui_testing(yes);
+        self.renderer = self.renderer.anonymized_line_numbers(yes);
         self
     }
 
     /// Sets whether to emit diagnostics in a way that is suitable for UI testing.
     pub fn set_ui_testing(&mut self, yes: bool) {
-        self.renderer = self.renderer.clone().anonymized_line_numbers(yes);
+        self.renderer =
+            std::mem::replace(&mut self.renderer, DEFAULT_RENDERER).anonymized_line_numbers(yes);
     }
 
     /// Sets the human emitter kind (unicode vs short).
     pub fn human_kind(mut self, kind: HumanEmitterKind) -> Self {
-        self.short_message = matches!(kind, HumanEmitterKind::Short);
         match kind {
             HumanEmitterKind::Ascii => {
                 self.renderer = self.renderer.decor_style(DecorStyle::Ascii);
@@ -184,10 +184,12 @@ impl HumanEmitter {
             HumanEmitterKind::Unicode => {
                 self.renderer = self.renderer.decor_style(DecorStyle::Unicode);
             }
-            HumanEmitterKind::Short => {}
+            HumanEmitterKind::Short => {
+                self.short_message = true;
+                self.renderer = self.renderer.short_message(true);
+            }
             _ => unimplemented!("{kind:?}"),
         }
-        self.renderer = self.renderer.short_message(self.short_message);
         self
     }
 
