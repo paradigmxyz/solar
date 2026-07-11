@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/029_create_abstract_contract.sol
 
 abstract contract A {

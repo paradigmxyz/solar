@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // TODO: These unclosed delimiter cases currently fail before an AST reaches
 // typeck. Keep them as focused repros for parser recovery work.
 

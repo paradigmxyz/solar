@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/065_super_excludes_current_contract.sol
 // ported-from: test/libsolidity/syntaxTests/inheritance/super_on_external.sol
 // ported-from: test/libsolidity/syntaxTests/super/unimplemented_super_function.sol

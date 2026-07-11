@@ -28,7 +28,7 @@ contract E {
     }
 
     function g2(uint256[] transient transient) external { //~ ERROR: invalid data location
-        transient = 5;
+        transient = 5; //~ ERROR: mismatched types
     }
 
   }

@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     function f(uint u, bytes32 s, bool b) internal {}
 

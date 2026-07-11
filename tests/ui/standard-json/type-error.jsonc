@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // CHECK: "errors": [
 // CHECK: "message": "mismatched types"
 // CHECK: expected `uint256`, found `bool`

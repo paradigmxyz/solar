@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // ported-from: test/libsolidity/semanticTests/various/state_variable_under_contract_name.sol
 
 contract StateVarScope {

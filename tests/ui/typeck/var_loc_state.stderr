@@ -28,5 +28,19 @@ LL │     S[] memory d1 = [];
    │
    ╰ note: data location must be `none` or `transient` for state variable, but got `memory`
 
-error: aborting due to 4 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/var_loc_state.sol:LL:CC
+   │
+LL │     uint[] memory b1 = [];
+   ╰╴                       ━━ expected `uint256[] storage`, found `uint256[0] memory`
+
+error: cannot infer nameable array element type
+   ╭▸ ROOT/tests/ui/typeck/var_loc_state.sol:LL:CC
+   │
+LL │     S[] memory d1 = [];
+   │                     ━━
+   │
+   ╰ help: add an explicit type conversion for the first element
+
+error: aborting due to 6 previous errors
 

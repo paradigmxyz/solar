@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/boolean.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/bool_constant.sol
 

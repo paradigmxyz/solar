@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/lvalues/functions.sol
 
 contract FunctionLvalues {

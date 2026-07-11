@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     function g(uint256 a, uint256 b) public {}
 

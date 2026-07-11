@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 struct S {
     uint256 x;
     uint256 y;

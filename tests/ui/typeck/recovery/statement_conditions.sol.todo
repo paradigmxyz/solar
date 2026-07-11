@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // TODO: Statement conditions and loop components should recover malformed
 // expressions without losing the following block or statement.
 

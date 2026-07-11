@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // TODO: These malformed member-access forms should eventually recover into an
 // AST error expression and let typeck continue to later statements. Keep them
 // inactive until they can be promoted with explicit typeck-continuation checks.

@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/semanticTests/functionCall/mapping_internal_return.sol
 
 contract Test {

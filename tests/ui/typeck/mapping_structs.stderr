@@ -114,5 +114,101 @@ error: types containing mappings cannot be parameter or return types of public f
 LL │     function func_nested_4() public returns(Nested storage) {}
    ╰╴                                            ━━━━━━
 
-error: aborting due to 16 previous errors
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │ function free_1(S memory) {}
+   ╰╴                ━━━━━━━━
+
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │ function free_3() returns(S memory) {}
+   ╰╴                          ━━━━━━━━
+
+error: type `struct Nested memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │ function free_nested_1(Nested memory) {}
+   ╰╴                       ━━━━━━━━━━━━━
+
+error: type `struct Nested memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │ function free_nested_3() returns(Nested memory) {}
+   ╰╴                                 ━━━━━━━━━━━━━
+
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     Nested public var_nested_2;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     Nested[] public var_nested_array_2;
+   ╰╴    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_1(S memory) public {}
+   ╰╴                    ━━━━━━━━
+
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_3() public returns(S memory) {}
+   ╰╴                                     ━━━━━━━━
+
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     modifier mod_1(S memory) { _; }
+   ╰╴                   ━━━━━━━━
+
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_internal_1(S memory) internal {}
+   ╰╴                             ━━━━━━━━
+
+error: type `struct S memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_internal_3() internal returns(S memory) {}
+   ╰╴                                                ━━━━━━━━
+
+error: type `struct Nested memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_nested_1(Nested memory) public {}
+   ╰╴                           ━━━━━━━━━━━━━
+
+error: type `struct Nested memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_nested_3() public returns(Nested memory) {}
+   ╰╴                                            ━━━━━━━━━━━━━
+
+error: type `struct Nested memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     modifier mod_nested_1(Nested memory) { _; }
+   ╰╴                          ━━━━━━━━━━━━━
+
+error: type `struct Nested memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_internal_nested_1(Nested memory) internal {}
+   ╰╴                                    ━━━━━━━━━━━━━
+
+error: type `struct Nested memory` is only valid in storage because it contains a (nested) mapping
+   ╭▸ ROOT/tests/ui/typeck/mapping_structs.sol:LL:CC
+   │
+LL │     function func_internal_nested_3() internal returns(Nested memory) {}
+   ╰╴                                                       ━━━━━━━━━━━━━
+
+error: aborting due to 32 previous errors
 

@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/emit/emit_non_event.sol
 
 contract EmitNonEvent {
