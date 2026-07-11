@@ -166,10 +166,24 @@ def runtime_size(result: dict[str, Any], compiler: str) -> int | None:
     return value if isinstance(value, int) else None
 
 
+def peak_rss(result: dict[str, Any], compiler: str) -> int | None:
+    data = compiler_data(result, compiler)
+    value = data.get("peak_rss_bytes")
+    if data.get("status") != "ok":
+        return None
+    return value if isinstance(value, int) else None
+
+
 def fmt_int(value: int | None, suffix: str = "") -> str:
     if value is None:
         return "n/a"
     return f"{value:,}{suffix}"
+
+
+def fmt_bytes(value: int | float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value / (1024 * 1024):,.1f} MiB"
 
 
 def pct_improvement(current: int | None, baseline: int | None) -> float | None:
@@ -262,6 +276,79 @@ def benchmark_rows(
     return rows
 
 
+def compiler_ids(results: list[dict[str, Any]]) -> list[str]:
+    ids = []
+    for result in results:
+        for compiler_id in (result.get("compilers") or {}).keys():
+            if compiler_id not in ids:
+                ids.append(compiler_id)
+    return ids
+
+
+def memory_summary_rows(results: list[dict[str, Any]]) -> list[str]:
+    rows = []
+    for compiler_id in compiler_ids(results):
+        values = [
+            (str(result.get("test_id", "<unknown>")), value)
+            for result in results
+            if (value := peak_rss(result, compiler_id)) is not None
+        ]
+        if not values:
+            continue
+        max_bench, max_value = max(values, key=lambda item: item[1])
+        average = sum(value for _, value in values) / len(values)
+        rows.append(
+            f"| {markdown_cell(compiler_id)} | {len(values)} | {fmt_bytes(average)} | "
+            f"{fmt_bytes(max_value)} | {markdown_cell(max_bench)} |"
+        )
+    return rows
+
+
+def memory_benchmark_rows(results: list[dict[str, Any]]) -> list[str]:
+    ids = compiler_ids(results)
+    rows = []
+    for result in results:
+        test_id = str(result.get("test_id", "<unknown>"))
+        values = {compiler_id: peak_rss(result, compiler_id) for compiler_id in ids}
+        cells = [
+            markdown_cell(test_id),
+            *(fmt_bytes(values[compiler_id]) for compiler_id in ids),
+        ]
+        if "solar" in values and "solc" in values:
+            cells.append(fmt_pct_improvement(values["solar"], values["solc"]))
+        rows.append("| " + " | ".join(cells) + " |")
+    return rows
+
+
+def memory_report(results: list[dict[str, Any]]) -> list[str]:
+    ids = compiler_ids(results)
+    summary_rows = memory_summary_rows(results)
+    if not summary_rows:
+        return []
+
+    headers = ["bench", *(f"{compiler_id} peak" for compiler_id in ids)]
+    if "solar" in ids and "solc" in ids:
+        headers.append("Solar vs solc")
+
+    return [
+        "### Peak RSS",
+        "",
+        "| compiler | benches | average peak RSS | maximum peak RSS | maximum bench |",
+        "| -------- | ------- | ---------------- | ---------------- | ------------- |",
+        *summary_rows,
+        "",
+        "<details>",
+        "<summary>Per-benchmark peak RSS</summary>",
+        "",
+        "| " + " | ".join(headers) + " |",
+        "| " + " | ".join("---" for _ in headers) + " |",
+        *memory_benchmark_rows(results),
+        "",
+        "</details>",
+        "",
+    ]
+
+
 def report_section(
     title: str,
     results: list[dict[str, Any]],
@@ -284,6 +371,7 @@ def report_section(
             "",
         ]
     )
+    lines.extend(memory_report(results))
     return "\n".join(lines)
 
 
