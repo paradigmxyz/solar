@@ -1,3 +1,7 @@
+//! Human-readable diagnostics rendered with `annotate-snippets`.
+//!
+//! Modified from rustc's [`AnnotateSnippetEmitter`](https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/annotate_snippet_emitter_writer.rs).
+
 use super::{Diag, Emitter};
 use crate::{
     SourceMap, Span,
@@ -9,8 +13,8 @@ use crate::{
     source_map::{FileName, SourceFile},
 };
 use annotate_snippets::{
-    Annotation as ASAnnotation, AnnotationKind, Group, Level as ASLevel, Padding, Patch, Renderer,
-    Snippet, renderer::DecorStyle,
+    Annotation as ASAnnotation, AnnotationKind, Group, Level as ASLevel, Patch, Renderer, Snippet,
+    renderer::DecorStyle,
 };
 use anstream::{AutoStream, ColorChoice};
 use solar_config::HumanEmitterKind;
@@ -46,6 +50,7 @@ pub struct HumanEmitter {
     writer: AutoStream<Box<Writer>>,
     source_map: Option<Arc<SourceMap>>,
     renderer: Renderer,
+    short_message: bool,
 }
 
 // SAFETY: `real_writer` always points to the `Writer` in `writer`.
@@ -112,6 +117,7 @@ impl HumanEmitter {
             writer: AutoStream::new(real_writer, color),
             source_map: None,
             renderer: DEFAULT_RENDERER,
+            short_message: false,
         }
         .human_kind(Default::default())
     }
@@ -179,6 +185,7 @@ impl HumanEmitter {
                 self.renderer = self.renderer.decor_style(DecorStyle::Unicode);
             }
             HumanEmitterKind::Short => {
+                self.short_message = true;
                 self.renderer = self.renderer.short_message(true);
             }
             _ => unimplemented!("{kind:?}"),
@@ -253,7 +260,12 @@ impl HumanEmitter {
             }));
 
             report.push(group);
-            if let Err(e) = emit_to_destination(renderer.render(&report), level, &mut self.writer) {
+            if let Err(e) = emit_to_destination(
+                renderer.render(&report),
+                level,
+                &mut self.writer,
+                self.short_message,
+            ) {
                 panic!("failed to emit error: {e}");
             }
             return;
@@ -316,17 +328,6 @@ impl HumanEmitter {
             }
         }
 
-        let suggestions_expected = suggestions
-            .iter()
-            .filter(|s| {
-                matches!(
-                    s.style,
-                    SuggestionStyle::HideCodeInline
-                        | SuggestionStyle::ShowCode
-                        | SuggestionStyle::ShowAlways
-                )
-            })
-            .count();
         for suggestion in suggestions.unwrap_tag() {
             match suggestion.style {
                 SuggestionStyle::CompletelyHidden => {
@@ -345,31 +346,43 @@ impl HumanEmitter {
                         .cloned() // clone is required to sort and filter duplicated spans
                         .filter_map(|mut subst| {
                             // Suggestions coming from macros can have malformed spans. This is a
-                            // heavy handed approach to avoid ICEs by
-                            // ignoring the suggestion outright.
+                            // heavy handed approach to avoid ICEs by ignoring the suggestion
+                            // outright.
                             let invalid =
                                 subst.parts.iter().any(|item| sm.is_valid_span(item.span).is_err());
                             if invalid {
                                 debug!("suggestion contains an invalid span: {:?}", subst);
+                                return None;
                             }
 
                             // Assumption: all spans are in the same file, and all spans
                             // are disjoint. Sort in ascending order.
                             subst.parts.sort_by_key(|part| part.span.lo());
-                            // Verify the assumption that all spans are disjoint
-                            assert_eq!(
+                            // Verify the assumption that all spans are disjoint.
+                            debug_assert_eq!(
                                 subst.parts.windows(2).find(|s| s[0].span.overlaps(s[1].span)),
                                 None,
                                 "all spans must be disjoint",
                             );
 
+                            let lo = subst.parts.iter().map(|part| part.span.lo()).min()?;
+                            let lo_file = sm.lookup_source_file(lo);
+                            let hi = subst.parts.iter().map(|part| part.span.hi()).max()?;
+                            let hi_file = sm.lookup_source_file(hi);
+
+                            // The different spans might belong to different files. If so, ignore
+                            // the suggestion.
+                            if lo_file.start_pos != hi_file.start_pos {
+                                return None;
+                            }
+
                             // Account for cases where we are suggesting the same code that's
-                            // already there. This shouldn't happen
-                            // often, but in some cases for multipart
-                            // suggestions it's much easier to handle it here than in the origin.
+                            // already there. This shouldn't happen often, but in some cases for
+                            // multipart suggestions it's much easier to handle it here than in the
+                            // origin.
                             subst.parts.retain(|p| is_different(sm, &p.snippet, p.span));
 
-                            if !invalid { Some(subst) } else { None }
+                            if subst.parts.is_empty() { None } else { Some(subst) }
                         })
                         .collect::<Vec<_>>();
 
@@ -422,7 +435,7 @@ impl HumanEmitter {
 
                                 // Unlike rustc, there is no attribute suggestion in Solidity (yet).
                                 // When similar feature to attribute arrives, refer to rustc's
-                                // implementation https://github.com/rust-lang/rust/blob/4146079cee94242771864147e32fb5d9adbd34f8/compiler/rustc_errors/src/annotate_snippet_emitter_writer.rs#L424
+                                // implementation https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/annotate_snippet_emitter_writer.rs#L405
                                 let fold = true;
 
                                 if let Some((bounding_span, source, line_offset)) =
@@ -472,17 +485,16 @@ impl HumanEmitter {
             }
         }
 
-        // FIXME: This hack should be removed once annotate_snippets is the
-        // default emitter.
-        if suggestions_expected > 0 && report.is_empty() {
-            group = group.element(Padding);
-        }
-
         if !group.is_empty() {
             report.push(group);
         }
 
-        if let Err(e) = emit_to_destination(renderer.render(&report), level, &mut self.writer) {
+        if let Err(e) = emit_to_destination(
+            renderer.render(&report),
+            level,
+            &mut self.writer,
+            self.short_message,
+        ) {
             panic!("failed to emit error: {e}");
         }
     }
@@ -498,8 +510,7 @@ impl HumanEmitter {
     }
 
     // Unlike rustc, there is no translation.
-    // Since the behavior of `translator.translate_messages` does not contains styling,
-    // this function to concatenate messages instead can be used.
+    // Since rustc's message formatting doesn't add styling, concatenating the messages is enough.
     fn no_style_msgs(&self, msgs: &[(DiagMsg, Style)]) -> String {
         msgs.iter().map(|(m, _)| m.as_str()).collect()
     }
@@ -615,14 +626,16 @@ impl HumanBufferEmitter {
 }
 
 fn annotation_level_for_level<'a>(level: Level) -> ASLevel<'a> {
-    match level {
-        Level::Bug | Level::Fatal | Level::Error | Level::FailureNote => ASLevel::ERROR,
+    let name = level.to_str();
+    let annotation_level = match level {
+        Level::Bug | Level::Fatal | Level::Error => ASLevel::ERROR,
         Level::Warning => ASLevel::WARNING,
         Level::Note | Level::OnceNote => ASLevel::NOTE,
         Level::Help | Level::OnceHelp => ASLevel::HELP,
-        Level::Allow => ASLevel::INFO,
-    }
-    .with_name(if level == Level::FailureNote { None } else { Some(level.to_str()) })
+        Level::FailureNote => return ASLevel::NOTE.no_name(),
+        Level::Allow => panic!("should not render a diagnostic with `Allow` level"),
+    };
+    annotation_level.with_name(Some(name))
 }
 
 fn stderr_choice(color_choice: ColorChoice) -> ColorChoice {
@@ -634,13 +647,18 @@ fn stderr_choice(color_choice: ColorChoice) -> ColorChoice {
     }
 }
 
-fn emit_to_destination(rendered: String, lvl: &Level, dst: &mut Writer) -> io::Result<()> {
+fn emit_to_destination(
+    rendered: String,
+    lvl: &Level,
+    dst: &mut Writer,
+    short_message: bool,
+) -> io::Result<()> {
     // Unlike rustc, there is no lock
     // use crate::lock;
     // let _buffer_lock = lock::acquire_global_lock("rustc_errors");
 
     writeln!(dst, "{rendered}")?;
-    if !lvl.is_failure_note() {
+    if !short_message && !lvl.is_failure_note() {
         writeln!(dst)?;
     }
     dst.flush()?;
@@ -714,7 +732,7 @@ fn shrink_file(
     }
 
     let lo = lo_loc.file.line_bounds(lo_loc.line.saturating_sub(1)).start;
-    let hi = lo_loc.file.line_bounds(hi_loc.line.saturating_sub(1)).end;
+    let hi = hi_loc.file.line_bounds(hi_loc.line.saturating_sub(1)).end;
 
     let bounding_span = Span::new(lo, hi);
     let source = sm.span_to_snippet(bounding_span).ok()?;

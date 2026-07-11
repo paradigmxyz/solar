@@ -1,7 +1,14 @@
+//! JSON diagnostics, including rustc-compatible and solc-compatible representations.
+//!
+//! The rustc-compatible representation is modified from rustc's [`JsonEmitter`](https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/json.rs).
+//! It preserves this codebase's source-map model, which has no macro expansion metadata.
+
 use super::{Emitter, human::HumanBufferEmitter, io_panic};
 use crate::{
     Span,
-    diagnostics::{CodeSuggestion, Diag, Level, MultiSpan, SpanLabel, SubDiagnostic},
+    diagnostics::{
+        Applicability, CodeSuggestion, Diag, Level, MultiSpan, SpanLabel, SubDiagnostic,
+    },
     source_map::{LineInfo, SourceFile, SourceMap},
 };
 use anstream::ColorChoice;
@@ -131,7 +138,9 @@ impl JsonEmitter {
             .substitutions
             .iter()
             .flat_map(|sub| sub.parts.iter())
-            .map(|part| self.span_with_suggestion(part.span, part.snippet.to_string()))
+            .map(|part| {
+                self.span_with_suggestion(part.span, part.snippet.to_string(), sugg.applicability)
+            })
             .collect();
 
         JsonDiagnostic {
@@ -165,11 +174,33 @@ impl JsonEmitter {
             text: self.span_lines(span),
             label: label.label.as_ref().map(|msg| Cow::Owned(msg.as_str().to_string())),
             suggested_replacement: None,
+            suggestion_applicability: None,
+            expansion: None,
         }
     }
 
-    fn span_with_suggestion(&self, span: Span, replacement: String) -> JsonDiagnosticSpan<'static> {
+    fn span_with_suggestion(
+        &self,
+        span: Span,
+        replacement: String,
+        applicability: Applicability,
+    ) -> JsonDiagnosticSpan<'static> {
         let sm = &**self.source_map();
+        let start = sm.lookup_char_pos(span.lo());
+        let span = if start.col.0 == 0
+            && replacement.is_empty()
+            && span.hi() < start.file.end_position()
+            && start.file.contains(span.hi())
+            && start
+                .file
+                .src
+                .get(start.file.relative_position(span.hi()).to_usize()..)
+                .is_some_and(|after| after.starts_with('\n'))
+        {
+            span.with_hi(span.hi() + crate::BytePos(1))
+        } else {
+            span
+        };
         let start = sm.lookup_char_pos(span.lo());
         let end = sm.lookup_char_pos(span.hi());
         JsonDiagnosticSpan {
@@ -184,6 +215,8 @@ impl JsonEmitter {
             text: self.span_lines(span),
             label: None,
             suggested_replacement: Some(Cow::Owned(replacement)),
+            suggestion_applicability: Some(applicability),
+            expansion: None,
         }
     }
 
@@ -312,7 +345,7 @@ pub struct JsonDiagnostic<'a> {
     /// The diagnostic code.
     #[serde(borrow)]
     pub code: Option<JsonDiagnosticCode<'a>>,
-    /// "error", "warning", "note", "help".
+    /// "error: internal compiler error", "error", "warning", "note", or "help".
     #[serde(borrow)]
     pub level: Cow<'a, str>,
     /// The diagnostic spans.
@@ -357,6 +390,25 @@ pub struct JsonDiagnosticSpan<'a> {
     /// that should be sliced in atop this span.
     #[serde(borrow)]
     pub suggested_replacement: Option<Cow<'a, str>>,
+    /// How confidently the suggested replacement can be applied.
+    pub suggestion_applicability: Option<Applicability>,
+    /// Macro expansion that produced this span, if available.
+    #[serde(borrow)]
+    pub expansion: Option<Box<JsonDiagnosticSpanMacroExpansion<'a>>>,
+}
+
+/// A macro expansion represented in a rustc-like JSON diagnostic span.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct JsonDiagnosticSpanMacroExpansion<'a> {
+    /// The span where the macro was invoked.
+    #[serde(borrow)]
+    pub span: JsonDiagnosticSpan<'a>,
+    /// The macro declaration name.
+    #[serde(borrow)]
+    pub macro_decl_name: Cow<'a, str>,
+    /// The span where the macro was defined.
+    #[serde(borrow)]
+    pub def_site_span: JsonDiagnosticSpan<'a>,
 }
 
 /// A source line in a rustc-like JSON diagnostic span.
@@ -449,6 +501,28 @@ fn to_severity(level: Level) -> Severity {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn whole_line_deletion_includes_newline() {
+        let source_map = Arc::new(SourceMap::empty());
+        source_map
+            .new_source_file(crate::source_map::FileName::custom("test.sol"), "foo\nbar\n")
+            .unwrap();
+        let emitter = JsonEmitter::new(Box::new(io::sink()), source_map, ColorChoice::Never);
+
+        let span = emitter.span_with_suggestion(
+            Span::new(crate::BytePos(0), crate::BytePos(3)),
+            String::new(),
+            Applicability::MachineApplicable,
+        );
+
+        assert_eq!(span.byte_start, 0);
+        assert_eq!(span.byte_end, 4);
+        assert_eq!(span.line_start, 1);
+        assert_eq!(span.line_end, 2);
+        assert_eq!(span.column_end, 1);
+        assert!(span.expansion.is_none());
+    }
 
     #[test]
     fn solc_diagnostic_serializes_borrowed_strings() {

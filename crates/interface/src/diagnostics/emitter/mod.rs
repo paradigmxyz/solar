@@ -1,4 +1,8 @@
-use super::{Diag, Level, MultiSpan, SuggestionStyle};
+//! Diagnostic emitter interfaces and shared rendering helpers.
+//!
+//! Modified from rustc's [`Emitter`](https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/emitter.rs).
+
+use super::{ConfusionType, Diag, Level, MultiSpan, SuggestionStyle, detect_confusion_type};
 use crate::{SourceMap, diagnostics::Suggestions};
 use std::{any::Any, borrow::Cow, sync::Arc};
 
@@ -10,7 +14,8 @@ mod json;
 #[cfg(feature = "json")]
 pub use json::{
     JsonDiagnostic, JsonDiagnosticCode, JsonDiagnosticMessage, JsonDiagnosticSpan,
-    JsonDiagnosticSpanLine, JsonEmitter, Severity, SolcDiagnostic, SourceLocation,
+    JsonDiagnosticSpanLine, JsonDiagnosticSpanMacroExpansion, JsonEmitter, Severity,
+    SolcDiagnostic, SourceLocation,
 };
 
 mod mem;
@@ -46,11 +51,11 @@ pub trait Emitter: Any {
     ///
     /// There are a lot of conditions to this method, but in short:
     ///
-    /// * If the current `DiagInner` has only one visible `CodeSuggestion`, we format the `help`
+    /// * If the current `Diag` has only one visible `CodeSuggestion`, we format the `help`
     ///   suggestion depending on the content of the substitutions. In that case, we modify the span
     ///   and clear the suggestions.
     ///
-    /// * If the current `DiagInner` has multiple suggestions, we leave `primary_span` and the
+    /// * If the current `Diag` has multiple suggestions, we leave `primary_span` and the
     ///   suggestions untouched.
     fn primary_span_formatted<'a>(
         &self,
@@ -84,7 +89,11 @@ pub trait Emitter: Any {
                 // code inline (`hide_inline`). Therefore, we don't show the substitution.
                 format!("help: {}", sugg.msg.as_str())
             } else {
-                format!("help: {}: `{}`", sugg.msg.as_str(), snippet)
+                let confusion_type = self
+                    .source_map()
+                    .map(|sm| detect_confusion_type(sm, snippet, part.span))
+                    .unwrap_or(ConfusionType::None);
+                format!("help: {}{}: `{}`", sugg.msg.as_str(), confusion_type.label_text(), snippet)
             };
             primary_span.to_mut().push_span_label(part.span, msg);
 

@@ -1,3 +1,7 @@
+//! Diagnostic collection, deduplication, counting, and emission.
+//!
+//! Modified from rustc's [`DiagCtxt`](https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_errors/src/lib.rs).
+
 use super::{
     BugAbort, Diag, DiagBuilder, DiagMsg, DynEmitter, EmissionGuarantee, EmittedDiagnostics,
     ErrorGuaranteed, FatalAbort, HumanBufferEmitter, Level, MultiSpan, SilentEmitter,
@@ -274,6 +278,25 @@ impl DiagCtxt {
         self.with_flags(|f| f.can_emit_warnings = false)
     }
 
+    /// Returns whether warning diagnostics can be emitted.
+    pub fn can_emit_warnings(&self) -> bool {
+        self.inner.lock().flags.can_emit_warnings
+    }
+
+    /// Resets diagnostic counts and the deduplication cache.
+    ///
+    /// This is intended for tools that reuse a diagnostic context for multiple independent runs.
+    pub fn reset_err_count(&self) {
+        let mut inner = self.inner.lock();
+        inner.err_count = 0;
+        inner.deduplicated_err_count = 0;
+        inner.warn_count = 0;
+        inner.deduplicated_warn_count = 0;
+        inner.note_count = 0;
+        inner.deduplicated_note_count = 0;
+        inner.emitted_diagnostics.clear();
+    }
+
     /// Returns `true` if diagnostics are being tracked.
     pub fn track_diagnostics(&self) -> bool {
         self.inner.lock().flags.track_diagnostics
@@ -484,7 +507,7 @@ impl DiagCtxtInner {
             return Ok(());
         }
 
-        if matches!(diagnostic.level, Level::Error | Level::Fatal) && self.treat_err_as_bug() {
+        if matches!(diagnostic.level, Level::Error | Level::Fatal) && self.treat_next_err_as_bug() {
             diagnostic.level = Level::Bug;
         }
 
@@ -499,11 +522,8 @@ impl DiagCtxtInner {
                 !sub_already_emitted
             });
 
-            // if already_emitted {
-            //     diagnostic.note(
-            //         "duplicate diagnostic emitted due to `-Z deduplicate-diagnostics=no`",
-            //     );
-            // }
+            // Unlike rustc, deduplication is only disabled internally for UI testing, so do not
+            // attach rustc's `-Z deduplicate-diagnostics=no` note.
 
             self.emitter.emit_diagnostic(diagnostic);
             if diagnostic.is_error() {
@@ -579,6 +599,11 @@ impl DiagCtxtInner {
 
     fn treat_err_as_bug(&self) -> bool {
         self.flags.treat_err_as_bug.is_some_and(|c| self.err_count >= c.get())
+    }
+
+    /// Use before incrementing `err_count`.
+    fn treat_next_err_as_bug(&self) -> bool {
+        self.flags.treat_err_as_bug.is_some_and(|c| self.err_count + 1 >= c.get())
     }
 
     fn is_allowed_diagnostic(&self, diagnostic: &Diag) -> bool {
