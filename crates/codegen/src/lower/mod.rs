@@ -1545,6 +1545,15 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Marks a variable as being assigned (needs memory storage).
     fn mark_assigned_var(&mut self, expr: &hir::Expr<'_>) {
+        // A tuple assignment `(a, b) = ...` assigns every element; missing
+        // them here kept the variables SSA-tracked, so a value assigned in
+        // one branch arm leaked into the sibling arm's lowering.
+        if let hir::ExprKind::Tuple(elements) = &expr.kind {
+            for element in elements.iter().copied().flatten() {
+                self.mark_assigned_var(element);
+            }
+            return;
+        }
         if let Some(var_id) = self.ident_variable(expr) {
             self.assigned_vars.insert(var_id);
         }

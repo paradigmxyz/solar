@@ -306,17 +306,16 @@ impl Validator {
             ));
         }
 
-        // ----- Use reachability (opt-in) -----
+        // ----- Use reachability -----
         // MIR is deliberately loose SSA: a definition need not dominate its
         // uses, because cross-block values travel through reserved spill
         // slots and the source guarantees definite assignment. The invariant
         // that must still hold is reachability: if the defining block can
         // never reach the using block (its incoming predecessor, for phi
-        // inputs), the use reads garbage on every execution. Opt-in until the
-        // known lowering violation is fixed: nitro's `OneStepProofEntry`
-        // builds a second-return pickup whose only use sits on a disjoint
-        // branch, so a default-on check would fail every debug build.
-        if std::env::var_os("SOLAR_VALIDATE_REACH").is_none() {
+        // inputs), the use reads garbage on every execution. Structural
+        // errors are reported first: CFG construction assumes valid block
+        // references.
+        if !errors.is_empty() {
             return errors;
         }
         let cfg = CfgInfo::new(func);
