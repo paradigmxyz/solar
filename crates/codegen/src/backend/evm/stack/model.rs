@@ -149,6 +149,16 @@ impl StackModel {
         }
     }
 
+    /// Renames one tracked stack word without changing the physical stack.
+    pub fn rename(&mut self, value: ValueId, replacement: ValueId) -> bool {
+        if let Some(pos) = self.find(value) {
+            self.stack[pos] = Some(replacement);
+            true
+        } else {
+            false
+        }
+    }
+
     /// Clears the stack.
     pub fn clear(&mut self) {
         self.stack.clear();
@@ -269,5 +279,20 @@ mod tests {
         assert_eq!(model.peek(0), Some(v1));
         assert_eq!(model.peek(1), Some(v2));
         assert_eq!(model.peek(2), Some(v0));
+    }
+
+    #[test]
+    fn test_rename() {
+        let mut model = StackModel::new();
+        let v0 = ValueId::from_usize(0);
+        let v1 = ValueId::from_usize(1);
+        let v2 = ValueId::from_usize(2);
+
+        model.push(v0);
+        model.push(v1);
+
+        assert!(model.rename(v0, v2));
+        assert_eq!(model.as_slice(), &[Some(v1), Some(v2)]);
+        assert!(!model.rename(v0, v1));
     }
 }

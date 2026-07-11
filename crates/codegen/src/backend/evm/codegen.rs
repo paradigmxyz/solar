@@ -152,6 +152,7 @@ struct StackPhiEdge {
 #[derive(Clone, Debug, Default)]
 struct GlobalStackPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
+    aliases: FxHashMap<ValueId, ValueId>,
 }
 
 impl GlobalStackPlan {
@@ -173,6 +174,7 @@ impl GlobalStackPlan {
             return Self::default();
         }
         let mut decode_blocks = FxHashMap::default();
+        let mut aliases = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 let InstKind::CalldataLoad(offset) = &func.instructions[inst_id].kind else {
@@ -187,6 +189,9 @@ impl GlobalStackPlan {
                     && let Some(&arg) = args_by_index.get(&index)
                 {
                     decode_blocks.entry(arg).or_insert(block_id);
+                    if let Some(result) = func.inst_result_value(inst_id) {
+                        aliases.insert(result, arg);
+                    }
                 }
             }
         }
@@ -314,7 +319,8 @@ impl GlobalStackPlan {
         {
             entries.clear();
         }
-        Self { entries }
+        aliases.retain(|_, arg| entries.values().any(|entry| entry.contains(arg)));
+        Self { entries, aliases }
     }
 
     fn set_entry(
@@ -587,6 +593,9 @@ pub struct EvmCodegen {
     stack_phi_sources: FxHashMap<BlockId, FxHashSet<ValueId>>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
+    /// Calldata words physically identical to arguments in the active global
+    /// layout, adopted after their final validation use.
+    global_stack_aliases: FxHashMap<ValueId, ValueId>,
     /// Immutable `PUSH32` placeholders in the last assembled runtime code.
     runtime_immutable_refs: Vec<ImmutableRef>,
     /// Whether we're currently generating constructor code.
@@ -635,6 +644,7 @@ impl EvmCodegen {
             block_copies: FxHashMap::default(),
             stack_phi_sources: FxHashMap::default(),
             global_stack_active: false,
+            global_stack_aliases: FxHashMap::default(),
             runtime_immutable_refs: Vec::new(),
             in_constructor: false,
             constructor_param_count: 0,
@@ -1459,6 +1469,7 @@ impl EvmCodegen {
         self.stack_phi_sources = stack_phi_plan.edge_sources.clone();
         let global_stack_plan = GlobalStackPlan::analyze(func, liveness, &stack_phi_plan);
         self.global_stack_active = !global_stack_plan.is_empty();
+        self.global_stack_aliases = global_stack_plan.aliases.clone();
 
         // Reset scheduler
         self.scheduler = StackScheduler::new();
@@ -3064,6 +3075,20 @@ impl EvmCodegen {
             && !self.is_stack_phi_source(block, result)
         {
             self.spill_value_if_needed(func, result);
+        }
+
+        // A constant-offset calldata load is the same physical word as the
+        // corresponding external argument. Once its instruction result dies,
+        // adopt a surviving stack copy as the argument instead of loading that
+        // word again on the first planned edge.
+        for operand in operands {
+            if liveness.is_dead_after(operand, block, inst_idx)
+                && let Some(&arg) = self.global_stack_aliases.get(&operand)
+                && !liveness.is_dead_after(arg, block, inst_idx)
+                && !self.scheduler.stack.contains(arg)
+            {
+                self.scheduler.stack.rename(operand, arg);
+            }
         }
 
         // Drop dead values after the instruction
