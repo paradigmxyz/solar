@@ -41,20 +41,17 @@ impl Emitter for JsonEmitter {
 
 impl JsonEmitter {
     /// Creates a new `JsonEmitter` that writes to given writer.
-    pub fn new(writer: Box<dyn io::Write + Send>, source_map: Arc<SourceMap>) -> Self {
+    pub fn new(
+        writer: Box<dyn io::Write + Send>,
+        source_map: Arc<SourceMap>,
+        color_choice: ColorChoice,
+    ) -> Self {
         Self {
             writer,
             pretty: false,
             rustc_like: false,
-            human_emitter: HumanBufferEmitter::new(ColorChoice::Never).source_map(Some(source_map)),
+            human_emitter: HumanBufferEmitter::new(color_choice).source_map(Some(source_map)),
         }
-    }
-
-    /// Sets the color choice for rendered messages.
-    pub fn color(mut self, color_choice: ColorChoice) -> Self {
-        let source_map = Arc::clone(self.source_map());
-        self.human_emitter = HumanBufferEmitter::new(color_choice).source_map(Some(source_map));
-        self
     }
 
     /// Sets whether to pretty print the JSON.
