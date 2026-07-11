@@ -119,7 +119,7 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v11 = select v10, 32, v9
     v12 = add 32, v11
     v13 = mload 64 !metadata(memory=scratch)
-    v14 = add v13, 96
+    v14 = add v13, 32
     mstore 64, v14 !metadata(memory=scratch)
     v15 = mload 64 !metadata(memory=scratch)
     v16 = add v15, v12
@@ -135,30 +135,21 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     mstore v13, arg0
     v19 = keccak256 v13, 32
     v20 = div v9, 32
-    v21 = add v13, 32
-    v22 = add v13, 64
-    mstore v13, v17
-    mstore v21, v20
-    mstore v22, v19
     jump bb4
   bb3:
     ret v15
   bb4:
-    v23 = mload v21
-    v24 = gt v23, 0
+    v21 = phi [bb2: v20], [bb5: v28]
+    v22 = phi [bb2: v19], [bb5: v26]
+    v23 = phi [bb2: v17], [bb5: v27]
+    v24 = gt v21, 0
     br v24, bb5, bb3
   bb5:
-    v25 = mload v22
-    v26 = sload v25 !metadata(storage=symbolic(v25))
-    v27 = mload v13
-    mstore v27, v26
-    v28 = add v25, 1
-    mstore v22, v28
-    v29 = add v27, 32
-    mstore v13, v29
-    v30 = mload v21
-    v31 = sub v30, 1
-    mstore v21, v31
+    v25 = sload v22 !metadata(storage=symbolic(v22))
+    mstore v23, v25
+    v26 = add v22, 1
+    v27 = add v23, 32
+    v28 = sub v21, 1
     jump bb4
 }
 
