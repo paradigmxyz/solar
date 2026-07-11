@@ -46,6 +46,8 @@ impl JsonEmitter {
         source_map: Arc<SourceMap>,
         color_choice: ColorChoice,
     ) -> Self {
+        let color_choice =
+            if color_choice == ColorChoice::Auto { ColorChoice::Never } else { color_choice };
         Self {
             writer,
             pretty: false,
