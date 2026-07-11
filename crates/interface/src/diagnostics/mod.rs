@@ -1123,6 +1123,20 @@ note: mutable variables should use mixedCase
         assert_eq!(diag.suggestions[0].style, SuggestionStyle::ShowCode);
     }
 
+    #[cfg(feature = "json")]
+    #[test]
+    fn test_solc_diagnostic_color() {
+        let sm = Arc::new(source_map::SourceMap::empty());
+        sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
+        let diagnostic = Diag::new(Level::Error, "mismatched types");
+
+        for (color, expected) in [(ColorChoice::Always, true), (ColorChoice::Auto, false)] {
+            let mut emitter = JsonEmitter::new(Box::new(std::io::sink()), Arc::clone(&sm), color);
+            let formatted = emitter.solc_diagnostic(&diagnostic).formatted_message.unwrap();
+            assert_eq!(formatted.contains("\x1b["), expected, "{formatted:?}");
+        }
+    }
+
     #[test]
     fn test_allowed_diagnostic_code_suppresses_warning() {
         let dcx = DiagCtxt::with_buffer_emitter(None, ColorChoice::Never)
@@ -1503,8 +1517,12 @@ contract Test {
         sm.new_source_file(source_map::FileName::custom("test.sol"), CONTRACT.to_string()).unwrap();
 
         let writer = Arc::new(Mutex::new(Vec::new()));
-        let emitter = JsonEmitter::new(Box::new(SharedWriter(writer.clone())), Arc::clone(&sm))
-            .rustc_like(true);
+        let emitter = JsonEmitter::new(
+            Box::new(SharedWriter(writer.clone())),
+            Arc::clone(&sm),
+            ColorChoice::Never,
+        )
+        .rustc_like(true);
         let dcx = DiagCtxt::new(Box::new(emitter));
         let _ = dcx.emit_diagnostic(diag);
 
