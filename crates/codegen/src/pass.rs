@@ -534,6 +534,9 @@ impl PassManager {
     pub fn run(&mut self, module: &mut Module) -> (AnalysisManager, bool) {
         let mut am = AnalysisManager::new();
         let mut changed = false;
+        if self.validate_after_each {
+            validate_module_after_pass(module, "input");
+        }
         for pass in &mut self.passes {
             let pass_name = pass.name().to_string();
             if pass.run(module) {
