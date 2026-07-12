@@ -1,0 +1,87 @@
+// === ROOT/tests/ui/codegen/calldata_slice_rebind.sol:CalldataSliceRebind ===
+; module @CalldataSliceRebind
+fn @forward(arg0: memptr, arg1: u256, arg2: address) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 96
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    v3 = calldataload 68
+    v4 = and v3, 0xffffffffffffffffffffffffffffffffffffffff
+    v5 = eq v3, v4
+    br v5, bb4, bb3
+  bb3:
+    revert 0, 0
+  bb4:
+    v6 = add 4, arg0
+    v7 = calldataload v6
+    v8 = gt arg1, v7
+    v9 = gt v7, v7
+    v10 = or v8, v9
+    br v10, bb5, bb6
+  bb5:
+    revert 0, 0
+  bb6:
+    v11 = sub v7, arg1
+    v12 = add v11, 31
+    v13 = not 31
+    v14 = and v12, v13
+    v15 = add 32, v14
+    v16 = mload 64 !metadata(memory=scratch)
+    v17 = add v16, v15
+    mstore 64, v17 !metadata(memory=scratch)
+    mstore v16, v11
+    v18 = add v16, 32
+    v19 = add v6, 32
+    v20 = add v19, arg1
+    calldatacopy v18, v20, v11
+    v21 = mload 64 !metadata(memory=scratch)
+    mstore v21, 0xd18d0bac00000000000000000000000000000000000000000000000000000000
+    v22 = add v21, 4
+    v23 = add v22, 32
+    v24 = sub v23, v22
+    mstore v22, v24
+    v25 = mload v16
+    mstore v23, v25
+    v26 = not 31
+    v27 = add v25, 31
+    v28 = and v27, v26
+    v29 = add v23, 32
+    v30 = iszero v28
+    br v30, bb8, bb7
+  bb7:
+    v31 = sub v28, 32
+    v32 = add v29, v31
+    mstore v32, 0
+    jump bb8
+  bb8:
+    v33 = add v16, 32
+    v34 = add v29, v28
+    mcopy v29, v33, v25
+    v35 = sub v34, v22
+    v36 = add v35, 4
+    v37 = add v36, 31
+    v38 = not 31
+    v39 = and v37, v38
+    v40 = add v21, v39
+    mstore 64, v40 !metadata(memory=scratch)
+    mstore 0, arg2 !metadata(memory=scratch)
+    mstore 32, v21 !metadata(memory=scratch)
+    v41 = mload 0 !metadata(memory=scratch)
+    v42 = gas
+    v43 = mload 32 !metadata(memory=scratch)
+    v44 = call v42, v41, 0, v43, v36, 0, 32
+    v45 = iszero v44
+    br v45, bb9, bb10
+  bb9:
+    v46 = returndatasize
+    returndatacopy 0, 0, v46 !metadata(memory=scratch)
+    revert 0, v46
+  bb10:
+    v47 = mload 0 !metadata(memory=scratch)
+    stop
+}
+

@@ -126,6 +126,9 @@ pub struct Lowerer<'gcx> {
     current_return_tys: Vec<Ty<'gcx>>,
     /// Mapping from struct state variable ID to base storage slot.
     pub struct_storage_base_slots: FxHashMap<VariableId, u64>,
+    /// Calldata bytes parameters materialized into memory because the function
+    /// rebinds them (for example, `proof = proof[offset:]`).
+    materialized_calldata_params: FxHashSet<VariableId>,
     /// Cached struct field slot offsets: (struct_type_id, field_index) -> slot offset from base.
     pub struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
@@ -184,6 +187,7 @@ impl<'gcx> Lowerer<'gcx> {
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
+            materialized_calldata_params: FxHashSet::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_field_memory_offsets: FxHashMap::default(),
         }
@@ -777,6 +781,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         self.locals.clear();
         self.local_memory_slots.clear();
+        self.materialized_calldata_params.clear();
         self.next_local_memory_offset = 0x80;
         self.assigned_vars.clear();
         self.lowering_constructor = hir_func.kind == hir::FunctionKind::Constructor;
@@ -1030,11 +1035,18 @@ impl<'gcx> Lowerer<'gcx> {
                 }
             }
 
+            // Finalize the return prefix before calculating any named-return
+            // local address. `local_memory_addr` includes the complete return
+            // area; adding and initializing one return at a time placed the
+            // first initializer too early in multi-return functions.
+            for &ret_id in hir_func.returns {
+                let ret_var = self.gcx.hir.variable(ret_id);
+                let ty = self.lower_type_from_var(ret_var);
+                builder.add_return(ty);
+            }
             for &ret_id in hir_func.returns {
                 let ret_var = self.gcx.hir.variable(ret_id);
                 let ret_ty = self.gcx.type_of_hir_ty(&ret_var.ty);
-                let ty = self.lower_type_from_var(ret_var);
-                builder.add_return(ty);
                 // Allocate memory for return variables so they can be assigned to
                 // within the function body (e.g., `liquidity = 1` in if/else branches)
                 let offset = self.alloc_local_memory(ret_id);

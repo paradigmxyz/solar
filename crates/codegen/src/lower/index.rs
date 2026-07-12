@@ -20,6 +20,14 @@ impl<'gcx> Lowerer<'gcx> {
             if mapping.value_is_mapping {
                 return mapping.slot;
             }
+            if let Some(ty) = self.get_expr_type(expr)
+                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
+            {
+                let struct_size = self.calculate_memory_words_for_ty(ty) * 32;
+                let struct_ptr = self.allocate_memory(builder, struct_size);
+                self.copy_storage_to_memory_at(builder, struct_id, mapping.slot, struct_ptr, 0);
+                return struct_ptr;
+            }
             if self.expr_has_bytes_or_string_type(expr) {
                 return self.materialize_storage_bytes(builder, mapping.slot);
             }
@@ -128,7 +136,11 @@ impl<'gcx> Lowerer<'gcx> {
         rhs: ValueId,
     ) {
         if let Some(mapping) = self.lower_mapping_element_slot(builder, base, index) {
-            if self.expr_has_bytes_or_string_type(lhs) {
+            if let Some(ty) = self.get_expr_type(lhs)
+                && let TyKind::Struct(struct_id) = ty.peel_refs().kind
+            {
+                self.copy_memory_to_storage_at(builder, struct_id, mapping.slot, rhs, 0);
+            } else if self.expr_has_bytes_or_string_type(lhs) {
                 self.copy_memory_bytes_to_storage(builder, mapping.slot, rhs);
             } else {
                 builder.sstore(mapping.slot, rhs);

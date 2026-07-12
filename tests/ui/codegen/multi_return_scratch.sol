@@ -2,8 +2,9 @@
 //@filecheck: --check-prefix=ORDER
 // Multi-return tails live at the free-memory pointer, and every tail word is
 // loaded before the first tuple lvalue is evaluated. Computing `stored[key]`
-// uses scratch words 0 and 32, so assigning it first used to corrupt `second`;
-// the third return also used to overwrite the free-memory pointer at word 64.
+// may use mapping-slot scratch during later lowering, so assigning it first
+// used to corrupt `second`; the third return also used to overwrite the
+// free-memory pointer at word 64.
 contract MultiReturnScratch {
     mapping(uint256 => uint256) public stored;
 
@@ -33,5 +34,4 @@ contract MultiReturnScratch {
 // ORDER: = mload
 // ORDER: = add {{.*}}, 64
 // ORDER: = mload
-// ORDER: mstore 0,
-// ORDER: mstore 32,
+// ORDER: = mapping_slot

@@ -337,30 +337,6 @@ impl<'gcx> Lowerer<'gcx> {
                     return builder.sload(slot);
                 }
 
-                // Check if this is a nested memory struct access (e.g., o.inner.a)
-                if let Some((var_id, total_offset, _inner_struct_id)) =
-                    self.compute_nested_memory_struct_info(base, *member)
-                {
-                    // Get the base pointer for the outermost struct
-                    let base_ptr = if let Some(offset) = self.get_local_memory_offset(&var_id) {
-                        // Variable is stored in local memory slot
-                        let offset_val = self.local_memory_addr(builder, offset);
-                        builder.mload(offset_val)
-                    } else if let Some(&val) = self.locals.get(&var_id) {
-                        // Variable is an SSA value (pointer to struct)
-                        val
-                    } else {
-                        builder.imm_u64(0)
-                    };
-
-                    if total_offset == 0 {
-                        return builder.mload(base_ptr);
-                    }
-                    let offset_val = builder.imm_u64(total_offset);
-                    let field_addr = builder.add(base_ptr, offset_val);
-                    return builder.mload(field_addr);
-                }
-
                 // Regular memory struct member access
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(expr)
                     && self.is_memory_struct_base(base, struct_id)
@@ -434,6 +410,22 @@ impl<'gcx> Lowerer<'gcx> {
                     rhs_val
                 };
                 self.lower_assign(builder, lhs, final_val);
+                if op.is_none()
+                    && matches!(rhs.kind, ExprKind::Slice(..))
+                    && let Some(var_id) = self.ident_variable(lhs)
+                {
+                    let var = self.gcx.hir.variable(var_id);
+                    if var.data_location == Some(solar_ast::DataLocation::Calldata)
+                        && matches!(
+                            var.ty.kind,
+                            hir::TypeKind::Elementary(
+                                hir::ElementaryType::Bytes | hir::ElementaryType::String
+                            )
+                        )
+                    {
+                        self.materialized_calldata_params.insert(var_id);
+                    }
+                }
                 final_val
             }
 
@@ -474,6 +466,13 @@ impl<'gcx> Lowerer<'gcx> {
 
             ExprKind::Delete(target) => {
                 let zero = builder.imm_u256(U256::ZERO);
+                if let Some(ty) = self.get_expr_type(target)
+                    && let TyKind::Struct(struct_id) = ty.peel_refs().kind
+                    && let Some(slot) = self.lower_lvalue_slot(builder, target)
+                {
+                    self.clear_storage_struct_at(builder, struct_id, slot);
+                    return zero;
+                }
                 // Deleting a memory fixed-size array zeroes its elements in
                 // place; nulling the pointer would alias scratch memory on the
                 // next access. Storage targets keep the assignment path.
@@ -505,6 +504,64 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Slice(base, start, end) => {
+                if let Some((head, true)) = self.calldata_dyn_head(base) {
+                    let four = builder.imm_u64(4);
+                    let len_pos = builder.add(four, head);
+                    let len = builder.calldataload(len_pos);
+                    let start = start
+                        .map(|expr| self.lower_expr(builder, expr))
+                        .unwrap_or_else(|| builder.imm_u64(0));
+                    let end = end.map(|expr| self.lower_expr(builder, expr)).unwrap_or(len);
+                    let reversed = builder.gt(start, end);
+                    let past_end = builder.gt(end, len);
+                    let invalid = builder.or(reversed, past_end);
+                    self.emit_abi_decode_revert_if(builder, invalid);
+
+                    let slice_len = builder.sub(end, start);
+                    let thirty_one = builder.imm_u64(31);
+                    let rounded = builder.add(slice_len, thirty_one);
+                    let mask = builder.not(thirty_one);
+                    let padded = builder.and(rounded, mask);
+                    let word = builder.imm_u64(32);
+                    let total = builder.add(word, padded);
+                    let ptr = self.allocate_memory_dynamic(builder, total);
+                    builder.mstore(ptr, slice_len);
+                    let dst = builder.add(ptr, word);
+                    let data = builder.add(len_pos, word);
+                    let src = builder.add(data, start);
+                    builder.calldatacopy(dst, src, slice_len);
+                    return ptr;
+                }
+                if let Some(var_id) = self.ident_variable(base)
+                    && self.materialized_calldata_params.contains(&var_id)
+                    && self.expr_has_bytes_or_string_type(base)
+                {
+                    let base_ptr = self.lower_expr(builder, base);
+                    let len = builder.mload(base_ptr);
+                    let start = start
+                        .map(|expr| self.lower_expr(builder, expr))
+                        .unwrap_or_else(|| builder.imm_u64(0));
+                    let end = end.map(|expr| self.lower_expr(builder, expr)).unwrap_or(len);
+                    let reversed = builder.gt(start, end);
+                    let past_end = builder.gt(end, len);
+                    let invalid = builder.or(reversed, past_end);
+                    self.emit_abi_decode_revert_if(builder, invalid);
+
+                    let slice_len = builder.sub(end, start);
+                    let thirty_one = builder.imm_u64(31);
+                    let rounded = builder.add(slice_len, thirty_one);
+                    let mask = builder.not(thirty_one);
+                    let padded = builder.and(rounded, mask);
+                    let word = builder.imm_u64(32);
+                    let total = builder.add(word, padded);
+                    let ptr = self.allocate_memory_dynamic(builder, total);
+                    builder.mstore(ptr, slice_len);
+                    let dst = builder.add(ptr, word);
+                    let data = builder.add(base_ptr, word);
+                    let src = builder.add(data, start);
+                    self.mcopy(builder, dst, src, slice_len, None);
+                    return ptr;
+                }
                 let base_val = self.lower_expr(builder, base);
                 let start_val = start
                     .map(|s| self.lower_expr(builder, s))
@@ -1284,32 +1341,6 @@ impl<'gcx> Lowerer<'gcx> {
                     return;
                 }
 
-                // Check if this is a nested memory struct assignment (e.g., o.inner.a = value)
-                if let Some((var_id, total_offset, _inner_struct_id)) =
-                    self.compute_nested_memory_struct_info(base, *member)
-                {
-                    // Get the base pointer for the outermost struct
-                    let base_ptr = if let Some(offset) = self.get_local_memory_offset(&var_id) {
-                        // Variable is stored in local memory slot
-                        let offset_val = self.local_memory_addr(builder, offset);
-                        builder.mload(offset_val)
-                    } else if let Some(&val) = self.locals.get(&var_id) {
-                        // Variable is an SSA value (pointer to struct)
-                        val
-                    } else {
-                        builder.imm_u64(0)
-                    };
-
-                    if total_offset == 0 {
-                        builder.mstore(base_ptr, rhs);
-                        return;
-                    }
-                    let offset_val = builder.imm_u64(total_offset);
-                    let field_addr = builder.add(base_ptr, offset_val);
-                    builder.mstore(field_addr, rhs);
-                    return;
-                }
-
                 // Regular memory struct member assignment
                 if let Some((struct_id, field_index)) = self.resolved_struct_field(lhs)
                     && self.is_memory_struct_base(base, struct_id)
@@ -1637,6 +1668,9 @@ impl<'gcx> Lowerer<'gcx> {
             return None;
         };
         let var = self.gcx.hir.variable(*var_id);
+        if self.materialized_calldata_params.contains(var_id) {
+            return None;
+        }
         if var.data_location != Some(solar_ast::DataLocation::Calldata) {
             return None;
         }
@@ -1687,7 +1721,8 @@ impl<'gcx> Lowerer<'gcx> {
         let strukt = self.gcx.hir.strukt(struct_id);
         let num_fields = strukt.fields.len();
 
-        // Allocate memory for the struct (each field is 32 bytes)
+        // Memory struct fields are one word each. Reference-typed fields,
+        // including nested structs, store pointers to separate allocations.
         let struct_size = (num_fields as u64) * 32;
         let struct_ptr = self.allocate_memory(builder, struct_size);
 
@@ -2247,132 +2282,6 @@ impl<'gcx> Lowerer<'gcx> {
                     && field_name.name == member.name
                 {
                     return Some((struct_id, i));
-                }
-            }
-        }
-        None
-    }
-
-    /// Helper to get memory struct info with type for recursive traversal.
-    /// Returns (var_id, byte_offset, struct_id_of_field_type) if the member is a struct field.
-    fn compute_nested_memory_struct_info_with_type(
-        &mut self,
-        expr: &hir::Expr<'_>,
-    ) -> Option<(hir::VariableId, u64, Option<hir::StructId>)> {
-        if let ExprKind::Member(base, member) = &expr.kind {
-            // Base case: base is a memory struct variable
-            if let ExprKind::Ident(res_slice) = &base.kind
-                && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-            {
-                let var = self.gcx.hir.variable(*var_id);
-                if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind {
-                    // Ensure this is a memory struct, not storage
-                    if !self.struct_storage_base_slots.contains_key(var_id) {
-                        let strukt = self.gcx.hir.strukt(*struct_id);
-                        for (i, &field_id) in strukt.fields.iter().enumerate() {
-                            let field = self.gcx.hir.variable(field_id);
-                            if let Some(field_name) = field.name
-                                && field_name.name == member.name
-                            {
-                                let offset = self.get_struct_field_memory_offset(*struct_id, i);
-                                if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
-                                    &field.ty.kind
-                                {
-                                    return Some((*var_id, offset, Some(*inner_struct_id)));
-                                }
-                                return Some((*var_id, offset, None));
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Recursive case: base is itself a nested member access
-            if let Some((var_id, parent_offset, Some(parent_struct_id))) =
-                self.compute_nested_memory_struct_info_with_type(base)
-            {
-                let parent_strukt = self.gcx.hir.strukt(parent_struct_id);
-                for (i, &field_id) in parent_strukt.fields.iter().enumerate() {
-                    let field = self.gcx.hir.variable(field_id);
-                    if let Some(field_name) = field.name
-                        && field_name.name == member.name
-                    {
-                        let field_offset = self.get_struct_field_memory_offset(parent_struct_id, i);
-                        let total_offset = parent_offset + field_offset;
-
-                        if let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
-                            &field.ty.kind
-                        {
-                            return Some((var_id, total_offset, Some(*inner_struct_id)));
-                        }
-                        return Some((var_id, total_offset, None));
-                    }
-                }
-            }
-        }
-        None
-    }
-
-    /// Computes the memory byte offset for a nested memory struct member access.
-    /// For expressions like `o.l2.l1.a` where `o` is a memory struct with arbitrarily deep nesting.
-    /// Returns (base_variable_id, total_byte_offset, inner_struct_id) if successful.
-    fn compute_nested_memory_struct_info(
-        &mut self,
-        base: &hir::Expr<'_>,
-        member: Ident,
-    ) -> Option<(hir::VariableId, u64, hir::StructId)> {
-        // Get the info for the base expression (which should be a struct-typed field)
-        if let Some((var_id, parent_offset, Some(parent_struct_id))) =
-            self.compute_nested_memory_struct_info_with_type(base)
-        {
-            // Find the final member within the parent struct
-            let parent_strukt = self.gcx.hir.strukt(parent_struct_id);
-            for (i, &field_id) in parent_strukt.fields.iter().enumerate() {
-                let field = self.gcx.hir.variable(field_id);
-                if let Some(field_name) = field.name
-                    && field_name.name == member.name
-                {
-                    let field_offset = self.get_struct_field_memory_offset(parent_struct_id, i);
-                    return Some((var_id, parent_offset + field_offset, parent_struct_id));
-                }
-            }
-        }
-
-        // Fallback: try the original 2-level approach for backward compatibility
-        if let ExprKind::Member(inner_base, inner_member) = &base.kind
-            && let ExprKind::Ident(res_slice) = &inner_base.kind
-            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-        {
-            let var = self.gcx.hir.variable(*var_id);
-            if let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) = &var.ty.kind
-                && !self.struct_storage_base_slots.contains_key(var_id)
-            {
-                let strukt = self.gcx.hir.strukt(*struct_id);
-                for (i, &field_id) in strukt.fields.iter().enumerate() {
-                    let field = self.gcx.hir.variable(field_id);
-                    if let Some(field_name) = field.name
-                        && field_name.name == inner_member.name
-                        && let hir::TypeKind::Custom(hir::ItemId::Struct(inner_struct_id)) =
-                            &field.ty.kind
-                    {
-                        let base_offset = self.get_struct_field_memory_offset(*struct_id, i);
-
-                        let inner_strukt = self.gcx.hir.strukt(*inner_struct_id);
-                        for (j, &inner_field_id) in inner_strukt.fields.iter().enumerate() {
-                            let inner_field = self.gcx.hir.variable(inner_field_id);
-                            if let Some(inner_field_name) = inner_field.name
-                                && inner_field_name.name == member.name
-                            {
-                                let inner_offset =
-                                    self.get_struct_field_memory_offset(*inner_struct_id, j);
-                                return Some((
-                                    *var_id,
-                                    base_offset + inner_offset,
-                                    *inner_struct_id,
-                                ));
-                            }
-                        }
-                    }
                 }
             }
         }

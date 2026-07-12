@@ -3412,6 +3412,10 @@ impl EvmCodegen {
             self.asm.emit_push_deferred(addr);
             return;
         }
+        if !self.in_internal_function && !self.in_constructor {
+            self.asm.emit_push(U256::from(LOW_MEMORY_START + offset));
+            return;
+        }
         self.emit_current_internal_frame_addr(offset);
     }
 

@@ -10,18 +10,17 @@ fn @stored(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    v3 = mapping_slot arg0, 0
     v4 = sload v3 !metadata(storage=symbolic(v3))
     mstore 128, v4
     returndata 128, 32
 }
+
 fn @triple(arg0: u256) -> (u256, u256, u256) {
   bb0 (entry):
-    v0 = internal_frame_addr 128
+    v0 = internal_frame_addr 192
     mstore v0, 0 !metadata(memory=internal_frame)
-    v1 = internal_frame_addr 192
+    v1 = internal_frame_addr 224
     mstore v1, 0 !metadata(memory=internal_frame)
     v2 = internal_frame_addr 256
     mstore v2, 0 !metadata(memory=internal_frame)
@@ -70,9 +69,7 @@ fn @assign(arg0: u256, arg1: u256) {
     v7 = mload v6
     v8 = add v5, 64
     v9 = mload v8
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v10 = keccak256 0, 64 !metadata(memory=scratch)
+    v10 = mapping_slot arg0, 0
     sstore v10, v4 !metadata(storage=symbolic(v10))
     mstore 128, v7
     mstore 160, v9
@@ -91,3 +88,4 @@ fn @assign(arg0: u256, arg1: u256) {
     mstore v18, v15
     returndata 128, 128
 }
+
