@@ -3029,12 +3029,24 @@ impl EvmCodegen {
             }
 
             // Ternary operations
-            InstKind::AddMod(a, b, n) => {
-                self.emit_ternary_op(func, *a, *b, *n, op::ADDMOD, result_value)
-            }
-            InstKind::MulMod(a, b, n) => {
-                self.emit_ternary_op(func, *a, *b, *n, op::MULMOD, result_value)
-            }
+            InstKind::AddMod(a, b, n) => self.emit_ternary_op(
+                func,
+                [*n, *b, *a],
+                op::ADDMOD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
+            InstKind::MulMod(a, b, n) => self.emit_ternary_op(
+                func,
+                [*n, *b, *a],
+                op::MULMOD,
+                result_value,
+                liveness,
+                block,
+                inst_idx,
+            ),
 
             // Select is like a ternary conditional
             InstKind::Select(cond, true_val, false_val) => {
@@ -4661,19 +4673,29 @@ impl EvmCodegen {
         self.scheduler.instruction_executed(operands.len(), None);
     }
 
-    /// Emits a ternary operation.
+    /// Emits a ternary operation with liveness awareness.
+    #[allow(clippy::too_many_arguments)]
     fn emit_ternary_op(
         &mut self,
         func: &Function,
-        a: ValueId,
-        b: ValueId,
-        c: ValueId,
+        operands: [ValueId; 3],
         opcode: u8,
         result: Option<ValueId>,
+        liveness: &Liveness,
+        block: BlockId,
+        inst_idx: usize,
     ) {
-        self.emit_value(func, c);
-        self.emit_operand(func, b);
-        self.emit_operand(func, a);
+        for (i, &operand) in operands.iter().enumerate() {
+            if i == 0 {
+                self.emit_value(func, operand);
+            } else {
+                self.emit_operand(func, operand);
+            }
+            let seen = operands[..=i].iter().filter(|&&op| op == operand).count();
+            if !self.block_local_copy_survives(liveness, block, operand, seen) {
+                self.spill_top_value_if_live(func, liveness, block, inst_idx, operand);
+            }
+        }
         self.asm.emit_op(opcode);
         self.scheduler.instruction_executed(3, result);
     }
