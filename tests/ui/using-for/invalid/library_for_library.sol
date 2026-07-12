@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/using_library_for_library.sol
 
 library L {}

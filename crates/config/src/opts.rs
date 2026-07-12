@@ -353,10 +353,6 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_natspec: bool,
 
-    /// Type check the program. WIP.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub typeck: bool,
-
     /// Print MIR after every MIR optimization pass during codegen.
     #[cfg_attr(feature = "clap", arg(long))]
     pub mir_print_after_each: bool,

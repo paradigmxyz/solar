@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract Test {
     uint256 a;
     uint256 b;

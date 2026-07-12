@@ -19,32 +19,22 @@ pub(crate) mod override_checker;
 mod udvt;
 
 pub(crate) fn check(gcx: Gcx<'_>) {
-    let mut typeck_results = None;
+    let mut typeck_results = TypeckResults::default();
     parallel!(gcx.sess, gcx.hir.par_contract_ids().for_each(|id| check_contract(gcx, id)), {
-        if gcx.sess.opts.unstable.typeck
-            || gcx.sess.opts.unstable.codegen
-            || gcx.sess.opts.emit.iter().any(|e| e.is_codegen())
-        {
-            typeck_results = Some(
-                gcx.hir
-                    .par_source_ids()
-                    .map(|id| {
-                        check_source(gcx, id);
-                        // TODO: Parallelize more.
-                        checker::check(gcx, id)
-                    })
-                    .reduce(TypeckResults::default, |mut a, b| {
-                        merge_typeck_results(gcx, &mut a, b);
-                        a
-                    }),
-            );
-        } else {
-            gcx.hir.par_source_ids().for_each(|id| check_source(gcx, id));
-        }
+        typeck_results = gcx
+            .hir
+            .par_source_ids()
+            .map(|id| {
+                check_source(gcx, id);
+                // TODO: Parallelize more.
+                checker::check(gcx, id)
+            })
+            .reduce(TypeckResults::default, |mut a, b| {
+                merge_typeck_results(gcx, &mut a, b);
+                a
+            });
     },);
-    if let Some(typeck_results) = typeck_results {
-        gcx.set_typeck_results(typeck_results);
-    }
+    gcx.set_typeck_results(typeck_results);
 }
 
 fn check_contract(gcx: Gcx<'_>, id: hir::ContractId) {
@@ -579,10 +569,7 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
 mod tests {
     use super::*;
     use crate::{Compiler, hir::ExprKind};
-    use solar_interface::{
-        Session,
-        config::{CompileOpts, UnstableOpts},
-    };
+    use solar_interface::{Session, config::CompileOpts};
     use std::path::PathBuf;
 
     const SOURCE: &str = r#"
@@ -620,14 +607,8 @@ contract D {
         }
     }
 
-    fn binary_expr_types(typeck: bool) -> Vec<Option<String>> {
-        let sess = Session::builder()
-            .opts(CompileOpts {
-                unstable: UnstableOpts { typeck, ..Default::default() },
-                ..Default::default()
-            })
-            .with_test_emitter()
-            .build();
+    fn binary_expr_types() -> Vec<Option<String>> {
+        let sess = Session::builder().opts(CompileOpts::default()).with_test_emitter().build();
         let mut compiler = Compiler::new(sess);
 
         compiler.enter_mut(|c| {
@@ -663,12 +644,7 @@ contract D {
     }
 
     #[test]
-    fn expression_types_are_available_after_typeck() {
-        assert_eq!(binary_expr_types(true), [Some("uint256".to_string()), Some("uint256".into())]);
-    }
-
-    #[test]
-    fn expression_types_are_empty_without_typeck() {
-        assert_eq!(binary_expr_types(false), [None, None]);
+    fn expression_types_are_available_by_default() {
+        assert_eq!(binary_expr_types(), [Some("uint256".to_string()), Some("uint256".into())]);
     }
 }

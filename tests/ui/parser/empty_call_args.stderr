@@ -1,0 +1,14 @@
+error: no matching declarations found
+   ╭▸ ROOT/tests/ui/parser/empty_call_args.sol:LL:CC
+   │
+LL │     revert;
+   ╰╴    ━━━━━━
+
+error: no matching declarations found
+   ╭▸ ROOT/tests/ui/parser/empty_call_args.sol:LL:CC
+   │
+LL │     revert ({ });
+   ╰╴    ━━━━━━
+
+error: aborting due to 2 previous errors
+

@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/array/new_no_parentheses.sol
 
 contract C {

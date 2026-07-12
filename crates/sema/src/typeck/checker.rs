@@ -640,6 +640,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = self.gcx.type_of_hir_ty(hir_ty);
                 if valid_meta_type(ty) {
                     self.gcx.mk_ty(TyKind::Meta(ty))
+                } else if ty.references_error() {
+                    ty
                 } else {
                     self.gcx.mk_ty_err(self.dcx().emit_err(hir_ty.span, "invalid type"))
                 }
@@ -736,6 +738,12 @@ impl<'gcx> TypeChecker<'gcx> {
         } else {
             std::slice::from_ref(&rhs_ty)
         };
+
+        if lhs_types.iter().any(|ty| ty.references_error())
+            || rhs_types.iter().any(|ty| ty.references_error())
+        {
+            return;
+        }
 
         if lhs_components.len() != rhs_types.len() {
             self.dcx().emit_err_label(
@@ -2128,6 +2136,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 len.checked_mul(elem_size)
             }
             TyKind::Struct(id) => {
+                if self.gcx.struct_recursiveness(id).is_recursive() {
+                    return None;
+                }
                 let mut size = U256::ZERO;
                 for &field_ty in self.gcx.struct_field_types(id) {
                     let field_size = if field_ty.is_dynamically_sized() {

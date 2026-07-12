@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract BytesStringTests {
     // Valid: string literal -> bytes memory.
     function testStringLiteralToBytes() public pure returns (bytes memory) {

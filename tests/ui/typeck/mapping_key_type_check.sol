@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 type U is int;
 enum E {
     A,

@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/523_reject_interface_creation.sol
 
 interface I {}

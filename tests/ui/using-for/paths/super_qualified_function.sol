@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/function_from_base_contract_qualified_with_super.sol
 
 contract C {

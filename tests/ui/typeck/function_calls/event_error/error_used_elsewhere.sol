@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/revertStatement/error_used_elsewhere.sol
 
 contract ErrorUsedElsewhere {

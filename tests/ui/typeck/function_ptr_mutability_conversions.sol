@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/conversion/function_type_nonpayable_payable.sol
 // ported-from: test/libsolidity/syntaxTests/conversion/function_type_nonpayable_pure.sol
 // ported-from: test/libsolidity/syntaxTests/conversion/function_type_nonpayable_view.sol

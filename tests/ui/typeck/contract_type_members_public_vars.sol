@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract PublicStateVarBase {
     uint256 public baseVar = 42;
 }

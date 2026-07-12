@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     // Valid: implicit FixedBytes widening and same-size conversion.
     function validImplicitBytesToBytes(bytes1 b1, bytes4 b4) public pure {

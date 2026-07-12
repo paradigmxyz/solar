@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 interface Target {
     function none() external;
     function single(uint256 value) external;

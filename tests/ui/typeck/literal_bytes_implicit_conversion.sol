@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 contract C {
     function f() public pure {
         // --- Valid: literal to fixed-size bytes (equal size) ---

@@ -26,6 +26,7 @@ contract C {
     function b(uint[x] memory) public {}
     function c(uint[x * 2] memory) public {}
     function d(uint[0 - 1] memory) public {} //~ ERROR: array length cannot be negative
+    //~^ ERROR: mismatched types
     function d2(uint[zeroPublic - 1] memory) public {} //~ ERROR: array length cannot be negative
     function d3(uint[2 ** 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
     function d4(uint[1 << 4294967295] memory) public {} //~ ERROR: failed to evaluate constant: arithmetic overflow
@@ -38,7 +39,9 @@ contract C {
 
     function i(uint[block.timestamp] memory) public {} //~ ERROR: failed to evaluate constant: unsupported expression
     function j(uint["lol"] memory) public {} //~ ERROR: failed to evaluate constant: unsupported literal
+    //~^ ERROR: mismatched types
     function k(uint[--x] memory) public {} //~ ERROR: failed to evaluate constant: unsupported unary operation
+    //~^ ERROR: cannot assign to a constant variable
     function l(uint[stateVar] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
     function m(uint[stateVarPublic] memory) public {} //~ ERROR: failed to evaluate constant: only constant variables are allowed
 

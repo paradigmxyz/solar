@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/smtCheckerTests/array_members/push_as_lhs_2d.sol
 // ported-from: test/libsolidity/smtCheckerTests/array_members/push_as_lhs_3d.sol
 

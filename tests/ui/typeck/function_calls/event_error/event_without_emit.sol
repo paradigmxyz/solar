@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/events/event_without_emit_deprecated.sol
 // ported-from: test/libsolidity/syntaxTests/events/multiple_event_without_emit.sol
 

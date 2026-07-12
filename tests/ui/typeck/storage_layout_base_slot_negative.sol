@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/layout_specification_underflow_value.sol
 // ported-from: test/libsolidity/syntaxTests/storageLayoutSpecifier/negative_number.sol
 

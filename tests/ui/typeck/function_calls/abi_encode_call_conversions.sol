@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 interface Target {
     function takesMemoryFunction(function(string memory) external callback) external;
     function takesCalldataFunction(function(string calldata) external callback) external;

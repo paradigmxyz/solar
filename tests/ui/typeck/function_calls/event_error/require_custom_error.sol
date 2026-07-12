@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract RequireCustomError {
     error EmptyError();
     error MyError(uint code, string message);

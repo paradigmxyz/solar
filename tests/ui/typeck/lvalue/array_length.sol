@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract Test {
     uint256[] dynamicArray;
     uint256[10] fixedArray;

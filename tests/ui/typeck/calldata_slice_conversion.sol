@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // A calldata `bytes` slice (`data[i:j]`) converts like `bytes`: to fixed-bytes,
 // `bytes`, or `string`. Converting to `bytes`/`string` keeps the calldata
 // location (the result is a view), so it assigns to a calldata variable.

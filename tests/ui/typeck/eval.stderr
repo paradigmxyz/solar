@@ -127,5 +127,23 @@ error: failed to evaluate constant: arithmetic overflow
 LL │     uint[bigLiteral + 1] public tooBig1;
    ╰╴         ━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: aborting due to 20 previous errors
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function d(uint[0 - 1] memory) public {}
+   ╰╴                    ━━━━━ expected `uint256`, found `int_literal[1]`
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function j(uint["lol"] memory) public {}
+   ╰╴                    ━━━━━ expected `uint256`, found `utf8_string_literal[3]`
+
+error: cannot assign to a constant variable
+   ╭▸ ROOT/tests/ui/typeck/eval.sol:LL:CC
+   │
+LL │     function k(uint[--x] memory) public {}
+   ╰╴                      ━
+
+error: aborting due to 23 previous errors
 

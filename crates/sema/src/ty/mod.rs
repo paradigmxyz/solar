@@ -523,8 +523,7 @@ impl<'gcx> Gcx<'gcx> {
 
     /// Returns the type inferred for the given expression, if available.
     ///
-    /// Expression types are populated by the experimental type checker, which runs when `-Ztypeck`
-    /// or `-Zcodegen` is enabled, or when a codegen output was requested.
+    /// Expression types are populated by the type checker.
     #[inline]
     pub fn type_of_expr(self, id: hir::ExprId) -> Option<Ty<'gcx>> {
         self.typeck_results.get()?.type_of_expr(id)
@@ -989,7 +988,22 @@ impl<'gcx> Gcx<'gcx> {
                 })
             }
             solar_ast::LitKind::Rational(_) => {
-                self.mk_ty_err(self.dcx().emit_err(lit.span, "rational literals are not supported"))
+                let value = lit.symbol.as_str();
+                if value.ends_with('_')
+                    || value.contains("__")
+                    || value.contains("._")
+                    || value.contains("_.")
+                    || value.contains("_e")
+                    || value.contains("_E")
+                    || value.contains("e_")
+                    || value.contains("E_")
+                {
+                    self.mk_ty_misc_err()
+                } else {
+                    self.mk_ty_err(
+                        self.dcx().emit_err(lit.span, "rational literals are not supported"),
+                    )
+                }
             }
             solar_ast::LitKind::Address(_) => self.types.address,
             solar_ast::LitKind::Bool(_) => self.types.bool,

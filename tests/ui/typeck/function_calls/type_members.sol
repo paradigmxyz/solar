@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/semanticTests/libraries/library_function_selectors.sol
 // ported-from: test/libsolidity/smtCheckerTests/function_selector/function_selector_via_contract_name.sol
 // ported-from: test/libsolidity/syntaxTests/functionTypes/external_library_function_to_external_function_type.sol

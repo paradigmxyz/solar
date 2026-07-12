@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/functionCalls/calloptions_on_delegatecall.sol
 // ported-from: test/libsolidity/syntaxTests/functionCalls/calloptions_on_staticcall.sol
 // ported-from: test/libsolidity/smtCheckerTests/external_calls/external_call_with_gas_1.sol
