@@ -172,6 +172,71 @@ function set(uint256 first, uint256 second) public pure
 }
 
 #[test]
+fn shows_help_for_an_incomplete_call_on_initial_analysis() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function target(uint256 amount, address account)
+                internal
+                view
+                returns (uint256)
+            {
+                return amount + uint256(uint160(account));
+            }
+
+            function use() public view returns (uint256) {
+                return target(1, $1
+        "#,
+        "/Signature.sol",
+    );
+
+    fixture.check_signature_help(
+        "$1",
+        str![[r#"
+active signature=Some(0) parameter=Some(1)
+function target(uint256 amount, address account) internal view returns (uint256)
+  16..30
+  32..47
+
+"#]],
+    );
+}
+
+#[test]
+fn resolves_an_incomplete_member_call_on_initial_analysis() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Signature.sol open
+        contract A {
+            function select(uint256 value) external pure {}
+        }
+
+        contract B {
+            function select(address value) external pure {}
+        }
+
+        contract C {
+            function use(A a) public {
+                a.select($1
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+
+    fixture.check_signature_help(
+        "$1",
+        str![[r#"
+active signature=Some(0) parameter=Some(0)
+function select(uint256 value) external pure
+  16..29
+
+"#]],
+    );
+}
+
+#[test]
 fn does_not_reuse_a_stale_call_site_after_the_callee_changes() {
     let fixture = RequestFixture::new(
         r#"

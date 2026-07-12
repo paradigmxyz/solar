@@ -437,6 +437,7 @@ fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     compiler.enter_mut(move |compiler| {
         {
             let mut parsing_context = compiler.parse();
+            parsing_context.set_recover_incomplete_input(true);
             let files = batch
                 .files
                 .into_iter()
