@@ -1,0 +1,2 @@
+error: invalid MIR input:
+  [bb0, inst0] [fn0] use of ValueId(0) precedes its definition in this acyclic block
