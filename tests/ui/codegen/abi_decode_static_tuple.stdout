@@ -43,7 +43,6 @@ fn @decode(arg0: memptr) {
   bb5:
     revert 0, 0
   bb6:
-    mstore 32, v20 !metadata(memory=scratch)
     v23 = add v15, 64
     v24 = mload v23
     v25 = and v24, 0xffffffffffffffffffffffffffffffffffffffff
@@ -53,14 +52,22 @@ fn @decode(arg0: memptr) {
   bb7:
     revert 0, 0
   bb8:
-    mstore 64, v25 !metadata(memory=scratch)
-    v28 = mload 32 !metadata(memory=scratch)
-    v29 = mload 64 !metadata(memory=scratch)
+    v28 = mload 64 !metadata(memory=scratch)
+    v29 = add v28, 32
+    mstore v29, v20
+    v30 = add v28, 64
+    mstore v30, v25
+    mstore 32, v28 !metadata(memory=scratch)
+    v31 = mload 32 !metadata(memory=scratch)
+    v32 = add v31, 32
+    v33 = mload v32
+    v34 = add v31, 64
+    v35 = mload v34
     mstore 128, v16
-    v30 = add 128, 32
-    mstore v30, v28
-    v31 = add 128, 64
-    mstore v31, v29
+    v36 = add 128, 32
+    mstore v36, v33
+    v37 = add 128, 64
+    mstore v37, v35
     returndata 128, 96
 }
 

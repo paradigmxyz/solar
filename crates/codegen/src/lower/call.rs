@@ -1255,9 +1255,10 @@ impl<'gcx> Lowerer<'gcx> {
                 let ret_size = builder.imm_u64(struct_size);
                 (struct_ptr, ret_size, Some(struct_ptr))
             } else {
-                // For non-struct returns: use scratch space at offset 0
-                // (safe because we're done with calldata after the CALL)
-                let ret_offset = builder.imm_u64(0);
+                // Reuse the unbumped calldata allocation for return data. CALL
+                // has consumed the input before writing output, and the base
+                // remains published in the multi-return pointer scratch word.
+                let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
                 let ret_size = builder.imm_u64((num_returns * 32) as u64);
                 (ret_offset, ret_size, None)
             };
@@ -1299,8 +1300,8 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Load first return value from memory
-        // Note: for multi-return calls, lower_multi_var_decl will read additional values
-        // from memory at offsets 32, 64, etc.
+        // Multi-return consumers snapshot additional words from the ephemeral
+        // buffer at `ret_offset` before lowering any lvalues.
         builder.mload(ret_offset)
     }
 
@@ -1964,7 +1965,8 @@ impl<'gcx> Lowerer<'gcx> {
         let four = builder.imm_u64(4);
         let total_size = builder.add(four, tail_off);
 
-        // Return area: scratch words at 0, or an allocation for struct returns.
+        // Return area: reuse the unbumped calldata allocation for value-type
+        // returns, or append an allocation for struct returns.
         let (ret_offset, ret_size, struct_ptr_opt) =
             if let Some((_struct_id, field_count)) = struct_return_info {
                 let struct_size = field_count as u64 * 32;
@@ -1974,7 +1976,8 @@ impl<'gcx> Lowerer<'gcx> {
                 builder.mstore(free_ptr_addr, new_free_ptr);
                 (struct_ptr, builder.imm_u64(struct_size), Some(struct_ptr))
             } else {
-                (builder.imm_u64(0), builder.imm_u64(num_returns as u64 * 32), None)
+                let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };
+                (ret_offset, builder.imm_u64(num_returns as u64 * 32), None)
             };
 
         let calldata_size = total_size;
@@ -1999,8 +2002,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(struct_ptr) = struct_ptr_opt {
             return struct_ptr;
         }
-        let ret_base = builder.imm_u64(0);
-        builder.mload(ret_base)
+        builder.mload(ret_offset)
     }
 
     /// Lowers an internal library function call by inlining it.
@@ -2334,19 +2336,11 @@ impl<'gcx> Lowerer<'gcx> {
         let result = if let Some(value) = self.lower_library_block_return(builder, body) {
             value
         } else {
-            // Implicit named returns: the body assigned the named return variables
-            // (e.g. `success = ...; result = ...;` with no explicit `return`). Write
-            // returns 1..N to scratch memory at offset `i * 32` so the caller's
-            // `lower_multi_var_decl` (which reads `mload(i * 32)`) recovers them; the
-            // first return flows back as the MIR value below.
-            if func.returns.len() > 1 {
-                for (i, &return_id) in func.returns.iter().enumerate().skip(1) {
-                    if let Some(&value) = self.locals.get(&return_id) {
-                        let offset = builder.imm_u64((i * 32) as u64);
-                        builder.mstore(offset, value);
-                    }
-                }
-            }
+            // Implicit named returns: stage returns 2..N in the ephemeral
+            // multi-return buffer; the first return flows back as MIR value.
+            let return_values: Vec<_> =
+                func.returns.iter().filter_map(|id| self.locals.get(id).copied()).collect();
+            self.stage_multi_return_tail(builder, &return_values);
 
             if let Some(&return_id) = func.returns.first()
                 && let Some(&value) = self.locals.get(&return_id)
@@ -2381,7 +2375,19 @@ impl<'gcx> Lowerer<'gcx> {
         stmt: &hir::Stmt<'_>,
     ) -> Option<ValueId> {
         match &stmt.kind {
-            hir::StmtKind::Return(Some(expr)) => Some(self.lower_expr(builder, expr)),
+            hir::StmtKind::Return(Some(expr)) => {
+                if let hir::ExprKind::Tuple(elements) = &expr.kind {
+                    let values: Vec<_> = elements
+                        .iter()
+                        .flatten()
+                        .map(|element| self.lower_expr(builder, element))
+                        .collect();
+                    self.stage_multi_return_tail(builder, &values);
+                    values.first().copied()
+                } else {
+                    Some(self.lower_expr(builder, expr))
+                }
+            }
             hir::StmtKind::Return(None) => Some(builder.imm_u64(0)),
             hir::StmtKind::DeclSingle(var_id) => {
                 let var = self.gcx.hir.variable(*var_id);

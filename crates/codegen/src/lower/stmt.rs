@@ -1,7 +1,10 @@
 //! Statement lowering.
 
 use super::{LoopContext, Lowerer};
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::{
+    MULTI_RETURN_BUFFER_PTR_SLOT,
+    mir::{FunctionBuilder, ValueId},
+};
 use alloy_primitives::U256;
 use solar_interface::{Span, kw};
 use solar_sema::{
@@ -403,8 +406,8 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Lowers a multi-variable declaration.
-    /// For external calls with multiple returns, the return data is written to memory
-    /// at offsets 0, 32, 64, etc. after the CALL instruction.
+    /// Multi-return expressions leave their first value in MIR and stage the
+    /// remaining values in the ephemeral multi-return buffer.
     pub(super) fn lower_multi_var_decl(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -427,23 +430,35 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
 
-        // lower_expr for an external call returns the first value (from memory offset 0)
-        // and leaves additional return values at memory offsets 32, 64, etc.
+        // Snapshot every bound tail value before storing any local. This keeps
+        // the unbumped return buffer independent of subsequent memory writes.
         let first_val = self.lower_expr(builder, init);
+        let tail_base = var_ids.iter().skip(1).any(Option::is_some).then(|| {
+            let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+            builder.mload(ptr_slot)
+        });
+        let vals: Vec<Option<ValueId>> = var_ids
+            .iter()
+            .enumerate()
+            .map(|(i, var_id)| {
+                var_id.map(|_| {
+                    if i == 0 {
+                        first_val
+                    } else {
+                        let offset = builder.imm_u64(i as u64 * 32);
+                        let addr = builder.add(tail_base.expect("tail base is available"), offset);
+                        builder.mload(addr)
+                    }
+                })
+            })
+            .collect();
 
-        for (i, var_id_opt) in var_ids.iter().enumerate() {
+        for (var_id_opt, val) in var_ids.iter().zip(vals) {
             if let Some(var_id) = var_id_opt {
-                let val = if i == 0 {
-                    first_val
-                } else {
-                    // Read additional return values from memory at offset i * 32
-                    let mem_offset = builder.imm_u64((i * 32) as u64);
-                    builder.mload(mem_offset)
-                };
                 // Allocate memory slot and store value
                 let offset = self.alloc_local_memory(*var_id);
                 let offset_val = self.local_memory_addr(builder, offset);
-                builder.mstore(offset_val, val);
+                builder.mstore(offset_val, val.expect("bound variable has a value"));
             }
         }
     }
@@ -486,19 +501,94 @@ impl<'gcx> Lowerer<'gcx> {
             return;
         }
 
-        // A call returning multiple values leaves the first in the returned MIR
-        // value and the rest at memory offsets 32, 64, ...
+        // Snapshot every tail value before assigning the first lvalue. Mapping
+        // and other complex lvalues may use scratch memory while computing
+        // their destination and must not corrupt later tuple elements.
         let first_val = self.lower_expr(builder, rhs);
-        for (i, &elem) in elements.iter().enumerate() {
+        let tail_base = elements.iter().skip(1).any(Option::is_some).then(|| {
+            let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+            builder.mload(ptr_slot)
+        });
+        let vals: Vec<Option<ValueId>> = elements
+            .iter()
+            .enumerate()
+            .map(|(i, elem)| {
+                elem.map(|_| {
+                    if i == 0 {
+                        first_val
+                    } else {
+                        let offset = builder.imm_u64(i as u64 * 32);
+                        let addr = builder.add(tail_base.expect("tail base is available"), offset);
+                        builder.mload(addr)
+                    }
+                })
+            })
+            .collect();
+        for (&elem, val) in elements.iter().zip(vals) {
             let Some(elem) = elem else { continue };
-            let val = if i == 0 {
-                first_val
-            } else {
-                let mem_offset = builder.imm_u64((i * 32) as u64);
-                builder.mload(mem_offset)
-            };
-            self.lower_assign(builder, elem, val);
+            self.lower_assign(builder, elem, val.expect("tuple element has a value"));
         }
+    }
+
+    /// Stages return values 2..N at the unbumped free-memory pointer and
+    /// publishes the buffer base through [`MULTI_RETURN_BUFFER_PTR_SLOT`].
+    pub(super) fn stage_multi_return_tail(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        values: &[ValueId],
+    ) {
+        if values.len() <= 1 {
+            return;
+        }
+        self.stage_multi_return_values_from(builder, values, 1);
+    }
+
+    /// Stages every value for a control-flow expression whose first result
+    /// must also cross a block boundary through the return buffer.
+    pub(super) fn stage_multi_return_values(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        values: &[ValueId],
+    ) {
+        self.stage_multi_return_values_from(builder, values, 0);
+    }
+
+    fn stage_multi_return_values_from(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        values: &[ValueId],
+        start: usize,
+    ) {
+        let free_ptr_slot = builder.imm_u64(0x40);
+        let base = builder.mload(free_ptr_slot);
+        for (i, &value) in values.iter().enumerate().skip(start) {
+            let offset = builder.imm_u64(i as u64 * 32);
+            let addr = builder.add(base, offset);
+            builder.mstore(addr, value);
+        }
+        let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+        builder.mstore(ptr_slot, base);
+    }
+
+    /// Loads the base published by the latest multi-return producer.
+    pub(super) fn multi_return_buffer_base(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+    ) -> ValueId {
+        let ptr_slot = builder.imm_u64(MULTI_RETURN_BUFFER_PTR_SLOT);
+        builder.mload(ptr_slot)
+    }
+
+    /// Loads return value `index` from an already-snapshotted buffer base.
+    pub(super) fn load_multi_return_value(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        base: ValueId,
+        index: usize,
+    ) -> ValueId {
+        let offset = builder.imm_u64(index as u64 * 32);
+        let addr = builder.add(base, offset);
+        builder.mload(addr)
     }
 
     pub(super) fn is_low_level_call_expr(&self, expr: &hir::Expr<'_>) -> bool {
@@ -718,11 +808,14 @@ impl<'gcx> Lowerer<'gcx> {
                     .collect();
                 builder.ret(ret_vals);
             } else if let Some(arity) = self.get_ternary_tuple_arity(expr) {
-                let _ = self.lower_expr(builder, expr);
-                let mut ret_vals = Vec::new();
-                for i in 0..arity {
-                    let offset = builder.imm_u64(i as u64 * 32);
-                    ret_vals.push(builder.mload(offset));
+                let first = self.lower_expr(builder, expr);
+                let mut ret_vals = Vec::with_capacity(arity);
+                ret_vals.push(first);
+                if arity > 1 {
+                    let base = self.multi_return_buffer_base(builder);
+                    for i in 1..arity {
+                        ret_vals.push(self.load_multi_return_value(builder, base, i));
+                    }
                 }
                 builder.ret(ret_vals);
             } else {
@@ -731,9 +824,9 @@ impl<'gcx> Lowerer<'gcx> {
                 if n > 1 {
                     let mut ret_vals = Vec::with_capacity(n);
                     ret_vals.push(ret_val);
+                    let base = self.multi_return_buffer_base(builder);
                     for i in 1..n {
-                        let offset = builder.imm_u64((i * 32) as u64);
-                        ret_vals.push(builder.mload(offset));
+                        ret_vals.push(self.load_multi_return_value(builder, base, i));
                     }
                     builder.ret(ret_vals);
                 } else {
@@ -749,10 +842,14 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn get_ternary_tuple_arity(&self, expr: &hir::Expr<'_>) -> Option<usize> {
         if let hir::ExprKind::Ternary(_, then_expr, else_expr) = &expr.kind {
             // Check if either branch is a tuple
-            if let hir::ExprKind::Tuple(elements) = &then_expr.kind {
+            if let hir::ExprKind::Tuple(elements) = &then_expr.kind
+                && elements.len() > 1
+            {
                 return Some(elements.len());
             }
-            if let hir::ExprKind::Tuple(elements) = &else_expr.kind {
+            if let hir::ExprKind::Tuple(elements) = &else_expr.kind
+                && elements.len() > 1
+            {
                 return Some(elements.len());
             }
         }

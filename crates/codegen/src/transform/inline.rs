@@ -19,6 +19,7 @@
 //! - `O2`: Aggressive inlining (larger threshold, loop-aware)
 
 use crate::{
+    MULTI_RETURN_BUFFER_PTR_SLOT,
     analysis::LoopAnalyzer,
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
@@ -1606,12 +1607,37 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
         .count();
 
+    let free_ptr_slot =
+        caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
+    let base_load = caller.alloc_inst(Instruction::new(
+        InstKind::MLoad(free_ptr_slot),
+        Some(MirType::uint256()),
+    ));
+    let base = caller.alloc_value(Value::Inst(base_load));
+    let mut insert_at = phi_count;
+    caller.blocks[continuation].instructions.insert(insert_at, base_load);
+    insert_at += 1;
+
     for (index, &value) in values.iter().enumerate() {
-        let offset = caller
-            .alloc_value(Value::Immediate(Immediate::uint256(U256::from((index as u64 + 1) * 32))));
-        let store = caller.alloc_inst(Instruction::new(InstKind::MStore(offset, value), None));
-        caller.blocks[continuation].instructions.insert(phi_count + index, store);
+        let offset = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
+            (index as u64 + 1) * 32,
+        ))));
+        let addr = caller.alloc_inst(Instruction::new(
+            InstKind::Add(base, offset),
+            Some(MirType::uint256()),
+        ));
+        let addr_value = caller.alloc_value(Value::Inst(addr));
+        let store = caller.alloc_inst(Instruction::new(InstKind::MStore(addr_value, value), None));
+        caller.blocks[continuation].instructions.insert(insert_at, addr);
+        caller.blocks[continuation].instructions.insert(insert_at + 1, store);
+        insert_at += 2;
     }
+
+    let ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(
+        MULTI_RETURN_BUFFER_PTR_SLOT,
+    ))));
+    let publish = caller.alloc_inst(Instruction::new(InstKind::MStore(ptr_slot, base), None));
+    caller.blocks[continuation].instructions.insert(insert_at, publish);
 }
 
 fn redirect_phi_predecessors(

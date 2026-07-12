@@ -1086,7 +1086,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers a ternary conditional expression with proper branching.
     /// This handles both scalar and tuple returns correctly by using control flow
-    /// instead of select, and storing multi-value results in scratch memory.
+    /// instead of select, and staging multi-value results in the return buffer.
     fn lower_ternary(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
@@ -1095,11 +1095,12 @@ impl<'gcx> Lowerer<'gcx> {
         else_expr: &hir::Expr<'_>,
     ) -> ValueId {
         // Determine if this is a tuple-typed ternary by checking if either branch is a tuple
-        let is_tuple = matches!(then_expr.kind, ExprKind::Tuple(_))
-            || matches!(else_expr.kind, ExprKind::Tuple(_));
+        let is_tuple = matches!(&then_expr.kind, ExprKind::Tuple(elements) if elements.len() > 1)
+            || matches!(&else_expr.kind, ExprKind::Tuple(elements) if elements.len() > 1);
 
         if is_tuple {
-            // For tuple ternaries, use branching to write values to scratch memory
+            // For tuple ternaries, use branching to stage values in the
+            // ephemeral multi-return buffer.
             let cond_val = self.lower_expr(builder, cond);
 
             let then_block = builder.create_block();
@@ -1110,18 +1111,18 @@ impl<'gcx> Lowerer<'gcx> {
 
             // Then block: evaluate then_expr and write tuple elements to memory
             builder.switch_to_block(then_block);
-            self.lower_tuple_to_scratch(builder, then_expr);
+            self.lower_tuple_to_multi_return_buffer(builder, then_expr);
             builder.jump(merge_block);
 
             // Else block: evaluate else_expr and write tuple elements to memory
             builder.switch_to_block(else_block);
-            self.lower_tuple_to_scratch(builder, else_expr);
+            self.lower_tuple_to_multi_return_buffer(builder, else_expr);
             builder.jump(merge_block);
 
-            // Merge block: load first value from scratch memory
+            // Merge block: load the first value from the selected buffer.
             builder.switch_to_block(merge_block);
-            let zero = builder.imm_u64(0);
-            builder.mload(zero)
+            let base = self.multi_return_buffer_base(builder);
+            self.load_multi_return_value(builder, base, 0)
         } else {
             // For non-tuple ternaries, still use branching for correct semantics
             // (only one branch should be evaluated for side effects)
@@ -1154,23 +1155,22 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    /// Lowers a tuple expression by writing all elements to scratch memory.
-    /// Element i is stored at offset i*32.
-    fn lower_tuple_to_scratch(&mut self, builder: &mut FunctionBuilder<'_>, expr: &hir::Expr<'_>) {
-        if let ExprKind::Tuple(elements) = &expr.kind {
-            for (i, elem_opt) in elements.iter().enumerate() {
-                if let Some(elem) = elem_opt {
-                    let val = self.lower_expr(builder, elem);
-                    let offset = builder.imm_u64(i as u64 * 32);
-                    builder.mstore(offset, val);
-                }
-            }
+    /// Lowers a tuple expression by evaluating every element before staging
+    /// the values in the ephemeral multi-return buffer.
+    fn lower_tuple_to_multi_return_buffer(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        expr: &hir::Expr<'_>,
+    ) {
+        let values = if let ExprKind::Tuple(elements) = &expr.kind {
+            elements
+                .iter()
+                .filter_map(|elem| elem.map(|elem| self.lower_expr(builder, elem)))
+                .collect::<Vec<_>>()
         } else {
-            // Not a tuple - just store single value at offset 0
-            let val = self.lower_expr(builder, expr);
-            let zero = builder.imm_u64(0);
-            builder.mstore(zero, val);
-        }
+            vec![self.lower_expr(builder, expr)]
+        };
+        self.stage_multi_return_values(builder, &values);
     }
 
     /// Lowers a binary-operator operand, left-aligning a bare numeric literal
@@ -1744,7 +1744,7 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Lowers `abi.decode(data, (T...))` for elementary values from memory
     /// `bytes`: the first decoded value is returned and additional values are
-    /// written to the same scratch slots used by multi-return calls. Dynamic
+    /// staged in the same ephemeral buffer used by multi-return calls. Dynamic
     /// `bytes`/`string` values are copied into fresh memory bytes.
     ///
     /// Like solc, a word that is not a clean value of `T` reverts with empty
@@ -1787,7 +1787,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_abi_decode_revert_if(builder, is_short);
 
         let data_start = builder.add(ptr, word);
-        let mut first = None;
+        let mut decoded_values = Vec::with_capacity(elems.len());
         for (i, elem) in elems.iter().enumerate() {
             let addr = self.offset_ptr(builder, data_start, (i * 32) as u64);
             let value = builder.mload(addr);
@@ -1796,14 +1796,10 @@ impl<'gcx> Lowerer<'gcx> {
             } else {
                 self.lower_abi_decode_word(builder, elem, value)
             };
-            if i == 0 {
-                first = Some(decoded);
-            } else {
-                let out = builder.imm_u64((i * 32) as u64);
-                builder.mstore(out, decoded);
-            }
+            decoded_values.push(decoded);
         }
-        first.unwrap_or_else(|| builder.imm_u64(0))
+        self.stage_multi_return_tail(builder, &decoded_values);
+        decoded_values.first().copied().unwrap_or_else(|| builder.imm_u64(0))
     }
 
     fn abi_decode_elementary_types(

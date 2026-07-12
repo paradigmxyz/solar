@@ -14,7 +14,7 @@ use super::{
     },
 };
 use crate::{
-    IMMUTABLE_SCRATCH_BASE,
+    IMMUTABLE_SCRATCH_BASE, MULTI_RETURN_BUFFER_PTR_SLOT,
     analysis::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
         PhiEliminator,
@@ -3917,17 +3917,27 @@ impl EvmCodegen {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         }
 
-        // Copy return values 2..N from the callee frame into scratch memory at
-        // offset `i * 32`, matching what the caller's `lower_multi_var_decl`
-        // reads via `mload(i * 32)`. This must happen before the frame pointer is
-        // restored below, while the callee frame is still addressable. The first
-        // return flows back as `result` on the stack (above); these copies have a
-        // net-zero stack effect so they leave it untouched.
-        for i in 1..returns {
-            self.emit_current_internal_frame_addr(64 + (args.len() as u64) * 32 + (i as u64) * 32);
+        // Copy returns 2..N to an ephemeral buffer at the current free-memory
+        // pointer. Keep the base below the loop and publish it through the
+        // dedicated scratch word afterwards; the first return stays on the
+        // stack. This happens before restoring the frame pointer while the
+        // callee frame remains addressable.
+        if returns > 1 {
+            self.asm.emit_push(U256::from(0x40));
             self.asm.emit_op(op::MLOAD);
-            self.asm.emit_push(U256::from((i as u64) * 32));
+            self.asm.emit_push(U256::from(MULTI_RETURN_BUFFER_PTR_SLOT));
             self.asm.emit_op(op::MSTORE);
+            for i in 1..returns {
+                self.emit_current_internal_frame_addr(
+                    64 + (args.len() as u64) * 32 + (i as u64) * 32,
+                );
+                self.asm.emit_op(op::MLOAD);
+                self.asm.emit_push(U256::from(MULTI_RETURN_BUFFER_PTR_SLOT));
+                self.asm.emit_op(op::MLOAD);
+                self.asm.emit_push(U256::from((i as u64) * 32));
+                self.asm.emit_op(op::ADD);
+                self.asm.emit_op(op::MSTORE);
+            }
         }
 
         // Deallocate the callee frame in strict LIFO order by restoring the
@@ -4038,13 +4048,23 @@ impl EvmCodegen {
             self.spill_top_value_if_live(func, liveness, block, inst_idx, result);
         }
 
-        // Copy return values 2..N into scratch, matching the dynamic path.
-        for i in 1..returns {
-            let addr = self.static_frame_addr(callee, 64 + ((args.len() + i) as u64) * 32);
-            self.asm.emit_push_deferred(addr);
+        // Copy return values 2..N into the same ephemeral buffer as the
+        // dynamic-frame path.
+        if returns > 1 {
+            self.asm.emit_push(U256::from(0x40));
             self.asm.emit_op(op::MLOAD);
-            self.asm.emit_push(U256::from((i as u64) * 32));
+            self.asm.emit_push(U256::from(MULTI_RETURN_BUFFER_PTR_SLOT));
             self.asm.emit_op(op::MSTORE);
+            for i in 1..returns {
+                let addr = self.static_frame_addr(callee, 64 + ((args.len() + i) as u64) * 32);
+                self.asm.emit_push_deferred(addr);
+                self.asm.emit_op(op::MLOAD);
+                self.asm.emit_push(U256::from(MULTI_RETURN_BUFFER_PTR_SLOT));
+                self.asm.emit_op(op::MLOAD);
+                self.asm.emit_push(U256::from((i as u64) * 32));
+                self.asm.emit_op(op::ADD);
+                self.asm.emit_op(op::MSTORE);
+            }
         }
     }
 

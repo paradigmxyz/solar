@@ -35,18 +35,20 @@ fn @sat(arg0: u256, arg1: u256) {
   bb2:
     mstore 128, 0
     v3 = internal_call @tryAdd, 2, arg0, arg1
-    mstore 160, v3
     v4 = mload 32 !metadata(memory=scratch)
-    mstore 192, v4
-    v5 = mload 160
-    v6 = iszero v5
-    br v6, bb3, bb4
+    v5 = add v4, 32
+    v6 = mload v5
+    mstore 160, v3
+    mstore 192, v6
+    v7 = mload 160
+    v8 = iszero v7
+    br v8, bb3, bb4
   bb3:
     mstore 128, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
     returndata 128, 32
   bb4:
-    v7 = mload 192
-    mstore 128, v7
+    v9 = mload 192
+    mstore 128, v9
     returndata 128, 32
 }
 
@@ -85,9 +87,11 @@ fn @tryA(arg0: u256, arg1: u256) {
     mstore 160, 0
     v3 = internal_call @tryAdd, 2, arg0, arg1
     v4 = mload 32 !metadata(memory=scratch)
+    v5 = add v4, 32
+    v6 = mload v5
     mstore 128, v3
-    v5 = add 128, 32
-    mstore v5, v4
+    v7 = add 128, 32
+    mstore v7, v6
     returndata 128, 64
 }
 
