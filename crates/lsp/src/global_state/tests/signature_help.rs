@@ -268,6 +268,27 @@ function bar(address value) public pure
 }
 
 #[test]
+fn does_not_reuse_a_stale_signature_after_the_declaration_changes() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract C {
+            function foo(uint256 value) public pure {}
+
+            function use() public pure {
+                foo($1 1);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let changed =
+        fixture.project_contents("/Signature.sol").replace("function foo(", "function bar(");
+
+    fixture.check_signature_help_after_change("$1", "/Signature.sol", &changed, "<none>\n");
+}
+
+#[test]
 fn does_not_reuse_a_stale_member_call_after_the_receiver_changes() {
     let fixture = RequestFixture::new(
         r#"

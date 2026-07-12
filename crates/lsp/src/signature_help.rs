@@ -101,6 +101,12 @@ impl SignatureHelpIndex {
     }
 
     pub(crate) fn retain_failed_files(&mut self, previous: &Self, uris: &[Url]) {
+        let indexed_origins = self
+            .callables_by_name
+            .values()
+            .flatten()
+            .filter_map(|entry| entry.origin.clone())
+            .collect::<FxHashSet<_>>();
         for uri in uris {
             let Some(previous_calls) = previous.calls.get(uri) else { continue };
             let mut current_starts = self
@@ -115,6 +121,14 @@ impl SignatureHelpIndex {
                     continue;
                 }
                 let mut call = previous_call.clone();
+                call.signatures.retain(|signature| {
+                    self.signatures_by_label
+                        .get(&signature.information.label)
+                        .is_some_and(|candidates| candidates.contains(signature))
+                });
+                if call.signatures.is_empty() {
+                    continue;
+                }
                 for signature in &mut call.signatures {
                     *signature = self.intern_shared_signature(signature.clone());
                 }
@@ -124,9 +138,18 @@ impl SignatureHelpIndex {
                 calls.sort_by_key(|call| range_size_key(call.range));
             }
         }
+        // Parsing failures can leave a file without a new catalog, so keep its old fallback
+        // entries.
         for (name, entries) in &previous.callables_by_name {
             for entry in entries {
-                if entry.origin.as_ref().is_some_and(|origin| uris.contains(origin)) {
+                if let Some(origin) = &entry.origin
+                    && uris.contains(origin)
+                    && (!indexed_origins.contains(origin)
+                        || self
+                            .signatures_by_label
+                            .get(&entry.signature.information.label)
+                            .is_some_and(|candidates| candidates.contains(&entry.signature)))
+                {
                     self.push_shared_callable(
                         name.clone(),
                         entry.origin.clone(),
@@ -1114,7 +1137,8 @@ mod tests {
     #[test]
     fn failed_file_retention_merges_missing_call_sites() {
         let uri = Url::parse("file:///Signature.sol").unwrap();
-        let signature = Arc::new(test_signature("function f(uint256)", vec![None]));
+        let mut current = SignatureHelpIndex::default();
+        let signature = current.intern_signature(test_signature("function f(uint256)", vec![None]));
         let first = CallSite {
             range: Range::new(Position::new(1, 1), Position::new(1, 4)),
             callee_range: Range::new(Position::new(1, 0), Position::new(1, 1)),
@@ -1131,7 +1155,6 @@ mod tests {
         };
         let mut previous = SignatureHelpIndex::default();
         previous.calls.insert(uri.clone(), vec![first.clone(), second]);
-        let mut current = SignatureHelpIndex::default();
         current.calls.insert(uri.clone(), vec![first]);
 
         current.retain_failed_files(&previous, std::slice::from_ref(&uri));
