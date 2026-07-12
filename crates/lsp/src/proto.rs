@@ -21,22 +21,25 @@ pub(crate) fn text_offset(rope: &Rope, position: lsp_types::Position) -> Option<
         return Some(rope.byte_len());
     }
 
-    let mut contents = rope.line(line).to_string();
-    if contents.ends_with('\r') {
-        contents.pop();
+    let line_start = rope.byte_of_line(line);
+    let mut contents = rope.line(line);
+    if contents.bytes().next_back() == Some(b'\r') {
+        contents = contents.byte_slice(..contents.byte_len() - 1);
     }
     let target = position.character as usize;
     let mut utf16 = 0;
-    for (byte, ch) in contents.char_indices() {
+    let mut byte = 0;
+    for ch in contents.chars() {
         if utf16 == target {
-            return Some(rope.byte_of_line(line) + byte);
+            return Some(line_start + byte);
         }
         utf16 += ch.len_utf16();
         if utf16 > target {
             return None;
         }
+        byte += ch.len_utf8();
     }
-    Some(rope.byte_of_line(line) + contents.len())
+    Some(line_start + contents.byte_len())
 }
 
 /// Converts an [`lsp_types::Range`] to a [`Range`].
@@ -157,5 +160,18 @@ mod tests {
         assert_eq!(text_offset(&rope, lsp_types::Position::new(1, 0)), Some(8));
         assert_eq!(text_offset(&rope, lsp_types::Position::new(1, 5)), Some(12));
         assert_eq!(text_offset(&rope, lsp_types::Position::new(3, 0)), Some(13));
+    }
+
+    #[test]
+    fn text_offset_handles_utf16_across_rope_chunks() {
+        let mut contents = "a".repeat(2047);
+        contents.push('😀');
+        contents.push('b');
+        let rope = Rope::from(contents);
+
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 2047)), Some(2047));
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 2048)), None);
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 2049)), Some(2051));
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 2050)), Some(2052));
     }
 }

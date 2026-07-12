@@ -78,15 +78,12 @@ pub(crate) fn signature_help(
 ) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
     let params = params.text_document_position_params;
     let response = crate::proto::vfs_path(&params.text_document.uri).and_then(|path| {
-        let vfs = state.vfs.read();
-        let contents = vfs.get_file_contents(&path)?;
+        let contents = state.vfs.read().get_file_contents(&path)?.clone();
         state.symbol_tables.read().signature_help(
             &params.text_document.uri,
             params.position,
-            contents,
-            state.config.supports_signature_help_label_offsets(),
-            state.config.supports_signature_help_markdown(),
-            state.config.supports_signature_help_active_parameter(),
+            &contents,
+            state.config.signature_help_options(),
         )
     });
     ready(Ok(response))

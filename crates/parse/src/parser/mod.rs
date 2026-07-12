@@ -688,60 +688,44 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let mut trailing = false;
         let mut v = SmallVec::<[T; 8]>::new();
 
-        'parse: {
-            if !allow_empty {
-                match f(self) {
-                    Ok(value) => v.push(value),
-                    Err(err) if self.can_recover_sequence(ket) => {
-                        err.emit();
-                        if self.token.kind == ket {
-                            self.bump();
-                        }
-                        recovered = Recovered::Yes;
-                        break 'parse;
-                    }
-                    Err(err) => return Err(err),
-                }
-                first = false;
+        loop {
+            let required_first = first && !allow_empty;
+            if !required_first && self.check(ket) {
+                break;
+            }
+            if !required_first && self.token.kind == TokenKind::Eof {
+                recovered = Recovered::Yes;
+                break;
             }
 
-            while !self.check(ket) {
-                if self.token.kind == TokenKind::Eof {
+            if first {
+                // No separator for the first element.
+                first = false;
+            } else if let Some(sep_kind) = sep.sep {
+                // Check for a separator.
+                let recovered_ = self.expect(sep_kind)?;
+                if recovered_ == Recovered::Yes {
                     recovered = Recovered::Yes;
                     break;
                 }
 
-                if let Some(sep_kind) = sep.sep {
-                    if first {
-                        // no separator for the first element
-                        first = false;
-                    } else {
-                        // check for separator
-                        let recovered_ = self.expect(sep_kind)?;
-                        if recovered_ == Recovered::Yes {
-                            recovered = Recovered::Yes;
-                            break;
-                        }
-
-                        if self.check(ket) {
-                            trailing = true;
-                            break;
-                        }
-                    }
+                if self.check(ket) {
+                    trailing = true;
+                    break;
                 }
+            }
 
-                match f(self) {
-                    Ok(value) => v.push(value),
-                    Err(err) if self.can_recover_sequence(ket) => {
-                        err.emit();
-                        if self.token.kind == ket {
-                            self.bump();
-                        }
-                        recovered = Recovered::Yes;
-                        break 'parse;
+            match f(self) {
+                Ok(value) => v.push(value),
+                Err(err) if self.can_recover_sequence(ket) => {
+                    err.emit();
+                    if self.token.kind == ket {
+                        self.bump();
                     }
-                    Err(err) => return Err(err),
+                    recovered = Recovered::Yes;
+                    break;
                 }
+                Err(err) => return Err(err),
             }
         }
 
@@ -1317,6 +1301,27 @@ import * as B from "b.sol";
                 r#"import "a.sol";"#
             );
         });
+    }
+
+    #[test]
+    fn nonempty_sequence_requires_a_first_element() {
+        for (allow_empty, succeeds) in [(true, true), (false, false)] {
+            let sess = Session::builder()
+                .with_buffer_emitter(Default::default())
+                .single_threaded()
+                .build();
+            sess.enter_sequential(|| {
+                let arena = ast::Arena::new();
+                let mut parser =
+                    Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), "{}")
+                        .unwrap();
+                let result = parser
+                    .parse_delim_comma_seq(Delimiter::Brace, allow_empty, Parser::parse_ident)
+                    .map_err(|err| err.emit());
+
+                assert_eq!(result.is_ok(), succeeds);
+            });
+        }
     }
 
     #[test]

@@ -291,18 +291,9 @@ impl SymbolTables {
         uri: &Url,
         position: Position,
         contents: &crop::Rope,
-        label_offsets: bool,
-        markdown_documentation: bool,
-        signature_active_parameter: bool,
+        options: crate::config::SignatureHelpClientOptions,
     ) -> Option<lsp_types::SignatureHelp> {
-        self.signature_help.signature_help(
-            uri,
-            position,
-            contents,
-            label_offsets,
-            markdown_documentation,
-            signature_active_parameter,
-        )
+        self.signature_help.signature_help(uri, position, contents, options)
     }
 
     pub(crate) fn retain_signature_help_for_failed_files(&mut self, previous: &Self, uris: &[Url]) {

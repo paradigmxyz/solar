@@ -1,6 +1,6 @@
 //! Signature help data collected from compiler analysis.
 
-use crate::proto;
+use crate::{config::SignatureHelpClientOptions, proto};
 use crop::Rope;
 use lsp_types::{
     Documentation, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel, Position,
@@ -8,7 +8,10 @@ use lsp_types::{
 };
 use solar_interface::{
     Span,
-    data_structures::{Never, map::FxHashMap},
+    data_structures::{
+        Never,
+        map::{FxHashMap, FxHashSet},
+    },
 };
 use solar_parse::Cursor;
 use solar_sema::{
@@ -87,15 +90,14 @@ impl SignatureHelpIndex {
                     *signature = self.intern_shared_signature(signature.clone());
                 }
             }
-            self.calls.entry(uri).or_default().extend(calls);
+            let destination = self.calls.entry(uri).or_default();
+            destination.extend(calls);
+            destination.sort_by_key(|call| range_size_key(call.range));
         }
         for (name, entries) in other.callables_by_name {
             for entry in entries {
                 self.push_shared_callable(name.clone(), entry.origin, entry.form, entry.signature);
             }
-        }
-        for calls in self.calls.values_mut() {
-            calls.sort_by_key(|call| range_size_key(call.range));
         }
     }
 
@@ -108,9 +110,9 @@ impl SignatureHelpIndex {
                 .into_iter()
                 .flatten()
                 .map(|call| call.range.start)
-                .collect::<Vec<_>>();
+                .collect::<FxHashSet<_>>();
             for previous_call in previous_calls {
-                if current_starts.contains(&previous_call.range.start) {
+                if !current_starts.insert(previous_call.range.start) {
                     continue;
                 }
                 let mut call = previous_call.clone();
@@ -118,7 +120,9 @@ impl SignatureHelpIndex {
                     *signature = self.intern_shared_signature(signature.clone());
                 }
                 self.calls.entry(uri.clone()).or_default().push(call);
-                current_starts.push(previous_call.range.start);
+            }
+            if let Some(calls) = self.calls.get_mut(uri) {
+                calls.sort_by_key(|call| range_size_key(call.range));
             }
         }
         for (name, entries) in &previous.callables_by_name {
@@ -133,9 +137,6 @@ impl SignatureHelpIndex {
                 }
             }
         }
-        for calls in self.calls.values_mut() {
-            calls.sort_by_key(|call| range_size_key(call.range));
-        }
     }
 
     pub(crate) fn signature_help(
@@ -143,13 +144,11 @@ impl SignatureHelpIndex {
         uri: &Url,
         position: Position,
         contents: &Rope,
-        label_offsets: bool,
-        markdown_documentation: bool,
-        signature_active_parameter: bool,
+        options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
         let cursor = proto::text_offset(contents, position)?;
         let text = contents.byte_slice(..cursor).to_string();
-        let context = call_context(&text, cursor)?;
+        let context = call_context(&text)?;
         let call = self.calls.get(uri).and_then(|calls| {
             calls.iter().find(|call| {
                 proto::text_offset(contents, call.range.start) == Some(context.open)
@@ -158,11 +157,8 @@ impl SignatureHelpIndex {
                     && call.matches_current_callee(contents)
             })
         });
-        let (mut signatures, fallback) = if let Some(call) = call {
-            (
-                call.signatures.iter().map(|signature| (**signature).clone()).collect::<Vec<_>>(),
-                false,
-            )
+        let (mut signatures, fallback): (Vec<&CallSignature>, _) = if let Some(call) = call {
+            (call.signatures.iter().map(Arc::as_ref).collect(), false)
         } else {
             if context.member_call {
                 return None;
@@ -172,7 +168,7 @@ impl SignatureHelpIndex {
                     .get(context.callee_name.as_deref()?)?
                     .iter()
                     .filter(|entry| entry.form == context.form)
-                    .map(|entry| (*entry.signature).clone())
+                    .map(|entry| entry.signature.as_ref())
                     .collect(),
                 true,
             )
@@ -184,30 +180,28 @@ impl SignatureHelpIndex {
         if fallback {
             signatures.sort_by_key(|signature| signature.fallback_rank(&context.active_argument));
         }
-        let active_argument = Some(context.active_argument);
-        let mut active_parameter = None;
-        for (index, signature) in signatures.iter_mut().enumerate() {
-            let signature_active = active_argument
-                .as_ref()
-                .and_then(|argument| signature.active_parameter(argument))
-                .map(|index| index as u32);
-            if index == 0 {
-                active_parameter = signature_active;
-            }
-            signature.information.active_parameter =
-                signature_active_parameter.then_some(signature_active).flatten();
-            if !label_offsets {
-                use_simple_parameter_labels(&mut signature.information);
-            }
-            if markdown_documentation {
-                use_markdown_documentation(&mut signature.information);
-            }
-        }
-        Some(SignatureHelp {
-            signatures: signatures.into_iter().map(|it| it.information).collect(),
-            active_signature: Some(0),
-            active_parameter,
-        })
+        let active_parameter = signatures
+            .first()
+            .and_then(|signature| signature.active_parameter(&context.active_argument))
+            .map(|index| index as u32);
+        let signatures = signatures
+            .into_iter()
+            .map(|signature| {
+                let signature_active =
+                    signature.active_parameter(&context.active_argument).map(|index| index as u32);
+                let mut information = signature.information.clone();
+                information.active_parameter =
+                    options.signature_active_parameter.then_some(signature_active).flatten();
+                if !options.label_offsets {
+                    use_simple_parameter_labels(&mut information);
+                }
+                if options.markdown_documentation {
+                    use_markdown_documentation(&mut information);
+                }
+                information
+            })
+            .collect();
+        Some(SignatureHelp { signatures, active_signature: Some(0), active_parameter })
     }
 
     fn build_callable_catalog(&mut self, gcx: Gcx<'_>) {
@@ -241,8 +235,7 @@ impl SignatureHelpIndex {
         form: CallForm,
         signature: CallSignature,
     ) {
-        let signature = self.intern_signature(signature);
-        self.push_shared_callable(name, origin, form, signature);
+        self.push_shared_callable(name, origin, form, Arc::new(signature));
     }
 
     fn push_shared_callable(
@@ -326,7 +319,7 @@ impl CallSite {
             return false;
         }
         let current = contents.byte_slice(start..end).to_string();
-        significant_tokens(&current) == self.callee_tokens
+        significant_token_slices(&current).eq(self.callee_tokens.iter().map(String::as_str))
     }
 }
 
@@ -368,20 +361,13 @@ struct CallCollector<'a, 'gcx> {
 
 impl<'gcx> CallCollector<'_, 'gcx> {
     fn collect_call(&mut self, callee: &'gcx hir::Expr<'gcx>, args: &CallArgs<'gcx>) {
+        let callee_ty = self.gcx.type_of_expr(callee.id);
         let form = match callee.kind {
             hir::ExprKind::New(_) => CallForm::New,
-            _ if self
-                .gcx
-                .type_of_expr(callee.id)
-                .is_some_and(|ty| matches!(ty.kind, TyKind::Event(..))) =>
-            {
+            _ if callee_ty.is_some_and(|ty| matches!(ty.kind, TyKind::Event(..))) => {
                 CallForm::Event
             }
-            _ if self
-                .gcx
-                .type_of_expr(callee.id)
-                .is_some_and(|ty| matches!(ty.kind, TyKind::Error(..))) =>
-            {
+            _ if callee_ty.is_some_and(|ty| matches!(ty.kind, TyKind::Error(..))) => {
                 CallForm::Error
             }
             hir::ExprKind::Ident(resolutions)
@@ -453,7 +439,7 @@ impl<'gcx> CallCollector<'_, 'gcx> {
                     && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(ty).kind
                 {
                     render_item(self.gcx, ItemId::Contract(id))
-                } else if let Some(ty) = self.gcx.type_of_expr(callee.id)
+                } else if let Some(ty) = callee_ty
                     && let Some(callable) = self.gcx.callable_signature_of_ty(ty)
                 {
                     let fallback_name =
@@ -574,28 +560,31 @@ fn render_callable<'gcx>(
     let (documentation, parameter_docs) = documentation(gcx, doc_id);
 
     let mut label = prefix;
+    let mut label_utf16_len = label.encode_utf16().count();
     label.push('(');
+    label_utf16_len += 1;
     let mut parameters = Vec::with_capacity(callable.parameters.len());
+    let mut parameter_names = Vec::with_capacity(callable.parameters.len());
     for (index, &ty) in callable.parameters.iter().enumerate() {
         if index != 0 {
             label.push_str(", ");
+            label_utf16_len += 2;
         }
-        let start = label.encode_utf16().count() as u32;
+        let start = label_utf16_len as u32;
+        let parameter_start = label.len();
         write!(label, "{}", ty.display(gcx)).ok()?;
         if parameter_is_indexed(gcx, callable.param_source, index) {
             label.push_str(" indexed");
         }
-        if let Some(name) = names.get(index).and_then(|name| *name) {
+        let name = names.get(index).and_then(|name| *name);
+        if let Some(name) = name {
             write!(label, " {name}").ok()?;
         }
-        let end = label.encode_utf16().count() as u32;
-        let documentation = names
-            .get(index)
-            .and_then(|name| *name)
-            .and_then(|name| parameter_docs.get(name.as_str()))
-            .cloned();
+        label_utf16_len += label[parameter_start..].encode_utf16().count();
+        let documentation = name.and_then(|name| parameter_docs.get(name.as_str())).cloned();
+        parameter_names.push(name.map(|name| name.to_string()));
         parameters.push(ParameterInformation {
-            label: ParameterLabel::LabelOffsets([start, end]),
+            label: ParameterLabel::LabelOffsets([start, label_utf16_len as u32]),
             documentation: documentation.map(Documentation::String),
         });
     }
@@ -609,9 +598,7 @@ fn render_callable<'gcx>(
             parameters: Some(parameters),
             active_parameter: None,
         },
-        parameter_names: (0..callable.parameters.len())
-            .map(|index| names.get(index).and_then(|name| *name).map(|name| name.to_string()))
-            .collect(),
+        parameter_names,
         variadic: callable.parameters.last().is_some_and(|ty| matches!(ty.kind, TyKind::Variadic)),
     })
 }
@@ -682,14 +669,16 @@ fn signature_declaration_parts<'gcx>(
     if !callable.returns.is_empty()
         && !matches!(callable.param_source, Some(CallableParamSource::Struct(_)))
     {
-        let return_names = callable_return_names(gcx, callable.param_source);
+        let return_variables = callable_return_variables(gcx, callable.param_source);
         suffix.push_str(" returns (");
         for (index, &ty) in callable.returns.iter().enumerate() {
             if index != 0 {
                 suffix.push_str(", ");
             }
             write!(suffix, "{}", ty.display(gcx)).ok()?;
-            if let Some(name) = return_names.get(index).and_then(|name| name.as_deref()) {
+            if let Some(name) =
+                return_variables.get(index).and_then(|&id| gcx.hir.variable(id).name)
+            {
                 write!(suffix, " {name}").ok()?;
             }
         }
@@ -698,16 +687,18 @@ fn signature_declaration_parts<'gcx>(
     Some((prefix, suffix, doc_id))
 }
 
-fn callable_return_names(gcx: Gcx<'_>, source: Option<CallableParamSource>) -> Vec<Option<String>> {
-    let variables = match source {
+fn callable_return_variables<'gcx>(
+    gcx: Gcx<'gcx>,
+    source: Option<CallableParamSource>,
+) -> &'gcx [hir::VariableId] {
+    match source {
         Some(CallableParamSource::Function { id, .. }) => gcx.hir.function(id).returns,
         Some(CallableParamSource::FunctionType(id)) => match gcx.hir.variable(id).ty.kind {
             hir::TypeKind::Function(function) => function.returns,
             _ => &[],
         },
         _ => &[],
-    };
-    variables.iter().map(|&id| gcx.hir.variable(id).name.map(|name| name.to_string())).collect()
+    }
 }
 
 fn parameter_is_indexed(gcx: Gcx<'_>, source: Option<CallableParamSource>, index: usize) -> bool {
@@ -754,7 +745,7 @@ fn convert_documentation_to_markdown(documentation: &mut Option<Documentation>) 
     *documentation = Some(markdown(value));
 }
 
-fn deduplicate_signatures(signatures: &mut Vec<CallSignature>) {
+fn deduplicate_signatures(signatures: &mut Vec<&CallSignature>) {
     let mut unique = Vec::with_capacity(signatures.len());
     for signature in signatures.drain(..) {
         if !unique.contains(&signature) {
@@ -765,11 +756,14 @@ fn deduplicate_signatures(signatures: &mut Vec<CallSignature>) {
 }
 
 fn significant_tokens(text: &str) -> Vec<String> {
+    significant_token_slices(text).map(str::to_owned).collect()
+}
+
+fn significant_token_slices(text: &str) -> impl Iterator<Item = &str> {
     Cursor::new(text)
         .with_position()
         .filter(|(_, token)| !token.kind.is_trivial())
-        .map(|(start, token)| text[start..start + token.len as usize].to_string())
-        .collect()
+        .map(|(start, token)| &text[start..start + token.len as usize])
 }
 
 fn use_simple_parameter_labels(signature: &mut SignatureInformation) {
@@ -819,15 +813,11 @@ struct DelimiterFrame {
     open: usize,
 }
 
-fn call_context(text: &str, cursor: usize) -> Option<CallContext> {
-    let cursor = cursor.min(text.len());
+fn call_context(text: &str) -> Option<CallContext> {
     let mut frames = Vec::<DelimiterFrame>::new();
     let mut significant = Vec::<(usize, usize)>::new();
 
     for (start, token) in Cursor::new(text).with_position() {
-        if start >= cursor {
-            break;
-        }
         let end = start + token.len as usize;
         let lexeme = &text[start..end];
         if token.kind.is_trivial() {
@@ -836,7 +826,10 @@ fn call_context(text: &str, cursor: usize) -> Option<CallContext> {
         match lexeme {
             "(" | "[" | "{" => frames
                 .push(DelimiterFrame { delimiter: lexeme.chars().next().unwrap(), open: start }),
-            ";" => frames.clear(),
+            ";" => {
+                frames.clear();
+                significant.clear();
+            }
             ")" | "]" | "}" => {
                 let expected = match lexeme {
                     ")" => '(',
@@ -867,7 +860,7 @@ fn call_context(text: &str, cursor: usize) -> Option<CallContext> {
         if callee_name.is_some() && is_declaration_head(text, &significant, head_index) {
             continue;
         }
-        let arguments = text.get(frame.open + 1..cursor)?;
+        let arguments = text.get(frame.open + 1..)?;
         return Some(CallContext {
             open: frame.open,
             callee_name,
@@ -1092,9 +1085,9 @@ mod tests {
 
     #[test]
     fn lexical_call_form_distinguishes_event_and_error_invocations() {
-        let event = call_context("emit   E(", "emit   E(".len()).unwrap();
-        let error = call_context("revert E(", "revert E(".len()).unwrap();
-        let builtin_revert = call_context("revert(", "revert(".len()).unwrap();
+        let event = call_context("emit   E(").unwrap();
+        let error = call_context("revert E(").unwrap();
+        let builtin_revert = call_context("revert(").unwrap();
 
         assert_eq!(event.form, CallForm::Event);
         assert_eq!(error.form, CallForm::Error);
