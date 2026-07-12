@@ -34,7 +34,6 @@ struct CallSite {
     range: Range,
     callee_range: Range,
     callee_tokens: Vec<String>,
-    callee_name: Option<String>,
     form: CallForm,
     signatures: Vec<Arc<CallSignature>>,
 }
@@ -62,9 +61,9 @@ struct CallSignature {
 }
 
 #[derive(Clone, Debug)]
-struct ActiveArgument {
+struct ActiveArgument<'a> {
     ordinal: usize,
-    name: Option<String>,
+    name: Option<&'a str>,
 }
 
 impl SignatureHelpIndex {
@@ -152,7 +151,12 @@ impl SignatureHelpIndex {
         let call = self.calls.get(uri).and_then(|calls| {
             calls.iter().find(|call| {
                 proto::text_offset(contents, call.range.start) == Some(context.open)
-                    && call.callee_name == context.callee_name
+                    && call
+                        .callee_tokens
+                        .last()
+                        .map(String::as_str)
+                        .filter(|token| is_identifier(token))
+                        == context.callee_name
                     && call.form == context.form
                     && call.matches_current_callee(contents)
             })
@@ -165,7 +169,7 @@ impl SignatureHelpIndex {
             }
             (
                 self.callables_by_name
-                    .get(context.callee_name.as_deref()?)?
+                    .get(context.callee_name?)?
                     .iter()
                     .filter(|entry| entry.form == context.form)
                     .map(|entry| entry.signature.as_ref())
@@ -277,14 +281,12 @@ impl SignatureHelpIndex {
         }
         let Ok(callee_text) = gcx.sess.source_map().span_to_snippet(callee_span) else { return };
         let callee_tokens = significant_tokens(&callee_text);
-        let callee_name = callee_tokens.last().filter(|token| is_identifier(token)).cloned();
         let signatures =
             signatures.into_iter().map(|signature| self.intern_signature(signature)).collect();
         self.calls.entry(location.uri).or_default().push(CallSite {
             range: location.range,
             callee_range: callee_location.range,
             callee_tokens,
-            callee_name,
             form,
             signatures,
         });
@@ -324,8 +326,8 @@ impl CallSite {
 }
 
 impl CallSignature {
-    fn fallback_rank(&self, argument: &ActiveArgument) -> u8 {
-        if argument.name.as_ref().is_some_and(|name| {
+    fn fallback_rank(&self, argument: &ActiveArgument<'_>) -> u8 {
+        if argument.name.is_some_and(|name| {
             self.parameter_names.iter().any(|parameter| parameter.as_deref() == Some(name))
         }) {
             0
@@ -336,8 +338,8 @@ impl CallSignature {
         }
     }
 
-    fn active_parameter(&self, argument: &ActiveArgument) -> Option<usize> {
-        let index = argument.name.as_ref().and_then(|name| {
+    fn active_parameter(&self, argument: &ActiveArgument<'_>) -> Option<usize> {
+        let index = argument.name.and_then(|name| {
             self.parameter_names.iter().position(|parameter| parameter.as_deref() == Some(name))
         });
         index.or_else(|| {
@@ -799,12 +801,12 @@ fn utf16_slice(value: &str, start: u32, end: u32) -> Option<&str> {
 }
 
 #[derive(Debug)]
-struct CallContext {
+struct CallContext<'a> {
     open: usize,
-    callee_name: Option<String>,
+    callee_name: Option<&'a str>,
     form: CallForm,
     member_call: bool,
-    active_argument: ActiveArgument,
+    active_argument: ActiveArgument<'a>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -813,7 +815,7 @@ struct DelimiterFrame {
     open: usize,
 }
 
-fn call_context(text: &str) -> Option<CallContext> {
+fn call_context(text: &str) -> Option<CallContext<'_>> {
     let mut frames = Vec::<DelimiterFrame>::new();
     let mut significant = Vec::<(usize, usize)>::new();
 
@@ -850,11 +852,11 @@ fn call_context(text: &str) -> Option<CallContext> {
         let head_index = significant.iter().rposition(|(_, end)| *end <= frame.open)?;
         let (start, end) = significant[head_index];
         let candidate = &text[start..end];
-        let callee_name = is_identifier(candidate).then(|| candidate.to_string());
+        let callee_name = is_identifier(candidate).then_some(candidate);
         if callee_name.is_none() && !matches!(candidate, ")" | "]" | "}") {
             continue;
         }
-        if callee_name.as_deref().is_some_and(is_non_call_head) {
+        if callee_name.is_some_and(is_non_call_head) {
             continue;
         }
         if callee_name.is_some() && is_declaration_head(text, &significant, head_index) {
@@ -875,7 +877,7 @@ fn call_context(text: &str) -> Option<CallContext> {
     None
 }
 
-fn scan_active_argument(text: &str) -> ActiveArgument {
+fn scan_active_argument(text: &str) -> ActiveArgument<'_> {
     let mut commas = 0;
     let mut frames = Vec::<char>::new();
     let mut first_significant = None;
@@ -915,7 +917,7 @@ fn scan_active_argument(text: &str) -> ActiveArgument {
     ActiveArgument { ordinal: commas, name }
 }
 
-fn named_argument_name(text: &str) -> Option<String> {
+fn named_argument_name(text: &str) -> Option<&str> {
     let mut tokens = Cursor::new(text)
         .with_position()
         .filter(|(_, token)| !token.kind.is_trivial())
@@ -924,7 +926,7 @@ fn named_argument_name(text: &str) -> Option<String> {
     if name == "{" {
         name = tokens.next()?;
     }
-    if is_identifier(name) && tokens.next() == Some(":") { Some(name.to_string()) } else { None }
+    if is_identifier(name) && tokens.next() == Some(":") { Some(name) } else { None }
 }
 
 fn is_declaration_head(text: &str, significant: &[(usize, usize)], head_index: usize) -> bool {
@@ -1057,7 +1059,6 @@ mod tests {
                 range: Range::default(),
                 callee_range: Range::default(),
                 callee_tokens: vec!["f".into()],
-                callee_name: Some("f".into()),
                 form: CallForm::Regular,
                 signatures: vec![duplicate],
             }],
@@ -1078,8 +1079,8 @@ mod tests {
                 < short.fallback_rank(&ActiveArgument { ordinal: 1, name: None })
         );
         assert!(
-            long.fallback_rank(&ActiveArgument { ordinal: 0, name: Some("second".into()) })
-                < short.fallback_rank(&ActiveArgument { ordinal: 0, name: Some("second".into()) })
+            long.fallback_rank(&ActiveArgument { ordinal: 0, name: Some("second") })
+                < short.fallback_rank(&ActiveArgument { ordinal: 0, name: Some("second") })
         );
     }
 
@@ -1118,7 +1119,6 @@ mod tests {
             range: Range::new(Position::new(1, 1), Position::new(1, 4)),
             callee_range: Range::new(Position::new(1, 0), Position::new(1, 1)),
             callee_tokens: vec!["f".into()],
-            callee_name: Some("f".into()),
             form: CallForm::Regular,
             signatures: vec![signature.clone()],
         };
@@ -1126,7 +1126,6 @@ mod tests {
             range: Range::new(Position::new(2, 1), Position::new(2, 4)),
             callee_range: Range::new(Position::new(2, 0), Position::new(2, 1)),
             callee_tokens: vec!["f".into()],
-            callee_name: Some("f".into()),
             form: CallForm::Regular,
             signatures: vec![signature],
         };
