@@ -150,7 +150,16 @@ impl GlobalState {
             }
 
             if snapshot.is_current(version) {
-                snapshot.set_symbol_tables(symbol_tables);
+                let failed_uris = diagnostics
+                    .iter()
+                    .filter(|(_, diagnostics)| {
+                        diagnostics.iter().any(|diagnostic| {
+                            diagnostic.severity == Some(lsp_types::DiagnosticSeverity::ERROR)
+                        })
+                    })
+                    .map(|(uri, _)| uri.clone())
+                    .collect::<Vec<_>>();
+                snapshot.set_symbol_tables(symbol_tables, &failed_uris);
                 snapshot.publish_diagnostics(DiagnosticOwner::Compiler, diagnostics);
             }
         });
@@ -375,8 +384,10 @@ impl GlobalStateSnapshot {
         batches
     }
 
-    fn set_symbol_tables(&mut self, symbol_tables: SymbolTables) {
-        *self.symbol_tables.write() = symbol_tables;
+    fn set_symbol_tables(&mut self, mut symbol_tables: SymbolTables, failed_uris: &[Url]) {
+        let mut current = self.symbol_tables.write();
+        symbol_tables.retain_signature_help_for_failed_files(&current, failed_uris);
+        *current = symbol_tables;
     }
 
     fn analysis_workspaces(&self) -> Cow<'_, [crate::workspace::Workspace]> {
@@ -483,6 +494,7 @@ mod tests {
     mod goto_definition;
     mod inlay_hint;
     mod references;
+    mod signature_help;
     mod support;
 
     fn snapshot(project: &TestProject) -> GlobalStateSnapshot {

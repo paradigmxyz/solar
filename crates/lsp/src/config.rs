@@ -5,8 +5,8 @@ use crate::{
 };
 use lsp_types::{
     CompletionOptions, DeclarationCapability, InitializeParams, OneOf, SaveOptions,
-    ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TextDocumentSyncSaveOptions,
+    ServerCapabilities, SignatureHelpOptions, TextDocumentSyncCapability, TextDocumentSyncKind,
+    TextDocumentSyncOptions, TextDocumentSyncSaveOptions, WorkDoneProgressOptions,
 };
 use solar_interface::data_structures::map::FxHashSet;
 use std::{
@@ -28,6 +28,9 @@ pub(crate) struct Config {
     flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
     hierarchical_document_symbol_support: bool,
+    signature_help_label_offset_support: bool,
+    signature_help_markdown_support: bool,
+    signature_help_active_parameter_support: bool,
 }
 
 impl Config {
@@ -37,6 +40,23 @@ impl Config {
 
     pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
         self.hierarchical_document_symbol_support
+    }
+
+    pub(crate) fn supports_signature_help_label_offsets(&self) -> bool {
+        self.signature_help_label_offset_support
+    }
+
+    pub(crate) fn supports_signature_help_markdown(&self) -> bool {
+        self.signature_help_markdown_support
+    }
+
+    pub(crate) fn supports_signature_help_active_parameter(&self) -> bool {
+        self.signature_help_active_parameter_support
+    }
+
+    #[cfg(test)]
+    pub(crate) fn enable_signature_help_label_offsets(&mut self) {
+        self.signature_help_label_offset_support = true;
     }
 
     pub(crate) fn workspaces(&self) -> &[Workspace] {
@@ -158,8 +178,38 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
         .unwrap_or(false);
     let hierarchical_document_symbol_support = capabilities
         .text_document
-        .and_then(|text_document| text_document.document_symbol)
+        .as_ref()
+        .and_then(|text_document| text_document.document_symbol.as_ref())
         .and_then(|capabilities| capabilities.hierarchical_document_symbol_support)
+        .unwrap_or(false);
+    let signature_help_label_offset_support = capabilities
+        .text_document
+        .as_ref()
+        .and_then(|text_document| text_document.signature_help.as_ref())
+        .and_then(|capabilities| capabilities.signature_information.as_ref())
+        .and_then(|settings| settings.parameter_information.as_ref())
+        .and_then(|settings| settings.label_offset_support)
+        .unwrap_or(false);
+    let signature_help_markdown_support = capabilities
+        .text_document
+        .as_ref()
+        .and_then(|text_document| text_document.signature_help.as_ref())
+        .and_then(|capabilities| capabilities.signature_information.as_ref())
+        .and_then(|settings| settings.documentation_format.as_ref())
+        .is_some_and(|formats| {
+            formats.iter().find(|format| {
+                matches!(
+                    **format,
+                    lsp_types::MarkupKind::Markdown | lsp_types::MarkupKind::PlainText
+                )
+            }) == Some(&lsp_types::MarkupKind::Markdown)
+        });
+    let signature_help_active_parameter_support = capabilities
+        .text_document
+        .as_ref()
+        .and_then(|text_document| text_document.signature_help.as_ref())
+        .and_then(|capabilities| capabilities.signature_information.as_ref())
+        .and_then(|settings| settings.active_parameter_support)
         .unwrap_or(false);
 
     let workspace_roots = workspace_folders
@@ -180,6 +230,11 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             document_symbol_provider: Some(OneOf::Left(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
+            signature_help_provider: Some(SignatureHelpOptions {
+                trigger_characters: Some(vec!["(".into(), ",".into()]),
+                retrigger_characters: Some(vec![",".into()]),
+                work_done_progress_options: WorkDoneProgressOptions::default(),
+            }),
             text_document_sync: Some(TextDocumentSyncCapability::Options(
                 TextDocumentSyncOptions {
                     open_close: Some(true),
@@ -198,6 +253,9 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             flycheck_options,
             watched_file_dynamic_registration,
             hierarchical_document_symbol_support,
+            signature_help_label_offset_support,
+            signature_help_markdown_support,
+            signature_help_active_parameter_support,
             ..Default::default()
         },
     )
@@ -208,9 +266,10 @@ mod tests {
     use super::*;
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
-        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, OneOf,
-        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
-        WorkspaceClientCapabilities,
+        DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
+        OneOf, ParameterInformationSettings, SignatureHelpClientCapabilities,
+        SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
+        TextDocumentSyncSaveOptions, WorkspaceClientCapabilities,
     };
 
     #[test]
@@ -243,6 +302,12 @@ mod tests {
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
+        let signature_help_provider = capabilities.signature_help_provider.unwrap();
+        assert_eq!(
+            signature_help_provider.trigger_characters,
+            Some(vec!["(".to_string(), ",".to_string()])
+        );
+        assert_eq!(signature_help_provider.retrigger_characters, Some(vec![",".to_string()]));
         assert_eq!(capabilities.workspace_symbol_provider, Some(OneOf::Left(true)));
 
         let TextDocumentSyncCapability::Options(sync_options) =
@@ -274,6 +339,49 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_hierarchical_document_symbols());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_signature_help_label_offset_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_signature_help_label_offsets());
+        assert!(!config.supports_signature_help_markdown());
+        assert!(!config.supports_signature_help_active_parameter());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.text_document = Some(TextDocumentClientCapabilities {
+            signature_help: Some(SignatureHelpClientCapabilities {
+                signature_information: Some(SignatureInformationSettings {
+                    documentation_format: Some(vec![MarkupKind::Markdown]),
+                    parameter_information: Some(ParameterInformationSettings {
+                        label_offset_support: Some(true),
+                    }),
+                    active_parameter_support: Some(true),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params.clone());
+        assert!(config.supports_signature_help_label_offsets());
+        assert!(config.supports_signature_help_markdown());
+        assert!(config.supports_signature_help_active_parameter());
+
+        params
+            .capabilities
+            .text_document
+            .as_mut()
+            .unwrap()
+            .signature_help
+            .as_mut()
+            .unwrap()
+            .signature_information
+            .as_mut()
+            .unwrap()
+            .documentation_format = Some(vec![MarkupKind::PlainText, MarkupKind::Markdown]);
+        let (_, config) = negotiate_capabilities(params);
+        assert!(!config.supports_signature_help_markdown());
     }
 
     #[test]

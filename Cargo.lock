@@ -3335,6 +3335,7 @@ dependencies = [
  "snapbox",
  "solar-config",
  "solar-interface",
+ "solar-parse",
  "solar-sema",
  "tempfile",
  "thiserror 1.0.69",

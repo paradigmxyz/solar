@@ -24,6 +24,7 @@ mod handlers;
 mod inlay_hints;
 mod proto;
 mod serde;
+mod signature_help;
 mod symbols;
 mod utils;
 mod vfs;
@@ -52,6 +53,7 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
         .request::<req::References, _>(handlers::references)
+        .request::<req::SignatureHelpRequest, _>(handlers::signature_help)
         .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
         .request::<req::Completion, _>(handlers::completion);
 
@@ -103,16 +105,18 @@ pub async fn run_server_stdio(_args: LspArgs) -> async_lsp::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_lsp::{AnyNotification, LanguageServer, LspService, router::Router};
+    use async_lsp::{AnyNotification, AnyRequest, LanguageServer, LspService, router::Router};
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
         DidSaveTextDocumentParams, FileChangeType, FileEvent, InitializeParams, InitializedParams,
-        TextDocumentIdentifier, WorkspaceClientCapabilities, notification as notif,
-        notification::Notification, request,
+        Position, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams,
+        WorkDoneProgressParams, WorkspaceClientCapabilities, notification as notif,
+        notification::Notification, request, request::Request,
     };
     use std::ops::ControlFlow;
     use tokio::sync::oneshot;
     use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+    use tower::Service;
 
     #[tokio::test(flavor = "current_thread")]
     async fn router_handles_watched_file_changes() {
@@ -148,6 +152,31 @@ mod tests {
         .unwrap();
 
         assert!(matches!(router.notify(notification), ControlFlow::Continue(())));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_signature_help_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = SignatureHelpParams {
+            context: None,
+            text_document_position_params: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier {
+                    uri: lsp_types::Url::parse("file:///workspace/src/Test.sol").unwrap(),
+                },
+                position: Position::new(0, 0),
+            },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::SignatureHelpRequest::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let response = router.call(request).await.unwrap();
+
+        assert_eq!(response, serde_json::Value::Null);
     }
 
     #[tokio::test(flavor = "current_thread")]

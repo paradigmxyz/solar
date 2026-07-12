@@ -17,7 +17,7 @@ use solar_sema::{
 };
 use std::ops::ControlFlow;
 
-use crate::{inlay_hints::InlayHintIndex, proto};
+use crate::{inlay_hints::InlayHintIndex, proto, signature_help::SignatureHelpIndex};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
@@ -36,6 +36,7 @@ pub(crate) struct SymbolTables {
     file_references: FxHashMap<Url, Vec<usize>>,
     symbol_references: FxHashMap<SymbolId, Vec<Location>>,
     inlay_hints: InlayHintIndex,
+    signature_help: SignatureHelpIndex,
 }
 
 newtype_index! {
@@ -206,6 +207,7 @@ impl SymbolTables {
         tables.build_member_completions(gcx);
         tables.build_references(gcx);
         tables.inlay_hints = InlayHintIndex::build(gcx);
+        tables.signature_help = SignatureHelpIndex::build(gcx);
         tables.rebuild_indexes();
         tables
     }
@@ -234,6 +236,7 @@ impl SymbolTables {
             self.builtin_member_completions = std::mem::take(&mut other.builtin_member_completions);
         }
         self.inlay_hints.extend(other.inlay_hints);
+        self.signature_help.extend(other.signature_help);
 
         if other.declarations.is_empty() {
             return;
@@ -281,6 +284,29 @@ impl SymbolTables {
 
     pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
         self.inlay_hints.hints(uri, range)
+    }
+
+    pub(crate) fn signature_help(
+        &self,
+        uri: &Url,
+        position: Position,
+        contents: &crop::Rope,
+        label_offsets: bool,
+        markdown_documentation: bool,
+        signature_active_parameter: bool,
+    ) -> Option<lsp_types::SignatureHelp> {
+        self.signature_help.signature_help(
+            uri,
+            position,
+            contents,
+            label_offsets,
+            markdown_documentation,
+            signature_active_parameter,
+        )
+    }
+
+    pub(crate) fn retain_signature_help_for_failed_files(&mut self, previous: &Self, uris: &[Url]) {
+        self.signature_help.retain_failed_files(&previous.signature_help, uris);
     }
 
     pub(crate) fn document_symbols(&self, uri: &Url) -> Vec<DocumentSymbol> {

@@ -2,10 +2,11 @@ use super::super::{AnalysisBatch, AnalysisResult, GlobalState, analyze};
 use crate::test_support::MarkedProject;
 use async_lsp::ClientSocket;
 use lsp_types::{
-    CompletionItem, CompletionParams, CompletionResponse, GotoDefinitionParams,
+    CompletionItem, CompletionParams, CompletionResponse, Documentation, GotoDefinitionParams,
     GotoDefinitionResponse, InlayHint, InlayHintKind, InlayHintLabel, InlayHintParams, Location,
-    PartialResultParams, Position, Range, ReferenceContext, ReferenceParams,
-    TextDocumentIdentifier, TextDocumentPositionParams, Url, WorkDoneProgressParams,
+    ParameterLabel, PartialResultParams, Position, Range, ReferenceContext, ReferenceParams,
+    SignatureHelp, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams, Url,
+    WorkDoneProgressParams,
 };
 use snapbox::{IntoData, assert_data_eq};
 use solar_config::CompileOpts;
@@ -41,6 +42,10 @@ impl RequestFixture {
             seen_paths: FxHashSet::default(),
         });
         Self { marked, result }
+    }
+
+    pub(super) fn project_contents(&self, path: &str) -> String {
+        self.marked.project().read_file(path)
     }
 
     pub(super) fn check_completion(&self, marker: &str, expected: impl IntoData) {
@@ -95,6 +100,77 @@ impl RequestFixture {
         assert_data_eq!(inlay_hint_output(&self.inlay_hints(uri, full_range())), expected);
     }
 
+    pub(super) fn check_signature_help(&self, marker: &str, expected: impl IntoData) {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        self.check_signature_help_in_state(&mut state, uri, position, expected);
+    }
+
+    pub(super) fn check_signature_help_without_label_offsets(
+        &self,
+        marker: &str,
+        expected: impl IntoData,
+    ) {
+        let mut state = self.state_with_label_offsets(false);
+        let (uri, position) = self.marker_location(marker);
+        self.check_signature_help_in_state(&mut state, uri, position, expected);
+    }
+
+    pub(super) fn signature_help_response(&self, marker: &str) -> Option<SignatureHelp> {
+        let mut state = self.state();
+        let (uri, position) = self.marker_location(marker);
+        expect_ready(crate::handlers::signature_help(
+            &mut state,
+            signature_help_params(uri, position),
+        ))
+        .unwrap()
+    }
+
+    pub(super) fn check_signature_help_after_change(
+        &self,
+        marker: &str,
+        path: &str,
+        changed_contents: &str,
+        expected: impl IntoData,
+    ) {
+        let path = self.marked.project().path(path);
+        let uri = Url::from_file_path(&path).unwrap();
+        let mut result = analyze(AnalysisBatch {
+            opts: CompileOpts::default(),
+            files: vec![(path.clone(), changed_contents.to_string())],
+            seen_paths: FxHashSet::default(),
+        });
+        assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
+        result.symbol_tables.retain_signature_help_for_failed_files(
+            &self.result.symbol_tables,
+            std::slice::from_ref(&uri),
+        );
+
+        let mut state = self.state();
+        state.vfs.write().set_file_contents(
+            crate::vfs::VfsPath::from(path),
+            Some(crop::Rope::from(changed_contents)),
+        );
+        *state.symbol_tables.write() = result.symbol_tables;
+        let position = self.marked.marker(marker).position();
+        self.check_signature_help_in_state(&mut state, uri, position, expected);
+    }
+
+    fn check_signature_help_in_state(
+        &self,
+        state: &mut GlobalState,
+        uri: Url,
+        position: Position,
+        expected: impl IntoData,
+    ) {
+        let response = expect_ready(crate::handlers::signature_help(
+            state,
+            signature_help_params(uri, position),
+        ))
+        .unwrap();
+        assert_data_eq!(signature_help_output(response), expected);
+    }
+
     pub(super) fn check_inlay_hints_between(
         &self,
         start_marker: &str,
@@ -119,8 +195,16 @@ impl RequestFixture {
     }
 
     fn state(&self) -> GlobalState {
+        self.state_with_label_offsets(true)
+    }
+
+    fn state_with_label_offsets(&self, label_offsets: bool) -> GlobalState {
         let mut state = GlobalState::new(ClientSocket::new_closed());
-        state.config = Arc::new(self.marked.project().config());
+        let mut config = self.marked.project().config();
+        if label_offsets {
+            config.enable_signature_help_label_offsets();
+        }
+        state.config = Arc::new(config);
         *state.vfs.write() = self.marked.project().vfs();
         *state.symbol_tables.write() = self.result.symbol_tables.clone();
         state
@@ -211,6 +295,51 @@ fn inlay_hint_output(hints: &[InlayHint]) -> String {
     output
 }
 
+fn signature_help_output(help: Option<SignatureHelp>) -> String {
+    let Some(help) = help else { return "<none>\n".to_string() };
+    let mut output = String::new();
+    writeln!(
+        output,
+        "active signature={:?} parameter={:?}",
+        help.active_signature, help.active_parameter
+    )
+    .unwrap();
+    for signature in help.signatures {
+        writeln!(output, "{}", signature.label).unwrap();
+        if let Some(documentation) = signature.documentation {
+            writeln!(output, "  docs={}", documentation_text(&documentation).replace('\n', " | "))
+                .unwrap();
+        }
+        if let Some(parameters) = signature.parameters {
+            for parameter in parameters {
+                match parameter.label {
+                    ParameterLabel::Simple(label) => write!(output, "  {label}").unwrap(),
+                    ParameterLabel::LabelOffsets([start, end]) => {
+                        write!(output, "  {start}..{end}").unwrap()
+                    }
+                }
+                if let Some(documentation) = parameter.documentation {
+                    write!(
+                        output,
+                        " docs={}",
+                        documentation_text(&documentation).replace('\n', " | ")
+                    )
+                    .unwrap();
+                }
+                writeln!(output).unwrap();
+            }
+        }
+    }
+    output
+}
+
+fn documentation_text(documentation: &Documentation) -> &str {
+    match documentation {
+        Documentation::String(value) => value,
+        Documentation::MarkupContent(content) => &content.value,
+    }
+}
+
 fn inlay_hint_kind(kind: Option<InlayHintKind>) -> &'static str {
     match kind {
         Some(InlayHintKind::PARAMETER) => "PARAMETER",
@@ -261,6 +390,14 @@ fn inlay_hint_params(uri: Url, range: Range) -> InlayHintParams {
     InlayHintParams {
         text_document: TextDocumentIdentifier { uri },
         range,
+        work_done_progress_params: WorkDoneProgressParams::default(),
+    }
+}
+
+fn signature_help_params(uri: Url, position: Position) -> SignatureHelpParams {
+    SignatureHelpParams {
+        context: None,
+        text_document_position_params: text_document_position(uri, position),
         work_done_progress_params: WorkDoneProgressParams::default(),
     }
 }

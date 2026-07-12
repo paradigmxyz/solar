@@ -11,6 +11,34 @@ pub(crate) fn vfs_path(url: &lsp_types::Url) -> Option<vfs::VfsPath> {
     url.to_file_path().map(VfsPath::from).ok()
 }
 
+/// Converts an LSP UTF-16 position to a byte offset.
+///
+/// Out-of-range lines and columns are clamped as required by LSP. Positions that split a UTF-16
+/// surrogate pair return `None`.
+pub(crate) fn text_offset(rope: &Rope, position: lsp_types::Position) -> Option<usize> {
+    let line = (position.line as usize).min(rope.line_len());
+    if line == rope.line_len() {
+        return Some(rope.byte_len());
+    }
+
+    let mut contents = rope.line(line).to_string();
+    if contents.ends_with('\r') {
+        contents.pop();
+    }
+    let target = position.character as usize;
+    let mut utf16 = 0;
+    for (byte, ch) in contents.char_indices() {
+        if utf16 == target {
+            return Some(rope.byte_of_line(line) + byte);
+        }
+        utf16 += ch.len_utf16();
+        if utf16 > target {
+            return None;
+        }
+    }
+    Some(rope.byte_of_line(line) + contents.len())
+}
+
 /// Converts an [`lsp_types::Range`] to a [`Range`].
 ///
 /// This assumes the position encoding in LSP is UTF-16, which is mandatory to support in the LSP
@@ -110,5 +138,24 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
         Level::Warning => DiagnosticSeverity::WARNING,
         Level::Help | Level::OnceHelp => DiagnosticSeverity::HINT,
         Level::Note | Level::OnceNote | Level::Allow => DiagnosticSeverity::INFORMATION,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_offset_validates_utf16_positions() {
+        let rope = Rope::from("a😀b\r\nnext\n");
+
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 0)), Some(0));
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 1)), Some(1));
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 2)), None);
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 3)), Some(5));
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(0, 4)), Some(6));
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(1, 0)), Some(8));
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(1, 5)), Some(12));
+        assert_eq!(text_offset(&rope, lsp_types::Position::new(3, 0)), Some(13));
     }
 }
