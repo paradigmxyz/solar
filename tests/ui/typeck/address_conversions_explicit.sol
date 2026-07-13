@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 contract C {
     function f(
         address a,

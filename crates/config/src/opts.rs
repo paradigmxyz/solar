@@ -323,6 +323,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub no_resolve_imports: bool,
 
+    /// Recovers incomplete input into a partial AST.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub recover_incomplete_input: bool,
+
     /// Print additional information about the compiler's internal state.
     ///
     /// Valid kinds are `ast` and `hir`.
@@ -352,10 +356,6 @@ pub struct UnstableOpts {
     /// Print resolved NatSpec docs as diagnostics for UI tests.
     #[cfg_attr(feature = "clap", arg(long))]
     pub print_natspec: bool,
-
-    /// Type check the program. WIP.
-    #[cfg_attr(feature = "clap", arg(long))]
-    pub typeck: bool,
 
     /// Print MIR after every MIR optimization pass during codegen.
     #[cfg_attr(feature = "clap", arg(long))]

@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract CallChecking {
     event E(uint a, bytes32 b);
     event EmptyEvent();

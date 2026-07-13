@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     // Immutable with non-value type (array)
     uint[] immutable IMMUT_ARRAY; //~ ERROR: immutable variables cannot have a non-value type

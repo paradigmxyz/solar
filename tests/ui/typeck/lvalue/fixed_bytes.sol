@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract Test {
     bytes32 fixedBytes;
     bytes1 singleByte;

@@ -43,8 +43,6 @@ pub struct ParsingContext<'gcx> {
     pub(crate) arenas: &'gcx ThreadLocal<ast::Arena>,
     /// Whether to recursively resolve and parse imports.
     resolve_imports: bool,
-    /// Whether incomplete input should be recovered into a partial AST.
-    recover_incomplete_input: bool,
     /// Whether `parse` has been called.
     parsed: bool,
     gcx: Gcx<'gcx>,
@@ -63,7 +61,6 @@ impl<'gcx> ParsingContext<'gcx> {
             sources: &mut gcx.sources,
             arenas: &gcx.ast_arenas,
             resolve_imports: !sess.opts.unstable.no_resolve_imports,
-            recover_incomplete_input: false,
             parsed: false,
             gcx: gcx_.get(),
         }
@@ -80,13 +77,6 @@ impl<'gcx> ParsingContext<'gcx> {
     /// Default: `!sess.opts.unstable.no_resolve_imports`, `true`.
     pub fn set_resolve_imports(&mut self, resolve_imports: bool) {
         self.resolve_imports = resolve_imports;
-    }
-
-    /// Sets whether incomplete input should be recovered into a partial AST.
-    ///
-    /// Default: `false`.
-    pub fn set_recover_incomplete_input(&mut self, recover: bool) {
-        self.recover_incomplete_input = recover;
     }
 
     /// Resolves a file.
@@ -360,7 +350,6 @@ impl<'gcx> ParsingContext<'gcx> {
     ) -> Option<ast::SourceUnit<'ast>> {
         let lexer = Lexer::from_source_file(self.sess, file);
         let mut parser = Parser::from_lexer(arena, lexer);
-        parser.set_recover_incomplete_input(self.recover_incomplete_input);
         if self.resolve_imports {
             parser.set_import_callback(import_callback);
         }

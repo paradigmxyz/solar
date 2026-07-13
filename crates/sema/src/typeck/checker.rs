@@ -87,7 +87,22 @@ impl<'gcx> TypeChecker<'gcx> {
         let mut evaluator = ConstantEvaluator::new(self.gcx);
         match evaluator.try_eval_value(slot) {
             Ok(ConstValue::Integer(value)) => {
-                if value.as_u256().is_none() {
+                if let Some(base_slot) = value.as_u256() {
+                    let Some(contract_id) = self.contract else {
+                        unreachable!("storage layout specifier outside a contract")
+                    };
+                    if let Ok(Some(size)) = super::storage_size_upper_bound(
+                        self.gcx,
+                        contract_id,
+                        DataLocation::Storage,
+                    ) && base_slot.checked_add(size).is_none()
+                    {
+                        self.dcx().emit_err(
+                            slot.span,
+                            "contract extends past the end of storage when this base slot value is specified",
+                        );
+                    }
+                } else {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
@@ -640,6 +655,8 @@ impl<'gcx> TypeChecker<'gcx> {
                 let ty = self.gcx.type_of_hir_ty(hir_ty);
                 if valid_meta_type(ty) {
                     self.gcx.mk_ty(TyKind::Meta(ty))
+                } else if ty.references_error() {
+                    ty
                 } else {
                     self.gcx.mk_ty_err(self.dcx().emit_err(hir_ty.span, "invalid type"))
                 }
@@ -736,6 +753,12 @@ impl<'gcx> TypeChecker<'gcx> {
         } else {
             std::slice::from_ref(&rhs_ty)
         };
+
+        if lhs_types.iter().any(|ty| ty.references_error())
+            || rhs_types.iter().any(|ty| ty.references_error())
+        {
+            return;
+        }
 
         if lhs_components.len() != rhs_types.len() {
             self.dcx().emit_err_label(
@@ -2128,6 +2151,9 @@ impl<'gcx> TypeChecker<'gcx> {
                 len.checked_mul(elem_size)
             }
             TyKind::Struct(id) => {
+                if self.gcx.struct_recursiveness(id).is_recursive() {
+                    return None;
+                }
                 let mut size = U256::ZERO;
                 for &field_ty in self.gcx.struct_field_types(id) {
                     let field_size = if field_ty.is_dynamically_sized() {

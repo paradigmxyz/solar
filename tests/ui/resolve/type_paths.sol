@@ -18,5 +18,6 @@ contract C {
         
         self.C.Unknown memory h = self.C.Unknown(3);
         //~^ ERROR: unresolved symbol `Unknown`
+        //~| ERROR: member `Unknown` not found on type `type(contract C)`
     }
 }

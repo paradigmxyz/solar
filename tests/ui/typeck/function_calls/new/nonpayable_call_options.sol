@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/constructor/nonpayable_new.sol
 
 contract NonPayableA1 {

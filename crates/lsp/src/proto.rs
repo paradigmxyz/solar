@@ -106,9 +106,11 @@ fn utf16_column(utf8_pos: CharPos, line: &str) -> u32 {
 #[inline]
 fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
     match level {
-        Level::FailureNote | Level::Fatal | Level::Bug | Level::Error => DiagnosticSeverity::ERROR,
+        Level::Fatal | Level::Bug | Level::Error => DiagnosticSeverity::ERROR,
         Level::Warning => DiagnosticSeverity::WARNING,
         Level::Help | Level::OnceHelp => DiagnosticSeverity::HINT,
-        Level::Note | Level::OnceNote | Level::Allow => DiagnosticSeverity::INFORMATION,
+        Level::Note | Level::OnceNote | Level::FailureNote | Level::Allow => {
+            DiagnosticSeverity::INFORMATION
+        }
     }
 }

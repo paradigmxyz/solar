@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     mapping(uint => uint) a;
     mapping(uint => uint) b;

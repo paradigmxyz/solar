@@ -1,4 +1,2 @@
 ROOT/tests/ui/cli/error_format.sol:LL:CC: error: expected one of `(`, `.`, `;`, `?`, `[`, or `{`, found `}`: unexpected token
-
 error: aborting due to 1 previous error
-

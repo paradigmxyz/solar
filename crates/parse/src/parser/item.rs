@@ -50,12 +50,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
         if !self.eat(end) {
             let (msg, note) = get_msg_note(self);
-            let err = self.dcx().err(msg).span(self.token.span).note(note);
-            if self.recover_incomplete_input && self.token.kind == TokenKind::Eof {
-                err.emit();
-            } else {
-                return Err(err);
-            }
+            self.dcx().err(msg).span(self.token.span).note(note).emit();
         }
         Ok(self.alloc_vec(items))
     }

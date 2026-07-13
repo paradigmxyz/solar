@@ -1,0 +1,247 @@
+{
+  "sources": {
+    "types.sol": {
+      "id": 0
+    }
+  },
+  "contracts": {
+    "types.sol": {
+      "LayoutTypes": {
+        "storageLayout": {
+          "storage": [
+            {
+              "astId": 1,
+              "contract": "types.sol:LayoutTypes",
+              "label": "raw",
+              "offset": 0,
+              "slot": "0",
+              "type": "t_bytes_storage"
+            },
+            {
+              "astId": 2,
+              "contract": "types.sol:LayoutTypes",
+              "label": "text",
+              "offset": 0,
+              "slot": "1",
+              "type": "t_string_storage"
+            },
+            {
+              "astId": 3,
+              "contract": "types.sol:LayoutTypes",
+              "label": "nestedDynamic",
+              "offset": 0,
+              "slot": "2",
+              "type": "t_array(t_array(t_uint8)dyn_storage)2_storage"
+            },
+            {
+              "astId": 4,
+              "contract": "types.sol:LayoutTypes",
+              "label": "unevenArray",
+              "offset": 0,
+              "slot": "4",
+              "type": "t_array(t_bytes17)3_storage"
+            },
+            {
+              "astId": 5,
+              "contract": "types.sol:LayoutTypes",
+              "label": "oddWidthArray",
+              "offset": 0,
+              "slot": "7",
+              "type": "t_array(t_uint24)21_storage"
+            },
+            {
+              "astId": 6,
+              "contract": "types.sol:LayoutTypes",
+              "label": "packed",
+              "offset": 0,
+              "slot": "10",
+              "type": "t_struct(Packed)22_storage"
+            },
+            {
+              "astId": 7,
+              "contract": "types.sol:LayoutTypes",
+              "label": "records",
+              "offset": 0,
+              "slot": "15",
+              "type": "t_mapping(t_address,t_struct(Packed)22_storage)"
+            },
+            {
+              "astId": 8,
+              "contract": "types.sol:LayoutTypes",
+              "label": "dynamicRecords",
+              "offset": 0,
+              "slot": "16",
+              "type": "t_mapping(t_address,t_array(t_uint8)dyn_storage)"
+            },
+            {
+              "astId": 9,
+              "contract": "types.sol:LayoutTypes",
+              "label": "choice",
+              "offset": 0,
+              "slot": "17",
+              "type": "t_enum(Choice)23"
+            },
+            {
+              "astId": 10,
+              "contract": "types.sol:LayoutTypes",
+              "label": "small",
+              "offset": 1,
+              "slot": "17",
+              "type": "t_userDefinedValueType(Small)24"
+            },
+            {
+              "astId": 11,
+              "contract": "types.sol:LayoutTypes",
+              "label": "externalFn",
+              "offset": 4,
+              "slot": "17",
+              "type": "t_function_external_view(t_array(t_array(t_uint8)dyn_calldata_ptr)2_calldata_ptr,t_array(t_bytes_memory_ptr)dyn_memory_ptr)returns(t_array(t_string_memory_ptr)dyn_memory_ptr)"
+            },
+            {
+              "astId": 12,
+              "contract": "types.sol:LayoutTypes",
+              "label": "internalFn",
+              "offset": 0,
+              "slot": "18",
+              "type": "t_function_internal_pure(t_uint256)returns(t_bool)"
+            },
+            {
+              "astId": 13,
+              "contract": "types.sol:LayoutTypes",
+              "label": "recipient",
+              "offset": 8,
+              "slot": "18",
+              "type": "t_address_payable"
+            }
+          ],
+          "types": {
+            "t_bytes_storage": {
+              "encoding": "bytes",
+              "label": "bytes",
+              "numberOfBytes": "32"
+            },
+            "t_string_storage": {
+              "encoding": "bytes",
+              "label": "string",
+              "numberOfBytes": "32"
+            },
+            "t_array(t_array(t_uint8)dyn_storage)2_storage": {
+              "encoding": "inplace",
+              "label": "uint8[][2]",
+              "numberOfBytes": "64",
+              "base": "t_array(t_uint8)dyn_storage"
+            },
+            "t_array(t_uint8)dyn_storage": {
+              "encoding": "dynamic_array",
+              "label": "uint8[]",
+              "numberOfBytes": "32",
+              "base": "t_uint8"
+            },
+            "t_uint8": {
+              "encoding": "inplace",
+              "label": "uint8",
+              "numberOfBytes": "1"
+            },
+            "t_array(t_bytes17)3_storage": {
+              "encoding": "inplace",
+              "label": "bytes17[3]",
+              "numberOfBytes": "96",
+              "base": "t_bytes17"
+            },
+            "t_bytes17": {
+              "encoding": "inplace",
+              "label": "bytes17",
+              "numberOfBytes": "17"
+            },
+            "t_array(t_uint24)21_storage": {
+              "encoding": "inplace",
+              "label": "uint24[21]",
+              "numberOfBytes": "96",
+              "base": "t_uint24"
+            },
+            "t_uint24": {
+              "encoding": "inplace",
+              "label": "uint24",
+              "numberOfBytes": "3"
+            },
+            "t_struct(Packed)22_storage": {
+              "encoding": "inplace",
+              "label": "struct LayoutTypes.Packed",
+              "numberOfBytes": "160",
+              "members": [
+                {
+                  "astId": 14,
+                  "contract": "types.sol:LayoutTypes",
+                  "label": "head",
+                  "offset": 0,
+                  "slot": "0",
+                  "type": "t_uint8"
+                },
+                {
+                  "astId": 15,
+                  "contract": "types.sol:LayoutTypes",
+                  "label": "values",
+                  "offset": 0,
+                  "slot": "1",
+                  "type": "t_array(t_bytes17)3_storage"
+                },
+                {
+                  "astId": 16,
+                  "contract": "types.sol:LayoutTypes",
+                  "label": "tail",
+                  "offset": 0,
+                  "slot": "4",
+                  "type": "t_uint8"
+                }
+              ]
+            },
+            "t_mapping(t_address,t_struct(Packed)22_storage)": {
+              "encoding": "mapping",
+              "label": "mapping(address => struct LayoutTypes.Packed)",
+              "numberOfBytes": "32",
+              "key": "t_address",
+              "value": "t_struct(Packed)22_storage"
+            },
+            "t_address": {
+              "encoding": "inplace",
+              "label": "address",
+              "numberOfBytes": "20"
+            },
+            "t_mapping(t_address,t_array(t_uint8)dyn_storage)": {
+              "encoding": "mapping",
+              "label": "mapping(address => uint8[])",
+              "numberOfBytes": "32",
+              "key": "t_address",
+              "value": "t_array(t_uint8)dyn_storage"
+            },
+            "t_enum(Choice)23": {
+              "encoding": "inplace",
+              "label": "enum LayoutTypes.Choice",
+              "numberOfBytes": "1"
+            },
+            "t_userDefinedValueType(Small)24": {
+              "encoding": "inplace",
+              "label": "LayoutTypes.Small",
+              "numberOfBytes": "3"
+            },
+            "t_function_external_view(t_array(t_array(t_uint8)dyn_calldata_ptr)2_calldata_ptr,t_array(t_bytes_memory_ptr)dyn_memory_ptr)returns(t_array(t_string_memory_ptr)dyn_memory_ptr)": {
+              "encoding": "inplace",
+              "label": "function (uint8[][2],bytes[]) view external returns (string[])",
+              "numberOfBytes": "24"
+            },
+            "t_function_internal_pure(t_uint256)returns(t_bool)": {
+              "encoding": "inplace",
+              "label": "function (uint256) pure returns (bool)",
+              "numberOfBytes": "8"
+            },
+            "t_address_payable": {
+              "encoding": "inplace",
+              "label": "address payable",
+              "numberOfBytes": "20"
+            }
+          }
+        }
+      }
+    }
+  }
+}

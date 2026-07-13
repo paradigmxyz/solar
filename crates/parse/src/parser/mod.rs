@@ -159,7 +159,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
-            recover_incomplete_input: false,
+            recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
             recursion_depth: 0,
             import_callback: None,
         };
@@ -173,13 +173,6 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         import_callback: impl FnMut(ast::ItemId, Span, &ast::ImportDirective<'ast>) + 'cb,
     ) {
         self.import_callback = Some(std::boxed::Box::new(import_callback));
-    }
-
-    /// Sets whether incomplete input should be recovered into a partial AST.
-    ///
-    /// Default: `false`.
-    pub fn set_recover_incomplete_input(&mut self, recover: bool) {
-        self.recover_incomplete_input = recover;
     }
 
     /// Creates a new parser from a source code string.
@@ -1322,72 +1315,6 @@ import * as B from "b.sol";
                 assert_eq!(result.is_ok(), succeeds);
             });
         }
-    }
-
-    #[test]
-    fn incomplete_input_recovery_is_opt_in_and_retains_calls() {
-        let src = r#"
-contract C {
-    function target(uint256 amount, address account) internal returns (uint256) {
-        return amount + uint256(uint160(account));
-    }
-
-    function use() internal returns (uint256) {
-        return target(1,
-    }
-
-    function later() internal {}
-}
-"#;
-
-        let strict_sess =
-            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
-        strict_sess.enter_sequential(|| {
-            let arena = ast::Arena::new();
-            let mut parser = Parser::from_source_code(
-                &strict_sess,
-                &arena,
-                "strict.sol".to_string().into(),
-                src,
-            )
-            .unwrap();
-            assert!(parser.parse_file().map_err(|err| err.emit()).is_err());
-        });
-
-        let recovery_sess =
-            Session::builder().with_buffer_emitter(Default::default()).single_threaded().build();
-        recovery_sess.enter_sequential(|| {
-            let arena = ast::Arena::new();
-            let mut parser = Parser::from_source_code(
-                &recovery_sess,
-                &arena,
-                "recovered.sol".to_string().into(),
-                src,
-            )
-            .unwrap();
-            parser.set_recover_incomplete_input(true);
-            let ast = parser.parse_file().expect("incomplete source should be recovered");
-
-            assert!(recovery_sess.dcx.err_count() > 0);
-            let ast::ItemKind::Contract(contract) = &ast.items.iter().next().unwrap().kind else {
-                panic!("expected contract")
-            };
-            let names = contract
-                .body
-                .iter()
-                .filter_map(|item| item.name().map(|name| name.to_string()))
-                .collect::<Vec<_>>();
-            assert_eq!(names, ["target", "use", "later"]);
-
-            let ast::ItemKind::Function(use_function) = &contract.body.get(1).unwrap().kind else {
-                panic!("expected function")
-            };
-            let body = use_function.body.as_ref().expect("expected function body");
-            let ast::StmtKind::Return(Some(expr)) = &body.stmts[0].kind else {
-                panic!("expected return statement")
-            };
-            assert!(matches!(expr.kind, ast::ExprKind::Call(..)));
-        });
     }
 
     #[test]

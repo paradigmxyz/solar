@@ -16,7 +16,8 @@ use solar_data_structures::map::FxIndexMap;
 #[serde(rename_all = "camelCase")]
 pub struct StorageLayoutOutput {
     pub storage: Vec<StorageLayoutEntry>,
-    pub types: FxIndexMap<String, StorageLayoutType>,
+    /// `solc` emits `null` rather than an empty object when no storage types are present.
+    pub types: Option<FxIndexMap<String, StorageLayoutType>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -132,7 +133,8 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
         }
 
-        StorageLayoutOutput { storage, types: self.types }
+        let types = (!self.types.is_empty()).then_some(self.types);
+        StorageLayoutOutput { storage, types }
     }
 
     fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {
@@ -155,7 +157,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         ty: String,
     ) -> StorageLayoutEntry {
         StorageLayoutEntry {
-            ast_id: variable_id.index() as u64,
+            ast_id: self.gcx.hir.global_item_id(variable_id) as u64,
             contract: self.contract_name.clone(),
             label: self.gcx.hir.variable(variable_id).name.unwrap().to_string(),
             offset,
@@ -192,6 +194,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         }
         self.types.insert(key.clone(), StorageLayoutType::default());
 
+        let location = ty.loc();
         let ty = ty.peel_refs();
         let mut info = StorageLayoutType {
             encoding: StorageEncoding::Inplace,
@@ -207,14 +210,16 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             TyKind::Mapping(key_ty, value_ty) => {
                 info.encoding = StorageEncoding::Mapping;
                 info.key = Some(self.generate_type(key_ty));
-                info.value = Some(self.generate_type(value_ty));
+                info.value = Some(
+                    self.generate_type(value_ty.with_loc_if_ref(self.gcx, DataLocation::Storage)),
+                );
             }
             TyKind::Array(base, _) => {
-                info.base = Some(self.generate_type(base));
+                info.base = Some(self.generate_type(base.with_loc_if_ref_opt(self.gcx, location)));
             }
             TyKind::DynArray(base) => {
                 info.encoding = StorageEncoding::DynamicArray;
-                info.base = Some(self.generate_type(base));
+                info.base = Some(self.generate_type(base.with_loc_if_ref_opt(self.gcx, location)));
             }
             TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
                 info.encoding = StorageEncoding::Bytes;
@@ -231,43 +236,71 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
     }
 
     fn storage_type_key(&self, ty: Ty<'gcx>) -> String {
+        self.storage_type_key_with(ty, None, false)
+    }
+
+    fn storage_type_key_with(
+        &self,
+        ty: Ty<'gcx>,
+        location: Option<DataLocation>,
+        pointer: bool,
+    ) -> String {
         match ty.kind {
             TyKind::Ref(inner, location) => {
-                let key = self.storage_type_key(inner);
+                let key = self.storage_type_key_with(inner, Some(location), pointer);
                 if matches!(inner.peel_refs().kind, TyKind::Mapping(..)) {
                     key
                 } else {
-                    format!("{key}_{location}")
+                    let pointer = if pointer { "_ptr" } else { "" };
+                    format!("{key}_{location}{pointer}")
                 }
             }
             TyKind::Elementary(ty) => format!("t_{}", ty.to_string().replace(' ', "_")),
             TyKind::Array(base, length) => {
-                format!("t_array({}){length}", self.storage_type_key(base))
+                let base = base.with_loc_if_ref_opt(self.gcx, location);
+                format!("t_array({}){length}", self.storage_type_key_with(base, None, pointer))
             }
-            TyKind::DynArray(base) => format!("t_array({})dyn", self.storage_type_key(base)),
+            TyKind::DynArray(base) => {
+                let base = base.with_loc_if_ref_opt(self.gcx, location);
+                format!("t_array({})dyn", self.storage_type_key_with(base, None, pointer))
+            }
             TyKind::Mapping(key, value) => format!(
                 "t_mapping({},{})",
-                self.storage_type_key(key),
-                self.storage_type_key(value)
+                self.storage_type_key_with(key, None, false),
+                self.storage_type_key_with(
+                    value.with_loc_if_ref(self.gcx, DataLocation::Storage),
+                    None,
+                    false,
+                )
             ),
-            TyKind::Contract(id) => format!("t_contract({}){}", self.gcx.item_name(id), id.index()),
-            TyKind::Struct(id) => format!("t_struct({}){}", self.gcx.item_name(id), id.index()),
-            TyKind::Enum(id) => format!("t_enum({}){}", self.gcx.item_name(id), id.index()),
+            TyKind::Contract(id) => {
+                format!("t_contract({}){}", self.gcx.item_name(id), self.gcx.hir.global_item_id(id))
+            }
+            TyKind::Struct(id) => {
+                format!("t_struct({}){}", self.gcx.item_name(id), self.gcx.hir.global_item_id(id))
+            }
+            TyKind::Enum(id) => {
+                format!("t_enum({}){}", self.gcx.item_name(id), self.gcx.hir.global_item_id(id))
+            }
             TyKind::Udvt(_, id) => {
-                format!("t_userDefinedValueType({}){}", self.gcx.item_name(id), id.index())
+                format!(
+                    "t_userDefinedValueType({}){}",
+                    self.gcx.item_name(id),
+                    self.gcx.hir.global_item_id(id)
+                )
             }
             TyKind::Fn(function) => {
                 let kind = if function.is_external() { "external" } else { "internal" };
                 let params = function
                     .parameters
                     .iter()
-                    .map(|ty| self.storage_type_key(*ty))
+                    .map(|ty| self.function_type_key(*ty))
                     .collect::<Vec<_>>()
                     .join(",");
                 let returns = function
                     .returns
                     .iter()
-                    .map(|ty| self.storage_type_key(*ty))
+                    .map(|ty| self.function_type_key(*ty))
                     .collect::<Vec<_>>()
                     .join(",");
                 format!(
@@ -277,6 +310,10 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
             _ => unreachable!("invalid storage type: {ty:?}"),
         }
+    }
+
+    fn function_type_key(&self, ty: Ty<'gcx>) -> String {
+        self.storage_type_key_with(ty, None, true)
     }
 
     fn storage_type_label(&self, ty: Ty<'gcx>) -> String {
@@ -292,20 +329,22 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             ),
             TyKind::Contract(id) => format!("contract {}", self.gcx.item_name(id)),
             TyKind::Struct(id) => format!("struct {}", self.gcx.item_canonical_name(id)),
-            TyKind::Enum(id) => format!("enum {}", self.gcx.item_name(id)),
-            TyKind::Udvt(_, id) => self.gcx.item_name(id).to_string(),
+            TyKind::Enum(id) => format!("enum {}", self.gcx.item_canonical_name(id)),
+            TyKind::Udvt(_, id) => self.gcx.item_canonical_name(id).to_string(),
             TyKind::Fn(function) => {
                 let params = function
                     .parameters
                     .iter()
                     .map(|ty| self.storage_type_label(*ty))
                     .collect::<Vec<_>>()
-                    .join(", ");
-                let kind = if function.is_external() { "external" } else { "internal" };
-                let mut label = format!("function ({params}) {kind}");
+                    .join(",");
+                let mut label = format!("function ({params})");
                 if function.state_mutability != hir::StateMutability::NonPayable {
                     label.push(' ');
                     label.push_str(&function.state_mutability.to_string());
+                }
+                if function.is_external() {
+                    label.push_str(" external");
                 }
                 if !function.returns.is_empty() {
                     let returns = function
@@ -313,7 +352,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                         .iter()
                         .map(|ty| self.storage_type_label(*ty))
                         .collect::<Vec<_>>()
-                        .join(", ");
+                        .join(",");
                     label.push_str(&format!(" returns ({returns})"));
                 }
                 label
@@ -336,7 +375,15 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                 | ElementaryType::FixedBytes(size) => U256::from(size.bytes()),
             },
             TyKind::Array(base, length) => {
-                slots_for(self.storage_bytes(base) * length) * U256::from(32)
+                let base_bytes = self.storage_bytes(base);
+                let slots = if self.is_packable(base) {
+                    let items_per_slot = U256::from(32) / base_bytes;
+                    length / items_per_slot
+                        + U256::from(u8::from(length % items_per_slot != U256::ZERO))
+                } else {
+                    slots_for(base_bytes) * length
+                };
+                slots.max(U256::from(1)) * U256::from(32)
             }
             TyKind::DynArray(_) | TyKind::Mapping(..) => U256::from(32),
             TyKind::Struct(struct_id) => {
@@ -399,5 +446,5 @@ impl StorageCursor {
 }
 
 fn slots_for(bytes: U256) -> U256 {
-    (bytes + U256::from(31)) / U256::from(32)
+    bytes / U256::from(32) + U256::from(u8::from(bytes % U256::from(32) != U256::ZERO))
 }

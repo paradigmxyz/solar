@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/invalidArgs/creating_memory_array.sol
 
 contract C {

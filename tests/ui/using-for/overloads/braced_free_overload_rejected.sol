@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/using/free_functions_non_unique_err.sol
 // ported-from: test/libsolidity/syntaxTests/using/free_overloads.sol
 

@@ -16,6 +16,9 @@ Options:
       -Zno-resolve-imports
           Disables import resolution
 
+      -Zrecover-incomplete-input
+          Recovers incomplete input into a partial AST
+
       -Zdump=<KIND[=PATHS...]>
           Print additional information about the compiler's internal state.
           
@@ -38,9 +41,6 @@ Options:
 
       -Zprint-natspec
           Print resolved NatSpec docs as diagnostics for UI tests
-
-      -Ztypeck
-          Type check the program. WIP
 
       -Zmir-print-after-each
           Print MIR after every MIR optimization pass during codegen

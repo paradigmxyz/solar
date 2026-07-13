@@ -1,0 +1,38 @@
+error: state variables cannot be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/parser/yul/kws_ok.sol:LL:CC
+   │
+LL │             number.slot := 69
+   ╰╴            ━━━━━━
+
+error: state variables cannot be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/parser/yul/kws_ok.sol:LL:CC
+   │
+LL │             number.slot, number.slot := some_call()
+   ╰╴            ━━━━━━
+
+error: state variables cannot be assigned to in inline assembly
+   ╭▸ ROOT/tests/ui/parser/yul/kws_ok.sol:LL:CC
+   │
+LL │             number.slot, number.slot := some_call()
+   ╰╴                         ━━━━━━
+
+error: storage variables only support `.slot` and `.offset`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_ok.sol:LL:CC
+   │
+LL │             number.number := 69
+   ╰╴                   ━━━━━━
+
+error: storage variables only support `.slot` and `.offset`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_ok.sol:LL:CC
+   │
+LL │             number.number, number.number := some_call()
+   ╰╴                   ━━━━━━
+
+error: storage variables only support `.slot` and `.offset`
+   ╭▸ ROOT/tests/ui/parser/yul/kws_ok.sol:LL:CC
+   │
+LL │             number.number, number.number := some_call()
+   ╰╴                                  ━━━━━━
+
+error: aborting due to 6 previous errors
+

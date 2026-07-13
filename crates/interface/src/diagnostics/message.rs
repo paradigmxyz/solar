@@ -1,4 +1,4 @@
-//! Modified from [`rustc_error_messages`](https://github.com/rust-lang/rust/blob/520e30be83b4ed57b609d33166c988d1512bf4f3/compiler/rustc_error_messages/src/lib.rs).
+//! Modified from [`rustc_error_messages`](https://github.com/rust-lang/rust/blob/3b58636b30eb364ac72aeaf03d46347084ed87d1/compiler/rustc_error_messages/src/lib.rs).
 
 use crate::Span;
 use std::{borrow::Cow, ops::Deref};
@@ -89,8 +89,18 @@ impl MultiSpan {
         Self { primary_spans: vec, span_labels: vec![] }
     }
 
+    /// Adds a primary span.
+    pub fn push_primary_span(&mut self, primary_span: Span) {
+        self.primary_spans.push(primary_span);
+    }
+
     pub fn push_span_label(&mut self, span: Span, label: impl Into<DiagMsg>) {
         self.span_labels.push((span, label.into()));
+    }
+
+    /// Adds an already constructed diagnostic message as a span label.
+    pub fn push_span_diag(&mut self, span: Span, diag: DiagMsg) {
+        self.span_labels.push((span, diag));
     }
 
     /// Selects the first primary span (if any).
@@ -132,10 +142,6 @@ impl MultiSpan {
         replacements_occurred
     }
 
-    pub fn pop_span_label(&mut self) -> Option<(Span, DiagMsg)> {
-        self.span_labels.pop()
-    }
-
     /// Returns the strings to highlight. We always ensure that there
     /// is an entry for each of the primary spans -- for each primary
     /// span `P`, if there is at least one label with span `P`, we return
@@ -163,15 +169,17 @@ impl MultiSpan {
         span_labels
     }
 
+    /// Returns the span labels as stored by this `MultiSpan`.
+    pub fn span_labels_raw(&self) -> &[(Span, DiagMsg)] {
+        &self.span_labels
+    }
+
     /// Returns `true` if any of the span labels is displayable.
     pub fn has_span_labels(&self) -> bool {
         self.span_labels.iter().any(|(sp, _)| !sp.is_dummy())
     }
 
-    /// Clone this `MultiSpan` without keeping any of the span labels - sometimes a `MultiSpan` is
-    /// to be re-used in another diagnostic, but includes `span_labels` which have translated
-    /// messages. These translated messages would fail to translate without their diagnostic
-    /// arguments which are unlikely to be cloned alongside the `Span`.
+    /// Clones this `MultiSpan` without keeping any span labels.
     pub fn clone_ignoring_labels(&self) -> Self {
         Self { primary_spans: self.primary_spans.clone(), ..Self::new() }
     }

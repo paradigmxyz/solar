@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // Tests for implicit FixedBytes width conversions.
 // See: https://docs.soliditylang.org/en/latest/types.html#implicit-conversions
 // "Smaller bytesN to larger bytesN is allowed (e.g., bytes1 -> bytes32, right-padded with zeros)."

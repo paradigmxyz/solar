@@ -430,14 +430,13 @@ impl AnalysisBatch {
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
     let mut opts = batch.opts;
-    opts.unstable.typeck = true;
+    opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
 
     let mut compiler = Compiler::new(sess);
     compiler.enter_mut(move |compiler| {
         {
             let mut parsing_context = compiler.parse();
-            parsing_context.set_recover_incomplete_input(true);
             let files = batch
                 .files
                 .into_iter()

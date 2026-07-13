@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/types/contractTypeType/members/call_function_via_contract_name.sol
 // ported-from: test/libsolidity/syntaxTests/freeFunctions/free_call_via_contract_type.sol
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/145_external_base_visibility.sol

@@ -482,6 +482,8 @@ mod tests {
                 }],
                 label: None,
                 suggested_replacement: None,
+                suggestion_applicability: None,
+                expansion: None,
             }],
             children: Vec::new(),
             rendered: None,

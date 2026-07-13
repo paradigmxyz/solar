@@ -1,0 +1,10 @@
+error: expected one of `(`, `)`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_incomplete_input.sol:LL:CC
+   │
+LL │         return target(1,
+   │                         ─ expected one of 11 possible tokens
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: aborting due to 1 previous error
+

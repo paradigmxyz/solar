@@ -59,7 +59,7 @@ pub fn compile_standard_json(
         }
     }
 
-    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map))
+    let mut emitter = JsonEmitter::new(Box::new(io::sink()), Arc::clone(&source_map), opts.color)
         .ui_testing(opts.unstable.ui_testing)
         .human_kind(opts.error_format_human)
         .terminal_width(opts.diagnostic_width);

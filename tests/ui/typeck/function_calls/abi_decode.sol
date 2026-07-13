@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     struct Unsupported {
         mapping(uint256 => uint256) values;

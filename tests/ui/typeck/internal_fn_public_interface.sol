@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 contract C {
     // Internal function type as public state variable - should error.
     function(uint) internal public myInternalFunc; //~ ERROR: types containing internal function pointers cannot be parameter or return types of public getter functions

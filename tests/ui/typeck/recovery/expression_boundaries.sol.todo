@@ -1,5 +1,3 @@
-//@ compile-flags: -Ztypeck
-
 // TODO: These expression-boundary failures should recover by inserting
 // ExprKind::Err at the malformed subexpression and synchronizing at `,`, `;`,
 // `)`, `]`, `}`, or `:` as appropriate.

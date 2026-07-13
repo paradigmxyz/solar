@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/array/slice/calldata_dynamic_access.sol
 
 // Tests for array slice implicit conversions.

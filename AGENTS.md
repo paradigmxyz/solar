@@ -24,6 +24,8 @@ cargo run -- -Zhelp                    # Unstable flags help
 
 DO NOT USE `cargo test` DIRECTLY IF YOU CAN AVOID IT.
 
+NEVER RUN TESTS WITH `--all-features`. This enables "tracy" which has heavy overhead per-process, which the UI tests spawn lots of, increasing test times to minutes and 100% CPU for no reason.
+
 ## Architecture
 
 - **solar-parse**: Lexer and parser

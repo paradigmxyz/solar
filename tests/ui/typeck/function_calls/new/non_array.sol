@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/nameAndTypeResolution/265_new_for_non_array.sol
 
 contract C {

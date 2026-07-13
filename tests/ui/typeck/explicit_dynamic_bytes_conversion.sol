@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 contract C {
     function f(bytes memory a0) public pure {
         // Valid conversion

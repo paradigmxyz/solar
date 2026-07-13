@@ -10,5 +10,11 @@ error: unresolved symbol `Unknown`
 LL │         self.C.Unknown memory h = self.C.Unknown(3);
    ╰╴               ━━━━━━━
 
-error: aborting due to 2 previous errors
+error: member `Unknown` not found on type `type(contract C)`
+   ╭▸ ROOT/tests/ui/resolve/type_paths.sol:LL:CC
+   │
+LL │         self.C.Unknown memory h = self.C.Unknown(3);
+   ╰╴                                         ━━━━━━━
+
+error: aborting due to 3 previous errors
 

@@ -1,4 +1,3 @@
-//@ compile-flags: -Ztypeck
 // ported-from: test/libsolidity/syntaxTests/lvalues/valid_lvalues.sol
 // Valid lvalue assignments for memory variables
 
