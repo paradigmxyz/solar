@@ -16,6 +16,9 @@ Options:
       -Zno-resolve-imports
           Disables import resolution
 
+      -Zrecover-incomplete-input
+          Recovers incomplete input into a partial AST
+
       -Zdump=<KIND[=PATHS...]>
           Print additional information about the compiler's internal state.
           
