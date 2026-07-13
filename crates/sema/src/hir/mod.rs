@@ -12,7 +12,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed, source_map::SourceFile};
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
-use strum::{EnumCount, EnumIs};
+use strum::EnumIs;
 
 pub use ast::{
     BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit, NatSpecItem,
@@ -85,18 +85,18 @@ pub struct Hir<'hir> {
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
     pub(crate) functions: IndexVec<FunctionId, Function<'hir>>,
+    /// All constants and variables.
+    pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
     /// All structs.
     pub(crate) structs: IndexVec<StructId, Struct<'hir>>,
     /// All enums.
     pub(crate) enums: IndexVec<EnumId, Enum<'hir>>,
     /// All user-defined value types.
     pub(crate) udvts: IndexVec<UdvtId, Udvt<'hir>>,
-    /// All events.
-    pub(crate) events: IndexVec<EventId, Event<'hir>>,
     /// All custom errors.
     pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
-    /// All constants and variables.
-    pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
+    /// All events.
+    pub(crate) events: IndexVec<EventId, Event<'hir>>,
 }
 
 macro_rules! indexvec_methods {
@@ -181,12 +181,12 @@ impl<'hir> Hir<'hir> {
             docs,
             contracts: IndexVec::new(),
             functions: IndexVec::new(),
+            variables: IndexVec::new(),
             structs: IndexVec::new(),
             enums: IndexVec::new(),
             udvts: IndexVec::new(),
-            events: IndexVec::new(),
             errors: IndexVec::new(),
-            variables: IndexVec::new(),
+            events: IndexVec::new(),
         }
     }
 
@@ -195,12 +195,12 @@ impl<'hir> Hir<'hir> {
         doc => docs, DocId => Doc<'hir>;
         contract => contracts, ContractId => Contract<'hir>;
         function => functions, FunctionId => Function<'hir>;
+        variable => variables, VariableId => Variable<'hir>;
         strukt => structs, StructId => Struct<'hir>;
         enumm => enums, EnumId => Enum<'hir>;
         udvt => udvts, UdvtId => Udvt<'hir>;
-        event => events, EventId => Event<'hir>;
         error => errors, ErrorId => Error<'hir>;
-        variable => variables, VariableId => Variable<'hir>;
+        event => events, EventId => Event<'hir>;
     }
 
     /// Returns the item associated with the given ID.
@@ -220,18 +220,35 @@ impl<'hir> Hir<'hir> {
 
     /// Returns an ID that is unique across all HIR item kinds.
     pub fn global_item_id(&self, id: impl Into<ItemId>) -> usize {
-        let id = id.into();
-        let counts: [usize; ItemKind::COUNT] = [
-            self.contracts.len(),
-            self.functions.len(),
-            self.variables.len(),
-            self.structs.len(),
-            self.enums.len(),
-            self.udvts.len(),
-            self.errors.len(),
-            self.events.len(),
-        ];
-        counts[..id.kind() as usize].iter().sum::<usize>() + id.index()
+        self.global_item_id_(id.into())
+    }
+
+    fn global_item_id_(&self, id: ItemId) -> usize {
+        let mut base = 0;
+        'out: {
+            macro_rules! sum_base {
+                ($($kind:ident : $kinds:ident,)*) => {
+                    $(
+                        if id.kind() > ItemKind::$kind {
+                            base += self.$kinds.len();
+                        } else {
+                            break 'out;
+                        }
+                    )*
+                };
+            }
+            sum_base!(
+                Contract : contracts,
+                Function : functions,
+                Variable : variables,
+                Struct : structs,
+                Enum : enums,
+                Udvt : udvts,
+                Error : errors,
+                Event : events,
+            );
+        }
+        base + id.raw_index()
     }
 
     /// Returns an iterator over all item IDs.
@@ -703,8 +720,7 @@ impl<'hir> Item<'_, 'hir> {
 }
 
 /// HIR item kinds in global ID order.
-#[derive(Clone, Copy, EnumCount)]
-#[repr(usize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum ItemKind {
     Contract,
     Function,
@@ -745,6 +761,7 @@ impl fmt::Debug for ItemId {
 }
 
 impl ItemId {
+    #[inline]
     fn kind(self) -> ItemKind {
         match self {
             Self::Contract(_) => ItemKind::Contract,
@@ -758,7 +775,8 @@ impl ItemId {
         }
     }
 
-    fn index(self) -> usize {
+    #[inline]
+    fn raw_index(self) -> usize {
         match self {
             Self::Contract(id) => id.index(),
             Self::Function(id) => id.index(),
