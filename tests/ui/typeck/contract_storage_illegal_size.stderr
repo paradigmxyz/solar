@@ -4,11 +4,17 @@ note: ROOT/tests/ui/typeck/contract_storage_illegal_size.sol:AlmostIllegal requi
 LL │ contract AlmostIllegal {
    ╰╴         ━━━━━━━━━━━━━
 
+note: ROOT/tests/ui/typeck/contract_storage_illegal_size.sol:AlmostIllegal requires a maximum of 0 transient storage slots
+   ╭▸ ROOT/tests/ui/typeck/contract_storage_illegal_size.sol:LL:CC
+   │
+LL │ contract AlmostIllegal {
+   ╰╴         ━━━━━━━━━━━━━
+
 error: contract requires too much storage
    ╭▸ ROOT/tests/ui/typeck/contract_storage_illegal_size.sol:LL:CC
    │
 LL │ contract Illegal {
    ╰╴         ━━━━━━━
 
-error: aborting due to 1 previous error; 1 note emitted
+error: aborting due to 1 previous error; 2 notes emitted
 

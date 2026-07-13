@@ -5,9 +5,12 @@ struct Person {
     uint age;
 }
 
-contract B {
+contract B { //~ NOTE: :B requires a maximum of 2 storage slots
+    //~^ NOTE: :B requires a maximum of 2 transient storage slots
     uint c;
     bool x;
+    uint transient tc;
+    bool transient tx;
 }
 
 contract A { //~ NOTE: :A requires a maximum of 77 storage slots

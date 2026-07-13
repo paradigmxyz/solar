@@ -413,19 +413,44 @@ fn check_receive_function(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 /// Reference: <https://github.com/argotorg/solidity/blob/03e2739809769ae0c8d236a883aadc900da60536/libsolidity/analysis/ContractLevelChecker.cpp#L556C1-L570C2>
 fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
     let span = gcx.hir.contract(contract_id).name.span;
-    let total_size = match storage_size_upper_bound(gcx, contract_id) {
-        Ok(Some(total_size)) => total_size,
-        Ok(None) => {
-            gcx.dcx().emit_err(span, "contract requires too much storage");
-            return;
+    let mut storage_size = None;
+    let mut transient_storage_size = None;
+    for location in [DataLocation::Storage, DataLocation::Transient] {
+        let total_size = match storage_size_upper_bound(gcx, contract_id, location) {
+            Ok(Some(total_size)) => total_size,
+            Ok(None) => {
+                let message = if location == DataLocation::Storage {
+                    "contract requires too much storage"
+                } else {
+                    "contract requires too much transient storage"
+                };
+                gcx.dcx().emit_err(span, message);
+                continue;
+            }
+            Err(_) => continue,
+        };
+        match location {
+            DataLocation::Storage => storage_size = Some(total_size),
+            DataLocation::Transient => transient_storage_size = Some(total_size),
+            DataLocation::Memory | DataLocation::Calldata => unreachable!(),
         }
-        Err(_) => return,
-    };
+    }
 
-    if gcx.sess.opts.unstable.print_max_storage_sizes {
+    if gcx.sess.opts.unstable.print_max_storage_sizes
+        && let (Some(storage_size), Some(transient_storage_size)) =
+            (storage_size, transient_storage_size)
+    {
         let full_contract_name = gcx.contract_fully_qualified_name(contract_id);
         gcx.dcx()
-            .note(format!("{full_contract_name} requires a maximum of {total_size} storage slots"))
+            .note(format!(
+                "{full_contract_name} requires a maximum of {storage_size} storage slots"
+            ))
+            .span(span)
+            .emit();
+        gcx.dcx()
+            .note(format!(
+                "{full_contract_name} requires a maximum of {transient_storage_size} transient storage slots"
+            ))
             .span(span)
             .emit();
     }
@@ -434,12 +459,15 @@ fn check_storage_size_upper_bound(gcx: Gcx<'_>, contract_id: hir::ContractId) {
 fn storage_size_upper_bound(
     gcx: Gcx<'_>,
     contract_id: hir::ContractId,
+    location: DataLocation,
 ) -> Result<Option<U256>, ErrorGuaranteed> {
     let mut total_size = U256::ZERO;
     for item_id in gcx.hir.contract_item_ids(contract_id) {
-        // Skip constant and immutable variables
+        // Skip constant and immutable variables and variables from the other storage space.
         if let hir::Item::Variable(var) = gcx.hir.item(item_id)
             && !(var.is_constant() || var.is_immutable())
+            && (var.data_location == Some(DataLocation::Transient))
+                == (location == DataLocation::Transient)
         {
             let ty = gcx.type_of_item(item_id);
             let Some(size) = ty_storage_size_upper_bound(ty, gcx)? else { return Ok(None) };
