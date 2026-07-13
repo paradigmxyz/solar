@@ -16,8 +16,8 @@ use solar_data_structures::map::FxIndexMap;
 #[serde(rename_all = "camelCase")]
 pub struct StorageLayoutOutput {
     pub storage: Vec<StorageLayoutEntry>,
-    #[serde(skip_serializing_if = "FxIndexMap::is_empty")]
-    pub types: FxIndexMap<String, StorageLayoutType>,
+    /// `solc` emits `null` rather than an empty object when no storage types are present.
+    pub types: Option<FxIndexMap<String, StorageLayoutType>>,
 }
 
 #[derive(Debug, Serialize)]
@@ -133,7 +133,8 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
             }
         }
 
-        StorageLayoutOutput { storage, types: self.types }
+        let types = (!self.types.is_empty()).then_some(self.types);
+        StorageLayoutOutput { storage, types }
     }
 
     fn layout_members(&mut self, fields: &[hir::VariableId]) -> (Vec<StorageLayoutEntry>, U256) {
@@ -156,7 +157,7 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
         ty: String,
     ) -> StorageLayoutEntry {
         StorageLayoutEntry {
-            ast_id: variable_id.index() as u64,
+            ast_id: self.gcx.hir.global_item_id(variable_id) as u64,
             contract: self.contract_name.clone(),
             label: self.gcx.hir.variable(variable_id).name.unwrap().to_string(),
             offset,
@@ -272,11 +273,21 @@ impl<'gcx> StorageLayoutBuilder<'gcx> {
                     false,
                 )
             ),
-            TyKind::Contract(id) => format!("t_contract({}){}", self.gcx.item_name(id), id.index()),
-            TyKind::Struct(id) => format!("t_struct({}){}", self.gcx.item_name(id), id.index()),
-            TyKind::Enum(id) => format!("t_enum({}){}", self.gcx.item_name(id), id.index()),
+            TyKind::Contract(id) => {
+                format!("t_contract({}){}", self.gcx.item_name(id), self.gcx.hir.global_item_id(id))
+            }
+            TyKind::Struct(id) => {
+                format!("t_struct({}){}", self.gcx.item_name(id), self.gcx.hir.global_item_id(id))
+            }
+            TyKind::Enum(id) => {
+                format!("t_enum({}){}", self.gcx.item_name(id), self.gcx.hir.global_item_id(id))
+            }
             TyKind::Udvt(_, id) => {
-                format!("t_userDefinedValueType({}){}", self.gcx.item_name(id), id.index())
+                format!(
+                    "t_userDefinedValueType({}){}",
+                    self.gcx.item_name(id),
+                    self.gcx.hir.global_item_id(id)
+                )
             }
             TyKind::Fn(function) => {
                 let kind = if function.is_external() { "external" } else { "internal" };

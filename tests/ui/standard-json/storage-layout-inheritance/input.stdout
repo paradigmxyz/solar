@@ -10,7 +10,7 @@
         "storageLayout": {
           "storage": [
             {
-              "astId": 0,
+              "astId": 5,
               "contract": "inheritance.sol:Inheritance",
               "label": "baseValue",
               "offset": 0,
@@ -18,7 +18,7 @@
               "type": "t_uint128"
             },
             {
-              "astId": 2,
+              "astId": 7,
               "contract": "inheritance.sol:Inheritance",
               "label": "rightValue",
               "offset": 16,
@@ -26,7 +26,7 @@
               "type": "t_uint64"
             },
             {
-              "astId": 6,
+              "astId": 11,
               "contract": "inheritance.sol:Inheritance",
               "label": "derivedValue",
               "offset": 24,
@@ -50,7 +50,7 @@
         "transientStorageLayout": {
           "storage": [
             {
-              "astId": 1,
+              "astId": 6,
               "contract": "inheritance.sol:Inheritance",
               "label": "baseTransient",
               "offset": 0,
@@ -58,7 +58,7 @@
               "type": "t_uint64"
             },
             {
-              "astId": 3,
+              "astId": 8,
               "contract": "inheritance.sol:Inheritance",
               "label": "rightTransient",
               "offset": 8,
@@ -66,7 +66,7 @@
               "type": "t_uint128"
             },
             {
-              "astId": 7,
+              "astId": 12,
               "contract": "inheritance.sol:Inheritance",
               "label": "derivedTransient",
               "offset": 24,
@@ -90,10 +90,12 @@
       },
       "Empty": {
         "storageLayout": {
-          "storage": []
+          "storage": [],
+          "types": null
         },
         "transientStorageLayout": {
-          "storage": []
+          "storage": [],
+          "types": null
         }
       }
     }

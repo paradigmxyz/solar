@@ -218,6 +218,52 @@ impl<'hir> Hir<'hir> {
         }
     }
 
+    /// Returns an ID that is unique across all HIR item kinds.
+    pub fn global_item_id(&self, id: impl Into<ItemId>) -> usize {
+        match id.into() {
+            ItemId::Contract(id) => id.index(),
+            ItemId::Function(id) => self.contracts.len() + id.index(),
+            ItemId::Variable(id) => self.contracts.len() + self.functions.len() + id.index(),
+            ItemId::Struct(id) => {
+                self.contracts.len() + self.functions.len() + self.variables.len() + id.index()
+            }
+            ItemId::Enum(id) => {
+                self.contracts.len()
+                    + self.functions.len()
+                    + self.variables.len()
+                    + self.structs.len()
+                    + id.index()
+            }
+            ItemId::Udvt(id) => {
+                self.contracts.len()
+                    + self.functions.len()
+                    + self.variables.len()
+                    + self.structs.len()
+                    + self.enums.len()
+                    + id.index()
+            }
+            ItemId::Error(id) => {
+                self.contracts.len()
+                    + self.functions.len()
+                    + self.variables.len()
+                    + self.structs.len()
+                    + self.enums.len()
+                    + self.udvts.len()
+                    + id.index()
+            }
+            ItemId::Event(id) => {
+                self.contracts.len()
+                    + self.functions.len()
+                    + self.variables.len()
+                    + self.structs.len()
+                    + self.enums.len()
+                    + self.udvts.len()
+                    + self.errors.len()
+                    + id.index()
+            }
+        }
+    }
+
     /// Returns an iterator over all item IDs.
     pub fn item_ids(&self) -> impl Iterator<Item = ItemId> + Clone {
         self.item_ids_vec().into_iter()
