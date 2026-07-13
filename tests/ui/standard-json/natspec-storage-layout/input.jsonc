@@ -18,11 +18,6 @@
 // CHECK: "slot": "1"
 {
   "language": "Solidity",
-  "sources": {
-    "A.sol": {
-      "content": "contract Base { uint8 base; /// @notice Returns x\n/// @dev Base function\n/// @param x The input\n/// @return y The output\nfunction f(uint x) public virtual returns (uint y) { return x; } } /// @author Alice\n/// @title Counter\n/// @dev Tracks the counter\n/// @custom:security contact security@example.com\ncontract A is Base layout at 10 { struct Pair { uint128 left; uint128 right; } /// @inheritdoc Base\nfunction f(uint x) public override returns (uint y) { return x; } /// @notice Returns the count\n/// @dev The stored count\n/// @return count value\nuint public count; Pair pair; mapping(uint => address) owners; uint128 transient low; uint128 transient high; address transient holder; }"
-    }
-  },
   "settings": {
     "outputSelection": {
       "A.sol": {

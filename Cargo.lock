@@ -3666,6 +3666,7 @@ name = "solar-tester"
 version = "0.2.0"
 dependencies = [
  "regex",
+ "serde_json",
  "tempfile",
  "ui_test",
 ]

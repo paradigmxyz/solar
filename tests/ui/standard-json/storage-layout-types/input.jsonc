@@ -16,11 +16,6 @@
 // CHECK: "label": "function (uint256) pure returns (bool)"
 {
   "language": "Solidity",
-  "sources": {
-    "types.sol": {
-      "content": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.36;\ncontract LayoutTypes {\n    enum Choice { A, B }\n    type Small is uint24;\n    struct Packed { uint8 head; bytes17[3] values; uint8 tail; }\n    bytes raw;\n    string text;\n    uint8[][2] nestedDynamic;\n    bytes17[3] unevenArray;\n    uint24[21] oddWidthArray;\n    Packed packed;\n    mapping(address => Packed) records;\n    mapping(address => uint8[]) dynamicRecords;\n    Choice choice;\n    Small small;\n    function(uint8[][2] calldata, bytes[] memory) external view returns (string[] memory) externalFn;\n    function(uint256) internal pure returns (bool) internalFn;\n    address payable recipient;\n}"
-    }
-  },
   "settings": {
     "outputSelection": {
       "types.sol": {

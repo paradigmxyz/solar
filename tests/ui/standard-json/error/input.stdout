@@ -3,8 +3,8 @@
     {
       "sourceLocation": {
         "file": "Bad.sol",
-        "start": 27,
-        "end": 33
+        "start": 31,
+        "end": 37
       },
       "secondarySourceLocations": [],
       "type": "Exception",
@@ -12,13 +12,13 @@
       "severity": "error",
       "errorCode": null,
       "message": "expected identifier, found keyword `public`",
-      "formattedMessage": "error: expected identifier, found keyword `public`\n   ╭▸ Bad.sol:LL:CC\n   │\nLL │ contract Bad { function f( public {} }\n   ╰╴                           ━━━━━━\n\n"
+      "formattedMessage": "error: expected identifier, found keyword `public`\n   ╭▸ Bad.sol:LL:CC\n   │\nLL │     function f( public {}\n   ╰╴                ━━━━━━\n\n"
     },
     {
       "sourceLocation": {
         "file": "Bad.sol",
-        "start": 34,
-        "end": 35
+        "start": 38,
+        "end": 39
       },
       "secondarySourceLocations": [],
       "type": "Exception",
@@ -26,7 +26,7 @@
       "severity": "error",
       "errorCode": null,
       "message": "expected one of `)`, `,`, `[`, `calldata`, `constant`, `external`, `immutable`, `indexed`, `internal`, `memory`, `override`, `private`, `public`, `storage`, `transient`, `virtual`, or identifier, found `{`",
-      "formattedMessage": "error: expected one of `)`, `,`, `[`, `calldata`, `constant`, `external`, `immutable`, `indexed`, `internal`, `memory`, `override`, `private`, `public`, `storage`, `transient`, `virtual`, or identifier, found `{`\n   ╭▸ Bad.sol:LL:CC\n   │\nLL │ contract Bad { function f( public {} }\n   ╰╴                                  ━ expected one of 17 possible tokens\n\n"
+      "formattedMessage": "error: expected one of `)`, `,`, `[`, `calldata`, `constant`, `external`, `immutable`, `indexed`, `internal`, `memory`, `override`, `private`, `public`, `storage`, `transient`, `virtual`, or identifier, found `{`\n   ╭▸ Bad.sol:LL:CC\n   │\nLL │     function f( public {}\n   ╰╴                       ━ expected one of 17 possible tokens\n\n"
     }
   ],
   "sources": {
