@@ -1,0 +1,45 @@
+// CHECK: "Inheritance": {
+// CHECK: "label": "baseValue"
+// CHECK: "offset": 0
+// CHECK: "slot": "42"
+// CHECK: "label": "rightValue"
+// CHECK: "offset": 16
+// CHECK: "slot": "42"
+// CHECK: "label": "derivedValue"
+// CHECK: "offset": 24
+// CHECK: "slot": "42"
+// CHECK: "transientStorageLayout": {
+// CHECK: "label": "baseTransient"
+// CHECK: "offset": 0
+// CHECK: "label": "rightTransient"
+// CHECK: "offset": 8
+// CHECK: "label": "derivedTransient"
+// CHECK: "offset": 24
+// CHECK: "Empty": {
+// CHECK: "storage": []
+// CHECK: "types": null
+// CHECK: "transientStorageLayout": {
+// CHECK: "storage": []
+// CHECK: "types": null
+{
+  "language": "Solidity",
+  "sources": {
+    "inheritance.sol": {
+      "content": "// SPDX-License-Identifier: UNLICENSED\npragma solidity ^0.8.36;\ncontract Base { uint128 baseValue; uint64 transient baseTransient; }\ncontract Right { uint64 rightValue; uint128 transient rightTransient; }\ncontract Inheritance is Base, Right layout at 42 {\n    uint constant IGNORED_CONSTANT = 1;\n    uint immutable ignoredImmutable;\n    uint64 derivedValue;\n    uint64 transient derivedTransient;\n    constructor() { ignoredImmutable = 1; }\n}\ncontract Empty {}"
+    }
+  },
+  "settings": {
+    "outputSelection": {
+      "inheritance.sol": {
+        "Inheritance": [
+          "storageLayout",
+          "transientStorageLayout"
+        ],
+        "Empty": [
+          "storageLayout",
+          "transientStorageLayout"
+        ]
+      }
+    }
+  }
+}

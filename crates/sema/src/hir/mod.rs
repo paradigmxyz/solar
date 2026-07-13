@@ -85,18 +85,18 @@ pub struct Hir<'hir> {
     pub(crate) contracts: IndexVec<ContractId, Contract<'hir>>,
     /// All functions.
     pub(crate) functions: IndexVec<FunctionId, Function<'hir>>,
+    /// All constants and variables.
+    pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
     /// All structs.
     pub(crate) structs: IndexVec<StructId, Struct<'hir>>,
     /// All enums.
     pub(crate) enums: IndexVec<EnumId, Enum<'hir>>,
     /// All user-defined value types.
     pub(crate) udvts: IndexVec<UdvtId, Udvt<'hir>>,
-    /// All events.
-    pub(crate) events: IndexVec<EventId, Event<'hir>>,
     /// All custom errors.
     pub(crate) errors: IndexVec<ErrorId, Error<'hir>>,
-    /// All constants and variables.
-    pub(crate) variables: IndexVec<VariableId, Variable<'hir>>,
+    /// All events.
+    pub(crate) events: IndexVec<EventId, Event<'hir>>,
 }
 
 macro_rules! indexvec_methods {
@@ -181,12 +181,12 @@ impl<'hir> Hir<'hir> {
             docs,
             contracts: IndexVec::new(),
             functions: IndexVec::new(),
+            variables: IndexVec::new(),
             structs: IndexVec::new(),
             enums: IndexVec::new(),
             udvts: IndexVec::new(),
-            events: IndexVec::new(),
             errors: IndexVec::new(),
-            variables: IndexVec::new(),
+            events: IndexVec::new(),
         }
     }
 
@@ -195,12 +195,12 @@ impl<'hir> Hir<'hir> {
         doc => docs, DocId => Doc<'hir>;
         contract => contracts, ContractId => Contract<'hir>;
         function => functions, FunctionId => Function<'hir>;
+        variable => variables, VariableId => Variable<'hir>;
         strukt => structs, StructId => Struct<'hir>;
         enumm => enums, EnumId => Enum<'hir>;
         udvt => udvts, UdvtId => Udvt<'hir>;
-        event => events, EventId => Event<'hir>;
         error => errors, ErrorId => Error<'hir>;
-        variable => variables, VariableId => Variable<'hir>;
+        event => events, EventId => Event<'hir>;
     }
 
     /// Returns the item associated with the given ID.
@@ -216,6 +216,39 @@ impl<'hir> Hir<'hir> {
             ItemId::Error(id) => Item::Error(self.error(id)),
             ItemId::Event(id) => Item::Event(self.event(id)),
         }
+    }
+
+    /// Returns an ID that is unique across all HIR item kinds.
+    pub fn global_item_id(&self, id: impl Into<ItemId>) -> usize {
+        self.global_item_id_(id.into())
+    }
+
+    fn global_item_id_(&self, id: ItemId) -> usize {
+        let mut base = 0;
+        'out: {
+            macro_rules! sum_base {
+                ($($kind:ident : $kinds:ident,)*) => {
+                    $(
+                        if id.kind() > ItemKind::$kind {
+                            base += self.$kinds.len();
+                        } else {
+                            break 'out;
+                        }
+                    )*
+                };
+            }
+            sum_base!(
+                Contract : contracts,
+                Function : functions,
+                Variable : variables,
+                Struct : structs,
+                Enum : enums,
+                Udvt : udvts,
+                Error : errors,
+                Event : events,
+            );
+        }
+        base + id.raw_index()
     }
 
     /// Returns an iterator over all item IDs.
@@ -686,6 +719,19 @@ impl<'hir> Item<'_, 'hir> {
     }
 }
 
+/// HIR item kinds in global ID order.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum ItemKind {
+    Contract,
+    Function,
+    Variable,
+    Struct,
+    Enum,
+    Udvt,
+    Error,
+    Event,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, From, EnumIs)]
 pub enum ItemId {
     Contract(ContractId),
@@ -715,6 +761,34 @@ impl fmt::Debug for ItemId {
 }
 
 impl ItemId {
+    #[inline]
+    fn kind(self) -> ItemKind {
+        match self {
+            Self::Contract(_) => ItemKind::Contract,
+            Self::Function(_) => ItemKind::Function,
+            Self::Variable(_) => ItemKind::Variable,
+            Self::Struct(_) => ItemKind::Struct,
+            Self::Enum(_) => ItemKind::Enum,
+            Self::Udvt(_) => ItemKind::Udvt,
+            Self::Error(_) => ItemKind::Error,
+            Self::Event(_) => ItemKind::Event,
+        }
+    }
+
+    #[inline]
+    fn raw_index(self) -> usize {
+        match self {
+            Self::Contract(id) => id.index(),
+            Self::Function(id) => id.index(),
+            Self::Variable(id) => id.index(),
+            Self::Struct(id) => id.index(),
+            Self::Enum(id) => id.index(),
+            Self::Udvt(id) => id.index(),
+            Self::Error(id) => id.index(),
+            Self::Event(id) => id.index(),
+        }
+    }
+
     /// Returns the description of the item.
     pub fn description(&self) -> &'static str {
         match self {

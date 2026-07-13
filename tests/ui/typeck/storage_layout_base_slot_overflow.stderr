@@ -24,5 +24,11 @@ error: failed to evaluate constant: arithmetic overflow
 LL │ …l layout at ~0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFE {}
    ╰╴             ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ evaluation of constant value failed here
 
-error: aborting due to 4 previous errors
+error: contract extends past the end of storage when this base slot value is specified
+   ╭▸ ROOT/tests/ui/typeck/storage_layout_base_slot_overflow.sol:LL:CC
+   │
+LL │ contract ExtendsPastEnd layout at 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff {
+   ╰╴                                  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+error: aborting due to 5 previous errors
 

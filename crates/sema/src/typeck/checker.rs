@@ -87,7 +87,22 @@ impl<'gcx> TypeChecker<'gcx> {
         let mut evaluator = ConstantEvaluator::new(self.gcx);
         match evaluator.try_eval_value(slot) {
             Ok(ConstValue::Integer(value)) => {
-                if value.as_u256().is_none() {
+                if let Some(base_slot) = value.as_u256() {
+                    let Some(contract_id) = self.contract else {
+                        unreachable!("storage layout specifier outside a contract")
+                    };
+                    if let Ok(Some(size)) = super::storage_size_upper_bound(
+                        self.gcx,
+                        contract_id,
+                        DataLocation::Storage,
+                    ) && base_slot.checked_add(size).is_none()
+                    {
+                        self.dcx().emit_err(
+                            slot.span,
+                            "contract extends past the end of storage when this base slot value is specified",
+                        );
+                    }
+                } else {
                     self.dcx().emit_err(slot.span, "base slot of storage layout evaluates to a value outside the range of type `uint256`");
                 }
             }
