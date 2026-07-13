@@ -168,12 +168,15 @@ impl SignatureHelpIndex {
         contents: &Rope,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
-        let cursor = proto::text_offset(contents, position)?;
+        let cursor = proto::text_range(contents, Range::new(position, position)).start;
         let text = contents.byte_slice(..cursor).to_string();
         let context = call_context(&text)?;
         let call = self.calls.get(uri).and_then(|calls| {
             calls.iter().find(|call| {
-                proto::text_offset(contents, call.range.start) == Some(context.open)
+                valid_text_position(contents, call.range.start)
+                    && proto::text_range(contents, Range::new(call.range.start, call.range.start))
+                        .start
+                        == context.open
                     && call
                         .callee_tokens
                         .last()
@@ -334,18 +337,32 @@ impl SignatureHelpIndex {
 
 impl CallSite {
     fn matches_current_callee(&self, contents: &Rope) -> bool {
-        let Some(start) = proto::text_offset(contents, self.callee_range.start) else {
-            return false;
-        };
-        let Some(end) = proto::text_offset(contents, self.callee_range.end) else {
-            return false;
-        };
-        if start > end {
+        if !valid_text_position(contents, self.callee_range.start)
+            || !valid_text_position(contents, self.callee_range.end)
+        {
             return false;
         }
-        let current = contents.byte_slice(start..end).to_string();
+        let range = proto::text_range(contents, self.callee_range);
+        if range.start > range.end {
+            return false;
+        }
+        let current = contents.byte_slice(range).to_string();
         significant_token_slices(&current).eq(self.callee_tokens.iter().map(String::as_str))
     }
+}
+
+fn valid_text_position(rope: &Rope, position: Position) -> bool {
+    let line = position.line as usize;
+    if line >= rope.line_len() {
+        return false;
+    }
+    let line = rope.line(line);
+    let character = position.character as usize;
+    if character > line.utf16_len() {
+        return false;
+    }
+    let byte = line.byte_of_utf16_code_unit(character);
+    line.utf16_code_unit_of_byte(byte) == character
 }
 
 impl CallSignature {
@@ -1132,6 +1149,32 @@ mod tests {
         current.retain_failed_files(&previous, &[]);
 
         assert!(!current.callables_by_name.contains_key("removed"));
+    }
+
+    #[test]
+    fn stale_callee_range_splitting_a_surrogate_pair_is_rejected() {
+        let call = CallSite {
+            range: Range::default(),
+            callee_range: Range::new(Position::new(0, 1), Position::new(0, 3)),
+            callee_tokens: vec!["f".into()],
+            form: CallForm::Regular,
+            signatures: Vec::new(),
+        };
+
+        assert!(!call.matches_current_callee(&Rope::from("😀f")));
+    }
+
+    #[test]
+    fn stale_callee_range_beyond_the_current_file_is_rejected() {
+        let call = CallSite {
+            range: Range::default(),
+            callee_range: Range::new(Position::new(2, 0), Position::new(2, 1)),
+            callee_tokens: vec!["f".into()],
+            form: CallForm::Regular,
+            signatures: Vec::new(),
+        };
+
+        assert!(!call.matches_current_callee(&Rope::from("f")));
     }
 
     #[test]
