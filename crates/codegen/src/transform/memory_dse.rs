@@ -197,11 +197,7 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn live_out(
-        func: &Function,
-        block: BlockId,
-        live_in: &FxHashMap<BlockId, MemLive>,
-    ) -> MemLive {
+    fn live_out(func: &Function, block: BlockId, live_in: &FxHashMap<BlockId, MemLive>) -> MemLive {
         let mut out = MemLive::Only(FxHashSet::default());
         if let Some(term) = func.blocks[block].terminator.as_ref() {
             for succ in term.successors() {
@@ -557,8 +553,7 @@ impl MemoryStoreEliminator {
         offset: ValueId,
         size: ValueId,
     ) {
-        let (Some(read_offset), Some(read_size)) =
-            (func.value_u64(offset), func.value_u64(size))
+        let (Some(read_offset), Some(read_size)) = (func.value_u64(offset), func.value_u64(size))
         else {
             overwritten.clear();
             return;
@@ -567,9 +562,7 @@ impl MemoryStoreEliminator {
             return;
         }
         overwritten.retain(|&key| match key {
-            MemAddrKey::Const(addr) => {
-                !mir_utils::ranges_overlap(addr, 32, read_offset, read_size)
-            }
+            MemAddrKey::Const(addr) => !mir_utils::ranges_overlap(addr, 32, read_offset, read_size),
             MemAddrKey::BaseOffset { .. } => false,
         });
     }

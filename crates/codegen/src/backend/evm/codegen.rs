@@ -3220,8 +3220,7 @@ impl EvmCodegen {
                     else {
                         continue;
                     };
-                    let score =
-                        scores.entry(*function).or_insert_with(|| vec![0; args.len()]);
+                    let score = scores.entry(*function).or_insert_with(|| vec![0; args.len()]);
                     if score.len() != args.len() {
                         excluded.insert(*function);
                         continue;
@@ -3532,7 +3531,8 @@ impl EvmCodegen {
             return;
         }
         let base = Self::external_spill_base(func);
-        let mut slots: Vec<(u64, (DeferredConst, usize))> = self.spill_addr_consts.drain().collect();
+        let mut slots: Vec<(u64, (DeferredConst, usize))> =
+            self.spill_addr_consts.drain().collect();
         slots.sort_by(|a, b| b.1.1.cmp(&a.1.1).then(a.0.cmp(&b.0)));
         for (rank, (_, (id, _))) in slots.into_iter().enumerate() {
             self.asm.set_deferred_const(id, U256::from(base + rank as u64 * 32));
@@ -4330,21 +4330,18 @@ impl EvmCodegen {
         // slot, instead of being re-emitted and the stale copies popped later
         // (`DUP2 DUP2 MSTORE ... POP POP` becomes `MSTORE`). Mirrors the
         // binary-op fast paths.
-        let addr_dead_free =
-            !addr_is_live && self.scheduler.spills.get(addr).is_none();
+        let addr_dead_free = !addr_is_live && self.scheduler.spills.get(addr).is_none();
         let val_dead_free = liveness.is_dead_after(val, block, inst_idx)
             && self.scheduler.spills.get(val).is_none();
         if addr_dead_free && val_dead_free && self.scheduler.stack.depth() >= 2 {
-            if self.scheduler.stack.top() == Some(addr)
-                && self.scheduler.stack.peek(1) == Some(val)
+            if self.scheduler.stack.top() == Some(addr) && self.scheduler.stack.peek(1) == Some(val)
             {
                 // The stack is already [addr, val].
                 self.asm.emit_op(opcode);
                 self.scheduler.instruction_executed(2, None);
                 return;
             }
-            if self.scheduler.stack.top() == Some(val)
-                && self.scheduler.stack.peek(1) == Some(addr)
+            if self.scheduler.stack.top() == Some(val) && self.scheduler.stack.peek(1) == Some(addr)
             {
                 self.asm.emit_op(op::SWAP1);
                 self.scheduler.stack_swapped();

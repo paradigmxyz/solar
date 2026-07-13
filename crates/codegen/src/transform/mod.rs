@@ -19,10 +19,10 @@ mod lower_dispatch;
 mod lower_evm_shaped;
 mod memory_dse;
 mod outline_reverts;
-mod static_alloc;
 mod pre;
 mod pure_eval;
 mod sccp;
+mod static_alloc;
 mod storage_dse;
 mod storage_load_cse;
 mod storage_promotion;
@@ -55,10 +55,10 @@ pub use lower_dispatch::{LowerDispatchPass, LowerDispatchStats};
 pub use lower_evm_shaped::{LowerEvmShapedPass, LowerEvmShapedStats};
 pub use memory_dse::{MemoryDsePass, MemoryStoreEliminator};
 pub use outline_reverts::{OutlineRevertsPass, OutlineRevertsStats};
-pub use static_alloc::StaticAllocPass;
 pub use pre::{PartialRedundancyEliminator, PrePass, PreStats};
 pub use pure_eval::{PureEvalPass, PureEvalStats, PureEvaluator};
 pub use sccp::{SccpPass, SccpStats, SccpTransformPass};
+pub use static_alloc::StaticAllocPass;
 pub use storage_dse::{StorageDsePass, StorageStoreEliminator};
 pub use storage_load_cse::{StorageLoadCse, StorageLoadCsePass};
 pub use storage_promotion::{
@@ -85,9 +85,8 @@ pub(crate) fn rejects_callvalue(func: &crate::mir::Function) -> bool {
 pub(crate) fn dispatch_hoists_callvalue(module: &crate::mir::Module) -> bool {
     let mut any = false;
     for func in module.functions.iter() {
-        let external = func.selector.is_some()
-            || func.attributes.is_receive
-            || func.attributes.is_fallback;
+        let external =
+            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
         if !external || func.blocks.is_empty() || func.attributes.is_constructor {
             continue;
         }

@@ -14,16 +14,15 @@
 //!
 //! Safety contract:
 //! - external entries only: their locals are absolute low-memory addresses;
-//! - the paired load and bump sit in one block with no intervening operation
-//!   that can read or move the free-memory pointer;
-//! - the block cannot re-execute, so the reused static region cannot expose a
-//!   previous iteration's contents where fresh zeroed memory was expected;
-//! - the bump's sum feeds nothing but the bump itself, and every other use of
-//!   the pointer is an in-bounds address derivation into exact loads, stores,
-//!   hashes, copies, logs, or external-data terminators — the pointer value
-//!   never escapes into stored data, call arguments, or unbounded arithmetic;
-//! - functions observing `msize` are skipped: eliding a bump changes the
-//!   high-water mark.
+//! - the paired load and bump sit in one block with no intervening operation that can read or move
+//!   the free-memory pointer;
+//! - the block cannot re-execute, so the reused static region cannot expose a previous iteration's
+//!   contents where fresh zeroed memory was expected;
+//! - the bump's sum feeds nothing but the bump itself, and every other use of the pointer is an
+//!   in-bounds address derivation into exact loads, stores, hashes, copies, logs, or external-data
+//!   terminators — the pointer value never escapes into stored data, call arguments, or unbounded
+//!   arithmetic;
+//! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
 
 use crate::{
     analysis::CfgInfo,

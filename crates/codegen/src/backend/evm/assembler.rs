@@ -257,12 +257,7 @@ impl Assembler {
             matches!(
                 inst.kind(),
                 AsmInstKind::Op(
-                    op::JUMP
-                        | op::RETURN
-                        | op::REVERT
-                        | op::STOP
-                        | op::INVALID
-                        | op::SELFDESTRUCT
+                    op::JUMP | op::RETURN | op::REVERT | op::STOP | op::INVALID | op::SELFDESTRUCT
                 )
             )
         };
@@ -775,8 +770,8 @@ impl Assembler {
         // expose a threaded thunk's corpse, so give the fixpoint headroom.
         for _ in 0..6 {
             let merged = self.merge_terminal_suffixes(&mut program.instructions);
-            let threaded =
-                self.run_structural_outlining && Self::thread_jump_thunks(&mut program.instructions);
+            let threaded = self.run_structural_outlining
+                && Self::thread_jump_thunks(&mut program.instructions);
             let swept = self.run_structural_outlining
                 && Self::remove_unreachable_code(&mut program.instructions);
             if !merged && !threaded && !swept {

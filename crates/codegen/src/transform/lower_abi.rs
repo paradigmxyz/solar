@@ -8,12 +8,11 @@
 //! For each external entry `f(x0: T0, .., xn: Tn)` whose body hands no MIR
 //! return values back to a caller, it:
 //!
-//! 1. copies the original into a fresh internal function `f.body` with its
-//!    parameter list preserved, for internal callers, and
-//! 2. strips `f`'s MIR parameter list, keeping its selector and its
-//!    `Value::Arg` entries: in a selector-bearing wrapper, `argN` denotes the
-//!    ABI head word at calldata offset `4 + 32*N`, which the backend
-//!    rematerializes per use as a `calldataload`; the body keeps its fused
+//! 1. copies the original into a fresh internal function `f.body` with its parameter list
+//!    preserved, for internal callers, and
+//! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries: in a
+//!    selector-bearing wrapper, `argN` denotes the ABI head word at calldata offset `4 + 32*N`,
+//!    which the backend rematerializes per use as a `calldataload`; the body keeps its fused
 //!    external termination (`RETURN`/`REVERT`/`STOP`).
 //!
 //! The head-word convention is uniform for every parameter type: the word at
