@@ -1,6 +1,6 @@
 {
   "sources": {
-    "D.sol": {
+    "nested/D.sol": {
       "id": 0
     },
     "B.sol": {

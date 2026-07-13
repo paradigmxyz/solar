@@ -4,11 +4,6 @@
 // CHECK-NOT: "contracts"
 {
   "language": "Solidity",
-  "sources": {
-    "A.sol": {
-      "content": "contract A { function f() public pure { uint x = true; } }"
-    }
-  },
   "settings": {
     "outputSelection": {
       "*": {

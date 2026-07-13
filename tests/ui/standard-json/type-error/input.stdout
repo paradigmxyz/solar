@@ -3,8 +3,8 @@
     {
       "sourceLocation": {
         "file": "A.sol",
-        "start": 49,
-        "end": 53
+        "start": 61,
+        "end": 65
       },
       "secondarySourceLocations": [],
       "type": "Exception",
@@ -12,7 +12,7 @@
       "severity": "error",
       "errorCode": null,
       "message": "mismatched types",
-      "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:LL:CC\n   │\nLL │ contract A { function f() public pure { uint x = true; } }\n   ╰╴                                                 ━━━━ expected `uint256`, found `bool`\n\n"
+      "formattedMessage": "error: mismatched types\n   ╭▸ A.sol:LL:CC\n   │\nLL │         uint x = true;\n   ╰╴                 ━━━━ expected `uint256`, found `bool`\n\n"
     }
   ],
   "sources": {

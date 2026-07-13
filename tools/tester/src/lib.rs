@@ -23,6 +23,7 @@ use ui_test::{
 
 mod errors;
 mod solc;
+mod standard_json;
 mod utils;
 
 /// Runs all the tests.
@@ -271,6 +272,11 @@ fn mode_from_config(config: &ui_test::Config) -> Mode {
 }
 
 fn file_filter(path: &Path, config: &ui_test::Config, cfg: MyConfig<'_>) -> Option<bool> {
+    if matches!(cfg.mode, Mode::Ui)
+        && path.strip_prefix(&config.root_dir).is_ok_and(|path| path.starts_with("standard-json"))
+    {
+        return Some(false);
+    }
     match cfg.mode {
         Mode::Mir => {
             path.extension().filter(|&ext| ext == "mir")?;
@@ -311,6 +317,9 @@ fn per_file_config(config: &mut ui_test::Config, file: &Spanned<Vec<u8>>, cfg: M
         config.comment_defaults.base().exit_status = Spanned::dummy(0).into();
         if path.with_extension("stdout").exists() {
             config.comment_defaults.base().add_custom(FileCheck::NAME, FileCheck::default());
+        }
+        if path.file_name().is_some_and(|name| name == "input.jsonc") {
+            standard_json::configure_directory_fixture(config, path, cfg.tmp_dir);
         }
         return;
     }
