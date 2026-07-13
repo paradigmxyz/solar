@@ -323,6 +323,10 @@ pub struct UnstableOpts {
     #[cfg_attr(feature = "clap", arg(long))]
     pub no_resolve_imports: bool,
 
+    /// Recovers incomplete input into a partial AST.
+    #[cfg_attr(feature = "clap", arg(long))]
+    pub recover_incomplete_input: bool,
+
     /// Print additional information about the compiler's internal state.
     ///
     /// Valid kinds are `ast` and `hir`.

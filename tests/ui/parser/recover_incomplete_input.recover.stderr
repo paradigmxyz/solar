@@ -1,0 +1,32 @@
+error: expected one of `(`, `)`, `+`, `[`, `delete`, `new`, `payable`, `type`, elementary type name, identifier, or literal, found `}`
+   ╭▸ ROOT/tests/ui/parser/recover_incomplete_input.sol:LL:CC
+   │
+LL │         return target(1,
+   │                         ─ expected one of 11 possible tokens
+LL │     }
+   ╰╴    ━ unexpected token
+
+error: expected contract item (function, variable, struct, or modifier definition), found `<eof>`
+   ╭▸ ROOT/tests/ui/parser/recover_incomplete_input.sol:LL:CC
+   │
+LL │     }
+   │     ━
+   │
+   ╰ note: for a full list of valid contract items, see <https://docs.soliditylang.org/en/latest/grammar.html#a4.SolidityParser.contractBodyElement>
+
+error: wrong argument count for function call: 1 arguments given but expected 2
+   ╭▸ ROOT/tests/ui/parser/recover_incomplete_input.sol:LL:CC
+   │
+LL │         return target(1,
+   │                ━━━━━━┬──
+   │                      │
+   ╰╴                     expected 2 arguments, found 1
+
+error: mismatched types
+   ╭▸ ROOT/tests/ui/parser/recover_incomplete_input.sol:LL:CC
+   │
+LL │         uint8 value = 300;
+   ╰╴                      ━━━ expected `uint8`, found `int_literal[9]`
+
+error: aborting due to 4 previous errors
+

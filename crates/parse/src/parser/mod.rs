@@ -58,6 +58,8 @@ pub struct Parser<'sess, 'ast, 'cb> {
     in_yul: bool,
     /// Whether the parser is currently parsing a contract block.
     in_contract: bool,
+    /// Whether incomplete input should be recovered into a partial AST.
+    recover_incomplete_input: bool,
 
     /// Current recursion depth for recursive parsing operations.
     recursion_depth: usize,
@@ -157,6 +159,7 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
             tokens: tokens.into_iter(),
             in_yul: false,
             in_contract: false,
+            recover_incomplete_input: sess.opts.unstable.recover_incomplete_input,
             recursion_depth: 0,
             import_callback: None,
         };
@@ -409,7 +412,19 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
     #[inline]
     #[track_caller]
     fn expect_semi(&mut self) -> PResult<'sess, ()> {
-        self.expect(TokenKind::Semi).map(drop)
+        let recover = self.recover_incomplete_input
+            && matches!(self.token.kind, TokenKind::CloseDelim(Delimiter::Brace) | TokenKind::Eof);
+        if recover && self.last_unexpected_token_span == Some(self.token.span) {
+            return Ok(());
+        }
+        match self.expect(TokenKind::Semi) {
+            Ok(_) => Ok(()),
+            Err(err) if recover => {
+                err.emit();
+                Ok(())
+            }
+            Err(err) => Err(err),
+        }
     }
 
     /// Checks if the next token is `tok`, and returns `true` if so.
@@ -666,37 +681,45 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         let mut trailing = false;
         let mut v = SmallVec::<[T; 8]>::new();
 
-        if !allow_empty {
-            v.push(f(self)?);
-            first = false;
-        }
-
-        while !self.check(ket) {
-            if self.token.kind == TokenKind::Eof {
+        loop {
+            let required_first = first && !allow_empty;
+            if !required_first && self.check(ket) {
+                break;
+            }
+            if !required_first && self.token.kind == TokenKind::Eof {
                 recovered = Recovered::Yes;
                 break;
             }
 
-            if let Some(sep_kind) = sep.sep {
-                if first {
-                    // no separator for the first element
-                    first = false;
-                } else {
-                    // check for separator
-                    let recovered_ = self.expect(sep_kind)?;
-                    if recovered_ == Recovered::Yes {
-                        recovered = Recovered::Yes;
-                        break;
-                    }
+            if first {
+                // No separator for the first element.
+                first = false;
+            } else if let Some(sep_kind) = sep.sep {
+                // Check for a separator.
+                let recovered_ = self.expect(sep_kind)?;
+                if recovered_ == Recovered::Yes {
+                    recovered = Recovered::Yes;
+                    break;
+                }
 
-                    if self.check(ket) {
-                        trailing = true;
-                        break;
-                    }
+                if self.check(ket) {
+                    trailing = true;
+                    break;
                 }
             }
 
-            v.push(f(self)?);
+            match f(self) {
+                Ok(value) => v.push(value),
+                Err(err) if self.can_recover_sequence(ket) => {
+                    err.emit();
+                    if self.token.kind == ket {
+                        self.bump();
+                    }
+                    recovered = Recovered::Yes;
+                    break;
+                }
+                Err(err) => return Err(err),
+            }
         }
 
         if let Some(sep_kind) = sep.sep {
@@ -715,6 +738,15 @@ impl<'sess, 'ast, 'cb> Parser<'sess, 'ast, 'cb> {
         }
 
         Ok((self.alloc_smallvec(v), recovered))
+    }
+
+    fn can_recover_sequence(&self, ket: TokenKind) -> bool {
+        self.recover_incomplete_input
+            && (self.token.kind == ket
+                || matches!(
+                    self.token.kind,
+                    TokenKind::Semi | TokenKind::Eof | TokenKind::CloseDelim(_)
+                ))
     }
 
     /// Advance the parser by one token.
@@ -1262,6 +1294,27 @@ import * as B from "b.sol";
                 r#"import "a.sol";"#
             );
         });
+    }
+
+    #[test]
+    fn nonempty_sequence_requires_a_first_element() {
+        for (allow_empty, succeeds) in [(true, true), (false, false)] {
+            let sess = Session::builder()
+                .with_buffer_emitter(Default::default())
+                .single_threaded()
+                .build();
+            sess.enter_sequential(|| {
+                let arena = ast::Arena::new();
+                let mut parser =
+                    Parser::from_source_code(&sess, &arena, "test.sol".to_string().into(), "{}")
+                        .unwrap();
+                let result = parser
+                    .parse_delim_comma_seq(Delimiter::Brace, allow_empty, Parser::parse_ident)
+                    .map_err(|err| err.emit());
+
+                assert_eq!(result.is_ok(), succeeds);
+            });
+        }
     }
 
     #[test]
