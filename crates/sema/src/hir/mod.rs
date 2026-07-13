@@ -12,7 +12,7 @@ use solar_data_structures::{
 };
 use solar_interface::{Ident, Span, Symbol, diagnostics::ErrorGuaranteed, source_map::SourceFile};
 use std::{cell::Cell, fmt, ops::ControlFlow, sync::Arc};
-use strum::EnumIs;
+use strum::{EnumCount, EnumIs};
 
 pub use ast::{
     BinOp, BinOpKind, ContractKind, DataLocation, ElementaryType, FunctionKind, Lit, NatSpecItem,
@@ -220,48 +220,18 @@ impl<'hir> Hir<'hir> {
 
     /// Returns an ID that is unique across all HIR item kinds.
     pub fn global_item_id(&self, id: impl Into<ItemId>) -> usize {
-        match id.into() {
-            ItemId::Contract(id) => id.index(),
-            ItemId::Function(id) => self.contracts.len() + id.index(),
-            ItemId::Variable(id) => self.contracts.len() + self.functions.len() + id.index(),
-            ItemId::Struct(id) => {
-                self.contracts.len() + self.functions.len() + self.variables.len() + id.index()
-            }
-            ItemId::Enum(id) => {
-                self.contracts.len()
-                    + self.functions.len()
-                    + self.variables.len()
-                    + self.structs.len()
-                    + id.index()
-            }
-            ItemId::Udvt(id) => {
-                self.contracts.len()
-                    + self.functions.len()
-                    + self.variables.len()
-                    + self.structs.len()
-                    + self.enums.len()
-                    + id.index()
-            }
-            ItemId::Error(id) => {
-                self.contracts.len()
-                    + self.functions.len()
-                    + self.variables.len()
-                    + self.structs.len()
-                    + self.enums.len()
-                    + self.udvts.len()
-                    + id.index()
-            }
-            ItemId::Event(id) => {
-                self.contracts.len()
-                    + self.functions.len()
-                    + self.variables.len()
-                    + self.structs.len()
-                    + self.enums.len()
-                    + self.udvts.len()
-                    + self.errors.len()
-                    + id.index()
-            }
-        }
+        let id = id.into();
+        let counts: [usize; ItemKind::COUNT] = [
+            self.contracts.len(),
+            self.functions.len(),
+            self.variables.len(),
+            self.structs.len(),
+            self.enums.len(),
+            self.udvts.len(),
+            self.errors.len(),
+            self.events.len(),
+        ];
+        counts[..id.kind() as usize].iter().sum::<usize>() + id.index()
     }
 
     /// Returns an iterator over all item IDs.
@@ -732,6 +702,20 @@ impl<'hir> Item<'_, 'hir> {
     }
 }
 
+/// HIR item kinds in global ID order.
+#[derive(Clone, Copy, EnumCount)]
+#[repr(usize)]
+enum ItemKind {
+    Contract,
+    Function,
+    Variable,
+    Struct,
+    Enum,
+    Udvt,
+    Error,
+    Event,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Hash, From, EnumIs)]
 pub enum ItemId {
     Contract(ContractId),
@@ -761,6 +745,32 @@ impl fmt::Debug for ItemId {
 }
 
 impl ItemId {
+    fn kind(self) -> ItemKind {
+        match self {
+            Self::Contract(_) => ItemKind::Contract,
+            Self::Function(_) => ItemKind::Function,
+            Self::Variable(_) => ItemKind::Variable,
+            Self::Struct(_) => ItemKind::Struct,
+            Self::Enum(_) => ItemKind::Enum,
+            Self::Udvt(_) => ItemKind::Udvt,
+            Self::Error(_) => ItemKind::Error,
+            Self::Event(_) => ItemKind::Event,
+        }
+    }
+
+    fn index(self) -> usize {
+        match self {
+            Self::Contract(id) => id.index(),
+            Self::Function(id) => id.index(),
+            Self::Variable(id) => id.index(),
+            Self::Struct(id) => id.index(),
+            Self::Enum(id) => id.index(),
+            Self::Udvt(id) => id.index(),
+            Self::Error(id) => id.index(),
+            Self::Event(id) => id.index(),
+        }
+    }
+
     /// Returns the description of the item.
     pub fn description(&self) -> &'static str {
         match self {
