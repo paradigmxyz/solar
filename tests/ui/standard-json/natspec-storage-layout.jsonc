@@ -9,7 +9,7 @@
 // CHECK: "return": "count value"
 // CHECK: "storageLayout": {
 // CHECK: "slot": "10"
-// CHECK: "t_struct(Pair)0_storage"
+// CHECK: "t_struct(Pair){{[0-9]+}}_storage"
 // CHECK: "offset": 16
 // CHECK: "t_mapping(t_uint256,t_address)"
 // CHECK: "transientStorageLayout": {

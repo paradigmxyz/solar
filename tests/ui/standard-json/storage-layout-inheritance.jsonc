@@ -17,10 +17,10 @@
 // CHECK: "offset": 24
 // CHECK: "Empty": {
 // CHECK: "storage": []
-// CHECK-NOT: "types":
+// CHECK: "types": null
 // CHECK: "transientStorageLayout": {
 // CHECK: "storage": []
-// CHECK-NOT: "types":
+// CHECK: "types": null
 {
   "language": "Solidity",
   "sources": {
