@@ -186,6 +186,83 @@ impl Liveness {
         Self { block_liveness, last_use_in_block, inst_to_value, num_values }
     }
 
+    /// Computes the subset of liveness needed by codegen when every computed
+    /// value is consumed in its defining block and the function has no
+    /// arguments. Returns `None` when the function needs full dataflow.
+    ///
+    /// Immediate and undefined values are rematerializable, so they do not
+    /// need live-in/live-out tracking. Instruction results still retain exact
+    /// last-use information for stack scheduling.
+    pub(crate) fn compute_block_local_for_codegen(func: &Function) -> Option<Self> {
+        let num_values = func.values.len();
+        let mut inst_to_value = FxHashMap::default();
+        for (val_id, val) in func.values.iter_enumerated() {
+            match val {
+                Value::Inst(inst_id) => {
+                    inst_to_value.insert(*inst_id, val_id);
+                }
+                Value::Arg { .. } => return None,
+                Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => {}
+            }
+        }
+
+        let mut defining_blocks = vec![None; func.instructions.len()];
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                defining_blocks[inst_id.index()] = Some(block_id);
+            }
+        }
+
+        let is_local = |value, block_id| match func.value(value) {
+            Value::Inst(inst_id) => defining_blocks[inst_id.index()] == Some(block_id),
+            Value::Arg { .. } => false,
+            Value::Immediate(_) | Value::Undef(_) | Value::Error(_) => true,
+        };
+        let mut operands = SmallVec::<[ValueId; 8]>::new();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                operands.clear();
+                func.instruction(inst_id).kind.collect_operands(&mut operands);
+                if operands.iter().any(|&value| !is_local(value, block_id)) {
+                    return None;
+                }
+            }
+            if let Some(term) = &block.terminator {
+                operands.clear();
+                collect_terminator_uses(term, &mut operands);
+                if operands.iter().any(|&value| !is_local(value, block_id)) {
+                    return None;
+                }
+            }
+        }
+
+        let block_liveness = (0..func.blocks.len())
+            .map(|_| BlockLiveness {
+                live_in: LiveSet::new_empty(),
+                live_out: LiveSet::new_empty(),
+            })
+            .collect();
+        let mut last_use_in_block = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if let Some(term) = &block.terminator {
+                operands.clear();
+                collect_terminator_uses(term, &mut operands);
+                for &operand in &operands {
+                    last_use_in_block.entry((operand, block_id)).or_insert(None);
+                }
+            }
+            for (inst_idx, &inst_id) in block.instructions.iter().enumerate().rev() {
+                operands.clear();
+                func.instruction(inst_id).kind.collect_operands(&mut operands);
+                for &operand in &operands {
+                    last_use_in_block.entry((operand, block_id)).or_insert(Some(inst_idx));
+                }
+            }
+        }
+
+        Some(Self { block_liveness, last_use_in_block, inst_to_value, num_values })
+    }
+
     /// Returns the values live at the entry of a block.
     #[must_use]
     pub fn live_in(&self, block: BlockId) -> &LiveSet {

@@ -25,7 +25,7 @@
 //! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
 
 use crate::{
-    analysis::CfgInfo,
+    analysis::reachable_blocks,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId},
     pass::ModulePass,
 };
@@ -71,14 +71,29 @@ fn is_entry(func: &Function) -> bool {
 }
 
 fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
-    let cfg = CfgInfo::new(func);
+    if !func
+        .instructions
+        .iter()
+        .any(|inst| matches!(&inst.kind, InstKind::MLoad(addr) if is_fmp_addr(func, *addr)))
+    {
+        return false;
+    }
+
+    let inst_results = func.inst_results();
     let mut candidates = Vec::new();
     for block_id in func.blocks.indices() {
-        if !cfg.is_reachable(block_id) || block_in_cycle(func, block_id) {
-            continue;
-        }
-        collect_block_candidates(func, block_id, &mut candidates);
+        collect_block_candidates(func, block_id, &inst_results, &mut candidates);
     }
+    if candidates.is_empty() {
+        return false;
+    }
+
+    let reachable = reachable_blocks(func);
+    let mut cyclic = FxHashMap::default();
+    candidates.retain(|cand| {
+        reachable.contains(&cand.block)
+            && !*cyclic.entry(cand.block).or_insert_with(|| block_in_cycle(func, cand.block))
+    });
 
     let mut changed = false;
     for cand in candidates {
@@ -131,8 +146,12 @@ fn is_fmp_addr(func: &Function, value: ValueId) -> bool {
 
 /// Collects load/bump pairs in `block` with no operation between them that
 /// can read or move the free-memory pointer.
-fn collect_block_candidates(func: &Function, block_id: BlockId, out: &mut Vec<Candidate>) {
-    let inst_results = func.inst_results();
+fn collect_block_candidates(
+    func: &Function,
+    block_id: BlockId,
+    inst_results: &FxHashMap<InstId, ValueId>,
+    out: &mut Vec<Candidate>,
+) {
     let mut open: Option<(InstId, ValueId)> = None;
     for &inst_id in &func.blocks[block_id].instructions {
         match &func.instructions[inst_id].kind {

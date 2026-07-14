@@ -8,8 +8,8 @@
 //! For each external entry `f(x0: T0, .., xn: Tn)` whose body hands no MIR
 //! return values back to a caller, it:
 //!
-//! 1. copies the original into a fresh internal function `f.body` with its parameter list
-//!    preserved, for internal callers, and
+//! 1. copies the original into a fresh internal function `f.body` with its parameter list preserved
+//!    when there are internal callers, and
 //! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries: in a
 //!    selector-bearing wrapper, `argN` denotes the ABI head word at calldata offset `4 + 32*N`,
 //!    which the backend rematerializes per use as a `calldataload`; the body keeps its fused
@@ -39,10 +39,10 @@
 //! and is dispatched by the backend instead.
 
 use crate::{
-    mir::{Function, FunctionBuilder, FunctionId, InstKind, MirPhase, MirType, Module, Terminator},
+    mir::{Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},
     pass::ModulePass,
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::{Ident, Symbol};
 
 /// Statistics from ABI wrapper lowering.
@@ -86,23 +86,36 @@ impl LowerAbiPass {
 
         // Snapshot the ids to wrap first; wrapping appends new functions, and we
         // must not revisit them.
-        let targets: Vec<FunctionId> = module
-            .functions
-            .iter_enumerated()
-            .filter(|(_, func)| is_wrappable_external(func))
-            .map(|(id, _)| id)
-            .collect();
+        let mut targets = Vec::new();
+        let mut internally_called = FxHashSet::default();
+        let mut callvalue = super::DispatchCallvalue::default();
+        for (id, func) in module.functions.iter_enumerated() {
+            callvalue.observe(func);
+            if is_wrappable_external(func) {
+                targets.push(id);
+                self.stats.skipped_dynamic += usize::from(has_live_value_return(func));
+            }
+            internally_called.extend(func.instructions.iter().filter_map(|inst| {
+                if let InstKind::InternalCall { function, .. } = &inst.kind {
+                    Some(*function)
+                } else {
+                    None
+                }
+            }));
+        }
 
         // All-or-nothing: `abi` means *every* bodied external function is a
         // wrapper. If any signature is outside the static-word scope, leave the
         // module untouched instead of advancing to a phase the content does not
         // satisfy.
-        self.stats.skipped_dynamic =
-            targets.iter().filter(|&&id| function_words(module.function(id)).is_none()).count();
         if self.stats.skipped_dynamic != 0 || targets.is_empty() {
             return false;
         }
 
+        // Most external functions are never called internally. Only those
+        // that are need a second, parameterized body; cloning every wrapper
+        // needlessly grows the MIR consumed by all subsequent lowering and
+        // backend passes.
         // When the dispatch entry cannot hoist a single callvalue check,
         // each rejecting wrapper carries its own, exactly like the backend
         // dispatcher's per-wrapper payable check: the check belongs to the
@@ -110,12 +123,13 @@ impl LowerAbiPass {
         // guard block in the selector switch, which would pay an extra jump
         // per case. `lower-dispatch` shares the predicate and routes selector
         // cases unguarded.
-        let hoist_callvalue = super::dispatch_hoists_callvalue(module);
+        let hoist_callvalue = callvalue.hoists();
 
         let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
-            let body_id = self.wrap_function(module, id);
-            body_of_wrapper.insert(id, body_id);
+            if let Some(body_id) = self.wrap_function(module, id, internally_called.contains(&id)) {
+                body_of_wrapper.insert(id, body_id);
+            }
             self.stats.wrapped += 1;
             if !hoist_callvalue && super::rejects_callvalue(module.function(id)) {
                 Self::inject_callvalue_check(module.function_mut(id));
@@ -126,13 +140,15 @@ impl LowerAbiPass {
         // Internal calls to a wrapped public/external function must keep the
         // original call semantics: retarget them to the extracted body. The
         // wrappers' own calls already target the bodies and are not affected.
-        for func in module.functions.iter_mut() {
-            for inst in func.instructions.iter_mut() {
-                if let InstKind::InternalCall { function, .. } = &mut inst.kind
-                    && let Some(&body_id) = body_of_wrapper.get(function)
-                {
-                    *function = body_id;
-                    self.stats.retargeted_calls += 1;
+        if !body_of_wrapper.is_empty() {
+            for func in module.functions.iter_mut() {
+                for inst in func.instructions.iter_mut() {
+                    if let InstKind::InternalCall { function, .. } = &mut inst.kind
+                        && let Some(&body_id) = body_of_wrapper.get(function)
+                    {
+                        *function = body_id;
+                        self.stats.retargeted_calls += 1;
+                    }
                 }
             }
         }
@@ -156,16 +172,24 @@ impl LowerAbiPass {
     /// `Arg` form avoids. The explicit-decode representation returns when
     /// dynamic types force real decoding (slices); head words do not need it.
     /// The fused encode and `RETURN` stay intact, and no internal call is
-    /// introduced on the external path. A pristine `.body` copy with
-    /// parameters preserved is appended for internal callers, which are
-    /// retargeted to it.
-    fn wrap_function(&mut self, module: &mut Module, wrapper_id: FunctionId) -> FunctionId {
-        // Pristine copy for internal callers.
-        let mut body = module.function(wrapper_id).clone();
-        body.name = Ident::with_dummy_span(Symbol::intern(&format!("{}.body", body.name)));
-        body.selector = None;
-        body.attributes.visibility = solar_sema::hir::Visibility::Internal;
-        let body_id = module.add_function(body);
+    /// introduced on the external path. When the function has internal
+    /// callers, a pristine `.body` copy with parameters preserved is appended
+    /// and those callers are retargeted to it.
+    fn wrap_function(
+        &mut self,
+        module: &mut Module,
+        wrapper_id: FunctionId,
+        needs_body: bool,
+    ) -> Option<FunctionId> {
+        // The copy must precede wrapper mutation and callvalue injection so
+        // internal callers keep the original function semantics.
+        let body_id = needs_body.then(|| {
+            let mut body = module.function(wrapper_id).clone();
+            body.name = Ident::with_dummy_span(Symbol::intern(&format!("{}.body", body.name)));
+            body.selector = None;
+            body.attributes.visibility = solar_sema::hir::Visibility::Internal;
+            module.add_function(body)
+        });
 
         // The wrapper takes no MIR arguments; its `Arg` values now read the
         // calldata head words directly.
@@ -210,8 +234,6 @@ fn is_wrappable_external(func: &Function) -> bool {
     func.selector.is_some() && !func.attributes.is_constructor && !func.blocks.is_empty()
 }
 
-/// Returns the parameter and return types if the function can be absorbed.
-///
 /// Absorption relies on the fused encode: the body must produce its own
 /// returndata, so a function that would hand MIR return values back to a
 /// caller (which would then need to encode them) makes the whole pass bail.
@@ -221,12 +243,8 @@ fn is_wrappable_external(func: &Function) -> bool {
 /// `Return` terminator is still live in the body. Parameters of any type and
 /// any count are fine: each stays an `Arg` head word the backend
 /// rematerializes lazily.
-fn function_words(func: &Function) -> Option<(Vec<MirType>, Vec<MirType>)> {
-    let has_live_value_return = func.blocks.iter().any(|block| {
+fn has_live_value_return(func: &Function) -> bool {
+    func.blocks.iter().any(|block| {
         matches!(&block.terminator, Some(Terminator::Return { values }) if !values.is_empty())
-    });
-    if has_live_value_return {
-        return None;
-    }
-    Some((func.params.clone(), func.returns.clone()))
+    })
 }

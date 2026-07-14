@@ -34,7 +34,7 @@ use crate::{
 use solar_data_structures::map::FxHashMap;
 use std::any::{Any, TypeId};
 
-type PassFactory = fn() -> Box<dyn ModulePass>;
+type PassRunner = fn(&mut Module) -> bool;
 
 /// Registry entry for a MIR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -47,17 +47,17 @@ pub struct PassInfo {
     pub min_phase: MirPhase,
     /// Latest [`MirPhase`] this pass may run on.
     pub max_phase: MirPhase,
-    make_pass: PassFactory,
+    run_pass: PassRunner,
 }
 
 impl PassInfo {
-    const fn new(name: &'static str, description: &'static str, make_pass: PassFactory) -> Self {
+    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
         Self {
             name,
             description,
             min_phase: MirPhase::Built,
             max_phase: MirPhase::EvmShaped,
-            make_pass,
+            run_pass,
         }
     }
 
@@ -74,10 +74,6 @@ impl PassInfo {
     pub fn admits(&self, module: &Module) -> bool {
         self.min_phase <= module.phase && module.phase <= self.max_phase
     }
-
-    fn make_pass(&self) -> Box<dyn ModulePass> {
-        (self.make_pass)()
-    }
 }
 
 macro_rules! declare_passes {
@@ -90,7 +86,7 @@ macro_rules! declare_passes {
             $vis const $const_name: PassInfo = PassInfo::new(
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
-                || Box::new($pass),
+                |module| ModulePass::run(&mut $pass, module),
             );
         )+
     };
@@ -310,10 +306,14 @@ fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: Pipeline
     if !pass.admits(module) {
         return false;
     }
-    let mut pm = PassManager::new();
-    pm.set_validate_after_each(options.validate_after_each);
-    pm.add_pass(pass.make_pass());
-    pm.run(module).1
+    if options.validate_after_each {
+        validate_module_after_pass(module, "input");
+    }
+    let changed = (pass.run_pass)(module);
+    if options.validate_after_each {
+        validate_module_after_pass(module, pass.name);
+    }
+    changed
 }
 
 /// Runs a named MIR pass pipeline over a module.
@@ -538,13 +538,12 @@ impl PassManager {
             validate_module_after_pass(module, "input");
         }
         for pass in &mut self.passes {
-            let pass_name = pass.name().to_string();
             if pass.run(module) {
                 changed = true;
                 am.invalidate_all();
             }
             if self.validate_after_each {
-                validate_module_after_pass(module, &pass_name);
+                validate_module_after_pass(module, pass.name());
             }
         }
         (am, changed)

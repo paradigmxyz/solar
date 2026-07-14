@@ -18,6 +18,7 @@ use crate::{
     pass::ModulePass,
 };
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
 use solar_interface::{Ident, Symbol};
 
@@ -37,7 +38,7 @@ pub struct OutlineRevertsPass {
 }
 
 /// A constant revert block: `mstore(offset, value)*` then `revert(offset, size)`.
-type RevertShape = (Vec<(U256, U256)>, U256, U256);
+type RevertShape = (SmallVec<[(U256, U256); 2]>, U256, U256);
 
 impl OutlineRevertsPass {
     /// Returns statistics for the most recent run.
@@ -130,7 +131,7 @@ fn constant_revert_shape(func: &Function, block_idx: usize) -> Option<RevertShap
         Value::Immediate(imm) => imm.as_u256(),
         _ => None,
     };
-    let mut stores = Vec::with_capacity(block.instructions.len());
+    let mut stores = SmallVec::with_capacity(block.instructions.len());
     for &inst_id in &block.instructions {
         let InstKind::MStore(store_offset, value) = func.instructions[inst_id].kind else {
             return None;

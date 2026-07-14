@@ -65,17 +65,27 @@ impl LowerDispatchPass {
         // than silently skipping, since a leftover argument-taking selector
         // function would mean the ABI invariant was violated.
         let mut routes: Vec<(u32, FunctionId)> = Vec::new();
+        let mut receive = None;
+        let mut fallback = None;
+        let mut callvalue = super::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
-            let Some(selector) = func.selector else { continue };
-            if func.blocks.is_empty() {
-                continue;
+            callvalue.observe(func);
+            if func.attributes.is_receive && !func.blocks.is_empty() && receive.is_none() {
+                receive = Some(id);
             }
-            debug_assert!(
-                func.params.is_empty(),
-                "dispatch after abi phase: selector function `{}` still takes arguments",
-                func.name
-            );
-            routes.push((u32::from_be_bytes(selector), id));
+            if func.attributes.is_fallback && !func.blocks.is_empty() && fallback.is_none() {
+                fallback = Some(id);
+            }
+            if let Some(selector) = func.selector
+                && !func.blocks.is_empty()
+            {
+                debug_assert!(
+                    func.params.is_empty(),
+                    "dispatch after abi phase: selector function `{}` still takes arguments",
+                    func.name
+                );
+                routes.push((u32::from_be_bytes(selector), id));
+            }
         }
         routes.sort_by_key(|(selector, _)| *selector);
 
@@ -83,15 +93,6 @@ impl LowerDispatchPass {
         // bodied declarations participate in runtime dispatch. A fallback with
         // the `fallback(bytes) returns (bytes)` shape takes an argument this
         // switch cannot supply; bail all-or-nothing rather than half-routing.
-        let special = |pick: fn(&Function) -> bool| {
-            module
-                .functions
-                .iter_enumerated()
-                .find(|(_, f)| pick(f) && !f.blocks.is_empty())
-                .map(|(id, _)| id)
-        };
-        let receive = special(|f| f.attributes.is_receive);
-        let fallback = special(|f| f.attributes.is_fallback);
         for id in [receive, fallback].into_iter().flatten() {
             if !module.function(id).params.is_empty() {
                 return false;
@@ -106,7 +107,7 @@ impl LowerDispatchPass {
         // apply, the selector cases route unguarded: `lower-abi` already
         // injected the check into each rejecting wrapper's prologue (the two
         // passes share this predicate).
-        let hoist_callvalue = super::dispatch_hoists_callvalue(module);
+        let hoist_callvalue = callvalue.hoists();
 
         self.build_entry(module, &routes, receive, fallback, hoist_callvalue);
         self.stats.routed = routes.len();

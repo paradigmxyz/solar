@@ -7,11 +7,3 @@ fn @takesBytes() {
     mstore 128, v1
     returndata 128, 32
 }
-
-fn @takesBytes.body(arg0: memptr, arg1: u256) {
-  bb0 (entry):
-    v0 = mload arg0
-    v1 = add v0, arg1
-    mstore 128, v1
-    returndata 128, 32
-}

@@ -16,10 +16,10 @@ use crate::{
     IMMUTABLE_SCRATCH_BASE,
     analysis::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
-        PhiEliminator,
+        PhiEliminator, reachable_blocks,
     },
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
-    pass::{AnalysisManager, LivenessAnalysis, PipelineOptions, run_default_pipeline_with_options},
+    pass::{PipelineOptions, run_default_pipeline_with_options},
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -157,7 +157,10 @@ struct GlobalStackPlan {
 
 impl GlobalStackPlan {
     fn analyze(func: &Function, liveness: &Liveness, stack_phi_plan: &StackPhiPlan) -> Self {
-        let cfg = CfgInfo::new(func);
+        if func.selector.is_none() {
+            return Self::default();
+        }
+
         let mut entries = FxHashMap::default();
         let args_by_index: FxHashMap<_, _> = func
             .values
@@ -167,10 +170,12 @@ impl GlobalStackPlan {
                 _ => None,
             })
             .collect();
-        if func.selector.is_none()
-            || !(2..=GLOBAL_STACK_MAX_ARGS).contains(&args_by_index.len())
-            || cfg.reachable().len() < GLOBAL_STACK_MIN_BLOCKS
-        {
+        if !(2..=GLOBAL_STACK_MAX_ARGS).contains(&args_by_index.len()) {
+            return Self::default();
+        }
+
+        let cfg = CfgInfo::new(func);
+        if cfg.reachable().len() < GLOBAL_STACK_MIN_BLOCKS {
             return Self::default();
         }
         let mut decode_blocks = FxHashMap::default();
@@ -1454,18 +1459,24 @@ impl EvmCodegen {
 
     /// Generates the body of a function.
     fn generate_function_body(&mut self, func: &Function) {
-        // Run analysis pipeline via the pass manager.
-        // Currently just liveness; future analyses (dominance, loops, etc.)
-        // can be added here and queried from the same AnalysisManager.
-        let mut am = AnalysisManager::new();
-        let liveness: &Liveness = am.get_or_compute(&LivenessAnalysis, func);
+        let liveness = self
+            .emitting_dispatch_entry
+            .then(|| Liveness::compute_block_local_for_codegen(func))
+            .flatten()
+            .unwrap_or_else(|| Liveness::compute(func));
+        let liveness = &liveness;
 
-        // Eliminate phis
+        // Eliminate phis.
         let phi_result = PhiEliminator::analyze(func);
+        let has_phis = !phi_result.phis_to_remove.is_empty();
         for (block_id, copies) in phi_result.block_copies {
             self.block_copies.insert(block_id, copies.copies);
         }
-        let stack_phi_plan = StackPhiPlan::analyze(func);
+        // Stack-phi planning starts with loop analysis, but cannot produce a
+        // plan without a phi. Avoid that analysis for the overwhelmingly
+        // common phi-free function.
+        let stack_phi_plan =
+            if has_phis { StackPhiPlan::analyze(func) } else { StackPhiPlan::default() };
         self.stack_phi_sources = stack_phi_plan.edge_sources.clone();
         let global_stack_plan = GlobalStackPlan::analyze(func, liveness, &stack_phi_plan);
         self.global_stack_active = !global_stack_plan.is_empty();
@@ -1735,15 +1746,17 @@ impl EvmCodegen {
     }
 
     fn block_layout_order(func: &Function) -> Vec<BlockId> {
-        let cfg = CfgInfo::new(func);
-        let reachable = cfg.reachable();
+        // Layout only needs reachability. Building `CfgInfo` here also
+        // computes reverse postorder and a dominator tree that code emission
+        // never queries.
+        let reachable = reachable_blocks(func);
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = FxHashSet::default();
 
-        Self::append_layout_chain(func, func.entry_block, reachable, &mut placed, &mut order);
+        Self::append_layout_chain(func, func.entry_block, &reachable, &mut placed, &mut order);
         for block_id in func.blocks.indices() {
             if reachable.contains(&block_id) {
-                Self::append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
+                Self::append_layout_chain(func, block_id, &reachable, &mut placed, &mut order);
             }
         }
 

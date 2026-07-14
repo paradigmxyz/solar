@@ -75,25 +75,35 @@ pub(crate) fn rejects_callvalue(func: &crate::mir::Function) -> bool {
     )
 }
 
-/// Whether the dispatch entry hoists a single callvalue check: every bodied
-/// external entry (selector-bearing, receive, or fallback) rejects value.
+/// Incremental form of the shared dispatch callvalue-hoisting predicate:
+/// every bodied external entry (selector-bearing, receive, or fallback)
+/// rejects value.
 ///
-/// [`LowerAbiPass`] and [`LowerDispatchPass`] both key off this: when it does
-/// not hold, `lower-abi` injects the check into each rejecting wrapper's
-/// prologue and `lower-dispatch` routes selector cases unguarded, so the two
-/// passes MUST agree — a mismatch would leave a nonpayable entry unchecked.
-pub(crate) fn dispatch_hoists_callvalue(module: &crate::mir::Module) -> bool {
-    let mut any = false;
-    for func in module.functions.iter() {
+/// [`LowerAbiPass`] and [`LowerDispatchPass`] both use this while performing
+/// their existing module scans, so they must observe every function and agree.
+pub(crate) struct DispatchCallvalue {
+    any: bool,
+    all_reject: bool,
+}
+
+impl Default for DispatchCallvalue {
+    fn default() -> Self {
+        Self { any: false, all_reject: true }
+    }
+}
+
+impl DispatchCallvalue {
+    pub(crate) fn observe(&mut self, func: &crate::mir::Function) {
         let external =
             func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
         if !external || func.blocks.is_empty() || func.attributes.is_constructor {
-            continue;
+            return;
         }
-        if !rejects_callvalue(func) {
-            return false;
-        }
-        any = true;
+        self.any = true;
+        self.all_reject &= rejects_callvalue(func);
     }
-    any
+
+    pub(crate) const fn hoists(&self) -> bool {
+        self.any && self.all_reject
+    }
 }

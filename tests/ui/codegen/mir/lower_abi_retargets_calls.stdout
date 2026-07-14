@@ -20,10 +20,3 @@ fn @pub.body(arg0: u256) {
     mstore 128, v0
     returndata 128, 32
 }
-
-fn @caller.body(arg0: u256) {
-  bb0 (entry):
-    v0 = internal_call @pub.body, 1, arg0
-    mstore 128, v0
-    returndata 128, 32
-}

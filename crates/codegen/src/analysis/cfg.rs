@@ -68,6 +68,22 @@ impl CfgInfo {
     }
 }
 
+/// Returns the blocks reachable from the function entry without computing
+/// ordering or dominator information.
+pub fn reachable_blocks(func: &Function) -> FxHashSet<BlockId> {
+    let mut reachable = FxHashSet::default();
+    let mut worklist = vec![func.entry_block];
+    while let Some(block_id) = worklist.pop() {
+        if !reachable.insert(block_id) {
+            continue;
+        }
+        if let Some(term) = &func.blocks[block_id].terminator {
+            worklist.extend(term.successors());
+        }
+    }
+    reachable
+}
+
 /// Immediate-dominator tree for one MIR function.
 #[derive(Clone, Debug)]
 pub struct DominatorTree {
