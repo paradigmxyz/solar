@@ -418,7 +418,8 @@ impl AnalysisBatch {
 
 fn analyze(batch: AnalysisBatch) -> AnalysisResult {
     let (emitter, diag_buffer) = InMemoryEmitter::new();
-    let opts = batch.opts;
+    let mut opts = batch.opts;
+    opts.unstable.recover_incomplete_input = true;
     let sess = Session::builder().opts(opts).dcx(DiagCtxt::new(Box::new(emitter))).build();
 
     let mut compiler = Compiler::new(sess);
@@ -482,6 +483,7 @@ mod tests {
     mod goto_definition;
     mod inlay_hint;
     mod references;
+    mod signature_help;
     mod support;
 
     fn snapshot(project: &TestProject) -> GlobalStateSnapshot {

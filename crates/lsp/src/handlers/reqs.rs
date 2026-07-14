@@ -4,7 +4,8 @@ use crop::Rope;
 use lsp_types::{
     CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
     GotoDefinitionParams, GotoDefinitionResponse, InlayHint, InlayHintParams, Position,
-    ReferenceParams, Url, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    ReferenceParams, SignatureHelp, SignatureHelpParams, Url, WorkspaceSymbolParams,
+    WorkspaceSymbolResponse,
 };
 use std::future::ready;
 
@@ -69,6 +70,23 @@ pub(crate) fn inlay_hints(
 ) -> impl Future<Output = Result<Option<Vec<InlayHint>>, ResponseError>> + use<> {
     let response = state.symbol_tables.read().inlay_hints(&params.text_document.uri, params.range);
     ready(Ok(Some(response)))
+}
+
+pub(crate) fn signature_help(
+    state: &mut GlobalState,
+    params: SignatureHelpParams,
+) -> impl Future<Output = Result<Option<SignatureHelp>, ResponseError>> + use<> {
+    let params = params.text_document_position_params;
+    let response = crate::proto::vfs_path(&params.text_document.uri).and_then(|path| {
+        let contents = state.vfs.read().get_file_contents(&path)?.clone();
+        state.symbol_tables.read().signature_help(
+            &params.text_document.uri,
+            params.position,
+            &contents,
+            state.config.signature_help_options(),
+        )
+    });
+    ready(Ok(response))
 }
 
 pub(crate) fn completion(
