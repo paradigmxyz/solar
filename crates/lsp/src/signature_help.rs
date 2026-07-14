@@ -3,15 +3,12 @@
 use crate::{config::SignatureHelpClientOptions, proto};
 use crop::Rope;
 use lsp_types::{
-    Documentation, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel, Position,
-    Range, SignatureHelp, SignatureInformation, Url,
+    Documentation, Location, MarkupContent, MarkupKind, ParameterInformation, ParameterLabel,
+    Position, Range, SignatureHelp, SignatureInformation, Url,
 };
 use solar_interface::{
     Span,
-    data_structures::{
-        Never,
-        map::{FxHashMap, FxHashSet},
-    },
+    data_structures::{Never, map::FxHashMap},
 };
 use solar_parse::Cursor;
 use solar_sema::{
@@ -40,7 +37,7 @@ struct CallSite {
 
 #[derive(Clone, Debug)]
 struct CatalogEntry {
-    origin: Option<Url>,
+    location: Option<Location>,
     form: CallForm,
     signature: Arc<CallSignature>,
 }
@@ -95,77 +92,22 @@ impl SignatureHelpIndex {
         }
         for (name, entries) in other.callables_by_name {
             for entry in entries {
-                self.push_shared_callable(name.clone(), entry.origin, entry.form, entry.signature);
+                self.push_shared_callable(
+                    name.clone(),
+                    entry.location,
+                    entry.form,
+                    entry.signature,
+                );
             }
         }
     }
 
-    pub(crate) fn retain_failed_files(&mut self, previous: &Self, uris: &[Url]) {
-        let indexed_origins = self
-            .callables_by_name
-            .values()
-            .flatten()
-            .filter_map(|entry| entry.origin.clone())
-            .collect::<FxHashSet<_>>();
-        for uri in uris {
-            let Some(previous_calls) = previous.calls.get(uri) else { continue };
-            let mut current_starts = self
-                .calls
-                .get(uri)
-                .into_iter()
-                .flatten()
-                .map(|call| call.range.start)
-                .collect::<FxHashSet<_>>();
-            for previous_call in previous_calls {
-                if !current_starts.insert(previous_call.range.start) {
-                    continue;
-                }
-                let mut call = previous_call.clone();
-                call.signatures.retain(|signature| {
-                    self.signatures_by_label
-                        .get(&signature.information.label)
-                        .is_some_and(|candidates| candidates.contains(signature))
-                });
-                if call.signatures.is_empty() {
-                    continue;
-                }
-                for signature in &mut call.signatures {
-                    *signature = self.intern_shared_signature(signature.clone());
-                }
-                self.calls.entry(uri.clone()).or_default().push(call);
-            }
-            if let Some(calls) = self.calls.get_mut(uri) {
-                calls.sort_by_key(|call| range_size_key(call.range));
-            }
-        }
-        // Parsing failures can leave a file without a new catalog, so keep its old fallback
-        // entries.
-        for (name, entries) in &previous.callables_by_name {
-            for entry in entries {
-                if let Some(origin) = &entry.origin
-                    && uris.contains(origin)
-                    && (!indexed_origins.contains(origin)
-                        || self
-                            .signatures_by_label
-                            .get(&entry.signature.information.label)
-                            .is_some_and(|candidates| candidates.contains(&entry.signature)))
-                {
-                    self.push_shared_callable(
-                        name.clone(),
-                        entry.origin.clone(),
-                        entry.form,
-                        entry.signature.clone(),
-                    );
-                }
-            }
-        }
-    }
-
-    pub(crate) fn signature_help(
+    pub(crate) fn signature_help<'a>(
         &self,
         uri: &Url,
         position: Position,
         contents: &Rope,
+        visible_declarations: impl FnOnce(&str) -> Vec<&'a Location>,
         options: SignatureHelpClientOptions,
     ) -> Option<SignatureHelp> {
         let cursor = proto::text_range(contents, Range::new(position, position)).start;
@@ -193,11 +135,19 @@ impl SignatureHelpIndex {
             if context.member_call {
                 return None;
             }
+            let name = context.callee_name?;
+            let visible_declarations = visible_declarations(name);
             (
                 self.callables_by_name
-                    .get(context.callee_name?)?
+                    .get(name)?
                     .iter()
-                    .filter(|entry| entry.form == context.form)
+                    .filter(|entry| {
+                        entry.form == context.form
+                            && entry
+                                .location
+                                .as_ref()
+                                .is_none_or(|location| visible_declarations.contains(&location))
+                    })
                     .map(|entry| entry.signature.as_ref())
                     .collect(),
                 true,
@@ -239,16 +189,18 @@ impl SignatureHelpIndex {
             if let Some(name) = gcx.hir.item(item_id).name()
                 && let Some(signature) = render_item(gcx, item_id)
             {
-                let origin =
+                let Some(location) =
                     proto::span_to_location(gcx.sess.source_map(), gcx.hir.item(item_id).span())
-                        .map(|location| location.uri);
+                else {
+                    continue;
+                };
                 let form = match item_id {
                     ItemId::Contract(_) => CallForm::New,
                     ItemId::Event(_) => CallForm::Event,
                     ItemId::Error(_) => CallForm::Error,
                     _ => CallForm::Regular,
                 };
-                self.push_callable(name.to_string(), origin, form, signature);
+                self.push_callable(name.to_string(), Some(location), form, signature);
             }
         }
         for builtin in Builtin::global() {
@@ -261,26 +213,26 @@ impl SignatureHelpIndex {
     fn push_callable(
         &mut self,
         name: String,
-        origin: Option<Url>,
+        location: Option<Location>,
         form: CallForm,
         signature: CallSignature,
     ) {
-        self.push_shared_callable(name, origin, form, Arc::new(signature));
+        self.push_shared_callable(name, location, form, Arc::new(signature));
     }
 
     fn push_shared_callable(
         &mut self,
         name: String,
-        origin: Option<Url>,
+        location: Option<Location>,
         form: CallForm,
         signature: Arc<CallSignature>,
     ) {
         let signature = self.intern_shared_signature(signature);
         let entries = self.callables_by_name.entry(name).or_default();
         if !entries.iter().any(|entry| {
-            entry.origin == origin && entry.form == form && entry.signature == signature
+            entry.location == location && entry.form == form && entry.signature == signature
         }) {
-            entries.push(CatalogEntry { origin, form, signature });
+            entries.push(CatalogEntry { location, form, signature });
         }
     }
 
@@ -1136,22 +1088,6 @@ mod tests {
     }
 
     #[test]
-    fn successful_analysis_does_not_retain_stale_catalog_entries() {
-        let mut previous = SignatureHelpIndex::default();
-        previous.push_callable(
-            "removed".into(),
-            Some(Url::parse("file:///Signature.sol").unwrap()),
-            CallForm::Regular,
-            test_signature("function removed(uint256)", vec![None]),
-        );
-        let mut current = SignatureHelpIndex::default();
-
-        current.retain_failed_files(&previous, &[]);
-
-        assert!(!current.callables_by_name.contains_key("removed"));
-    }
-
-    #[test]
     fn stale_callee_range_splitting_a_surrogate_pair_is_rejected() {
         let call = CallSite {
             range: Range::default(),
@@ -1175,33 +1111,5 @@ mod tests {
         };
 
         assert!(!call.matches_current_callee(&Rope::from("f")));
-    }
-
-    #[test]
-    fn failed_file_retention_merges_missing_call_sites() {
-        let uri = Url::parse("file:///Signature.sol").unwrap();
-        let mut current = SignatureHelpIndex::default();
-        let signature = current.intern_signature(test_signature("function f(uint256)", vec![None]));
-        let first = CallSite {
-            range: Range::new(Position::new(1, 1), Position::new(1, 4)),
-            callee_range: Range::new(Position::new(1, 0), Position::new(1, 1)),
-            callee_tokens: vec!["f".into()],
-            form: CallForm::Regular,
-            signatures: vec![signature.clone()],
-        };
-        let second = CallSite {
-            range: Range::new(Position::new(2, 1), Position::new(2, 4)),
-            callee_range: Range::new(Position::new(2, 0), Position::new(2, 1)),
-            callee_tokens: vec!["f".into()],
-            form: CallForm::Regular,
-            signatures: vec![signature],
-        };
-        let mut previous = SignatureHelpIndex::default();
-        previous.calls.insert(uri.clone(), vec![first.clone(), second]);
-        current.calls.insert(uri.clone(), vec![first]);
-
-        current.retain_failed_files(&previous, std::slice::from_ref(&uri));
-
-        assert_eq!(current.calls[&uri].len(), 2);
     }
 }

@@ -293,11 +293,13 @@ impl SymbolTables {
         contents: &crop::Rope,
         options: crate::config::SignatureHelpClientOptions,
     ) -> Option<lsp_types::SignatureHelp> {
-        self.signature_help.signature_help(uri, position, contents, options)
-    }
-
-    pub(crate) fn retain_signature_help_for_failed_files(&mut self, previous: &Self, uris: &[Url]) {
-        self.signature_help.retain_failed_files(&previous.signature_help, uris);
+        self.signature_help.signature_help(
+            uri,
+            position,
+            contents,
+            |name| self.visible_declaration_locations(uri, position, name),
+            options,
+        )
     }
 
     pub(crate) fn document_symbols(&self, uri: &Url) -> Vec<DocumentSymbol> {
@@ -720,6 +722,35 @@ impl SymbolTables {
                 let (lines, chars) = range_size_key(self.scopes[scope_id].range);
                 (lines, chars, u32::MAX - self.scope_depth(scope_id))
             })
+    }
+
+    fn visible_declaration_locations<'a>(
+        &'a self,
+        uri: &Url,
+        position: Position,
+        name: &str,
+    ) -> Vec<&'a Location> {
+        let mut scope = self.scope_at_position(uri, position);
+        while let Some(scope_id) = scope {
+            let current = &self.scopes[scope_id];
+            let declarations = current
+                .declarations
+                .iter()
+                .filter(|declaration| {
+                    declaration
+                        .available_from
+                        .is_none_or(|available_from| available_from <= position)
+                })
+                .map(|declaration| &self.declarations[declaration.symbol_id])
+                .filter(|declaration| declaration.name == name)
+                .map(|declaration| &declaration.location)
+                .collect::<Vec<_>>();
+            if !declarations.is_empty() {
+                return declarations;
+            }
+            scope = current.parent;
+        }
+        Vec::new()
     }
 
     fn scope_depth(&self, mut scope_id: ScopeId) -> u32 {

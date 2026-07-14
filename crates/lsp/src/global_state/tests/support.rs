@@ -135,16 +135,12 @@ impl RequestFixture {
     ) {
         let path = self.marked.project().path(path);
         let uri = Url::from_file_path(&path).unwrap();
-        let mut result = analyze(AnalysisBatch {
+        let result = analyze(AnalysisBatch {
             opts: CompileOpts::default(),
             files: vec![(path.clone(), changed_contents.to_string())],
             seen_paths: FxHashSet::default(),
         });
         assert!(!result.diagnostics.is_empty(), "changed source should fail analysis");
-        result.symbol_tables.retain_signature_help_for_failed_files(
-            &self.result.symbol_tables,
-            std::slice::from_ref(&uri),
-        );
 
         let mut state = self.state();
         state.vfs.write().set_file_contents(

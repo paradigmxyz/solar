@@ -237,6 +237,27 @@ function select(uint256 value) external pure
 }
 
 #[test]
+fn does_not_fallback_to_an_inaccessible_private_function() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Signature.sol open
+        contract A {
+            function hidden(uint256 value) private pure {}
+        }
+
+        contract B {
+            function use() public pure {
+                hidden($1 1);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+
+    fixture.check_signature_help("$1", "<none>\n");
+}
+
+#[test]
 fn does_not_reuse_a_stale_call_site_after_the_callee_changes() {
     let fixture = RequestFixture::new(
         r#"
@@ -289,6 +310,31 @@ fn does_not_reuse_a_stale_signature_after_the_declaration_changes() {
 }
 
 #[test]
+fn does_not_reuse_a_stale_signature_when_an_identical_declaration_still_exists() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract A {
+            function foo(uint256 value) public pure {}
+
+            function use() public pure {
+                foo($1 1);
+            }
+        }
+
+        contract B {
+            function foo(uint256 value) public pure {}
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let changed =
+        fixture.project_contents("/Signature.sol").replacen("function foo(", "function bar(", 1);
+
+    fixture.check_signature_help_after_change("$1", "/Signature.sol", &changed, "<none>\n");
+}
+
+#[test]
 fn does_not_reuse_a_stale_member_call_after_the_receiver_changes() {
     let fixture = RequestFixture::new(
         r#"
@@ -310,6 +356,35 @@ fn does_not_reuse_a_stale_member_call_after_the_receiver_changes() {
         "/Signature.sol",
     );
     let changed = fixture.project_contents("/Signature.sol").replace("a.f( 1);", "b.f( 1;");
+
+    fixture.check_signature_help_after_change("$1", "/Signature.sol", &changed, "<none>\n");
+}
+
+#[test]
+fn does_not_reuse_a_stale_member_call_after_the_receiver_type_changes() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Signature.sol open
+        contract A {
+            function f(uint8 value) external pure {}
+        }
+
+        contract B {
+            function f(uint256 value) external pure {}
+        }
+
+        contract C {
+            function use(A target) public {
+                target.f($1 1);
+            }
+        }
+        "#,
+        "/Signature.sol",
+    );
+    let changed = fixture
+        .project_contents("/Signature.sol")
+        .replace("use(A target)", "use(B target)")
+        .replace("target.f( 1);", "target.f( 1;");
 
     fixture.check_signature_help_after_change("$1", "/Signature.sol", &changed, "<none>\n");
 }
