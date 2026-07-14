@@ -7,6 +7,7 @@
 
 use crate::mir::IMMUTABLE_WORD_SIZE;
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 
@@ -383,7 +384,7 @@ impl Assembler {
         }
 
         // Terminal spans: label .. first terminal, with no label inside.
-        let mut spans: Vec<(usize, usize)> = Vec::new();
+        let mut spans = SmallVec::<[(usize, usize); 16]>::new();
         let mut i = 0;
         while i < instructions.len() {
             if let AsmInstKind::Label(_) = instructions[i].kind() {
@@ -405,9 +406,9 @@ impl Assembler {
         // Greedy: each span merges into the earlier span sharing its longest
         // terminal suffix, when that suffix outweighs the jump plus the
         // representative's inserted `JUMPDEST`.
-        let mut reps: Vec<(usize, usize)> = Vec::new();
+        let mut reps = SmallVec::<[(usize, usize); 16]>::new();
         // (span_start, span_end, rep_index, suffix_len)
-        let mut merges: Vec<(usize, usize, usize, usize)> = Vec::new();
+        let mut merges = SmallVec::<[(usize, usize, usize, usize); 8]>::new();
         for &(start, end) in &spans {
             let body = &instructions[start..=end];
             let mut best: Option<(usize, usize)> = None;
@@ -542,10 +543,11 @@ impl Assembler {
         }
         let insts = &program.instructions;
 
-        #[derive(Clone, PartialEq, Eq, Hash)]
-        struct Key(Vec<AsmInst>);
-
-        let mut candidates: FxHashMap<Key, Vec<ClosedRunSite>> = FxHashMap::default();
+        // Borrow candidate runs from the immutable input instead of cloning
+        // every prefix into an owned hash key. Most runs occur only once, so
+        // keep their first two sites inline as well.
+        let mut candidates: FxHashMap<&[AsmInst], SmallVec<[ClosedRunSite; 2]>> =
+            FxHashMap::default();
         let mut i = 0;
         while i < insts.len() {
             if matches!(insts[i].kind(), AsmInstKind::Label(_)) {
@@ -568,19 +570,14 @@ impl Assembler {
                 j += 1;
                 let len = j - i;
                 if len >= MIN_CLOSED_RUN && (height == 0 || height == 1) {
-                    candidates.entry(Key(insts[i..j].to_vec())).or_default().push((
-                        i,
-                        len,
-                        height as u16,
-                    ));
+                    candidates.entry(&insts[i..j]).or_default().push((i, len, height as u16));
                 }
             }
             i += 1;
         }
 
-        let mut groups: Vec<(&Key, &Vec<ClosedRunSite>)> =
-            candidates.iter().filter(|(_, sites)| sites.len() >= 2).collect();
-        groups.sort_by_key(|(key, _)| std::cmp::Reverse(key.0.len()));
+        let mut groups: Vec<_> = candidates.iter().filter(|(_, sites)| sites.len() >= 2).collect();
+        groups.sort_by_key(|(key, _)| std::cmp::Reverse(key.len()));
 
         let mut claimed: Vec<bool> = vec![false; insts.len()];
         let mut chosen: Vec<(Vec<usize>, usize, u16)> = Vec::new();
@@ -757,32 +754,59 @@ impl Assembler {
         let mut program = ir_program.to_asm_program();
         self.invert_branches_over_empty_reverts(&mut program.instructions);
         self.run_assembler_passes(&mut program);
-        // Dedup first at the original span granularity, then drop the labels
-        // nothing references (which merges fallthrough-split spans), and
-        // dedup once more at the coarser granularity that removal exposes.
-        Self::dedup_terminal_spans(&mut program.instructions);
-        Self::remove_unreferenced_labels(&mut program.instructions);
-        Self::dedup_terminal_spans(&mut program.instructions);
-        Self::remove_unreferenced_labels(&mut program.instructions);
-        // Suffix cuts create new identical spans and tails; iterate the merge
-        // with the dedup chain to a capped fixpoint. The unreachable-code
-        // sweep needs the label drop at the end of the previous iteration to
-        // expose a threaded thunk's corpse, so give the fixpoint headroom.
-        for _ in 0..6 {
-            let merged = self.merge_terminal_suffixes(&mut program.instructions);
-            let threaded = self.run_structural_outlining
-                && Self::thread_jump_thunks(&mut program.instructions);
-            let swept = self.run_structural_outlining
-                && Self::remove_unreachable_code(&mut program.instructions);
-            if !merged && !threaded && !swept {
-                break;
-            }
+        let has_labels =
+            program.instructions.iter().any(|inst| matches!(inst.kind(), AsmInstKind::Label(_)));
+        if has_labels {
+            // Dedup first at the original span granularity, then drop the labels
+            // nothing references (which merges fallthrough-split spans), and
+            // dedup once more at the coarser granularity that removal exposes.
             Self::dedup_terminal_spans(&mut program.instructions);
             Self::remove_unreferenced_labels(&mut program.instructions);
+            Self::dedup_terminal_spans(&mut program.instructions);
+            Self::remove_unreferenced_labels(&mut program.instructions);
+            // Suffix cuts create new identical spans and tails; iterate the merge
+            // with the dedup chain to a capped fixpoint. The unreachable-code
+            // sweep needs the label drop at the end of the previous iteration to
+            // expose a threaded thunk's corpse, so give the fixpoint headroom.
+            for _ in 0..6 {
+                let merged = self.merge_terminal_suffixes(&mut program.instructions);
+                let threaded = self.run_structural_outlining
+                    && Self::thread_jump_thunks(&mut program.instructions);
+                let swept = self.run_structural_outlining
+                    && Self::remove_unreachable_code(&mut program.instructions);
+                if !merged && !threaded && !swept {
+                    break;
+                }
+                Self::dedup_terminal_spans(&mut program.instructions);
+                Self::remove_unreferenced_labels(&mut program.instructions);
+            }
+        } else if self.run_structural_outlining {
+            Self::remove_unreachable_code(&mut program.instructions);
         }
         self.outline_closed_computations(&mut program);
-        self.outline_repeated_pushes(&mut program);
+        if program
+            .instructions
+            .iter()
+            .filter(|inst| matches!(inst.kind(), AsmInstKind::Push(_)))
+            .take(2)
+            .count()
+            >= 2
+        {
+            self.outline_repeated_pushes(&mut program);
+        }
         self.hoist_hot_terminal_spans(&mut program.instructions);
+
+        // Label-free constructor and deployment snippets need neither offset
+        // discovery nor push-width relaxation.
+        if !program
+            .instructions
+            .iter()
+            .any(|inst| matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_)))
+        {
+            let result = self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+            self.clear();
+            return result;
+        }
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();

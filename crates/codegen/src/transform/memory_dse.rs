@@ -118,12 +118,34 @@ impl MemoryStoreEliminator {
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
 
-        self.reuse_redundant_immutable_copies(func);
+        let needs_inst_results = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                matches!(
+                    func.instructions[inst_id].kind,
+                    InstKind::MLoad(_) | InstKind::Keccak256(_, _)
+                )
+            })
+        });
+        let inst_results =
+            if needs_inst_results { func.inst_results() } else { FxHashMap::default() };
+
+        self.reuse_redundant_immutable_copies(func, &inst_results);
         self.remove_unused_internal_frame_stores(func);
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        for block_id in block_ids {
-            self.process_block(func, block_id);
+        let has_precise_reads = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                Self::constant_range_read(&func.instructions[inst_id].kind).is_some()
+            })
+        });
+        if has_precise_reads {
+            for block_id in block_ids {
+                self.process_block::<true>(func, block_id, &inst_results);
+            }
+        } else {
+            for block_id in block_ids {
+                self.process_block::<false>(func, block_id, &inst_results);
+            }
         }
         self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
@@ -150,6 +172,14 @@ impl MemoryStoreEliminator {
     /// call, `msize` — widens to all-memory-live, which only ever keeps a
     /// store, never drops a live one.
     fn remove_dead_memory_stores(&mut self, func: &mut Function) {
+        if !func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if Self::word_aligned_const(func, addr).is_some())
+            })
+        }) {
+            return;
+        }
+
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         if block_ids.is_empty() {
             return;
@@ -340,8 +370,21 @@ impl MemoryStoreEliminator {
         total
     }
 
-    fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
-        let inst_results = func.inst_results();
+    fn reuse_redundant_immutable_copies(
+        &mut self,
+        func: &mut Function,
+        inst_results: &FxHashMap<InstId, ValueId>,
+    ) {
+        let has_candidate = func.blocks.iter().any(|block| {
+            block.instructions.windows(2).any(|window| {
+                matches!(func.instructions[window[0]].kind, InstKind::CodeCopy(_, _, _))
+                    && matches!(func.instructions[window[1]].kind, InstKind::MLoad(_))
+            })
+        });
+        if !has_candidate {
+            return;
+        }
+
         let cfg = CfgInfo::new(func);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
@@ -399,6 +442,14 @@ impl MemoryStoreEliminator {
     }
 
     fn remove_unused_internal_frame_stores(&mut self, func: &mut Function) {
+        let has_candidate = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if Self::internal_frame_offset(func, addr).is_some())
+            })
+        });
+        if !has_candidate {
+            return;
+        }
         if Self::has_frame_observer(func) {
             return;
         }
@@ -434,10 +485,44 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn process_block(&mut self, func: &mut Function, block_id: BlockId) {
-        self.fold_constant_keccak(func, block_id);
-        self.forward_loads(func, block_id);
-        self.remove_equal_stores(func, block_id);
+    fn process_block<const PRECISE_READS: bool>(
+        &mut self,
+        func: &mut Function,
+        block_id: BlockId,
+        inst_results: &FxHashMap<InstId, ValueId>,
+    ) {
+        let mut mstores = 0;
+        let mut memory_writes = 0;
+        let mut has_load = false;
+        let mut has_keccak = false;
+        for &inst_id in &func.blocks[block_id].instructions {
+            match func.instructions[inst_id].kind {
+                InstKind::MStore(_, _) => {
+                    mstores += 1;
+                    memory_writes += 1;
+                }
+                InstKind::CalldataCopy(_, _, _)
+                | InstKind::CodeCopy(_, _, _)
+                | InstKind::ReturnDataCopy(_, _, _)
+                | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
+                InstKind::MLoad(_) => has_load = true,
+                InstKind::Keccak256(_, _) => has_keccak = true,
+                _ => {}
+            }
+        }
+
+        if has_keccak && mstores != 0 {
+            self.fold_constant_keccak(func, block_id, inst_results);
+        }
+        if has_load && mstores != 0 {
+            self.forward_loads(func, block_id, inst_results);
+        }
+        if mstores >= 2 {
+            self.remove_equal_stores(func, block_id);
+        }
+        if memory_writes < 2 {
+            return;
+        }
 
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut overwritten: FxHashSet<MemAddrKey> = FxHashSet::default();
@@ -489,44 +574,14 @@ impl MemoryStoreEliminator {
                 // Modelling the range (instead of clearing) lets a return-value
                 // slot's dead default-init survive the mapping-hash keccaks and
                 // event logs that sit between it and its real store.
-                InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
+                kind if PRECISE_READS
+                    && let Some((offset, size)) = Self::constant_range_read(kind) =>
+                {
                     Self::retain_overwritten_disjoint_from_read(
                         func,
                         &mut overwritten,
-                        *offset,
-                        *size,
-                    );
-                }
-                InstKind::Log1(offset, size, _) => {
-                    Self::retain_overwritten_disjoint_from_read(
-                        func,
-                        &mut overwritten,
-                        *offset,
-                        *size,
-                    );
-                }
-                InstKind::Log2(offset, size, _, _) => {
-                    Self::retain_overwritten_disjoint_from_read(
-                        func,
-                        &mut overwritten,
-                        *offset,
-                        *size,
-                    );
-                }
-                InstKind::Log3(offset, size, _, _, _) => {
-                    Self::retain_overwritten_disjoint_from_read(
-                        func,
-                        &mut overwritten,
-                        *offset,
-                        *size,
-                    );
-                }
-                InstKind::Log4(offset, size, _, _, _, _) => {
-                    Self::retain_overwritten_disjoint_from_read(
-                        func,
-                        &mut overwritten,
-                        *offset,
-                        *size,
+                        offset,
+                        size,
                     );
                 }
                 kind if Self::is_memory_or_gas_observer(kind) => {
@@ -541,6 +596,18 @@ impl MemoryStoreEliminator {
         }
 
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+    }
+
+    fn constant_range_read(kind: &InstKind) -> Option<(ValueId, ValueId)> {
+        match kind {
+            InstKind::Keccak256(offset, size)
+            | InstKind::Log0(offset, size)
+            | InstKind::Log1(offset, size, _)
+            | InstKind::Log2(offset, size, _, _)
+            | InstKind::Log3(offset, size, _, _, _)
+            | InstKind::Log4(offset, size, _, _, _, _) => Some((*offset, *size)),
+            _ => None,
+        }
     }
 
     /// Keeps only the overwritten slots a constant-range memory read cannot
@@ -578,6 +645,18 @@ impl MemoryStoreEliminator {
     /// needs no SSA reasoning: a single-predecessor block inherits its
     /// predecessor's exit constants, and a store matching one is dead.
     fn remove_cross_block_equal_const_stores(&mut self, func: &mut Function) {
+        if func
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
+            .take(2)
+            .count()
+            < 2
+        {
+            return;
+        }
+
         let const_store = |func: &Function, addr: ValueId, value: ValueId| {
             let (Value::Immediate(a), Value::Immediate(v)) = (func.value(addr), func.value(value))
             else {
@@ -640,6 +719,18 @@ impl MemoryStoreEliminator {
     }
 
     fn remove_cross_block_overwrites(&mut self, func: &mut Function) {
+        if func
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
+            .take(2)
+            .count()
+            < 2
+        {
+            return;
+        }
+
         let mut dead = FxHashSet::default();
 
         for pred in func.blocks.indices() {
@@ -707,9 +798,13 @@ impl MemoryStoreEliminator {
         None
     }
 
-    fn fold_constant_keccak(&mut self, func: &mut Function, block_id: BlockId) {
+    fn fold_constant_keccak(
+        &mut self,
+        func: &mut Function,
+        block_id: BlockId,
+        inst_results: &FxHashMap<InstId, ValueId>,
+    ) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = func.inst_results();
         let mut stored_words: FxHashMap<MemAddrKey, U256> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
@@ -795,9 +890,13 @@ impl MemoryStoreEliminator {
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
     }
 
-    fn forward_loads(&mut self, func: &mut Function, block_id: BlockId) {
+    fn forward_loads(
+        &mut self,
+        func: &mut Function,
+        block_id: BlockId,
+        inst_results: &FxHashMap<InstId, ValueId>,
+    ) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = func.inst_results();
         let mut stored_values: FxHashMap<MemAddrKey, ValueId> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();

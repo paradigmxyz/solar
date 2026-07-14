@@ -21,6 +21,7 @@ use crate::{
     },
 };
 use alloy_primitives::U256;
+use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
@@ -39,6 +40,12 @@ use self::storage::StorageLocation;
 pub(super) enum SlotMemoOperand {
     Imm(U256),
     Val(ValueId),
+}
+
+type MappingSlotMemo = SmallVec<[FxHashMap<(SlotMemoOperand, SlotMemoOperand), ValueId>; 4]>;
+
+fn fresh_mapping_slot_memo() -> MappingSlotMemo {
+    smallvec![FxHashMap::default()]
 }
 
 /// Context for a loop (tracks break/continue targets).
@@ -130,7 +137,7 @@ pub struct Lowerer<'gcx> {
     /// entries created inside a branch arm die with that arm's scope, loops
     /// forget everything on entry, and memory writes/internal calls/assembly
     /// invalidate all scopes (a key's bytes may have changed).
-    mapping_slot_memo: Vec<FxHashMap<(SlotMemoOperand, SlotMemoOperand), ValueId>>,
+    mapping_slot_memo: MappingSlotMemo,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
     in_unchecked_block: bool,
     /// Sema return types of the function currently being lowered (one per declared
@@ -193,7 +200,7 @@ impl<'gcx> Lowerer<'gcx> {
             ret_bytes_helper: None,
             storage_bytes_helper: None,
             synthesizing_helper: false,
-            mapping_slot_memo: vec![FxHashMap::default()],
+            mapping_slot_memo: fresh_mapping_slot_memo(),
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
@@ -458,7 +465,7 @@ impl<'gcx> Lowerer<'gcx> {
             let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
             let saved_mapping_slot_memo =
-                std::mem::replace(&mut self.mapping_slot_memo, vec![FxHashMap::default()]);
+                std::mem::replace(&mut self.mapping_slot_memo, fresh_mapping_slot_memo());
             self.lowering_constructor = true;
             self.lowering_internal_function = false;
             self.in_unchecked_block = false;
@@ -579,7 +586,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
         let saved_mapping_slot_memo =
-            std::mem::replace(&mut self.mapping_slot_memo, vec![FxHashMap::default()]);
+            std::mem::replace(&mut self.mapping_slot_memo, fresh_mapping_slot_memo());
 
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
@@ -793,7 +800,7 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
         let saved_mapping_slot_memo =
-            std::mem::replace(&mut self.mapping_slot_memo, vec![FxHashMap::default()]);
+            std::mem::replace(&mut self.mapping_slot_memo, fresh_mapping_slot_memo());
 
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;

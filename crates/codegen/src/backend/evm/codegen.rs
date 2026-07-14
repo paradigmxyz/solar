@@ -3198,9 +3198,34 @@ impl EvmCodegen {
     /// callee's one-time prologue store. A callee reached by an
     /// argument-carrying tail call keeps the plain convention.
     fn compute_stack_arg_masks(&mut self, module: &Module) {
+        self.stack_arg_masks.clear();
+        if self.static_frame_functions.is_empty() {
+            return;
+        }
+
         let mut scores: FxHashMap<FunctionId, Vec<i32>> = FxHashMap::default();
         let mut excluded: FxHashSet<FunctionId> = FxHashSet::default();
         for (caller_id, func) in module.functions.iter_enumerated() {
+            let mut has_candidate_call = false;
+            for block in func.blocks.iter() {
+                if let Some(Terminator::TailCall { function, args }) = &block.terminator
+                    && !args.is_empty()
+                    && self.static_frame_functions.contains(function)
+                {
+                    excluded.insert(*function);
+                }
+                has_candidate_call |= block.instructions.iter().any(|&inst_id| {
+                    matches!(
+                        &func.instructions[inst_id].kind,
+                        InstKind::InternalCall { function, .. }
+                            if self.static_frame_functions.contains(function)
+                    )
+                });
+            }
+            if !has_candidate_call {
+                continue;
+            }
+
             let caller_is_entry = Self::is_external_entry(func);
             let caller_static = self.static_frame_functions.contains(&caller_id);
             let raw_leaves_ok = caller_is_entry || caller_static;
@@ -3222,17 +3247,15 @@ impl EvmCodegen {
                 }
             }
             for (block_idx, block) in func.blocks.iter().enumerate() {
-                if let Some(Terminator::TailCall { function, args }) = &block.terminator
-                    && !args.is_empty()
-                {
-                    excluded.insert(*function);
-                }
                 for &inst_id in &block.instructions {
                     let InstKind::InternalCall { function, args, .. } =
                         &func.instructions[inst_id].kind
                     else {
                         continue;
                     };
+                    if !self.static_frame_functions.contains(function) {
+                        continue;
+                    }
                     let score = scores.entry(*function).or_insert_with(|| vec![0; args.len()]);
                     if score.len() != args.len() {
                         excluded.insert(*function);
