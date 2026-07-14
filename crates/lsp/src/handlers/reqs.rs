@@ -90,7 +90,13 @@ pub(crate) fn rename(
     let vfs = state.vfs.clone();
     async move {
         if !is_ident(&params.new_name)
-            || enter(|| Symbol::intern(&params.new_name).is_reserved(false))
+            || enter(|| {
+                let name = Symbol::intern(&params.new_name);
+                name.is_reserved(false)
+                    || candidate.as_ref().is_some_and(|candidate| {
+                        candidate.requires_yul_validation && name.is_reserved(true)
+                    })
+            })
         {
             return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));
         }
@@ -118,14 +124,14 @@ fn validated_workspace_edit(
 ) -> Result<WorkspaceEdit, ResponseError> {
     let mut contents = HashMap::<Url, Rope>::new();
     let source_map = SourceMap::empty();
-    for location in &candidate.locations {
-        if contents.contains_key(&location.uri) {
-            continue;
-        }
-        let Some(file_contents) = rename_file_contents(&vfs, &source_map, &location.uri) else {
+    for (uri, analyzed_contents) in &candidate.analyzed_contents {
+        let Some(file_contents) = rename_file_contents(&vfs, &source_map, uri) else {
             return Err(content_modified());
         };
-        contents.insert(location.uri.clone(), file_contents);
+        if file_contents.byte_slice(..) != analyzed_contents.as_str() {
+            return Err(content_modified());
+        }
+        contents.insert(uri.clone(), file_contents);
     }
 
     for location in &candidate.locations {

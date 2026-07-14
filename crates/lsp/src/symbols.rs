@@ -25,7 +25,7 @@ use std::ops::ControlFlow;
 use crate::{
     inlay_hints::InlayHintIndex,
     proto,
-    rename::{ImportBindings, RenameCandidate, RenameIndex},
+    rename::{ImportBindings, MappingBindings, RenameCandidate, RenameIndex},
 };
 
 #[derive(Clone, Debug, Default)]
@@ -135,6 +135,7 @@ impl SymbolTables {
     /// source-level declarations that LSP requests can query after that run has finished.
     pub(crate) fn build(gcx: Gcx<'_>) -> Self {
         let mut tables = Self::default();
+        tables.rename.record_source_contents(gcx);
         tables.build_builtin_completions();
         let item_ids = gcx.hir.item_ids();
         let yul_variables = YulVariableCollector::collect(gcx);
@@ -266,10 +267,6 @@ impl SymbolTables {
             self.builtin_member_completions = std::mem::take(&mut other.builtin_member_completions);
         }
         self.inlay_hints.extend(other.inlay_hints);
-
-        if other.declarations.is_empty() {
-            return;
-        }
 
         let symbol_offset = self.declarations.len();
         let scope_offset = self.scopes.len();
@@ -621,14 +618,17 @@ impl SymbolTables {
 
     fn build_references(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
         let bindings = self.rename.build_imports(gcx, item_symbols);
+        let mapping_bindings = self.rename.build_mapping_names(gcx);
         self.rename.build_overrides(gcx, &bindings, item_symbols, &self.declarations);
         let mut collector = ReferenceCollector {
             tables: self,
             gcx,
             item_symbols,
             bindings: &bindings,
+            mapping_bindings: &mapping_bindings,
             source: None,
             contract: None,
+            in_yul: false,
         };
         for source_id in gcx.hir.source_ids() {
             collector.source = Some(source_id);
@@ -936,7 +936,7 @@ impl SymbolTables {
             sort_locations(locations);
             locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         }
-        self.rename.rebuild();
+        self.rename.rebuild(&self.declarations);
     }
 }
 
@@ -1290,13 +1290,18 @@ struct ReferenceCollector<'a, 'gcx> {
     gcx: Gcx<'gcx>,
     item_symbols: &'a FxHashMap<ItemId, SymbolId>,
     bindings: &'a ImportBindings,
+    mapping_bindings: &'a MappingBindings,
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
+    in_yul: bool,
 }
 
 impl<'gcx> ReferenceCollector<'_, 'gcx> {
     fn push_reference(&mut self, span: Span, targets: Vec<SymbolId>) {
         if let Some(source) = self.source {
+            if self.in_yul {
+                self.tables.rename.mark_yul_symbols(&targets);
+            }
             self.tables.rename.push_symbol_reference(
                 self.gcx,
                 self.bindings,
@@ -1376,14 +1381,22 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         let params = self.call_param_ids(source);
 
         for arg in args {
-            if let Some(symbol_id) = params.iter().find_map(|&param| {
-                let variable = self.gcx.hir.variable(param);
-                (variable.name?.name == arg.name.name)
-                    .then(|| {
-                        self.tables.symbols_by_key.get(&SymbolKey::Item(param.into())).copied()
-                    })
-                    .flatten()
-            }) {
+            let Some(&param) = params.iter().find(|&&param| {
+                self.gcx.hir.variable(param).name.is_some_and(|name| name.name == arg.name.name)
+            }) else {
+                continue;
+            };
+            if self.tables.rename.push_mapping_reference(
+                self.gcx,
+                self.mapping_bindings,
+                param,
+                arg.name.span,
+            ) {
+                continue;
+            }
+            if let Some(symbol_id) =
+                self.tables.symbols_by_key.get(&SymbolKey::Item(param.into())).copied()
+            {
                 self.push_reference(arg.name.span, vec![symbol_id]);
             }
         }
@@ -1448,6 +1461,16 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         &self.gcx.hir
     }
 
+    fn visit_function(
+        &mut self,
+        function: &'gcx hir::Function<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let previous = std::mem::replace(&mut self.in_yul, function.is_yul);
+        let result = hir::Visit::walk_function(self, function);
+        self.in_yul = previous;
+        result
+    }
+
     fn visit_modifier(
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
@@ -1471,6 +1494,9 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
+        if let Some(layout) = contract.layout {
+            self.visit_expr(layout)?;
+        }
         for base in contract.bases_args {
             self.visit_modifier(base)?;
         }
@@ -1540,6 +1566,14 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
             }
         }
         ControlFlow::Continue(())
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let previous = self.in_yul;
+        self.in_yul |= matches!(stmt.kind, StmtKind::AssemblyBlock(_));
+        let result = hir::Visit::walk_stmt(self, stmt);
+        self.in_yul = previous;
+        result
     }
 }
 

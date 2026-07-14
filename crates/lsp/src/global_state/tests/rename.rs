@@ -199,6 +199,42 @@ fn renames_named_call_arguments_with_the_parameter() {
     );
 }
 
+#[test]
+fn renames_named_mapping_keys_with_generated_getter_arguments() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /MappingNames.sol
+        contract C {
+            mapping(address $1owner => mapping(address $3spender => uint256 balance)) public balances;
+
+            function read() public view returns (uint256) {
+                return this.balances({$2owner: msg.sender, $4spender: address(this)});
+            }
+        }
+        "#,
+        "/MappingNames.sol",
+    );
+
+    fixture.check_rename(
+        "$2",
+        "account",
+        str![[r#"
+/MappingNames.sol:1:20-1:25 -> account
+/MappingNames.sol:3:30-3:35 -> account
+
+"#]],
+    );
+    fixture.check_rename(
+        "$4",
+        "delegate",
+        str![[r#"
+/MappingNames.sol:1:45-1:52 -> delegate
+/MappingNames.sol:3:49-3:56 -> delegate
+
+"#]],
+    );
+}
+
 // ported-from: test/libsolidity/lsp/rename/import_directive.sol
 #[test]
 fn distinguishes_import_aliases_from_imported_declarations() {
@@ -339,6 +375,28 @@ fn renames_qualified_type_components_and_bases() {
 /Qualified.sol:1:11-1:16 -> Renamed
 /Qualified.sol:4:10-4:15 -> Renamed
 /Qualified.sol:5:47-5:52 -> Renamed
+
+"#]],
+    );
+}
+
+#[test]
+fn renames_storage_layout_expressions() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Layout.sol
+        uint256 constant $1BASE = 42;
+        contract C layout at BASE {}
+        "#,
+        "/Layout.sol",
+    );
+
+    fixture.check_rename(
+        "$1",
+        "RENAMED",
+        str![[r#"
+/Layout.sol:0:17-0:21 -> RENAMED
+/Layout.sol:1:21-1:25 -> RENAMED
 
 "#]],
     );
@@ -599,6 +657,27 @@ fn rejects_stale_disk_and_vfs_contents() {
     );
     open.set_open_file_contents("/Open.sol", "contract C { uint256 changed; }");
     open.check_rename_error("$1", "renamed", ErrorCode::CONTENT_MODIFIED);
+
+    let disk_with_matching_range = RequestFixture::new(
+        r#"
+        //- /MatchingRange.sol
+        contract C {
+            uint256 $1value;
+        }
+        "#,
+        "/MatchingRange.sol",
+    );
+    disk_with_matching_range.write_file(
+        "/MatchingRange.sol",
+        r#"contract C {
+    uint256 value;
+    function read() public view returns (uint256) {
+        return value;
+    }
+}
+"#,
+    );
+    disk_with_matching_range.check_rename_error("$1", "renamed", ErrorCode::CONTENT_MODIFIED);
 }
 
 #[test]
@@ -713,6 +792,92 @@ fn remaps_rename_ids_across_analysis_batches() {
 }
 
 #[test]
+fn preserves_import_aliases_in_declaration_free_batches() {
+    let fixture = RequestFixture::new_in_batches(
+        r#"
+        //- /Empty.sol
+        pragma solidity ^0.8.0;
+
+        //- /Main.sol
+        import "./Empty.sol" as $1Alias;
+        "#,
+        &["/Main.sol"],
+    );
+
+    fixture.check_rename(
+        "$1",
+        "Renamed",
+        str![[r#"
+/Main.sol:0:24-0:29 -> Renamed
+
+"#]],
+    );
+}
+
+#[test]
+fn unifies_shared_declarations_across_analysis_batches() {
+    let fixture = RequestFixture::new_in_batches(
+        r#"
+        //- /Shared.sol
+        contract $1Shared {}
+
+        //- /first/Main.sol
+        import "../Shared.sol";
+        contract First is Shared {}
+
+        //- /second/Main.sol
+        import "../Shared.sol";
+        contract Second is Shared {}
+        "#,
+        &["/first/Main.sol", "/second/Main.sol"],
+    );
+
+    fixture.check_rename(
+        "$1",
+        "Renamed",
+        str![[r#"
+/Shared.sol:0:9-0:15 -> Renamed
+/first/Main.sol:1:18-1:24 -> Renamed
+/second/Main.sol:1:19-1:25 -> Renamed
+
+"#]],
+    );
+}
+
+#[test]
+fn unifies_shared_import_aliases_across_analysis_batches() {
+    let fixture = RequestFixture::new_in_batches(
+        r#"
+        //- /Lib.sol
+        contract Target {}
+
+        //- /Shared.sol
+        import "./Lib.sol" as $1Lib;
+        contract Shared {
+            Lib.Target value;
+        }
+
+        //- /first/Main.sol
+        import "../Shared.sol";
+
+        //- /second/Main.sol
+        import "../Shared.sol";
+        "#,
+        &["/first/Main.sol", "/second/Main.sol"],
+    );
+
+    fixture.check_rename(
+        "$1",
+        "Renamed",
+        str![[r#"
+/Shared.sol:0:22-0:25 -> Renamed
+/Shared.sol:2:4-2:7 -> Renamed
+
+"#]],
+    );
+}
+
+#[test]
 fn renames_solidity_variables_but_not_yul_locals_in_inline_assembly() {
     let fixture = RequestFixture::new(
         r#"
@@ -753,4 +918,6 @@ fn renames_solidity_variables_but_not_yul_locals_in_inline_assembly() {
     );
     fixture.check_prepare_rename("$3", "<none>\n");
     fixture.check_rename("$3", "renamed", "<none>\n");
+    fixture.check_rename_error("$1", "leave", ErrorCode::INVALID_PARAMS);
+    fixture.check_rename_error("$2", "add", ErrorCode::INVALID_PARAMS);
 }

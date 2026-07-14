@@ -18,23 +18,35 @@ use solar_parse::{
 };
 use solar_sema::{
     Gcx,
-    hir::{self, ItemId},
+    hir::{self, ItemId, VariableId},
 };
+use std::{collections::hash_map::Entry, sync::Arc};
 
 newtype_index! {
     /// A file-local import alias in the rename index.
     struct ImportAliasId;
+
+    /// A named mapping key in the rename index.
+    struct MappingNameId;
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 enum RenameTarget {
     Symbol(SymbolId),
     ImportAlias(ImportAliasId),
+    MappingName(MappingNameId),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct ImportAlias {
     name: String,
+    location: Location,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct MappingName {
+    name: String,
+    location: Location,
 }
 
 #[derive(Clone, Debug)]
@@ -48,12 +60,17 @@ pub(crate) struct RenameCandidate {
     pub(crate) old_name: String,
     pub(crate) range: Range,
     pub(crate) locations: Vec<Location>,
+    pub(crate) analyzed_contents: FxHashMap<Url, Arc<String>>,
+    pub(crate) requires_yul_validation: bool,
 }
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct RenameIndex {
     aliases: IndexVec<ImportAliasId, ImportAlias>,
+    mapping_names: IndexVec<MappingNameId, MappingName>,
+    analyzed_contents: FxHashMap<Url, Arc<String>>,
     symbol_targets: FxHashSet<SymbolId>,
+    yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
     file_occurrences: FxHashMap<Url, Vec<usize>>,
     target_occurrences: FxHashMap<RenameTarget, Vec<Location>>,
@@ -79,7 +96,20 @@ pub(crate) struct ImportBindings {
     symbol_sources: FxHashMap<SymbolId, hir::SourceId>,
 }
 
+#[derive(Default)]
+pub(crate) struct MappingBindings {
+    params: FxHashMap<VariableId, MappingNameId>,
+}
+
 impl RenameIndex {
+    pub(crate) fn record_source_contents(&mut self, gcx: Gcx<'_>) {
+        for file in gcx.sess.source_map().files().iter() {
+            let Some(path) = file.name.as_real() else { continue };
+            let Ok(uri) = Url::from_file_path(path) else { continue };
+            self.analyzed_contents.insert(uri, file.src.clone());
+        }
+    }
+
     pub(crate) fn add_symbol_declaration(&mut self, symbol_id: SymbolId, location: Location) {
         self.symbol_targets.insert(symbol_id);
         self.push_occurrence(location, vec![RenameTarget::Symbol(symbol_id)]);
@@ -137,8 +167,9 @@ impl RenameIndex {
                             }
 
                             self.push_symbol_occurrence(gcx, imported.span, &symbols);
-                            if let Some(alias) = alias {
-                                let alias_id = self.add_alias(gcx, alias);
+                            if let Some(alias) = alias
+                                && let Some(alias_id) = self.add_alias(gcx, alias)
+                            {
                                 for symbol_id in symbols {
                                     bindings.aliases.insert(
                                         ImportBindingKey {
@@ -159,6 +190,44 @@ impl RenameIndex {
         bindings
     }
 
+    pub(crate) fn build_mapping_names(&mut self, gcx: Gcx<'_>) -> MappingBindings {
+        let mut bindings = MappingBindings::default();
+        for variable_id in gcx.hir.variable_ids() {
+            let variable = gcx.hir.variable(variable_id);
+            let Some(getter_id) = variable.getter else { continue };
+            let mut ty = &variable.ty;
+            let mut params = gcx.hir.function(getter_id).parameters.iter().copied();
+
+            for param in &mut params {
+                match ty.kind {
+                    hir::TypeKind::Mapping(mapping) => {
+                        if let Some(name) = mapping.key_name
+                            && let Some(name_id) = self.add_mapping_name(gcx, name)
+                        {
+                            bindings.params.insert(param, name_id);
+                        }
+                        ty = &mapping.value;
+                    }
+                    hir::TypeKind::Array(array) => ty = &array.element,
+                    _ => break,
+                }
+            }
+        }
+        bindings
+    }
+
+    pub(crate) fn push_mapping_reference(
+        &mut self,
+        gcx: Gcx<'_>,
+        bindings: &MappingBindings,
+        param: VariableId,
+        span: Span,
+    ) -> bool {
+        let Some(&name_id) = bindings.params.get(&param) else { return false };
+        self.push_span_occurrence(gcx, span, vec![RenameTarget::MappingName(name_id)]);
+        true
+    }
+
     pub(crate) fn push_symbol_reference(
         &mut self,
         gcx: Gcx<'_>,
@@ -177,6 +246,11 @@ impl RenameIndex {
             return;
         }
         self.push_path_occurrences(gcx, bindings, source, span, &symbols, declarations);
+    }
+
+    pub(crate) fn mark_yul_symbols(&mut self, symbols: &[SymbolId]) {
+        self.yul_symbol_targets
+            .extend(symbols.iter().copied().filter(|symbol| self.symbol_targets.contains(symbol)));
     }
 
     pub(crate) fn build_overrides(
@@ -263,23 +337,75 @@ impl RenameIndex {
         declarations: &IndexVec<SymbolId, DeclarationSymbol>,
     ) -> Option<RenameCandidate> {
         let occurrence = self.occurrence_at(uri, position)?;
-        let [target] = occurrence.targets.as_slice() else { return None };
-        if self.ambiguous_targets.contains(target) {
+        let &target = occurrence.targets.first()?;
+        let targets = match target {
+            RenameTarget::Symbol(symbol_id) => self
+                .symbol_targets
+                .iter()
+                .copied()
+                .filter(|&candidate| same_symbol_declaration(declarations, symbol_id, candidate))
+                .map(RenameTarget::Symbol)
+                .collect::<Vec<_>>(),
+            RenameTarget::ImportAlias(alias_id) => self
+                .aliases
+                .indices()
+                .filter(|&candidate| self.aliases[alias_id] == self.aliases[candidate])
+                .map(RenameTarget::ImportAlias)
+                .collect(),
+            RenameTarget::MappingName(name_id) => self
+                .mapping_names
+                .indices()
+                .filter(|&candidate| self.mapping_names[name_id] == self.mapping_names[candidate])
+                .map(RenameTarget::MappingName)
+                .collect(),
+        };
+        if targets.iter().any(|target| self.ambiguous_targets.contains(target)) {
             return None;
         }
 
-        let old_name = match *target {
+        let old_name = match target {
             RenameTarget::Symbol(symbol_id) => declarations[symbol_id].name.clone(),
             RenameTarget::ImportAlias(alias_id) => self.aliases[alias_id].name.clone(),
+            RenameTarget::MappingName(name_id) => self.mapping_names[name_id].name.clone(),
         };
-        let locations = self.target_occurrences.get(target)?.clone();
-        Some(RenameCandidate { old_name, range: occurrence.location.range, locations })
+        let mut locations = targets
+            .iter()
+            .filter_map(|target| self.target_occurrences.get(target))
+            .flatten()
+            .cloned()
+            .collect::<Vec<_>>();
+        sort_locations(&mut locations);
+        locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+        let mut analyzed_contents = FxHashMap::default();
+        for location in &locations {
+            if let Entry::Vacant(entry) = analyzed_contents.entry(location.uri.clone()) {
+                let contents = self.analyzed_contents.get(&location.uri)?.clone();
+                entry.insert(contents);
+            }
+        }
+        Some(RenameCandidate {
+            old_name,
+            range: occurrence.location.range,
+            locations,
+            analyzed_contents,
+            requires_yul_validation: targets.iter().any(|target| match *target {
+                RenameTarget::Symbol(symbol_id) => self.yul_symbol_targets.contains(&symbol_id),
+                RenameTarget::ImportAlias(_) | RenameTarget::MappingName(_) => false,
+            }),
+        })
     }
 
     pub(crate) fn extend(&mut self, mut other: Self, symbol_offset: usize) {
         let alias_offset = self.aliases.len();
+        let mapping_name_offset = self.mapping_names.len();
         self.symbol_targets.extend(
             other.symbol_targets.drain().map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
+        );
+        self.yul_symbol_targets.extend(
+            other
+                .yul_symbol_targets
+                .drain()
+                .map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
         );
         for occurrence in &mut other.occurrences {
             for target in &mut occurrence.targets {
@@ -290,15 +416,19 @@ impl RenameIndex {
                     RenameTarget::ImportAlias(alias_id) => {
                         RenameTarget::ImportAlias(remap_alias_id(alias_id, alias_offset))
                     }
+                    RenameTarget::MappingName(name_id) => RenameTarget::MappingName(
+                        remap_mapping_name_id(name_id, mapping_name_offset),
+                    ),
                 };
             }
         }
+        self.analyzed_contents.extend(other.analyzed_contents);
         self.aliases.extend(other.aliases);
+        self.mapping_names.extend(other.mapping_names);
         self.occurrences.extend(other.occurrences);
-        self.rebuild();
     }
 
-    pub(crate) fn rebuild(&mut self) {
+    pub(crate) fn rebuild(&mut self, declarations: &IndexVec<SymbolId, DeclarationSymbol>) {
         self.normalize_occurrences();
         self.file_occurrences.clear();
         self.target_occurrences.clear();
@@ -306,7 +436,14 @@ impl RenameIndex {
 
         for (index, occurrence) in self.occurrences.iter().enumerate() {
             self.file_occurrences.entry(occurrence.location.uri.clone()).or_default().push(index);
-            if occurrence.targets.len() > 1 {
+            if occurrence.targets.len() > 1
+                && !same_rename_targets(
+                    declarations,
+                    &self.aliases,
+                    &self.mapping_names,
+                    &occurrence.targets,
+                )
+            {
                 self.ambiguous_targets.extend(occurrence.targets.iter().copied());
             }
             for &target in &occurrence.targets {
@@ -331,7 +468,7 @@ impl RenameIndex {
         imported_source: hir::SourceId,
         alias: Ident,
     ) {
-        let alias_id = self.add_alias(gcx, alias);
+        let Some(alias_id) = self.add_alias(gcx, alias) else { return };
         bindings.aliases.insert(
             ImportBindingKey {
                 source,
@@ -342,10 +479,21 @@ impl RenameIndex {
         );
     }
 
-    fn add_alias(&mut self, gcx: Gcx<'_>, alias: Ident) -> ImportAliasId {
-        let alias_id = self.aliases.push(ImportAlias { name: alias.to_string() });
-        self.push_span_occurrence(gcx, alias.span, vec![RenameTarget::ImportAlias(alias_id)]);
-        alias_id
+    fn add_alias(&mut self, gcx: Gcx<'_>, alias: Ident) -> Option<ImportAliasId> {
+        let location = proto::span_to_location(gcx.sess.source_map(), alias.span)?;
+        let alias_id =
+            self.aliases.push(ImportAlias { name: alias.to_string(), location: location.clone() });
+        self.push_occurrence(location, vec![RenameTarget::ImportAlias(alias_id)]);
+        Some(alias_id)
+    }
+
+    fn add_mapping_name(&mut self, gcx: Gcx<'_>, name: Ident) -> Option<MappingNameId> {
+        let location = proto::span_to_location(gcx.sess.source_map(), name.span)?;
+        let name_id = self
+            .mapping_names
+            .push(MappingName { name: name.to_string(), location: location.clone() });
+        self.push_occurrence(location, vec![RenameTarget::MappingName(name_id)]);
+        Some(name_id)
     }
 
     fn push_symbol_occurrence(&mut self, gcx: Gcx<'_>, span: Span, symbols: &[SymbolId]) {
@@ -463,6 +611,39 @@ impl RenameIndex {
     }
 }
 
+fn same_rename_targets(
+    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+    aliases: &IndexVec<ImportAliasId, ImportAlias>,
+    mapping_names: &IndexVec<MappingNameId, MappingName>,
+    targets: &[RenameTarget],
+) -> bool {
+    let Some(first) = targets.first().copied() else { return false };
+    match first {
+        RenameTarget::Symbol(first) => targets.iter().all(|target| {
+            let RenameTarget::Symbol(symbol_id) = *target else { return false };
+            same_symbol_declaration(declarations, first, symbol_id)
+        }),
+        RenameTarget::MappingName(first) => targets.iter().all(|target| {
+            let RenameTarget::MappingName(name_id) = *target else { return false };
+            mapping_names[first] == mapping_names[name_id]
+        }),
+        RenameTarget::ImportAlias(first) => targets.iter().all(|target| {
+            let RenameTarget::ImportAlias(alias_id) = *target else { return false };
+            aliases[first] == aliases[alias_id]
+        }),
+    }
+}
+
+fn same_symbol_declaration(
+    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+    a: SymbolId,
+    b: SymbolId,
+) -> bool {
+    let a = &declarations[a];
+    let b = &declarations[b];
+    a.name == b.name && a.location.uri == b.location.uri && a.name_range == b.name_range
+}
+
 fn imported_symbols(
     gcx: Gcx<'_>,
     source: hir::SourceId,
@@ -555,6 +736,10 @@ fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
 
 fn remap_alias_id(alias_id: ImportAliasId, offset: usize) -> ImportAliasId {
     ImportAliasId::from_usize(alias_id.index() + offset)
+}
+
+fn remap_mapping_name_id(name_id: MappingNameId, offset: usize) -> MappingNameId {
+    MappingNameId::from_usize(name_id.index() + offset)
 }
 
 fn range_contains(range: Range, position: Position) -> bool {
