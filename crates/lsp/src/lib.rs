@@ -23,6 +23,7 @@ mod global_state;
 mod handlers;
 mod inlay_hints;
 mod proto;
+mod rename;
 mod serde;
 mod symbols;
 mod utils;
@@ -52,6 +53,8 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::GotoDefinition, _>(handlers::goto_definition)
         .request::<req::GotoDeclaration, _>(handlers::goto_declaration)
         .request::<req::References, _>(handlers::references)
+        .request::<req::PrepareRenameRequest, _>(handlers::prepare_rename)
+        .request::<req::Rename, _>(handlers::rename)
         .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
         .request::<req::Completion, _>(handlers::completion);
 

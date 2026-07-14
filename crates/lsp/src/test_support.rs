@@ -161,6 +161,10 @@ impl MarkedProject {
         &self.project
     }
 
+    pub(crate) fn project_mut(&mut self) -> &mut TestProject {
+        &mut self.project
+    }
+
     pub(crate) fn marker(&self, name: &str) -> Marker {
         let name = normalize_marker_name(name);
         let markers = self.markers.get(name).unwrap_or_else(|| panic!("missing marker `${name}`"));

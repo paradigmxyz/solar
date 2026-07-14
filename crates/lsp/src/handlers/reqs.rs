@@ -1,12 +1,15 @@
 use crate::{global_state::GlobalState, symbols::CompletionContext};
-use async_lsp::ResponseError;
+use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
     CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
     GotoDefinitionParams, GotoDefinitionResponse, InlayHint, InlayHintParams, Position,
-    ReferenceParams, Url, WorkspaceSymbolParams, WorkspaceSymbolResponse,
+    PrepareRenameResponse, ReferenceParams, RenameParams, TextDocumentPositionParams, TextEdit,
+    Url, WorkspaceEdit, WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
-use std::future::ready;
+use solar_interface::{Symbol, enter, source_map::SourceMap};
+use solar_parse::lexer::is_ident;
+use std::{collections::HashMap, future::ready};
 
 pub(crate) fn document_symbol(
     state: &mut GlobalState,
@@ -61,6 +64,105 @@ pub(crate) fn references(
         include_declaration,
     );
     ready(Ok(response))
+}
+
+pub(crate) fn prepare_rename(
+    state: &mut GlobalState,
+    params: TextDocumentPositionParams,
+) -> impl Future<Output = Result<Option<PrepareRenameResponse>, ResponseError>> + use<> {
+    let response = state
+        .symbol_tables
+        .read()
+        .rename_candidate(&params.text_document.uri, params.position)
+        .map(|candidate| PrepareRenameResponse::Range(candidate.range));
+    ready(Ok(response))
+}
+
+pub(crate) fn rename(
+    state: &mut GlobalState,
+    params: RenameParams,
+) -> impl Future<Output = Result<Option<WorkspaceEdit>, ResponseError>> + use<> {
+    let params_position = params.text_document_position;
+    let candidate = state
+        .symbol_tables
+        .read()
+        .rename_candidate(&params_position.text_document.uri, params_position.position);
+    let vfs = state.vfs.clone();
+    async move {
+        if !is_ident(&params.new_name)
+            || enter(|| Symbol::intern(&params.new_name).is_reserved(false))
+        {
+            return Err(ResponseError::new(ErrorCode::INVALID_PARAMS, "invalid rename name"));
+        }
+
+        let Some(candidate) = candidate else { return Ok(None) };
+        if candidate.old_name == params.new_name {
+            return Ok(None);
+        }
+
+        tokio::task::spawn_blocking(move || {
+            validated_workspace_edit(candidate, params.new_name, vfs)
+        })
+        .await
+        .map_err(|error| {
+            ResponseError::new(ErrorCode::INTERNAL_ERROR, format!("rename task failed: {error}"))
+        })?
+        .map(Some)
+    }
+}
+
+fn validated_workspace_edit(
+    candidate: crate::rename::RenameCandidate,
+    new_name: String,
+    vfs: std::sync::Arc<solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>>,
+) -> Result<WorkspaceEdit, ResponseError> {
+    let mut contents = HashMap::<Url, Rope>::new();
+    let source_map = SourceMap::empty();
+    for location in &candidate.locations {
+        if contents.contains_key(&location.uri) {
+            continue;
+        }
+        let Some(file_contents) = rename_file_contents(&vfs, &source_map, &location.uri) else {
+            return Err(content_modified());
+        };
+        contents.insert(location.uri.clone(), file_contents);
+    }
+
+    for location in &candidate.locations {
+        let Some(contents) = contents.get(&location.uri) else { return Err(content_modified()) };
+        let Some(range) = crate::proto::checked_text_range(contents, location.range) else {
+            return Err(content_modified());
+        };
+        if contents.byte_slice(range) != candidate.old_name.as_str() {
+            return Err(content_modified());
+        }
+    }
+
+    let mut changes = HashMap::<Url, Vec<TextEdit>>::new();
+    for location in candidate.locations {
+        changes
+            .entry(location.uri)
+            .or_default()
+            .push(TextEdit::new(location.range, new_name.clone()));
+    }
+    Ok(WorkspaceEdit { changes: Some(changes), document_changes: None, change_annotations: None })
+}
+
+fn rename_file_contents(
+    vfs: &solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>,
+    source_map: &SourceMap,
+    uri: &Url,
+) -> Option<Rope> {
+    let path = crate::proto::vfs_path(uri)?;
+    if let Some(contents) = vfs.read().get_file_contents(&path) {
+        return Some(contents.clone());
+    }
+    let contents = source_map.file_loader().load_file(path.as_path()?).ok()?;
+    Some(Rope::from(contents))
+}
+
+fn content_modified() -> ResponseError {
+    ResponseError::new(ErrorCode::CONTENT_MODIFIED, "document contents changed since analysis")
 }
 
 pub(crate) fn inlay_hints(

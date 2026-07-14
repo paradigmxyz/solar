@@ -4,7 +4,7 @@ use crate::{
     workspace::{Workspace, WorkspacePathIndex, manifest::ProjectManifest},
 };
 use lsp_types::{
-    CompletionOptions, DeclarationCapability, InitializeParams, OneOf, SaveOptions,
+    CompletionOptions, DeclarationCapability, InitializeParams, OneOf, RenameOptions, SaveOptions,
     ServerCapabilities, TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
     TextDocumentSyncSaveOptions,
 };
@@ -180,6 +180,10 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             document_symbol_provider: Some(OneOf::Left(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
+            rename_provider: Some(OneOf::Right(RenameOptions {
+                prepare_provider: Some(true),
+                work_done_progress_options: Default::default(),
+            })),
             text_document_sync: Some(TextDocumentSyncCapability::Options(
                 TextDocumentSyncOptions {
                     open_close: Some(true),
@@ -209,8 +213,8 @@ mod tests {
     use crate::{test_support::TestProject, workspace::WorkspaceKind};
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, OneOf,
-        TextDocumentClientCapabilities, TextDocumentSyncCapability, TextDocumentSyncSaveOptions,
-        WorkspaceClientCapabilities,
+        RenameOptions, TextDocumentClientCapabilities, TextDocumentSyncCapability,
+        TextDocumentSyncSaveOptions, WorkspaceClientCapabilities,
     };
 
     #[test]
@@ -243,6 +247,13 @@ mod tests {
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
+        assert_eq!(
+            capabilities.rename_provider,
+            Some(OneOf::Right(RenameOptions {
+                prepare_provider: Some(true),
+                work_done_progress_options: Default::default(),
+            }))
+        );
         assert_eq!(capabilities.workspace_symbol_provider, Some(OneOf::Left(true)));
 
         let TextDocumentSyncCapability::Options(sync_options) =

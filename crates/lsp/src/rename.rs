@@ -1,0 +1,584 @@
+use crate::{
+    proto,
+    symbols::{DeclarationSymbol, SymbolId},
+};
+use lsp_types::{Location, Position, Range, Url};
+use solar_interface::{
+    Ident, Span, Symbol,
+    data_structures::{
+        Never,
+        index::IndexVec,
+        map::{FxHashMap, FxHashSet},
+        newtype_index,
+    },
+};
+use solar_parse::{
+    Lexer,
+    ast::{self, ItemKind, visit::Visit},
+};
+use solar_sema::{
+    Gcx,
+    hir::{self, ItemId},
+};
+
+newtype_index! {
+    /// A file-local import alias in the rename index.
+    struct ImportAliasId;
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+enum RenameTarget {
+    Symbol(SymbolId),
+    ImportAlias(ImportAliasId),
+}
+
+#[derive(Clone, Debug)]
+struct ImportAlias {
+    name: String,
+}
+
+#[derive(Clone, Debug)]
+struct RenameOccurrence {
+    location: Location,
+    targets: Vec<RenameTarget>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct RenameCandidate {
+    pub(crate) old_name: String,
+    pub(crate) range: Range,
+    pub(crate) locations: Vec<Location>,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct RenameIndex {
+    aliases: IndexVec<ImportAliasId, ImportAlias>,
+    symbol_targets: FxHashSet<SymbolId>,
+    occurrences: Vec<RenameOccurrence>,
+    file_occurrences: FxHashMap<Url, Vec<usize>>,
+    target_occurrences: FxHashMap<RenameTarget, Vec<Location>>,
+    ambiguous_targets: FxHashSet<RenameTarget>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum ImportBindingResolution {
+    Symbol(SymbolId),
+    Namespace(hir::SourceId),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+struct ImportBindingKey {
+    source: hir::SourceId,
+    resolution: ImportBindingResolution,
+    name: Symbol,
+}
+
+#[derive(Default)]
+pub(crate) struct ImportBindings {
+    aliases: FxHashMap<ImportBindingKey, ImportAliasId>,
+    symbol_sources: FxHashMap<SymbolId, hir::SourceId>,
+}
+
+impl RenameIndex {
+    pub(crate) fn add_symbol_declaration(&mut self, symbol_id: SymbolId, location: Location) {
+        self.symbol_targets.insert(symbol_id);
+        self.push_occurrence(location, vec![RenameTarget::Symbol(symbol_id)]);
+    }
+
+    pub(crate) fn build_imports(
+        &mut self,
+        gcx: Gcx<'_>,
+        item_symbols: &FxHashMap<ItemId, SymbolId>,
+    ) -> ImportBindings {
+        let mut bindings = ImportBindings::default();
+        for (&item_id, &symbol_id) in item_symbols {
+            if self.symbol_targets.contains(&symbol_id) {
+                bindings.symbol_sources.insert(symbol_id, gcx.hir.item(item_id).source());
+            }
+        }
+
+        for (index, source) in gcx.hir.sources().enumerate() {
+            let source_id = hir::SourceId::from_usize(index);
+            let Some(ast) = gcx.sources[source_id].ast.as_ref() else { continue };
+            for &(item_id, imported_source_id) in source.imports {
+                let ItemKind::Import(import) = &ast.items[item_id].kind else { continue };
+                match &import.items {
+                    ast::ImportItems::Plain(alias) => {
+                        if let Some(alias) = alias {
+                            self.add_namespace_alias(
+                                gcx,
+                                &mut bindings,
+                                source_id,
+                                imported_source_id,
+                                *alias,
+                            );
+                        }
+                    }
+                    ast::ImportItems::Glob(alias) => self.add_namespace_alias(
+                        gcx,
+                        &mut bindings,
+                        source_id,
+                        imported_source_id,
+                        *alias,
+                    ),
+                    ast::ImportItems::Aliases(aliases) => {
+                        for &(imported, alias) in aliases.iter() {
+                            let symbols = imported_symbols(
+                                gcx,
+                                imported_source_id,
+                                imported.name,
+                                item_symbols,
+                            )
+                            .into_iter()
+                            .filter(|symbol_id| self.symbol_targets.contains(symbol_id))
+                            .collect::<Vec<_>>();
+                            if symbols.is_empty() {
+                                continue;
+                            }
+
+                            self.push_symbol_occurrence(gcx, imported.span, &symbols);
+                            if let Some(alias) = alias {
+                                let alias_id = self.add_alias(gcx, alias);
+                                for symbol_id in symbols {
+                                    bindings.aliases.insert(
+                                        ImportBindingKey {
+                                            source: source_id,
+                                            resolution: ImportBindingResolution::Symbol(symbol_id),
+                                            name: alias.name,
+                                        },
+                                        alias_id,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        bindings
+    }
+
+    pub(crate) fn push_symbol_reference(
+        &mut self,
+        gcx: Gcx<'_>,
+        bindings: &ImportBindings,
+        source: hir::SourceId,
+        span: Span,
+        symbols: &[SymbolId],
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+    ) {
+        let symbols = symbols
+            .iter()
+            .copied()
+            .filter(|symbol_id| self.symbol_targets.contains(symbol_id))
+            .collect::<Vec<_>>();
+        if symbols.is_empty() {
+            return;
+        }
+        self.push_path_occurrences(gcx, bindings, source, span, &symbols, declarations);
+    }
+
+    pub(crate) fn build_overrides(
+        &mut self,
+        gcx: Gcx<'_>,
+        bindings: &ImportBindings,
+        item_symbols: &FxHashMap<ItemId, SymbolId>,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+    ) {
+        let mut paths = OverridePathCollector::default();
+        for source in gcx.sources.asts() {
+            let _ = paths.visit_source_unit(source);
+        }
+
+        for function_id in gcx.hir.function_ids() {
+            let function = gcx.hir.function(function_id);
+            let Some(name) = function.name else { continue };
+            let Some(function_paths) = paths.paths.get(&name.span) else { continue };
+            for (path, &contract_id) in function_paths.iter().zip(function.overrides) {
+                let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id)) else {
+                    continue;
+                };
+                self.push_path_occurrences(
+                    gcx,
+                    bindings,
+                    function.source,
+                    path_span(path),
+                    &[symbol_id],
+                    declarations,
+                );
+            }
+        }
+
+        for variable_id in gcx.hir.variable_ids() {
+            let variable = gcx.hir.variable(variable_id);
+            let Some(name) = variable.name else { continue };
+            let Some(variable_paths) = paths.paths.get(&name.span) else { continue };
+            for (path, &contract_id) in variable_paths.iter().zip(variable.overrides) {
+                let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id)) else {
+                    continue;
+                };
+                self.push_path_occurrences(
+                    gcx,
+                    bindings,
+                    variable.source,
+                    path_span(path),
+                    &[symbol_id],
+                    declarations,
+                );
+            }
+        }
+    }
+
+    pub(crate) fn push_namespace_reference(
+        &mut self,
+        gcx: Gcx<'_>,
+        bindings: &ImportBindings,
+        source: hir::SourceId,
+        span: Span,
+        namespaces: impl IntoIterator<Item = hir::SourceId>,
+    ) {
+        let Some(ident) = identifiers_in_span(gcx, span).pop() else { return };
+        let mut targets = namespaces
+            .into_iter()
+            .filter_map(|namespace| {
+                bindings.aliases.get(&ImportBindingKey {
+                    source,
+                    resolution: ImportBindingResolution::Namespace(namespace),
+                    name: ident.name,
+                })
+            })
+            .copied()
+            .map(RenameTarget::ImportAlias)
+            .collect::<Vec<_>>();
+        targets.sort_unstable();
+        targets.dedup();
+        self.push_span_occurrence(gcx, ident.span, targets);
+    }
+
+    pub(crate) fn candidate(
+        &self,
+        uri: &Url,
+        position: Position,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+    ) -> Option<RenameCandidate> {
+        let occurrence = self.occurrence_at(uri, position)?;
+        let [target] = occurrence.targets.as_slice() else { return None };
+        if self.ambiguous_targets.contains(target) {
+            return None;
+        }
+
+        let old_name = match *target {
+            RenameTarget::Symbol(symbol_id) => declarations[symbol_id].name.clone(),
+            RenameTarget::ImportAlias(alias_id) => self.aliases[alias_id].name.clone(),
+        };
+        let locations = self.target_occurrences.get(target)?.clone();
+        Some(RenameCandidate { old_name, range: occurrence.location.range, locations })
+    }
+
+    pub(crate) fn extend(&mut self, mut other: Self, symbol_offset: usize) {
+        let alias_offset = self.aliases.len();
+        self.symbol_targets.extend(
+            other.symbol_targets.drain().map(|symbol_id| remap_symbol_id(symbol_id, symbol_offset)),
+        );
+        for occurrence in &mut other.occurrences {
+            for target in &mut occurrence.targets {
+                *target = match *target {
+                    RenameTarget::Symbol(symbol_id) => {
+                        RenameTarget::Symbol(remap_symbol_id(symbol_id, symbol_offset))
+                    }
+                    RenameTarget::ImportAlias(alias_id) => {
+                        RenameTarget::ImportAlias(remap_alias_id(alias_id, alias_offset))
+                    }
+                };
+            }
+        }
+        self.aliases.extend(other.aliases);
+        self.occurrences.extend(other.occurrences);
+        self.rebuild();
+    }
+
+    pub(crate) fn rebuild(&mut self) {
+        self.normalize_occurrences();
+        self.file_occurrences.clear();
+        self.target_occurrences.clear();
+        self.ambiguous_targets.clear();
+
+        for (index, occurrence) in self.occurrences.iter().enumerate() {
+            self.file_occurrences.entry(occurrence.location.uri.clone()).or_default().push(index);
+            if occurrence.targets.len() > 1 {
+                self.ambiguous_targets.extend(occurrence.targets.iter().copied());
+            }
+            for &target in &occurrence.targets {
+                self.target_occurrences
+                    .entry(target)
+                    .or_default()
+                    .push(occurrence.location.clone());
+            }
+        }
+
+        for locations in self.target_occurrences.values_mut() {
+            sort_locations(locations);
+            locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+        }
+    }
+
+    fn add_namespace_alias(
+        &mut self,
+        gcx: Gcx<'_>,
+        bindings: &mut ImportBindings,
+        source: hir::SourceId,
+        imported_source: hir::SourceId,
+        alias: Ident,
+    ) {
+        let alias_id = self.add_alias(gcx, alias);
+        bindings.aliases.insert(
+            ImportBindingKey {
+                source,
+                resolution: ImportBindingResolution::Namespace(imported_source),
+                name: alias.name,
+            },
+            alias_id,
+        );
+    }
+
+    fn add_alias(&mut self, gcx: Gcx<'_>, alias: Ident) -> ImportAliasId {
+        let alias_id = self.aliases.push(ImportAlias { name: alias.to_string() });
+        self.push_span_occurrence(gcx, alias.span, vec![RenameTarget::ImportAlias(alias_id)]);
+        alias_id
+    }
+
+    fn push_symbol_occurrence(&mut self, gcx: Gcx<'_>, span: Span, symbols: &[SymbolId]) {
+        self.push_span_occurrence(
+            gcx,
+            span,
+            symbols.iter().copied().map(RenameTarget::Symbol).collect(),
+        );
+    }
+
+    fn push_path_occurrences(
+        &mut self,
+        gcx: Gcx<'_>,
+        bindings: &ImportBindings,
+        source: hir::SourceId,
+        span: Span,
+        symbols: &[SymbolId],
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+    ) {
+        let mut identifiers = identifiers_in_span(gcx, span);
+        let Some(final_ident) = identifiers.pop() else { return };
+        let final_targets = symbols
+            .iter()
+            .filter_map(|&symbol_id| {
+                target_for_ident(bindings, source, symbol_id, final_ident, declarations)
+            })
+            .collect::<Vec<_>>();
+        if final_targets.is_empty() {
+            return;
+        }
+        self.push_span_occurrence(gcx, final_ident.span, final_targets);
+
+        let mut current_symbols = symbols.to_vec();
+        for ident in identifiers.into_iter().rev() {
+            let mut parents = current_symbols
+                .iter()
+                .filter_map(|&symbol_id| declarations[symbol_id].parent)
+                .collect::<Vec<_>>();
+            parents.sort_unstable();
+            parents.dedup();
+
+            let parent_targets = parents
+                .iter()
+                .filter_map(|&symbol_id| {
+                    target_for_ident(bindings, source, symbol_id, ident, declarations)
+                })
+                .collect::<Vec<_>>();
+            if !parent_targets.is_empty() {
+                self.push_span_occurrence(gcx, ident.span, parent_targets);
+                current_symbols = parents;
+                continue;
+            }
+
+            let namespace_targets = current_symbols
+                .iter()
+                .filter_map(|symbol_id| bindings.symbol_sources.get(symbol_id))
+                .filter_map(|&namespace| {
+                    bindings.aliases.get(&ImportBindingKey {
+                        source,
+                        resolution: ImportBindingResolution::Namespace(namespace),
+                        name: ident.name,
+                    })
+                })
+                .copied()
+                .map(RenameTarget::ImportAlias)
+                .collect::<Vec<_>>();
+            if namespace_targets.is_empty() {
+                break;
+            }
+            self.push_span_occurrence(gcx, ident.span, namespace_targets);
+            break;
+        }
+    }
+
+    fn push_span_occurrence(&mut self, gcx: Gcx<'_>, span: Span, mut targets: Vec<RenameTarget>) {
+        targets.sort_unstable();
+        targets.dedup();
+        if targets.is_empty() {
+            return;
+        }
+        let Some(location) = proto::span_to_location(gcx.sess.source_map(), span) else { return };
+        self.push_occurrence(location, targets);
+    }
+
+    fn push_occurrence(&mut self, location: Location, targets: Vec<RenameTarget>) {
+        self.occurrences.push(RenameOccurrence { location, targets });
+    }
+
+    fn occurrence_at(&self, uri: &Url, position: Position) -> Option<&RenameOccurrence> {
+        self.file_occurrences
+            .get(uri)?
+            .iter()
+            .filter_map(|&index| {
+                let occurrence = &self.occurrences[index];
+                range_contains(occurrence.location.range, position).then_some(occurrence)
+            })
+            .min_by_key(|occurrence| range_size_key(occurrence.location.range))
+    }
+
+    fn normalize_occurrences(&mut self) {
+        self.occurrences.sort_by(|a, b| compare_locations(&a.location, &b.location));
+        let mut normalized = Vec::<RenameOccurrence>::with_capacity(self.occurrences.len());
+        for occurrence in self.occurrences.drain(..) {
+            if let Some(previous) = normalized.last_mut()
+                && previous.location == occurrence.location
+            {
+                previous.targets.extend(occurrence.targets);
+                previous.targets.sort_unstable();
+                previous.targets.dedup();
+            } else {
+                normalized.push(occurrence);
+            }
+        }
+        self.occurrences = normalized;
+    }
+}
+
+fn imported_symbols(
+    gcx: Gcx<'_>,
+    source: hir::SourceId,
+    name: Symbol,
+    item_symbols: &FxHashMap<ItemId, SymbolId>,
+) -> Vec<SymbolId> {
+    gcx.hir
+        .source(source)
+        .items
+        .iter()
+        .filter_map(|&item_id| {
+            let item = gcx.hir.item(item_id);
+            (item.name()?.name == name).then(|| item_symbols.get(&item_id).copied()).flatten()
+        })
+        .collect()
+}
+
+#[derive(Default)]
+struct OverridePathCollector {
+    paths: FxHashMap<Span, Vec<Vec<Ident>>>,
+}
+
+impl<'ast> ast::visit::Visit<'ast> for OverridePathCollector {
+    type BreakValue = Never;
+
+    fn visit_item_function(
+        &mut self,
+        function: &'ast ast::ItemFunction<'ast>,
+    ) -> std::ops::ControlFlow<Self::BreakValue> {
+        if let Some(name) = function.header.name
+            && let Some(override_) = &function.header.override_
+        {
+            self.paths.insert(
+                name.span,
+                override_.paths.iter().map(|path| path.segments().to_vec()).collect(),
+            );
+        }
+        self.walk_item_function(function)
+    }
+
+    fn visit_variable_definition(
+        &mut self,
+        variable: &'ast ast::VariableDefinition<'ast>,
+    ) -> std::ops::ControlFlow<Self::BreakValue> {
+        if let Some(override_) = &variable.override_
+            && let Some(name) = variable.name
+        {
+            self.paths.insert(
+                name.span,
+                override_.paths.iter().map(|path| path.segments().to_vec()).collect(),
+            );
+        }
+        self.walk_variable_definition(variable)
+    }
+}
+
+fn path_span(path: &[Ident]) -> Span {
+    match path {
+        [ident] => ident.span,
+        [first, .., last] => first.span.with_hi(last.span.hi()),
+        [] => Span::DUMMY,
+    }
+}
+
+fn target_for_ident(
+    bindings: &ImportBindings,
+    source: hir::SourceId,
+    symbol_id: SymbolId,
+    ident: Ident,
+    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+) -> Option<RenameTarget> {
+    if let Some(&alias_id) = bindings.aliases.get(&ImportBindingKey {
+        source,
+        resolution: ImportBindingResolution::Symbol(symbol_id),
+        name: ident.name,
+    }) {
+        return Some(RenameTarget::ImportAlias(alias_id));
+    }
+    (declarations[symbol_id].name == ident.to_string()).then_some(RenameTarget::Symbol(symbol_id))
+}
+
+fn identifiers_in_span(gcx: Gcx<'_>, span: Span) -> Vec<Ident> {
+    let Ok(source) = gcx.sess.source_map().span_to_snippet(span) else { return Vec::new() };
+    Lexer::with_start_pos(gcx.sess, &source, span.lo()).filter_map(|token| token.ident()).collect()
+}
+
+fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
+    SymbolId::from_usize(symbol_id.index() + offset)
+}
+
+fn remap_alias_id(alias_id: ImportAliasId, offset: usize) -> ImportAliasId {
+    ImportAliasId::from_usize(alias_id.index() + offset)
+}
+
+fn range_contains(range: Range, position: Position) -> bool {
+    if range.start == range.end {
+        return position == range.start;
+    }
+    position >= range.start && position < range.end
+}
+
+fn range_size_key(range: Range) -> (u32, u32) {
+    (
+        range.end.line.saturating_sub(range.start.line),
+        range.end.character.saturating_sub(range.start.character),
+    )
+}
+
+fn compare_locations(a: &Location, b: &Location) -> std::cmp::Ordering {
+    a.uri.as_str().cmp(b.uri.as_str()).then_with(|| {
+        (a.range.start.line, a.range.start.character, a.range.end.line, a.range.end.character).cmp(
+            &(b.range.start.line, b.range.start.character, b.range.end.line, b.range.end.character),
+        )
+    })
+}
+
+fn sort_locations(locations: &mut [Location]) {
+    locations.sort_by(compare_locations);
+}

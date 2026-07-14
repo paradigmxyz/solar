@@ -482,6 +482,7 @@ mod tests {
     mod goto_definition;
     mod inlay_hint;
     mod references;
+    mod rename;
     mod support;
 
     fn snapshot(project: &TestProject) -> GlobalStateSnapshot {
