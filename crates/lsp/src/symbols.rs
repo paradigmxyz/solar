@@ -26,6 +26,7 @@ use crate::{
     inlay_hints::InlayHintIndex,
     proto,
     rename::{ImportBindings, MappingBindings, RenameCandidate, RenameIndex},
+    signature_help::SignatureHelpIndex,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -46,6 +47,7 @@ pub(crate) struct SymbolTables {
     symbol_references: FxHashMap<SymbolId, Vec<Location>>,
     rename: RenameIndex,
     inlay_hints: InlayHintIndex,
+    signature_help: SignatureHelpIndex,
 }
 
 newtype_index! {
@@ -239,6 +241,7 @@ impl SymbolTables {
         tables.build_member_completions(gcx);
         tables.build_references(gcx, &item_symbols);
         tables.inlay_hints = InlayHintIndex::build(gcx);
+        tables.signature_help = SignatureHelpIndex::build(gcx);
         tables.rebuild_indexes();
         tables
     }
@@ -267,6 +270,7 @@ impl SymbolTables {
             self.builtin_member_completions = std::mem::take(&mut other.builtin_member_completions);
         }
         self.inlay_hints.extend(other.inlay_hints);
+        self.signature_help.extend(other.signature_help);
 
         let symbol_offset = self.declarations.len();
         let scope_offset = self.scopes.len();
@@ -311,6 +315,22 @@ impl SymbolTables {
 
     pub(crate) fn inlay_hints(&self, uri: &Url, range: Range) -> Vec<InlayHint> {
         self.inlay_hints.hints(uri, range)
+    }
+
+    pub(crate) fn signature_help(
+        &self,
+        uri: &Url,
+        position: Position,
+        contents: &crop::Rope,
+        options: crate::config::SignatureHelpClientOptions,
+    ) -> Option<lsp_types::SignatureHelp> {
+        self.signature_help.signature_help(
+            uri,
+            position,
+            contents,
+            |name| self.visible_declaration_locations(uri, position, name),
+            options,
+        )
     }
 
     pub(crate) fn document_symbols(&self, uri: &Url) -> Vec<DocumentSymbol> {
@@ -753,6 +773,35 @@ impl SymbolTables {
                 let (lines, chars) = range_size_key(self.scopes[scope_id].range);
                 (lines, chars, u32::MAX - self.scope_depth(scope_id))
             })
+    }
+
+    fn visible_declaration_locations<'a>(
+        &'a self,
+        uri: &Url,
+        position: Position,
+        name: &str,
+    ) -> Vec<&'a Location> {
+        let mut scope = self.scope_at_position(uri, position);
+        while let Some(scope_id) = scope {
+            let current = &self.scopes[scope_id];
+            let declarations = current
+                .declarations
+                .iter()
+                .filter(|declaration| {
+                    declaration
+                        .available_from
+                        .is_none_or(|available_from| available_from <= position)
+                })
+                .map(|declaration| &self.declarations[declaration.symbol_id])
+                .filter(|declaration| declaration.name == name)
+                .map(|declaration| &declaration.location)
+                .collect::<Vec<_>>();
+            if !declarations.is_empty() {
+                return declarations;
+            }
+            scope = current.parent;
+        }
+        Vec::new()
     }
 
     fn scope_depth(&self, mut scope_id: ScopeId) -> u32 {
