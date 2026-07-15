@@ -17,11 +17,10 @@ use crate::{
     IMMUTABLE_SCRATCH_BASE,
     mir::{
         BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
-        ImmutableSlot, MirType, Module, StorageSlot, Value, ValueId,
+        ImmutableSlot, MirType, Module, StorageSlot, ValueId,
     },
 };
 use alloy_primitives::U256;
-use smallvec::{SmallVec, smallvec};
 use solar_data_structures::{
     Never,
     map::{FxHashMap, FxHashSet},
@@ -34,19 +33,6 @@ use solar_sema::{
 use std::ops::ControlFlow;
 
 use self::storage::StorageLocation;
-
-/// Canonical operand identity for the mapping-slot memo.
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-pub(super) enum SlotMemoOperand {
-    Imm(U256),
-    Val(ValueId),
-}
-
-type MappingSlotMemo = SmallVec<[FxHashMap<(SlotMemoOperand, SlotMemoOperand), ValueId>; 4]>;
-
-fn fresh_mapping_slot_memo() -> MappingSlotMemo {
-    smallvec![FxHashMap::default()]
-}
 
 /// Context for a loop (tracks break/continue targets).
 #[derive(Clone, Copy)]
@@ -132,12 +118,6 @@ pub struct Lowerer<'gcx> {
     storage_bytes_helper: Option<FunctionId>,
     /// Guards helper synthesis against routing through itself.
     synthesizing_helper: bool,
-    /// Per-function memo of computed mapping element slots, scoped like the
-    /// structured lowering so a memoized slot always dominates its reuse:
-    /// entries created inside a branch arm die with that arm's scope, loops
-    /// forget everything on entry, and memory writes/internal calls/assembly
-    /// invalidate all scopes (a key's bytes may have changed).
-    mapping_slot_memo: MappingSlotMemo,
     /// Whether arithmetic should use wrapping Solidity `unchecked` semantics.
     in_unchecked_block: bool,
     /// Sema return types of the function currently being lowered (one per declared
@@ -200,7 +180,6 @@ impl<'gcx> Lowerer<'gcx> {
             ret_bytes_helper: None,
             storage_bytes_helper: None,
             synthesizing_helper: false,
-            mapping_slot_memo: fresh_mapping_slot_memo(),
             in_unchecked_block: false,
             current_return_tys: Vec::new(),
             struct_storage_base_slots: FxHashMap::default(),
@@ -464,8 +443,6 @@ impl<'gcx> Lowerer<'gcx> {
             let saved_lowering_internal_function = self.lowering_internal_function;
             let saved_in_unchecked_block = self.in_unchecked_block;
             let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
-            let saved_mapping_slot_memo =
-                std::mem::replace(&mut self.mapping_slot_memo, fresh_mapping_slot_memo());
             self.lowering_constructor = true;
             self.lowering_internal_function = false;
             self.in_unchecked_block = false;
@@ -476,7 +453,6 @@ impl<'gcx> Lowerer<'gcx> {
             self.lowering_internal_function = saved_lowering_internal_function;
             self.in_unchecked_block = saved_in_unchecked_block;
             self.current_return_tys = saved_current_return_tys;
-            self.mapping_slot_memo = saved_mapping_slot_memo;
         }
 
         self.module.add_function(mir_func);
@@ -585,8 +561,6 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
-        let saved_mapping_slot_memo =
-            std::mem::replace(&mut self.mapping_slot_memo, fresh_mapping_slot_memo());
 
         self.lowering_functions.insert(func_id);
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
@@ -603,64 +577,7 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
-        self.mapping_slot_memo = saved_mapping_slot_memo;
-
         mir_id
-    }
-
-    /// Canonicalizes a memo operand: immediates compare by value (each
-    /// lowering site mints a fresh immediate `ValueId`).
-    pub(super) fn slot_memo_operand(
-        builder: &FunctionBuilder<'_>,
-        value: ValueId,
-    ) -> SlotMemoOperand {
-        if let Value::Immediate(imm) = builder.func().value(value)
-            && let Some(v) = imm.as_u256()
-        {
-            SlotMemoOperand::Imm(v)
-        } else {
-            SlotMemoOperand::Val(value)
-        }
-    }
-
-    pub(super) fn mapping_slot_memo_get(
-        &self,
-        key: &(SlotMemoOperand, SlotMemoOperand),
-    ) -> Option<ValueId> {
-        self.mapping_slot_memo.iter().rev().find_map(|scope| scope.get(key).copied())
-    }
-
-    pub(super) fn mapping_slot_memo_insert(
-        &mut self,
-        key: (SlotMemoOperand, SlotMemoOperand),
-        slot: ValueId,
-    ) {
-        if let Some(scope) = self.mapping_slot_memo.last_mut() {
-            scope.insert(key, slot);
-        }
-    }
-
-    /// Forgets every memoized mapping slot: something may have rewritten the
-    /// memory a key points into (an assignment through a reference, an
-    /// internal call, `delete`, inline assembly) or control re-enters code
-    /// whose keys are not iteration-invariant (loops).
-    pub(super) fn invalidate_mapping_slot_memo(&mut self) {
-        for scope in &mut self.mapping_slot_memo {
-            scope.clear();
-        }
-    }
-
-    /// Enters a control-flow arm: slots memoized inside must not leak to a
-    /// join point the arm does not dominate.
-    pub(super) fn mapping_memo_scope_enter(&mut self) {
-        self.mapping_slot_memo.push(FxHashMap::default());
-    }
-
-    pub(super) fn mapping_memo_scope_exit(&mut self) {
-        self.mapping_slot_memo.pop();
-        if self.mapping_slot_memo.is_empty() {
-            self.mapping_slot_memo.push(FxHashMap::default());
-        }
     }
 
     /// Returns the module's shared `Error(string)` revert helper, synthesizing
@@ -799,8 +716,6 @@ impl<'gcx> Lowerer<'gcx> {
         let saved_lowering_internal_function = self.lowering_internal_function;
         let saved_in_unchecked_block = self.in_unchecked_block;
         let saved_current_return_tys = std::mem::take(&mut self.current_return_tys);
-        let saved_mapping_slot_memo =
-            std::mem::replace(&mut self.mapping_slot_memo, fresh_mapping_slot_memo());
 
         self.current_contract_id = self.gcx.hir.function(func_id).contract;
         self.in_unchecked_block = false;
@@ -815,8 +730,6 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
-        self.mapping_slot_memo = saved_mapping_slot_memo;
-
         mir_id
     }
 
@@ -862,8 +775,6 @@ impl<'gcx> Lowerer<'gcx> {
         let uses_internal_frame = !uses_external_abi && !is_special;
 
         self.locals.clear();
-        self.mapping_slot_memo.clear();
-        self.mapping_slot_memo.push(FxHashMap::default());
         self.local_memory_slots.clear();
         self.next_local_memory_offset = 0x80;
         self.assigned_vars.clear();

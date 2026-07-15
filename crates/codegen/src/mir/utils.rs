@@ -199,6 +199,7 @@ pub(crate) fn is_memory_inst(kind: &InstKind) -> bool {
             | InstKind::ReturnDataCopy(_, _, _)
             | InstKind::ExtCodeCopy(_, _, _, _)
             | InstKind::Keccak256(_, _)
+            | InstKind::MappingSlotMemory(_, _)
     )
 }
 

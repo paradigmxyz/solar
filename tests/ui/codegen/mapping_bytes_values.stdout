@@ -22,9 +22,7 @@ fn @set(arg0: u256, arg1: memptr) {
     v11 = add v9, 32
     v12 = add v3, 32
     calldatacopy v11, v12, v4
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
+    v13 = mapping_slot arg0, 0
     v14 = mload v9
     v15 = add v9, 32
     v16 = sload v13 !metadata(storage=symbolic(v13))
@@ -120,12 +118,8 @@ fn @setNested(arg0: u256, arg1: u256, arg2: memptr) {
     v11 = add v9, 32
     v12 = add v3, 32
     calldatacopy v11, v12, v4
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v13 = keccak256 0, 64 !metadata(memory=scratch)
-    mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v13 !metadata(memory=scratch)
-    v14 = keccak256 0, 64 !metadata(memory=scratch)
+    v13 = mapping_slot arg0, 1
+    v14 = mapping_slot arg1, v13
     v15 = mload v9
     v16 = add v9, 32
     v17 = sload v14 !metadata(storage=symbolic(v14))
@@ -209,9 +203,7 @@ fn @get(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 0 !metadata(memory=scratch)
-    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    v3 = mapping_slot arg0, 0
     v4 = internal_call @__load_storage_bytes, 1, v3
     internal_call @__ret_bytes, 0, v4
     invalid
@@ -297,12 +289,8 @@ fn @getNested(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v3 = keccak256 0, 64 !metadata(memory=scratch)
-    mstore 0, arg1 !metadata(memory=scratch)
-    mstore 32, v3 !metadata(memory=scratch)
-    v4 = keccak256 0, 64 !metadata(memory=scratch)
+    v3 = mapping_slot arg0, 1
+    v4 = mapping_slot arg1, v3
     v5 = internal_call @__load_storage_bytes, 1, v4
     internal_call @__ret_bytes, 0, v5
     invalid

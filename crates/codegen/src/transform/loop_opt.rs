@@ -262,6 +262,9 @@ impl LoopOptimizer {
                         self.const_addr(func, size),
                     );
             }
+            InstKind::MappingSlot(_, _)
+            | InstKind::MappingSlotMemory(_, _)
+            | InstKind::MappingSlotCalldata(_, _) => return false,
             InstKind::SLoad(slot) => {
                 return self.hoist_execution_guaranteed(func, inst_id, ctx)
                     && !self.loop_may_mutate_storage_slot(
@@ -405,6 +408,9 @@ impl LoopOptimizer {
             InstKind::SLoad(_) => 100,
             InstKind::TLoad(_) => 100,
             InstKind::Keccak256(_, _) => 30,
+            InstKind::MappingSlot(_, _)
+            | InstKind::MappingSlotMemory(_, _)
+            | InstKind::MappingSlotCalldata(_, _) => 30,
             InstKind::Exp(_, _) => 10,
             InstKind::Mul(_, _)
             | InstKind::Div(_, _)
@@ -726,6 +732,7 @@ impl LoopOptimizer {
                     | InstKind::TStore(addr, _)
                     | InstKind::CalldataLoad(addr) => smallvec::smallvec![*addr],
                     InstKind::Keccak256(addr, _)
+                    | InstKind::MappingSlotMemory(addr, _)
                     | InstKind::CalldataCopy(addr, _, _)
                     | InstKind::CodeCopy(addr, _, _)
                     | InstKind::ReturnDataCopy(addr, _, _) => smallvec::smallvec![*addr],

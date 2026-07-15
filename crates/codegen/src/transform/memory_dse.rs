@@ -1231,6 +1231,7 @@ impl MemoryStoreEliminator {
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _)
                 | InstKind::Keccak256(_, _)
+                | InstKind::MappingSlotMemory(_, _)
                 | InstKind::Call { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
@@ -1267,6 +1268,11 @@ impl MemoryStoreEliminator {
                         if let Some(offset) = Self::internal_frame_offset(func, addr) {
                             reads.push((offset, 32));
                         }
+                    }
+                    InstKind::MappingSlotMemory(ptr, _)
+                        if Self::internal_frame_offset(func, ptr).is_some() =>
+                    {
+                        return None;
                     }
                     InstKind::Keccak256(offset, size)
                     | InstKind::Log0(offset, size)

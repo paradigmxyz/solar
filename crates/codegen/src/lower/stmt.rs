@@ -154,11 +154,6 @@ impl<'gcx> Lowerer<'gcx> {
 
             StmtKind::AssemblyBlock(block) => {
                 self.lower_block(builder, block);
-                // Assembly can write arbitrary memory, including the bytes a
-                // memoized mapping key points into. Yul itself never computes
-                // mapping slots through this path, so entries cannot form or
-                // be reused inside the block.
-                self.invalidate_mapping_slot_memo();
             }
 
             StmtKind::Err(_) => {}
@@ -530,18 +525,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder.branch(cond_val, then_block, else_block);
 
         builder.switch_to_block(then_block);
-        self.mapping_memo_scope_enter();
         self.lower_stmt(builder, then_stmt);
-        self.mapping_memo_scope_exit();
         if !builder.func().block(builder.current_block()).is_terminated() {
             builder.jump(merge_block);
         }
 
         if let Some(else_stmt) = else_stmt {
             builder.switch_to_block(else_block);
-            self.mapping_memo_scope_enter();
             self.lower_stmt(builder, else_stmt);
-            self.mapping_memo_scope_exit();
             if !builder.func().block(builder.current_block()).is_terminated() {
                 builder.jump(merge_block);
             }
@@ -573,9 +564,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         for (case, block) in body_blocks {
             builder.switch_to_block(block);
-            self.mapping_memo_scope_enter();
             self.lower_block(builder, &case.body);
-            self.mapping_memo_scope_exit();
             if !builder.func().block(builder.current_block()).is_terminated() {
                 builder.jump(merge_block);
             }
@@ -591,12 +580,6 @@ impl<'gcx> Lowerer<'gcx> {
         block: &hir::Block<'_>,
         source: hir::LoopSource,
     ) {
-        // A slot memoized before the loop is not iteration-invariant if the
-        // body rewrites its key's bytes, and the body is lowered only once —
-        // forget everything on entry; body-internal reuse stays valid in
-        // per-iteration order.
-        self.invalidate_mapping_slot_memo();
-        self.mapping_memo_scope_enter();
         let loop_block = builder.create_block();
         let exit_block = builder.create_block();
 
@@ -635,7 +618,6 @@ impl<'gcx> Lowerer<'gcx> {
         self.pop_loop();
 
         builder.switch_to_block(exit_block);
-        self.mapping_memo_scope_exit();
     }
 
     /// Checks if a for loop has an update expression in the expected desugared structure.
@@ -905,7 +887,6 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Generate success block (returns clause - always first in clauses)
         builder.switch_to_block(success_block);
-        self.mapping_memo_scope_enter();
         if let Some(returns_clause) = try_stmt.clauses.first() {
             if !returns_clause.args.is_empty() {
                 self.gcx
@@ -916,7 +897,6 @@ impl<'gcx> Lowerer<'gcx> {
             }
             self.lower_block(builder, &returns_clause.block);
         }
-        self.mapping_memo_scope_exit();
         builder.jump(merge_block);
 
         // Generate catch block(s)
@@ -939,9 +919,7 @@ impl<'gcx> Lowerer<'gcx> {
                     .span(try_stmt.expr.span)
                     .emit();
             }
-            self.mapping_memo_scope_enter();
             self.lower_block(builder, &clause.block);
-            self.mapping_memo_scope_exit();
         }
         // If no catch clauses (only returns clause), this is just an empty block
         if try_stmt.clauses.len() <= 1 {

@@ -26,9 +26,9 @@ use crate::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, MemoryDsePass, OutlineRevertsPass, PrePass,
-        PureEvalPass, SccpTransformPass, StaticAllocPass, StorageDsePass, StorageLoadCsePass,
-        StorageScalarPromotionPass,
+        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
+        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
+        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -96,7 +96,7 @@ declare_passes! {
     /// Internal MIR function inlining.
     pub const INLINE_PASS -> "inline" = InlinePass;
 
-    /// Outline duplicate constant revert blocks into shared helpers.
+    /// Outline duplicate constant revert blocks before backend lowering.
     pub const OUTLINE_REVERTS_PASS -> "outline-reverts" = OutlineRevertsPass::default();
 
     /// Dead internal function elimination.
@@ -173,6 +173,9 @@ declare_passes! {
 
     /// EVM-shape lowering: non-returning internal calls become tail calls.
     const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
+
+    /// Lower mapping-slot hash builtins to memory operations.
+    pub const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
 }
 
 /// ABI phase lowering with its phase range declared: consumes
@@ -219,6 +222,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     LOWER_DISPATCH_PASS,
     LOWER_EVM_SHAPED_PASS,
     OUTLINE_REVERTS_PASS,
+    LOWER_MAPPING_SLOTS_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
@@ -234,6 +238,9 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     PURE_EVAL_PASS,
     INST_SIMPLIFY_PASS,
     CSE_PASS,
+    // Reuse mapping slots before their scratch-memory expansion can obscure
+    // the semantic expression from the remaining optimization passes.
+    LOWER_MAPPING_SLOTS_PASS,
     GVN_PASS,
     PRE_PASS,
     STORAGE_LOAD_CSE_PASS,

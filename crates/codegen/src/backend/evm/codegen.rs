@@ -986,11 +986,13 @@ impl EvmCodegen {
                     ..PipelineOptions::default()
                 },
             );
-            // After the pipeline has settled the shapes: panic and constant
-            // custom-error revert blocks repeat at every check site, and the
-            // assembler cannot dedup them (they are reached by fallthrough).
+            // MIR outlining remains profitable even though the assembler can
+            // merge byte-identical terminal spans: lowering and stack layout
+            // can make equivalent revert blocks differ before they reach that
+            // late pass.
             crate::pass::run_pass(module, &crate::pass::OUTLINE_REVERTS_PASS);
         }
+        crate::pass::run_pass(module, &crate::pass::LOWER_MAPPING_SLOTS_PASS);
         // Progressive lowering: materialize ABI wrappers, the dispatcher, and
         // tail-call edges as MIR. Each pass bails without advancing the phase
         // when the module is outside its scope, in which case runtime
@@ -3080,6 +3082,12 @@ impl EvmCodegen {
                     block,
                     inst_idx,
                 );
+            }
+
+            InstKind::MappingSlot(_, _)
+            | InstKind::MappingSlotMemory(_, _)
+            | InstKind::MappingSlotCalldata(_, _) => {
+                unreachable!("mapping-slot builtins must be lowered before EVM codegen")
             }
         }
 

@@ -17,6 +17,7 @@ mod loop_opt;
 mod lower_abi;
 mod lower_dispatch;
 mod lower_evm_shaped;
+mod lower_mapping_slots;
 mod memory_dse;
 mod outline_reverts;
 mod pre;
@@ -26,6 +27,7 @@ mod static_alloc;
 mod storage_dse;
 mod storage_load_cse;
 mod storage_promotion;
+mod utils;
 
 pub use adce::{AdcePass, AdceStats, AggressiveDeadCodeEliminator};
 pub use cfg_simplify::{
@@ -53,6 +55,7 @@ pub use loop_opt::{LicmPass, LoopOptConfig, LoopOptStats, LoopOptimizer};
 pub use lower_abi::{LowerAbiPass, LowerAbiStats};
 pub use lower_dispatch::{LowerDispatchPass, LowerDispatchStats};
 pub use lower_evm_shaped::{LowerEvmShapedPass, LowerEvmShapedStats};
+pub use lower_mapping_slots::LowerMappingSlotsPass;
 pub use memory_dse::{MemoryDsePass, MemoryStoreEliminator};
 pub use outline_reverts::{OutlineRevertsPass, OutlineRevertsStats};
 pub use pre::{PartialRedundancyEliminator, PrePass, PreStats};
@@ -65,45 +68,4 @@ pub use storage_promotion::{
     StoragePromotionStats, StorageScalarPromoter, StorageScalarPromotionPass,
 };
 
-/// Whether an external entry must reject nonzero callvalue, mirroring the
-/// backend dispatcher's rule.
-pub(crate) fn rejects_callvalue(func: &crate::mir::Function) -> bool {
-    use solar_sema::hir::StateMutability;
-    matches!(
-        func.attributes.state_mutability,
-        StateMutability::NonPayable | StateMutability::View | StateMutability::Pure
-    )
-}
-
-/// Incremental form of the shared dispatch callvalue-hoisting predicate:
-/// every bodied external entry (selector-bearing, receive, or fallback)
-/// rejects value.
-///
-/// [`LowerAbiPass`] and [`LowerDispatchPass`] both use this while performing
-/// their existing module scans, so they must observe every function and agree.
-pub(crate) struct DispatchCallvalue {
-    any: bool,
-    all_reject: bool,
-}
-
-impl Default for DispatchCallvalue {
-    fn default() -> Self {
-        Self { any: false, all_reject: true }
-    }
-}
-
-impl DispatchCallvalue {
-    pub(crate) fn observe(&mut self, func: &crate::mir::Function) {
-        let external =
-            func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback;
-        if !external || func.blocks.is_empty() || func.attributes.is_constructor {
-            return;
-        }
-        self.any = true;
-        self.all_reject &= rejects_callvalue(func);
-    }
-
-    pub(crate) const fn hoists(&self) -> bool {
-        self.any && self.all_reject
-    }
-}
+pub(crate) use utils::{DispatchCallvalue, rejects_callvalue};

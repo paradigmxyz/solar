@@ -1539,6 +1539,24 @@ impl<'a> Parser<'a> {
                 let b = v!();
                 (InstKind::Keccak256(a, b), Some(MirType::bytes32()))
             }
+            "mapping_slot" => {
+                let key = v!();
+                comma!();
+                let slot = v!();
+                (InstKind::MappingSlot(key, slot), Some(MirType::bytes32()))
+            }
+            "mapping_slot_memory" => {
+                let key = v!();
+                comma!();
+                let slot = v!();
+                (InstKind::MappingSlotMemory(key, slot), Some(MirType::bytes32()))
+            }
+            "mapping_slot_calldata" => {
+                let key = v!();
+                comma!();
+                let slot = v!();
+                (InstKind::MappingSlotCalldata(key, slot), Some(MirType::bytes32()))
+            }
 
             // ----- calls -----
             "call" => {

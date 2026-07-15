@@ -1869,6 +1869,40 @@ mod tests {
     }
 
     #[test]
+    fn terminal_span_dedup_converts_fallthrough_copy() {
+        let mut asm = size_optimized_assembler();
+        let representative = asm.new_label();
+        let duplicate = asm.new_label();
+        let body = [
+            AsmInst::push_inline(0x1234).unwrap(),
+            AsmInst::push_inline(0).unwrap(),
+            AsmInst::op(op::MSTORE),
+            AsmInst::push_inline(17).unwrap(),
+            AsmInst::push_inline(4).unwrap(),
+            AsmInst::op(op::MSTORE),
+            AsmInst::push_inline(36).unwrap(),
+            AsmInst::push_inline(0).unwrap(),
+            AsmInst::op(op::REVERT),
+        ];
+        let mut instructions = vec![AsmInst::label(representative)];
+        instructions.extend(body);
+        instructions.push(AsmInst::push_inline(1).unwrap());
+        instructions.push(AsmInst::label(duplicate));
+        instructions.extend(body);
+
+        Assembler::dedup_terminal_spans(&mut instructions);
+
+        assert_eq!(
+            &instructions[instructions.len() - 3..],
+            &[
+                AsmInst::label(duplicate),
+                AsmInst::push_label(representative),
+                AsmInst::op(op::JUMP),
+            ]
+        );
+    }
+
+    #[test]
     fn compact_full_word_all_ones_push() {
         let mut asm = size_optimized_assembler();
 

@@ -959,12 +959,18 @@ fn summarize_function(func: &Function) -> MirInlineSummary {
     };
 
     for block in func.blocks.iter() {
-        summary.instruction_count += block.instructions.len();
         for &inst_id in &block.instructions {
-            let inst_cost = estimate_inst_cost(&func.instructions[inst_id].kind);
+            let kind = &func.instructions[inst_id].kind;
+            summary.instruction_count += match kind {
+                InstKind::MappingSlot(..) => 3,
+                InstKind::MappingSlotMemory(..) => 8,
+                InstKind::MappingSlotCalldata(..) => 9,
+                _ => 1,
+            };
+            let inst_cost = estimate_inst_cost(kind);
             summary.estimated_code_size += inst_cost.code_size;
             summary.estimated_runtime_gas += inst_cost.runtime_gas;
-            match &func.instructions[inst_id].kind {
+            match kind {
                 InstKind::InternalCall { .. } => summary.has_internal_call = true,
                 InstKind::Phi(_) => summary.has_phi = true,
                 InstKind::Call { .. }
@@ -1090,6 +1096,9 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
         | InstKind::BlockHash(..)
         | InstKind::BlobHash(..)
         | InstKind::Keccak256(..) => (30, 1),
+        InstKind::MappingSlot(..) => (36, 3),
+        InstKind::MappingSlotMemory(..) => (60, 8),
+        InstKind::MappingSlotCalldata(..) => (63, 9),
         InstKind::Call { .. } | InstKind::StaticCall { .. } | InstKind::DelegateCall { .. } => {
             (700, 1)
         }
@@ -1417,6 +1426,15 @@ impl<'a> InlineCloner<'a> {
             InstKind::BlobHash(a) => InstKind::BlobHash(self.clone_value(a)?),
             InstKind::Keccak256(a, b) => {
                 InstKind::Keccak256(self.clone_value(a)?, self.clone_value(b)?)
+            }
+            InstKind::MappingSlot(a, b) => {
+                InstKind::MappingSlot(self.clone_value(a)?, self.clone_value(b)?)
+            }
+            InstKind::MappingSlotMemory(a, b) => {
+                InstKind::MappingSlotMemory(self.clone_value(a)?, self.clone_value(b)?)
+            }
+            InstKind::MappingSlotCalldata(a, b) => {
+                InstKind::MappingSlotCalldata(self.clone_value(a)?, self.clone_value(b)?)
             }
             InstKind::Call { gas, addr, value, args_offset, args_size, ret_offset, ret_size } => {
                 InstKind::Call {
