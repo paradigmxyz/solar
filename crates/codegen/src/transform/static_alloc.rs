@@ -2,10 +2,9 @@
 //!
 //! When a constant-size `alloc` executes at most once per call and its pointer
 //! never escapes the function, the allocation does not need a runtime
-//! free-memory-pointer bump. The region can live at a compile-time address
-//! appended to the entry's local frame. The allocation disappears, every use
-//! keeps its shape, and the frame layout machinery accounts for the enlarged
-//! frame.
+//! free-memory-pointer bump. This module proves those properties for the EVM
+//! backend and retains a conservative MIR rewrite for the explicit
+//! `static-alloc` pass.
 //!
 //! Safety contract:
 //! - external entries only: their locals are absolute low-memory addresses;
@@ -59,50 +58,52 @@ fn is_entry(func: &Function) -> bool {
 }
 
 fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
-    if !func.instructions.iter().any(|inst| matches!(inst.kind, InstKind::Alloc(_))) {
-        return false;
-    }
-
-    let inst_results = func.inst_results();
-    let mut candidates = Vec::new();
-    for block_id in func.blocks.indices() {
-        for &inst in &func.blocks[block_id].instructions {
-            let InstKind::Alloc(size) = func.instructions[inst].kind else { continue };
-            let Some(size) = func.value_u64(size) else { continue };
-            if size > 0 && size <= 0x1000 && size.is_multiple_of(32) {
-                candidates.push(Candidate {
-                    block: block_id,
-                    alloc: inst,
-                    ptr: inst_results[&inst],
-                    size,
-                });
-            }
-        }
-    }
-    if candidates.is_empty() {
-        return false;
-    }
-
-    let cfg = CfgInfo::new(func);
-    let mut cyclic = FxHashMap::default();
-    candidates.retain(|cand| {
-        cfg.is_reachable(cand.block)
-            && !*cyclic.entry(cand.block).or_insert_with(|| block_in_cycle(func, cand.block))
-    });
-
     let mut changed = false;
-    for cand in candidates {
+    for cand in eligible_static_allocations(func) {
         changed |= apply_candidate(func, &cand, shadow);
     }
     changed
 }
 
-/// One constant-size allocation eligible for escape analysis.
-struct Candidate {
-    block: BlockId,
-    alloc: InstId,
-    ptr: ValueId,
-    size: u64,
+/// One constant-size allocation eligible for static placement.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StaticAllocCandidate {
+    pub block: BlockId,
+    pub alloc: InstId,
+    pub ptr: ValueId,
+    pub size: u64,
+}
+
+/// Returns constant-size, non-escaping allocations that the backend may place
+/// in an entry-local static region.
+pub(crate) fn eligible_static_allocations(func: &Function) -> Vec<StaticAllocCandidate> {
+    if !is_entry(func) || has_msize(func) {
+        return Vec::new();
+    }
+
+    let inst_results = func.inst_results();
+    let cfg = CfgInfo::new(func);
+    let mut cyclic = FxHashMap::default();
+    let mut candidates = Vec::new();
+    for block in func.blocks.indices() {
+        for &alloc in &func.blocks[block].instructions {
+            let InstKind::Alloc(size) = func.instructions[alloc].kind else { continue };
+            let Some(size) = func.value_u64(size) else { continue };
+            if size == 0
+                || size > 0x1000
+                || !size.is_multiple_of(32)
+                || !cfg.is_reachable(block)
+                || *cyclic.entry(block).or_insert_with(|| block_in_cycle(func, block))
+            {
+                continue;
+            }
+            let candidate = StaticAllocCandidate { block, alloc, ptr: inst_results[&alloc], size };
+            if candidate_uses_are_safe(func, &candidate) {
+                candidates.push(candidate);
+            }
+        }
+    }
+    candidates
 }
 
 fn has_msize(func: &Function) -> bool {
@@ -132,10 +133,8 @@ fn block_in_cycle(func: &Function, block: BlockId) -> bool {
     false
 }
 
-/// Verifies every use of the pointer stays in bounds and never escapes, then
-/// rewrites the allocation: pointer uses take the static address, the
-/// allocation is deleted, and the frame grows by the allocation size.
-fn apply_candidate(func: &mut Function, cand: &Candidate, shadow: u64) -> bool {
+/// Verifies every use of the pointer stays in bounds and never escapes.
+fn candidate_uses_are_safe(func: &Function, cand: &StaticAllocCandidate) -> bool {
     let inst_results = func.inst_results();
 
     // In-bounds address derivations from the pointer, to a fixpoint so
@@ -240,7 +239,13 @@ fn apply_candidate(func: &mut Function, cand: &Candidate, shadow: u64) -> bool {
         }
     }
 
-    // Rewrite: the region lives past the locals and the static return
+    true
+}
+
+/// Rewrites an eligible allocation using the conservative placement retained
+/// for the explicit `static-alloc` MIR pass.
+fn apply_candidate(func: &mut Function, cand: &StaticAllocCandidate, shadow: u64) -> bool {
+    // The region lives past the locals and the static return
     // buffer. It must stay inside the tallest entry's shadow — growing past
     // it pushes the shared static-frame region and can widen every helper
     // and spill push behind it — and must not drag this entry's own spill

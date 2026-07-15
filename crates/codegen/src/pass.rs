@@ -263,10 +263,9 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
     MEMORY_DSE_PASS,
-    // Keep allocation semantic through the optimization pipeline. Static
-    // placement consumes the eligible operations here; the backend lowers
-    // the residual dynamic allocations after progressive MIR lowering.
-    STATIC_ALLOC_PASS,
+    // Keep allocation semantic through the optimization pipeline. The EVM
+    // backend chooses static placement only after exact spill and helper-frame
+    // addresses are known, then lowers the residual dynamic allocations.
     ADCE_PASS,
     DCE_PASS,
 ];

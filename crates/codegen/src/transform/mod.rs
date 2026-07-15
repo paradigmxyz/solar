@@ -61,4 +61,6 @@ pub(crate) use storage_dse::StorageDsePass;
 pub(crate) use storage_load_cse::StorageLoadCsePass;
 pub(crate) use storage_promotion::StorageScalarPromotionPass;
 
+pub(crate) use lower_alloc::lower_alloc_except;
+pub(crate) use static_alloc::eligible_static_allocations;
 pub(crate) use utils::{DispatchCallvalue, rejects_callvalue};

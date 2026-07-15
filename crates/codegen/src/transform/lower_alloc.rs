@@ -5,24 +5,43 @@
 //! This pass expands the abstraction only at the EVM-shaped boundary.
 
 use crate::{
-    mir::{BlockId, Function, FunctionBuilder, InstKind, MemoryRegion, Module},
+    mir::{BlockId, Function, FunctionBuilder, FunctionId, InstId, InstKind, MemoryRegion, Module},
     pass::ModulePass,
 };
+use solar_data_structures::map::FxHashSet;
+use solar_sema::Gcx;
 
 /// Lowers `fmp`, `set_fmp`, and `alloc` instructions.
 pub struct LowerAllocPass;
 
 impl ModulePass for LowerAllocPass {
-    fn run(&mut self, module: &mut Module) -> bool {
-        let mut changed = false;
-        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
-            changed |= lower_function(func);
-        }
-        changed
+    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        lower_alloc_except(module, &FxHashSet::default())
     }
 }
 
-fn lower_function(func: &mut Function) -> bool {
+/// Lowers abstract allocation operations except for backend-owned allocations
+/// whose final placement depends on exact emitted frame layout.
+pub(crate) fn lower_alloc_except(
+    module: &mut Module,
+    deferred: &FxHashSet<(FunctionId, InstId)>,
+) -> bool {
+    let mut changed = false;
+    let function_ids: Vec<_> = module.functions.indices().collect();
+    for func_id in function_ids {
+        let func = &mut module.functions[func_id];
+        if !func.blocks.is_empty() {
+            changed |= lower_function(func_id, func, deferred);
+        }
+    }
+    changed
+}
+
+fn lower_function(
+    func_id: FunctionId,
+    func: &mut Function,
+    deferred: &FxHashSet<(FunctionId, InstId)>,
+) -> bool {
     let has_abstract_memory = func.blocks.iter().any(|block| {
         block.instructions.iter().any(|&inst| {
             matches!(
@@ -36,6 +55,7 @@ fn lower_function(func: &mut Function) -> bool {
     }
 
     let inst_results = func.inst_results();
+    let mut changed = false;
     let blocks: Vec<BlockId> = func.blocks.indices().collect();
     for block in blocks {
         let instructions = std::mem::take(&mut func.blocks[block].instructions);
@@ -44,14 +64,21 @@ fn lower_function(func: &mut Function) -> bool {
         for inst in instructions {
             match builder.func().instructions[inst].kind {
                 InstKind::Fmp => {
+                    changed = true;
                     rewrite_as_fmp_load(&mut builder, inst);
                     builder.func_mut().blocks[block].instructions.push(inst);
                 }
                 InstKind::SetFmp(ptr) => {
+                    changed = true;
                     rewrite_as_fmp_store(&mut builder, inst, ptr);
                     builder.func_mut().blocks[block].instructions.push(inst);
                 }
                 InstKind::Alloc(size) => {
+                    if deferred.contains(&(func_id, inst)) {
+                        builder.func_mut().blocks[block].instructions.push(inst);
+                        continue;
+                    }
+                    changed = true;
                     let ptr = inst_results[&inst];
                     rewrite_as_fmp_load(&mut builder, inst);
                     builder.func_mut().blocks[block].instructions.push(inst);
@@ -64,7 +91,7 @@ fn lower_function(func: &mut Function) -> bool {
             }
         }
     }
-    true
+    changed
 }
 
 fn rewrite_as_fmp_load(builder: &mut FunctionBuilder<'_>, inst: crate::mir::InstId) {
