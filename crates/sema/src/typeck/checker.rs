@@ -27,6 +27,23 @@ enum AbiDecodeArg {
     Types,
 }
 
+impl AbiDecodeArg {
+    fn from_parameter_index(index: usize) -> Option<Self> {
+        match index {
+            0 => Some(Self::Data),
+            1 => Some(Self::Types),
+            _ => None,
+        }
+    }
+
+    fn parameter_index(self) -> usize {
+        match self {
+            Self::Data => 0,
+            Self::Types => 1,
+        }
+    }
+}
+
 pub(super) fn check<'gcx>(gcx: Gcx<'gcx>, source: hir::SourceId) -> TypeckResults<'gcx> {
     let mut checker = TypeChecker::new(gcx, source);
     let _ = checker.visit_nested_source(source);
@@ -1371,6 +1388,8 @@ impl<'gcx> TypeChecker<'gcx> {
         let mut result = Ok(());
         result = result.and(self.check_exact_arg_count(call_span, args_span, named_args.len(), 2));
 
+        let param_names =
+            self.gcx.callable_param_names(CallableParamSource::Builtin(Builtin::AbiDecode));
         let mut seen_names: SmallVec<[solar_interface::Symbol; 2]> = SmallVec::new();
         for arg in named_args {
             let arg_name = arg.name.name;
@@ -1383,7 +1402,9 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             seen_names.push(arg_name);
 
-            if let Some(kind) = abi_decode_arg_kind(arg_name) {
+            if let Some(kind) =
+                arg.parameter_index(&param_names).and_then(AbiDecodeArg::from_parameter_index)
+            {
                 result = result.and(self.check_abi_decode_arg(kind, &arg.value));
             } else {
                 result = result.and(Err(self.dcx().emit_err(
@@ -1454,7 +1475,11 @@ impl<'gcx> TypeChecker<'gcx> {
                 types_expr
             }
             hir::CallArgsKind::Named(named_args) => {
-                let Some(arg) = named_args.iter().find(|arg| arg.name.name == sym::types) else {
+                let param_names =
+                    self.gcx.callable_param_names(CallableParamSource::Builtin(Builtin::AbiDecode));
+                let Some(arg) = named_args.iter().find(|arg| {
+                    arg.parameter_index(&param_names) == Some(AbiDecodeArg::Types.parameter_index())
+                }) else {
                     unreachable!(
                         "`abi.decode` named arguments should be checked before deriving return type"
                     );
@@ -1773,8 +1798,7 @@ impl<'gcx> TypeChecker<'gcx> {
                 }
                 let mut seen = DenseBitSet::new_empty(param_tys.len());
                 for arg in named_args {
-                    let Some(index) = names.iter().position(|&name| name == Some(arg.name.name))
-                    else {
+                    let Some(index) = arg.parameter_index(&names) else {
                         return false;
                     };
                     if !seen.insert(index) {
@@ -2017,7 +2041,7 @@ impl<'gcx> TypeChecker<'gcx> {
             }
             seen_names.push(arg_name);
 
-            let param_idx = param_names.iter().position(|n| n.is_some_and(|name| name == arg_name));
+            let param_idx = arg.parameter_index(&param_names);
 
             match param_idx {
                 Some(idx) => {
@@ -2731,16 +2755,6 @@ fn valid_bytes_concat_arg(ty: Ty<'_>) -> bool {
             TyKind::Slice(array)
                 if matches!(array.peel_refs().kind, TyKind::Elementary(ElementaryType::Bytes))
         )
-}
-
-fn abi_decode_arg_kind(name: Symbol) -> Option<AbiDecodeArg> {
-    if name == sym::data {
-        Some(AbiDecodeArg::Data)
-    } else if name == sym::types {
-        Some(AbiDecodeArg::Types)
-    } else {
-        None
-    }
 }
 
 fn abi_encode_call_function_kind_message(kind: TyFnKind) -> &'static str {

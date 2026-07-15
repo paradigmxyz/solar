@@ -429,6 +429,54 @@ TYPE : uint256
 }
 
 #[test]
+fn prefers_selected_attached_function_over_colliding_struct_field() {
+    let fixture = RequestFixture::new_allowing_diagnostics(
+        r#"
+        //- /Collision.sol
+        struct Holder {
+            function(bool fieldFlag, address fieldAccount) internal pure callback;
+        }
+
+        library L {
+            function callback(
+                Holder memory self,
+                uint256 attachedFirst,
+                address attachedAccount
+            ) internal pure {
+                self;
+                attachedFirst;
+                attachedAccount;
+            }
+        }
+
+        contract C {
+            using L for Holder;
+
+            function fieldTarget(bool fieldFlag, address fieldAccount) internal pure {
+                fieldFlag;
+                fieldAccount;
+            }
+
+            function caller(address user) public pure {
+                Holder memory holder = Holder({callback: fieldTarget});
+                holder.callback(1, user);
+            }
+        }
+        "#,
+        "/Collision.sol",
+    );
+
+    fixture.check_inlay_hints(
+        "/Collision.sol",
+        str![[r#"
+PARAMETER attachedFirst:
+PARAMETER attachedAccount:
+
+"#]],
+    );
+}
+
+#[test]
 fn uses_target_parameter_names_for_abi_encode_call_tuple() {
     let fixture = RequestFixture::new(
         r#"
