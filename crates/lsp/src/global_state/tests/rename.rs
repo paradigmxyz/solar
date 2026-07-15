@@ -234,12 +234,12 @@ fn renames_named_modifier_and_base_constructor_arguments() {
 }
 
 #[test]
-fn renames_named_mapping_keys_with_generated_getter_arguments() {
+fn renames_mapping_names_from_generated_getter_signature() {
     let fixture = RequestFixture::new(
         r#"
         //- /MappingNames.sol
         contract C {
-            mapping(address $1owner => mapping(address $3spender => uint256 balance)) public balances;
+            mapping(address $1owner => mapping(address $3spender => uint256 $5balance)) public balances;
 
             function read() public view returns (uint256) {
                 return this.balances({$2owner: msg.sender, $4spender: address(this)});
@@ -264,6 +264,15 @@ fn renames_named_mapping_keys_with_generated_getter_arguments() {
         str![[r#"
 /MappingNames.sol:1:45-1:52 -> delegate
 /MappingNames.sol:3:49-3:56 -> delegate
+
+"#]],
+    );
+    fixture.check_prepare_rename("$5", "1:64-1:71\n");
+    fixture.check_rename(
+        "$5",
+        "amount",
+        str![[r#"
+/MappingNames.sol:1:64-1:71 -> amount
 
 "#]],
     );
@@ -495,6 +504,33 @@ fn renames_validated_natspec_parameter_references() {
 }
 
 #[test]
+fn renames_validated_natspec_return_references() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /NatSpecReturn.sol
+        contract C {
+            /// @return result The value.
+            function f() public pure returns (uint256 $1result) {
+                result = 1;
+            }
+        }
+        "#,
+        "/NatSpecReturn.sol",
+    );
+
+    fixture.check_rename(
+        "$1",
+        "value",
+        str![[r#"
+/NatSpecReturn.sol:1:16-1:22 -> value
+/NatSpecReturn.sol:2:46-2:52 -> value
+/NatSpecReturn.sol:3:8-3:14 -> value
+
+"#]],
+    );
+}
+
+#[test]
 fn renames_validated_natspec_inheritdoc_references() {
     let fixture = RequestFixture::new(
         r#"
@@ -578,6 +614,42 @@ fn renames_override_families_from_base_and_derived_declarations() {
 "#]];
     fixture.check_rename("$7", "amount", getter.clone());
     fixture.check_rename("$8", "amount", getter);
+}
+
+#[test]
+fn does_not_merge_function_typed_parameters_into_override_families() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Callback.sol
+        contract Base {
+            function $3hook(uint256 x) public virtual returns (uint256) { return x; }
+        }
+
+        contract Child is Base {
+            function use(function(uint256) external returns (uint256) $1hook, uint256 x)
+                public returns (uint256) { return $2hook(x); }
+        }
+        "#,
+        "/Callback.sol",
+    );
+
+    fixture.check_rename(
+        "$1",
+        "callback",
+        str![[r#"
+/Callback.sol:4:62-4:66 -> callback
+/Callback.sol:5:42-5:46 -> callback
+
+"#]],
+    );
+    fixture.check_rename(
+        "$3",
+        "renamed",
+        str![[r#"
+/Callback.sol:1:13-1:17 -> renamed
+
+"#]],
+    );
 }
 
 #[test]

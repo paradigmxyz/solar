@@ -323,8 +323,9 @@ impl<'gcx> Resolver<'gcx> {
             return Some(natspec);
         }
 
+        let content = natspec.symbol.as_str();
         let Some((name, content_start)) = solar_parse::natspec::first_word(
-            natspec.symbol.as_str(),
+            content,
             natspec.content_start as usize,
             natspec.content_end as usize,
         ) else {
@@ -335,6 +336,12 @@ impl<'gcx> Resolver<'gcx> {
             return None;
         };
 
+        // Content offsets are relative to the comment, while `span` covers only the tag name.
+        let tag_end = content[..natspec.content_start as usize].trim_ascii_end().len();
+        let name_end = content[..content_start].trim_ascii_end().len();
+        let name_start = name_end - name.len();
+        let name_lo = natspec.span.hi() + (name_start - tag_end) as u32;
+        let name_span = Span::new(name_lo, name_lo + name.len() as u32);
         let name = Symbol::intern(name);
         if !rets.iter().any(|&id| self.gcx.hir.variable(id).name.is_some_and(|n| n.name == name)) {
             self.gcx.dcx().emit_err(
@@ -345,7 +352,7 @@ impl<'gcx> Resolver<'gcx> {
         }
 
         let mut item = natspec;
-        item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(name, natspec.span)) };
+        item.kind = ast::NatSpecKind::Return { name: Some(Ident::new(name, name_span)) };
         item.content_start = content_start as u32;
         Some(item)
     }

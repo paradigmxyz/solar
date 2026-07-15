@@ -26,7 +26,7 @@ newtype_index! {
     /// A file-local import alias in the rename index.
     struct ImportAliasId;
 
-    /// A named mapping key in the rename index.
+    /// A named mapping key or value in the rename index.
     struct MappingNameId;
 }
 
@@ -201,6 +201,7 @@ impl RenameIndex {
             let Some(getter_id) = variable.getter else { continue };
             let mut ty = &variable.ty;
             let mut params = gcx.hir.function(getter_id).parameters.iter().copied();
+            let mut return_name = None;
 
             for param in &mut params {
                 match ty.kind {
@@ -211,10 +212,17 @@ impl RenameIndex {
                             bindings.params.insert(param, name_id);
                         }
                         ty = &mapping.value;
+                        return_name = mapping.value_name;
                     }
                     hir::TypeKind::Array(array) => ty = &array.element,
                     _ => break,
                 }
+            }
+
+            if !matches!(ty.kind, hir::TypeKind::Custom(ItemId::Struct(_)))
+                && let Some(name) = return_name
+            {
+                let _ = self.add_mapping_name(gcx, name);
             }
         }
         bindings
@@ -245,21 +253,17 @@ impl RenameIndex {
                 }
                 match natspec.kind {
                     hir::NatSpecKind::Param { name } => {
-                        let Some(variable_id) =
-                            item.parameters().into_iter().flatten().copied().find(|&variable_id| {
-                                gcx.hir
-                                    .variable(variable_id)
-                                    .name
-                                    .is_some_and(|param| param.name == name.name)
-                            })
-                        else {
-                            continue;
-                        };
-                        let Some(&symbol_id) = item_symbols.get(&ItemId::Variable(variable_id))
-                        else {
-                            continue;
-                        };
-                        self.push_symbol_occurrence(gcx, name.span, &[symbol_id]);
+                        let Some(parameters) = item.parameters() else { continue };
+                        self.push_natspec_variable_reference(gcx, parameters, name, item_symbols);
+                    }
+                    hir::NatSpecKind::Return { name: Some(name) } => {
+                        let Some(function_id) = item_id.as_function() else { continue };
+                        self.push_natspec_variable_reference(
+                            gcx,
+                            gcx.hir.function(function_id).returns,
+                            name,
+                            item_symbols,
+                        );
                     }
                     hir::NatSpecKind::Inheritdoc { contract } => {
                         let Some(contract_id) = gcx.natspec_contract(contract.name, item.source())
@@ -283,6 +287,22 @@ impl RenameIndex {
                 }
             }
         }
+    }
+
+    fn push_natspec_variable_reference(
+        &mut self,
+        gcx: Gcx<'_>,
+        variables: &[VariableId],
+        name: Ident,
+        item_symbols: &FxHashMap<ItemId, SymbolId>,
+    ) {
+        let Some(variable_id) = variables.iter().copied().find(|&variable_id| {
+            gcx.hir.variable(variable_id).name.is_some_and(|variable| variable.name == name.name)
+        }) else {
+            return;
+        };
+        let Some(&symbol_id) = item_symbols.get(&ItemId::Variable(variable_id)) else { return };
+        self.push_symbol_occurrence(gcx, name.span, &[symbol_id]);
     }
 
     pub(crate) fn push_mapping_reference(
@@ -356,6 +376,9 @@ impl RenameIndex {
 
         for variable_id in gcx.hir.variable_ids() {
             let variable = gcx.hir.variable(variable_id);
+            if variable.getter.is_none() {
+                continue;
+            }
             self.add_override_edges(gcx, variable_id.into(), item_symbols);
             let Some(name) = variable.name else { continue };
             let Some(variable_paths) = paths.paths.get(&name.span) else { continue };
@@ -656,6 +679,9 @@ impl RenameIndex {
             return;
         }
         self.push_span_occurrence(gcx, final_ident.span, final_targets);
+        if identifiers.is_empty() {
+            return;
+        }
 
         let mut current_symbols = symbols.to_vec();
         for ident in identifiers.into_iter().rev() {

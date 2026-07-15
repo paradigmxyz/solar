@@ -1444,7 +1444,9 @@ pub(crate) fn base_override_functions(
 pub fn base_override_items(gcx: _, item: hir::ItemId) -> &'gcx [hir::ItemId] {
     let proxy = match item {
         hir::ItemId::Function(id) => OverrideProxy::Function(id),
-        hir::ItemId::Variable(id) => OverrideProxy::Variable(id),
+        hir::ItemId::Variable(id) if gcx.hir.variable(id).getter.is_some() => {
+            OverrideProxy::Variable(id)
+        }
         _ => return &[],
     };
     gcx.bump().alloc_from_iter(gcx.base_override_functions(proxy).iter().map(|base| match base {
