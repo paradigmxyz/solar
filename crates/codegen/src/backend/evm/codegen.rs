@@ -45,6 +45,7 @@ const GLOBAL_STACK_MAX_ARGS: usize = 3;
 const GLOBAL_STACK_MIN_BLOCKS: usize = 8;
 const GLOBAL_STACK_MIN_ARG_USES: usize = 6;
 const GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS: usize = 16;
+const STACK_ARG_ROTATION_LIMIT: usize = 16;
 
 #[derive(Default)]
 struct GeneratedCode {
@@ -78,6 +79,19 @@ enum StackPush {
     Tracked(ValueId),
     /// Push an unknown/untracked value (pushes == 1).
     Unknown,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StaticCallStackWord {
+    ReturnAddress,
+    Argument(usize),
+}
+
+#[derive(Clone, Debug)]
+struct StackArgRetentionPlan {
+    retained: Vec<bool>,
+    drain_ops: Vec<StackOp>,
+    shuffle_ops: Vec<StackOp>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -3555,6 +3569,139 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
     }
 
+    /// Plans a bounded rotation that keeps computed arguments on the physical
+    /// stack while the rest of the caller stack is drained. The resulting
+    /// layout matches the existing stack-argument convention: selected
+    /// arguments in descending index order above the return address.
+    fn plan_retained_stack_args(
+        &self,
+        func: &Function,
+        args: &[ValueId],
+        mask: &DenseBitSet<usize>,
+    ) -> Option<StackArgRetentionPlan> {
+        let selected = mask.count();
+        if mask.domain_size() != args.len()
+            || selected == 0
+            || selected > STACK_ARG_ROTATION_LIMIT
+            || self.scheduler.stack.depth() > STACK_ARG_ROTATION_LIMIT + 1
+        {
+            return None;
+        }
+
+        // One physical word cannot fill two argument positions. Repeated
+        // values keep the spill-reload path, which materializes each
+        // occurrence independently.
+        let mut selected_value_counts = FxHashMap::default();
+        for (i, &arg) in args.iter().enumerate() {
+            if mask.contains(i) && matches!(func.value(arg), crate::mir::Value::Inst(_)) {
+                *selected_value_counts.entry(arg).or_insert(0usize) += 1;
+            }
+        }
+        let candidates: Vec<_> = args
+            .iter()
+            .enumerate()
+            .filter_map(|(i, &arg)| {
+                (mask.contains(i)
+                    && selected_value_counts.get(&arg) == Some(&1)
+                    && self.scheduler.stack.contains(arg))
+                .then_some(i)
+            })
+            .collect();
+        if candidates.is_empty() {
+            return None;
+        }
+        self.build_stack_arg_retention_plan(args, mask, &candidates)
+    }
+
+    fn build_stack_arg_retention_plan(
+        &self,
+        args: &[ValueId],
+        mask: &DenseBitSet<usize>,
+        retained_indices: &[usize],
+    ) -> Option<StackArgRetentionPlan> {
+        let mut keep = FxHashMap::default();
+        for &index in retained_indices {
+            keep.insert(args[index], index);
+        }
+
+        let mut stack = self.scheduler.stack.as_slice().to_vec();
+        let mut drain_ops = Vec::new();
+        while stack.len() > keep.len() {
+            let depth = stack.iter().position(|word| match word {
+                Some(value) if keep.contains_key(value) => {
+                    stack.iter().filter(|other| **other == *word).count() > 1
+                }
+                _ => true,
+            })?;
+            if depth > STACK_ARG_ROTATION_LIMIT {
+                return None;
+            }
+            if depth != 0 {
+                drain_ops.push(StackOp::Swap(depth as u8));
+                stack.swap(0, depth);
+            }
+            drain_ops.push(StackOp::Pop);
+            stack.remove(0);
+        }
+
+        let mut layout = Vec::with_capacity(mask.count() + 1);
+        for word in stack {
+            layout.push(StaticCallStackWord::Argument(*keep.get(&word?)?));
+        }
+        layout.insert(0, StaticCallStackWord::ReturnAddress);
+        for i in 0..args.len() {
+            if mask.contains(i) && !retained_indices.contains(&i) {
+                layout.insert(0, StaticCallStackWord::Argument(i));
+            }
+        }
+
+        let mut target: Vec<_> = (0..args.len())
+            .filter(|&i| mask.contains(i))
+            .map(StaticCallStackWord::Argument)
+            .collect();
+        target.reverse();
+        target.push(StaticCallStackWord::ReturnAddress);
+        if layout.len() != target.len() || layout.len() > STACK_ARG_ROTATION_LIMIT + 1 {
+            return None;
+        }
+
+        let mut shuffle_ops = Vec::new();
+        for target_depth in (1..layout.len()).rev() {
+            if layout[target_depth] == target[target_depth] {
+                continue;
+            }
+            let source_depth =
+                layout[..=target_depth].iter().position(|&word| word == target[target_depth])?;
+            if source_depth != 0 {
+                shuffle_ops.push(StackOp::Swap(source_depth as u8));
+                layout.swap(0, source_depth);
+            }
+            shuffle_ops.push(StackOp::Swap(target_depth as u8));
+            layout.swap(0, target_depth);
+        }
+        debug_assert_eq!(layout, target);
+
+        // Baseline drains every tracked word and reloads each computed stack
+        // argument through at least PUSH1+MLOAD. A value without a stored slot
+        // also pays at least DUP+PUSH1+MSTORE. Deferred addresses can only make
+        // that baseline larger, so this is a conservative byte gate.
+        let fresh = retained_indices
+            .iter()
+            .filter(|&&index| !self.scheduler.spills.is_stored(args[index]))
+            .count();
+        let baseline_cost = self.scheduler.stack.depth() + retained_indices.len() * 3 + fresh * 4;
+        let planned_cost = drain_ops.len() + shuffle_ops.len();
+        if planned_cost >= baseline_cost {
+            return None;
+        }
+
+        let mut retained = vec![false; args.len()];
+        for &index in retained_indices {
+            retained[index] = true;
+        }
+        Some(StackArgRetentionPlan { retained, drain_ops, shuffle_ops })
+    }
+
     fn static_frame_addr(&mut self, func_id: FunctionId, offset: u64) -> DeferredConst {
         if let Some(&id) = self.static_frame_addr_consts.get(&(func_id, offset)) {
             return id;
@@ -3945,12 +4092,16 @@ impl<'gcx> EvmCodegen<'gcx> {
             self.scheduler.instruction_executed(2, None);
         }
 
-        // A stack-passed computed argument survives the drain in its spill
-        // slot and is reloaded raw after it; make sure the slot is written
-        // while the value is still reachable.
+        let retention_plan =
+            stack_mask.as_ref().and_then(|mask| self.plan_retained_stack_args(func, args, mask));
+
+        // A computed argument not retained physically survives the drain in
+        // its spill slot and is reloaded raw after it; make sure the slot is
+        // written while the value is still reachable.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
                 if mask.contains(i)
+                    && !retention_plan.as_ref().is_some_and(|plan| plan.retained[i])
                     && matches!(func.value(arg), crate::mir::Value::Inst(_))
                     && !self.scheduler.spills.is_stored(arg)
                 {
@@ -3963,7 +4114,17 @@ impl<'gcx> EvmCodegen<'gcx> {
             }
         }
 
-        self.pop_all_stack_values();
+        if let Some(plan) = &retention_plan {
+            for &op in &plan.drain_ops {
+                self.emit_stack_op(op);
+            }
+            debug_assert_eq!(
+                self.scheduler.stack.depth(),
+                plan.retained.iter().filter(|&&retained| retained).count()
+            );
+        } else {
+            self.pop_all_stack_values();
+        }
         self.scheduler.clear_stack();
 
         self.asm.emit_push_label(return_label);
@@ -3972,9 +4133,17 @@ impl<'gcx> EvmCodegen<'gcx> {
         // stores them into its frame before its body runs.
         if let Some(mask) = &stack_mask {
             for (i, &arg) in args.iter().enumerate() {
-                if mask.contains(i) {
+                if mask.contains(i)
+                    && !retention_plan.as_ref().is_some_and(|plan| plan.retained[i])
+                {
                     self.emit_raw_stack_arg(func, arg);
                 }
+            }
+        }
+        if let Some(plan) = &retention_plan {
+            for &op in &plan.shuffle_ops {
+                debug_assert!(matches!(op, StackOp::Swap(_)));
+                self.asm.emit_op(op.opcode());
             }
         }
         self.asm.emit_push_label(callee_label);
