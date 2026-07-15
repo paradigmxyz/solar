@@ -74,10 +74,8 @@ impl MirInliner {
     /// Creates the `-O size` inliner: a module budget of zero disables all MIR
     /// inlining, which only ever grows emitted code on real contracts (both
     /// multi-use duplication and the cascades that single-call inlining sets
-    /// off were measured to increase size). Lowering-time inlining of tiny
-    /// single-return helpers is deliberately kept: the compiler's internal-call
-    /// protocol (memory frame setup) costs more bytes than those bodies, so
-    /// sharing them was measured to *increase* code size as well.
+    /// off were measured to increase size). Lowering-time inlining is disabled
+    /// independently; this zero budget also lets the MIR inliner skip analysis.
     #[must_use]
     pub(crate) fn for_size() -> Self {
         Self { max_module_code_size: 0, ..Self::default() }
@@ -134,15 +132,27 @@ impl MirInliner {
     /// Runs the inliner over the whole module.
     pub(crate) fn run(&mut self, module: &mut Module) -> MirInlineStats {
         let mut stats = MirInlineStats::default();
+
+        // A zero budget is an explicit off switch (used by `-O size`). Avoid
+        // summarizing the module or building its call graph when no call site
+        // can be accepted.
+        if self.config.max_module_code_size == 0 {
+            return stats;
+        }
+
         let mut summaries = self.summarize_module(module);
-        let mut call_counts = self.call_counts(module);
-        let recursive_functions = self.recursive_functions(module);
 
         // Size-aware backstop: inlining grows emitted code, so track the module's
         // estimated runtime bytecode and stop inlining once it reaches the budget,
         // keeping large contracts under the EIP-170 deployable-code limit. Small
         // contracts never reach the budget and inline normally.
         let mut module_code_size: usize = summaries.values().map(|s| s.estimated_code_size).sum();
+        if module_code_size >= self.config.max_module_code_size {
+            return stats;
+        }
+
+        let mut call_counts = self.call_counts(module);
+        let recursive_functions = self.recursive_functions(module);
 
         for caller_id in module.functions.indices().collect::<Vec<_>>() {
             let loop_depths = block_loop_depths(module.function(caller_id));
