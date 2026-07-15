@@ -29,6 +29,13 @@ jobs:
       - name: Checkout Solar
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
+      - name: Test common benchmark result adapter
+        run: |
+          python3 -m venv "$RUNNER_TEMP/schema-test"
+          "$RUNNER_TEMP/schema-test/bin/pip" install jsonschema==4.25.1
+          "$RUNNER_TEMP/schema-test/bin/python" -m unittest discover \
+            -s .github/scripts -p 'test_check_codegen_benchmark.py'
+
       - name: Checkout benchmark corpus
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
@@ -98,7 +105,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
-          if ! python3 ./solar_bench.py --verbose \
+          timing="$GITHUB_WORKSPACE/target/codegen-bench/micro-timing.json"
+          if /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
+            python3 ./solar_bench.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar "$GITHUB_WORKSPACE/target/debug/solar" \
             --suite micro \
@@ -107,6 +116,9 @@ jobs:
             --start-anvil \
             --allow-failures \
             --output "$GITHUB_WORKSPACE/target/codegen-bench/micro.json"; then
+            mv "$timing.tmp" "$timing"
+          else
+            rm -f "$timing.tmp"
             echo "::warning::Micro codegen benchmark failed to complete"
           fi
 
@@ -116,7 +128,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$GITHUB_WORKSPACE/target/codegen-bench"
-          if ! python3 ./solar_bench.py --verbose \
+          timing="$GITHUB_WORKSPACE/target/codegen-bench/repo-timing.json"
+          if /usr/bin/time -q -f '{"wall_time_seconds": %e}' -o "$timing.tmp" \
+            python3 ./solar_bench.py --verbose \
             --solc "$RUNNER_TEMP/solc/solc-${SOLC_VERSION}" \
             --solar "$GITHUB_WORKSPACE/target/debug/solar" \
             --suite repo \
@@ -125,18 +139,26 @@ jobs:
             --start-anvil \
             --allow-failures \
             --output "$GITHUB_WORKSPACE/target/codegen-bench/repo.json"; then
+            mv "$timing.tmp" "$timing"
+          else
+            rm -f "$timing.tmp"
             echo "::warning::Repository codegen benchmark failed to complete"
           fi
 
       - name: Generate runtime benchmark report
         id: runtime-report
         if: always()
+        env:
+          BENCHMARK_PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           mkdir -p target/codegen-bench
           args=(
             --micro target/codegen-bench/micro.json
             --repo target/codegen-bench/repo.json
+            --micro-timing target/codegen-bench/micro-timing.json
+            --repo-timing target/codegen-bench/repo-timing.json
+            --common-output target/codegen-bench/common.json
           )
           if [[ -f target/codegen-bench/baseline/micro.json ]]; then
             args+=(--baseline-micro target/codegen-bench/baseline/micro.json)
