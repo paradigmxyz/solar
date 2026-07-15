@@ -1,0 +1,46 @@
+// === ROOT/tests/ui/codegen/mir/outline_reverts.mir (after outline-reverts) ===
+; module @OutlineReverts
+fn @first(arg0: u256) {
+  bb0 (entry):
+    v0 = add arg0, 1
+    v1 = lt v0, arg0
+    br v1, bb1, bb2
+  bb1:
+    tail_call @__revert_stub0
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @second(arg0: u256) {
+  bb0 (entry):
+    v0 = mul arg0, 2
+    v1 = lt v0, arg0
+    br v1, bb1, bb2
+  bb1:
+    tail_call @__revert_stub0
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @third(arg0: u256) {
+  bb0 (entry):
+    v0 = sub arg0, 1
+    v1 = gt v0, arg0
+    br v1, bb1, bb2
+  bb1:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000
+    mstore 4, 18
+    revert 0, 36
+  bb2:
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @__revert_stub0() {
+  bb0 (entry):
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 17 !metadata(memory=scratch)
+    revert 0, 36
+}

@@ -1644,6 +1644,15 @@ impl<'gcx> Lowerer<'gcx> {
         func_id: hir::FunctionId,
         arg_vals: Vec<ValueId>,
     ) -> ValueId {
+        self.lower_internal_call_fallback_inner(builder, func_id, arg_vals)
+    }
+
+    fn lower_internal_call_fallback_inner(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        func_id: hir::FunctionId,
+        arg_vals: Vec<ValueId>,
+    ) -> ValueId {
         let func = self.gcx.hir.function(func_id);
         let result_ty = func
             .returns

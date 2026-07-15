@@ -45,7 +45,21 @@ impl LowerEvmShapedPass {
     }
 
     fn run(&mut self, module: &mut Module) -> bool {
+        self.stats = LowerEvmShapedStats::default();
         if module.phase >= MirPhase::EvmShaped {
+            return false;
+        }
+
+        // Dispatch already uses explicit tail calls. Most modules have no
+        // resultless internal call left to reshape, so avoid building a call
+        // graph and classifying every function in that common case.
+        let has_candidate = module.functions.iter().any(|func| {
+            func.instructions.iter().any(|inst| {
+                inst.result_ty.is_none() && matches!(inst.kind, InstKind::InternalCall { .. })
+            })
+        });
+        if !has_candidate {
+            module.advance_phase(MirPhase::EvmShaped);
             return false;
         }
 

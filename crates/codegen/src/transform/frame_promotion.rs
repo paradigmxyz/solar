@@ -569,6 +569,7 @@ impl FrameSlotPromoter {
             | InstKind::InternalCall { .. }
             | InstKind::Create(_, _, _)
             | InstKind::Create2(_, _, _, _)
+            | InstKind::MappingSlotMemory(_, _)
             | InstKind::MSize => true,
             _ => false,
         }

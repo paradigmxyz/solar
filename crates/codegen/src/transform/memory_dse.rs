@@ -43,6 +43,58 @@ enum MemAddrKey {
     BaseOffset { base: ValueId, offset: u64 },
 }
 
+/// Above this many tracked live slots the backward DSE gives up precision and
+/// treats all memory as live. Keeps the lattice height (and cost) bounded.
+const MEM_LIVE_CAP: usize = 64;
+
+/// Backward memory-liveness lattice over constant word-aligned slots.
+///
+/// `All` is the conservative top: any address may be observed. `Only` names the
+/// exact slots that may be read before the next full-word overwrite; every
+/// other slot is provably dead if overwritten.
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum MemLive {
+    All,
+    Only(FxHashSet<u64>),
+}
+
+impl MemLive {
+    fn contains(&self, addr: u64) -> bool {
+        match self {
+            Self::All => true,
+            Self::Only(set) => set.contains(&addr),
+        }
+    }
+
+    fn add_addr(&mut self, addr: u64) {
+        if let Self::Only(set) = self {
+            set.insert(addr);
+            if set.len() > MEM_LIVE_CAP {
+                *self = Self::All;
+            }
+        }
+    }
+
+    fn kill(&mut self, addr: u64) {
+        if let Self::Only(set) = self {
+            set.remove(&addr);
+        }
+    }
+
+    fn join(&mut self, other: &Self) {
+        match (&mut *self, other) {
+            (Self::All, _) => {}
+            (this, Self::All) => *this = Self::All,
+            (Self::Only(a), Self::Only(b)) => {
+                a.extend(b.iter().copied());
+                if a.len() > MEM_LIVE_CAP {
+                    *self = Self::All;
+                }
+            }
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 struct ImmutableCopyKey {
     len: u64,
@@ -66,16 +118,243 @@ impl MemoryStoreEliminator {
     pub fn run(&mut self, func: &mut Function) -> usize {
         self.eliminated_count = 0;
 
-        self.reuse_redundant_immutable_copies(func);
+        let needs_inst_results = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                matches!(
+                    func.instructions[inst_id].kind,
+                    InstKind::MLoad(_) | InstKind::Keccak256(_, _)
+                )
+            })
+        });
+        let inst_results =
+            if needs_inst_results { func.inst_results() } else { FxHashMap::default() };
+
+        self.reuse_redundant_immutable_copies(func, &inst_results);
         self.remove_unused_internal_frame_stores(func);
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
-        for block_id in block_ids {
-            self.process_block(func, block_id);
+        let has_precise_reads = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                Self::constant_range_read(&func.instructions[inst_id].kind).is_some()
+            })
+        });
+        if has_precise_reads {
+            for block_id in block_ids {
+                self.process_block::<true>(func, block_id, &inst_results);
+            }
+        } else {
+            for block_id in block_ids {
+                self.process_block::<false>(func, block_id, &inst_results);
+            }
         }
+        self.remove_cross_block_equal_const_stores(func);
         self.remove_cross_block_overwrites(func);
+        self.remove_dead_memory_stores(func);
 
         self.eliminated_count
+    }
+
+    /// Removes full-word stores to a constant, word-aligned address that no
+    /// path can observe before overwriting the same address.
+    ///
+    /// The block-local and single-edge passes above miss the dead default-init
+    /// a boolean-returning entry stages into its return slot (`mstore(A, 0)`)
+    /// when the real store (`mstore(A, 1)`) sits past a checked-arithmetic
+    /// branch, in a different block. This is a backward memory-liveness
+    /// dataflow over constant word-aligned slots: a slot is live where a later
+    /// read may observe it before the next full-word overwrite.
+    ///
+    /// Soundness rests on modelling every way a stored value can still be read:
+    /// an in-range constant read (`mload`/keccak/log/`returndata`/`revert`)
+    /// keeps its slots live; anything that could observe or forward arbitrary
+    /// memory — a symbolic address, a non-constant range, a call, a `return`
+    /// (whose value may be a memory pointer the caller dereferences), a tail
+    /// call, `msize` — widens to all-memory-live, which only ever keeps a
+    /// store, never drops a live one.
+    fn remove_dead_memory_stores(&mut self, func: &mut Function) {
+        if !func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if Self::word_aligned_const(func, addr).is_some())
+            })
+        }) {
+            return;
+        }
+
+        let block_ids: Vec<BlockId> = func.blocks.indices().collect();
+        if block_ids.is_empty() {
+            return;
+        }
+
+        // Backward fixpoint: live_in[b] = transfer(b, ∪ live_in[succ(b)]).
+        // Liveness only grows, so stopping early would under-approximate it and
+        // could mark a live store dead; require real convergence, else bail.
+        let mut live_in: FxHashMap<BlockId, MemLive> =
+            block_ids.iter().map(|&b| (b, MemLive::Only(FxHashSet::default()))).collect();
+        let mut converged = false;
+        for _ in 0..(block_ids.len() * 4 + 16) {
+            let mut changed = false;
+            for &block_id in block_ids.iter().rev() {
+                let out = Self::live_out(func, block_id, &live_in);
+                let new_in = Self::transfer_block(func, block_id, out, &mut None);
+                if live_in.get(&block_id) != Some(&new_in) {
+                    live_in.insert(block_id, new_in);
+                    changed = true;
+                }
+            }
+            if !changed {
+                converged = true;
+                break;
+            }
+        }
+        if !converged {
+            return;
+        }
+
+        // Collect dead stores using the stabilized live-out of each block.
+        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        for &block_id in &block_ids {
+            let out = Self::live_out(func, block_id, &live_in);
+            let mut collector = Some(&mut dead);
+            Self::transfer_block(func, block_id, out, &mut collector);
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+        self.eliminated_count += dead.len();
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|id| !dead.contains(id));
+        }
+    }
+
+    fn live_out(func: &Function, block: BlockId, live_in: &FxHashMap<BlockId, MemLive>) -> MemLive {
+        let mut out = MemLive::Only(FxHashSet::default());
+        if let Some(term) = func.blocks[block].terminator.as_ref() {
+            for succ in term.successors() {
+                if let Some(in_set) = live_in.get(&succ) {
+                    out.join(in_set);
+                }
+            }
+        }
+        out
+    }
+
+    /// Runs the backward transfer over one block's terminator and instructions,
+    /// returning the live set at block entry. When `dead` is `Some`, records the
+    /// full-word constant stores found dead against the flowing live set.
+    fn transfer_block(
+        func: &Function,
+        block: BlockId,
+        mut live: MemLive,
+        dead: &mut Option<&mut FxHashSet<InstId>>,
+    ) -> MemLive {
+        // Terminator first: it executes after every instruction in the block.
+        match func.blocks[block].terminator.as_ref() {
+            Some(Terminator::Revert { offset, size })
+            | Some(Terminator::ReturnData { offset, size }) => {
+                Self::mark_read(func, &mut live, *offset, *size);
+            }
+            // A `return` value may be a memory pointer the caller dereferences,
+            // a tail call forwards memory to its callee, and a halt observes
+            // nothing but is rare — keep all memory live rather than reason
+            // about escape. `jump`/`branch`/`switch` read no memory; their
+            // successors already contribute liveness via `live_out`.
+            Some(Terminator::Return { .. })
+            | Some(Terminator::TailCall { .. })
+            | Some(Terminator::Stop)
+            | Some(Terminator::Invalid)
+            | Some(Terminator::SelfDestruct { .. }) => live = MemLive::All,
+            Some(Terminator::Jump(_))
+            | Some(Terminator::Branch { .. })
+            | Some(Terminator::Switch { .. })
+            | None => {}
+        }
+
+        for &inst_id in func.blocks[block].instructions.iter().rev() {
+            match &func.instructions[inst_id].kind {
+                InstKind::MStore(addr, _) => {
+                    if let Some(slot) = Self::word_aligned_const(func, *addr) {
+                        if !live.contains(slot)
+                            && let Some(dead) = dead.as_mut()
+                        {
+                            dead.insert(inst_id);
+                        }
+                        // The store fully defines `slot`; nothing above it on
+                        // this path can be observed here.
+                        live.kill(slot);
+                    }
+                    // A symbolic store neither reads nor provably overwrites a
+                    // tracked slot: leave the live set untouched.
+                }
+                InstKind::MLoad(addr) => match Self::word_aligned_const(func, *addr) {
+                    Some(slot) => live.add_addr(slot),
+                    None => live = MemLive::All,
+                },
+                InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
+                    Self::mark_read(func, &mut live, *offset, *size);
+                }
+                InstKind::Log1(offset, size, _) => {
+                    Self::mark_read(func, &mut live, *offset, *size);
+                }
+                InstKind::Log2(offset, size, _, _) => {
+                    Self::mark_read(func, &mut live, *offset, *size);
+                }
+                InstKind::Log3(offset, size, _, _, _) => {
+                    Self::mark_read(func, &mut live, *offset, *size);
+                }
+                InstKind::Log4(offset, size, _, _, _, _) => {
+                    Self::mark_read(func, &mut live, *offset, *size);
+                }
+                // Byte stores never fully define a word (so cannot make an
+                // earlier store dead) and read nothing: leave the set as is.
+                InstKind::MStore8(_, _) => {}
+                // Anything that may read or alias memory we cannot model
+                // precisely: assume it observes everything above.
+                kind if Self::is_memory_or_gas_observer(kind) => live = MemLive::All,
+                _ => {}
+            }
+        }
+
+        live
+    }
+
+    /// Marks the word-aligned slots a constant memory read `[offset, offset +
+    /// size)` may observe as live; a non-constant or oversized range widens to
+    /// all-memory-live.
+    fn mark_read(func: &Function, live: &mut MemLive, offset: ValueId, size: ValueId) {
+        if matches!(live, MemLive::All) {
+            return;
+        }
+        let (Some(offset), Some(size)) = (func.value_u64(offset), func.value_u64(size)) else {
+            *live = MemLive::All;
+            return;
+        };
+        if size == 0 {
+            return;
+        }
+        let Some(end) = offset.checked_add(size) else {
+            *live = MemLive::All;
+            return;
+        };
+        let first = (offset / 32) * 32;
+        // Bound the walk; a huge read is treated as observing all memory.
+        if end.saturating_sub(first) > 32 * 256 {
+            *live = MemLive::All;
+            return;
+        }
+        let mut word = first;
+        while word < end {
+            live.add_addr(word);
+            word += 32;
+        }
+    }
+
+    /// Returns a constant, 32-byte-aligned memory address, or `None` otherwise.
+    fn word_aligned_const(func: &Function, addr: ValueId) -> Option<u64> {
+        match Self::mem_addr_key(func, addr) {
+            Some(MemAddrKey::Const(a)) if a % 32 == 0 => Some(a),
+            _ => None,
+        }
     }
 
     /// Runs local memory optimization until no more instructions can be eliminated.
@@ -91,8 +370,21 @@ impl MemoryStoreEliminator {
         total
     }
 
-    fn reuse_redundant_immutable_copies(&mut self, func: &mut Function) {
-        let inst_results = func.inst_results();
+    fn reuse_redundant_immutable_copies(
+        &mut self,
+        func: &mut Function,
+        inst_results: &FxHashMap<InstId, ValueId>,
+    ) {
+        let has_candidate = func.blocks.iter().any(|block| {
+            block.instructions.windows(2).any(|window| {
+                matches!(func.instructions[window[0]].kind, InstKind::CodeCopy(_, _, _))
+                    && matches!(func.instructions[window[1]].kind, InstKind::MLoad(_))
+            })
+        });
+        if !has_candidate {
+            return;
+        }
+
         let cfg = CfgInfo::new(func);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
@@ -150,6 +442,14 @@ impl MemoryStoreEliminator {
     }
 
     fn remove_unused_internal_frame_stores(&mut self, func: &mut Function) {
+        let has_candidate = func.blocks.iter().any(|block| {
+            block.instructions.iter().any(|&inst_id| {
+                matches!(func.instructions[inst_id].kind, InstKind::MStore(addr, _) if Self::internal_frame_offset(func, addr).is_some())
+            })
+        });
+        if !has_candidate {
+            return;
+        }
         if Self::has_frame_observer(func) {
             return;
         }
@@ -185,10 +485,44 @@ impl MemoryStoreEliminator {
         }
     }
 
-    fn process_block(&mut self, func: &mut Function, block_id: BlockId) {
-        self.fold_constant_keccak(func, block_id);
-        self.forward_loads(func, block_id);
-        self.remove_equal_stores(func, block_id);
+    fn process_block<const PRECISE_READS: bool>(
+        &mut self,
+        func: &mut Function,
+        block_id: BlockId,
+        inst_results: &FxHashMap<InstId, ValueId>,
+    ) {
+        let mut mstores = 0;
+        let mut memory_writes = 0;
+        let mut has_load = false;
+        let mut has_keccak = false;
+        for &inst_id in &func.blocks[block_id].instructions {
+            match func.instructions[inst_id].kind {
+                InstKind::MStore(_, _) => {
+                    mstores += 1;
+                    memory_writes += 1;
+                }
+                InstKind::CalldataCopy(_, _, _)
+                | InstKind::CodeCopy(_, _, _)
+                | InstKind::ReturnDataCopy(_, _, _)
+                | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
+                InstKind::MLoad(_) => has_load = true,
+                InstKind::Keccak256(_, _) => has_keccak = true,
+                _ => {}
+            }
+        }
+
+        if has_keccak && mstores != 0 {
+            self.fold_constant_keccak(func, block_id, inst_results);
+        }
+        if has_load && mstores != 0 {
+            self.forward_loads(func, block_id, inst_results);
+        }
+        if mstores >= 2 {
+            self.remove_equal_stores(func, block_id);
+        }
+        if memory_writes < 2 {
+            return;
+        }
 
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut overwritten: FxHashSet<MemAddrKey> = FxHashSet::default();
@@ -234,6 +568,22 @@ impl MemoryStoreEliminator {
                         *size,
                     );
                 }
+                // Keccak and logs only *read* memory. A read over a constant
+                // range observes only the stores that fall in it, so a later
+                // overwrite of a disjoint slot still kills its earlier store.
+                // Modelling the range (instead of clearing) lets a return-value
+                // slot's dead default-init survive the mapping-hash keccaks and
+                // event logs that sit between it and its real store.
+                kind if PRECISE_READS
+                    && let Some((offset, size)) = Self::constant_range_read(kind) =>
+                {
+                    Self::retain_overwritten_disjoint_from_read(
+                        func,
+                        &mut overwritten,
+                        offset,
+                        size,
+                    );
+                }
                 kind if Self::is_memory_or_gas_observer(kind) => {
                     overwritten.clear();
                 }
@@ -248,7 +598,139 @@ impl MemoryStoreEliminator {
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
     }
 
+    fn constant_range_read(kind: &InstKind) -> Option<(ValueId, ValueId)> {
+        match kind {
+            InstKind::Keccak256(offset, size)
+            | InstKind::Log0(offset, size)
+            | InstKind::Log1(offset, size, _)
+            | InstKind::Log2(offset, size, _, _)
+            | InstKind::Log3(offset, size, _, _, _)
+            | InstKind::Log4(offset, size, _, _, _, _) => Some((*offset, *size)),
+            _ => None,
+        }
+    }
+
+    /// Keeps only the overwritten slots a constant-range memory read cannot
+    /// observe. A slot provably outside `[offset, offset + size)` survives; a
+    /// non-constant range or a symbolic slot is assumed observed (dropped),
+    /// which only ever keeps a store alive — never eliminates a live one.
+    fn retain_overwritten_disjoint_from_read(
+        func: &Function,
+        overwritten: &mut FxHashSet<MemAddrKey>,
+        offset: ValueId,
+        size: ValueId,
+    ) {
+        let (Some(read_offset), Some(read_size)) = (func.value_u64(offset), func.value_u64(size))
+        else {
+            overwritten.clear();
+            return;
+        };
+        if read_size == 0 {
+            return;
+        }
+        overwritten.retain(|&key| match key {
+            MemAddrKey::Const(addr) => !mir_utils::ranges_overlap(addr, 32, read_offset, read_size),
+            MemAddrKey::BaseOffset { .. } => false,
+        });
+    }
+
+    /// Removes constant stores made redundant by a constant store on the sole
+    /// path into the block.
+    ///
+    /// Mapping-slot staging writes the slot constant to scratch `0x20` before
+    /// every access; two accesses to the same mapping restage the identical
+    /// constant, but the checked-arithmetic underflow branch between them puts
+    /// the stores in separate blocks, out of the block-local pass's reach.
+    /// Only constant address and constant value are tracked, so availability
+    /// needs no SSA reasoning: a single-predecessor block inherits its
+    /// predecessor's exit constants, and a store matching one is dead.
+    fn remove_cross_block_equal_const_stores(&mut self, func: &mut Function) {
+        if func
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
+            .take(2)
+            .count()
+            < 2
+        {
+            return;
+        }
+
+        let const_store = |func: &Function, addr: ValueId, value: ValueId| {
+            let (Value::Immediate(a), Value::Immediate(v)) = (func.value(addr), func.value(value))
+            else {
+                return None;
+            };
+            Some((a.as_u256()?.try_into().ok()?, v.as_u256()?))
+        };
+
+        let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
+        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+
+        // Block index order approximates reverse postorder for this builder,
+        // so a single predecessor is usually already computed; when it is not,
+        // the block simply starts from no known constants.
+        for block_id in func.blocks.indices() {
+            let preds = &func.blocks[block_id].predecessors;
+            let mut known: FxHashMap<u64, U256> = match preds.as_slice() {
+                [pred] => exit.get(pred).cloned().unwrap_or_default(),
+                _ => FxHashMap::default(),
+            };
+
+            for &inst_id in &func.blocks[block_id].instructions {
+                match &func.instructions[inst_id].kind {
+                    InstKind::MStore(addr, value) => match const_store(func, *addr, *value) {
+                        Some((a, v)) => {
+                            if known.get(&a) == Some(&v) {
+                                dead.insert(inst_id);
+                                self.eliminated_count += 1;
+                            } else {
+                                known.insert(a, v);
+                            }
+                        }
+                        None => match Self::mem_addr_key(func, *addr) {
+                            // A non-constant value written to a constant scratch
+                            // slot makes its contents unknown.
+                            Some(MemAddrKey::Const(a)) => {
+                                known.remove(&a);
+                            }
+                            // An address we cannot pin could alias anything.
+                            _ => known.clear(),
+                        },
+                    },
+                    kind if Self::can_mutate_memory(kind) => known.clear(),
+                    // A byte store may touch any slot.
+                    InstKind::MStore8(_, _) => known.clear(),
+                    // Loads and keccak read memory but never write it.
+                    _ => {}
+                }
+            }
+
+            exit.insert(block_id, known);
+        }
+
+        if dead.is_empty() {
+            return;
+        }
+        for block in func.blocks.iter_mut() {
+            block.instructions.retain(|id| !dead.contains(id));
+        }
+    }
+
     fn remove_cross_block_overwrites(&mut self, func: &mut Function) {
+        if func
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .filter(|&&inst_id| matches!(func.instructions[inst_id].kind, InstKind::MStore(_, _)))
+            .take(2)
+            .count()
+            < 2
+        {
+            return;
+        }
+
         let mut dead = FxHashSet::default();
 
         for pred in func.blocks.indices() {
@@ -316,9 +798,13 @@ impl MemoryStoreEliminator {
         None
     }
 
-    fn fold_constant_keccak(&mut self, func: &mut Function, block_id: BlockId) {
+    fn fold_constant_keccak(
+        &mut self,
+        func: &mut Function,
+        block_id: BlockId,
+        inst_results: &FxHashMap<InstId, ValueId>,
+    ) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = func.inst_results();
         let mut stored_words: FxHashMap<MemAddrKey, U256> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
@@ -404,9 +890,13 @@ impl MemoryStoreEliminator {
         func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
     }
 
-    fn forward_loads(&mut self, func: &mut Function, block_id: BlockId) {
+    fn forward_loads(
+        &mut self,
+        func: &mut Function,
+        block_id: BlockId,
+        inst_results: &FxHashMap<InstId, ValueId>,
+    ) {
         let inst_ids = func.blocks[block_id].instructions.clone();
-        let inst_results = func.inst_results();
         let mut stored_values: FxHashMap<MemAddrKey, ValueId> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
         let mut dead: FxHashSet<InstId> = FxHashSet::default();
@@ -741,6 +1231,7 @@ impl MemoryStoreEliminator {
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _)
                 | InstKind::Keccak256(_, _)
+                | InstKind::MappingSlotMemory(_, _)
                 | InstKind::Call { .. }
                 | InstKind::StaticCall { .. }
                 | InstKind::DelegateCall { .. }
@@ -777,6 +1268,11 @@ impl MemoryStoreEliminator {
                         if let Some(offset) = Self::internal_frame_offset(func, addr) {
                             reads.push((offset, 32));
                         }
+                    }
+                    InstKind::MappingSlotMemory(ptr, _)
+                        if Self::internal_frame_offset(func, ptr).is_some() =>
+                    {
+                        return None;
                     }
                     InstKind::Keccak256(offset, size)
                     | InstKind::Log0(offset, size)
@@ -934,6 +1430,142 @@ mod tests {
             panic!("expected return terminator");
         };
         assert_eq!(values.as_slice(), &[zero]);
+    }
+
+    #[test]
+    fn dead_store_survives_disjoint_keccak_read() {
+        // mstore(128, 0); keccak256(0, 64); mstore(128, 1) — the keccak reads
+        // scratch [0, 64), disjoint from 128, so the default-init store is dead.
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let slot = builder.imm_u64(128);
+        let zero = builder.imm_u64(0);
+        let one = builder.imm_u64(1);
+        let size = builder.imm_u64(64);
+        builder.mstore(slot, zero);
+        builder.keccak256(zero, size);
+        builder.mstore(slot, one);
+        builder.stop();
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run(&mut func), 1);
+        // The keccak and the surviving store remain.
+        assert_eq!(func.blocks[func.entry_block].instructions.len(), 2);
+    }
+
+    #[test]
+    fn overlapping_keccak_read_blocks_store_elimination() {
+        // The keccak reads [96, 160), which covers 128, so the earlier store is
+        // observed and must be kept.
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let slot = builder.imm_u64(128);
+        let read_start = builder.imm_u64(96);
+        let zero = builder.imm_u64(0);
+        let one = builder.imm_u64(1);
+        let size = builder.imm_u64(64);
+        builder.mstore(slot, zero);
+        builder.keccak256(read_start, size);
+        builder.mstore(slot, one);
+        builder.stop();
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run(&mut func), 0);
+        assert_eq!(func.blocks[func.entry_block].instructions.len(), 3);
+    }
+
+    #[test]
+    fn removes_cross_block_dead_store_over_branch() {
+        // entry: mstore(128, 0); br cond, hot, cold
+        // cold:  revert(0, 0)                  — never reads 128
+        // hot:   mstore(128, 1); returndata(128, 32)
+        // The default-init in entry is dead: every path either reverts (reads
+        // only [0,0)) or overwrites 128 before the returndata reads it.
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let slot = builder.imm_u64(128);
+        let zero = builder.imm_u64(0);
+        let one = builder.imm_u64(1);
+        let word = builder.imm_u64(32);
+        let cond = builder.add_param(crate::mir::MirType::uint256());
+        let hot = builder.create_block();
+        let cold = builder.create_block();
+        builder.mstore(slot, zero);
+        builder.branch(cond, hot, cold);
+
+        builder.switch_to_block(cold);
+        builder.revert(zero, zero);
+
+        builder.switch_to_block(hot);
+        builder.mstore(slot, one);
+        builder.ret_data(slot, word);
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run_to_fixpoint(&mut func), 1);
+        let entry_stores = func.blocks[func.entry_block]
+            .instructions
+            .iter()
+            .filter(|&&id| matches!(func.instructions[id].kind, InstKind::MStore(_, _)))
+            .count();
+        assert_eq!(entry_stores, 0);
+    }
+
+    #[test]
+    fn keeps_cross_block_store_read_on_one_path() {
+        // entry: mstore(128, 7); br cond, reader, writer
+        // reader: returndata(128, 32)          — observes the entry store
+        // writer: mstore(128, 9); returndata(128, 32)
+        // The entry store is live on the reader path and must survive.
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let slot = builder.imm_u64(128);
+        let seven = builder.imm_u64(7);
+        let nine = builder.imm_u64(9);
+        let word = builder.imm_u64(32);
+        let cond = builder.add_param(crate::mir::MirType::uint256());
+        let reader = builder.create_block();
+        let writer = builder.create_block();
+        builder.mstore(slot, seven);
+        builder.branch(cond, reader, writer);
+
+        builder.switch_to_block(reader);
+        builder.ret_data(slot, word);
+
+        builder.switch_to_block(writer);
+        builder.mstore(slot, nine);
+        builder.ret_data(slot, word);
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run_to_fixpoint(&mut func), 0);
+        let entry_stores = func.blocks[func.entry_block]
+            .instructions
+            .iter()
+            .filter(|&&id| matches!(func.instructions[id].kind, InstKind::MStore(_, _)))
+            .count();
+        assert_eq!(entry_stores, 1);
+    }
+
+    #[test]
+    fn keeps_store_before_return_pointer() {
+        // A value returned to an internal caller may be a memory pointer, so a
+        // store cannot be assumed dead just because this function never reads it
+        // back. `ret` (Terminator::Return) must keep memory live.
+        let mut func = test_func();
+        let mut builder = FunctionBuilder::new(&mut func);
+        let buffer = builder.imm_u64(160);
+        let ptr = builder.imm_u64(160);
+        let payload = builder.imm_u64(42);
+        builder.mstore(buffer, payload);
+        builder.ret(vec![ptr]);
+
+        let mut pass = MemoryStoreEliminator::new();
+        assert_eq!(pass.run_to_fixpoint(&mut func), 0);
+        let stores = func.blocks[func.entry_block]
+            .instructions
+            .iter()
+            .filter(|&&id| matches!(func.instructions[id].kind, InstKind::MStore(_, _)))
+            .count();
+        assert_eq!(stores, 1);
     }
 
     #[test]

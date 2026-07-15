@@ -2,28 +2,12 @@
 ; module @LowerAbi [phase = abi]
 fn @add() {
   bb0 (entry):
-    v1 = calldataload 4
-    v2 = calldataload 36
-    v0 = add v1, v2
-    mstore 128, v0
-    returndata 128, 32
-}
-
-fn @flag() {
-  bb0 (entry):
-    v0 = calldataload 4
-    mstore 128, v0
-    returndata 128, 32
-}
-
-fn @add.body(arg0: u256, arg1: u256) {
-  bb0 (entry):
     v0 = add arg0, arg1
     mstore 128, v0
     returndata 128, 32
 }
 
-fn @flag.body(arg0: bool) {
+fn @flag() {
   bb0 (entry):
     mstore 128, arg0
     returndata 128, 32

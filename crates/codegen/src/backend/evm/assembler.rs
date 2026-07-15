@@ -7,12 +7,23 @@
 
 use crate::mir::IMMUTABLE_WORD_SIZE;
 use alloy_primitives::U256;
+use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
 
 const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
-const MIN_COMPACT_MASK_WIDTH: u8 = EVM_WORD_BYTES as u8 / 2;
+// The synthesized mask is 5 bytes on Shanghai (6 before), and `compact_push`
+// only picks it when strictly smaller than the literal, so any mask of five
+// or more bytes can profit: a `uint64` timestamp mask alone is 9 bytes as a
+// literal.
+const MIN_COMPACT_MASK_WIDTH: u8 = 5;
+
+/// Shortest closed run worth outlining into a shared stub.
+const MIN_CLOSED_RUN: usize = 4;
+
+/// A closed-run occurrence: `(start index, length, net stack height)`.
+type ClosedRunSite = (usize, usize, u16);
 
 mod id_counter;
 use id_counter::IdCounter;
@@ -87,6 +98,10 @@ pub struct Assembler {
     next_deferred: IdCounter<DeferredConst>,
     /// Resolved values for deferred constants.
     deferred_values: FxHashMap<DeferredConst, U256>,
+    /// Whether to run structural outlining that changes the emitted length in
+    /// content-dependent ways. Off for constructor code, whose argument offset
+    /// is resolved by a separate length fixpoint that such passes would break.
+    run_structural_outlining: bool,
 }
 
 impl Assembler {
@@ -106,7 +121,13 @@ impl Assembler {
             next_label: IdCounter::new(),
             next_deferred: IdCounter::new(),
             deferred_values: FxHashMap::default(),
+            run_structural_outlining: false,
         }
+    }
+
+    /// Enables or disables structural outlining for the next `assemble`.
+    pub(in crate::backend::evm) fn set_structural_outlining(&mut self, enabled: bool) {
+        self.run_structural_outlining = enabled;
     }
 
     /// Clears all emitted instructions and local identifiers while retaining allocated storage.
@@ -183,6 +204,523 @@ impl Assembler {
         *self.push_values.get(index)
     }
 
+    /// Threads jump references through pure `label: PUSH2 target JUMP` thunks so
+    /// the thunks become unreferenced and the dedup chain deletes them. Runtime
+    /// only: it changes the emitted length, which the constructor's argument
+    /// offset fixpoint would not track.
+    fn thread_jump_thunks(instructions: &mut [AsmInst]) -> bool {
+        let mut thunks: FxHashMap<Label, Label> = FxHashMap::default();
+        for window in instructions.windows(3) {
+            if let AsmInstKind::Label(label) = window[0].kind()
+                && let AsmInstKind::PushLabel(target) = window[1].kind()
+                && matches!(window[2].kind(), AsmInstKind::Op(op::JUMP))
+                && label != target
+            {
+                thunks.insert(label, target);
+            }
+        }
+        if thunks.is_empty() {
+            return false;
+        }
+        let resolve = |mut label: Label| {
+            let mut hops = 0;
+            while let Some(&next) = thunks.get(&label) {
+                label = next;
+                hops += 1;
+                if hops > thunks.len() {
+                    break;
+                }
+            }
+            label
+        };
+        let mut changed = false;
+        for inst in instructions.iter_mut() {
+            if let AsmInstKind::PushLabel(label) = inst.kind() {
+                let target = resolve(label);
+                if target != label {
+                    *inst = AsmInst::push_label(target);
+                    changed = true;
+                }
+            }
+        }
+        changed
+    }
+
+    /// Removes instruction runs that can never execute: code following an
+    /// unconditional control transfer with no label to enter it. Thunk
+    /// threading and fallthrough-elided jumps leave such corpses behind (the
+    /// `PUSH2 target JUMP` body of a threaded thunk whose label was dropped
+    /// still occupies bytes). Removing the run also drops its outgoing label
+    /// references, letting the unreferenced-label pass cascade. Runtime only,
+    /// like the other length-changing cleanups.
+    fn remove_unreachable_code(instructions: &mut Vec<AsmInst>) -> bool {
+        let is_terminator = |inst: &AsmInst| {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::JUMP | op::RETURN | op::REVERT | op::STOP | op::INVALID | op::SELFDESTRUCT
+                )
+            )
+        };
+        let before = instructions.len();
+        let mut reachable = true;
+        instructions.retain(|inst| {
+            if matches!(inst.kind(), AsmInstKind::Label(_)) {
+                reachable = true;
+                return true;
+            }
+            let keep = reachable;
+            if keep && is_terminator(inst) {
+                reachable = false;
+            }
+            keep
+        });
+        instructions.len() != before
+    }
+
+    /// Shares one `revert(0, 0)` stub by inverting the branches that skip it.
+    ///
+    /// A failed check compiles as `PUSH2 cont JUMPI; PUSH0 DUP1 REVERT; cont:`
+    /// — a three-byte stub per site, reached by fallthrough (so span dedup
+    /// cannot merge it). Inverting the condition makes every site jump to one
+    /// shared stub: `ISZERO PUSH2 shared JUMPI` falls through into `cont`. The
+    /// inserted `ISZERO` folds with an existing negation in the later peephole
+    /// (`ISZERO ISZERO <label> JUMPI -> <label> JUMPI`), so already-inverted
+    /// checks get the stub removed for free. Runtime-only: constructor code
+    /// resolves its argument offset with a separate length fixpoint that a
+    /// content-dependent length change would break.
+    fn invert_branches_over_empty_reverts(&mut self, instructions: &mut Vec<AsmInst>) {
+        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+            return;
+        }
+        let is_zero_push = |inst: AsmInst| matches!(inst.kind(), AsmInstKind::PushInline(0));
+        let mut shared: Option<Label> = None;
+        let mut alias: FxHashMap<Label, Label> = FxHashMap::default();
+        let mut out = Vec::with_capacity(instructions.len());
+        let mut i = 0;
+        while i < instructions.len() {
+            if let AsmInstKind::PushLabel(cont) = instructions[i].kind()
+                && i + 1 < instructions.len()
+                && matches!(instructions[i + 1].kind(), AsmInstKind::Op(op::JUMPI))
+            {
+                let mut j = i + 2;
+                let stub_label = if j < instructions.len()
+                    && let AsmInstKind::Label(stub) = instructions[j].kind()
+                {
+                    j += 1;
+                    Some(stub)
+                } else {
+                    None
+                };
+                if j + 3 < instructions.len()
+                    && is_zero_push(instructions[j])
+                    && matches!(instructions[j + 1].kind(), AsmInstKind::Op(d) if d == op::DUP1)
+                    && matches!(instructions[j + 2].kind(), AsmInstKind::Op(op::REVERT))
+                    && matches!(instructions[j + 3].kind(), AsmInstKind::Label(l) if l == cont)
+                {
+                    let target = *shared.get_or_insert_with(|| self.new_label());
+                    if let Some(stub) = stub_label {
+                        alias.insert(stub, target);
+                    }
+                    out.push(AsmInst::op(op::ISZERO));
+                    out.push(AsmInst::push_label(target));
+                    out.push(AsmInst::op(op::JUMPI));
+                    i = j + 3;
+                    continue;
+                }
+            }
+            out.push(instructions[i]);
+            i += 1;
+        }
+        let Some(target) = shared else { return };
+        out.push(AsmInst::label(target));
+        out.push(AsmInst::push_inline(0).unwrap());
+        out.push(AsmInst::op(op::DUP1));
+        out.push(AsmInst::op(op::REVERT));
+        if !alias.is_empty() {
+            for inst in out.iter_mut() {
+                if let AsmInstKind::PushLabel(label) = inst.kind()
+                    && let Some(&rep) = alias.get(&label)
+                {
+                    *inst = AsmInst::push_label(rep);
+                }
+            }
+        }
+        *instructions = out;
+    }
+
+    /// Merges identical terminal suffixes of distinct spans.
+    ///
+    /// Function epilogues repeat: `LOG3 ... MSTORE ... RETURN` tails compile
+    /// identically for every `approve`-shaped function, but the spans differ
+    /// earlier, so whole-span dedup cannot merge them. An identical
+    /// instruction suffix behaves as a function of the stack it consumes —
+    /// each predecessor supplies its own values positionally, exactly as the
+    /// inlined copy would have — so a duplicate suffix can be cut and replaced
+    /// with a jump into the representative's tail at a freshly inserted label.
+    /// Suffixes containing label definitions are never merged, and a cut only
+    /// happens when the suffix's conservative emitted size (pushes counted as
+    /// two bytes) exceeds the jump that replaces it.
+    fn merge_terminal_suffixes(&mut self, instructions: &mut Vec<AsmInst>) -> bool {
+        if self.config.optimization == OptimizationMode::None {
+            return false;
+        }
+        fn is_terminal(inst: AsmInst) -> bool {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID | op::SELFDESTRUCT,
+                )
+            )
+        }
+        fn lower_bound(insts: &[AsmInst]) -> usize {
+            insts
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum()
+        }
+
+        // Terminal spans: label .. first terminal, with no label inside.
+        let mut spans = SmallVec::<[(usize, usize); 16]>::new();
+        let mut i = 0;
+        while i < instructions.len() {
+            if let AsmInstKind::Label(_) = instructions[i].kind() {
+                let mut j = i + 1;
+                while j < instructions.len() {
+                    if matches!(instructions[j].kind(), AsmInstKind::Label(_)) {
+                        break;
+                    }
+                    if is_terminal(instructions[j]) {
+                        spans.push((i + 1, j));
+                        break;
+                    }
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+
+        // Greedy: each span merges into the earlier span sharing its longest
+        // terminal suffix, when that suffix outweighs the jump plus the
+        // representative's inserted `JUMPDEST`.
+        let mut reps = SmallVec::<[(usize, usize); 16]>::new();
+        // (span_start, span_end, rep_index, suffix_len)
+        let mut merges = SmallVec::<[(usize, usize, usize, usize); 8]>::new();
+        for &(start, end) in &spans {
+            let body = &instructions[start..=end];
+            let mut best: Option<(usize, usize)> = None;
+            for (rep_idx, &(rep_start, rep_end)) in reps.iter().enumerate() {
+                let rep_body = &instructions[rep_start..=rep_end];
+                let max = body.len().min(rep_body.len());
+                let mut common = 0;
+                while common < max
+                    && body[body.len() - 1 - common] == rep_body[rep_body.len() - 1 - common]
+                {
+                    common += 1;
+                }
+                if common > best.map_or(0, |(_, len)| len) {
+                    best = Some((rep_idx, common));
+                }
+            }
+            if let Some((rep_idx, common)) = best
+                && lower_bound(&body[body.len() - common..]) > 5
+            {
+                merges.push((start, end, rep_idx, common));
+            } else {
+                reps.push((start, end));
+            }
+        }
+        if merges.is_empty() {
+            return false;
+        }
+
+        // One label per (representative, suffix length) cut point.
+        let mut cut_labels: FxHashMap<(usize, usize), Label> = FxHashMap::default();
+        for &(_, _, rep_idx, common) in &merges {
+            cut_labels.entry((rep_idx, common)).or_insert_with(|| self.new_label());
+        }
+
+        // Apply from the back so earlier indices stay valid: suffix cuts on
+        // merged spans, then label insertions into representatives.
+        let mut edits: Vec<(usize, Edit)> = Vec::new();
+        enum Edit {
+            /// Replace `at..=end` with a jump to the label.
+            Cut { end: usize, target: Label },
+            /// Insert a label definition at `at`.
+            Mid { label: Label },
+        }
+        for &(_start, end, rep_idx, common) in &merges {
+            let target = cut_labels[&(rep_idx, common)];
+            edits.push((end + 1 - common, Edit::Cut { end, target }));
+        }
+        for (&(rep_idx, common), &label) in &cut_labels {
+            let (_, rep_end) = reps[rep_idx];
+            edits.push((rep_end + 1 - common, Edit::Mid { label }));
+        }
+        edits.sort_unstable_by_key(|&(at, _)| at);
+        for &(at, ref edit) in edits.iter().rev() {
+            match *edit {
+                Edit::Cut { end, target } => {
+                    instructions
+                        .splice(at..=end, [AsmInst::push_label(target), AsmInst::op(op::JUMP)]);
+                }
+                Edit::Mid { label } => {
+                    instructions.insert(at, AsmInst::label(label));
+                }
+            }
+        }
+        true
+    }
+
+    /// Net stack effect of an opcode from a small verified whitelist:
+    /// `(reads_below_needed, pops, pushes)`. `reads_below_needed` is how deep
+    /// below the top the opcode inspects (its pops, or the index for
+    /// `DUP`/`SWAP`); a run stays closed only while the running height covers
+    /// it. Returns `None` for anything not on the whitelist, so a run
+    /// containing an unmodeled opcode is never outlined.
+    fn whitelisted_effect(inst: AsmInst) -> Option<(u16, u16, u16)> {
+        Some(match inst.kind() {
+            AsmInstKind::PushInline(_)
+            | AsmInstKind::Push(_)
+            | AsmInstKind::PushLabel(_)
+            | AsmInstKind::PushDeferred(_)
+            | AsmInstKind::PushImmutable(_) => (0, 0, 1),
+            AsmInstKind::Op(op) => match op {
+                op::CALLDATASIZE | op::PUSH0 | op::RETURNDATASIZE | op::MSIZE | op::CALLVALUE => {
+                    (0, 0, 1)
+                }
+                op::ISZERO | op::NOT | op::CALLDATALOAD | op::MLOAD => (1, 1, 1),
+                op::ADD
+                | op::SUB
+                | op::MUL
+                | op::AND
+                | op::OR
+                | op::XOR
+                | op::SHL
+                | op::SHR
+                | op::LT
+                | op::GT
+                | op::SLT
+                | op::SGT
+                | op::EQ
+                | op::DIV => (2, 2, 1),
+                op::MSTORE => (2, 2, 0),
+                op::POP => (1, 1, 0),
+                d if (op::DUP1..=op::DUP1 + 15).contains(&d) => {
+                    let n = u16::from(d - op::DUP1) + 1;
+                    (n, 0, 1)
+                }
+                sw if (op::SWAP1..=op::SWAP1 + 15).contains(&sw) => {
+                    let n = u16::from(sw - op::SWAP1) + 1;
+                    (n + 1, 0, 0)
+                }
+                _ => return None,
+            },
+            _ => return None,
+        })
+    }
+
+    /// Outlines identical stack-closed straight-line computations.
+    ///
+    /// ABI decode prologues repeat — an address argument's dirty-word check or
+    /// the calldata-size guard compile identically at each site — but they end
+    /// by falling through, not at a terminal, so neither span dedup nor suffix
+    /// merging reaches them. A run that reads nothing below its entry and
+    /// leaves at most one value behaves as a nullary-or-unary closed
+    /// computation: a caller reaches a shared stub with only its return address
+    /// on the stack, the stub's produced value (if any) ends up above that
+    /// address, and a final `SWAP1` (for one output) then `JUMP` returns it.
+    /// Runs are outlined only when structural outlining is enabled (runtime
+    /// code, not constructor code), every opcode is on the verified whitelist,
+    /// the run never inspects below its entry, its net height is 0 or 1, and
+    /// the shared stub is smaller than the sites it replaces.
+    fn outline_closed_computations(&mut self, program: &mut EvmAsmProgram) {
+        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+            return;
+        }
+        let insts = &program.instructions;
+
+        // Borrow candidate runs from the immutable input instead of cloning
+        // every prefix into an owned hash key. Most runs occur only once, so
+        // keep their first two sites inline as well.
+        let mut candidates: FxHashMap<&[AsmInst], SmallVec<[ClosedRunSite; 2]>> =
+            FxHashMap::default();
+        let mut i = 0;
+        while i < insts.len() {
+            if matches!(insts[i].kind(), AsmInstKind::Label(_)) {
+                i += 1;
+                continue;
+            }
+            let mut height: i32 = 0;
+            let mut j = i;
+            while j < insts.len() {
+                if matches!(insts[j].kind(), AsmInstKind::Label(_)) {
+                    break;
+                }
+                let Some((reads, pops, pushes)) = Self::whitelisted_effect(insts[j]) else {
+                    break;
+                };
+                if height < i32::from(reads) {
+                    break;
+                }
+                height = height - i32::from(pops) + i32::from(pushes);
+                j += 1;
+                let len = j - i;
+                if len >= MIN_CLOSED_RUN && (height == 0 || height == 1) {
+                    candidates.entry(&insts[i..j]).or_default().push((i, len, height as u16));
+                }
+            }
+            i += 1;
+        }
+
+        let mut groups: Vec<_> = candidates.iter().filter(|(_, sites)| sites.len() >= 2).collect();
+        groups.sort_by_key(|(key, _)| std::cmp::Reverse(key.len()));
+
+        let mut claimed: Vec<bool> = vec![false; insts.len()];
+        let mut chosen: Vec<(Vec<usize>, usize, u16)> = Vec::new();
+        for (_, sites) in groups {
+            let (run_len, height) = (sites[0].1, sites[0].2);
+            let free: Vec<usize> = sites
+                .iter()
+                .filter(|&&(start, len, _)| (start..start + len).all(|k| !claimed[k]))
+                .map(|&(start, _, _)| start)
+                .collect();
+            if free.len() < 2 {
+                continue;
+            }
+            let run_lb: usize = insts[free[0]..free[0] + run_len]
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum();
+            let stub = 1 + run_lb + usize::from(height) + 1;
+            // Per-site replacement is `PUSH2 ret PUSH2 stub JUMP JUMPDEST`,
+            // but a heavily-referenced stub is a small hot terminal span the
+            // hoist pass places below the one-byte boundary, relaxing its
+            // push at every site: credit that byte only when the group's
+            // reference count makes it a certain hoist pick.
+            let per_site = if free.len() >= 4 { 7 } else { 8 };
+            if free.len() * run_lb < free.len() * per_site + stub + 2 {
+                continue;
+            }
+            for &start in &free {
+                claimed[start..start + run_len].fill(true);
+            }
+            chosen.push((free, run_len, height));
+        }
+        if chosen.is_empty() {
+            return;
+        }
+
+        let stub_labels: Vec<Label> = chosen.iter().map(|_| self.new_label()).collect();
+        let mut site_to_group: FxHashMap<usize, usize> = FxHashMap::default();
+        for (g, (sites, _, _)) in chosen.iter().enumerate() {
+            for &site in sites {
+                site_to_group.insert(site, g);
+            }
+        }
+
+        let mut out = Vec::with_capacity(program.instructions.len());
+        let mut k = 0;
+        while k < program.instructions.len() {
+            if let Some(&g) = site_to_group.get(&k) {
+                let run_len = chosen[g].1;
+                let ret = self.new_label();
+                out.push(AsmInst::push_label(ret));
+                out.push(AsmInst::push_label(stub_labels[g]));
+                out.push(AsmInst::op(op::JUMP));
+                out.push(AsmInst::label(ret));
+                k += run_len;
+            } else {
+                out.push(program.instructions[k]);
+                k += 1;
+            }
+        }
+        for (g, (sites, run_len, height)) in chosen.iter().enumerate() {
+            let body = program.instructions[sites[0]..sites[0] + run_len].to_vec();
+            out.push(AsmInst::label(stub_labels[g]));
+            out.extend_from_slice(&body);
+            if *height == 1 {
+                out.push(AsmInst::op(op::SWAP1));
+            }
+            out.push(AsmInst::op(op::JUMP));
+        }
+        program.instructions = out;
+    }
+
+    /// Outlines repeated large constants into shared push stubs.
+    ///
+    /// Event topics and EIP-712 typehashes are 32-byte keccak constants pushed
+    /// inline at every use site — 33 bytes each time. When the same constant
+    /// appears at several sites and the arithmetic pays, each site becomes a
+    /// call-shaped `PUSH2 ret PUSH2 stub JUMP JUMPDEST` (8 bytes) to a shared
+    /// `JUMPDEST PUSH<n> value SWAP1 JUMP` stub appended after the program's
+    /// terminal instruction. The rewrite is stack-neutral: one value is pushed
+    /// either way. Skipped entirely when optimization is disabled.
+    fn outline_repeated_pushes(&mut self, program: &mut EvmAsmProgram) {
+        if self.config.optimization == OptimizationMode::None {
+            return;
+        }
+
+        // Count the sites of every interned (large) push value.
+        let mut counts: FxHashMap<PushValueId, u32> = FxHashMap::default();
+        for inst in &program.instructions {
+            if let AsmInstKind::Push(index) = inst.kind() {
+                *counts.entry(index).or_default() += 1;
+            }
+        }
+        // A site shrinks from the value's real emitted encoding (compact
+        // shapes like `PUSH1 0x1f NOT` can be far narrower than the value's
+        // byte length) to 8 bytes; the stub costs the encoding plus 3.
+        // Outline when the total saving is worth the jump indirection.
+        const SITE_BYTES: usize = 8;
+        const MIN_SAVING: usize = 8;
+        let mut stubs: FxHashMap<PushValueId, Label> = FxHashMap::default();
+        let mut order = Vec::new();
+        let sizer = BytecodeAssembler::new(self.config);
+        for (&index, &count) in &counts {
+            let len = sizer.encoded_push_len(self.push_value(index));
+            let count = count as usize;
+            let inline = count * len;
+            let outlined = count * SITE_BYTES + len + 3;
+            if count >= 2 && inline >= outlined + MIN_SAVING {
+                stubs.insert(index, self.new_label());
+                order.push(index);
+            }
+        }
+        if stubs.is_empty() {
+            return;
+        }
+        order.sort_unstable();
+
+        let mut rewritten = Vec::with_capacity(program.instructions.len());
+        for &inst in &program.instructions {
+            if let AsmInstKind::Push(index) = inst.kind()
+                && let Some(&stub) = stubs.get(&index)
+            {
+                let ret = self.new_label();
+                rewritten.push(AsmInst::push_label(ret));
+                rewritten.push(AsmInst::push_label(stub));
+                rewritten.push(AsmInst::op(op::JUMP));
+                rewritten.push(AsmInst::label(ret));
+            } else {
+                rewritten.push(inst);
+            }
+        }
+        for index in order {
+            rewritten.push(AsmInst::label(stubs[&index]));
+            rewritten.push(AsmInst::push(index));
+            rewritten.push(AsmInst::op(op::SWAP1));
+            rewritten.push(AsmInst::op(op::JUMP));
+        }
+        program.instructions = rewritten;
+    }
+
     pub(super) fn inst_push_value(&self, inst: AsmInst) -> Option<U256> {
         match inst.kind() {
             AsmInstKind::PushInline(value) => Some(U256::from(value)),
@@ -214,8 +752,61 @@ impl Assembler {
             ir_program.optimize_with_evm_ir(self);
         }
         let mut program = ir_program.to_asm_program();
+        self.invert_branches_over_empty_reverts(&mut program.instructions);
         self.run_assembler_passes(&mut program);
-        Self::dedup_terminal_spans(&mut program.instructions);
+        let has_labels =
+            program.instructions.iter().any(|inst| matches!(inst.kind(), AsmInstKind::Label(_)));
+        if has_labels {
+            // Dedup first at the original span granularity, then drop the labels
+            // nothing references (which merges fallthrough-split spans), and
+            // dedup once more at the coarser granularity that removal exposes.
+            Self::dedup_terminal_spans(&mut program.instructions);
+            Self::remove_unreferenced_labels(&mut program.instructions);
+            Self::dedup_terminal_spans(&mut program.instructions);
+            Self::remove_unreferenced_labels(&mut program.instructions);
+            // Suffix cuts create new identical spans and tails; iterate the merge
+            // with the dedup chain to a capped fixpoint. The unreachable-code
+            // sweep needs the label drop at the end of the previous iteration to
+            // expose a threaded thunk's corpse, so give the fixpoint headroom.
+            for _ in 0..6 {
+                let merged = self.merge_terminal_suffixes(&mut program.instructions);
+                let threaded = self.run_structural_outlining
+                    && Self::thread_jump_thunks(&mut program.instructions);
+                let swept = self.run_structural_outlining
+                    && Self::remove_unreachable_code(&mut program.instructions);
+                if !merged && !threaded && !swept {
+                    break;
+                }
+                Self::dedup_terminal_spans(&mut program.instructions);
+                Self::remove_unreferenced_labels(&mut program.instructions);
+            }
+        } else if self.run_structural_outlining {
+            Self::remove_unreachable_code(&mut program.instructions);
+        }
+        self.outline_closed_computations(&mut program);
+        if program
+            .instructions
+            .iter()
+            .filter(|inst| matches!(inst.kind(), AsmInstKind::Push(_)))
+            .take(2)
+            .count()
+            >= 2
+        {
+            self.outline_repeated_pushes(&mut program);
+        }
+        self.hoist_hot_terminal_spans(&mut program.instructions);
+
+        // Label-free constructor and deployment snippets need neither offset
+        // discovery nor push-width relaxation.
+        if !program
+            .instructions
+            .iter()
+            .any(|inst| matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_)))
+        {
+            let result = self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+            self.clear();
+            return result;
+        }
 
         // We need to iterate until PUSH widths stabilize
         let mut push_widths: FxHashMap<usize, u8> = FxHashMap::default();
@@ -256,6 +847,148 @@ impl Assembler {
         let result = self.emit_bytecode(&program, label_offsets, &push_widths);
         self.clear();
         result
+    }
+
+    /// Moves the most-referenced small terminal spans (shared revert and
+    /// panic stubs, merged return tails) to the front of the program, right
+    /// after its first terminating instruction, so their addresses fit in one
+    /// byte and every `PUSH2 <label>` reference relaxes to `PUSH1` — one byte
+    /// per reference. Placement is control-flow-neutral: a candidate span is
+    /// preceded by a terminating instruction (no fallthrough in), ends with
+    /// one itself (no fallthrough out), and the insertion point directly
+    /// follows a terminating instruction. Runtime only: reordering moves the
+    /// width relaxation, which the constructor's appended-argument offset
+    /// fixpoint does not track.
+    fn hoist_hot_terminal_spans(&self, instructions: &mut Vec<AsmInst>) {
+        if self.config.optimization == OptimizationMode::None || !self.run_structural_outlining {
+            return;
+        }
+
+        fn is_terminal(inst: AsmInst) -> bool {
+            matches!(
+                inst.kind(),
+                AsmInstKind::Op(
+                    op::STOP | op::JUMP | op::RETURN | op::REVERT | op::INVALID | op::SELFDESTRUCT,
+                )
+            )
+        }
+        // Pessimistic emitted size, before width relaxation. Only steers the
+        // hoist budget; the exact widths come from the relaxation loop.
+        let inst_size = |inst: AsmInst| -> usize {
+            match inst.kind() {
+                AsmInstKind::Op(_) | AsmInstKind::Label(_) => 1,
+                AsmInstKind::PushLabel(_) | AsmInstKind::PushDeferred(_) => 3,
+                AsmInstKind::PushInline(value) => 1 + U256::from(value).byte_len(),
+                AsmInstKind::Push(id) => 1 + self.push_values.get(id).byte_len(),
+                AsmInstKind::PushImmutable(_) => 33,
+            }
+        };
+
+        let Some(first_terminal) = instructions.iter().position(|&inst| is_terminal(inst)) else {
+            return;
+        };
+        let insert_at = first_terminal + 1;
+        let insert_offset: usize = instructions[..insert_at].iter().map(|&i| inst_size(i)).sum();
+        if insert_offset >= 0xff {
+            return;
+        }
+
+        let mut refs: FxHashMap<Label, usize> = FxHashMap::default();
+        for inst in instructions.iter() {
+            if let AsmInstKind::PushLabel(label) = inst.kind() {
+                *refs.entry(label).or_default() += 1;
+            }
+        }
+
+        // Candidate spans: `label: ... <terminal>` with no interior labels,
+        // preceded by a terminal, past the insertion point, and small.
+        struct Candidate {
+            start: usize,
+            end: usize,
+            size: usize,
+            refs: usize,
+        }
+        let mut candidates: Vec<Candidate> = Vec::new();
+        let mut i = insert_at;
+        while i < instructions.len() {
+            if let AsmInstKind::Label(label) = instructions[i].kind()
+                && i > 0
+                && is_terminal(instructions[i - 1])
+            {
+                let mut j = i + 1;
+                while j < instructions.len()
+                    && !matches!(instructions[j].kind(), AsmInstKind::Label(_))
+                {
+                    if is_terminal(instructions[j]) {
+                        let size: usize =
+                            instructions[i..=j].iter().map(|&inst| inst_size(inst)).sum();
+                        let refs = refs.get(&label).copied().unwrap_or(0);
+                        if size <= 32 && refs >= 2 {
+                            candidates.push(Candidate { start: i, end: j, size, refs });
+                        }
+                        break;
+                    }
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+        if candidates.is_empty() {
+            return;
+        }
+
+        // Best saving per budget byte first (each reference saves one byte,
+        // the span consumes its size from the one-byte address window), with
+        // reference count and position as deterministic tie-breaks.
+        candidates.sort_by(|a, b| {
+            (b.refs * a.size)
+                .cmp(&(a.refs * b.size))
+                .then(b.refs.cmp(&a.refs))
+                .then(a.start.cmp(&b.start))
+        });
+        let mut budget = 0xff_usize.saturating_sub(insert_offset);
+        let mut picked: Vec<Candidate> = Vec::new();
+        for cand in candidates {
+            if cand.size <= budget {
+                budget -= cand.size;
+                picked.push(cand);
+            }
+        }
+        if picked.is_empty() {
+            return;
+        }
+
+        // Extract in descending start order so earlier ranges stay valid,
+        // then splice at the insertion point in rank order.
+        let mut extraction = picked.iter().map(|c| (c.start, c.end)).collect::<Vec<_>>();
+        extraction.sort_by_key(|&(start, _)| std::cmp::Reverse(start));
+        let mut moved: FxHashMap<usize, Vec<AsmInst>> = FxHashMap::default();
+        for (start, end) in extraction {
+            moved.insert(start, instructions.drain(start..=end).collect());
+        }
+        let mut block = Vec::new();
+        for cand in &picked {
+            block.extend(moved.remove(&cand.start).expect("extracted span"));
+        }
+        instructions.splice(insert_at..insert_at, block);
+    }
+
+    /// Deletes label definitions that nothing references: such a block can
+    /// only be entered by fallthrough, so its `JUMPDEST` byte is pure waste.
+    /// Rewrites and span dedup orphan labels, and running this before the
+    /// span dedup also exposes more spans whose predecessor is terminating.
+    fn remove_unreferenced_labels(instructions: &mut Vec<AsmInst>) {
+        let referenced: FxHashSet<Label> = instructions
+            .iter()
+            .filter_map(|inst| match inst.kind() {
+                AsmInstKind::PushLabel(label) => Some(label),
+                _ => None,
+            })
+            .collect();
+        instructions.retain(|inst| match inst.kind() {
+            AsmInstKind::Label(label) => referenced.contains(&label),
+            _ => true,
+        });
     }
 
     /// Merges byte-identical label-started spans that end in a terminating
@@ -301,9 +1034,24 @@ impl Assembler {
             i += 1;
         }
 
+        // A span whose body's emitted size is provably larger than an
+        // explicit `PUSH2 <label> JUMP` (conservative lower bound: pushes are
+        // at least two bytes).
+        fn body_outweighs_jump(body: &[AsmInst]) -> bool {
+            let lower_bound: usize = body
+                .iter()
+                .map(|inst| match inst.kind() {
+                    AsmInstKind::Op(_) => 1,
+                    _ => 2,
+                })
+                .sum();
+            lower_bound > 6
+        }
+
         let mut representatives: FxHashMap<Vec<AsmInst>, Label> = FxHashMap::default();
         let mut alias: FxHashMap<Label, Label> = FxHashMap::default();
         let mut delete: Vec<(usize, usize)> = Vec::new();
+        let mut convert: Vec<(usize, usize, Label)> = Vec::new();
         for span in &spans {
             let body = instructions[span.start + 1..=span.end].to_vec();
             match representatives.entry(body) {
@@ -314,6 +1062,12 @@ impl Assembler {
                     if span.start > 0 && is_terminal(instructions[span.start - 1]) {
                         alias.insert(span.label, *rep.get());
                         delete.push((span.start, span.end));
+                    } else if body_outweighs_jump(&instructions[span.start + 1..=span.end]) {
+                        // Something falls into this copy, so it cannot be
+                        // deleted — but its body can become a jump to the
+                        // representative.
+                        alias.insert(span.label, *rep.get());
+                        convert.push((span.start, span.end, *rep.get()));
                     }
                 }
             }
@@ -329,9 +1083,22 @@ impl Assembler {
                 *inst = AsmInst::push_label(rep);
             }
         }
-        delete.sort_unstable();
-        for &(start, end) in delete.iter().rev() {
-            instructions.drain(start..=end);
+        let mut edits: Vec<(usize, usize, Option<Label>)> = delete
+            .into_iter()
+            .map(|(start, end)| (start, end, None))
+            .chain(convert.into_iter().map(|(start, end, rep)| (start, end, Some(rep))))
+            .collect();
+        edits.sort_unstable_by_key(|&(start, _, _)| start);
+        for &(start, end, rep) in edits.iter().rev() {
+            match rep {
+                None => {
+                    instructions.drain(start..=end);
+                }
+                Some(rep) => {
+                    instructions
+                        .splice(start + 1..=end, [AsmInst::push_label(rep), AsmInst::op(op::JUMP)]);
+                }
+            }
         }
     }
 
@@ -521,10 +1288,8 @@ impl BytecodeAssembler {
         }
 
         // `PUSH0 NOT PUSH1 <shift> SHR` is fixed-size apart from PUSH0
-        // availability: 5 bytes on Shanghai+, 6 bytes before Shanghai. Keep
-        // this shape for half-word-or-wider masks only: small masks are common
-        // immediates, while wide masks are where the bytecode-size win is
-        // substantial.
+        // availability: 5 bytes on Shanghai+, 6 bytes before Shanghai; the
+        // `consider` comparison keeps the literal whenever it is not larger.
         if width >= MIN_COMPACT_MASK_WIDTH {
             let bytes = value.to_be_bytes::<EVM_WORD_BYTES>();
             let start = EVM_WORD_BYTES - width as usize;
@@ -1073,17 +1838,9 @@ mod tests {
 
         assert_eq!(
             result.bytecode,
-            vec![
-                op::PUSH1,
-                3,
-                op::JUMP,
-                op::JUMPDEST,
-                op::STOP,
-                op::JUMPDEST,
-                op::PUSH0,
-                op::PUSH0,
-                op::REVERT,
-            ]
+            // The unreferenced cold block's `JUMPDEST` is elided: nothing
+            // jumps to it, so it is a dead byte.
+            vec![op::PUSH1, 3, op::JUMP, op::JUMPDEST, op::STOP, op::PUSH0, op::PUSH0, op::REVERT,]
         );
     }
 
@@ -1106,7 +1863,42 @@ mod tests {
 
         assert_eq!(
             result.bytecode,
-            vec![op::PUSH1, 1, op::JUMPDEST, op::PUSH0, op::PUSH0, op::REVERT]
+            // The unreferenced cold `JUMPDEST` is elided.
+            vec![op::PUSH1, 1, op::PUSH0, op::PUSH0, op::REVERT]
+        );
+    }
+
+    #[test]
+    fn terminal_span_dedup_converts_fallthrough_copy() {
+        let mut asm = size_optimized_assembler();
+        let representative = asm.new_label();
+        let duplicate = asm.new_label();
+        let body = [
+            AsmInst::push_inline(0x1234).unwrap(),
+            AsmInst::push_inline(0).unwrap(),
+            AsmInst::op(op::MSTORE),
+            AsmInst::push_inline(17).unwrap(),
+            AsmInst::push_inline(4).unwrap(),
+            AsmInst::op(op::MSTORE),
+            AsmInst::push_inline(36).unwrap(),
+            AsmInst::push_inline(0).unwrap(),
+            AsmInst::op(op::REVERT),
+        ];
+        let mut instructions = vec![AsmInst::label(representative)];
+        instructions.extend(body);
+        instructions.push(AsmInst::push_inline(1).unwrap());
+        instructions.push(AsmInst::label(duplicate));
+        instructions.extend(body);
+
+        Assembler::dedup_terminal_spans(&mut instructions);
+
+        assert_eq!(
+            &instructions[instructions.len() - 3..],
+            &[
+                AsmInst::label(duplicate),
+                AsmInst::push_label(representative),
+                AsmInst::op(op::JUMP),
+            ]
         );
     }
 

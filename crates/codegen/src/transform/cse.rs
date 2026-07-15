@@ -100,6 +100,9 @@ enum ExprKey {
     Select(OperandKey, OperandKey, OperandKey),
     MLoad(MemRangeKey),
     Keccak256(MemRangeKey),
+    MappingSlot(OperandKey, OperandKey),
+    MappingSlotMemory(OperandKey, OperandKey),
+    MappingSlotCalldata(OperandKey, OperandKey),
     SLoad(StorageAlias),
     TLoad(StorageAlias),
     CalldataLoad(OperandKey),
@@ -641,6 +644,15 @@ impl CommonSubexprEliminator {
                 }
                 Some(ExprKey::Keccak256(key))
             }
+            InstKind::MappingSlot(key, slot) => {
+                Some(ExprKey::MappingSlot(operand(*key), operand(*slot)))
+            }
+            InstKind::MappingSlotMemory(key, slot) => {
+                Some(ExprKey::MappingSlotMemory(operand(*key), operand(*slot)))
+            }
+            InstKind::MappingSlotCalldata(key, slot) => {
+                Some(ExprKey::MappingSlotCalldata(operand(*key), operand(*slot)))
+            }
 
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(func.storage_alias_after_replacements(
                 inst_id,
@@ -781,12 +793,13 @@ impl CommonSubexprEliminator {
             ExprKey::MLoad(read) | ExprKey::Keccak256(read) => {
                 write.is_some_and(|write| !Self::memory_ranges_may_alias(*read, write))
             }
+            ExprKey::MappingSlotMemory(..) => false,
             _ => true,
         });
     }
 
     fn is_memory_expr(key: &ExprKey) -> bool {
-        matches!(key, ExprKey::MLoad(_) | ExprKey::Keccak256(_))
+        matches!(key, ExprKey::MLoad(_) | ExprKey::Keccak256(_) | ExprKey::MappingSlotMemory(..))
     }
 
     fn is_account_environment_expr(key: &ExprKey) -> bool {
@@ -818,6 +831,9 @@ impl CommonSubexprEliminator {
             key,
             ExprKey::MLoad(_)
                 | ExprKey::Keccak256(_)
+                | ExprKey::MappingSlot(..)
+                | ExprKey::MappingSlotMemory(..)
+                | ExprKey::MappingSlotCalldata(..)
                 | ExprKey::SLoad(_)
                 | ExprKey::TLoad(_)
                 | ExprKey::CalldataLoad(_)

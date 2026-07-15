@@ -419,7 +419,7 @@ impl<'gcx> Lowerer<'gcx> {
                 TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
             )
         {
-            let helper = self.ensure_ret_bytes_helper(*ty);
+            let helper = self.ensure_ret_bytes_helper();
             builder.internal_call_void(helper, vec![*value], 0);
             // The helper terminates externally; this is unreachable.
             builder.invalid();
@@ -745,7 +745,7 @@ impl<'gcx> Lowerer<'gcx> {
         let data_size = builder.select(is_empty, word_size, padded);
         let total_size = builder.add(word_size, data_size);
 
-        let scratch_base = self.allocate_memory(builder, 96);
+        let scratch_base = self.allocate_memory(builder, 32);
         let ptr = self.allocate_memory_dynamic(builder, total_size);
         builder.mstore(ptr, len);
         let data_ptr = builder.add(ptr, word_size);
@@ -765,36 +765,32 @@ impl<'gcx> Lowerer<'gcx> {
         builder.mstore(scratch_base, slot);
         let data_slot = builder.keccak256(scratch_base, word_size);
         let remaining = builder.div(padded, word_size);
-        let remaining_slot = self.offset_ptr(builder, scratch_base, 32);
-        let storage_slot_slot = self.offset_ptr(builder, scratch_base, 64);
-        builder.mstore(scratch_base, data_ptr);
-        builder.mstore(remaining_slot, remaining);
-        builder.mstore(storage_slot_slot, data_slot);
 
         let cond_block = builder.create_block();
         let body_block = builder.create_block();
+        let preheader = builder.current_block();
         builder.jump(cond_block);
 
         builder.switch_to_block(cond_block);
-        let remaining = builder.mload(remaining_slot);
+        let remaining_phi = builder.phi(vec![(preheader, remaining)]);
+        let storage_slot_phi = builder.phi(vec![(preheader, data_slot)]);
+        let dst_phi = builder.phi(vec![(preheader, data_ptr)]);
         let zero = builder.imm_u64(0);
-        let has_remaining = builder.gt(remaining, zero);
+        let has_remaining = builder.gt(remaining_phi, zero);
         builder.branch(has_remaining, body_block, done_block);
 
         builder.switch_to_block(body_block);
-        let current_storage_slot = builder.mload(storage_slot_slot);
-        let data_word = builder.sload(current_storage_slot);
-        let current_dst = builder.mload(scratch_base);
-        builder.mstore(current_dst, data_word);
-        let next_storage_slot = builder.add(current_storage_slot, one);
-        builder.mstore(storage_slot_slot, next_storage_slot);
+        let data_word = builder.sload(storage_slot_phi);
+        builder.mstore(dst_phi, data_word);
+        let next_storage_slot = builder.add(storage_slot_phi, one);
         let word_size = builder.imm_u64(32);
-        let next_dst = builder.add(current_dst, word_size);
-        builder.mstore(scratch_base, next_dst);
-        let remaining = builder.mload(remaining_slot);
-        let next_remaining = builder.sub(remaining, one);
-        builder.mstore(remaining_slot, next_remaining);
+        let next_dst = builder.add(dst_phi, word_size);
+        let next_remaining = builder.sub(remaining_phi, one);
+        let latch = builder.current_block();
         builder.jump(cond_block);
+        builder.add_phi_incoming(remaining_phi, latch, next_remaining);
+        builder.add_phi_incoming(storage_slot_phi, latch, next_storage_slot);
+        builder.add_phi_incoming(dst_phi, latch, next_dst);
 
         builder.switch_to_block(done_block);
         ptr

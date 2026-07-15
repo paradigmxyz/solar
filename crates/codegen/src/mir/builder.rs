@@ -495,6 +495,21 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Keccak256(offset, size), Some(MirType::bytes32()))
     }
 
+    /// Emits a fixed-width mapping-slot hash builtin.
+    pub fn mapping_slot(&mut self, key: ValueId, slot: ValueId) -> ValueId {
+        self.emit_inst(InstKind::MappingSlot(key, slot), Some(MirType::bytes32()))
+    }
+
+    /// Emits a memory-backed dynamic mapping-slot hash builtin.
+    pub fn mapping_slot_memory(&mut self, key: ValueId, slot: ValueId) -> ValueId {
+        self.emit_inst(InstKind::MappingSlotMemory(key, slot), Some(MirType::bytes32()))
+    }
+
+    /// Emits a calldata-backed dynamic mapping-slot hash builtin.
+    pub fn mapping_slot_calldata(&mut self, key: ValueId, slot: ValueId) -> ValueId {
+        self.emit_inst(InstKind::MappingSlotCalldata(key, slot), Some(MirType::bytes32()))
+    }
+
     /// Emits a basefee instruction.
     pub fn basefee(&mut self) -> ValueId {
         self.emit_inst(InstKind::BaseFee, Some(MirType::uint256()))

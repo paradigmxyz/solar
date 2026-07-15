@@ -2816,17 +2816,7 @@ impl<'gcx> Lowerer<'gcx> {
         key: ValueId,
         slot: ValueId,
     ) -> ValueId {
-        // Store key at memory offset 0
-        let mem_0 = builder.imm_u64(0);
-        builder.mstore(mem_0, key);
-
-        // Store slot at memory offset 32
-        let mem_32 = builder.imm_u64(32);
-        builder.mstore(mem_32, slot);
-
-        // Compute keccak256 of 64 bytes starting at offset 0
-        let size_64 = builder.imm_u64(64);
-        builder.keccak256(mem_0, size_64)
+        builder.mapping_slot(key, slot)
     }
 
     /// Dispatches a mapping-key hash on the key kind. Dynamic (`string`/`bytes`)
@@ -2922,6 +2912,10 @@ impl<'gcx> Lowerer<'gcx> {
         ptr: ValueId,
         slot: ValueId,
     ) -> ValueId {
+        if self.gcx.sess.opts.evm_version.has_mcopy() {
+            return builder.mapping_slot_memory(ptr, slot);
+        }
+
         let len = builder.mload(ptr);
         let word_size = builder.imm_u64(32);
         let data_start = builder.add(ptr, word_size);
@@ -2940,20 +2934,7 @@ impl<'gcx> Lowerer<'gcx> {
         head_offset: ValueId,
         slot: ValueId,
     ) -> ValueId {
-        let selector_size = builder.imm_u64(4);
-        let data_head = builder.add(head_offset, selector_size);
-        let len = builder.calldataload(data_head);
-        let word_size = builder.imm_u64(32);
-        let data_start = builder.add(data_head, word_size);
-        // Stage at the unbumped free-memory scratch: staging at offset 0 would
-        // clobber the free memory pointer (and live heap) for keys > 32 bytes.
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let scratch = builder.mload(free_mem_ptr_slot);
-        builder.calldatacopy(scratch, data_start, len);
-        let slot_addr = builder.add(scratch, len);
-        builder.mstore(slot_addr, slot);
-        let hash_len = builder.add(len, word_size);
-        builder.keccak256(scratch, hash_len)
+        builder.mapping_slot_calldata(head_offset, slot)
     }
 
     fn is_dynamic_mapping_key(kind: &hir::TypeKind<'_>) -> bool {

@@ -26,14 +26,15 @@ use crate::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, MemoryDsePass, PrePass, PureEvalPass,
-        SccpTransformPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
+        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
+        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
 use std::any::{Any, TypeId};
 
-type PassFactory = fn() -> Box<dyn ModulePass>;
+type PassRunner = fn(&mut Module) -> bool;
 
 /// Registry entry for a MIR transform pass.
 #[derive(Clone, Copy, Debug)]
@@ -46,17 +47,17 @@ pub struct PassInfo {
     pub min_phase: MirPhase,
     /// Latest [`MirPhase`] this pass may run on.
     pub max_phase: MirPhase,
-    make_pass: PassFactory,
+    run_pass: PassRunner,
 }
 
 impl PassInfo {
-    const fn new(name: &'static str, description: &'static str, make_pass: PassFactory) -> Self {
+    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
         Self {
             name,
             description,
             min_phase: MirPhase::Built,
             max_phase: MirPhase::EvmShaped,
-            make_pass,
+            run_pass,
         }
     }
 
@@ -73,10 +74,6 @@ impl PassInfo {
     pub fn admits(&self, module: &Module) -> bool {
         self.min_phase <= module.phase && module.phase <= self.max_phase
     }
-
-    fn make_pass(&self) -> Box<dyn ModulePass> {
-        (self.make_pass)()
-    }
 }
 
 macro_rules! declare_passes {
@@ -89,7 +86,7 @@ macro_rules! declare_passes {
             $vis const $const_name: PassInfo = PassInfo::new(
                 $name,
                 concat!($($description, "\n"),+).trim_ascii(),
-                || Box::new($pass),
+                |module| ModulePass::run(&mut $pass, module),
             );
         )+
     };
@@ -98,6 +95,9 @@ macro_rules! declare_passes {
 declare_passes! {
     /// Internal MIR function inlining.
     pub const INLINE_PASS -> "inline" = InlinePass;
+
+    /// Outline duplicate constant revert blocks before backend lowering.
+    pub const OUTLINE_REVERTS_PASS -> "outline-reverts" = OutlineRevertsPass::default();
 
     /// Dead internal function elimination.
     pub const FUNCTION_DCE_PASS -> "function-dce" = FunctionDcePass;
@@ -156,6 +156,9 @@ declare_passes! {
     /// Local dead memory-store elimination.
     pub const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
 
+    /// Place provably local fmp-bump allocations at static frame addresses.
+    pub const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
+
     /// Dead Code Elimination (fixed-point).
     pub const DCE_PASS -> "dce" = DcePass;
 
@@ -170,6 +173,9 @@ declare_passes! {
 
     /// EVM-shape lowering: non-returning internal calls become tail calls.
     const LOWER_EVM_SHAPED_PASS_BASE -> "lower-evm-shaped" = LowerEvmShapedPass::default();
+
+    /// Lower mapping-slot hash builtins to memory operations.
+    pub const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
 }
 
 /// ABI phase lowering with its phase range declared: consumes
@@ -210,10 +216,13 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     FRAME_SLOT_PROMOTION_PASS,
     MEMORY_DSE_PASS,
+    STATIC_ALLOC_PASS,
     STORAGE_PROMOTION_PASS,
     LOWER_ABI_PASS,
     LOWER_DISPATCH_PASS,
     LOWER_EVM_SHAPED_PASS,
+    OUTLINE_REVERTS_PASS,
+    LOWER_MAPPING_SLOTS_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
@@ -229,6 +238,9 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     PURE_EVAL_PASS,
     INST_SIMPLIFY_PASS,
     CSE_PASS,
+    // Reuse mapping slots before their scratch-memory expansion can obscure
+    // the semantic expression from the remaining optimization passes.
+    LOWER_MAPPING_SLOTS_PASS,
     GVN_PASS,
     PRE_PASS,
     STORAGE_LOAD_CSE_PASS,
@@ -243,6 +255,7 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
     MEMORY_DSE_PASS,
+    STATIC_ALLOC_PASS,
     ADCE_PASS,
     DCE_PASS,
 ];
@@ -300,10 +313,14 @@ fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: Pipeline
     if !pass.admits(module) {
         return false;
     }
-    let mut pm = PassManager::new();
-    pm.set_validate_after_each(options.validate_after_each);
-    pm.add_pass(pass.make_pass());
-    pm.run(module).1
+    if options.validate_after_each {
+        validate_module_after_pass(module, "input");
+    }
+    let changed = (pass.run_pass)(module);
+    if options.validate_after_each {
+        validate_module_after_pass(module, pass.name);
+    }
+    changed
 }
 
 /// Runs a named MIR pass pipeline over a module.
@@ -524,14 +541,16 @@ impl PassManager {
     pub fn run(&mut self, module: &mut Module) -> (AnalysisManager, bool) {
         let mut am = AnalysisManager::new();
         let mut changed = false;
+        if self.validate_after_each {
+            validate_module_after_pass(module, "input");
+        }
         for pass in &mut self.passes {
-            let pass_name = pass.name().to_string();
             if pass.run(module) {
                 changed = true;
                 am.invalidate_all();
             }
             if self.validate_after_each {
-                validate_module_after_pass(module, &pass_name);
+                validate_module_after_pass(module, pass.name());
             }
         }
         (am, changed)

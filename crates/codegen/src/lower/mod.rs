@@ -577,7 +577,6 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
-
         mir_id
     }
 
@@ -623,7 +622,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// argument (offset word, length, padded data) and terminates with
     /// `ReturnData`, so wrappers pay one cheap call instead of an inline
     /// encode each. Never inlined back: it has no MIR return values.
-    pub(super) fn ensure_ret_bytes_helper(&mut self, ty: Ty<'gcx>) -> FunctionId {
+    pub(super) fn ensure_ret_bytes_helper(&mut self) -> FunctionId {
         // Not `get_or_insert_with`: synthesis re-enters `self` lowering
         // methods, which the closure borrow would forbid.
         if let Some(id) = self.ret_bytes_helper {
@@ -635,9 +634,39 @@ impl<'gcx> Lowerer<'gcx> {
         {
             let mut builder = FunctionBuilder::new(&mut func);
             let ptr = builder.add_param(MirType::MemPtr);
-            self.synthesizing_helper = true;
-            self.emit_abi_return(&mut builder, &[(ptr, ty)]);
-            self.synthesizing_helper = false;
+
+            // This helper terminates externally, so its return buffer need not
+            // advance the free-memory pointer. Encode `(offset, length, data)`
+            // directly at the current pointer and return it.
+            let free_ptr_addr = builder.imm_u64(0x40);
+            let buf = builder.mload(free_ptr_addr);
+            let word = builder.imm_u64(32);
+            builder.mstore(buf, word);
+
+            let len = builder.mload(ptr);
+            let len_dst = builder.add(buf, word);
+            builder.mstore(len_dst, len);
+
+            let thirty_one = builder.imm_u64(31);
+            let rounded = builder.add(len, thirty_one);
+            let mask = builder.not(thirty_one);
+            let padded = builder.and(rounded, mask);
+            let data_dst = builder.add(len_dst, word);
+
+            // For an empty value `padded - 32` wraps, and adding it to
+            // `data_dst == buf + 64` lands on the already-zero length word.
+            // Thus one unconditional store handles both empty and non-empty
+            // padding without a control-flow split.
+            let last_word_offset = builder.sub(padded, word);
+            let last_word = builder.add(data_dst, last_word_offset);
+            let zero = builder.imm_u64(0);
+            builder.mstore(last_word, zero);
+
+            let data_src = builder.add(ptr, word);
+            self.mcopy(&mut builder, data_dst, data_src, len, None);
+            let prefix_size = builder.imm_u64(64);
+            let size = builder.add(prefix_size, padded);
+            builder.ret_data(buf, size);
         }
         let id = self.module.add_function(func);
         self.ret_bytes_helper = Some(id);
@@ -701,7 +730,6 @@ impl<'gcx> Lowerer<'gcx> {
         self.lowering_internal_function = saved_lowering_internal_function;
         self.in_unchecked_block = saved_in_unchecked_block;
         self.current_return_tys = saved_current_return_tys;
-
         mir_id
     }
 
@@ -1465,6 +1493,15 @@ impl<'gcx> Lowerer<'gcx> {
 
     /// Marks a variable as being assigned (needs memory storage).
     fn mark_assigned_var(&mut self, expr: &hir::Expr<'_>) {
+        // A tuple assignment `(a, b) = ...` assigns every element; missing
+        // them here kept the variables SSA-tracked, so a value assigned in
+        // one branch arm leaked into the sibling arm's lowering.
+        if let hir::ExprKind::Tuple(elements) = &expr.kind {
+            for element in elements.iter().copied().flatten() {
+                self.mark_assigned_var(element);
+            }
+            return;
+        }
         if let Some(var_id) = self.ident_variable(expr) {
             self.assigned_vars.insert(var_id);
         }
