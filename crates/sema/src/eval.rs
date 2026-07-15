@@ -199,6 +199,27 @@ pub enum ConstValue {
 }
 
 impl ConstValue {
+    /// Returns the non-negative integer value as unsigned data.
+    pub fn as_u256(&self) -> Option<U256> {
+        match self {
+            Self::Integer(value) => value.as_u256(),
+            Self::Bool(_) | Self::String(_) => None,
+        }
+    }
+
+    /// Returns the boolean value, if this is a boolean constant.
+    pub fn as_bool(&self) -> Option<bool> {
+        match self {
+            Self::Bool(value) => Some(*value),
+            Self::Integer(_) | Self::String(_) => None,
+        }
+    }
+
+    /// Returns whether this is an integer constant with value zero.
+    pub fn is_zero(&self) -> bool {
+        matches!(self, Self::Integer(value) if value.is_zero())
+    }
+
     /// Converts this value into an integer constant.
     pub fn into_integer(self) -> Result<IntScalar, EvalError> {
         match self {
@@ -502,8 +523,34 @@ impl std::error::Error for EvalError {}
 
 #[cfg(test)]
 mod tests {
-    use super::erc7201_slot;
-    use alloy_primitives::b256;
+    use super::{ConstValue, IntScalar, erc7201_slot};
+    use crate::hir;
+    use alloy_primitives::{U256, b256};
+
+    #[test]
+    fn const_value_integer_accessors() {
+        let zero = ConstValue::Integer(IntScalar::new(U256::ZERO));
+        assert_eq!(zero.as_u256(), Some(U256::ZERO));
+        assert_eq!(zero.as_bool(), None);
+        assert!(zero.is_zero());
+
+        let one = ConstValue::Integer(IntScalar::new(U256::from(1)));
+        assert_eq!(one.as_u256(), Some(U256::from(1)));
+        assert!(!one.is_zero());
+
+        let negative =
+            ConstValue::Integer(IntScalar::new(U256::from(1)).unop(hir::UnOpKind::Neg).unwrap());
+        assert_eq!(negative.as_u256(), None);
+        assert!(!negative.is_zero());
+    }
+
+    #[test]
+    fn const_value_bool_accessors_preserve_type() {
+        let value = ConstValue::Bool(false);
+        assert_eq!(value.as_bool(), Some(false));
+        assert_eq!(value.as_u256(), None);
+        assert!(!value.is_zero());
+    }
 
     #[test]
     fn erc7201_slot_matches_eip_example() {
