@@ -1,13 +1,107 @@
-use crate::{global_state::GlobalState, symbols::CompletionContext};
-use async_lsp::ResponseError;
+use crate::{
+    formatter::{self, FormatterError},
+    global_state::GlobalState,
+    symbols::CompletionContext,
+    vfs::{Vfs, VfsPath},
+};
+use async_lsp::{ErrorCode, ResponseError};
 use crop::Rope;
 use lsp_types::{
-    CompletionParams, CompletionResponse, DocumentSymbolParams, DocumentSymbolResponse,
-    GotoDefinitionParams, GotoDefinitionResponse, InlayHint, InlayHintParams, Position,
-    ReferenceParams, SignatureHelp, SignatureHelpParams, Url, WorkspaceSymbolParams,
-    WorkspaceSymbolResponse,
+    CompletionParams, CompletionResponse, DocumentFormattingParams, DocumentSymbolParams,
+    DocumentSymbolResponse, GotoDefinitionParams, GotoDefinitionResponse, InlayHint,
+    InlayHintParams, Position, ReferenceParams, SignatureHelp, SignatureHelpParams, TextEdit, Url,
+    WorkspaceSymbolParams, WorkspaceSymbolResponse,
 };
-use std::future::ready;
+use solar_interface::data_structures::sync::RwLock;
+use std::{future::ready, io, path::Path, sync::Arc};
+use tracing::warn;
+
+pub(crate) fn formatting(
+    state: &mut GlobalState,
+    params: DocumentFormattingParams,
+) -> impl Future<Output = Result<Option<Vec<TextEdit>>, ResponseError>> + use<> {
+    let vfs = state.vfs.clone();
+    let request = params
+        .text_document
+        .uri
+        .to_file_path()
+        .map_err(|_| request_failed("document URI is not a file"))
+        .and_then(|path| {
+            let Some(workspace_root) = state.config.formatter_root_for_path(&path) else {
+                return Err(request_failed("document has no parent directory"));
+            };
+            Ok((VfsPath::from(path.clone()), path, workspace_root, state.config.forge_path()))
+        });
+
+    async move {
+        let (vfs_path, path, workspace_root, forge) = request?;
+        let source =
+            document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
+        let formatted =
+            formatter::run(&forge, &workspace_root, &source).await.map_err(formatter_failed)?;
+        let current =
+            document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
+        if current != source {
+            return Err(ResponseError::new(
+                ErrorCode::CONTENT_MODIFIED,
+                "document changed during formatting",
+            ));
+        }
+
+        Ok(formatting_edits(&source, &formatted))
+    }
+}
+
+async fn document_contents(
+    vfs: &Arc<RwLock<Vfs>>,
+    vfs_path: &VfsPath,
+    path: &Path,
+) -> io::Result<String> {
+    let contents = { vfs.read().get_file_contents(vfs_path).map(ToString::to_string) };
+    if let Some(contents) = contents {
+        return Ok(contents);
+    }
+
+    tokio::fs::read_to_string(path).await
+}
+
+fn document_read_failed(error: io::Error) -> ResponseError {
+    warn!(%error, "failed to read document for formatting");
+    request_failed("failed to read document")
+}
+
+fn formatter_failed(error: FormatterError) -> ResponseError {
+    warn!(%error, "document formatting failed");
+    let message = match &error {
+        FormatterError::Timeout => "Forge formatting timed out",
+        FormatterError::Io(error) if error.kind() == io::ErrorKind::NotFound => {
+            "Forge executable was not found"
+        }
+        FormatterError::Io(_) => "failed to run Forge formatter",
+        FormatterError::Failed { .. } => "Forge formatting failed",
+        FormatterError::InvalidUtf8(_) => "Forge returned invalid UTF-8",
+    };
+    request_failed(message)
+}
+
+fn request_failed(message: &'static str) -> ResponseError {
+    ResponseError::new(ErrorCode::REQUEST_FAILED, message)
+}
+
+fn formatting_edits(source: &str, formatted: &str) -> Option<Vec<TextEdit>> {
+    if source == formatted {
+        return None;
+    }
+
+    let rope = Rope::from(source);
+    Some(vec![TextEdit {
+        range: lsp_types::Range::new(
+            Position::new(0, 0),
+            crate::proto::position_at_byte(&rope, rope.byte_len()),
+        ),
+        new_text: formatted.to_owned(),
+    }])
+}
 
 pub(crate) fn document_symbol(
     state: &mut GlobalState,
@@ -327,5 +421,267 @@ mod tests {
         let input = completion_input_from_line_prefix(line_prefix);
         assert_eq!(input.prefix, expected_prefix);
         assert_eq!(input.member_receiver.as_deref(), expected_receiver);
+    }
+}
+
+#[cfg(test)]
+mod formatting_tests {
+    use super::*;
+    use crate::{config::negotiate_capabilities, test_support::TestProject};
+    use async_lsp::ClientSocket;
+    #[cfg(unix)]
+    use lsp_types::{
+        DidChangeTextDocumentParams, TextDocumentContentChangeEvent,
+        VersionedTextDocumentIdentifier,
+    };
+    use lsp_types::{
+        FormattingOptions, Position, Range, TextDocumentIdentifier, WorkDoneProgressParams,
+    };
+    #[cfg(unix)]
+    use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
+    #[cfg(unix)]
+    use std::{ops::ControlFlow, time::Duration};
+    use std::{path::Path, sync::Arc};
+    #[cfg(unix)]
+    use tokio::time;
+
+    #[test]
+    fn unchanged_formatting_returns_none() {
+        assert_eq!(formatting_edits("contract C {}", "contract C {}"), None);
+    }
+
+    #[test]
+    fn changed_formatting_returns_one_full_document_edit() {
+        let edits = formatting_edits("a\r\n🚀中\n", "formatted").unwrap();
+
+        assert_eq!(edits.len(), 1);
+        assert_eq!(
+            edits[0],
+            TextEdit {
+                range: Range::new(Position::new(0, 0), Position::new(2, 0)),
+                new_text: "formatted".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn formatter_failures_map_to_concise_request_failed_errors() {
+        let failures = [
+            (FormatterError::Timeout, "Forge formatting timed out"),
+            (
+                FormatterError::Io(io::Error::new(io::ErrorKind::NotFound, "missing")),
+                "Forge executable was not found",
+            ),
+            (FormatterError::Io(io::Error::other("pipe failed")), "failed to run Forge formatter"),
+            (
+                FormatterError::Failed { status: Some(1), stderr: "failed".into() },
+                "Forge formatting failed",
+            ),
+            (
+                FormatterError::InvalidUtf8(String::from_utf8(vec![0xff]).unwrap_err()),
+                "Forge returned invalid UTF-8",
+            ),
+        ];
+
+        for (failure, message) in failures {
+            let response = formatter_failed(failure);
+            assert_eq!(response.code, ErrorCode::REQUEST_FAILED);
+            assert_eq!(response.message, message);
+            assert!(!response.message.ends_with('.'));
+        }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn missing_forge_returns_request_failed() {
+        let mut project = TestProject::from_fixture(
+            r#"
+            //- /workspace/Test.sol
+            contract Test {}
+            "#,
+        );
+        project.open_file("/workspace/Test.sol", "contract Test{}");
+        let mut state =
+            formatting_state(&project, &project.path("/missing-forge"), &["/workspace"]);
+        let uri = Url::from_file_path(project.path("/workspace/Test.sol")).unwrap();
+
+        let error = formatting(&mut state, formatting_params(uri)).await.unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
+        assert_eq!(error.message, "Forge executable was not found");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn formatting_uses_unsaved_vfs_source_and_most_specific_workspace() {
+        let mut project = TestProject::from_fixture(
+            r#"
+            //- /workspace/A.sol
+            contract A {}
+
+            //- /workspace/nested/Test.sol
+            contract Test {}
+            "#,
+        );
+        let unsaved = "contract Test{string s=\"🚀\";}";
+        project.open_file("/workspace/nested/Test.sol", unsaved);
+        let forge = write_executable(
+            &project,
+            "/fake-forge",
+            r#"#!/bin/sh
+set -eu
+printf '%s\n' "$@" > "$0.args"
+cat > "$0.stdin"
+printf 'contract Test { string s = "🚀"; }'
+"#,
+        );
+        let mut state = formatting_state(&project, &forge, &["/workspace", "/workspace/nested"]);
+        let path = project.path("/workspace/nested/Test.sol");
+
+        let edits = formatting(&mut state, formatting_params(Url::from_file_path(&path).unwrap()))
+            .await
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(edits[0].new_text, "contract Test { string s = \"🚀\"; }");
+        assert_eq!(project.read_file("/fake-forge.stdin"), unsaved);
+        assert_eq!(
+            project.read_file("/fake-forge.args"),
+            format!("fmt\n--raw\n--root\n{}\n-\n", project.path("/workspace/nested").display())
+        );
+        assert_eq!(
+            state
+                .vfs
+                .read()
+                .get_file_contents(&crate::vfs::VfsPath::from(path))
+                .unwrap()
+                .to_string(),
+            unsaved
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn formatting_reads_disk_and_uses_file_parent_outside_workspaces() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /workspace/.keep
+
+            //- /outside/Test.sol
+            contract Test {}
+            "#,
+        );
+        let forge = write_executable(
+            &project,
+            "/fake-forge",
+            r#"#!/bin/sh
+set -eu
+printf '%s\n' "$@" > "$0.args"
+cat > "$0.stdin"
+cat "$0.stdin"
+"#,
+        );
+        let mut state = formatting_state(&project, &forge, &["/workspace"]);
+        let path = project.path("/outside/Test.sol");
+
+        let edits = formatting(&mut state, formatting_params(Url::from_file_path(path).unwrap()))
+            .await
+            .unwrap();
+
+        assert_eq!(edits, None);
+        assert_eq!(project.read_file("/fake-forge.stdin"), "contract Test {}");
+        assert_eq!(
+            project.read_file("/fake-forge.args"),
+            format!("fmt\n--raw\n--root\n{}\n-\n", project.path("/outside").display())
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn formatting_rejects_results_after_document_change() {
+        let mut project = TestProject::from_fixture(
+            r#"
+            //- /workspace/Test.sol
+            contract Test {}
+            "#,
+        );
+        project.open_file("/workspace/Test.sol", "contract Test{}");
+        let forge = write_executable(
+            &project,
+            "/fake-forge",
+            r#"#!/bin/sh
+set -eu
+cat > "$0.stdin"
+: > "$0.ready.tmp"
+mv "$0.ready.tmp" "$0.ready"
+while [ ! -e "$0.release" ]; do sleep 0.01; done
+printf 'contract Test {}'
+"#,
+        );
+        let mut state = formatting_state(&project, &forge, &["/workspace"]);
+        let uri = Url::from_file_path(project.path("/workspace/Test.sol")).unwrap();
+        let request = formatting(&mut state, formatting_params(uri.clone()));
+        let task = tokio::spawn(request);
+        wait_for_path(&project.path("/fake-forge.ready")).await;
+
+        let result = crate::handlers::did_change_text_document(
+            &mut state,
+            DidChangeTextDocumentParams {
+                text_document: VersionedTextDocumentIdentifier::new(uri, 2),
+                content_changes: vec![TextDocumentContentChangeEvent {
+                    range: None,
+                    range_length: None,
+                    text: "contract Changed {}".into(),
+                }],
+            },
+        );
+        assert!(matches!(result, ControlFlow::Continue(())));
+        project.write_file("/fake-forge.release", "");
+
+        let error = task.await.unwrap().unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::CONTENT_MODIFIED);
+        assert_eq!(error.message, "document changed during formatting");
+    }
+
+    fn formatting_params(uri: Url) -> DocumentFormattingParams {
+        DocumentFormattingParams {
+            text_document: TextDocumentIdentifier { uri },
+            options: FormattingOptions { tab_size: 99, insert_spaces: false, ..Default::default() },
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        }
+    }
+
+    fn formatting_state(project: &TestProject, forge: &Path, roots: &[&str]) -> GlobalState {
+        let mut params = project.initialize_params_with_roots(roots);
+        params.initialization_options =
+            Some(serde_json::json!({ "forgePath": forge.display().to_string() }));
+        let (_, mut config) = negotiate_capabilities(params);
+        config.rediscover_workspaces();
+
+        let mut state = GlobalState::new(ClientSocket::new_closed());
+        state.config = Arc::new(config);
+        *state.vfs.write() = project.vfs();
+        state
+    }
+
+    #[cfg(unix)]
+    fn write_executable(project: &TestProject, path: &str, contents: &str) -> PathBuf {
+        project.write_file(path, contents);
+        let path = project.path(path);
+        let mut permissions = fs::metadata(&path).unwrap().permissions();
+        permissions.set_mode(0o755);
+        fs::set_permissions(&path, permissions).unwrap();
+        path
+    }
+
+    #[cfg(unix)]
+    async fn wait_for_path(path: &Path) {
+        time::timeout(Duration::from_secs(5), async {
+            while !path.exists() {
+                tokio::task::yield_now().await;
+            }
+        })
+        .await
+        .unwrap();
     }
 }

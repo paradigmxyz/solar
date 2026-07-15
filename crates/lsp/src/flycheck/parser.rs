@@ -1,8 +1,6 @@
-use crate::{diagnostics::DiagnosticMap, flycheck::config::FlycheckOutput};
+use crate::{diagnostics::DiagnosticMap, flycheck::config::FlycheckOutput, proto};
 use crop::Rope;
-use lsp_types::{
-    Diagnostic as LspDiagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url,
-};
+use lsp_types::{Diagnostic as LspDiagnostic, DiagnosticSeverity, NumberOrString, Range, Url};
 use serde::Deserialize;
 use solar_interface::{
     data_structures::map::FxHashMap,
@@ -221,17 +219,11 @@ impl ByteRangeCache {
         }
 
         let file = self.files.get(path)?;
-        Some(Range { start: position_at_byte(file, start), end: position_at_byte(file, end) })
+        Some(Range {
+            start: proto::position_at_byte(file, start),
+            end: proto::position_at_byte(file, end),
+        })
     }
-}
-
-fn position_at_byte(file: &Rope, byte: usize) -> Position {
-    let byte = byte.min(file.byte_len());
-    let line = file.line_of_byte(byte);
-    let line_start = file.byte_of_line(line);
-    let character = file.utf16_code_unit_of_byte(byte) - file.utf16_code_unit_of_byte(line_start);
-
-    Position { line: line as u32, character: character as u32 }
 }
 
 #[cfg(test)]

@@ -60,6 +60,17 @@ impl Config {
         &self.workspaces
     }
 
+    pub(crate) fn forge_path(&self) -> PathBuf {
+        self.flycheck_options.forge_path()
+    }
+
+    pub(crate) fn formatter_root_for_path(&self, path: &Path) -> Option<PathBuf> {
+        WorkspacePathIndex::new(&self.workspaces)
+            .workspace_idx_containing_path(path)
+            .and_then(|idx| self.workspaces[idx].compile_opts().base_path.clone())
+            .or_else(|| path.parent().map(Path::to_path_buf))
+    }
+
     pub(crate) fn flychecks_for_path(&self, path: &Path) -> Vec<FlycheckConfig> {
         self.flychecks.iter().filter(|flycheck| flycheck.applies_to(path)).cloned().collect()
     }
@@ -219,6 +230,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             }),
             declaration_provider: Some(DeclarationCapability::Simple(true)),
             definition_provider: Some(OneOf::Left(true)),
+            document_formatting_provider: Some(OneOf::Left(true)),
             document_symbol_provider: Some(OneOf::Left(true)),
             inlay_hint_provider: Some(OneOf::Left(true)),
             references_provider: Some(OneOf::Left(true)),
@@ -289,6 +301,7 @@ mod tests {
         assert_eq!(completion_provider.trigger_characters, Some(vec![".".to_string()]));
         assert_eq!(capabilities.declaration_provider, Some(DeclarationCapability::Simple(true)));
         assert_eq!(capabilities.definition_provider, Some(OneOf::Left(true)));
+        assert_eq!(capabilities.document_formatting_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.document_symbol_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.inlay_hint_provider, Some(OneOf::Left(true)));
         assert_eq!(capabilities.references_provider, Some(OneOf::Left(true)));
@@ -407,6 +420,53 @@ mod tests {
         assert_eq!(flychecks[0].command, PathBuf::from("custom-lint"));
         assert_eq!(flychecks[0].args, ["--json"]);
         assert_eq!(flychecks[0].cwd, project.root());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_configured_forge_path() {
+        let (_, default_config) = negotiate_capabilities(InitializeParams::default());
+        assert_eq!(default_config.forge_path(), PathBuf::from("forge"));
+
+        let params = InitializeParams {
+            initialization_options: Some(serde_json::json!({
+                "forgePath": "/tools/forge"
+            })),
+            ..Default::default()
+        };
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert_eq!(config.forge_path(), PathBuf::from("/tools/forge"));
+    }
+
+    #[test]
+    fn formatter_root_uses_most_specific_workspace_or_file_parent() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /workspace/A.sol
+            contract A {}
+
+            //- /workspace/nested/B.sol
+            contract B {}
+
+            //- /outside/C.sol
+            contract C {}
+            "#,
+        );
+        let config = project.config_with_roots(&["/workspace", "/workspace/nested"]);
+
+        assert_eq!(
+            config.formatter_root_for_path(&project.path("/workspace/nested/B.sol")),
+            Some(project.path("/workspace/nested"))
+        );
+        assert_eq!(
+            config.formatter_root_for_path(&project.path("/workspace/A.sol")),
+            Some(project.path("/workspace"))
+        );
+        assert_eq!(
+            config.formatter_root_for_path(&project.path("/outside/C.sol")),
+            Some(project.path("/outside"))
+        );
     }
 
     #[test]
