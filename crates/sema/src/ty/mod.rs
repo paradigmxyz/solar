@@ -535,6 +535,16 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get()?.resolved_callee(id)
     }
 
+    /// Returns the target selected for a full call expression.
+    ///
+    /// This preserves whether a member call is attached through `using for` and may resolve to a
+    /// function-typed variable rather than a function declaration.
+    #[inline]
+    pub fn resolved_call(self, expr: &hir::Expr<'gcx>) -> Option<ResolvedCallee> {
+        let hir::ExprKind::Call(callee, ..) = expr.peel_parens().kind else { return None };
+        self.resolved_callee(callee.id)
+    }
+
     /// Returns the target selected for a non-call member access expression, if available.
     #[inline]
     pub fn resolved_member(self, id: hir::ExprId) -> Option<ResolvedMember> {
@@ -1042,6 +1052,25 @@ impl<'gcx> Gcx<'gcx> {
         res: Option<hir::Res>,
     ) -> Option<ResolvedMember> {
         if let Some(res) = res {
+            let struct_id = match receiver_ty.kind {
+                TyKind::Ref(inner, _) => {
+                    if let TyKind::Struct(struct_id) = inner.kind {
+                        Some(struct_id)
+                    } else {
+                        None
+                    }
+                }
+                TyKind::Struct(struct_id) => Some(struct_id),
+                _ => None,
+            };
+            if let Some(field_id) = res.as_variable()
+                && let Some(struct_id) = struct_id
+                && self.hir.variable(field_id).parent == Some(hir::ItemId::Struct(struct_id))
+                && let Some(field_index) =
+                    self.hir.strukt(struct_id).fields.iter().position(|&id| id == field_id)
+            {
+                return Some(ResolvedMember::StructField { struct_id, field_index });
+            }
             return Some(ResolvedMember::Res(res));
         }
 

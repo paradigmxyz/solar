@@ -596,7 +596,8 @@ impl<'gcx> Visit<'gcx> for BreakContinueChecker<'gcx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Compiler, hir::ExprKind};
+    use crate::{Compiler, builtins::Builtin, hir::ExprKind};
+    use solar_data_structures::Never;
     use solar_interface::{Session, config::CompileOpts};
     use std::path::PathBuf;
 
@@ -611,6 +612,40 @@ contract C {
 contract D {
     function g(uint256 x) public pure returns (uint256) {
         return x * 2;
+    }
+}
+"#;
+    const QUERY_SOURCE: &str = r#"
+library L {
+    function attached(address, uint256) internal pure {}
+}
+
+using L for address;
+
+struct Callbacks {
+    function(uint256) internal callback;
+}
+
+contract C {
+    function query(
+        function(uint256) internal callback,
+        address target,
+        Callbacks memory callbacks
+    ) internal {
+        ((target)).attached(1);
+        callback(2);
+        callbacks.callback(3);
+        require(true);
+    }
+}
+"#;
+    const AMBIGUOUS_CALL_SOURCE: &str = r#"
+contract C {
+    function overloaded(uint256) internal {}
+    function overloaded(int256) internal {}
+
+    function query() internal {
+        overloaded(1);
     }
 }
 "#;
@@ -632,6 +667,26 @@ contract D {
             } else {
                 self.walk_expr(expr)
             }
+        }
+    }
+
+    struct CallExprs<'hir> {
+        hir: &'hir hir::Hir<'hir>,
+        calls: Vec<&'hir hir::Expr<'hir>>,
+    }
+
+    impl<'hir> Visit<'hir> for CallExprs<'hir> {
+        type BreakValue = Never;
+
+        fn hir(&self) -> &'hir hir::Hir<'hir> {
+            self.hir
+        }
+
+        fn visit_expr(&mut self, expr: &'hir hir::Expr<'hir>) -> ControlFlow<Self::BreakValue> {
+            if matches!(expr.kind, ExprKind::Call(..)) {
+                self.calls.push(expr);
+            }
+            self.walk_expr(expr)
         }
     }
 
@@ -674,5 +729,94 @@ contract D {
     #[test]
     fn expression_types_are_available_by_default() {
         assert_eq!(binary_expr_types(), [Some("uint256".to_string()), Some("uint256".into())]);
+    }
+
+    #[test]
+    fn lint_query_helpers_preserve_call_semantics() {
+        let sess = Session::builder().opts(CompileOpts::default()).with_test_emitter().build();
+        let mut compiler = Compiler::new(sess);
+
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            let file = c
+                .sess()
+                .source_map()
+                .new_source_file(PathBuf::from("query.sol"), QUERY_SOURCE)
+                .unwrap();
+            pcx.add_file(file);
+            pcx.parse();
+
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            let mut visitor = CallExprs { hir: &gcx.hir, calls: Vec::new() };
+            let source = gcx.hir.source_ids().next().unwrap();
+            assert_eq!(visitor.visit_nested_source(source), ControlFlow::Continue(()));
+            let [attached_call, variable_call, field_call, builtin_call] = visitor.calls.as_slice()
+            else {
+                panic!("expected four calls, got {}", visitor.calls.len())
+            };
+
+            let attached = gcx.resolved_call(attached_call).unwrap();
+            assert!(attached.attached);
+            assert!(attached.res.as_function().is_some());
+
+            let variable = gcx.resolved_call(variable_call).unwrap();
+            assert!(!variable.attached);
+            assert!(variable.res.as_variable().is_some());
+
+            let field = gcx.resolved_call(field_call).unwrap();
+            assert!(!field.attached);
+            let field_id = field.res.as_variable().unwrap();
+            assert!(matches!(gcx.hir.variable(field_id).parent, Some(hir::ItemId::Struct(_))));
+
+            let builtin = gcx.resolved_call(builtin_call).unwrap();
+            assert!(!builtin.attached);
+            assert_eq!(builtin.res.as_builtin(), Some(Builtin::Require));
+
+            let ExprKind::Call(attached_callee, ..) = attached_call.kind else { unreachable!() };
+            let ExprKind::Member(receiver, _) = attached_callee.kind else { unreachable!() };
+            assert_ne!(receiver.id, receiver.peel_parens().id);
+            assert!(gcx.type_of_expr(receiver.id).is_some_and(|ty| ty.is_address()));
+            assert!(gcx.types.address_payable.is_address());
+            assert!(!gcx.types.bool.is_address());
+            assert!(gcx.resolved_call(receiver).is_none());
+        });
+    }
+
+    #[test]
+    fn resolved_call_preserves_failed_overload_resolution() {
+        let sess = Session::builder().opts(CompileOpts::default()).with_test_emitter().build();
+        let mut compiler = Compiler::new(sess);
+
+        compiler.enter_mut(|c| {
+            let mut pcx = c.parse();
+            let file = c
+                .sess()
+                .source_map()
+                .new_source_file(PathBuf::from("ambiguous.sol"), AMBIGUOUS_CALL_SOURCE)
+                .unwrap();
+            pcx.add_file(file);
+            pcx.parse();
+
+            assert_eq!(c.lower_asts(), Ok(ControlFlow::Continue(())));
+            assert_eq!(c.analysis(), Ok(ControlFlow::Continue(())));
+        });
+
+        compiler.enter(|c| {
+            let gcx = c.gcx();
+            let mut visitor = CallExprs { hir: &gcx.hir, calls: Vec::new() };
+            let source = gcx.hir.source_ids().next().unwrap();
+            assert_eq!(visitor.visit_nested_source(source), ControlFlow::Continue(()));
+            let [call] = visitor.calls.as_slice() else {
+                panic!("expected one call, got {}", visitor.calls.len())
+            };
+            let ExprKind::Call(callee, ..) = call.kind else { unreachable!() };
+            assert!(gcx.resolved_callee(callee.id).is_some_and(|resolved| resolved.res.is_err()));
+            assert!(gcx.resolved_call(call).is_some_and(|resolved| resolved.res.is_err()));
+        });
     }
 }
