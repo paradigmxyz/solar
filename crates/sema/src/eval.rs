@@ -41,6 +41,16 @@ pub fn eval_array_len(gcx: Gcx<'_>, size: &hir::Expr<'_>) -> Result<U256, ErrorG
     }
 }
 
+impl<'gcx> Gcx<'gcx> {
+    /// Attempts to evaluate a literal expression without emitting diagnostics.
+    ///
+    /// Returns `None` for non-literal expressions and unsupported literals.
+    pub fn eval_const(self, expr: &hir::Expr<'_>) -> Option<ConstValue> {
+        let hir::ExprKind::Lit(lit) = expr.peel_parens().kind else { return None };
+        try_eval_lit(lit).ok()
+    }
+}
+
 /// Evaluates Solidity constant expressions.
 ///
 /// This supports the source-level constants needed by semantic analysis and
@@ -130,7 +140,7 @@ impl<'gcx> ConstantEvaluator<'gcx> {
             }
             // hir::ExprKind::Index(_, _) => unimplemented!(),
             // hir::ExprKind::Slice(_, _, _) => unimplemented!(),
-            hir::ExprKind::Lit(lit) => self.eval_lit(lit),
+            hir::ExprKind::Lit(lit) => try_eval_lit(lit),
             // hir::ExprKind::Member(_, _) => unimplemented!(),
             // hir::ExprKind::New(_) => unimplemented!(),
             // hir::ExprKind::Payable(_) => unimplemented!(),
@@ -170,20 +180,20 @@ impl<'gcx> ConstantEvaluator<'gcx> {
         }
         Err(EE::UnsupportedExpr.into())
     }
+}
 
-    fn eval_lit(&mut self, lit: &hir::Lit<'_>) -> EvalResult {
-        match lit.kind {
-            LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(ConstValue::String(s)),
-            LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
-            LitKind::Number(n) => Ok(ConstValue::Integer(IntScalar::new(n))),
-            // LitKind::Rational(ratio) => todo!(),
-            LitKind::Address(address) => {
-                Ok(ConstValue::Integer(IntScalar::from_be_bytes(address.as_slice())))
-            }
-            LitKind::Bool(bool) => Ok(ConstValue::Bool(bool)),
-            LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
-            _ => Err(EE::UnsupportedLiteral.into()),
+fn try_eval_lit(lit: &hir::Lit<'_>) -> EvalResult {
+    match lit.kind {
+        LitKind::Str(StrKind::Str | StrKind::Unicode, s, _) => Ok(ConstValue::String(s)),
+        LitKind::Str(StrKind::Hex, _, _) => Err(EE::UnsupportedLiteral.into()),
+        LitKind::Number(n) => Ok(ConstValue::Integer(IntScalar::new(n))),
+        // LitKind::Rational(ratio) => todo!(),
+        LitKind::Address(address) => {
+            Ok(ConstValue::Integer(IntScalar::from_be_bytes(address.as_slice())))
         }
+        LitKind::Bool(bool) => Ok(ConstValue::Bool(bool)),
+        LitKind::Err(guar) => Err(EE::AlreadyEmitted(guar).into()),
+        _ => Err(EE::UnsupportedLiteral.into()),
     }
 }
 
@@ -524,8 +534,10 @@ impl std::error::Error for EvalError {}
 #[cfg(test)]
 mod tests {
     use super::{ConstValue, IntScalar, erc7201_slot};
-    use crate::hir;
-    use alloy_primitives::{U256, b256};
+    use crate::{Compiler, hir, ty::Gcx};
+    use alloy_primitives::{U256, address, b256};
+    use solar_interface::{ColorChoice, Session};
+    use std::path::PathBuf;
 
     #[test]
     fn const_value_integer_accessors() {
@@ -553,6 +565,52 @@ mod tests {
     }
 
     #[test]
+    fn gcx_eval_const_evaluates_literals_only() {
+        let compiler = lower_source(
+            r#"
+contract Test {
+    uint256 number = 42;
+    bool boolean = true;
+    string text = "hello";
+    string unicodeText = unicode"hello";
+    address account = 0x52908400098527886E0F7030069857D2E4169EE7;
+    uint256 parenthesized = (7);
+
+    uint256 binary = 1 + 2;
+    int256 unary = -1;
+    uint256 constant named = 9;
+    uint256 identifier = named;
+    bytes hexString = hex"1234";
+}
+"#,
+        );
+
+        compiler.enter_sequential(|compiler| {
+            let gcx = compiler.gcx();
+
+            assert_integer(gcx.eval_const(initializer(gcx, "number")), U256::from(42));
+            assert!(matches!(
+                gcx.eval_const(initializer(gcx, "boolean")),
+                Some(ConstValue::Bool(true))
+            ));
+            assert_string(gcx.eval_const(initializer(gcx, "text")), b"hello");
+            assert_string(gcx.eval_const(initializer(gcx, "unicodeText")), b"hello");
+            assert_integer(
+                gcx.eval_const(initializer(gcx, "account")),
+                U256::from_be_slice(
+                    address!("52908400098527886E0F7030069857D2E4169EE7").as_slice(),
+                ),
+            );
+            assert_integer(gcx.eval_const(initializer(gcx, "parenthesized")), U256::from(7));
+
+            for name in ["binary", "unary", "identifier", "hexString"] {
+                assert!(gcx.eval_const(initializer(gcx, name)).is_none(), "{name}");
+            }
+        });
+        assert!(compiler.sess().dcx.has_errors().is_ok());
+    }
+
+    #[test]
     fn erc7201_slot_matches_eip_example() {
         assert_eq!(
             erc7201_slot(b"example.main"),
@@ -566,5 +624,48 @@ mod tests {
             erc7201_slot(b"85"),
             b256!("06d0d983459328e82eacb1bf2d6fadfa38a6896e9d4cbfe0e1aa41c6281bab00")
         );
+    }
+
+    fn assert_integer(value: Option<ConstValue>, expected: U256) {
+        let Some(ConstValue::Integer(value)) = value else {
+            panic!("expected integer literal, got {value:?}")
+        };
+        assert_eq!(value.as_u256(), Some(expected));
+    }
+
+    fn assert_string(value: Option<ConstValue>, expected: &[u8]) {
+        let Some(ConstValue::String(value)) = value else {
+            panic!("expected string literal, got {value:?}")
+        };
+        assert_eq!(value.as_byte_str(), expected);
+    }
+
+    fn initializer<'gcx>(gcx: Gcx<'gcx>, name: &str) -> &'gcx hir::Expr<'gcx> {
+        gcx.hir
+            .variables()
+            .find(|variable| variable.name.is_some_and(|variable| variable.as_str() == name))
+            .and_then(|variable| variable.initializer)
+            .unwrap_or_else(|| panic!("initializer for `{name}` not found"))
+    }
+
+    fn lower_source(src: &str) -> Compiler {
+        let sess =
+            Session::builder().with_buffer_emitter(ColorChoice::Never).single_threaded().build();
+        let mut compiler = Compiler::new(sess);
+
+        let _ = compiler.enter_mut(|compiler| -> solar_interface::Result<_> {
+            let mut parsing_context = compiler.parse();
+            let file = compiler
+                .sess()
+                .source_map()
+                .new_source_file(PathBuf::from("test.sol"), src.to_string())
+                .unwrap();
+            parsing_context.add_file(file);
+            parsing_context.parse();
+            let _ = compiler.lower_asts()?;
+            Ok(())
+        });
+
+        compiler
     }
 }
