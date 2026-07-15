@@ -23,6 +23,9 @@ invoking other commands such as `cargo test`.
 ## Results
 
 You can view the Solar-only results on [codspeed.io](https://codspeed.io/paradigmxyz/solar).
+The codegen runtime workflow also publishes `common.json` using the vendored common benchmark
+result schema in [`schema/`](schema/). Its wall time is the total for the comparison suite, including
+the harness, both compilers, and runtime checks.
 
 The following results were achieved on:
 - Target: `x86_64-unknown-linux-gnu`
