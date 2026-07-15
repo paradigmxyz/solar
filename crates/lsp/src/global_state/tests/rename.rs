@@ -200,6 +200,40 @@ fn renames_named_call_arguments_with_the_parameter() {
 }
 
 #[test]
+fn renames_named_modifier_and_base_constructor_arguments() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /NamedModifiers.sol
+        contract Base {
+            constructor(uint256 $3amount) {}
+        }
+
+        contract Child is Base({$4amount: 1}) {
+            modifier guarded(uint256 $1amount) { _; }
+            function run() public guarded({$2amount: 1}) {}
+        }
+        "#,
+        "/NamedModifiers.sol",
+    );
+
+    let modifier = str![[r#"
+/NamedModifiers.sol:4:29-4:35 -> value
+/NamedModifiers.sol:5:35-5:41 -> value
+
+"#]];
+    fixture.check_rename("$1", "value", modifier.clone());
+    fixture.check_rename("$2", "value", modifier);
+
+    let constructor = str![[r#"
+/NamedModifiers.sol:1:24-1:30 -> value
+/NamedModifiers.sol:3:24-3:30 -> value
+
+"#]];
+    fixture.check_rename("$3", "value", constructor.clone());
+    fixture.check_rename("$4", "value", constructor);
+}
+
+#[test]
 fn renames_named_mapping_keys_with_generated_getter_arguments() {
     let fixture = RequestFixture::new(
         r#"
@@ -428,6 +462,62 @@ fn renames_override_contract_paths() {
 
 "#]],
     );
+}
+
+#[test]
+fn renames_override_families_from_base_and_derived_declarations() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /OverrideFamily.sol
+        contract Base {
+            function $1run() public virtual {}
+            modifier $3guard() virtual { _; }
+        }
+
+        contract Child is Base {
+            function $2run() public override {}
+            modifier $4guard() override { _; }
+            function call() public $5guard { $6run(); }
+        }
+
+        abstract contract GetterBase {
+            function $7value() external view virtual returns (uint256);
+        }
+
+        contract GetterChild is GetterBase {
+            uint256 public override $8value;
+            function read() external view returns (uint256) { return this.$9value(); }
+        }
+        "#,
+        "/OverrideFamily.sol",
+    );
+
+    let functions = str![[r#"
+/OverrideFamily.sol:1:13-1:16 -> renamed
+/OverrideFamily.sol:5:13-5:16 -> renamed
+/OverrideFamily.sol:7:35-7:38 -> renamed
+
+"#]];
+    fixture.check_rename("$1", "renamed", functions.clone());
+    fixture.check_rename("$2", "renamed", functions);
+
+    let modifiers = str![[r#"
+/OverrideFamily.sol:2:13-2:18 -> checked
+/OverrideFamily.sol:6:13-6:18 -> checked
+/OverrideFamily.sol:7:27-7:32 -> checked
+
+"#]];
+    fixture.check_rename("$3", "checked", modifiers.clone());
+    fixture.check_rename("$4", "checked", modifiers);
+
+    let getter = str![[r#"
+/OverrideFamily.sol:10:13-10:18 -> amount
+/OverrideFamily.sol:13:28-13:33 -> amount
+/OverrideFamily.sol:14:66-14:71 -> amount
+
+"#]];
+    fixture.check_rename("$7", "amount", getter.clone());
+    fixture.check_rename("$8", "amount", getter);
 }
 
 #[test]

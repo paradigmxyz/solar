@@ -70,6 +70,8 @@ pub(crate) struct RenameIndex {
     mapping_names: IndexVec<MappingNameId, MappingName>,
     analyzed_contents: FxHashMap<Url, Arc<String>>,
     symbol_targets: FxHashSet<SymbolId>,
+    override_edges: Vec<(SymbolId, SymbolId)>,
+    symbol_families: FxHashMap<SymbolId, usize>,
     yul_symbol_targets: FxHashSet<SymbolId>,
     occurrences: Vec<RenameOccurrence>,
     file_occurrences: FxHashMap<Url, Vec<usize>>,
@@ -267,6 +269,7 @@ impl RenameIndex {
 
         for function_id in gcx.hir.function_ids() {
             let function = gcx.hir.function(function_id);
+            self.add_override_edges(gcx, function_id.into(), item_symbols);
             let Some(name) = function.name else { continue };
             let Some(function_paths) = paths.paths.get(&name.span) else { continue };
             for (path, &contract_id) in function_paths.iter().zip(function.overrides) {
@@ -286,6 +289,7 @@ impl RenameIndex {
 
         for variable_id in gcx.hir.variable_ids() {
             let variable = gcx.hir.variable(variable_id);
+            self.add_override_edges(gcx, variable_id.into(), item_symbols);
             let Some(name) = variable.name else { continue };
             let Some(variable_paths) = paths.paths.get(&name.span) else { continue };
             for (path, &contract_id) in variable_paths.iter().zip(variable.overrides) {
@@ -302,6 +306,20 @@ impl RenameIndex {
                 );
             }
         }
+    }
+
+    fn add_override_edges(
+        &mut self,
+        gcx: Gcx<'_>,
+        item: ItemId,
+        item_symbols: &FxHashMap<ItemId, SymbolId>,
+    ) {
+        let Some(&symbol_id) = item_symbols.get(&item) else { return };
+        self.override_edges.extend(
+            gcx.base_override_items(item)
+                .iter()
+                .filter_map(|base| item_symbols.get(base).map(|&base| (symbol_id, base))),
+        );
     }
 
     pub(crate) fn push_namespace_reference(
@@ -339,13 +357,15 @@ impl RenameIndex {
         let occurrence = self.occurrence_at(uri, position)?;
         let &target = occurrence.targets.first()?;
         let targets = match target {
-            RenameTarget::Symbol(symbol_id) => self
-                .symbol_targets
-                .iter()
-                .copied()
-                .filter(|&candidate| same_symbol_declaration(declarations, symbol_id, candidate))
-                .map(RenameTarget::Symbol)
-                .collect::<Vec<_>>(),
+            RenameTarget::Symbol(symbol_id) => {
+                let family = self.symbol_families.get(&symbol_id)?;
+                self.symbol_targets
+                    .iter()
+                    .copied()
+                    .filter(|candidate| self.symbol_families.get(candidate) == Some(family))
+                    .map(RenameTarget::Symbol)
+                    .collect::<Vec<_>>()
+            }
             RenameTarget::ImportAlias(alias_id) => self
                 .aliases
                 .indices()
@@ -422,14 +442,20 @@ impl RenameIndex {
                 };
             }
         }
+        for (derived, base) in &mut other.override_edges {
+            *derived = remap_symbol_id(*derived, symbol_offset);
+            *base = remap_symbol_id(*base, symbol_offset);
+        }
         self.analyzed_contents.extend(other.analyzed_contents);
         self.aliases.extend(other.aliases);
         self.mapping_names.extend(other.mapping_names);
+        self.override_edges.extend(other.override_edges);
         self.occurrences.extend(other.occurrences);
     }
 
     pub(crate) fn rebuild(&mut self, declarations: &IndexVec<SymbolId, DeclarationSymbol>) {
         self.normalize_occurrences();
+        self.rebuild_symbol_families(declarations);
         self.file_occurrences.clear();
         self.target_occurrences.clear();
         self.ambiguous_targets.clear();
@@ -438,9 +464,9 @@ impl RenameIndex {
             self.file_occurrences.entry(occurrence.location.uri.clone()).or_default().push(index);
             if occurrence.targets.len() > 1
                 && !same_rename_targets(
-                    declarations,
                     &self.aliases,
                     &self.mapping_names,
+                    &self.symbol_families,
                     &occurrence.targets,
                 )
             {
@@ -457,6 +483,35 @@ impl RenameIndex {
         for locations in self.target_occurrences.values_mut() {
             sort_locations(locations);
             locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
+        }
+    }
+
+    fn rebuild_symbol_families(&mut self, declarations: &IndexVec<SymbolId, DeclarationSymbol>) {
+        self.symbol_families.clear();
+        let mut parents = (0..declarations.len()).collect::<Vec<_>>();
+        let mut declarations_by_location = FxHashMap::default();
+        for &symbol_id in &self.symbol_targets {
+            let declaration = &declarations[symbol_id];
+            let range = declaration.name_range;
+            let key = (
+                declaration.name.as_str(),
+                declaration.location.uri.as_str(),
+                range.start.line,
+                range.start.character,
+                range.end.line,
+                range.end.character,
+            );
+            if let Some(&other) = declarations_by_location.get(&key) {
+                union(&mut parents, symbol_id.index(), other);
+            } else {
+                declarations_by_location.insert(key, symbol_id.index());
+            }
+        }
+        for &(derived, base) in &self.override_edges {
+            union(&mut parents, derived.index(), base.index());
+        }
+        for &symbol_id in &self.symbol_targets {
+            self.symbol_families.insert(symbol_id, find(&mut parents, symbol_id.index()));
         }
     }
 
@@ -612,17 +667,20 @@ impl RenameIndex {
 }
 
 fn same_rename_targets(
-    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
     aliases: &IndexVec<ImportAliasId, ImportAlias>,
     mapping_names: &IndexVec<MappingNameId, MappingName>,
+    symbol_families: &FxHashMap<SymbolId, usize>,
     targets: &[RenameTarget],
 ) -> bool {
     let Some(first) = targets.first().copied() else { return false };
     match first {
-        RenameTarget::Symbol(first) => targets.iter().all(|target| {
-            let RenameTarget::Symbol(symbol_id) = *target else { return false };
-            same_symbol_declaration(declarations, first, symbol_id)
-        }),
+        RenameTarget::Symbol(first) => {
+            let Some(family) = symbol_families.get(&first) else { return false };
+            targets.iter().all(|target| {
+                let RenameTarget::Symbol(symbol_id) = *target else { return false };
+                symbol_families.get(&symbol_id) == Some(family)
+            })
+        }
         RenameTarget::MappingName(first) => targets.iter().all(|target| {
             let RenameTarget::MappingName(name_id) = *target else { return false };
             mapping_names[first] == mapping_names[name_id]
@@ -634,14 +692,21 @@ fn same_rename_targets(
     }
 }
 
-fn same_symbol_declaration(
-    declarations: &IndexVec<SymbolId, DeclarationSymbol>,
-    a: SymbolId,
-    b: SymbolId,
-) -> bool {
-    let a = &declarations[a];
-    let b = &declarations[b];
-    a.name == b.name && a.location.uri == b.location.uri && a.name_range == b.name_range
+fn find(parents: &mut [usize], index: usize) -> usize {
+    let parent = parents[index];
+    if parent == index {
+        index
+    } else {
+        let root = find(parents, parent);
+        parents[index] = root;
+        root
+    }
+}
+
+fn union(parents: &mut [usize], a: usize, b: usize) {
+    let a = find(parents, a);
+    let b = find(parents, b);
+    parents[a] = b;
 }
 
 fn imported_symbols(

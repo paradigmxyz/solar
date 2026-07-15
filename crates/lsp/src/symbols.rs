@@ -1424,9 +1424,8 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         }
     }
 
-    fn push_named_arg_references(&mut self, callee: &'gcx hir::Expr<'gcx>, args: &CallArgs<'gcx>) {
+    fn push_named_arg_references(&mut self, source: CallableParamSource, args: &CallArgs<'gcx>) {
         let CallArgsKind::Named(args) = args.kind else { return };
-        let Some(source) = self.call_param_source(callee) else { return };
         let params = self.call_param_ids(source);
 
         for arg in args {
@@ -1454,15 +1453,23 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
     fn call_param_source(&self, callee: &'gcx hir::Expr<'gcx>) -> Option<CallableParamSource> {
         if let hir::ExprKind::New(ty) = &callee.kind
             && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(ty).kind
-            && let Some(id) = self.gcx.hir.contract(id).ctor
         {
-            return Some(CallableParamSource::Function { id, skips_receiver: false });
+            return self.item_param_source(id.into());
         }
 
         self.gcx
             .type_of_expr(callee.id)
             .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
             .and_then(|signature| signature.param_source)
+    }
+
+    fn item_param_source(&self, item: ItemId) -> Option<CallableParamSource> {
+        let id = match item {
+            ItemId::Function(id) => id,
+            ItemId::Contract(id) => self.gcx.hir.contract(id).ctor?,
+            _ => return None,
+        };
+        Some(CallableParamSource::Function { id, skips_receiver: false })
     }
 
     fn call_param_ids(&self, source: CallableParamSource) -> Vec<VariableId> {
@@ -1529,6 +1536,9 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         {
             self.push_reference(modifier.span.with_hi(modifier.args.span.lo()), vec![symbol_id]);
         }
+        if let Some(source) = self.item_param_source(modifier.id) {
+            self.push_named_arg_references(source, &modifier.args);
+        }
         self.visit_call_args(&modifier.args)
     }
 
@@ -1564,7 +1574,9 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
             hir::ExprKind::Call(callee, ref args, _) => {
-                self.push_named_arg_references(callee, args);
+                if let Some(source) = self.call_param_source(callee) {
+                    self.push_named_arg_references(source, args);
+                }
                 hir::Visit::walk_expr(self, expr)?;
             }
             hir::ExprKind::Ident(res) => {

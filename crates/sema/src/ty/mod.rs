@@ -3,6 +3,7 @@ use crate::{
     ast_lowering::SymbolResolver,
     builtins::{Builtin, members},
     hir::{self, Hir, SourceId},
+    typeck::override_checker::OverrideProxy,
 };
 use alloy_primitives::{B256, Selector, U256, keccak256};
 use either::Either;
@@ -1437,6 +1438,19 @@ pub(crate) fn base_override_functions(
     proxy: crate::typeck::override_checker::OverrideProxy
 ) -> &'gcx [crate::typeck::override_checker::OverrideProxy] {
     crate::typeck::override_checker::base_override_functions(gcx, proxy)
+}
+
+/// Returns the base declarations overridden by a function, modifier, or public variable.
+pub fn base_override_items(gcx: _, item: hir::ItemId) -> &'gcx [hir::ItemId] {
+    let proxy = match item {
+        hir::ItemId::Function(id) => OverrideProxy::Function(id),
+        hir::ItemId::Variable(id) => OverrideProxy::Variable(id),
+        _ => return &[],
+    };
+    gcx.bump().alloc_from_iter(gcx.base_override_functions(proxy).iter().map(|base| match base {
+        OverrideProxy::Function(id) => hir::ItemId::Function(*id),
+        OverrideProxy::Variable(id) => hir::ItemId::Variable(*id),
+    }))
 }
 
 /// Returns the resolved NatSpec doc comments for the given doc ID.
