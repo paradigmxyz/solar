@@ -1,6 +1,6 @@
-// === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKey ===
-@module MappingDynamicKey
-fn @lookup(arg0: memptr) {
+// === ROOT/tests/ui/codegen/mapping_dynamic_key.sol:MappingDynamicKey ===
+; module @MappingDynamicKey
+fn @lookup(arg0: calldataslice) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -79,9 +79,9 @@ fn @get(arg0: memptr) {
     returndata 128, 32
 }
 
-// === ROOT/tests/ui/codegen/lowering/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
-@module MappingDynamicKeyPaths
-fn @flat(arg0: memptr) {
+// === ROOT/tests/ui/codegen/mapping_dynamic_key.sol:MappingDynamicKeyPaths ===
+; module @MappingDynamicKeyPaths
+fn @flat(arg0: calldataslice) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -97,7 +97,7 @@ fn @flat(arg0: memptr) {
     returndata 128, 32
 }
 
-fn @nestedFirst(arg0: memptr, arg1: address) {
+fn @nestedFirst(arg0: calldataslice, arg1: address) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -121,7 +121,7 @@ fn @nestedFirst(arg0: memptr, arg1: address) {
     returndata 128, 32
 }
 
-fn @nestedSecond(arg0: address, arg1: memptr) {
+fn @nestedSecond(arg0: address, arg1: calldataslice) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -482,7 +482,7 @@ fn @setViaStorageKey(arg0: u256) {
     stop
 }
 
-fn @setThenAlloc(arg0: memptr, arg1: u256) {
+fn @setThenAlloc(arg0: calldataslice, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4

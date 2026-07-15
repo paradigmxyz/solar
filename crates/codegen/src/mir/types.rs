@@ -2,6 +2,24 @@
 
 use std::fmt;
 
+/// Address space containing a dynamically-sized MIR slice.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SliceLocation {
+    /// EVM memory.
+    Memory,
+    /// Call input data.
+    Calldata,
+}
+
+impl fmt::Display for SliceLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Memory => write!(f, "memory"),
+            Self::Calldata => write!(f, "calldata"),
+        }
+    }
+}
+
 /// Types used in MIR.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum MirType {
@@ -21,6 +39,8 @@ pub(crate) enum MirType {
     StoragePtr,
     /// Calldata pointer.
     CalldataPtr,
+    /// A `(pointer, length)` pair in the given address space.
+    Slice(SliceLocation),
     /// Function type.
     Function,
     /// Void/unit type (for functions that don't return).
@@ -58,6 +78,7 @@ impl fmt::Display for MirType {
             Self::MemPtr => write!(f, "memptr"),
             Self::StoragePtr => write!(f, "storageptr"),
             Self::CalldataPtr => write!(f, "calldataptr"),
+            Self::Slice(location) => write!(f, "{location}slice"),
             Self::Function => write!(f, "function"),
             Self::Void => write!(f, "void"),
         }

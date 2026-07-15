@@ -217,7 +217,7 @@ fn @stFix(arg0: u256) {
     returndata 128, 32
 }
 
-fn @cdDyn(arg0: memptr, arg1: u256) {
+fn @cdDyn(arg0: calldataslice, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -227,20 +227,19 @@ fn @cdDyn(arg0: memptr, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = lt arg1, v4
-    br v5, bb4, bb3
+    v3 = slice_len arg0
+    v4 = lt arg1, v3
+    br v4, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = add v3, 32
-    v7 = mul arg1, 32
-    v8 = add v6, v7
-    v9 = calldataload v8
-    mstore 128, v9
+    v5 = slice_ptr arg0
+    v6 = mul arg1, 32
+    v7 = add v5, v6
+    v8 = calldataload v7
+    mstore 128, v8
     returndata 128, 32
 }
 
@@ -276,7 +275,7 @@ fn @cdFix(arg0: u256, arg1: u256, arg2: u256, arg3: u256) {
     returndata 128, 32
 }
 
-fn @cdBytes(arg0: memptr, arg1: u256) {
+fn @cdBytes(arg0: calldataslice, arg1: u256) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -286,20 +285,19 @@ fn @cdBytes(arg0: memptr, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = lt arg1, v4
-    br v5, bb4, bb3
+    v3 = slice_len arg0
+    v4 = lt arg1, v3
+    br v4, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v6 = add v3, 32
-    v7 = add v6, arg1
-    v8 = calldataload v7
-    v9 = and v8, 0xff00000000000000000000000000000000000000000000000000000000000000
-    mstore 128, v9
+    v5 = slice_ptr arg0
+    v6 = add v5, arg1
+    v7 = calldataload v6
+    v8 = and v7, 0xff00000000000000000000000000000000000000000000000000000000000000
+    mstore 128, v8
     returndata 128, 32
 }
 

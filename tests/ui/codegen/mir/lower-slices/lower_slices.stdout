@@ -1,0 +1,34 @@
+// === ROOT/tests/ui/codegen/mir/lower_slices.mir (after lower-abi,lower-slices) ===
+; module @LowerSlices [phase = abi]
+fn @entry() {
+  bb0 (entry):
+    v0 = internal_call @len, 1, arg0
+    mstore 128, v0
+    returndata 128, 32
+}
+
+fn @len(arg0: u256) -> u256 {
+  bb0 (entry):
+    v1 = add arg0, 4
+    v2 = calldataload v1
+    ret v2
+}
+
+fn @tail(arg0: calldataptr, arg1: u256, arg2: u256) -> u256 {
+  bb0 (entry):
+    v2 = add arg0, arg2
+    v3 = sub arg1, arg2
+    v5 = internal_call @pair_len, 1, v2, v3
+    ret v5
+}
+
+fn @pair_len(arg0: calldataptr, arg1: u256) -> u256 {
+  bb0 (entry):
+    ret arg1
+}
+
+fn @memory(arg0: memptr, arg1: u256) -> u256 {
+  bb0 (entry):
+    v3 = add arg0, arg1
+    ret v3
+}

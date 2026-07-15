@@ -1,0 +1,67 @@
+// === ROOT/tests/ui/codegen/abi_decode_calldata_slice.sol:AbiDecodeCalldataSlice ===
+; module @AbiDecodeCalldataSlice
+fn @decode(arg0: calldataslice) {
+  bb0 (entry):
+    v0 = calldatasize
+    v1 = sub v0, 4
+    v2 = slt v1, 32
+    br v2, bb1, bb2
+  bb1:
+    revert 0, 0
+  bb2:
+    mstore 128, 0
+    v3 = slice_ptr arg0
+    v4 = slice_len arg0
+    v5 = lt v4, 4
+    br v5, bb3, bb4
+  bb3:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 50 !metadata(memory=scratch)
+    revert 0, 36
+  bb4:
+    v6 = sub v4, 4
+    v7 = add v3, 4
+    v8 = make_calldata_slice v7, v6
+    v9 = slice_len v8
+    v10 = add v9, 31
+    v11 = lt v10, v9
+    br v11, bb5, bb6
+  bb5:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb6:
+    v12 = not 31
+    v13 = and v10, v12
+    v14 = iszero v13
+    v15 = select v14, 32, v13
+    v16 = add 32, v15
+    v17 = lt v16, v15
+    br v17, bb7, bb8
+  bb7:
+    mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
+    mstore 4, 65 !metadata(memory=scratch)
+    revert 0, 36
+  bb8:
+    v18 = mload 64 !metadata(memory=scratch)
+    v19 = add v18, v16
+    mstore 64, v19 !metadata(memory=scratch)
+    mstore v18, v9
+    v20 = add v18, 32
+    v21 = sub v15, 32
+    v22 = add v20, v21
+    mstore v22, 0
+    v23 = slice_ptr v8
+    calldatacopy v20, v23, v9
+    v24 = mload v18
+    v25 = lt v24, 32
+    br v25, bb9, bb10
+  bb9:
+    revert 0, 0
+  bb10:
+    v26 = add v18, 32
+    v27 = mload v26
+    mstore 128, v27
+    returndata 128, 32
+}
+

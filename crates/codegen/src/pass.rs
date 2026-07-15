@@ -23,9 +23,9 @@ use crate::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, MemoryDsePass,
-        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
-        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, LowerSlicesPass,
+        MemoryDsePass, OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass,
+        StaticAllocPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -175,6 +175,9 @@ declare_passes! {
 
     /// Lower mapping-slot hash builtins to memory operations.
     pub(crate) const LOWER_MAPPING_SLOTS_PASS -> "lower-mapping-slots" = LowerMappingSlotsPass;
+
+    /// Lower logical slices to their pointer and length words.
+    pub(crate) const LOWER_SLICES_PASS -> "lower-slices" = LowerSlicesPass::default();
 }
 
 /// ABI phase lowering with its phase range declared: consumes
@@ -222,6 +225,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     LOWER_EVM_SHAPED_PASS,
     OUTLINE_REVERTS_PASS,
     LOWER_MAPPING_SLOTS_PASS,
+    LOWER_SLICES_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.

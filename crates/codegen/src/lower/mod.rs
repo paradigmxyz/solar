@@ -17,7 +17,7 @@ use crate::{
     IMMUTABLE_SCRATCH_BASE,
     mir::{
         BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
-        MirType, Module, ValueId,
+        MirType, Module, SliceLocation, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -822,7 +822,11 @@ impl<'gcx> Lowerer<'gcx> {
             for &param_id in hir_func.parameters {
                 let param = self.gcx.hir.variable(param_id);
                 let param_ty = self.gcx.type_of_hir_ty(&param.ty);
-                let ty = self.lower_type_from_var(param);
+                let ty = if Self::calldata_dynamic_var_kind(param).is_some() {
+                    MirType::Slice(SliceLocation::Calldata)
+                } else {
+                    self.lower_type_from_var(param)
+                };
 
                 // Check if this is a struct parameter that needs special handling
                 let abi_param_source = if self.lowering_constructor {

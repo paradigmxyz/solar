@@ -118,6 +118,9 @@ enum ExprKind {
     BlockHash(ClassId),
     BlobHash(ClassId),
     LoadImmutable(u32),
+    MakeSlice(ClassId, ClassId, crate::mir::SliceLocation),
+    SlicePtr(ClassId),
+    SliceLen(ClassId),
     Phi(BlockId, Vec<(BlockId, ClassId)>),
 }
 
@@ -349,6 +352,11 @@ impl GlobalValueNumberer {
             InstKind::BlobHash(a) => ExprKind::BlobHash(class(a)),
             // Immutable reads are constant once the runtime code is patched.
             InstKind::LoadImmutable(offset) => ExprKind::LoadImmutable(offset),
+            InstKind::MakeSlice { ptr, len, location } => {
+                ExprKind::MakeSlice(class(ptr), class(len), location)
+            }
+            InstKind::SlicePtr(slice) => ExprKind::SlicePtr(class(slice)),
+            InstKind::SliceLen(slice) => ExprKind::SliceLen(class(slice)),
             // Everything else (memory, storage, environment reads, calls,
             // gas/msize/returndatasize, keccak) never merges in this pass.
             _ => return None,

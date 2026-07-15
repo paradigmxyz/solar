@@ -1020,6 +1020,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         // generation falls back to the backend dispatcher.
         if !self.gcx.sess.opts.unstable.no_mir_dispatch {
             run_pass(self.gcx, module, &crate::pass::LOWER_ABI_PASS);
+        }
+        run_pass(self.gcx, module, &crate::pass::LOWER_SLICES_PASS);
+        if !self.gcx.sess.opts.unstable.no_mir_dispatch {
             run_pass(self.gcx, module, &crate::pass::LOWER_DISPATCH_PASS);
             run_pass(self.gcx, module, &crate::pass::LOWER_EVM_SHAPED_PASS);
         }
@@ -3264,6 +3267,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             | InstKind::MappingSlotMemory(_, _)
             | InstKind::MappingSlotCalldata(_, _) => {
                 unreachable!("mapping-slot builtins must be lowered before EVM codegen")
+            }
+
+            InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
+                unreachable!("slice instructions must be lowered before EVM codegen")
             }
         }
 

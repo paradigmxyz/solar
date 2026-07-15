@@ -5,7 +5,7 @@
 use solar_data_structures::newtype_index;
 
 mod types;
-pub(crate) use types::MirType;
+pub(crate) use types::{MirType, SliceLocation};
 
 mod value;
 pub(crate) use value::{Immediate, Value};

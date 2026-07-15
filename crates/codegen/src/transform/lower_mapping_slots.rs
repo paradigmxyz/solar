@@ -95,14 +95,12 @@ fn lower_memory_mapping_slot(
 
 fn lower_calldata_mapping_slot(
     builder: &mut FunctionBuilder<'_>,
-    head_offset: crate::mir::ValueId,
+    slice: crate::mir::ValueId,
     slot: crate::mir::ValueId,
 ) -> crate::mir::ValueId {
-    let selector_size = builder.imm_u64(4);
-    let data_head = builder.add(head_offset, selector_size);
-    let len = builder.calldataload(data_head);
+    let len = builder.slice_len(slice);
+    let data_start = builder.slice_ptr(slice);
     let word_size = builder.imm_u64(32);
-    let data_start = builder.add(data_head, word_size);
     let free_memory_pointer = builder.imm_u64(0x40);
     let scratch = builder.mload(free_memory_pointer);
     builder.calldatacopy(scratch, data_start, len);

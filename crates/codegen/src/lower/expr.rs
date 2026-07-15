@@ -488,33 +488,36 @@ impl<'gcx> Lowerer<'gcx> {
             }
 
             ExprKind::Slice(base, start, end) => {
-                if let Some((head, true)) = self.calldata_dyn_head(base) {
-                    let four = builder.imm_u64(4);
-                    let len_pos = builder.add(four, head);
-                    let len = builder.calldataload(len_pos);
-                    let start = start
-                        .map(|expr| self.lower_expr(builder, expr))
+                if let Some((slice, is_bytes)) = self.calldata_dyn_slice(base) {
+                    let base_ptr = builder.slice_ptr(slice);
+                    let base_len = builder.slice_len(slice);
+                    let start_val = start
+                        .map(|s| self.lower_expr(builder, s))
                         .unwrap_or_else(|| builder.imm_u64(0));
-                    let end = end.map(|expr| self.lower_expr(builder, expr)).unwrap_or(len);
-                    let reversed = builder.gt(start, end);
-                    let past_end = builder.gt(end, len);
-                    let invalid = builder.or(reversed, past_end);
-                    self.emit_abi_decode_revert_if(builder, invalid);
-
-                    let slice_len = builder.sub(end, start);
-                    let thirty_one = builder.imm_u64(31);
-                    let rounded = builder.add(slice_len, thirty_one);
-                    let mask = builder.not(thirty_one);
-                    let padded = builder.and(rounded, mask);
-                    let word = builder.imm_u64(32);
-                    let total = builder.add(word, padded);
-                    let ptr = self.allocate_memory_dynamic(builder, total);
-                    builder.mstore(ptr, slice_len);
-                    let dst = builder.add(ptr, word);
-                    let data = builder.add(len_pos, word);
-                    let src = builder.add(data, start);
-                    builder.calldatacopy(dst, src, slice_len);
-                    return ptr;
+                    let end_val = end.map(|e| self.lower_expr(builder, e)).unwrap_or(base_len);
+                    if end_val != base_len {
+                        let end_out_of_bounds = builder.gt(end_val, base_len);
+                        self.emit_panic_if(
+                            builder,
+                            end_out_of_bounds,
+                            super::checked_arith::PanicCode::ArrayOutOfBounds,
+                        );
+                    }
+                    let backwards = builder.lt(end_val, start_val);
+                    self.emit_panic_if(
+                        builder,
+                        backwards,
+                        super::checked_arith::PanicCode::ArrayOutOfBounds,
+                    );
+                    let len = builder.sub(end_val, start_val);
+                    let offset = if is_bytes {
+                        start_val
+                    } else {
+                        let word = builder.imm_u64(32);
+                        builder.mul(start_val, word)
+                    };
+                    let ptr = builder.add(base_ptr, offset);
+                    return builder.make_slice(ptr, len, crate::mir::SliceLocation::Calldata);
                 }
                 if let Some(var_id) = self.ident_variable(base)
                     && self.memory_backed_calldata_bytes.contains(&var_id)
@@ -728,14 +731,8 @@ impl<'gcx> Lowerer<'gcx> {
                 format!("unsupported Yul member `.{}`", member.name),
             );
         };
-        // For a calldata array/bytes parameter, its lowered value is the ABI
-        // head: the offset (relative to the start of the args, i.e. after the
-        // 4-byte selector) to the length word. So the length word is at calldata
-        // position `4 + head`, and the first element at `4 + head + 32`.
-        let calldata_head = (self.gcx.hir.variable(var_id).data_location
-            == Some(solar_ast::DataLocation::Calldata))
-        .then(|| self.locals.get(&var_id).copied())
-        .flatten();
+        let calldata_slice = Self::calldata_dynamic_var_kind(self.gcx.hir.variable(var_id))
+            .and_then(|_| self.locals.get(&var_id).copied());
 
         match member.name {
             sym::slot => {
@@ -754,17 +751,14 @@ impl<'gcx> Lowerer<'gcx> {
                 if let Some(location) = self.storage_locations.get(&var_id) {
                     return builder.imm_u64(u64::from(location.offset));
                 }
-                if let Some(head) = calldata_head {
-                    let base = builder.imm_u64(4 + 32);
-                    return builder.add(base, head);
+                if let Some(slice) = calldata_slice {
+                    return builder.slice_ptr(slice);
                 }
                 return builder.imm_u64(0);
             }
             sym::length => {
-                if let Some(head) = calldata_head {
-                    let four = builder.imm_u64(4);
-                    let pos = builder.add(four, head);
-                    return builder.calldataload(pos);
+                if let Some(slice) = calldata_slice {
+                    return builder.slice_len(slice);
                 }
             }
             _ => {}
@@ -954,11 +948,9 @@ impl<'gcx> Lowerer<'gcx> {
             });
         }
 
-        // Calldata dynamic array/bytes: length word at `4 + head`.
-        if let Some((head, _)) = self.calldata_dyn_head(base) {
-            let four = builder.imm_u64(4);
-            let len_pos = builder.add(four, head);
-            return Some(builder.calldataload(len_pos));
+        // Calldata dynamic array/bytes carry their decoded length in the slice.
+        if let Some((slice, _)) = self.calldata_dyn_slice(base) {
+            return Some(builder.slice_len(slice));
         }
 
         // Fixed-size arrays have a compile-time length.
@@ -1653,12 +1645,11 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Checks if an expression is a dynamically-sized calldata parameter (dynamic array or
-    /// bytes/string) and returns its ABI head value (the offset, relative to the start of the
-    /// args after the 4-byte selector, of its length word) and whether it is bytes/string.
+    /// bytes/string) and returns its MIR slice and whether it is bytes/string.
     ///
     /// Fixed-size calldata array parameters are not ABI heads: they are decoded to memory in
     /// the function prologue and take the regular memory path.
-    pub(super) fn calldata_dyn_head(&self, expr: &hir::Expr<'_>) -> Option<(ValueId, bool)> {
+    pub(super) fn calldata_dyn_slice(&self, expr: &hir::Expr<'_>) -> Option<(ValueId, bool)> {
         let ExprKind::Ident(res_slice) = &expr.kind else { return None };
         let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() else {
             return None;
@@ -1670,11 +1661,18 @@ impl<'gcx> Lowerer<'gcx> {
         if var.data_location != Some(solar_ast::DataLocation::Calldata) {
             return None;
         }
-        let head = self.locals.get(var_id).copied()?;
+        let slice = self.locals.get(var_id).copied()?;
+        Self::calldata_dynamic_var_kind(var).map(|is_bytes| (slice, is_bytes))
+    }
+
+    pub(super) fn calldata_dynamic_var_kind(var: &hir::Variable<'_>) -> Option<bool> {
+        if var.data_location != Some(solar_ast::DataLocation::Calldata) {
+            return None;
+        }
         match &var.ty.kind {
-            hir::TypeKind::Array(arr) if arr.size.is_none() => Some((head, false)),
+            hir::TypeKind::Array(arr) if arr.size.is_none() => Some(false),
             hir::TypeKind::Elementary(hir::ElementaryType::Bytes | hir::ElementaryType::String) => {
-                Some((head, true))
+                Some(true)
             }
             _ => None,
         }
@@ -1788,18 +1786,11 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         // The decode logic below expects a memory `[length][data...]` pointer.
-        // A calldata `bytes`/`string` parameter lowers to its ABI head, so copy
-        // it into memory first. Other calldata sources (e.g. `msg.data`, slices)
-        // don't have a head we can materialize, so reject them rather than
-        // silently decode garbage.
-        let ptr = if let Some((head, _)) = self.calldata_dyn_head(data) {
-            self.materialize_calldata_bytes(builder, head)
-        } else if self.expr_is_calldata_dynamic_bytes(data) {
-            return self.err_value(
-                builder,
-                data.span,
-                "codegen does not support `abi.decode` from this calldata source yet",
-            );
+        // Calldata values and subslices carry `(ptr, len)` explicitly and are
+        // copied only at this memory-consuming boundary.
+        let ptr = if self.expr_is_calldata_dynamic_bytes(data) {
+            let slice = self.lower_expr(builder, data);
+            self.materialize_calldata_bytes(builder, slice)
         } else {
             self.lower_expr(builder, data)
         };
@@ -2825,10 +2816,10 @@ impl<'gcx> Lowerer<'gcx> {
     fn compute_dynamic_calldata_mapping_slot(
         &self,
         builder: &mut FunctionBuilder<'_>,
-        head_offset: ValueId,
+        slice: ValueId,
         slot: ValueId,
     ) -> ValueId {
-        builder.mapping_slot_calldata(head_offset, slot)
+        builder.mapping_slot_calldata(slice, slot)
     }
 
     fn is_dynamic_mapping_key(kind: &hir::TypeKind<'_>) -> bool {

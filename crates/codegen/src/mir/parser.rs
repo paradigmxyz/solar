@@ -32,7 +32,7 @@ use super::{
     BlockId, EffectKind, Function, FunctionBuilder, FunctionId, InstId, InstKind, Instruction,
     InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
-use crate::mir::MirType;
+use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_ast::{
@@ -455,11 +455,13 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             MirType::FixedBytes(n)
         } else {
             match id {
-                kw::Bool => MirType::Bool,
+kw::Bool => MirType::Bool,
                 kw::Address => MirType::Address,
                 sym::memptr => MirType::MemPtr,
                 sym::storageptr => MirType::StoragePtr,
                 sym::calldataptr => MirType::CalldataPtr,
+                sym::memoryslice => MirType::Slice(SliceLocation::Memory),
+                sym::calldataslice => MirType::Slice(SliceLocation::Calldata),
                 kw::Function => MirType::Function,
                 sym::void => MirType::Void,
                 _ => return Err(self.parser.error(format!("unknown type `{id}`"))),
@@ -1007,10 +1009,26 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             kw::Tload => inst!(TLoad(a) => MirType::uint256()),
             kw::Tstore => inst!(TStore(a, b)),
 
-            // Calldata, code, and return data.
+// Calldata, code, and return data.
             kw::Calldataload => inst!(CalldataLoad(a) => MirType::uint256()),
             kw::Calldatasize => unit!(CalldataSize => MirType::uint256()),
             kw::Calldatacopy => inst!(CalldataCopy(a, b, c)),
+
+            // Slices.
+            sym::make_memory_slice | sym::make_calldata_slice => {
+                let ptr = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let len = self.parse_value(builder)?;
+                let location = if mnemonic == sym::make_memory_slice {
+                    SliceLocation::Memory
+                } else {
+                    SliceLocation::Calldata
+                };
+                (InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
+            }
+            sym::slice_ptr => inst!(SlicePtr(a) => MirType::uint256()),
+            sym::slice_len => inst!(SliceLen(a) => MirType::uint256()),
+
             kw::Codesize => unit!(CodeSize => MirType::uint256()),
             kw::Codecopy => inst!(CodeCopy(a, b, c)),
             kw::Loadimmutable => {

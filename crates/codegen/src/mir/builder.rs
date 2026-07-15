@@ -2,7 +2,7 @@
 
 use super::{
     BlockId, Function, FunctionId, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
-    StorageAlias, Terminator, Value, ValueId,
+    SliceLocation, StorageAlias, Terminator, Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -364,6 +364,21 @@ impl<'a> FunctionBuilder<'a> {
     /// Emits a calldatasize instruction.
     pub(crate) fn calldatasize(&mut self) -> ValueId {
         self.emit_inst(InstKind::CalldataSize, Some(MirType::uint256()))
+    }
+
+    /// Constructs a logical `(pointer, length, location)` slice.
+    pub fn make_slice(&mut self, ptr: ValueId, len: ValueId, location: SliceLocation) -> ValueId {
+        self.emit_inst(InstKind::MakeSlice { ptr, len, location }, Some(MirType::Slice(location)))
+    }
+
+    /// Projects the data pointer from a slice.
+    pub fn slice_ptr(&mut self, slice: ValueId) -> ValueId {
+        self.emit_inst(InstKind::SlicePtr(slice), Some(MirType::uint256()))
+    }
+
+    /// Projects the logical length from a slice.
+    pub fn slice_len(&mut self, slice: ValueId) -> ValueId {
+        self.emit_inst(InstKind::SliceLen(slice), Some(MirType::uint256()))
     }
 
     /// Emits a calldatacopy instruction.

@@ -39,7 +39,7 @@ use crate::{
     analysis::{CfgInfo, DominatorTree},
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryRegion, MirType,
-        StorageAlias, Value, ValueId, utils as mir_utils,
+        SliceLocation, StorageAlias, Value, ValueId, utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -102,6 +102,9 @@ enum ExprKey {
     MappingSlot(OperandKey, OperandKey),
     MappingSlotMemory(OperandKey, OperandKey),
     MappingSlotCalldata(OperandKey, OperandKey),
+    MakeSlice(OperandKey, OperandKey, SliceLocation),
+    SlicePtr(OperandKey),
+    SliceLen(OperandKey),
     SLoad(StorageAlias),
     TLoad(StorageAlias),
     CalldataLoad(OperandKey),
@@ -682,6 +685,11 @@ impl CommonSubexprEliminator {
             InstKind::MappingSlotCalldata(key, slot) => {
                 Some(ExprKey::MappingSlotCalldata(operand(*key), operand(*slot)))
             }
+            InstKind::MakeSlice { ptr, len, location } => {
+                Some(ExprKey::MakeSlice(operand(*ptr), operand(*len), *location))
+            }
+            InstKind::SlicePtr(slice) => Some(ExprKey::SlicePtr(operand(*slice))),
+            InstKind::SliceLen(slice) => Some(ExprKey::SliceLen(operand(*slice))),
 
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(func.storage_alias_after_replacements(
                 inst_id,

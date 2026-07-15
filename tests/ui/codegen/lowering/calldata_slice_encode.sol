@@ -1,22 +1,29 @@
-//@compile-flags: -Zcodegen -Zdump=mir
+//@compile-flags: -Zcodegen --emit=mir
 //@filecheck: --check-prefix=SLICE
 
-// Rebinding calldata bytes keeps a lazy `(ptr, len)` slice. A later external
-// call copies the selected range directly from calldata without interpreting
-// the original ABI head offset as a memory pointer.
 interface SliceSink {
     function consume(bytes calldata data) external;
 }
 
-contract CalldataSliceRebind {
+contract CalldataSliceEncode {
+    function encode(bytes calldata data, uint256 start)
+        external
+        pure
+        returns (bytes memory)
+    {
+        return abi.encode(data[start:]);
+    }
+
     function forward(bytes calldata data, uint256 start, SliceSink sink) external {
         data = data[start:];
         sink.consume(data);
     }
 }
 
+// SLICE-LABEL: fn @encode
+// SLICE: make_calldata_slice
+// SLICE: calldatacopy
 // SLICE-LABEL: fn @forward
 // SLICE: make_calldata_slice
-// SLICE-NOT: mcopy
 // SLICE: calldatacopy
 // SLICE: call

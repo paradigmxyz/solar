@@ -1,6 +1,6 @@
 //! MIR instructions.
 
-use super::{BlockId, Function, FunctionId, MirType, Value, ValueId};
+use super::{BlockId, Function, FunctionId, MirType, SliceLocation, Value, ValueId};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
@@ -472,6 +472,19 @@ pub(crate) enum InstKind {
     CalldataCopy(ValueId, ValueId, ValueId),
     /// Get calldata size: `calldatasize()`
     CalldataSize,
+    /// Construct a logical `(pointer, length, location)` slice.
+    MakeSlice {
+        /// Address of the first element or byte.
+        ptr: ValueId,
+        /// Logical element or byte length.
+        len: ValueId,
+        /// Address space containing the slice data.
+        location: SliceLocation,
+    },
+    /// Project the data pointer from a slice.
+    SlicePtr(ValueId),
+    /// Project the logical length from a slice.
+    SliceLen(ValueId),
     /// Address inside the current internal-call frame.
     InternalFrameAddr(u64),
 
@@ -657,6 +670,11 @@ impl InstKind {
                 out.push(*b);
             }
 
+            Self::MakeSlice { ptr, len, .. } => {
+                out.push(*ptr);
+                out.push(*len);
+            }
+
             // Unary operations
             Self::Not(a)
             | Self::IsZero(a)
@@ -671,6 +689,8 @@ impl InstKind {
             | Self::BlobHash(a) => {
                 out.push(*a);
             }
+
+            Self::SlicePtr(slice) | Self::SliceLen(slice) => out.push(*slice),
 
             // Ternary operations
             Self::MCopy(a, b, c)
@@ -821,6 +841,11 @@ impl InstKind {
                 f(b);
             }
 
+            Self::MakeSlice { ptr, len, .. } => {
+                f(ptr);
+                f(len);
+            }
+
             Self::Not(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
@@ -831,7 +856,9 @@ impl InstKind {
             | Self::ExtCodeHash(a)
             | Self::Balance(a)
             | Self::BlockHash(a)
-            | Self::BlobHash(a) => f(a),
+            | Self::BlobHash(a)
+            | Self::SlicePtr(a)
+            | Self::SliceLen(a) => f(a),
 
             Self::MCopy(a, b, c)
             | Self::CalldataCopy(a, b, c)
@@ -1014,6 +1041,10 @@ impl InstKind {
             Self::CalldataLoad(_) => "calldataload",
             Self::CalldataCopy(_, _, _) => "calldatacopy",
             Self::CalldataSize => "calldatasize",
+            Self::MakeSlice { location: SliceLocation::Memory, .. } => "make_memory_slice",
+            Self::MakeSlice { location: SliceLocation::Calldata, .. } => "make_calldata_slice",
+            Self::SlicePtr(_) => "slice_ptr",
+            Self::SliceLen(_) => "slice_len",
             Self::CodeSize => "codesize",
             Self::CodeCopy(_, _, _) => "codecopy",
             Self::LoadImmutable(_) => "loadimmutable",
@@ -1177,6 +1208,9 @@ impl InstKind {
             | Self::SGt(_, _)
             | Self::Eq(_, _)
             | Self::IsZero(_)
+            | Self::MakeSlice { .. }
+            | Self::SlicePtr(_)
+            | Self::SliceLen(_)
             | Self::InternalFrameAddr(_)
             | Self::Phi(_)
             | Self::Select(_, _, _)

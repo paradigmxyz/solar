@@ -35,7 +35,7 @@ fn @memoryParam() {
     returndata 128, 32
 }
 
-fn @calldataParam(arg0: memptr) {
+fn @calldataParam(arg0: calldataslice) {
   bb0 (entry):
     v0 = calldatasize
     v1 = sub v0, 4
@@ -45,46 +45,45 @@ fn @calldataParam(arg0: memptr) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = add 4, arg0
-    v4 = calldataload v3
-    v5 = add v4, 31
-    v6 = lt v5, v4
-    br v6, bb3, bb4
+    v3 = slice_len arg0
+    v4 = add v3, 31
+    v5 = lt v4, v3
+    br v5, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v7 = not 31
-    v8 = and v5, v7
-    v9 = iszero v8
-    v10 = select v9, 32, v8
-    v11 = add 32, v10
-    v12 = lt v11, v10
-    br v12, bb5, bb6
+    v6 = not 31
+    v7 = and v4, v6
+    v8 = iszero v7
+    v9 = select v8, 32, v7
+    v10 = add 32, v9
+    v11 = lt v10, v9
+    br v11, bb5, bb6
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v13 = mload 64 !metadata(memory=scratch)
-    v14 = add v13, v11
-    mstore 64, v14 !metadata(memory=scratch)
-    mstore v13, v4
-    v15 = add v13, 32
-    v16 = sub v10, 32
-    v17 = add v15, v16
-    mstore v17, 0
-    v18 = add v3, 32
-    calldatacopy v15, v18, v4
-    v19 = mload v13
-    v20 = add v13, 32
-    v21 = keccak256 v20, v19
-    v22 = sub v21, 1
-    mstore 0, v22 !metadata(memory=scratch)
-    v23 = keccak256 0, 32 !metadata(memory=scratch)
-    v24 = and v23, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore 128, v24
+    v12 = mload 64 !metadata(memory=scratch)
+    v13 = add v12, v10
+    mstore 64, v13 !metadata(memory=scratch)
+    mstore v12, v3
+    v14 = add v12, 32
+    v15 = sub v9, 32
+    v16 = add v14, v15
+    mstore v16, 0
+    v17 = slice_ptr arg0
+    calldatacopy v14, v17, v3
+    v18 = mload v12
+    v19 = add v12, 32
+    v20 = keccak256 v19, v18
+    v21 = sub v20, 1
+    mstore 0, v21 !metadata(memory=scratch)
+    v22 = keccak256 0, 32 !metadata(memory=scratch)
+    v23 = and v22, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore 128, v23
     returndata 128, 32
 }
 

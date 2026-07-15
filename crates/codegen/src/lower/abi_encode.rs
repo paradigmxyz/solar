@@ -10,6 +10,7 @@ use super::Lowerer;
 use crate::mir::{FunctionBuilder, MirType, Value, ValueId};
 use alloy_primitives::U256;
 use solar_ast::ElementaryType;
+use solar_data_structures::map::FxHashSet;
 use solar_sema::ty::{Ty, TyKind};
 
 const STATIC_RETURN_BUFFER: u64 = 0x80;
@@ -25,6 +26,11 @@ struct AbiValueDest {
     head_addr: ValueId,
     tuple_base: ValueId,
     tail: ValueId,
+}
+
+struct LoweredAbiItems<'gcx> {
+    items: Vec<(ValueId, Ty<'gcx>)>,
+    calldata_slices: FxHashSet<ValueId>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -98,6 +104,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         items: &[(ValueId, Ty<'gcx>)],
         dest: ValueId,
+        calldata_slices: &FxHashSet<ValueId>,
         scratch: AbiScratch,
     ) -> ValueId {
         let head_size: u64 = items.iter().map(|&(_, t)| self.abi_head_size(t)).sum();
@@ -122,6 +129,7 @@ impl<'gcx> Lowerer<'gcx> {
                 ty,
                 val,
                 AbiValueDest { head_addr, tuple_base: dest, tail },
+                calldata_slices,
                 scratch,
             );
             head_off += self.abi_head_size(ty);
@@ -150,10 +158,12 @@ impl<'gcx> Lowerer<'gcx> {
         let args_size = if items.is_empty() {
             builder.imm_u64(0)
         } else {
+            let calldata_slices = FxHashSet::default();
             self.abi_encode_tuple(
                 builder,
                 items,
                 args_base,
+                &calldata_slices,
                 AbiScratch { base: scratch_base, depth: 0 },
             )
         };
@@ -171,12 +181,13 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         value: ValueId,
         dest: AbiValueDest,
+        calldata_slices: &FxHashSet<ValueId>,
         scratch: AbiScratch,
     ) -> ValueId {
         if self.abi_is_dynamic(ty) {
             let rel_off = builder.sub(dest.tail, dest.tuple_base);
             builder.mstore(dest.head_addr, rel_off);
-            self.abi_encode_dynamic_body(builder, ty, value, dest.tail, scratch)
+            self.abi_encode_dynamic_body(builder, ty, value, dest.tail, calldata_slices, scratch)
         } else {
             self.abi_encode_static(builder, ty, value, dest.head_addr);
             dest.tail
@@ -230,22 +241,33 @@ impl<'gcx> Lowerer<'gcx> {
         ty: Ty<'gcx>,
         value: ValueId,
         dst: ValueId,
+        calldata_slices: &FxHashSet<ValueId>,
         scratch: AbiScratch,
     ) -> ValueId {
         match ty.peel_refs().kind {
-            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
-                self.abi_encode_bytes_or_string_body(builder, value, dst)
-            }
+            TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => self
+                .abi_encode_bytes_or_string_body(
+                    builder,
+                    value,
+                    dst,
+                    calldata_slices.contains(&value),
+                ),
             TyKind::DynArray(elem) if self.abi_is_word_element(elem) => {
-                let len = builder.mload(value);
+                let is_calldata = calldata_slices.contains(&value);
+                let len = if is_calldata { builder.slice_len(value) } else { builder.mload(value) };
                 builder.mstore(dst, len);
 
                 let word = builder.imm_u64(32);
                 let bytes = builder.mul(len, word);
                 let data_dst = builder.add(dst, word);
-                let data_src = builder.add(value, word);
+                let data_src =
+                    if is_calldata { builder.slice_ptr(value) } else { builder.add(value, word) };
                 let new_tail = builder.add(data_dst, bytes);
-                self.mcopy(builder, data_dst, data_src, bytes, None);
+                if is_calldata {
+                    builder.calldatacopy(data_dst, data_src, bytes);
+                } else {
+                    self.mcopy(builder, data_dst, data_src, bytes, None);
+                }
                 new_tail
             }
             TyKind::DynArray(elem) => self.abi_encode_dynamic_array_body(
@@ -253,8 +275,8 @@ impl<'gcx> Lowerer<'gcx> {
                 elem,
                 value,
                 dst,
-                scratch.base.expect("dynamic ABI array encoding requires scratch memory"),
-                scratch.depth,
+                calldata_slices,
+                scratch,
             ),
             TyKind::Array(elem, n) => {
                 let mut items = Vec::new();
@@ -262,7 +284,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let slot = self.offset_ptr(builder, value, i * 32);
                     items.push((builder.mload(slot), elem));
                 }
-                let size = self.abi_encode_tuple(builder, &items, dst, scratch);
+                let size = self.abi_encode_tuple(builder, &items, dst, calldata_slices, scratch);
                 builder.add(dst, size)
             }
             TyKind::Struct(id) => {
@@ -272,7 +294,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let slot = self.offset_ptr(builder, value, (i as u64) * 32);
                     items.push((builder.mload(slot), fty));
                 }
-                let size = self.abi_encode_tuple(builder, &items, dst, scratch);
+                let size = self.abi_encode_tuple(builder, &items, dst, calldata_slices, scratch);
                 builder.add(dst, size)
             }
             TyKind::Tuple(fields) => {
@@ -282,8 +304,11 @@ impl<'gcx> Lowerer<'gcx> {
                     let slot = self.offset_ptr(builder, value, (i as u64) * 32);
                     items.push((builder.mload(slot), fty));
                 }
-                let size = self.abi_encode_tuple(builder, &items, dst, scratch);
+                let size = self.abi_encode_tuple(builder, &items, dst, calldata_slices, scratch);
                 builder.add(dst, size)
+            }
+            TyKind::Slice(inner) => {
+                self.abi_encode_dynamic_body(builder, inner, value, dst, calldata_slices, scratch)
             }
             _ => unreachable!("unsupported dynamic ABI return type: {:?}", ty.peel_refs()),
         }
@@ -295,9 +320,12 @@ impl<'gcx> Lowerer<'gcx> {
         elem: Ty<'gcx>,
         value: ValueId,
         dst: ValueId,
-        scratch_base: ValueId,
-        scratch_depth: u64,
+        calldata_slices: &FxHashSet<ValueId>,
+        scratch: AbiScratch,
     ) -> ValueId {
+        let scratch_base =
+            scratch.base.expect("dynamic ABI array encoding requires scratch memory");
+        let scratch_depth = scratch.depth;
         let len = builder.mload(value);
         builder.mstore(dst, len);
 
@@ -342,6 +370,7 @@ impl<'gcx> Lowerer<'gcx> {
             elem,
             elem_value,
             AbiValueDest { head_addr: elem_head, tuple_base, tail: current_tail },
+            calldata_slices,
             AbiScratch { base: Some(scratch_base), depth: scratch_depth + 1 },
         );
         builder.mstore(tail_slot, new_tail);
@@ -367,8 +396,9 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         value: ValueId,
         dst: ValueId,
+        is_calldata: bool,
     ) -> ValueId {
-        let len = builder.mload(value);
+        let len = if is_calldata { builder.slice_len(value) } else { builder.mload(value) };
         builder.mstore(dst, len);
 
         let word = builder.imm_u64(32);
@@ -391,9 +421,14 @@ impl<'gcx> Lowerer<'gcx> {
         builder.jump(copy_block);
 
         builder.switch_to_block(copy_block);
-        let data_src = builder.add(value, word);
+        let data_src =
+            if is_calldata { builder.slice_ptr(value) } else { builder.add(value, word) };
         let new_tail = builder.add(data_dst, padded);
-        self.mcopy(builder, data_dst, data_src, len, None);
+        if is_calldata {
+            builder.calldatacopy(data_dst, data_src, len);
+        } else {
+            self.mcopy(builder, data_dst, data_src, len, None);
+        }
         new_tail
     }
 
@@ -428,10 +463,16 @@ impl<'gcx> Lowerer<'gcx> {
 
         let head_size: u64 = items.iter().map(|&(_, t)| self.abi_head_size(t)).sum();
         let has_dynamic = items.iter().any(|&(_, ty)| self.abi_is_dynamic(ty));
+        let calldata_slices = FxHashSet::default();
         if !has_dynamic {
             let buf = builder.imm_u64(STATIC_RETURN_BUFFER);
-            let size =
-                self.abi_encode_tuple(builder, items, buf, AbiScratch { base: None, depth: 0 });
+            let size = self.abi_encode_tuple(
+                builder,
+                items,
+                buf,
+                &calldata_slices,
+                AbiScratch { base: None, depth: 0 },
+            );
             builder.ret_data(buf, size);
             return;
         }
@@ -440,8 +481,13 @@ impl<'gcx> Lowerer<'gcx> {
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
         let buf = self.allocate_memory(builder, head_size);
-        let size =
-            self.abi_encode_tuple(builder, items, buf, AbiScratch { base: scratch_base, depth: 0 });
+        let size = self.abi_encode_tuple(
+            builder,
+            items,
+            buf,
+            &calldata_slices,
+            AbiScratch { base: scratch_base, depth: 0 },
+        );
         builder.ret_data(buf, size);
     }
 
@@ -502,14 +548,16 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Resolves each argument's ABI type and lowers it to a `(value, type)`
-    /// item for the tuple encoder. Returns `None` when an argument's type
-    /// cannot be determined. Arguments are evaluated before any output buffer
-    /// is reserved: lowering an argument can allocate memory of its own.
+    /// item for the tuple encoder. Calldata bytes and word arrays stay as
+    /// slices so the encoder can copy them directly into the destination.
+    /// Returns `None` when an argument's type cannot be determined. Arguments
+    /// are evaluated before any output buffer is reserved: lowering an
+    /// argument can allocate memory of its own.
     fn lower_abi_encode_items(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         arg_exprs: &[&solar_sema::hir::Expr<'_>],
-    ) -> Option<Vec<(ValueId, Ty<'gcx>)>> {
+    ) -> Option<LoweredAbiItems<'gcx>> {
         let mut tys = Vec::with_capacity(arg_exprs.len());
         for arg in arg_exprs {
             let ty = self.get_expr_type(arg)?;
@@ -521,11 +569,24 @@ impl<'gcx> Lowerer<'gcx> {
             tys.push(ty);
         }
         let mut items = Vec::with_capacity(arg_exprs.len());
+        let mut calldata_slices = FxHashSet::default();
         for (arg, ty) in arg_exprs.iter().zip(tys) {
-            let value = self.lower_return_value_for_ty(builder, arg, ty);
+            let value = if let Some((slice, is_bytes)) = self.calldata_dyn_slice(arg)
+                && (is_bytes
+                    || matches!(ty.peel_refs().kind, TyKind::DynArray(elem) if self.abi_is_word_element(elem)))
+            {
+                calldata_slices.insert(slice);
+                slice
+            } else if self.expr_is_calldata_dynamic_bytes(arg) {
+                let slice = self.lower_expr(builder, arg);
+                calldata_slices.insert(slice);
+                slice
+            } else {
+                self.lower_return_value_for_ty(builder, arg, ty)
+            };
             items.push((value, ty));
         }
-        Some(items)
+        Some(LoweredAbiItems { items, calldata_slices })
     }
 
     /// Lowers `abi.encode(...)` to a fresh `bytes memory` allocation
@@ -537,7 +598,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         arg_exprs: &[&solar_sema::hir::Expr<'_>],
     ) -> Option<ValueId> {
-        let items = self.lower_abi_encode_items(builder, arg_exprs)?;
+        let LoweredAbiItems { items, calldata_slices } =
+            self.lower_abi_encode_items(builder, arg_exprs)?;
         let scratch_words = self.abi_scratch_words(&items);
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
@@ -553,6 +615,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder,
                 &items,
                 dest,
+                &calldata_slices,
                 AbiScratch { base: scratch_base, depth: 0 },
             )
         };
@@ -579,7 +642,8 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         arg_exprs: &[&solar_sema::hir::Expr<'_>],
     ) -> Option<ValueId> {
-        let items = self.lower_abi_encode_items(builder, arg_exprs)?;
+        let LoweredAbiItems { items, calldata_slices } =
+            self.lower_abi_encode_items(builder, arg_exprs)?;
         // Loop scratch must be a real allocation so it sits below the staging
         // area read by the hash.
         let scratch_words = self.abi_scratch_words(&items);
@@ -595,6 +659,7 @@ impl<'gcx> Lowerer<'gcx> {
                 builder,
                 &items,
                 data,
+                &calldata_slices,
                 AbiScratch { base: scratch_base, depth: 0 },
             )
         };
@@ -619,10 +684,12 @@ impl<'gcx> Lowerer<'gcx> {
 
         let free_ptr_addr = builder.imm_u64(0x40);
         let data = builder.mload(free_ptr_addr);
+        let calldata_slices = FxHashSet::default();
         let size = self.abi_encode_tuple(
             builder,
             items,
             data,
+            &calldata_slices,
             AbiScratch { base: scratch_base, depth: 0 },
         );
 
@@ -647,7 +714,8 @@ impl<'gcx> Lowerer<'gcx> {
         selector: Option<ValueId>,
         arg_exprs: &[&solar_sema::hir::Expr<'_>],
     ) -> Option<(ValueId, ValueId)> {
-        let items = self.lower_abi_encode_items(builder, arg_exprs)?;
+        let LoweredAbiItems { items, calldata_slices } =
+            self.lower_abi_encode_items(builder, arg_exprs)?;
         let scratch_words = self.abi_scratch_words(&items);
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
@@ -663,6 +731,7 @@ impl<'gcx> Lowerer<'gcx> {
             builder,
             &items,
             dest,
+            &calldata_slices,
             AbiScratch { base: scratch_base, depth: 0 },
         );
         let sel_size_val = builder.imm_u64(sel_size);
@@ -689,8 +758,28 @@ impl<'gcx> Lowerer<'gcx> {
         expr: &solar_sema::hir::Expr<'_>,
         ty: Ty<'gcx>,
     ) -> ValueId {
-        if let Some((head, _)) = self.calldata_dyn_head(expr) {
-            return self.materialize_calldata_value(builder, ty, head);
+        if let Some((slice, is_bytes)) = self.calldata_dyn_slice(expr) {
+            return if is_bytes {
+                self.materialize_calldata_bytes(builder, slice)
+            } else {
+                self.materialize_calldata_dyn_array(builder, slice)
+            };
+        }
+        if self.expr_is_calldata_dynamic_bytes(expr) {
+            let slice = self.lower_expr(builder, expr);
+            return self.materialize_calldata_bytes(builder, slice);
+        }
+        if matches!(ty.kind, TyKind::Ref(_, solar_ast::DataLocation::Calldata)) {
+            let value = self.lower_expr(builder, expr);
+            return match ty.peel_refs().kind {
+                TyKind::Elementary(ElementaryType::Bytes | ElementaryType::String) => {
+                    self.materialize_calldata_bytes(builder, value)
+                }
+                TyKind::DynArray(elem) if self.abi_is_word_element(elem) => {
+                    self.materialize_calldata_dyn_array(builder, value)
+                }
+                _ => value,
+            };
         }
         if matches!(
             ty.peel_refs().kind,

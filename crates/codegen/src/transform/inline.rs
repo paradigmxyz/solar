@@ -136,7 +136,7 @@ impl MirInliner {
         // A zero budget is an explicit off switch (used by `-O size`). Avoid
         // summarizing the module or building its call graph when no call site
         // can be accepted.
-        if self.config.max_module_code_size == 0 {
+        if self.max_module_code_size == 0 {
             return stats;
         }
 
@@ -147,7 +147,7 @@ impl MirInliner {
         // keeping large contracts under the EIP-170 deployable-code limit. Small
         // contracts never reach the budget and inline normally.
         let mut module_code_size: usize = summaries.values().map(|s| s.estimated_code_size).sum();
-        if module_code_size >= self.config.max_module_code_size {
+        if module_code_size >= self.max_module_code_size {
             return stats;
         }
 
@@ -462,6 +462,7 @@ struct MirCost {
 
 fn estimate_inst_cost(kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
+        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
         InstKind::Add(..)
         | InstKind::Sub(..)
         | InstKind::Lt(..)
@@ -774,6 +775,13 @@ impl<'a> InlineCloner<'a> {
     #[allow(clippy::too_many_lines)]
     fn clone_inst_kind(&mut self, kind: InstKind) -> Option<InstKind> {
         Some(match kind {
+            InstKind::MakeSlice { ptr, len, location } => InstKind::MakeSlice {
+                ptr: self.clone_value(ptr)?,
+                len: self.clone_value(len)?,
+                location,
+            },
+            InstKind::SlicePtr(slice) => InstKind::SlicePtr(self.clone_value(slice)?),
+            InstKind::SliceLen(slice) => InstKind::SliceLen(self.clone_value(slice)?),
             InstKind::Add(a, b) => InstKind::Add(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Sub(a, b) => InstKind::Sub(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Mul(a, b) => InstKind::Mul(self.clone_value(a)?, self.clone_value(b)?),

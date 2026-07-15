@@ -44,14 +44,12 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.sload(element_slot);
         }
 
-        if let Some((head, is_bytes)) = self.calldata_dyn_head(base) {
+        if let Some((slice, is_bytes)) = self.calldata_dyn_slice(base) {
             let index_val = self.lower_index_or_zero(builder, index);
-            let four = builder.imm_u64(4);
-            let len_pos = builder.add(four, head);
-            let len = builder.calldataload(len_pos);
+            let len = builder.slice_len(slice);
             self.emit_index_bounds_check(builder, index_val, len);
             let offset_32 = builder.imm_u64(32);
-            let data_pos = builder.add(len_pos, offset_32);
+            let data_pos = builder.slice_ptr(slice);
             if is_bytes {
                 let byte_pos = builder.add(data_pos, index_val);
                 let word = builder.calldataload(byte_pos);

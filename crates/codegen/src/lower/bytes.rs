@@ -60,8 +60,9 @@ impl<'gcx> Lowerer<'gcx> {
         {
             return ptr;
         }
-        if let Some((head, true)) = self.calldata_dyn_head(expr) {
-            return self.materialize_calldata_bytes(builder, head);
+        if self.expr_is_calldata_dynamic_bytes(expr) {
+            let slice = self.lower_expr(builder, expr);
+            return self.materialize_calldata_bytes(builder, slice);
         }
         self.lower_expr(builder, expr)
     }
@@ -71,11 +72,35 @@ impl<'gcx> Lowerer<'gcx> {
     pub(super) fn materialize_calldata_bytes(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        head: ValueId,
+        slice: ValueId,
     ) -> ValueId {
-        let four = builder.imm_u64(4);
-        let len_pos = builder.add(four, head);
-        self.materialize_calldata_bytes_at(builder, len_pos)
+        let len = builder.slice_len(slice);
+
+        let word_size = builder.imm_u64(32);
+        let thirty_one = builder.imm_u64(31);
+        let rounded = builder.add(len, thirty_one);
+        let rounded_overflow = builder.lt(rounded, len);
+        self.emit_panic_if(builder, rounded_overflow, PanicCode::MemoryAllocationOverflow);
+        let mask = builder.not(thirty_one);
+        let padded = builder.and(rounded, mask);
+        let is_empty = builder.iszero(padded);
+        let data_size = builder.select(is_empty, word_size, padded);
+        let total_size = builder.add(word_size, data_size);
+        let total_overflow = builder.lt(total_size, data_size);
+        self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
+
+        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        builder.mstore(ptr, len);
+
+        let data_ptr = builder.add(ptr, word_size);
+        let zero = builder.imm_u64(0);
+        let last_word_offset = builder.sub(data_size, word_size);
+        let last_word = builder.add(data_ptr, last_word_offset);
+        builder.mstore(last_word, zero);
+
+        let data_pos = builder.slice_ptr(slice);
+        builder.calldatacopy(data_ptr, data_pos, len);
+        ptr
     }
 
     /// Copies calldata bytes whose absolute length-word position is `len_pos`
@@ -115,20 +140,18 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Copies a calldata bytes/string SLICE `base[start:end]` into Solidity's
-    /// memory bytes layout (`[length][data...]`). `head` is the ABI head of
-    /// `base`; `start`/`end` default to `0` and `base.length`.
+    /// memory bytes layout (`[length][data...]`). `slice` describes `base`;
+    /// `start`/`end` default to `0` and `base.length`.
     pub(super) fn materialize_calldata_slice(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
-        head: ValueId,
+        slice: ValueId,
         start: Option<ValueId>,
         end: Option<ValueId>,
     ) -> ValueId {
-        let four = builder.imm_u64(4);
-        let len_pos = builder.add(four, head);
-        let base_len = builder.calldataload(len_pos);
+        let base_len = builder.slice_len(slice);
+        let base_data_pos = builder.slice_ptr(slice);
         let word_size = builder.imm_u64(32);
-        let base_data_pos = builder.add(len_pos, word_size);
 
         let start = match start {
             Some(s) => s,
@@ -203,10 +226,19 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         expr: &hir::Expr<'_>,
     ) -> ValueId {
-        if let Some((head, false)) = self.calldata_dyn_head(expr)
-            && let Some(ty) = self.get_expr_type(expr)
-        {
-            return self.materialize_calldata_value(builder, ty, head);
+        if let Some((slice, false)) = self.calldata_dyn_slice(expr) {
+            if let Some(ty) = self.get_expr_type(expr)
+                && let TyKind::DynArray(elem) | TyKind::Slice(elem) = ty.peel_refs().kind
+                && !self.abi_is_word_element(elem)
+            {
+                // Reference/aggregate elements rebuild one at a time; an
+                // ABI-root slice's data is preceded by its length word.
+                let word = builder.imm_u64(32);
+                let data_pos = builder.slice_ptr(slice);
+                let len_pos = builder.sub(data_pos, word);
+                return self.materialize_calldata_dynamic_array_at(builder, elem, len_pos);
+            }
+            return self.materialize_calldata_dyn_array(builder, slice);
         }
         self.lower_expr(builder, expr)
     }
@@ -219,7 +251,30 @@ impl<'gcx> Lowerer<'gcx> {
         len_pos: ValueId,
     ) -> ValueId {
         let len = builder.calldataload(len_pos);
+        let word_size = builder.imm_u64(32);
+        let data_pos = builder.add(len_pos, word_size);
+        self.copy_calldata_word_array(builder, data_pos, len)
+    }
 
+    /// Copies a single-word calldata array SLICE into memory.
+    pub(super) fn materialize_calldata_dyn_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        slice: ValueId,
+    ) -> ValueId {
+        let len = builder.slice_len(slice);
+        let data_pos = builder.slice_ptr(slice);
+        self.copy_calldata_word_array(builder, data_pos, len)
+    }
+
+    /// Copies `len` calldata words starting at `data_pos` into a fresh memory
+    /// `[length][elems...]` array.
+    fn copy_calldata_word_array(
+        &mut self,
+        builder: &mut FunctionBuilder<'_>,
+        data_pos: ValueId,
+        len: ValueId,
+    ) -> ValueId {
         let word_size = builder.imm_u64(32);
         // Guard `len * 32` overflow before sizing the allocation.
         let shift = builder.imm_u64(251);
@@ -231,23 +286,8 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr = self.allocate_memory_dynamic(builder, total_size);
         builder.mstore(ptr, len);
         let data_ptr = builder.add(ptr, word_size);
-        let data_pos = builder.add(len_pos, word_size);
         builder.calldatacopy(data_ptr, data_pos, byte_len);
         ptr
-    }
-
-    /// Materializes a top-level calldata dynamic value from its ABI offset.
-    /// Composite values are rebuilt recursively so memory contains pointers,
-    /// not the relative offsets stored in calldata heads.
-    pub(super) fn materialize_calldata_value(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        ty: Ty<'gcx>,
-        head: ValueId,
-    ) -> ValueId {
-        let selector_size = builder.imm_u64(4);
-        let pos = builder.add(selector_size, head);
-        self.materialize_calldata_value_at(builder, ty, pos)
     }
 
     /// Materializes a calldata value whose ABI body starts at the absolute
@@ -414,6 +454,13 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     pub(super) fn lhs_expects_memory_bytes_value(&self, lhs: &hir::Expr<'_>) -> bool {
+        if let ExprKind::Ident(res_slice) = &lhs.kind
+            && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
+            && self.gcx.hir.variable(*var_id).data_location
+                == Some(solar_ast::DataLocation::Calldata)
+        {
+            return false;
+        }
         if self.expr_has_bytes_or_string_type(lhs) {
             return true;
         }
@@ -797,8 +844,9 @@ impl<'gcx> Lowerer<'gcx> {
         // A `bytes`/`string` calldata value: copy it into memory (a low-level
         // call reads its input from memory), then use that region. This arises in
         // proxy fallbacks such as `impl.delegatecall(data)` with `bytes calldata`.
-        if let Some((head, _)) = self.calldata_dyn_head(expr) {
-            let ptr = self.materialize_calldata_bytes(builder, head);
+        if self.expr_is_calldata_dynamic_bytes(expr) {
+            let slice = self.lower_expr(builder, expr);
+            let ptr = self.materialize_calldata_bytes(builder, slice);
             let word = builder.imm_u64(32);
             let len = builder.mload(ptr);
             let data = builder.add(ptr, word);
@@ -857,8 +905,9 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Calldata `bytes`/`string`: copy the data into memory, then hash it
         // (`keccak256` only reads memory).
-        if let Some((head, _)) = self.calldata_dyn_head(inner) {
-            let ptr = self.materialize_calldata_bytes(builder, head);
+        if self.expr_is_calldata_dynamic_bytes(inner) {
+            let slice = self.lower_expr(builder, inner);
+            let ptr = self.materialize_calldata_bytes(builder, slice);
             let word = builder.imm_u64(32);
             let len = builder.mload(ptr);
             let data = builder.add(ptr, word);

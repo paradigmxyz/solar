@@ -10,16 +10,14 @@
 //!
 //! 1. copies the original into a fresh internal function `f.body` with its parameter list preserved
 //!    when there are internal callers, and
-//! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries: in a
-//!    selector-bearing wrapper, `argN` denotes the ABI head word at calldata offset `4 + 32*N`,
-//!    which the backend rematerializes per use as a `calldataload`; the body keeps its fused
-//!    external termination (`RETURN`/`REVERT`/`STOP`).
+//! 2. strips `f`'s MIR parameter list, keeping its selector and its `Value::Arg` entries. Scalar
+//!    arguments remain lazy ABI head words; dynamic calldata arguments remain logical slices until
+//!    `lower-slices` projects their pointer and length. The body keeps its fused external
+//!    termination (`RETURN`/`REVERT`/`STOP`).
 //!
-//! The head-word convention is uniform for every parameter type: the word at
-//! the parameter's fixed calldata offset is the scalar itself for static
-//! types and the head offset for dynamic ones — exactly the word the
-//! external-form body already expects and further decodes itself. Returns
-//! are different: the wrappers do not implement returndata encoding at all,
+//! The wrapper keeps argument materialization lazy so values used after a
+//! branch can still be rematerialized instead of spilled. Returns are
+//! different: the wrappers do not implement returndata encoding at all,
 //! so they rely on the external lowering having fused the encode into the
 //! body (every value-carrying `ret` already rewritten to `returndata`). A
 //! function whose body still carries a live value-`Return` terminator makes
@@ -157,17 +155,16 @@ impl LowerAbiPass {
     /// pristine copy for internal callers.
     ///
     /// The original function keeps its selector and loses its MIR parameter
-    /// list, but its `Value::Arg` entries stay in place: in a selector-bearing
-    /// wrapper, `argN` denotes the ABI head word at calldata offset
-    /// `4 + 32*N`, and the backend rematerializes each use as a
-    /// `calldataload` of that offset — the same lazy per-use materialization
-    /// the backend dispatcher path uses, so wrapper arguments never spill.
+    /// list, but its `Value::Arg` entries stay in place. Scalar arguments
+    /// continue to denote ABI head words, while logical calldata slices are
+    /// projected by `lower-slices`; both forms preserve lazy per-use
+    /// rematerialization, so wrapper arguments do not spill.
     /// Materializing the loads as eager MIR instructions instead was measured
     /// to cost real bytes: an instruction result is not rematerializable, so
     /// every multi-use or cross-block argument bought spill traffic the
     /// `Arg` form avoids. The explicit-decode representation returns when
-    /// dynamic types force real decoding (slices); head words do not need it.
-    /// The fused encode and `RETURN` stay intact, and no internal call is
+    /// slices provide explicit high-level decode semantics without changing
+    /// that backend property. The fused encode and `RETURN` stay intact, and no internal call is
     /// introduced on the external path. When the function has internal
     /// callers, a pristine `.body` copy with parameters preserved is appended
     /// and those callers are retargeted to it.
