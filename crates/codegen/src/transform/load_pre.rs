@@ -896,6 +896,7 @@ impl LoadRedundancyEliminator {
             )),
             InstKind::MLoad(addr) => Self::mem_addr(func, inst_id, addr)
                 .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
+            InstKind::Fmp => Some((LoadKey::Memory(Self::fmp_addr()), GenSource::LoadResult)),
             InstKind::MStore(addr, value) => Self::mem_addr(func, inst_id, addr)
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
@@ -945,6 +946,16 @@ impl LoadRedundancyEliminator {
         read_size: Option<u64>,
     ) -> bool {
         let kind = &func.instructions[inst_id].kind;
+        if matches!(kind, InstKind::SetFmp(_) | InstKind::Alloc(_)) {
+            if read.region != MemoryRegion::Unknown && read.region != MemoryRegion::Scratch {
+                return false;
+            }
+            if read.base.is_some() {
+                return true;
+            }
+            return read_size
+                .is_none_or(|size| mir_utils::ranges_overlap(read.offset, size, 0x40, 32));
+        }
         let (dest, write_size) = match *kind {
             InstKind::MStore(dest, _) => (dest, Some(32)),
             InstKind::MStore8(dest, _) => (dest, Some(1)),
@@ -987,6 +998,10 @@ impl LoadRedundancyEliminator {
             .unwrap_or_else(|| func.memory_region_for_addr(addr));
         let (base, offset) = Self::memory_addr_base_offset(func, addr);
         Some(MemAddr { region, base, offset: offset? })
+    }
+
+    fn fmp_addr() -> MemAddr {
+        MemAddr { region: MemoryRegion::Scratch, base: None, offset: 0x40 }
     }
 
     fn memory_addr_base_offset(func: &Function, addr: ValueId) -> (Option<ValueId>, Option<u64>) {

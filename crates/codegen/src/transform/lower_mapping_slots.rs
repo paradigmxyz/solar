@@ -84,8 +84,7 @@ fn lower_memory_mapping_slot(
     let len = builder.mload(ptr);
     let word_size = builder.imm_u64(32);
     let data_start = builder.add(ptr, word_size);
-    let free_memory_pointer = builder.imm_u64(0x40);
-    let scratch = builder.mload(free_memory_pointer);
+    let scratch = builder.fmp();
     builder.mcopy(scratch, data_start, len);
     let slot_addr = builder.add(scratch, len);
     builder.mstore(slot_addr, slot);
@@ -101,8 +100,7 @@ fn lower_calldata_mapping_slot(
     let len = builder.slice_len(slice);
     let data_start = builder.slice_ptr(slice);
     let word_size = builder.imm_u64(32);
-    let free_memory_pointer = builder.imm_u64(0x40);
-    let scratch = builder.mload(free_memory_pointer);
+    let scratch = builder.fmp();
     builder.calldatacopy(scratch, data_start, len);
     let slot_addr = builder.add(scratch, len);
     builder.mstore(slot_addr, slot);

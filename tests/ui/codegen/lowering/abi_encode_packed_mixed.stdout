@@ -24,7 +24,7 @@ fn @fixedBytesArg(arg0: u256, arg1: address, arg2: bytes2) {
     revert 0, 0
   bb6:
     mstore 128, 0
-    v9 = mload 64 !metadata(memory=scratch)
+    v9 = fmp
     mstore v9, arg0
     v10 = shl 96, arg1
     v11 = add v9, 32
@@ -51,24 +51,22 @@ fn @dynamicArg(arg0: bytes32, arg1: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, v8
-    mstore 64, v10 !metadata(memory=scratch)
+    v9 = alloc v8
     mstore v9, v4
-    v11 = add v9, 32
-    v12 = add v3, 32
-    calldatacopy v11, v12, v4
+    v10 = add v9, 32
+    v11 = add v3, 32
+    calldatacopy v10, v11, v4
     mstore 128, 0
-    v13 = mload 64 !metadata(memory=scratch)
-    mstore v13, arg0
-    v14 = add v13, 32
-    v15 = mload v9
-    v16 = add v9, 32
-    mcopy v14, v16, v15
-    v17 = add v14, v15
-    v18 = sub v17, v13
-    v19 = keccak256 v13, v18
-    mstore 128, v19
+    v12 = fmp
+    mstore v12, arg0
+    v13 = add v12, 32
+    v14 = mload v9
+    v15 = add v9, 32
+    mcopy v13, v15, v14
+    v16 = add v13, v14
+    v17 = sub v16, v12
+    v18 = keccak256 v12, v17
+    mstore 128, v18
     returndata 128, 32
 }
 
@@ -94,49 +92,47 @@ fn @materialized(arg0: u16, arg1: memptr, arg2: bool) {
     v9 = not 31
     v10 = and v8, v9
     v11 = add v10, 32
-    v12 = mload 64 !metadata(memory=scratch)
-    v13 = add v12, v11
-    mstore 64, v13 !metadata(memory=scratch)
+    v12 = alloc v11
     mstore v12, v7
-    v14 = add v12, 32
-    v15 = add v6, 32
-    calldatacopy v14, v15, v7
-    v16 = calldataload 68
+    v13 = add v12, 32
+    v14 = add v6, 32
+    calldatacopy v13, v14, v7
+    v15 = calldataload 68
+    v16 = iszero v15
     v17 = iszero v16
-    v18 = iszero v17
-    v19 = eq v16, v18
-    br v19, bb6, bb5
+    v18 = eq v15, v17
+    br v18, bb6, bb5
   bb5:
     revert 0, 0
   bb6:
     mstore 128, 0
-    v20 = mload 64 !metadata(memory=scratch)
-    v21 = add v20, 32
-    v22 = shl 240, arg0
-    mstore v21, v22
-    v23 = add v21, 2
-    v24 = mload v12
-    v25 = add v12, 32
-    mcopy v23, v25, v24
-    v26 = add v23, v24
-    v27 = shl 248, arg2
-    mstore v26, v27
-    v28 = add v26, 1
-    v29 = sub v28, v21
-    v30 = add v29, 31
-    v31 = not 31
-    v32 = and v30, v31
-    v33 = add v32, 32
-    mstore v20, v29
-    v34 = add v20, v33
-    mstore 64, v34 !metadata(memory=scratch)
-    internal_call @__ret_bytes, 0, v20
+    v19 = fmp
+    v20 = add v19, 32
+    v21 = shl 240, arg0
+    mstore v20, v21
+    v22 = add v20, 2
+    v23 = mload v12
+    v24 = add v12, 32
+    mcopy v22, v24, v23
+    v25 = add v22, v23
+    v26 = shl 248, arg2
+    mstore v25, v26
+    v27 = add v25, 1
+    v28 = sub v27, v20
+    v29 = add v28, 31
+    v30 = not 31
+    v31 = and v29, v30
+    v32 = add v31, 32
+    mstore v19, v28
+    v33 = add v19, v32
+    set_fmp v33
+    internal_call @__ret_bytes, 0, v19
     invalid
 }
 
 fn @__ret_bytes(arg0: memptr) {
   bb0 (entry):
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = fmp
     mstore v0, 32
     v1 = mload arg0
     v2 = add v0, 32

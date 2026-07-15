@@ -1009,7 +1009,12 @@ kw::Bool => MirType::Bool,
             kw::Tload => inst!(TLoad(a) => MirType::uint256()),
             kw::Tstore => inst!(TStore(a, b)),
 
-// Calldata, code, and return data.
+            // Free-memory pointer and allocation.
+            sym::fmp => unit!(Fmp => MirType::MemPtr),
+            sym::set_fmp => inst!(SetFmp(a)),
+            sym::alloc => inst!(Alloc(a) => MirType::MemPtr),
+
+            // Calldata, code, and return data.
             kw::Calldataload => inst!(CalldataLoad(a) => MirType::uint256()),
             kw::Calldatasize => unit!(CalldataSize => MirType::uint256()),
             kw::Calldatacopy => inst!(CalldataCopy(a, b, c)),

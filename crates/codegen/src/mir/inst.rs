@@ -452,6 +452,12 @@ pub(crate) enum InstKind {
     MStore8(ValueId, ValueId),
     /// Get memory size: `msize()`
     MSize,
+    /// Read the free-memory pointer.
+    Fmp,
+    /// Set the free-memory pointer.
+    SetFmp(ValueId),
+    /// Reserve `size` bytes and return the previous free-memory pointer.
+    Alloc(ValueId),
     /// Copy memory: `mcopy(dest, src, len)`
     MCopy(ValueId, ValueId, ValueId),
 
@@ -679,6 +685,8 @@ impl InstKind {
             Self::Not(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
+            | Self::SetFmp(a)
+            | Self::Alloc(a)
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -773,6 +781,7 @@ impl InstKind {
 
             // Nullary operations - no operands
             Self::MSize
+            | Self::Fmp
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
             | Self::CodeSize
@@ -849,6 +858,8 @@ impl InstKind {
             Self::Not(a)
             | Self::IsZero(a)
             | Self::MLoad(a)
+            | Self::SetFmp(a)
+            | Self::Alloc(a)
             | Self::SLoad(a)
             | Self::TLoad(a)
             | Self::CalldataLoad(a)
@@ -929,6 +940,7 @@ impl InstKind {
             }
 
             Self::MSize
+            | Self::Fmp
             | Self::CalldataSize
             | Self::InternalFrameAddr(_)
             | Self::CodeSize
@@ -987,6 +999,8 @@ impl InstKind {
             self,
             Self::MStore(_, _)
                 | Self::MStore8(_, _)
+                | Self::SetFmp(_)
+                | Self::Alloc(_)
                 | Self::MCopy(_, _, _)
                 | Self::CalldataCopy(_, _, _)
                 | Self::CodeCopy(_, _, _)
@@ -1033,6 +1047,9 @@ impl InstKind {
             Self::MStore(_, _) => "mstore",
             Self::MStore8(_, _) => "mstore8",
             Self::MSize => "msize",
+            Self::Fmp => "fmp",
+            Self::SetFmp(_) => "set_fmp",
+            Self::Alloc(_) => "alloc",
             Self::MCopy(_, _, _) => "mcopy",
             Self::SLoad(_) => "sload",
             Self::SStore(_, _) => "sstore",
@@ -1105,6 +1122,8 @@ impl InstKind {
             // Memory writes (may affect external calls)
             | Self::MStore(_, _)
             | Self::MStore8(_, _)
+            | Self::SetFmp(_)
+            | Self::Alloc(_)
             | Self::MCopy(_, _, _)
             // External calls
             | Self::Call { .. }
@@ -1134,12 +1153,15 @@ impl InstKind {
         match self {
             Self::MStore(_, _)
             | Self::MStore8(_, _)
+            | Self::SetFmp(_)
+            | Self::Alloc(_)
             | Self::MCopy(_, _, _)
             | Self::CalldataCopy(_, _, _)
             | Self::CodeCopy(_, _, _)
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
             Self::MLoad(_)
+            | Self::Fmp
             | Self::MSize
             | Self::Keccak256(_, _)
             | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,

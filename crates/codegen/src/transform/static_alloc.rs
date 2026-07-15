@@ -1,27 +1,19 @@
 //! Static placement of provably local heap allocations.
 //!
-//! Lowering allocates dynamic memory by bumping the free-memory pointer:
-//! `ptr = mload(0x40); ...; mstore(0x40, ptr + K)`. When `K` is a constant,
-//! the allocating block executes at most once per call, and the pointer never
-//! escapes the function, the allocation does not need the free-memory pointer
-//! at all: the region can live at a compile-time address appended to the
-//! entry's local frame. The load and the bump disappear, every use keeps its
-//! shape, and the frame layout machinery accounts for the enlarged frame.
-//!
-//! This is the first slice of an explicit allocation model: the rewrite
-//! performs exactly the escape analysis an `alloc(size)` instruction would
-//! make routine, without yet changing the MIR vocabulary.
+//! When a constant-size `alloc` executes at most once per call and its pointer
+//! never escapes the function, the allocation does not need a runtime
+//! free-memory-pointer bump. The region can live at a compile-time address
+//! appended to the entry's local frame. The allocation disappears, every use
+//! keeps its shape, and the frame layout machinery accounts for the enlarged
+//! frame.
 //!
 //! Safety contract:
 //! - external entries only: their locals are absolute low-memory addresses;
-//! - the paired load and bump sit in one block with no intervening operation that can read or move
-//!   the free-memory pointer;
 //! - the block cannot re-execute, so the reused static region cannot expose a previous iteration's
 //!   contents where fresh zeroed memory was expected;
-//! - the bump's sum feeds nothing but the bump itself, and every other use of the pointer is an
-//!   in-bounds address derivation into exact loads, stores, hashes, copies, logs, or external-data
-//!   terminators — the pointer value never escapes into stored data, call arguments, or unbounded
-//!   arithmetic;
+//! - every use of the pointer is an in-bounds address derivation into exact loads, stores, hashes,
+//!   copies, logs, or external-data terminators — the pointer value never escapes into stored data,
+//!   call arguments, or unbounded arithmetic;
 //! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
 
 use crate::{
@@ -32,7 +24,7 @@ use crate::{
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
-/// Pass that places provably local fmp-bump allocations statically.
+/// Pass that places provably local allocations statically.
 pub(crate) struct StaticAllocPass;
 
 impl ModulePass for StaticAllocPass {
@@ -67,18 +59,25 @@ fn is_entry(func: &Function) -> bool {
 }
 
 fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
-    if !func
-        .instructions
-        .iter()
-        .any(|inst| matches!(&inst.kind, InstKind::MLoad(addr) if is_fmp_addr(func, *addr)))
-    {
+    if !func.instructions.iter().any(|inst| matches!(inst.kind, InstKind::Alloc(_))) {
         return false;
     }
 
     let inst_results = func.inst_results();
     let mut candidates = Vec::new();
     for block_id in func.blocks.indices() {
-        collect_block_candidates(func, block_id, &inst_results, &mut candidates);
+        for &inst in &func.blocks[block_id].instructions {
+            let InstKind::Alloc(size) = func.instructions[inst].kind else { continue };
+            let Some(size) = func.value_u64(size) else { continue };
+            if size > 0 && size <= 0x1000 && size.is_multiple_of(32) {
+                candidates.push(Candidate {
+                    block: block_id,
+                    alloc: inst,
+                    ptr: inst_results[&inst],
+                    size,
+                });
+            }
+        }
     }
     if candidates.is_empty() {
         return false;
@@ -98,14 +97,11 @@ fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
     changed
 }
 
-/// One `ptr = mload(0x40) ... mstore(0x40, ptr + size)` pair.
+/// One constant-size allocation eligible for escape analysis.
 struct Candidate {
     block: BlockId,
-    load: InstId,
+    alloc: InstId,
     ptr: ValueId,
-    bump: InstId,
-    /// The `ptr + size` sum consumed by the bump store.
-    bump_value: ValueId,
     size: u64,
 }
 
@@ -136,76 +132,14 @@ fn block_in_cycle(func: &Function, block: BlockId) -> bool {
     false
 }
 
-fn is_fmp_addr(func: &Function, value: ValueId) -> bool {
-    matches!(func.value(value), Value::Immediate(imm) if imm.as_u256() == Some(U256::from(0x40)))
-}
-
-/// Collects load/bump pairs in `block` with no operation between them that
-/// can read or move the free-memory pointer.
-fn collect_block_candidates(
-    func: &Function,
-    block_id: BlockId,
-    inst_results: &FxHashMap<InstId, ValueId>,
-    out: &mut Vec<Candidate>,
-) {
-    let mut open: Option<(InstId, ValueId)> = None;
-    for &inst_id in &func.blocks[block_id].instructions {
-        match &func.instructions[inst_id].kind {
-            InstKind::MLoad(addr) if is_fmp_addr(func, *addr) => {
-                // A new fmp read closes any open pair unmatched.
-                open = inst_results.get(&inst_id).map(|&ptr| (inst_id, ptr));
-            }
-            InstKind::MStore(addr, value) if is_fmp_addr(func, *addr) => {
-                if let Some((load, ptr)) = open.take()
-                    && let Some(size) = bump_size(func, *value, ptr)
-                    && size > 0
-                    && size <= 0x1000
-                    && size.is_multiple_of(32)
-                {
-                    out.push(Candidate {
-                        block: block_id,
-                        load,
-                        ptr,
-                        bump: inst_id,
-                        bump_value: *value,
-                        size,
-                    });
-                }
-            }
-            // Anything that can call out or allocate can observe or move the
-            // free-memory pointer: close the window.
-            InstKind::InternalCall { .. }
-            | InstKind::Call { .. }
-            | InstKind::StaticCall { .. }
-            | InstKind::DelegateCall { .. }
-            | InstKind::Create(_, _, _)
-            | InstKind::Create2(_, _, _, _) => open = None,
-            _ => {}
-        }
-    }
-}
-
-/// Matches `value == add(ptr, K)` (either operand order) and returns `K`.
-fn bump_size(func: &Function, value: ValueId, ptr: ValueId) -> Option<u64> {
-    let Value::Inst(inst_id) = func.value(value) else { return None };
-    let InstKind::Add(a, b) = func.instructions[*inst_id].kind else { return None };
-    if a == ptr {
-        func.value_u64(b)
-    } else if b == ptr {
-        func.value_u64(a)
-    } else {
-        None
-    }
-}
-
 /// Verifies every use of the pointer stays in bounds and never escapes, then
-/// rewrites the pair: pointer uses take the static address, the load and the
-/// bump are deleted, and the frame grows by the allocation size.
+/// rewrites the allocation: pointer uses take the static address, the
+/// allocation is deleted, and the frame grows by the allocation size.
 fn apply_candidate(func: &mut Function, cand: &Candidate, shadow: u64) -> bool {
     let inst_results = func.inst_results();
 
     // In-bounds address derivations from the pointer, to a fixpoint so
-    // definition order does not matter. The bump's own sum is exempt.
+    // definition order does not matter.
     let mut derived: FxHashMap<ValueId, u64> = FxHashMap::default();
     derived.insert(cand.ptr, 0);
     for _ in 0..4 {
@@ -214,7 +148,6 @@ fn apply_candidate(func: &mut Function, cand: &Candidate, shadow: u64) -> bool {
             for &inst_id in &block.instructions {
                 if let InstKind::Add(a, b) = func.instructions[inst_id].kind
                     && let Some(&result) = inst_results.get(&inst_id)
-                    && result != cand.bump_value
                     && !derived.contains_key(&result)
                 {
                     let (base, offset) = if derived.contains_key(&a) {
@@ -243,42 +176,14 @@ fn apply_candidate(func: &mut Function, cand: &Candidate, shadow: u64) -> bool {
         }
     }
 
-    // The bump's sum may feed nothing but the bump store itself.
-    let mut bump_value_uses = 0usize;
-    for block in func.blocks.iter() {
-        for &inst_id in &block.instructions {
-            for &operand in func.instructions[inst_id].kind.operands().iter() {
-                if operand == cand.bump_value {
-                    bump_value_uses += 1;
-                }
-            }
-        }
-        if let Some(term) = &block.terminator {
-            for &operand in term.operands().iter() {
-                if operand == cand.bump_value {
-                    return false;
-                }
-            }
-        }
-    }
-    if bump_value_uses != 1 {
-        return false;
-    }
-
     // Every use of every derived address must be a bounded memory access.
     let in_range = |off: u64, len: u64| off.checked_add(len).is_some_and(|end| end <= cand.size);
     for block in func.blocks.iter() {
         for &inst_id in &block.instructions {
-            if inst_id == cand.bump {
+            if inst_id == cand.alloc {
                 continue;
             }
             let kind = &func.instructions[inst_id].kind;
-            if let Some(&result) = inst_results.get(&inst_id)
-                && result == cand.bump_value
-            {
-                // The bump sum itself; consumed only by the bump store.
-                continue;
-            }
             for &operand in kind.operands().iter() {
                 let Some(&off) = derived.get(&operand) else { continue };
                 let ok = match *kind {
@@ -350,6 +255,6 @@ fn apply_candidate(func: &mut Function, cand: &Candidate, shadow: u64) -> bool {
     replacements.insert(cand.ptr, replacement);
     func.replace_uses_canonicalized(&replacements);
     let block = &mut func.blocks[cand.block];
-    block.instructions.retain(|&inst| inst != cand.load && inst != cand.bump);
+    block.instructions.retain(|&inst| inst != cand.alloc);
     true
 }

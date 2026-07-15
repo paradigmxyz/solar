@@ -561,8 +561,7 @@ impl<'gcx> Lowerer<'gcx> {
         values: &[ValueId],
         start: usize,
     ) {
-        let free_ptr_slot = builder.imm_u64(0x40);
-        let base = builder.mload(free_ptr_slot);
+        let base = builder.fmp();
         for (i, &value) in values.iter().enumerate().skip(start) {
             let offset = builder.imm_u64(i as u64 * 32);
             let addr = builder.add(base, offset);

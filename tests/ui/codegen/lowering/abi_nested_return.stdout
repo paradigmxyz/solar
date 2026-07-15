@@ -10,7 +10,7 @@ fn @structArray(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = mload 64 !metadata(memory=scratch)
+    v3 = fmp
     mstore v3, 1
     v4 = mul 1, 32
     v5 = div v4, 32
@@ -44,93 +44,87 @@ fn @structArray(arg0: u256) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v9 !metadata(memory=scratch)
+    set_fmp v9
     v12 = add v3, 32
     v13 = calldatasize
     calldatacopy v12, v13, v4
-    v14 = mload 64 !metadata(memory=scratch)
-    v15 = add v14, 64
-    mstore 64, v15 !metadata(memory=scratch)
+    v14 = alloc 64
     mstore v14, arg0
-    v16 = add arg0, 1
-    v17 = lt v16, arg0
-    br v17, bb11, bb12
+    v15 = add arg0, 1
+    v16 = lt v15, arg0
+    br v16, bb11, bb12
   bb11:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 17 !metadata(memory=scratch)
     revert 0, 36
   bb12:
-    v18 = add v14, 32
-    mstore v18, v16
-    v19 = mul 0, 32
-    v20 = mload v3
-    v21 = lt 0, v20
-    br v21, bb14, bb13
+    v17 = add v14, 32
+    mstore v17, v15
+    v18 = mul 0, 32
+    v19 = mload v3
+    v20 = lt 0, v19
+    br v20, bb14, bb13
   bb13:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb14:
-    v22 = add v3, 32
-    v23 = add v22, v19
-    mstore v23, v14
-    v24 = mload 64 !metadata(memory=scratch)
-    v25 = add v24, 160
-    mstore 64, v25 !metadata(memory=scratch)
-    v26 = mload 64 !metadata(memory=scratch)
-    v27 = add v26, 32
-    mstore 64, v27 !metadata(memory=scratch)
-    v28 = add v26, 32
-    v29 = sub v28, v26
-    mstore v26, v29
-    v30 = mload v3
-    mstore v28, v30
-    v31 = add v28, 32
-    v32 = mul v30, 64
-    v33 = add v31, v32
-    v34 = add v3, 32
-    v35 = add v24, 32
-    v36 = add v24, 64
-    v37 = add v24, 96
-    v38 = add v24, 128
-    mstore v24, v30
-    mstore v35, v33
-    mstore v36, v31
-    mstore v37, v34
-    mstore v38, v31
+    v21 = add v3, 32
+    v22 = add v21, v18
+    mstore v22, v14
+    v23 = alloc 160
+    v24 = alloc 32
+    v25 = add v24, 32
+    v26 = sub v25, v24
+    mstore v24, v26
+    v27 = mload v3
+    mstore v25, v27
+    v28 = add v25, 32
+    v29 = mul v27, 64
+    v30 = add v28, v29
+    v31 = add v3, 32
+    v32 = add v23, 32
+    v33 = add v23, 64
+    v34 = add v23, 96
+    v35 = add v23, 128
+    mstore v23, v27
+    mstore v32, v30
+    mstore v33, v28
+    mstore v34, v31
+    mstore v35, v28
     jump bb15
   bb15:
-    v39 = mload v24
-    v40 = gt v39, 0
-    br v40, bb16, bb17
+    v36 = mload v23
+    v37 = gt v36, 0
+    br v37, bb16, bb17
   bb16:
-    v41 = mload v37
-    v42 = mload v41
-    v43 = mload v36
-    v44 = mload v35
-    v45 = mload v38
-    v46 = mload v42
-    mstore v43, v46
-    v47 = add v43, 32
-    v48 = add v42, 32
-    v49 = mload v48
-    mstore v47, v49
-    v50 = add v47, 32
-    mstore v35, v44
-    v51 = mload v24
-    v52 = sub v51, 1
-    mstore v24, v52
-    v53 = mload v37
-    v54 = add v53, 32
-    mstore v37, v54
-    v55 = mload v36
-    v56 = add v55, 64
-    mstore v36, v56
+    v38 = mload v34
+    v39 = mload v38
+    v40 = mload v33
+    v41 = mload v32
+    v42 = mload v35
+    v43 = mload v39
+    mstore v40, v43
+    v44 = add v40, 32
+    v45 = add v39, 32
+    v46 = mload v45
+    mstore v44, v46
+    v47 = add v44, 32
+    mstore v32, v41
+    v48 = mload v23
+    v49 = sub v48, 1
+    mstore v23, v49
+    v50 = mload v34
+    v51 = add v50, 32
+    mstore v34, v51
+    v52 = mload v33
+    v53 = add v52, 64
+    mstore v33, v53
     jump bb15
   bb17:
-    v57 = mload v35
-    v58 = sub v57, v26
-    returndata v26, v58
+    v54 = mload v32
+    v55 = sub v54, v24
+    returndata v24, v55
 }
 
 fn @nestedArray(arg0: u256) {
@@ -143,7 +137,7 @@ fn @nestedArray(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = mload 64 !metadata(memory=scratch)
+    v3 = fmp
     mstore v3, 1
     v4 = mul 1, 32
     v5 = div v4, 32
@@ -177,11 +171,11 @@ fn @nestedArray(arg0: u256) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v9 !metadata(memory=scratch)
+    set_fmp v9
     v12 = add v3, 32
     v13 = calldatasize
     calldatacopy v12, v13, v4
-    v14 = mload 64 !metadata(memory=scratch)
+    v14 = fmp
     mstore v14, arg0
     v15 = mul arg0, 32
     v16 = div v15, 32
@@ -215,7 +209,7 @@ fn @nestedArray(arg0: u256) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb18:
-    mstore 64, v20 !metadata(memory=scratch)
+    set_fmp v20
     v23 = add v14, 32
     v24 = calldatasize
     calldatacopy v23, v24, v15
@@ -231,64 +225,60 @@ fn @nestedArray(arg0: u256) {
     v28 = add v3, 32
     v29 = add v28, v25
     mstore v29, v14
-    v30 = mload 64 !metadata(memory=scratch)
-    v31 = add v30, 160
-    mstore 64, v31 !metadata(memory=scratch)
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, 32
-    mstore 64, v33 !metadata(memory=scratch)
-    v34 = add v32, 32
-    v35 = sub v34, v32
-    mstore v32, v35
-    v36 = mload v3
-    mstore v34, v36
-    v37 = add v34, 32
-    v38 = mul v36, 32
-    v39 = add v37, v38
-    v40 = add v3, 32
-    v41 = add v30, 32
-    v42 = add v30, 64
-    v43 = add v30, 96
-    v44 = add v30, 128
-    mstore v30, v36
-    mstore v41, v39
-    mstore v42, v37
-    mstore v43, v40
-    mstore v44, v37
+    v30 = alloc 160
+    v31 = alloc 32
+    v32 = add v31, 32
+    v33 = sub v32, v31
+    mstore v31, v33
+    v34 = mload v3
+    mstore v32, v34
+    v35 = add v32, 32
+    v36 = mul v34, 32
+    v37 = add v35, v36
+    v38 = add v3, 32
+    v39 = add v30, 32
+    v40 = add v30, 64
+    v41 = add v30, 96
+    v42 = add v30, 128
+    mstore v30, v34
+    mstore v39, v37
+    mstore v40, v35
+    mstore v41, v38
+    mstore v42, v35
     jump bb21
   bb21:
-    v45 = mload v30
-    v46 = gt v45, 0
-    br v46, bb22, bb23
+    v43 = mload v30
+    v44 = gt v43, 0
+    br v44, bb22, bb23
   bb22:
-    v47 = mload v43
-    v48 = mload v47
+    v45 = mload v41
+    v46 = mload v45
+    v47 = mload v40
+    v48 = mload v39
     v49 = mload v42
-    v50 = mload v41
-    v51 = mload v44
-    v52 = sub v50, v51
-    mstore v49, v52
-    v53 = mload v48
-    mstore v50, v53
-    v54 = mul v53, 32
-    v55 = add v50, 32
-    v56 = add v48, 32
-    v57 = add v55, v54
-    mcopy v55, v56, v54
-    mstore v41, v57
-    v58 = mload v30
-    v59 = sub v58, 1
-    mstore v30, v59
-    v60 = mload v43
+    v50 = sub v48, v49
+    mstore v47, v50
+    v51 = mload v46
+    mstore v48, v51
+    v52 = mul v51, 32
+    v53 = add v48, 32
+    v54 = add v46, 32
+    v55 = add v53, v52
+    mcopy v53, v54, v52
+    mstore v39, v55
+    v56 = mload v30
+    v57 = sub v56, 1
+    mstore v30, v57
+    v58 = mload v41
+    v59 = add v58, 32
+    mstore v41, v59
+    v60 = mload v40
     v61 = add v60, 32
-    mstore v43, v61
-    v62 = mload v42
-    v63 = add v62, 32
-    mstore v42, v63
+    mstore v40, v61
     jump bb21
   bb23:
-    v64 = mload v41
-    v65 = sub v64, v32
-    returndata v32, v65
+    v62 = mload v39
+    v63 = sub v62, v31
+    returndata v31, v63
 }
 

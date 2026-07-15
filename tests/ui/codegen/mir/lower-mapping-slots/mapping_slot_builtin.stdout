@@ -27,7 +27,7 @@ fn @memory(arg0: memptr) -> u256 {
   bb0 (entry):
     v3 = mload arg0
     v4 = add arg0, 32
-    v5 = mload 64 !metadata(memory=scratch)
+    v5 = fmp
     mcopy v5, v4, v3
     v6 = add v5, v3
     mstore v6, 9
@@ -36,7 +36,7 @@ fn @memory(arg0: memptr) -> u256 {
     mstore arg0, 1
     v9 = mload arg0
     v10 = add arg0, 32
-    v11 = mload 64 !metadata(memory=scratch)
+    v11 = fmp
     mcopy v11, v10, v9
     v12 = add v11, v9
     mstore v12, 9
@@ -48,7 +48,7 @@ fn @memory(arg0: memptr) -> u256 {
 
 fn @calldata(arg0: calldataptr, arg1: u256) -> u256 {
   bb0 (entry):
-    v5 = mload 64 !metadata(memory=scratch)
+    v5 = fmp
     calldatacopy v5, arg0, arg1
     v6 = add v5, arg1
     mstore v6, 11

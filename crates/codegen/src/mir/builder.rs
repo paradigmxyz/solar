@@ -331,6 +331,21 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::MSize, Some(MirType::uint256()))
     }
 
+    /// Reads the free-memory pointer.
+    pub fn fmp(&mut self) -> ValueId {
+        self.emit_inst(InstKind::Fmp, Some(MirType::MemPtr))
+    }
+
+    /// Sets the free-memory pointer.
+    pub fn set_fmp(&mut self, ptr: ValueId) {
+        self.emit_void_inst(InstKind::SetFmp(ptr))
+    }
+
+    /// Reserves `size` bytes and returns the previous free-memory pointer.
+    pub fn alloc(&mut self, size: ValueId) -> ValueId {
+        self.emit_inst(InstKind::Alloc(size), Some(MirType::MemPtr))
+    }
+
     /// Emits an mcopy instruction.
     pub(crate) fn mcopy(&mut self, dest: ValueId, src: ValueId, len: ValueId) {
         self.emit_void_inst(InstKind::MCopy(dest, src, len))

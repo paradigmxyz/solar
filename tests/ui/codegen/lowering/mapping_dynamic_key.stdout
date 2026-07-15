@@ -31,22 +31,20 @@ fn @set(arg0: memptr, arg1: address) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, v8
-    mstore 64, v10 !metadata(memory=scratch)
+    v9 = alloc v8
     mstore v9, v4
-    v11 = add v9, 32
-    v12 = add v3, 32
-    calldatacopy v11, v12, v4
-    v13 = calldataload 36
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = eq v13, v14
-    br v15, bb4, bb3
+    v10 = add v9, 32
+    v11 = add v3, 32
+    calldatacopy v10, v11, v4
+    v12 = calldataload 36
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = eq v12, v13
+    br v14, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v16 = mapping_slot_memory v9, 0
-    sstore v16, arg1 !metadata(storage=symbolic(v16))
+    v15 = mapping_slot_memory v9, 0
+    sstore v15, arg1 !metadata(storage=symbolic(v15))
     stop
 }
 
@@ -65,17 +63,15 @@ fn @get(arg0: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, v8
-    mstore 64, v10 !metadata(memory=scratch)
+    v9 = alloc v8
     mstore v9, v4
-    v11 = add v9, 32
-    v12 = add v3, 32
-    calldatacopy v11, v12, v4
+    v10 = add v9, 32
+    v11 = add v3, 32
+    calldatacopy v10, v11, v4
     mstore 128, 0
-    v13 = mapping_slot_memory v9, 0
-    v14 = sload v13 !metadata(storage=symbolic(v13))
-    mstore 128, v14
+    v12 = mapping_slot_memory v9, 0
+    v13 = sload v12 !metadata(storage=symbolic(v12))
+    mstore 128, v13
     returndata 128, 32
 }
 
@@ -168,44 +164,40 @@ fn @__load_storage_bytes(arg0: u256) -> memptr {
     v10 = iszero v9
     v11 = select v10, 32, v9
     v12 = add 32, v11
-    v13 = mload 64 !metadata(memory=scratch)
-    v14 = add v13, 32
-    mstore 64, v14 !metadata(memory=scratch)
-    v15 = mload 64 !metadata(memory=scratch)
-    v16 = add v15, v12
-    mstore 64, v16 !metadata(memory=scratch)
-    mstore v15, v6
-    v17 = add v15, 32
+    v13 = alloc 32
+    v14 = alloc v12
+    mstore v14, v6
+    v15 = add v14, 32
     br v2, bb2, bb1
   bb1:
-    v18 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
-    mstore v17, v18
+    v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
+    mstore v15, v16
     jump bb3
   bb2:
     mstore v13, arg0
-    v19 = keccak256 v13, 32
-    v20 = div v9, 32
+    v17 = keccak256 v13, 32
+    v18 = div v9, 32
     jump bb4
   bb3:
-    ret v15
+    ret v14
   bb4:
-    v21 = phi [bb2: v20], [bb5: v28]
-    v22 = phi [bb2: v19], [bb5: v26]
-    v23 = phi [bb2: v17], [bb5: v27]
-    v24 = gt v21, 0
-    br v24, bb5, bb3
+    v19 = phi [bb2: v18], [bb5: v26]
+    v20 = phi [bb2: v17], [bb5: v24]
+    v21 = phi [bb2: v15], [bb5: v25]
+    v22 = gt v19, 0
+    br v22, bb5, bb3
   bb5:
-    v25 = sload v22 !metadata(storage=symbolic(v22))
-    mstore v23, v25
-    v26 = add v22, 1
-    v27 = add v23, 32
-    v28 = sub v21, 1
+    v23 = sload v20 !metadata(storage=symbolic(v20))
+    mstore v21, v23
+    v24 = add v20, 1
+    v25 = add v21, 32
+    v26 = sub v19, 1
     jump bb4
 }
 
 fn @__ret_bytes(arg0: memptr) {
   bb0 (entry):
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = fmp
     mstore v0, 32
     v1 = mload arg0
     v2 = add v0, 32
@@ -232,7 +224,7 @@ fn @setLit(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mload 64 !metadata(memory=scratch)
+    v3 = fmp
     v4 = add v3, 0
     mstore v4, 0x68656c6c6f000000000000000000000000000000000000000000000000000000
     v5 = add v3, 5
@@ -252,7 +244,7 @@ fn @setLitLong(arg0: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = mload 64 !metadata(memory=scratch)
+    v3 = fmp
     v4 = add v3, 0
     mstore v4, 0x61206c69746572616c206b6579206c6f6e676572207468616e20746869727479
     v5 = add v3, 32
@@ -280,23 +272,21 @@ fn @setNestedFirst(arg0: memptr, arg1: address, arg2: u256) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, v8
-    mstore 64, v10 !metadata(memory=scratch)
+    v9 = alloc v8
     mstore v9, v4
-    v11 = add v9, 32
-    v12 = add v3, 32
-    calldatacopy v11, v12, v4
-    v13 = calldataload 36
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = eq v13, v14
-    br v15, bb4, bb3
+    v10 = add v9, 32
+    v11 = add v3, 32
+    calldatacopy v10, v11, v4
+    v12 = calldataload 36
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = eq v12, v13
+    br v14, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
-    v16 = mapping_slot_memory v9, 1
-    v17 = mapping_slot arg1, v16
-    sstore v17, arg2 !metadata(storage=symbolic(v17))
+    v15 = mapping_slot_memory v9, 1
+    v16 = mapping_slot arg1, v15
+    sstore v16, arg2 !metadata(storage=symbolic(v16))
     stop
 }
 
@@ -315,25 +305,23 @@ fn @getNestedFirst(arg0: memptr, arg1: address) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, v8
-    mstore 64, v10 !metadata(memory=scratch)
+    v9 = alloc v8
     mstore v9, v4
-    v11 = add v9, 32
-    v12 = add v3, 32
-    calldatacopy v11, v12, v4
-    v13 = calldataload 36
-    v14 = and v13, 0xffffffffffffffffffffffffffffffffffffffff
-    v15 = eq v13, v14
-    br v15, bb4, bb3
+    v10 = add v9, 32
+    v11 = add v3, 32
+    calldatacopy v10, v11, v4
+    v12 = calldataload 36
+    v13 = and v12, 0xffffffffffffffffffffffffffffffffffffffff
+    v14 = eq v12, v13
+    br v14, bb4, bb3
   bb3:
     revert 0, 0
   bb4:
     mstore 128, 0
-    v16 = mapping_slot_memory v9, 1
-    v17 = mapping_slot arg1, v16
-    v18 = sload v17 !metadata(storage=symbolic(v17))
-    mstore 128, v18
+    v15 = mapping_slot_memory v9, 1
+    v16 = mapping_slot arg1, v15
+    v17 = sload v16 !metadata(storage=symbolic(v16))
+    mstore 128, v17
     returndata 128, 32
 }
 
@@ -359,16 +347,14 @@ fn @setNestedSecond(arg0: address, arg1: memptr, arg2: u256) {
     v9 = not 31
     v10 = and v8, v9
     v11 = add v10, 32
-    v12 = mload 64 !metadata(memory=scratch)
-    v13 = add v12, v11
-    mstore 64, v13 !metadata(memory=scratch)
+    v12 = alloc v11
     mstore v12, v7
-    v14 = add v12, 32
-    v15 = add v6, 32
-    calldatacopy v14, v15, v7
-    v16 = mapping_slot arg0, 2
-    v17 = mapping_slot_memory v12, v16
-    sstore v17, arg2 !metadata(storage=symbolic(v17))
+    v13 = add v12, 32
+    v14 = add v6, 32
+    calldatacopy v13, v14, v7
+    v15 = mapping_slot arg0, 2
+    v16 = mapping_slot_memory v12, v15
+    sstore v16, arg2 !metadata(storage=symbolic(v16))
     stop
 }
 
@@ -387,81 +373,77 @@ fn @setSkey(arg0: memptr) {
     v6 = not 31
     v7 = and v5, v6
     v8 = add v7, 32
-    v9 = mload 64 !metadata(memory=scratch)
-    v10 = add v9, v8
-    mstore 64, v10 !metadata(memory=scratch)
+    v9 = alloc v8
     mstore v9, v4
-    v11 = add v9, 32
-    v12 = add v3, 32
-    calldatacopy v11, v12, v4
-    v13 = mload v9
-    v14 = add v9, 32
-    v15 = sload 3 !metadata(storage=slot(3))
-    v16 = and v15, 1
-    v17 = eq v16, 1
-    v18 = and v15, 255
-    v19 = shr 1, v18
-    v20 = shr 1, v15
-    v21 = select v17, v20, v19
-    v22 = not 31
-    v23 = add v21, 31
-    v24 = and v23, v22
-    v25 = div v24, 32
-    v26 = select v17, v25, 0
-    v27 = add v13, 31
-    v28 = and v27, v22
-    v29 = div v28, 32
-    v30 = gt v13, 31
-    v31 = select v30, v29, 0
-    v32 = mload 64 !metadata(memory=scratch)
-    v33 = add v32, 32
-    mstore 64, v33 !metadata(memory=scratch)
-    mstore v32, 3
-    v34 = keccak256 v32, 32
-    br v30, bb4, bb3
+    v10 = add v9, 32
+    v11 = add v3, 32
+    calldatacopy v10, v11, v4
+    v12 = mload v9
+    v13 = add v9, 32
+    v14 = sload 3 !metadata(storage=slot(3))
+    v15 = and v14, 1
+    v16 = eq v15, 1
+    v17 = and v14, 255
+    v18 = shr 1, v17
+    v19 = shr 1, v14
+    v20 = select v16, v19, v18
+    v21 = not 31
+    v22 = add v20, 31
+    v23 = and v22, v21
+    v24 = div v23, 32
+    v25 = select v16, v24, 0
+    v26 = add v12, 31
+    v27 = and v26, v21
+    v28 = div v27, 32
+    v29 = gt v12, 31
+    v30 = select v29, v28, 0
+    v31 = alloc 32
+    mstore v31, 3
+    v32 = keccak256 v31, 32
+    br v29, bb4, bb3
   bb3:
-    v35 = mload v14
-    v36 = mul v13, 8
-    v37 = shr v36, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
-    v38 = not v37
-    v39 = and v35, v38
-    v40 = shl 1, v13
-    v41 = or v39, v40
-    sstore 3, v41 !metadata(storage=slot(3))
+    v33 = mload v13
+    v34 = mul v12, 8
+    v35 = shr v34, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+    v36 = not v35
+    v37 = and v33, v36
+    v38 = shl 1, v12
+    v39 = or v37, v38
+    sstore 3, v39 !metadata(storage=slot(3))
     jump bb7
   bb4:
-    v42 = shl 1, v13
-    v43 = or v42, 1
-    sstore 3, v43 !metadata(storage=slot(3))
-    mstore v32, 0
+    v40 = shl 1, v12
+    v41 = or v40, 1
+    sstore 3, v41 !metadata(storage=slot(3))
+    mstore v31, 0
     jump bb5
   bb5:
-    v44 = mload v32
-    v45 = lt v44, v31
-    br v45, bb6, bb7
+    v42 = mload v31
+    v43 = lt v42, v30
+    br v43, bb6, bb7
   bb6:
-    v46 = mload v32
-    v47 = add v34, v46
-    v48 = mul v46, 32
-    v49 = add v14, v48
-    v50 = mload v49
-    sstore v47, v50 !metadata(storage=symbolic(v47))
-    v51 = add v46, 1
-    mstore v32, v51
+    v44 = mload v31
+    v45 = add v32, v44
+    v46 = mul v44, 32
+    v47 = add v13, v46
+    v48 = mload v47
+    sstore v45, v48 !metadata(storage=symbolic(v45))
+    v49 = add v44, 1
+    mstore v31, v49
     jump bb5
   bb7:
-    mstore v32, v31
+    mstore v31, v30
     jump bb8
   bb8:
-    v52 = mload v32
-    v53 = lt v52, v26
-    br v53, bb9, bb10
+    v50 = mload v31
+    v51 = lt v50, v25
+    br v51, bb9, bb10
   bb9:
-    v54 = mload v32
-    v55 = add v34, v54
-    sstore v55, 0 !metadata(storage=symbolic(v55))
-    v56 = add v54, 1
-    mstore v32, v56
+    v52 = mload v31
+    v53 = add v32, v52
+    sstore v53, 0 !metadata(storage=symbolic(v53))
+    v54 = add v52, 1
+    mstore v31, v54
     jump bb8
   bb10:
     stop
@@ -494,7 +476,7 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) {
     mstore 128, 0
     v3 = mapping_slot_calldata arg0, 0
     sstore v3, arg1 !metadata(storage=symbolic(v3))
-    v4 = mload 64 !metadata(memory=scratch)
+    v4 = fmp
     mstore v4, 32
     v5 = add 32, 31
     v6 = lt v5, 32
@@ -529,7 +511,7 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v11 !metadata(memory=scratch)
+    set_fmp v11
     v14 = add v4, 32
     v15 = calldatasize
     calldatacopy v14, v15, v8

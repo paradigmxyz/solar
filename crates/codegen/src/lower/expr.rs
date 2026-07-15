@@ -1076,13 +1076,9 @@ impl<'gcx> Lowerer<'gcx> {
         // Allocate memory for bytes: 32 bytes length + bytecode
         // Layout: [length (32 bytes)][data...]
         //
-        // ptr = mload(0x40)           // get free memory pointer
-        // mstore(ptr, bytecode_len)   // store length
-        // // copy bytecode to ptr+32
-        // mstore(0x40, ptr + 32 + aligned_len)  // update free memory pointer
-
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_mem_ptr_slot);
+        let aligned_data_len = bytecode_len.div_ceil(32) * 32;
+        let total_size = 32 + aligned_data_len;
+        let ptr = self.allocate_memory(builder, total_size as u64);
 
         // Store length at ptr
         let len_val = builder.imm_u64(bytecode_len as u64);
@@ -1103,13 +1099,6 @@ impl<'gcx> Lowerer<'gcx> {
             builder.mstore(dest, val_id);
             offset += 32;
         }
-
-        // Update free memory pointer: ptr + 32 + ceil(bytecode_len / 32) * 32
-        let aligned_data_len = bytecode_len.div_ceil(32) * 32;
-        let total_size = 32 + aligned_data_len;
-        let total_size_val = builder.imm_u64(total_size as u64);
-        let new_free_ptr = builder.add(ptr, total_size_val);
-        builder.mstore(free_mem_ptr_slot, new_free_ptr);
 
         // Return ptr (the bytes memory value)
         ptr
@@ -1745,23 +1734,13 @@ impl<'gcx> Lowerer<'gcx> {
     }
 
     /// Allocates memory for a given size and returns the pointer.
-    /// Uses the Solidity free memory pointer pattern.
     pub(super) fn allocate_memory(
         &mut self,
         builder: &mut FunctionBuilder<'_>,
         size: u64,
     ) -> ValueId {
-        // Load free memory pointer from 0x40
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_ptr_addr);
-
-        // Update free memory pointer: free_ptr + size
         let size_val = builder.imm_u64(size);
-        let new_free_ptr = builder.add(ptr, size_val);
-        let free_ptr_addr2 = builder.imm_u64(0x40);
-        builder.mstore(free_ptr_addr2, new_free_ptr);
-
-        ptr
+        builder.alloc(size_val)
     }
 
     /// Lowers `abi.decode(data, (T...))` for elementary values from memory
@@ -2773,8 +2752,7 @@ impl<'gcx> Lowerer<'gcx> {
         bytes: &[u8],
         slot: ValueId,
     ) -> ValueId {
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let scratch = builder.mload(free_mem_ptr_slot);
+        let scratch = builder.fmp();
         for (i, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
@@ -2804,8 +2782,7 @@ impl<'gcx> Lowerer<'gcx> {
         let len = builder.mload(ptr);
         let word_size = builder.imm_u64(32);
         let data_start = builder.add(ptr, word_size);
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let scratch = builder.mload(free_mem_ptr_slot);
+        let scratch = builder.fmp();
         self.mcopy(builder, scratch, data_start, len, None);
         let slot_addr = builder.add(scratch, len);
         builder.mstore(slot_addr, slot);

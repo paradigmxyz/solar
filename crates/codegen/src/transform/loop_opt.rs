@@ -266,7 +266,7 @@ impl LoopOptimizer {
             }
             // MSIZE observes every memory expansion, including from other hoisted
             // instructions; never move it.
-            InstKind::MSize => return false,
+            InstKind::MSize | InstKind::Fmp => return false,
             // Environment reads that calls or creates can change: balances move with value
             // transfers, code size/hash change on deploy/selfdestruct, and every external
             // call rewrites the return-data buffer.
@@ -472,6 +472,8 @@ impl LoopOptimizer {
                         return true;
                     }
                     InstKind::MCopy(_, _, _)
+                    | InstKind::SetFmp(_)
+                    | InstKind::Alloc(_)
                     | InstKind::CalldataCopy(_, _, _)
                     | InstKind::CodeCopy(_, _, _)
                     | InstKind::ReturnDataCopy(_, _, _)

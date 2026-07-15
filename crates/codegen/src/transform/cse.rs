@@ -666,6 +666,7 @@ impl CommonSubexprEliminator {
                 let key = self.memory_range_key(func, inst_id, value(*addr), Some(32))?;
                 Some(ExprKey::MLoad(key))
             }
+            InstKind::Fmp => Some(ExprKey::MLoad(Self::fmp_range_key())),
             InstKind::Keccak256(offset, size) => {
                 let size = value(*size);
                 let const_size = func.value_u64(size);
@@ -751,6 +752,15 @@ impl CommonSubexprEliminator {
             InstKind::MStore8(addr, _) => {
                 let addr = mir_utils::resolve_replacement(addr, replacements);
                 clobbers.push(Clobber::Memory(self.memory_range_key(func, inst_id, addr, Some(1))));
+            }
+            InstKind::SetFmp(_) | InstKind::Alloc(_) => {
+                clobbers.push(Clobber::Memory(Some(MemRangeKey {
+                    region: MemoryRegion::Scratch,
+                    base: None,
+                    offset: Some(0x40),
+                    size: Some(32),
+                    dyn_size: None,
+                })));
             }
             InstKind::MCopy(dest, _, size)
             | InstKind::CalldataCopy(dest, _, size)
@@ -923,6 +933,16 @@ impl CommonSubexprEliminator {
             .unwrap_or_else(|| func.memory_region_for_addr(addr));
         let (base, offset) = Self::memory_addr_base_offset(func, addr);
         Some(MemRangeKey { region, base, offset, size, dyn_size: None })
+    }
+
+    fn fmp_range_key() -> MemRangeKey {
+        MemRangeKey {
+            region: MemoryRegion::Scratch,
+            base: None,
+            offset: Some(0x40),
+            size: Some(32),
+            dyn_size: None,
+        }
     }
 
     fn memory_addr_base_offset(func: &Function, addr: ValueId) -> (Option<ValueId>, Option<u64>) {

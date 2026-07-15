@@ -463,6 +463,8 @@ struct MirCost {
 fn estimate_inst_cost(kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
         InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
+        InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
+        InstKind::Alloc(_) => (9, 3),
         InstKind::Add(..)
         | InstKind::Sub(..)
         | InstKind::Lt(..)
@@ -816,6 +818,9 @@ impl<'a> InlineCloner<'a> {
                 InstKind::MStore8(self.clone_value(a)?, self.clone_value(b)?)
             }
             InstKind::MSize => InstKind::MSize,
+            InstKind::Fmp => InstKind::Fmp,
+            InstKind::SetFmp(ptr) => InstKind::SetFmp(self.clone_value(ptr)?),
+            InstKind::Alloc(size) => InstKind::Alloc(self.clone_value(size)?),
             InstKind::MCopy(a, b, c) => {
                 InstKind::MCopy(self.clone_value(a)?, self.clone_value(b)?, self.clone_value(c)?)
             }
@@ -1049,9 +1054,7 @@ fn insert_extra_return_stores(caller: &mut Function, continuation: BlockId, valu
         .take_while(|&&inst_id| matches!(caller.instructions[inst_id].kind, InstKind::Phi(_)))
         .count();
 
-    let free_ptr_slot = caller.alloc_value(Value::Immediate(Immediate::uint256(U256::from(0x40))));
-    let base_load = caller
-        .alloc_inst(Instruction::new(InstKind::MLoad(free_ptr_slot), Some(MirType::uint256())));
+    let base_load = caller.alloc_inst(Instruction::new(InstKind::Fmp, Some(MirType::MemPtr)));
     let base = caller.alloc_value(Value::Inst(base_load));
     let mut insert_at = phi_count;
     caller.blocks[continuation].instructions.insert(insert_at, base_load);

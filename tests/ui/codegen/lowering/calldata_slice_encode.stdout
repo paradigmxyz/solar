@@ -22,7 +22,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     v6 = sub v4, arg1
     v7 = add v3, arg1
     v8 = make_calldata_slice v7, v6
-    v9 = mload 64 !metadata(memory=scratch)
+    v9 = fmp
     v10 = add v9, 32
     v11 = add v10, 32
     v12 = sub v11, v10
@@ -48,14 +48,14 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     mstore v9, v23
     v24 = add v23, 32
     v25 = add v9, v24
-    mstore 64, v25 !metadata(memory=scratch)
+    set_fmp v25
     internal_call @__ret_bytes, 0, v9
     invalid
 }
 
 fn @__ret_bytes(arg0: memptr) {
   bb0 (entry):
-    v0 = mload 64 !metadata(memory=scratch)
+    v0 = fmp
     mstore v0, 32
     v1 = mload arg0
     v2 = add v0, 32
@@ -101,7 +101,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v9 = sub v7, arg1
     v10 = add v6, arg1
     v11 = make_calldata_slice v10, v9
-    v12 = mload 64 !metadata(memory=scratch)
+    v12 = fmp
     mstore v12, 0xd18d0bac00000000000000000000000000000000000000000000000000000000
     v13 = add v12, 4
     v14 = add v13, 32
@@ -130,7 +130,7 @@ fn @forward(arg0: calldataslice, arg1: u256, arg2: address) {
     v29 = not 31
     v30 = and v28, v29
     v31 = add v12, v30
-    mstore 64, v31 !metadata(memory=scratch)
+    set_fmp v31
     mstore 0, arg2 !metadata(memory=scratch)
     mstore 32, v12 !metadata(memory=scratch)
     v32 = mload 0 !metadata(memory=scratch)

@@ -539,12 +539,7 @@ impl<'gcx> Lowerer<'gcx> {
         builder: &mut FunctionBuilder<'_>,
         size: ValueId,
     ) -> ValueId {
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_ptr_addr);
-        let new_free_ptr = builder.add(ptr, size);
-        let free_ptr_addr = builder.imm_u64(0x40);
-        builder.mstore(free_ptr_addr, new_free_ptr);
-        ptr
+        builder.alloc(size)
     }
 
     /// Resolves each argument's ABI type and lowers it to a `(value, type)`
@@ -604,8 +599,7 @@ impl<'gcx> Lowerer<'gcx> {
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
 
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_ptr_addr);
+        let ptr = builder.fmp();
         let word = builder.imm_u64(32);
         let dest = builder.add(ptr, word);
         let size = if items.is_empty() {
@@ -628,8 +622,7 @@ impl<'gcx> Lowerer<'gcx> {
         // pointer word-aligned.
         let total = builder.add(size, word);
         let new_free_ptr = builder.add(ptr, total);
-        let free_ptr_addr = builder.imm_u64(0x40);
-        builder.mstore(free_ptr_addr, new_free_ptr);
+        builder.set_fmp(new_free_ptr);
         Some(ptr)
     }
 
@@ -650,8 +643,7 @@ impl<'gcx> Lowerer<'gcx> {
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
 
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let data = builder.mload(free_ptr_addr);
+        let data = builder.fmp();
         let size = if items.is_empty() {
             builder.imm_u64(0)
         } else {
@@ -682,8 +674,7 @@ impl<'gcx> Lowerer<'gcx> {
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
 
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let data = builder.mload(free_ptr_addr);
+        let data = builder.fmp();
         let calldata_slices = FxHashSet::default();
         let size = self.abi_encode_tuple(
             builder,
@@ -698,8 +689,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mask = builder.not(thirty_one);
         let aligned = builder.and(rounded, mask);
         let new_free_ptr = builder.add(data, aligned);
-        let free_ptr_addr = builder.imm_u64(0x40);
-        builder.mstore(free_ptr_addr, new_free_ptr);
+        builder.set_fmp(new_free_ptr);
 
         (data, size)
     }
@@ -721,8 +711,7 @@ impl<'gcx> Lowerer<'gcx> {
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
 
         let sel_size = if selector.is_some() { 4u64 } else { 0 };
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let buf = builder.mload(free_ptr_addr);
+        let buf = builder.fmp();
         if let Some(sel) = selector {
             builder.mstore(buf, sel);
         }
@@ -746,8 +735,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mask = builder.not(thirty_one);
         let aligned = builder.and(rounded, mask);
         let new_free_ptr = builder.add(buf, aligned);
-        let free_ptr_addr = builder.imm_u64(0x40);
-        builder.mstore(free_ptr_addr, new_free_ptr);
+        builder.set_fmp(new_free_ptr);
 
         Some((buf, total))
     }

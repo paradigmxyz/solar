@@ -225,8 +225,7 @@ impl<'gcx> Lowerer<'gcx> {
             .map(|arg| self.lower_expr(builder, arg))
             .unwrap_or_else(|| builder.imm_u64(0));
 
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_ptr_addr);
+        let ptr = builder.fmp();
         builder.mstore(ptr, len);
 
         let word_size = builder.imm_u64(32);
@@ -261,8 +260,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mem_limit = builder.imm_u64(0xffff_ffff_ffff_ffff);
         let over_limit = builder.gt(new_free_ptr, mem_limit);
         self.emit_panic_if(builder, over_limit, PanicCode::MemoryAllocationOverflow);
-        let free_ptr_addr = builder.imm_u64(0x40);
-        builder.mstore(free_ptr_addr, new_free_ptr);
+        builder.set_fmp(new_free_ptr);
 
         // Zero-initialize the data area: memory past the free pointer can be
         // dirty (keccak staging fast paths write there without bumping it).
@@ -344,8 +342,7 @@ impl<'gcx> Lowerer<'gcx> {
         }
 
         // Allocate memory for bytecode + constructor args from free memory pointer
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let mem_offset = builder.mload(free_mem_ptr_slot);
+        let mem_offset = builder.fmp();
 
         // Copy bytecode to memory using MSTORE
         // For each 32-byte chunk of bytecode, emit an MSTORE at (mem_offset + offset)
@@ -378,7 +375,7 @@ impl<'gcx> Lowerer<'gcx> {
         let mask = builder.imm_u256(U256::from(!31u64));
         let aligned_size = builder.and(aligned_size, mask);
         let new_free = builder.add(mem_offset, aligned_size);
-        builder.mstore(free_mem_ptr_slot, new_free);
+        builder.set_fmp(new_free);
 
         // Value to send with CREATE/CREATE2 (0 for non-payable, or from value option)
         let value = value_opt.unwrap_or_else(|| builder.imm_u64(0));
@@ -1197,11 +1194,8 @@ impl<'gcx> Lowerer<'gcx> {
             if let Some((_struct_id, field_count)) = struct_return_info {
                 // For struct returns, reserve a separate output allocation.
                 let struct_size = (field_count as u64) * 32;
-                let free_ptr_addr = builder.imm_u64(0x40);
-                let struct_ptr = builder.mload(free_ptr_addr);
                 let struct_size_val = builder.imm_u64(struct_size);
-                let new_free_ptr = builder.add(struct_ptr, struct_size_val);
-                builder.mstore(free_ptr_addr, new_free_ptr);
+                let struct_ptr = builder.alloc(struct_size_val);
 
                 let ret_size = builder.imm_u64(struct_size);
                 (struct_ptr, ret_size, Some(struct_ptr))
@@ -1845,8 +1839,7 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Build the calldata at the free pointer; stash its base in scratch
         // (0x20) so it survives the argument stores.
-        let free_ptr_addr = builder.imm_u64(0x40);
-        let calldata_start = builder.mload(free_ptr_addr);
+        let calldata_start = builder.fmp();
         let scratch_calldata = builder.imm_u64(0x20);
         builder.mstore(scratch_calldata, calldata_start);
 
@@ -1933,7 +1926,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let struct_ptr = builder.add(calldata_start, total_size);
                 let struct_size_val = builder.imm_u64(struct_size);
                 let new_free_ptr = builder.add(struct_ptr, struct_size_val);
-                builder.mstore(free_ptr_addr, new_free_ptr);
+                builder.set_fmp(new_free_ptr);
                 (struct_ptr, builder.imm_u64(struct_size), Some(struct_ptr))
             } else {
                 let ret_offset = if num_returns > 1 { calldata_start } else { builder.imm_u64(0) };

@@ -639,8 +639,7 @@ impl<'gcx> Lowerer<'gcx> {
             // This helper terminates externally, so its return buffer need not
             // advance the free-memory pointer. Encode `(offset, length, data)`
             // directly at the current pointer and return it.
-            let free_ptr_addr = builder.imm_u64(0x40);
-            let buf = builder.mload(free_ptr_addr);
+            let buf = builder.fmp();
             let word = builder.imm_u64(32);
             builder.mstore(buf, word);
 
@@ -889,11 +888,8 @@ impl<'gcx> Lowerer<'gcx> {
                                     } else {
                                         builder.mul(len, word)
                                     };
-                                    let free_ptr = builder.imm_u64(0x40);
-                                    let ptr = builder.mload(free_ptr);
                                     let alloc = builder.add(word, byte_len);
-                                    let new_free = builder.add(ptr, alloc);
-                                    builder.mstore(free_ptr, new_free);
+                                    let ptr = builder.alloc(alloc);
                                     builder.mstore(ptr, len);
                                     let dst = builder.add(ptr, word);
                                     let src = builder.add(pos, word);
@@ -964,11 +960,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let word = builder.imm_u64(32);
                     let data_bytes = builder.mul(len, word);
                     let total_bytes = builder.add(data_bytes, word);
-                    let free_ptr_addr = builder.imm_u64(0x40);
-                    let array_ptr = builder.mload(free_ptr_addr);
-                    let new_free_ptr = builder.add(array_ptr, total_bytes);
-                    let free_ptr_addr = builder.imm_u64(0x40);
-                    builder.mstore(free_ptr_addr, new_free_ptr);
+                    let array_ptr = builder.alloc(total_bytes);
                     builder.mstore(array_ptr, len);
                     let dst = builder.add(array_ptr, word);
                     let src = builder.add(len_pos, word);

@@ -23,9 +23,10 @@ use crate::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiPass,
-        LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass, LowerSlicesPass,
-        MemoryDsePass, OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass,
-        StaticAllocPass, StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
+        LowerAllocPass, LowerDispatchPass, LowerEvmShapedPass, LowerMappingSlotsPass,
+        LowerSlicesPass, MemoryDsePass, OutlineRevertsPass, PrePass, PureEvalPass,
+        SccpTransformPass, StaticAllocPass, StorageDsePass, StorageLoadCsePass,
+        StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -155,7 +156,7 @@ declare_passes! {
     /// Local dead memory-store elimination.
     pub(crate) const MEMORY_DSE_PASS -> "memory-dse" = MemoryDsePass;
 
-    /// Place provably local fmp-bump allocations at static frame addresses.
+    /// Place provably local allocations at static frame addresses.
     pub(crate) const STATIC_ALLOC_PASS -> "static-alloc" = StaticAllocPass;
 
     /// Dead Code Elimination (fixed-point).
@@ -178,6 +179,9 @@ declare_passes! {
 
     /// Lower logical slices to their pointer and length words.
     pub(crate) const LOWER_SLICES_PASS -> "lower-slices" = LowerSlicesPass::default();
+
+    /// Lower abstract allocation operations to free-memory-pointer updates.
+    pub(crate) const LOWER_ALLOC_PASS -> "lower-alloc" = LowerAllocPass;
 }
 
 /// ABI phase lowering with its phase range declared: consumes
@@ -226,6 +230,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     OUTLINE_REVERTS_PASS,
     LOWER_MAPPING_SLOTS_PASS,
     LOWER_SLICES_PASS,
+    LOWER_ALLOC_PASS,
 ];
 
 /// Finds a pass in the global MIR pass registry by command-line name.
@@ -258,6 +263,9 @@ pub const DEFAULT_PIPELINE: &[PassInfo] = &[
     JUMP_THREADING_PASS,
     CFG_SIMPLIFY_PASS,
     MEMORY_DSE_PASS,
+    // Keep allocation semantic through the optimization pipeline. Static
+    // placement consumes the eligible operations here; the backend lowers
+    // the residual dynamic allocations after progressive MIR lowering.
     STATIC_ALLOC_PASS,
     ADCE_PASS,
     DCE_PASS,

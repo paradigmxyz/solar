@@ -35,8 +35,7 @@ impl<'gcx> Lowerer<'gcx> {
         // free memory pointer and reserving it afterwards is safe.
         let packed_args = self.collect_packed_abi_args(builder, args);
 
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let ptr = builder.mload(free_mem_ptr_slot);
+        let ptr = builder.fmp();
 
         // Data starts at ptr+32 (leaving room for the length word).
         let thirty_two = builder.imm_u64(32);
@@ -58,7 +57,7 @@ impl<'gcx> Lowerer<'gcx> {
         };
         builder.mstore(ptr, length);
         let new_free_ptr = builder.add(ptr, total_size);
-        builder.mstore(free_mem_ptr_slot, new_free_ptr);
+        builder.set_fmp(new_free_ptr);
 
         // Return pointer to the bytes value
         ptr
@@ -77,8 +76,7 @@ impl<'gcx> Lowerer<'gcx> {
         {
             builder.imm_u64(0)
         } else {
-            let free_mem_ptr_slot = builder.imm_u64(0x40);
-            builder.mload(free_mem_ptr_slot)
+            builder.fmp()
         };
         let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
 

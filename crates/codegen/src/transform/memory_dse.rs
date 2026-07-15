@@ -314,6 +314,8 @@ impl MemoryStoreEliminator {
                     Some(slot) => live.add_addr(slot),
                     None => live = MemLive::All,
                 },
+                InstKind::Fmp | InstKind::Alloc(_) => live.add_addr(0x40),
+                InstKind::SetFmp(_) => live.kill(0x40),
                 InstKind::Keccak256(offset, size) | InstKind::Log0(offset, size) => {
                     Self::mark_read(func, &mut live, *offset, *size);
                 }
@@ -518,6 +520,7 @@ impl MemoryStoreEliminator {
                 | InstKind::CodeCopy(_, _, _)
                 | InstKind::ReturnDataCopy(_, _, _)
                 | InstKind::ExtCodeCopy(_, _, _, _) => memory_writes += 1,
+                InstKind::SetFmp(_) | InstKind::Alloc(_) => memory_writes += 1,
                 InstKind::MLoad(_) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
                 _ => {}
@@ -559,6 +562,12 @@ impl MemoryStoreEliminator {
                     } else {
                         scratch.overwritten.clear();
                     }
+                }
+                InstKind::Fmp | InstKind::Alloc(_) => {
+                    Self::remove_overlapping_set(&mut scratch.overwritten, MemAddrKey::Const(0x40));
+                }
+                InstKind::SetFmp(_) => {
+                    scratch.overwritten.insert(MemAddrKey::Const(0x40));
                 }
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
@@ -1237,6 +1246,7 @@ impl MemoryStoreEliminator {
         };
         match func.instructions[inst_id].kind {
             InstKind::MLoad(addr) => func.value_u64(addr) == Some(0x40),
+            InstKind::Fmp | InstKind::Alloc(_) => true,
             InstKind::Add(a, b) => {
                 Self::is_fmp_heap_value(func, a, depth + 1)
                     || Self::is_fmp_heap_value(func, b, depth + 1)
@@ -1391,6 +1401,8 @@ impl MemoryStoreEliminator {
         matches!(
             kind,
             InstKind::MStore8(_, _)
+                | InstKind::SetFmp(_)
+                | InstKind::Alloc(_)
                 | InstKind::MCopy(_, _, _)
                 | InstKind::CalldataCopy(_, _, _)
                 | InstKind::CodeCopy(_, _, _)
@@ -1404,7 +1416,10 @@ impl MemoryStoreEliminator {
     }
 
     fn cross_block_memory_barrier(kind: &InstKind) -> bool {
-        matches!(kind, InstKind::MLoad(_)) || Self::is_memory_or_gas_observer(kind)
+        matches!(
+            kind,
+            InstKind::MLoad(_) | InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc(_)
+        ) || Self::is_memory_or_gas_observer(kind)
     }
 }
 

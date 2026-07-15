@@ -10,7 +10,7 @@ fn @makeBytes(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = mload 64 !metadata(memory=scratch)
+    v3 = fmp
     mstore v3, arg0
     v4 = add arg0, 31
     v5 = lt v4, arg0
@@ -45,7 +45,7 @@ fn @makeBytes(arg0: u256) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v10 !metadata(memory=scratch)
+    set_fmp v10
     v13 = add v3, 32
     v14 = calldatasize
     calldatacopy v13, v14, v7
@@ -64,7 +64,7 @@ fn @makeArray(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = mload 64 !metadata(memory=scratch)
+    v3 = fmp
     mstore v3, arg0
     v4 = mul arg0, 32
     v5 = div v4, 32
@@ -98,7 +98,7 @@ fn @makeArray(arg0: u256) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb10:
-    mstore 64, v9 !metadata(memory=scratch)
+    set_fmp v9
     v12 = add v3, 32
     v13 = calldatasize
     calldatacopy v12, v13, v4

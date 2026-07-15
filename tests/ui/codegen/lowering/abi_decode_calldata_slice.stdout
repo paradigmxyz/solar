@@ -43,25 +43,23 @@ fn @decode(arg0: calldataslice) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v18 = mload 64 !metadata(memory=scratch)
-    v19 = add v18, v16
-    mstore 64, v19 !metadata(memory=scratch)
+    v18 = alloc v16
     mstore v18, v9
-    v20 = add v18, 32
-    v21 = sub v15, 32
-    v22 = add v20, v21
-    mstore v22, 0
-    v23 = slice_ptr v8
-    calldatacopy v20, v23, v9
-    v24 = mload v18
-    v25 = lt v24, 32
-    br v25, bb9, bb10
+    v19 = add v18, 32
+    v20 = sub v15, 32
+    v21 = add v19, v20
+    mstore v21, 0
+    v22 = slice_ptr v8
+    calldatacopy v19, v22, v9
+    v23 = mload v18
+    v24 = lt v23, 32
+    br v24, bb9, bb10
   bb9:
     revert 0, 0
   bb10:
-    v26 = add v18, 32
-    v27 = mload v26
-    mstore 128, v27
+    v25 = add v18, 32
+    v26 = mload v25
+    mstore 128, v26
     returndata 128, 32
 }
 

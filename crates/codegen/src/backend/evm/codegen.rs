@@ -1026,6 +1026,7 @@ impl<'gcx> EvmCodegen<'gcx> {
             run_pass(self.gcx, module, &crate::pass::LOWER_DISPATCH_PASS);
             run_pass(self.gcx, module, &crate::pass::LOWER_EVM_SHAPED_PASS);
         }
+        run_pass(module, &crate::pass::LOWER_ALLOC_PASS, options);
     }
 
     /// Generates runtime bytecode for a module.
@@ -2790,6 +2791,9 @@ impl<'gcx> EvmCodegen<'gcx> {
             InstKind::MSize => {
                 self.asm.emit_op(op::MSIZE);
                 self.scheduler.instruction_executed(0, result_value);
+            }
+            InstKind::Fmp | InstKind::SetFmp(_) | InstKind::Alloc(_) => {
+                unreachable!("abstract allocation instruction reached EVM emission")
             }
 
             // Storage operations
