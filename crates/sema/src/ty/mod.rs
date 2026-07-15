@@ -1748,6 +1748,13 @@ fn is_value_ns(id: hir::ItemId) -> bool {
     )
 }
 
+impl Gcx<'_> {
+    /// Resolves a contract name within a source's scope for NatSpec `@inheritdoc`.
+    pub fn natspec_contract(self, name: Symbol, source: hir::SourceId) -> Option<hir::ContractId> {
+        self.natspec_contract_in_source((name, source))
+    }
+}
+
 /// `OnceMap::insert` but with `Copy` keys and values.
 #[inline]
 fn cache_insert<K, V>(map: &FxOnceMap<K, V>, key: K, make_val: impl FnOnce(&K) -> V) -> V

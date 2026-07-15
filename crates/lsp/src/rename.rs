@@ -61,6 +61,7 @@ pub(crate) struct RenameCandidate {
     pub(crate) range: Range,
     pub(crate) locations: Vec<Location>,
     pub(crate) analyzed_contents: FxHashMap<Url, Arc<String>>,
+    pub(crate) conflicting_contents: bool,
     pub(crate) requires_yul_validation: bool,
 }
 
@@ -69,6 +70,7 @@ pub(crate) struct RenameIndex {
     aliases: IndexVec<ImportAliasId, ImportAlias>,
     mapping_names: IndexVec<MappingNameId, MappingName>,
     analyzed_contents: FxHashMap<Url, Arc<String>>,
+    conflicting_contents: FxHashSet<Url>,
     symbol_targets: FxHashSet<SymbolId>,
     override_edges: Vec<(SymbolId, SymbolId)>,
     symbol_families: FxHashMap<SymbolId, usize>,
@@ -218,6 +220,71 @@ impl RenameIndex {
         bindings
     }
 
+    pub(crate) fn build_natspec(
+        &mut self,
+        gcx: Gcx<'_>,
+        bindings: &ImportBindings,
+        item_symbols: &FxHashMap<ItemId, SymbolId>,
+        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
+    ) {
+        for item_id in gcx.hir.item_ids() {
+            let item = gcx.hir.item(item_id);
+            let doc_id = item.doc();
+            if doc_id.is_empty() {
+                continue;
+            }
+            let ast_comments = gcx.hir.doc(doc_id).ast_comments();
+
+            for natspec in gcx.natspec_doc_comments(doc_id) {
+                if !ast_comments
+                    .iter()
+                    .flat_map(|comment| comment.natspec.iter())
+                    .any(|local| local.span == natspec.span)
+                {
+                    continue;
+                }
+                match natspec.kind {
+                    hir::NatSpecKind::Param { name } => {
+                        let Some(variable_id) =
+                            item.parameters().into_iter().flatten().copied().find(|&variable_id| {
+                                gcx.hir
+                                    .variable(variable_id)
+                                    .name
+                                    .is_some_and(|param| param.name == name.name)
+                            })
+                        else {
+                            continue;
+                        };
+                        let Some(&symbol_id) = item_symbols.get(&ItemId::Variable(variable_id))
+                        else {
+                            continue;
+                        };
+                        self.push_symbol_occurrence(gcx, name.span, &[symbol_id]);
+                    }
+                    hir::NatSpecKind::Inheritdoc { contract } => {
+                        let Some(contract_id) = gcx.natspec_contract(contract.name, item.source())
+                        else {
+                            continue;
+                        };
+                        let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id))
+                        else {
+                            continue;
+                        };
+                        self.push_path_occurrences(
+                            gcx,
+                            bindings,
+                            item.source(),
+                            contract.span,
+                            &[symbol_id],
+                            declarations,
+                        );
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
     pub(crate) fn push_mapping_reference(
         &mut self,
         gcx: Gcx<'_>,
@@ -270,8 +337,8 @@ impl RenameIndex {
         for function_id in gcx.hir.function_ids() {
             let function = gcx.hir.function(function_id);
             self.add_override_edges(gcx, function_id.into(), item_symbols);
-            let Some(name) = function.name else { continue };
-            let Some(function_paths) = paths.paths.get(&name.span) else { continue };
+            let key = function.name.map_or_else(|| function.keyword_span(), |name| name.span);
+            let Some(function_paths) = paths.paths.get(&key) else { continue };
             for (path, &contract_id) in function_paths.iter().zip(function.overrides) {
                 let Some(&symbol_id) = item_symbols.get(&ItemId::Contract(contract_id)) else {
                     continue;
@@ -403,11 +470,14 @@ impl RenameIndex {
                 entry.insert(contents);
             }
         }
+        let conflicting_contents =
+            locations.iter().any(|location| self.conflicting_contents.contains(&location.uri));
         Some(RenameCandidate {
             old_name,
             range: occurrence.location.range,
             locations,
             analyzed_contents,
+            conflicting_contents,
             requires_yul_validation: targets.iter().any(|target| match *target {
                 RenameTarget::Symbol(symbol_id) => self.yul_symbol_targets.contains(&symbol_id),
                 RenameTarget::ImportAlias(_) | RenameTarget::MappingName(_) => false,
@@ -446,7 +516,13 @@ impl RenameIndex {
             *derived = remap_symbol_id(*derived, symbol_offset);
             *base = remap_symbol_id(*base, symbol_offset);
         }
-        self.analyzed_contents.extend(other.analyzed_contents);
+        self.conflicting_contents.extend(other.conflicting_contents);
+        for (uri, contents) in other.analyzed_contents {
+            if self.analyzed_contents.get(&uri).is_some_and(|existing| existing != &contents) {
+                self.conflicting_contents.insert(uri.clone());
+            }
+            self.analyzed_contents.insert(uri, contents);
+        }
         self.aliases.extend(other.aliases);
         self.mapping_names.extend(other.mapping_names);
         self.override_edges.extend(other.override_edges);
@@ -738,13 +814,18 @@ impl<'ast> ast::visit::Visit<'ast> for OverridePathCollector {
         &mut self,
         function: &'ast ast::ItemFunction<'ast>,
     ) -> std::ops::ControlFlow<Self::BreakValue> {
-        if let Some(name) = function.header.name
-            && let Some(override_) = &function.header.override_
-        {
-            self.paths.insert(
-                name.span,
-                override_.paths.iter().map(|path| path.segments().to_vec()).collect(),
+        if let Some(override_) = &function.header.override_ {
+            let key = function.header.name.map_or_else(
+                || {
+                    function
+                        .header
+                        .span
+                        .with_hi(function.header.span.lo() + function.kind.to_str().len() as u32)
+                },
+                |name| name.span,
             );
+            self.paths
+                .insert(key, override_.paths.iter().map(|path| path.segments().to_vec()).collect());
         }
         self.walk_item_function(function)
     }

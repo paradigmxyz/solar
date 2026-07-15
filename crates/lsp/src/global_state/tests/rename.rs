@@ -443,10 +443,14 @@ fn renames_override_contract_paths() {
         //- /Override.sol
         contract $1Base {
             function f() public virtual {}
+            fallback() external virtual {}
+            receive() external payable virtual {}
         }
 
         contract Child is Base {
             function f() public override(Base) {}
+            fallback() external override(Base) {}
+            receive() external payable override(Base) {}
         }
         "#,
         "/Override.sol",
@@ -457,8 +461,64 @@ fn renames_override_contract_paths() {
         "Renamed",
         str![[r#"
 /Override.sol:0:9-0:13 -> Renamed
-/Override.sol:3:18-3:22 -> Renamed
-/Override.sol:4:33-4:37 -> Renamed
+/Override.sol:5:18-5:22 -> Renamed
+/Override.sol:6:33-6:37 -> Renamed
+/Override.sol:7:33-7:37 -> Renamed
+/Override.sol:8:40-8:44 -> Renamed
+
+"#]],
+    );
+}
+
+#[test]
+fn renames_validated_natspec_parameter_references() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /NatSpec.sol
+        contract C {
+            /// @param amount Payment amount.
+            function pay(uint256 $1amount) public {}
+        }
+        "#,
+        "/NatSpec.sol",
+    );
+
+    fixture.check_rename(
+        "$1",
+        "value",
+        str![[r#"
+/NatSpec.sol:1:15-1:21 -> value
+/NatSpec.sol:2:25-2:31 -> value
+
+"#]],
+    );
+}
+
+#[test]
+fn renames_validated_natspec_inheritdoc_references() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Inheritdoc.sol
+        contract $1Base {
+            function run() public virtual {}
+        }
+
+        contract Child is Base {
+            /// @inheritdoc Base
+            function run() public override(Base) {}
+        }
+        "#,
+        "/Inheritdoc.sol",
+    );
+
+    fixture.check_rename(
+        "$1",
+        "Parent",
+        str![[r#"
+/Inheritdoc.sol:0:9-0:13 -> Parent
+/Inheritdoc.sol:3:18-3:22 -> Parent
+/Inheritdoc.sol:4:20-4:24 -> Parent
+/Inheritdoc.sol:5:35-5:39 -> Parent
 
 "#]],
     );
@@ -932,6 +992,39 @@ fn unifies_shared_declarations_across_analysis_batches() {
 
 "#]],
     );
+}
+
+#[test]
+fn rejects_conflicting_source_snapshots_across_analysis_batches() {
+    let source = r#"
+        //- /Shared.sol open
+        contract C {
+            uint256 $1value;
+            // The saved file still has a code reference.
+            //         value
+        }
+
+        //- /first/Main.sol
+        import "../Shared.sol";
+        contract First { C value; }
+        "#;
+    let disk_contents = r#"contract C {
+    uint256 value;
+    function read() public view returns (uint256) {
+        return value;
+    }
+}
+"#;
+
+    for paths in [["/first/Main.sol", "/Shared.sol"], ["/Shared.sol", "/first/Main.sol"]] {
+        let fixture = RequestFixture::new_in_batches_with_stale_disk(
+            source,
+            "/Shared.sol",
+            disk_contents,
+            &paths,
+        );
+        fixture.check_rename_error("$1", "renamed", ErrorCode::CONTENT_MODIFIED);
+    }
 }
 
 #[test]

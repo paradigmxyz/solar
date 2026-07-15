@@ -639,6 +639,7 @@ impl SymbolTables {
     fn build_references(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
         let bindings = self.rename.build_imports(gcx, item_symbols);
         let mapping_bindings = self.rename.build_mapping_names(gcx);
+        self.rename.build_natspec(gcx, &bindings, item_symbols, &self.declarations);
         self.rename.build_overrides(gcx, &bindings, item_symbols, &self.declarations);
         let mut collector = ReferenceCollector {
             tables: self,

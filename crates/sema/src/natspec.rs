@@ -75,7 +75,11 @@ fn emit_natspec_debug(
     item_id: hir::ItemId,
     docs: &[hir::NatSpecItem],
 ) {
-    if docs.is_empty() {
+    let mut docs = docs
+        .iter()
+        .filter(|item| !matches!(item.kind, hir::NatSpecKind::Inheritdoc { .. }))
+        .peekable();
+    if docs.peek().is_none() {
         return;
     }
 
@@ -213,6 +217,7 @@ impl<'gcx> Resolver<'gcx> {
                         if let Some(contract_id) = self
                             .validate_inheritdoc_contract(contract, tag_span, item_id, source_id)
                         {
+                            local_tags.push(*natspec);
                             inheritdoc = Some((contract_id, item_id));
                         }
                     }

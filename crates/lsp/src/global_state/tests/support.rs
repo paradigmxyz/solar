@@ -46,10 +46,33 @@ impl RequestFixture {
 
     pub(super) fn new_in_batches(fixture: &str, paths: &[&str]) -> Self {
         let marked = MarkedProject::from_fixture(fixture);
+        Self::analyze_batches(marked, paths, None)
+    }
+
+    pub(super) fn new_in_batches_with_stale_disk(
+        fixture: &str,
+        open_path: &str,
+        disk_contents: &str,
+        paths: &[&str],
+    ) -> Self {
+        let marked = MarkedProject::from_fixture(fixture);
+        let open_contents = marked.project().read_file(open_path);
+        marked.project().write_file(open_path, disk_contents);
+        Self::analyze_batches(marked, paths, Some((open_path, open_contents)))
+    }
+
+    fn analyze_batches(
+        marked: MarkedProject,
+        paths: &[&str],
+        open_file: Option<(&str, String)>,
+    ) -> Self {
         let mut result =
             AnalysisResult { diagnostics: Default::default(), symbol_tables: Default::default() };
         for path in paths {
-            let contents = marked.project().read_file(path);
+            let contents = open_file
+                .as_ref()
+                .filter(|(open_path, _)| open_path == path)
+                .map_or_else(|| marked.project().read_file(path), |(_, contents)| contents.clone());
             let path = marked.project().path(path);
             let batch = analyze(AnalysisBatch {
                 opts: CompileOpts::default(),

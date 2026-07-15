@@ -123,6 +123,9 @@ fn validated_workspace_edit(
     new_name: String,
     vfs: std::sync::Arc<solar_interface::data_structures::sync::RwLock<crate::vfs::Vfs>>,
 ) -> Result<WorkspaceEdit, ResponseError> {
+    if candidate.conflicting_contents {
+        return Err(content_modified());
+    }
     let mut contents = HashMap::<Url, Rope>::new();
     let source_map = SourceMap::empty();
     for (uri, analyzed_contents) in &candidate.analyzed_contents {
