@@ -78,8 +78,8 @@ use crate::{
         MemoryLocation,
     },
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MirType,
-        StorageAlias, Terminator, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryObjectKind,
+        MirType, StorageAlias, Terminator, Value, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::FunctionPass,
@@ -910,6 +910,12 @@ impl LoadRedundancyEliminator {
             InstKind::MStore(addr, value) => self
                 .mem_addr(func, inst_id, addr)
                 .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
+            InstKind::MemoryObjectLen(object, kind) => self
+                .memory_object_addr(func, inst_id, object, kind)
+                .map(|addr| (LoadKey::Memory(addr), GenSource::LoadResult)),
+            InstKind::SetMemoryObjectLen(object, value, kind) => self
+                .memory_object_addr(func, inst_id, object, kind)
+                .map(|addr| (LoadKey::Memory(addr), GenSource::Stored(value))),
             InstKind::Keccak256(offset, size) => {
                 let addr = self.mem_addr(func, inst_id, offset)?;
                 let size = match func.value_u64(size) {
@@ -946,6 +952,18 @@ impl LoadRedundancyEliminator {
     fn mem_addr(&self, func: &Function, inst_id: InstId, addr: ValueId) -> Option<MemoryAddress> {
         self.alias()
             .memory_location(func, inst_id, addr, LocationSize::Const(1))
+            .map(|location| location.address)
+    }
+
+    fn memory_object_addr(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        object: ValueId,
+        kind: MemoryObjectKind,
+    ) -> Option<MemoryAddress> {
+        self.alias()
+            .memory_object_length_location(func, inst_id, object, kind)
             .map(|location| location.address)
     }
 

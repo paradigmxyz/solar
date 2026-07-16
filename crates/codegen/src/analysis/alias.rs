@@ -9,10 +9,10 @@
 
 use super::MemoryCallSummaries;
 use crate::{
-    memory::EvmMemoryLayout,
+    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
-        AbiType, BlockId, Function, InstId, InstKind, MemoryRegion, SliceLocation, StorageAlias,
-        Terminator, Value, ValueId,
+        AbiType, BlockId, Function, InstId, InstKind, MemoryObjectKind, MemoryRegion,
+        SliceLocation, StorageAlias, Terminator, Value, ValueId,
     },
 };
 use smallvec::SmallVec;
@@ -465,6 +465,25 @@ impl AliasAnalysis {
         Some(MemoryLocation::new(address, size))
     }
 
+    /// Returns the physical word holding a semantic memory object's length.
+    #[must_use]
+    pub fn memory_object_length_location(
+        &self,
+        func: &Function,
+        inst_id: InstId,
+        object: ValueId,
+        kind: MemoryObjectKind,
+    ) -> Option<MemoryLocation> {
+        let offset = EvmMemoryLayout::object_length_offset(kind)?;
+        let mut address = self.memory_address(func, object)?.checked_add(offset)?;
+        if let Some(region) = func.instructions[inst_id].metadata.memory_region()
+            && region != MemoryRegion::Unknown
+        {
+            address.region = region;
+        }
+        Some(MemoryLocation::new(address, LocationSize::Const(EvmMemoryLayout::WORD_SIZE)))
+    }
+
     /// Creates a memory location without instruction metadata.
     #[must_use]
     pub fn bare_memory_location(
@@ -753,6 +772,24 @@ impl AliasAnalysis {
             }
             InstKind::SetFmp(_) => {
                 effects.write(Access::Location(Location::Memory(Self::fmp_location())));
+            }
+            InstKind::MemoryObjectLen(object, kind) => {
+                if let Some(location) =
+                    self.memory_object_length_location(func, inst_id, object, kind)
+                {
+                    effects.read(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                }
+            }
+            InstKind::SetMemoryObjectLen(object, _, kind) => {
+                if let Some(location) =
+                    self.memory_object_length_location(func, inst_id, object, kind)
+                {
+                    effects.write(Access::Location(Location::Memory(location)));
+                } else {
+                    effects.write_any(AddressSpace::Memory);
+                }
             }
             InstKind::Alloc { size, semantics, .. } => {
                 let fmp = Access::Location(Location::Memory(Self::fmp_location()));
@@ -1089,6 +1126,21 @@ impl AliasAnalysis {
                     })
                 }
                 InstKind::SlicePtr(slice) => self.slice_pointer_address(func, slice, depth),
+                InstKind::MemoryObjectData(object, kind) => self
+                    .memory_address_with_depth(func, object, depth + 1)?
+                    .checked_add(EvmMemoryLayout::object_data_offset(kind)),
+                InstKind::MemoryObjectFieldAddr { object, layout, field } => self
+                    .memory_address_with_depth(func, object, depth + 1)?
+                    .checked_add(EvmMemoryLayout::field_offset(layout, field)?),
+                InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                    let base = self
+                        .memory_address_with_depth(func, object, depth + 1)?
+                        .checked_add(EvmMemoryLayout::object_data_offset(layout.kind()))?;
+                    let Some(index) = func.value_u64(index) else {
+                        return Some(MemoryAddress::symbolic(value, base.region));
+                    };
+                    base.checked_add(index.checked_mul(EvmMemoryLayout::element_stride(layout)?)?)
+                }
                 InstKind::Phi(ref incoming) => self.join_pointer_paths(
                     func,
                     value,
@@ -1210,7 +1262,12 @@ impl AliasAnalysis {
                     self.pointer_region(func, second, depth + 1)
                 }
             }
-            InstKind::Sub(base, _) => self.pointer_region(func, base, depth + 1),
+            InstKind::Sub(base, _)
+            | InstKind::MemoryObjectData(base, _)
+            | InstKind::MemoryObjectFieldAddr { object: base, .. }
+            | InstKind::MemoryObjectElementAddr { object: base, .. } => {
+                self.pointer_region(func, base, depth + 1)
+            }
             InstKind::Phi(ref incoming) => {
                 self.join_pointer_regions(func, incoming.iter().map(|(_, value)| *value), depth)
             }

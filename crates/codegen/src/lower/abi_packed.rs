@@ -1,7 +1,10 @@
 //! ABI packed encoding lowering helpers.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId};
+use crate::{
+    memory::EvmMemoryLayout,
+    mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId},
+};
 use alloy_primitives::U256;
 use solar_ast::{ElementaryType, LitKind};
 use solar_interface::{Symbol, sym};
@@ -72,7 +75,8 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> ValueId {
         let packed_args = self.collect_packed_abi_args(builder, args);
 
-        let data_start = if Self::static_packed_max_write(&packed_args).is_some_and(|end| end <= 64)
+        let data_start = if Self::static_packed_max_write(&packed_args)
+            .is_some_and(|end| end <= EvmMemoryLayout::FMP_SLOT as usize)
         {
             builder.imm_u64(0)
         } else {

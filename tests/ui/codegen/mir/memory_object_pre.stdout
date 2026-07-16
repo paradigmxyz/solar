@@ -1,0 +1,15 @@
+// === ROOT/tests/ui/codegen/mir/memory_object_pre.mir (after pre) ===
+; module @MemoryObjectPre
+fn @hoist_projection(arg0: memorystruct, arg1: bool) -> memptr {
+  bb0 (entry):
+    br arg1, bb1, bb2
+  bb1:
+    v0 = memory_object_field_addr memorystruct<3>, arg0, 2
+    jump bb3
+  bb2:
+    v2 = memory_object_field_addr memorystruct<3>, arg0, 2
+    jump bb3
+  bb3:
+    v3 = phi [bb1: v0], [bb2: v2]
+    ret v3
+}

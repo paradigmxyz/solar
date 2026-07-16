@@ -5,7 +5,7 @@
 
 use crate::{
     analysis::LoopAnalyzer,
-    memory::EvmMemoryLayout,
+    memory::{EvmMemoryLayout, MemoryLayoutPolicy},
     mir::{
         BlockId, Function, FunctionId as MirFunctionId, Immediate, InstKind, Instruction, MirType,
         Module, Terminator, Value, ValueId,
@@ -462,12 +462,21 @@ struct MirCost {
 
 fn estimate_inst_cost(kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
-        InstKind::MakeSlice { .. }
-        | InstKind::SlicePtr(_)
-        | InstKind::SliceLen(_)
-        | InstKind::MemoryObjectData(_, _)
-        | InstKind::MemoryObjectFieldAddr { .. } => (0, 0),
-        InstKind::MemoryObjectElementAddr { .. } => (5, 2),
+        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
+        InstKind::MemoryObjectData(_, kind) => {
+            if EvmMemoryLayout::object_data_offset(*kind) == 0 {
+                (0, 0)
+            } else {
+                (3, 1)
+            }
+        }
+        InstKind::MemoryObjectFieldAddr { layout, field, .. } => {
+            if EvmMemoryLayout::field_offset(*layout, *field) == Some(0) { (0, 0) } else { (3, 1) }
+        }
+        InstKind::MemoryObjectElementAddr { layout, .. } => {
+            let base_cost = u64::from(EvmMemoryLayout::object_data_offset(layout.kind()) != 0);
+            (8 + base_cost * 3, 2 + base_cost as usize)
+        }
         InstKind::MemoryObjectLen(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => (3, 1),
         InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
         InstKind::Alloc { .. } => (9, 3),

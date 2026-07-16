@@ -46,7 +46,8 @@
 use crate::{
     analysis::CfgInfo,
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, MirType, Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, MemoryObjectKind, MemoryObjectLayout,
+        MirType, Value, ValueId, utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -121,6 +122,9 @@ enum ExprKind {
     MakeSlice(ClassId, ClassId, crate::mir::SliceLocation),
     SlicePtr(ClassId),
     SliceLen(ClassId),
+    MemoryObjectData(ClassId, MemoryObjectKind),
+    MemoryObjectFieldAddr(ClassId, MemoryObjectLayout, u64),
+    MemoryObjectElementAddr(ClassId, MemoryObjectLayout, ClassId),
     Phi(BlockId, Vec<(BlockId, ClassId)>),
 }
 
@@ -357,6 +361,15 @@ impl GlobalValueNumberer {
             }
             InstKind::SlicePtr(slice) => ExprKind::SlicePtr(class(slice)),
             InstKind::SliceLen(slice) => ExprKind::SliceLen(class(slice)),
+            InstKind::MemoryObjectData(object, kind) => {
+                ExprKind::MemoryObjectData(class(object), kind)
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                ExprKind::MemoryObjectFieldAddr(class(object), layout, field)
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                ExprKind::MemoryObjectElementAddr(class(object), layout, class(index))
+            }
             // Everything else (memory, storage, environment reads, calls,
             // gas/msize/returndatasize, keccak) never merges in this pass.
             _ => return None,

@@ -1,0 +1,8 @@
+// === ROOT/tests/ui/codegen/mir/memory_object_inst_simplify.mir (after inst-simplify,dce) ===
+; module @MemoryObjectInstSimplify
+fn @fold_identity_projections(arg0: memorystruct, arg1: memoryfixedarray) -> u256 {
+  bb0 (entry):
+    v4 = eq arg0, arg1
+    v5 = add v4, 1
+    ret v5
+}

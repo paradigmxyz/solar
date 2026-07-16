@@ -41,8 +41,9 @@ use crate::{
         MemoryCallSummaries, MemoryLocation,
     },
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
-        SliceLocation, StorageAlias, Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MemoryObjectKind,
+        MemoryObjectLayout, MirType, Module, SliceLocation, StorageAlias, Value, ValueId,
+        utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -121,6 +122,9 @@ enum ExprKey {
     MakeSlice(OperandKey, OperandKey, SliceLocation),
     SlicePtr(OperandKey),
     SliceLen(OperandKey),
+    MemoryObjectData(OperandKey, MemoryObjectKind),
+    MemoryObjectFieldAddr(OperandKey, MemoryObjectLayout, u64),
+    MemoryObjectElementAddr(OperandKey, MemoryObjectLayout, OperandKey),
     SLoad(StorageAlias),
     TLoad(StorageAlias),
     CalldataLoad(OperandKey),
@@ -710,6 +714,24 @@ impl CommonSubexprEliminator {
             }
             InstKind::SlicePtr(slice) => Some(ExprKey::SlicePtr(operand(*slice))),
             InstKind::SliceLen(slice) => Some(ExprKey::SliceLen(operand(*slice))),
+            InstKind::MemoryObjectLen(object, kind) => {
+                let key = self.alias().memory_object_length_location(
+                    func,
+                    inst_id,
+                    value(*object),
+                    *kind,
+                )?;
+                Some(ExprKey::MLoad(key))
+            }
+            InstKind::MemoryObjectData(object, kind) => {
+                Some(ExprKey::MemoryObjectData(operand(*object), *kind))
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                Some(ExprKey::MemoryObjectFieldAddr(operand(*object), *layout, *field))
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                Some(ExprKey::MemoryObjectElementAddr(operand(*object), *layout, operand(*index)))
+            }
 
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(
                 self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
