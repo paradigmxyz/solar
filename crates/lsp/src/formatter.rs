@@ -19,8 +19,8 @@ pub(crate) fn is_ignored(path: &Path, root: &Path) -> bool {
     let options = MatchOptions { require_literal_separator: true, ..MatchOptions::new() };
 
     document.formatter_ignores().iter().any(|ignore| {
-        let ignore = ignore.trim_end_matches(['/', '\\']);
-        Pattern::new(&root.join(ignore).to_string_lossy()).is_ok_and(|pattern| {
+        let ignore = root.join(ignore.trim_end_matches(['/', '\\'])).normalize();
+        Pattern::new(&ignore.to_string_lossy()).is_ok_and(|pattern| {
             path.ancestors()
                 .take_while(|ancestor| ancestor.starts_with(&root))
                 .any(|candidate| pattern.matches_path_with(candidate, options))
@@ -113,6 +113,27 @@ mod tests {
         assert!(is_ignored(&project.path("/src/Exact.sol"), project.root()));
         assert!(is_ignored(&project.path("/generated/nested/Generated.sol"), project.root()));
         assert!(is_ignored(&project.path("/vendor/Nested.sol"), project.root()));
+        assert!(!is_ignored(&project.path("/src/Formatted.sol"), project.root()));
+    }
+
+    #[test]
+    fn foundry_ignore_patterns_normalize_dot_components() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [fmt]
+            ignore = ["./src/Dot.sol", "src/../src/Parent.sol"]
+
+            //- /src/Dot.sol
+
+            //- /src/Parent.sol
+
+            //- /src/Formatted.sol
+            "#,
+        );
+
+        assert!(is_ignored(&project.path("/src/Dot.sol"), project.root()));
+        assert!(is_ignored(&project.path("/src/Parent.sol"), project.root()));
         assert!(!is_ignored(&project.path("/src/Formatted.sol"), project.root()));
     }
 
