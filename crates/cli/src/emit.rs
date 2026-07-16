@@ -246,7 +246,7 @@ fn ensure_contract_bytecode(
             .emit());
     }
 
-    for dep in lower::contract_bytecode_dependencies(gcx, contract_id).iter() {
+    for dep in &lower::contract_bytecode_dependencies(gcx, contract_id) {
         ensure_contract_bytecode(gcx, dep, all_bytecodes, visiting)?;
     }
 

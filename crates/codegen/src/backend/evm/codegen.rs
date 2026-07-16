@@ -514,7 +514,7 @@ impl<'a> StackPhiPlanner<'a> {
     }
 
     fn value_used_in_blocks(&self, blocks: &DenseBitSet<BlockId>, value: ValueId) -> bool {
-        for block_id in blocks.iter() {
+        for block_id in blocks {
             let block = &self.func.blocks[block_id];
             for &inst_id in &block.instructions {
                 if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
@@ -919,7 +919,7 @@ impl EvmCodegen {
 
             let call_graph = CallGraphInfo::new(module);
             let internal_targets = call_graph.reachable_bodies_from(std::iter::once(ctor_id));
-            for func_id in internal_targets.iter() {
+            for func_id in &internal_targets {
                 self.function_labels.insert(func_id, self.asm.new_label());
             }
 
@@ -1744,7 +1744,7 @@ impl EvmCodegen {
         let targets = [*then_block, *else_block];
         let mut live_in_any_target = DenseBitSet::new_empty(func.values.len());
         for target in targets {
-            for value in liveness.live_in(target).iter() {
+            for value in liveness.live_in(target) {
                 live_in_any_target.insert(value);
             }
         }
@@ -2136,7 +2136,7 @@ impl EvmCodegen {
     /// front lets the later load use a stable memory location; stores still happen only when the
     /// value is actually available on the stack.
     fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
-        for val in Self::cross_block_spill_values(func, liveness).iter() {
+        for val in &Self::cross_block_spill_values(func, liveness) {
             self.scheduler.spills.allocate(val);
         }
     }
@@ -2195,7 +2195,7 @@ impl EvmCodegen {
     fn spill_live_out_values(&mut self, func: &Function, liveness: &Liveness, block_id: BlockId) {
         let live_out = liveness.live_out(block_id);
 
-        for val in live_out.iter() {
+        for val in live_out {
             self.spill_value_if_needed(func, val);
         }
     }
@@ -2211,7 +2211,7 @@ impl EvmCodegen {
         for &value in exempt {
             exempt_values.insert(value);
         }
-        for val in liveness.live_out(block_id).iter() {
+        for val in liveness.live_out(block_id) {
             if !exempt_values.contains(val) {
                 self.spill_value_if_needed(func, val);
             }
@@ -2248,7 +2248,7 @@ impl EvmCodegen {
         // Values already on the stack (carried in from a preserved predecessor
         // edge) are read directly; marking them reloadable would point at a
         // spill slot that may never have been stored.
-        for val in liveness.live_in(block_id).iter() {
+        for val in liveness.live_in(block_id) {
             if !self.scheduler.stack.contains(val) && self.scheduler.spills.get(val).is_some() {
                 self.scheduler.spills.mark_reloadable(val);
             }
@@ -3653,7 +3653,7 @@ impl EvmCodegen {
         }
         let mut region_end = region_start;
         let mut bases = FxHashMap::default();
-        for func_id in placed.iter() {
+        for func_id in &placed {
             let base = region_start + depth.get(&func_id).copied().unwrap_or(0);
             region_end = region_end.max(base + self.emitted_frame_size(module, func_id));
             bases.insert(func_id, base);

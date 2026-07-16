@@ -301,7 +301,7 @@ impl IndVarSimplifier {
     }
 
     fn has_non_address_loop_use(&self, func: &Function, loop_data: &Loop, value: ValueId) -> bool {
-        for block in loop_data.blocks.iter() {
+        for block in &loop_data.blocks {
             for &inst_id in &func.blocks[block].instructions {
                 let kind = &func.instructions[inst_id].kind;
                 if kind.operands().contains(&value) && !Self::is_address_builder(kind) {
@@ -333,7 +333,7 @@ impl IndVarSimplifier {
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> usize {
         let mut replaced = 0;
-        for block in loop_data.blocks.iter() {
+        for block in &loop_data.blocks {
             let insts = func.blocks[block].instructions.clone();
             for inst_id in insts {
                 replaced += mir_utils::replace_inst_uses(

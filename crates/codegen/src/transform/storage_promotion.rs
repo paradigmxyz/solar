@@ -146,7 +146,7 @@ impl StorageScalarPromoter {
         let mut slot_value: Option<ValueId> = None;
         let mut saw_loop_store = false;
 
-        for block_id in loop_data.blocks.iter() {
+        for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::SStore(store_slot, _) = &func.instructions[inst_id].kind {
                     let store_key =
@@ -214,7 +214,7 @@ impl StorageScalarPromoter {
         }
 
         let mut stores: FxHashMap<StorageAlias, ValueId> = FxHashMap::default();
-        for block_id in loop_data.blocks.iter() {
+        for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::SStore(store_slot, _) = &func.instructions[inst_id].kind {
                     let store_key =
@@ -312,7 +312,7 @@ impl StorageScalarPromoter {
     }
 
     fn loop_has_no_unpromotable_side_effects(&self, func: &Function, loop_data: &Loop) -> bool {
-        for block_id in loop_data.blocks.iter() {
+        for block_id in &loop_data.blocks {
             if matches!(
                 func.blocks[block_id].terminator,
                 Some(

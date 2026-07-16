@@ -116,7 +116,7 @@ impl LoopAnalyzer {
             self.find_invariant_instructions(func, &mut loop_info);
             self.analyze_trip_count(func, &mut loop_info);
 
-            for block in loop_info.blocks.iter() {
+            for block in &loop_info.blocks {
                 info.block_to_loop.insert(block, loop_info.header);
             }
             info.loops.insert(loop_info.header, loop_info);
@@ -176,7 +176,7 @@ impl LoopAnalyzer {
     }
 
     fn find_exit_blocks(&self, func: &Function, loop_info: &mut Loop) {
-        for block_id in loop_info.blocks.iter() {
+        for block_id in &loop_info.blocks {
             if let Some(term) = &func.blocks[block_id].terminator {
                 for succ in term.successors() {
                     if !loop_info.blocks.contains(succ) && !loop_info.exit_blocks.contains(&succ) {
@@ -324,7 +324,7 @@ impl LoopAnalyzer {
         let mut changed = true;
         while changed {
             changed = false;
-            for block_id in loop_info.blocks.iter() {
+            for block_id in &loop_info.blocks {
                 for &inst_id in &func.blocks[block_id].instructions {
                     let inst = &func.instructions[inst_id];
 

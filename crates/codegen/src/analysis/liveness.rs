@@ -137,7 +137,7 @@ impl Liveness {
 
             // live_in = use ∪ (live_out - def)
             let mut new_live_in = block_uses[bidx].clone();
-            for val in new_live_out.iter() {
+            for val in &new_live_out {
                 if !block_defs[bidx].contains(val) {
                     new_live_in.insert(val);
                 }

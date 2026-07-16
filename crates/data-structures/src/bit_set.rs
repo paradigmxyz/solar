@@ -20,6 +20,8 @@ use crate::index::Idx;
 #[cfg(test)]
 mod tests;
 
+mod into_iter;
+
 type Word = u64;
 const WORD_BYTES: usize = size_of::<Word>();
 const WORD_BITS: usize = WORD_BYTES * 8;

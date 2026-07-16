@@ -1013,3 +1013,21 @@ fn dense_contains_any() {
     set.insert(idx(22));
     assert!(set.contains_any(idx_range(20..59)));
 }
+
+#[test]
+fn borrowed_bit_sets_are_iterable() {
+    let mut dense = DenseBitSet::new_empty(8);
+    dense.insert(idx(1));
+    dense.insert(idx(6));
+    assert_eq!((&dense).into_iter().collect::<Vec<_>>(), [idx(1), idx(6)]);
+
+    let mut mixed = MixedBitSet::new_empty(8);
+    mixed.insert(idx(2));
+    mixed.insert(idx(7));
+    assert_eq!((&mixed).into_iter().collect::<Vec<_>>(), [idx(2), idx(7)]);
+
+    let mut growable = GrowableBitSet::new_empty();
+    growable.insert(idx(3));
+    growable.insert(idx(9));
+    assert_eq!((&growable).into_iter().collect::<Vec<_>>(), [idx(3), idx(9)]);
+}

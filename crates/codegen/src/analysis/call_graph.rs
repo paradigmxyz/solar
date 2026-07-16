@@ -35,7 +35,7 @@ impl CallGraphInfo {
 
             let direct_callees = Self::collect_internal_callees(func, function_count);
             if !direct_callees.is_empty() {
-                for callee in direct_callees.iter() {
+                for callee in &direct_callees {
                     callers
                         .entry(callee)
                         .or_insert_with(|| DenseBitSet::new_empty(function_count))
@@ -100,7 +100,7 @@ impl CallGraphInfo {
 
         while let Some(func) = worklist.pop_front() {
             let Some(callees) = self.callees.get(&func) else { continue };
-            for callee in callees.iter() {
+            for callee in callees {
                 if self.has_body.contains(callee) && reachable.insert(callee) {
                     worklist.push_back(callee);
                 }
@@ -157,14 +157,14 @@ impl CallGraphInfo {
     ) -> DenseBitSet<FunctionId> {
         let mut reachable = DenseBitSet::new_empty(roots.domain_size());
         let mut worklist = VecDeque::new();
-        for root in roots.iter() {
+        for root in roots {
             reachable.insert(root);
             worklist.push_back(root);
         }
 
         while let Some(func) = worklist.pop_front() {
             let Some(callees) = callees.get(&func) else { continue };
-            for callee in callees.iter() {
+            for callee in callees {
                 if reachable.insert(callee) {
                     worklist.push_back(callee);
                 }

@@ -447,7 +447,7 @@ impl<'a> InlineAnalyzer<'a> {
         }
 
         if let Some(callees) = self.call_graph.get(&func_id) {
-            for callee in callees.iter() {
+            for callee in callees {
                 if self.is_recursive(callee, visited) {
                     return true;
                 }
@@ -464,7 +464,7 @@ impl<'a> InlineAnalyzer<'a> {
         let mut call_counts: FxHashMap<FunctionId, usize> = FxHashMap::default();
 
         for callees in self.call_graph.values() {
-            for callee in callees.iter() {
+            for callee in callees {
                 *call_counts.entry(callee).or_default() += 1;
             }
         }
@@ -1172,7 +1172,7 @@ fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
     let loop_info = analyzer.analyze(func);
     let mut depths = FxHashMap::default();
     for loop_data in loop_info.all_loops() {
-        for block in loop_data.blocks.iter() {
+        for block in &loop_data.blocks {
             *depths.entry(block).or_default() += 1;
         }
     }

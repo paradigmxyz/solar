@@ -575,7 +575,7 @@ impl SccpPass {
         cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
     ) {
-        for block_id in executable_blocks.iter() {
+        for block_id in executable_blocks {
             self.evaluate_phis_in_block(
                 func,
                 block_id,

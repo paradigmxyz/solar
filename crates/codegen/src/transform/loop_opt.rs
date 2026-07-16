@@ -183,7 +183,7 @@ impl LoopOptimizer {
             // instruction out of these blocks; pushing it again would schedule
             // the same instruction in two blocks.
             let mut removed = false;
-            for block_id in loop_data.blocks.iter() {
+            for block_id in &loop_data.blocks {
                 let block = &mut func.blocks[block_id];
                 if let Some(pos) = block.instructions.iter().position(|&id| id == inst_id) {
                     block.instructions.remove(pos);
@@ -352,7 +352,7 @@ impl LoopOptimizer {
     /// leave the loop and are ignored.
     fn live_exiting_blocks(&self, func: &Function, loop_data: &Loop) -> Vec<BlockId> {
         let mut exiting = Vec::new();
-        for block_id in loop_data.blocks.iter() {
+        for block_id in &loop_data.blocks {
             let Some(term) = &func.blocks[block_id].terminator else { continue };
             let escapes = match term {
                 Terminator::Branch { condition, then_block, else_block } => {
@@ -442,7 +442,7 @@ impl LoopOptimizer {
     }
 
     fn loop_observes_gas(&self, func: &Function, loop_data: &Loop) -> bool {
-        for block_id in loop_data.blocks.iter() {
+        for block_id in &loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 if matches!(func.instructions[inst_id].kind, InstKind::Gas) {
                     return true;
@@ -476,7 +476,7 @@ impl LoopOptimizer {
         load_addr: ValueId,
         load_width: Option<u64>,
     ) -> bool {
-        for block_id in ctx.loop_data.blocks.iter() {
+        for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.instructions[inst_id].kind {
                     InstKind::MStore(addr, _)
@@ -527,7 +527,7 @@ impl LoopOptimizer {
             return true;
         }
 
-        for block_id in ctx.loop_data.blocks.iter() {
+        for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match (space, &func.instructions[inst_id].kind) {
                     (StorageSpace::Persistent, InstKind::SStore(slot, _))
@@ -718,7 +718,7 @@ impl LoopOptimizer {
         ctx: LoopOptContext<'_>,
     ) -> bool {
         let Some(result) = func.inst_result_value(inst_id) else { return false };
-        for block_id in ctx.loop_data.blocks.iter() {
+        for block_id in &ctx.loop_data.blocks {
             for &user_inst in &func.blocks[block_id].instructions {
                 let kind = &func.instructions[user_inst].kind;
                 let address_operands: smallvec::SmallVec<[ValueId; 2]> = match kind {
