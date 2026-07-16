@@ -620,7 +620,7 @@ impl<'a> Parser<'a> {
                     opcode
                 } else {
                     let mnemonic = self.parse_ident()?;
-                    let Some(opcode) = opcode_by_mnemonic(mnemonic) else {
+                    let Some(opcode) = super::super::assembler::op::from_mnemonic(mnemonic) else {
                         return Err(self.error(format!("unknown terminal opcode `{mnemonic}`")));
                     };
                     opcode

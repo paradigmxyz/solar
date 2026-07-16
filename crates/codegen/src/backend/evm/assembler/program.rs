@@ -461,13 +461,11 @@ fn push_instruction(operand: EvmIrOperand) -> EvmIrInstruction {
 }
 
 fn opcode_mnemonic(opcode: u8) -> String {
-    crate::backend::evm::ir::opcode_mnemonic(opcode)
-        .map(str::to_string)
-        .unwrap_or_else(|| format!("{OP_PREFIX}{opcode:02x}"))
+    op::mnemonic(opcode).map(str::to_string).unwrap_or_else(|| format!("{OP_PREFIX}{opcode:02x}"))
 }
 
 fn parse_opcode_mnemonic(mnemonic: &str) -> Option<u8> {
-    if let Some(opcode) = crate::backend::evm::ir::opcode_by_mnemonic(mnemonic) {
+    if let Some(opcode) = op::from_mnemonic(mnemonic) {
         return Some(opcode);
     }
     let value = mnemonic.strip_prefix(OP_PREFIX)?;

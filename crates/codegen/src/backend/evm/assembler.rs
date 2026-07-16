@@ -1437,186 +1437,224 @@ enum CompactPush {
 
 /// Common EVM op.
 pub mod op {
-    pub const STOP: u8 = 0x00;
-    pub const ADD: u8 = 0x01;
-    pub const MUL: u8 = 0x02;
-    pub const SUB: u8 = 0x03;
-    pub const DIV: u8 = 0x04;
-    pub const SDIV: u8 = 0x05;
-    pub const MOD: u8 = 0x06;
-    pub const SMOD: u8 = 0x07;
-    pub const ADDMOD: u8 = 0x08;
-    pub const MULMOD: u8 = 0x09;
-    pub const EXP: u8 = 0x0a;
-    pub const SIGNEXTEND: u8 = 0x0b;
+    macro_rules! opcode_mnemonic {
+        (r#return) => {
+            "return"
+        };
+        ($mnemonic:ident) => {
+            stringify!($mnemonic)
+        };
+    }
 
-    pub const LT: u8 = 0x10;
-    pub const GT: u8 = 0x11;
-    pub const SLT: u8 = 0x12;
-    pub const SGT: u8 = 0x13;
-    pub const EQ: u8 = 0x14;
-    pub const ISZERO: u8 = 0x15;
-    pub const AND: u8 = 0x16;
-    pub const OR: u8 = 0x17;
-    pub const XOR: u8 = 0x18;
-    pub const NOT: u8 = 0x19;
-    pub const BYTE: u8 = 0x1a;
-    pub const SHL: u8 = 0x1b;
-    pub const SHR: u8 = 0x1c;
-    pub const SAR: u8 = 0x1d;
-    pub const CLZ: u8 = 0x1e;
+    macro_rules! opcodes {
+        ($($opcode:literal => $constant:ident => $mnemonic:ident;)*) => {
+            $(
+                #[doc = concat!("Opcode byte for `", stringify!($constant), "`.")]
+                pub const $constant: u8 = $opcode;
+            )*
 
-    pub const KECCAK256: u8 = 0x20;
+            /// Maps each opcode byte to its canonical mnemonic.
+            static OPCODE_MNEMONICS: [Option<&str>; 256] = {
+                let mut map = [None; 256];
+                let mut prev = 0;
+                $(
+                    let opcode: u8 = $opcode;
+                    assert!(opcode == 0 || opcode > prev, "opcodes must be sorted in ascending order");
+                    prev = opcode;
+                    map[opcode as usize] = Some(opcode_mnemonic!($mnemonic));
+                )*
+                let _ = prev;
+                map
+            };
 
-    pub const ADDRESS: u8 = 0x30;
-    pub const BALANCE: u8 = 0x31;
-    pub const ORIGIN: u8 = 0x32;
-    pub const CALLER: u8 = 0x33;
-    pub const CALLVALUE: u8 = 0x34;
-    pub const CALLDATALOAD: u8 = 0x35;
-    pub const CALLDATASIZE: u8 = 0x36;
-    pub const CALLDATACOPY: u8 = 0x37;
-    pub const CODESIZE: u8 = 0x38;
-    pub const CODECOPY: u8 = 0x39;
-    pub const GASPRICE: u8 = 0x3a;
-    pub const EXTCODESIZE: u8 = 0x3b;
-    pub const EXTCODECOPY: u8 = 0x3c;
-    pub const RETURNDATASIZE: u8 = 0x3d;
-    pub const RETURNDATACOPY: u8 = 0x3e;
-    pub const EXTCODEHASH: u8 = 0x3f;
+            /// Returns the canonical mnemonic for an opcode.
+            #[must_use]
+            pub const fn mnemonic(opcode: u8) -> Option<&'static str> {
+                OPCODE_MNEMONICS[opcode as usize]
+            }
 
-    pub const BLOCKHASH: u8 = 0x40;
-    pub const COINBASE: u8 = 0x41;
-    pub const TIMESTAMP: u8 = 0x42;
-    pub const NUMBER: u8 = 0x43;
-    pub const PREVRANDAO: u8 = 0x44;
-    pub const GASLIMIT: u8 = 0x45;
-    pub const CHAINID: u8 = 0x46;
-    pub const SELFBALANCE: u8 = 0x47;
-    pub const BASEFEE: u8 = 0x48;
-    pub const BLOBHASH: u8 = 0x49;
-    pub const BLOBBASEFEE: u8 = 0x4a;
+            /// Returns the opcode for a canonical mnemonic.
+            #[must_use]
+            pub fn from_mnemonic(mnemonic: &str) -> Option<u8> {
+                match mnemonic {
+                    $(opcode_mnemonic!($mnemonic) => Some($opcode),)*
+                    _ => None,
+                }
+            }
+        };
+    }
 
-    pub const POP: u8 = 0x50;
-    pub const MLOAD: u8 = 0x51;
-    pub const MSTORE: u8 = 0x52;
-    pub const MSTORE8: u8 = 0x53;
-    pub const SLOAD: u8 = 0x54;
-    pub const SSTORE: u8 = 0x55;
-    pub const JUMP: u8 = 0x56;
-    pub const JUMPI: u8 = 0x57;
-    pub const PC: u8 = 0x58;
-    pub const MSIZE: u8 = 0x59;
-    pub const GAS: u8 = 0x5a;
-    pub const JUMPDEST: u8 = 0x5b;
-    pub const TLOAD: u8 = 0x5c;
-    pub const TSTORE: u8 = 0x5d;
-    pub const MCOPY: u8 = 0x5e;
-    pub const PUSH0: u8 = 0x5f;
-    pub const PUSH1: u8 = 0x60;
-    pub const PUSH2: u8 = 0x61;
-    pub const PUSH3: u8 = 0x62;
-    pub const PUSH4: u8 = 0x63;
-    pub const PUSH5: u8 = 0x64;
-    pub const PUSH6: u8 = 0x65;
-    pub const PUSH7: u8 = 0x66;
-    pub const PUSH8: u8 = 0x67;
-    pub const PUSH9: u8 = 0x68;
-    pub const PUSH10: u8 = 0x69;
-    pub const PUSH11: u8 = 0x6a;
-    pub const PUSH12: u8 = 0x6b;
-    pub const PUSH13: u8 = 0x6c;
-    pub const PUSH14: u8 = 0x6d;
-    pub const PUSH15: u8 = 0x6e;
-    pub const PUSH16: u8 = 0x6f;
-    pub const PUSH17: u8 = 0x70;
-    pub const PUSH18: u8 = 0x71;
-    pub const PUSH19: u8 = 0x72;
-    pub const PUSH20: u8 = 0x73;
-    pub const PUSH21: u8 = 0x74;
-    pub const PUSH22: u8 = 0x75;
-    pub const PUSH23: u8 = 0x76;
-    pub const PUSH24: u8 = 0x77;
-    pub const PUSH25: u8 = 0x78;
-    pub const PUSH26: u8 = 0x79;
-    pub const PUSH27: u8 = 0x7a;
-    pub const PUSH28: u8 = 0x7b;
-    pub const PUSH29: u8 = 0x7c;
-    pub const PUSH30: u8 = 0x7d;
-    pub const PUSH31: u8 = 0x7e;
-    pub const PUSH32: u8 = 0x7f;
-
-    pub const DUP1: u8 = 0x80;
-    pub const DUP2: u8 = 0x81;
-    pub const DUP3: u8 = 0x82;
-    pub const DUP4: u8 = 0x83;
-    pub const DUP5: u8 = 0x84;
-    pub const DUP6: u8 = 0x85;
-    pub const DUP7: u8 = 0x86;
-    pub const DUP8: u8 = 0x87;
-    pub const DUP9: u8 = 0x88;
-    pub const DUP10: u8 = 0x89;
-    pub const DUP11: u8 = 0x8a;
-    pub const DUP12: u8 = 0x8b;
-    pub const DUP13: u8 = 0x8c;
-    pub const DUP14: u8 = 0x8d;
-    pub const DUP15: u8 = 0x8e;
-    pub const DUP16: u8 = 0x8f;
-
-    pub const SWAP1: u8 = 0x90;
-    pub const SWAP2: u8 = 0x91;
-    pub const SWAP3: u8 = 0x92;
-    pub const SWAP4: u8 = 0x93;
-    pub const SWAP5: u8 = 0x94;
-    pub const SWAP6: u8 = 0x95;
-    pub const SWAP7: u8 = 0x96;
-    pub const SWAP8: u8 = 0x97;
-    pub const SWAP9: u8 = 0x98;
-    pub const SWAP10: u8 = 0x99;
-    pub const SWAP11: u8 = 0x9a;
-    pub const SWAP12: u8 = 0x9b;
-    pub const SWAP13: u8 = 0x9c;
-    pub const SWAP14: u8 = 0x9d;
-    pub const SWAP15: u8 = 0x9e;
-    pub const SWAP16: u8 = 0x9f;
-
-    pub const LOG0: u8 = 0xa0;
-    pub const LOG1: u8 = 0xa1;
-    pub const LOG2: u8 = 0xa2;
-    pub const LOG3: u8 = 0xa3;
-    pub const LOG4: u8 = 0xa4;
-
-    pub const DATALOAD: u8 = 0xd0;
-    pub const DATALOADN: u8 = 0xd1;
-    pub const DATASIZE: u8 = 0xd2;
-    pub const DATACOPY: u8 = 0xd3;
-
-    pub const RJUMP: u8 = 0xe0;
-    pub const RJUMPI: u8 = 0xe1;
-    pub const RJUMPV: u8 = 0xe2;
-    pub const CALLF: u8 = 0xe3;
-    pub const RETF: u8 = 0xe4;
-    pub const JUMPF: u8 = 0xe5;
-    pub const DUPN: u8 = 0xe6;
-    pub const SWAPN: u8 = 0xe7;
-    pub const EXCHANGE: u8 = 0xe8;
-    pub const EOFCREATE: u8 = 0xec;
-    pub const RETURNCONTRACT: u8 = 0xee;
-
-    pub const CREATE: u8 = 0xf0;
-    pub const CALL: u8 = 0xf1;
-    pub const CALLCODE: u8 = 0xf2;
-    pub const RETURN: u8 = 0xf3;
-    pub const DELEGATECALL: u8 = 0xf4;
-    pub const CREATE2: u8 = 0xf5;
-    pub const RETURNDATALOAD: u8 = 0xf7;
-    pub const EXTCALL: u8 = 0xf8;
-    pub const EXTDELEGATECALL: u8 = 0xf9;
-    pub const STATICCALL: u8 = 0xfa;
-    pub const EXTSTATICCALL: u8 = 0xfb;
-    pub const REVERT: u8 = 0xfd;
-    pub const INVALID: u8 = 0xfe;
-    pub const SELFDESTRUCT: u8 = 0xff;
+    opcodes! {
+        0x00 => STOP => stop;
+        0x01 => ADD => add;
+        0x02 => MUL => mul;
+        0x03 => SUB => sub;
+        0x04 => DIV => div;
+        0x05 => SDIV => sdiv;
+        0x06 => MOD => mod;
+        0x07 => SMOD => smod;
+        0x08 => ADDMOD => addmod;
+        0x09 => MULMOD => mulmod;
+        0x0a => EXP => exp;
+        0x0b => SIGNEXTEND => signextend;
+        0x10 => LT => lt;
+        0x11 => GT => gt;
+        0x12 => SLT => slt;
+        0x13 => SGT => sgt;
+        0x14 => EQ => eq;
+        0x15 => ISZERO => iszero;
+        0x16 => AND => and;
+        0x17 => OR => or;
+        0x18 => XOR => xor;
+        0x19 => NOT => not;
+        0x1a => BYTE => byte;
+        0x1b => SHL => shl;
+        0x1c => SHR => shr;
+        0x1d => SAR => sar;
+        0x1e => CLZ => clz;
+        0x20 => KECCAK256 => keccak256;
+        0x30 => ADDRESS => address;
+        0x31 => BALANCE => balance;
+        0x32 => ORIGIN => origin;
+        0x33 => CALLER => caller;
+        0x34 => CALLVALUE => callvalue;
+        0x35 => CALLDATALOAD => calldataload;
+        0x36 => CALLDATASIZE => calldatasize;
+        0x37 => CALLDATACOPY => calldatacopy;
+        0x38 => CODESIZE => codesize;
+        0x39 => CODECOPY => codecopy;
+        0x3a => GASPRICE => gasprice;
+        0x3b => EXTCODESIZE => extcodesize;
+        0x3c => EXTCODECOPY => extcodecopy;
+        0x3d => RETURNDATASIZE => returndatasize;
+        0x3e => RETURNDATACOPY => returndatacopy;
+        0x3f => EXTCODEHASH => extcodehash;
+        0x40 => BLOCKHASH => blockhash;
+        0x41 => COINBASE => coinbase;
+        0x42 => TIMESTAMP => timestamp;
+        0x43 => NUMBER => number;
+        0x44 => PREVRANDAO => prevrandao;
+        0x45 => GASLIMIT => gaslimit;
+        0x46 => CHAINID => chainid;
+        0x47 => SELFBALANCE => selfbalance;
+        0x48 => BASEFEE => basefee;
+        0x49 => BLOBHASH => blobhash;
+        0x4a => BLOBBASEFEE => blobbasefee;
+        0x50 => POP => pop;
+        0x51 => MLOAD => mload;
+        0x52 => MSTORE => mstore;
+        0x53 => MSTORE8 => mstore8;
+        0x54 => SLOAD => sload;
+        0x55 => SSTORE => sstore;
+        0x56 => JUMP => jump;
+        0x57 => JUMPI => jumpi;
+        0x58 => PC => pc;
+        0x59 => MSIZE => msize;
+        0x5a => GAS => gas;
+        0x5b => JUMPDEST => jumpdest;
+        0x5c => TLOAD => tload;
+        0x5d => TSTORE => tstore;
+        0x5e => MCOPY => mcopy;
+        0x5f => PUSH0 => push0;
+        0x60 => PUSH1 => push1;
+        0x61 => PUSH2 => push2;
+        0x62 => PUSH3 => push3;
+        0x63 => PUSH4 => push4;
+        0x64 => PUSH5 => push5;
+        0x65 => PUSH6 => push6;
+        0x66 => PUSH7 => push7;
+        0x67 => PUSH8 => push8;
+        0x68 => PUSH9 => push9;
+        0x69 => PUSH10 => push10;
+        0x6a => PUSH11 => push11;
+        0x6b => PUSH12 => push12;
+        0x6c => PUSH13 => push13;
+        0x6d => PUSH14 => push14;
+        0x6e => PUSH15 => push15;
+        0x6f => PUSH16 => push16;
+        0x70 => PUSH17 => push17;
+        0x71 => PUSH18 => push18;
+        0x72 => PUSH19 => push19;
+        0x73 => PUSH20 => push20;
+        0x74 => PUSH21 => push21;
+        0x75 => PUSH22 => push22;
+        0x76 => PUSH23 => push23;
+        0x77 => PUSH24 => push24;
+        0x78 => PUSH25 => push25;
+        0x79 => PUSH26 => push26;
+        0x7a => PUSH27 => push27;
+        0x7b => PUSH28 => push28;
+        0x7c => PUSH29 => push29;
+        0x7d => PUSH30 => push30;
+        0x7e => PUSH31 => push31;
+        0x7f => PUSH32 => push32;
+        0x80 => DUP1 => dup1;
+        0x81 => DUP2 => dup2;
+        0x82 => DUP3 => dup3;
+        0x83 => DUP4 => dup4;
+        0x84 => DUP5 => dup5;
+        0x85 => DUP6 => dup6;
+        0x86 => DUP7 => dup7;
+        0x87 => DUP8 => dup8;
+        0x88 => DUP9 => dup9;
+        0x89 => DUP10 => dup10;
+        0x8a => DUP11 => dup11;
+        0x8b => DUP12 => dup12;
+        0x8c => DUP13 => dup13;
+        0x8d => DUP14 => dup14;
+        0x8e => DUP15 => dup15;
+        0x8f => DUP16 => dup16;
+        0x90 => SWAP1 => swap1;
+        0x91 => SWAP2 => swap2;
+        0x92 => SWAP3 => swap3;
+        0x93 => SWAP4 => swap4;
+        0x94 => SWAP5 => swap5;
+        0x95 => SWAP6 => swap6;
+        0x96 => SWAP7 => swap7;
+        0x97 => SWAP8 => swap8;
+        0x98 => SWAP9 => swap9;
+        0x99 => SWAP10 => swap10;
+        0x9a => SWAP11 => swap11;
+        0x9b => SWAP12 => swap12;
+        0x9c => SWAP13 => swap13;
+        0x9d => SWAP14 => swap14;
+        0x9e => SWAP15 => swap15;
+        0x9f => SWAP16 => swap16;
+        0xa0 => LOG0 => log0;
+        0xa1 => LOG1 => log1;
+        0xa2 => LOG2 => log2;
+        0xa3 => LOG3 => log3;
+        0xa4 => LOG4 => log4;
+        0xd0 => DATALOAD => dataload;
+        0xd1 => DATALOADN => dataloadn;
+        0xd2 => DATASIZE => datasize;
+        0xd3 => DATACOPY => datacopy;
+        0xe0 => RJUMP => rjump;
+        0xe1 => RJUMPI => rjumpi;
+        0xe2 => RJUMPV => rjumpv;
+        0xe3 => CALLF => callf;
+        0xe4 => RETF => retf;
+        0xe5 => JUMPF => jumpf;
+        0xe6 => DUPN => dupn;
+        0xe7 => SWAPN => swapn;
+        0xe8 => EXCHANGE => exchange;
+        0xec => EOFCREATE => eofcreate;
+        0xee => RETURNCONTRACT => returncontract;
+        0xf0 => CREATE => create;
+        0xf1 => CALL => call;
+        0xf2 => CALLCODE => callcode;
+        0xf3 => RETURN => r#return;
+        0xf4 => DELEGATECALL => delegatecall;
+        0xf5 => CREATE2 => create2;
+        0xf7 => RETURNDATALOAD => returndataload;
+        0xf8 => EXTCALL => extcall;
+        0xf9 => EXTDELEGATECALL => extdelegatecall;
+        0xfa => STATICCALL => staticcall;
+        0xfb => EXTSTATICCALL => extstaticcall;
+        0xfd => REVERT => revert;
+        0xfe => INVALID => invalid;
+        0xff => SELFDESTRUCT => selfdestruct;
+    }
 
     /// Returns the PUSH opcode for the given width (1-32).
     #[must_use]
@@ -1656,6 +1694,15 @@ mod tests {
             optimization: OptimizationMode::Size,
             ..AssemblerConfig::default()
         })
+    }
+
+    #[test]
+    fn opcode_mnemonics_round_trip() {
+        for opcode in 0..=u8::MAX {
+            if let Some(mnemonic) = op::mnemonic(opcode) {
+                assert_eq!(op::from_mnemonic(mnemonic), Some(opcode));
+            }
+        }
     }
 
     #[test]
