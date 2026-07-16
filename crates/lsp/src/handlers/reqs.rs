@@ -27,18 +27,21 @@ pub(crate) fn formatting(
         .to_file_path()
         .map_err(|_| request_failed("document URI is not a file"))
         .and_then(|path| {
-            let Some(workspace_root) = state.config.formatter_root_for_path(&path) else {
+            let Some(root) = state.config.formatter_root_for_path(&path) else {
                 return Err(request_failed("document has no parent directory"));
             };
-            Ok((VfsPath::from(path.clone()), path, workspace_root, state.config.forge_path()))
+            Ok((VfsPath::from(path.clone()), path, root, state.config.forge_path()))
         });
 
     async move {
-        let (vfs_path, path, workspace_root, forge) = request?;
+        let (vfs_path, path, root, forge) = request?;
         let source =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let formatted =
-            formatter::run(&forge, &workspace_root, &source).await.map_err(formatter_failed)?;
+        let Some(formatted) =
+            formatter::run(&forge, &path, &root, &source).await.map_err(formatter_failed)?
+        else {
+            return Ok(None);
+        };
         let current =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
         if current != source {
@@ -93,14 +96,33 @@ fn formatting_edits(source: &str, formatted: &str) -> Option<Vec<TextEdit>> {
         return None;
     }
 
-    let rope = Rope::from(source);
     Some(vec![TextEdit {
-        range: lsp_types::Range::new(
-            Position::new(0, 0),
-            crate::proto::position_at_byte(&rope, rope.byte_len()),
-        ),
+        range: lsp_types::Range::new(Position::new(0, 0), end_position(source)),
         new_text: formatted.to_owned(),
     }])
+}
+
+fn end_position(source: &str) -> Position {
+    let mut line = 0;
+    let mut character = 0;
+    let mut chars = source.chars().peekable();
+    while let Some(char) = chars.next() {
+        match char {
+            '\r' => {
+                if chars.peek() == Some(&'\n') {
+                    chars.next();
+                }
+                line += 1;
+                character = 0;
+            }
+            '\n' => {
+                line += 1;
+                character = 0;
+            }
+            char => character += char.len_utf16() as u32,
+        }
+    }
+    Position::new(line, character)
 }
 
 pub(crate) fn document_symbol(
@@ -465,6 +487,13 @@ mod formatting_tests {
     }
 
     #[test]
+    fn changed_formatting_covers_documents_with_bare_carriage_returns() {
+        let edits = formatting_edits("contract First{}\rcontract Second{}\r", "formatted").unwrap();
+
+        assert_eq!(edits[0].range, Range::new(Position::new(0, 0), Position::new(2, 0)));
+    }
+
+    #[test]
     fn formatter_failures_map_to_concise_request_failed_errors() {
         let failures = [
             (FormatterError::Timeout, "Forge formatting timed out"),
@@ -561,12 +590,52 @@ printf 'contract Test { string s = "🚀"; }'
 
     #[cfg(unix)]
     #[tokio::test(flavor = "current_thread")]
-    async fn formatting_reads_disk_and_uses_file_parent_outside_workspaces() {
+    async fn formatting_skips_files_ignored_by_foundry_config() {
+        let mut project = TestProject::from_fixture(
+            r#"
+            //- /workspace/foundry.toml
+            [fmt]
+            ignore = ["src/Ignored.sol"]
+
+            //- /workspace/src/Ignored.sol
+            contract Ignored {}
+            "#,
+        );
+        let unsaved = "contract Ignored{uint value;}";
+        project.open_file("/workspace/src/Ignored.sol", unsaved);
+        let forge = write_executable(
+            &project,
+            "/fake-forge",
+            r#"#!/bin/sh
+set -eu
+if [ "${1-}" = lint ]; then exit 1; fi
+printf '%s\n' "$@" > "$0.called"
+cat
+"#,
+        );
+        let mut state = formatting_state(&project, &forge, &["/workspace"]);
+        let path = project.path("/workspace/src/Ignored.sol");
+
+        let edits = formatting(&mut state, formatting_params(Url::from_file_path(path).unwrap()))
+            .await
+            .unwrap();
+
+        assert_eq!(edits, None);
+        assert!(!project.path("/fake-forge.called").exists());
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn formatting_reads_disk_and_discovers_foundry_root_outside_workspaces() {
         let project = TestProject::from_fixture(
             r#"
             //- /workspace/.keep
 
-            //- /outside/Test.sol
+            //- /outside/foundry.toml
+            [fmt]
+            int_types = "short"
+
+            //- /outside/src/Test.sol
             contract Test {}
             "#,
         );
@@ -581,7 +650,7 @@ cat "$0.stdin"
 "#,
         );
         let mut state = formatting_state(&project, &forge, &["/workspace"]);
-        let path = project.path("/outside/Test.sol");
+        let path = project.path("/outside/src/Test.sol");
 
         let edits = formatting(&mut state, formatting_params(Url::from_file_path(path).unwrap()))
             .await

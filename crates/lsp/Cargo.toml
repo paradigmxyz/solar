@@ -31,6 +31,7 @@ solar-sema.workspace = true
 
 async-lsp = { workspace = true, features = ["omni-trait"] }
 crop = { workspace = true, features = ["utf16-metric"] }
+glob.workspace = true
 lsp-types.workspace = true
 normalize-path.workspace = true
 serde.workspace = true

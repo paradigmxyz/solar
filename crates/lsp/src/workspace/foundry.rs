@@ -6,12 +6,24 @@ use std::path::{Path, PathBuf};
 pub(crate) struct FoundryDocument {
     profile: Option<FoundryProfiles>,
     default: Option<FoundryProfile>,
+    #[serde(default)]
+    fmt: FoundryFormatterConfig,
 }
 
 impl FoundryDocument {
     pub(crate) fn default_profile(self) -> FoundryProfile {
         self.profile.and_then(|profiles| profiles.default).or(self.default).unwrap_or_default()
     }
+
+    pub(crate) fn formatter_ignores(&self) -> &[String] {
+        &self.fmt.ignore
+    }
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct FoundryFormatterConfig {
+    #[serde(default)]
+    ignore: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]

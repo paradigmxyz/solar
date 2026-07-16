@@ -65,9 +65,15 @@ impl Config {
     }
 
     pub(crate) fn formatter_root_for_path(&self, path: &Path) -> Option<PathBuf> {
-        WorkspacePathIndex::new(&self.workspaces)
-            .workspace_idx_containing_path(path)
-            .and_then(|idx| self.workspaces[idx].compile_opts().base_path.clone())
+        ProjectManifest::discover_in_parents(path)
+            .and_then(|manifest| match manifest {
+                ProjectManifest::Foundry(path) => path.parent().map(Path::to_path_buf),
+            })
+            .or_else(|| {
+                WorkspacePathIndex::new(&self.workspaces)
+                    .workspace_idx_containing_path(path)
+                    .and_then(|idx| self.workspaces[idx].compile_opts().base_path.clone())
+            })
             .or_else(|| path.parent().map(Path::to_path_buf))
     }
 
@@ -440,7 +446,7 @@ mod tests {
     }
 
     #[test]
-    fn formatter_root_uses_most_specific_workspace_or_file_parent() {
+    fn formatter_root_uses_nearest_foundry_project_workspace_or_file_parent() {
         let project = TestProject::from_fixture(
             r#"
             //- /workspace/A.sol
@@ -449,8 +455,13 @@ mod tests {
             //- /workspace/nested/B.sol
             contract B {}
 
-            //- /outside/C.sol
+            //- /outside/foundry.toml
+
+            //- /outside/src/C.sol
             contract C {}
+
+            //- /standalone/D.sol
+            contract D {}
             "#,
         );
         let config = project.config_with_roots(&["/workspace", "/workspace/nested"]);
@@ -464,8 +475,12 @@ mod tests {
             Some(project.path("/workspace"))
         );
         assert_eq!(
-            config.formatter_root_for_path(&project.path("/outside/C.sol")),
+            config.formatter_root_for_path(&project.path("/outside/src/C.sol")),
             Some(project.path("/outside"))
+        );
+        assert_eq!(
+            config.formatter_root_for_path(&project.path("/standalone/D.sol")),
+            Some(project.path("/standalone"))
         );
     }
 

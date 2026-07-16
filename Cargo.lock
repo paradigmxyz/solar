@@ -3585,6 +3585,7 @@ version = "0.2.0"
 dependencies = [
  "async-lsp",
  "crop",
+ "glob",
  "lsp-types",
  "normalize-path",
  "serde",

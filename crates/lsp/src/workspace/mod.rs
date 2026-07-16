@@ -233,7 +233,7 @@ fn compile_opts(
     opts
 }
 
-fn load_foundry_document(path: &Path) -> Result<FoundryDocument, WorkspaceError> {
+pub(crate) fn load_foundry_document(path: &Path) -> Result<FoundryDocument, WorkspaceError> {
     let source_map = SourceMap::empty();
     let contents = source_map
         .file_loader()
