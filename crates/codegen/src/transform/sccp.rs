@@ -667,7 +667,7 @@ impl SccpPass {
                 }
             }
             if executable_successors.count() == 1 {
-                let target = executable_successors.iter().next().expect("checked count");
+                let target = executable_successors.into_iter().next().expect("checked count");
                 control_rewrites.push((block_id, target));
             }
         }

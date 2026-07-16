@@ -21,6 +21,7 @@ use crate::index::Idx;
 mod tests;
 
 mod into_iter;
+pub use into_iter::{ChunkedBitIntoIter, DenseBitIntoIter, MixedBitIntoIter};
 
 type Word = u64;
 const WORD_BYTES: usize = size_of::<Word>();
