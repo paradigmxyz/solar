@@ -1,6 +1,6 @@
 //@ failure-status: 1
-// Once operands are cleared, non-push operations must carry an explicit stack
-// effect. Otherwise the verifier cannot model their runtime pops.
+// Once operands are cleared, unregistered operations must carry an explicit
+// stack effect. Otherwise the verifier cannot model their runtime pops.
 bb0 (entry):
-  %r = add
+  %r = mystery
   stop

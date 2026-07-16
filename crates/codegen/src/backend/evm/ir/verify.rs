@@ -588,6 +588,22 @@ fn verify_instruction_shape(
             ));
         }
     } else {
+        if inst.operands.is_empty()
+            && inst.metadata.stack.is_none()
+            && matches!(
+                &inst.kind,
+                EvmIrInstructionKind::Operation(mnemonic)
+                    if opcode_stack_effect(mnemonic).is_none()
+            )
+        {
+            return Err(EvmIrVerifyError::in_block(
+                block_id,
+                format!(
+                    "operand-cleared instruction `{}` must declare an explicit stack effect",
+                    inst.mnemonic()
+                ),
+            ));
+        }
         for operand in &inst.operands {
             if !matches!(operand, EvmIrOperand::Value(_)) {
                 return Err(EvmIrVerifyError::in_block(

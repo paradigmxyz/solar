@@ -416,10 +416,8 @@ pub(super) fn default_instruction_stack_effect(inst: &EvmIrInstruction) -> EvmIr
             EvmIrStackEffect::new(0, 1)
         }
         EvmIrInstructionKind::Operation(mnemonic) => {
-            if let Some(opcode) = super::assembler::op::from_mnemonic(mnemonic)
-                && let Some((inputs, outputs)) = super::assembler::op::stack_io(opcode)
-            {
-                EvmIrStackEffect::new(inputs, outputs)
+            if let Some(effect) = opcode_stack_effect(mnemonic) {
+                effect
             } else {
                 EvmIrStackEffect::new(
                     inst.operands.len().try_into().unwrap_or(u16::MAX),
@@ -428,6 +426,12 @@ pub(super) fn default_instruction_stack_effect(inst: &EvmIrInstruction) -> EvmIr
             }
         }
     }
+}
+
+fn opcode_stack_effect(mnemonic: &str) -> Option<EvmIrStackEffect> {
+    let opcode = super::assembler::op::from_mnemonic(mnemonic)?;
+    let (inputs, outputs) = super::assembler::op::stack_io(opcode)?;
+    Some(EvmIrStackEffect::new(inputs, outputs))
 }
 
 fn default_terminator_stack_effect(kind: &EvmIrTerminatorKind) -> EvmIrStackEffect {
