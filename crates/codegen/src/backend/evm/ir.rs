@@ -18,7 +18,7 @@ mod verify;
 
 pub use parse::{EvmIrParseError, parse_evm_ir_module};
 pub use passes::{EVM_IR_PASSES, EvmIrPass};
-pub use verify::{EvmIrVerifyError, verify_evm_ir_module};
+pub use verify::{EvmIrVerifier, verify_evm_ir_module};
 
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.

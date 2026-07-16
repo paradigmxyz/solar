@@ -1,1 +1,5 @@
 error: EVM IR verification failed: block 0: stack on edge to `bb1` is inconsistent: successor declares incoming stack [%cond] but predecessor leaves [%junk]
+  │
+  ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
+          emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC
+

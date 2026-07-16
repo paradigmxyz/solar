@@ -179,13 +179,11 @@ mod round_trip {
                     continue;
                 }
                 let module = lower::lower_contract(gcx, id);
-                let errors = validate_module(&module);
-                if !errors.is_empty() {
+                if validate_module(gcx.dcx(), &module).is_err() {
                     result = Err(format!(
-                        "contract `{}` has {} validation error(s):\n    {}",
+                        "contract `{}` has invalid MIR:\n{}",
                         contract.name,
-                        errors.len(),
-                        errors.iter().map(|e| e.to_string()).collect::<Vec<_>>().join("\n    ")
+                        gcx.dcx().emitted_diagnostics().unwrap()
                     ));
                     return Ok(());
                 }

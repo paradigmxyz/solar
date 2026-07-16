@@ -19,7 +19,7 @@ use solar_codegen::{
     },
 };
 use solar_data_structures::fmt::{self, FmtIteratorExt};
-use solar_interface::{Ident, Session, Symbol};
+use solar_interface::{Ident, Session, Symbol, diagnostics::DiagCtxt};
 use solar_sema::Compiler;
 use std::{ops::ControlFlow, path::Path, process::ExitCode};
 
@@ -128,7 +128,7 @@ fn print_module(module: &Module, name: &str, after: &str) {
 
 /// Runs the pass pipeline on a single module and emits output.
 /// Used for both .sol contracts and .mir input.
-fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) -> Result<(), String> {
+fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) {
     if args.pipeline_default {
         run_default_pipeline_with_options(
             module,
@@ -140,7 +140,7 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) -> Result<()
         if !args.print_after_each {
             print_module(module, name, "pipeline-default");
         }
-        return Ok(());
+        return;
     }
 
     let passes = args.selected_passes();
@@ -160,63 +160,42 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) -> Result<()
         let label = args.pipeline_label(&passes);
         print_module(module, name, &label);
     }
-    Ok(())
 }
 
 /// Process a `.mir` input: read file, parse, run passes, print.
-fn process_mir(args: &MirOptArgs) -> Result<(), String> {
+fn process_mir(args: &MirOptArgs) -> solar_interface::Result {
     let sess = Session::builder().with_stderr_emitter().build();
     let source = sess
         .source_map()
         .load_file(Path::new(&args.input))
-        .map_err(|e| format!("failed to read {}: {e}", args.input))?;
+        .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
     let text = source.src.as_str();
-    let mut result: Result<(), String> = Ok(());
     sess.enter(|| {
-        let mut module = match parse_module(text) {
-            Ok(m) => m,
-            Err(e) => {
-                result = Err(format!("{e}"));
-                return;
-            }
-        };
+        let mut module = parse_module(text).map_err(|e| sess.dcx.err(format!("{e}")).emit())?;
         // Hand-written MIR is untrusted input: reject invalid modules with a
         // diagnostic instead of tripping the post-pass validator ICE.
-        let errors = solar_codegen::analysis::validate_module(&module);
-        if !errors.is_empty() {
-            result = Err(format!(
-                "invalid MIR input:\n{}",
-                errors.iter().map(|e| format!("  {e}")).collect::<Vec<_>>().join("\n")
-            ));
-            return;
-        }
+        solar_codegen::analysis::validate_module(&sess.dcx, &module)?;
         // Use a fixed name for .mir input — the parser interns whatever the
         // file declared (or "module" by default).
         let name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
-        if let Err(e) = run_pipeline(&mut module, &name, args) {
-            result = Err(e);
-        }
-    });
-    result
+        run_pipeline(&mut module, &name, args);
+        Ok(())
+    })
 }
 
 /// Process a `.sol` input: full Solidity → MIR pipeline.
-fn process_sol(args: &MirOptArgs) -> Result<(), String> {
+fn process_sol(args: &MirOptArgs) -> solar_interface::Result {
     let sess = Session::builder().with_stderr_emitter().build();
     let mut compiler = Compiler::new(sess);
 
-    let parse_result = compiler.enter_mut(|c| -> solar_interface::Result<_> {
+    compiler.enter_mut(|c| -> solar_interface::Result<_> {
         let mut pcx = c.parse();
         pcx.load_files([Path::new(&args.input)])?;
         pcx.parse();
         Ok(())
-    });
-    if parse_result.is_err() {
-        return Err("parse error".into());
-    }
+    })?;
 
-    let mut pipeline_err: Option<String> = None;
-    let result = compiler.enter_mut(|c| -> solar_interface::Result<_> {
+    compiler.enter_mut(|c| -> solar_interface::Result<_> {
         let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
         let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
 
@@ -228,21 +207,11 @@ fn process_sol(args: &MirOptArgs) -> Result<(), String> {
             }
             let mut module = lower::lower_contract(gcx, id);
             let name = gcx.contract_fully_qualified_name(id).to_string();
-            if let Err(e) = run_pipeline(&mut module, &name, args) {
-                pipeline_err = Some(e);
-                break;
-            }
+            run_pipeline(&mut module, &name, args);
         }
         Ok(())
-    });
-
-    if let Some(e) = pipeline_err {
-        return Err(e);
-    }
-    if result.is_err() || compiler.sess().emitted_errors().is_some_and(|r| r.is_err()) {
-        return Err("compilation failed".into());
-    }
-    Ok(())
+    })?;
+    compiler.sess().dcx.has_errors()
 }
 
 /// Entry point for the `mir-opt` subcommand.
@@ -252,14 +221,13 @@ pub(super) fn run(args: MirOptArgs) -> ExitCode {
     let result = match ext {
         "sol" => process_sol(&args),
         "mir" => process_mir(&args),
-        _ => Err(format!("unsupported input file extension `.{ext}` (expected .sol or .mir)")),
+        _ => {
+            let dcx = DiagCtxt::new_early();
+            Err(dcx
+                .err(format!("unsupported input file extension `.{ext}` (expected .sol or .mir)"))
+                .emit())
+        }
     };
 
-    match result {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
-            eprintln!("error: {e}");
-            ExitCode::FAILURE
-        }
-    }
+    if result.is_ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE }
 }

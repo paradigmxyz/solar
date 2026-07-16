@@ -1,1 +1,5 @@
 error: EVM IR verification failed: block 0: `swap2` reaches depth 2 but the stack has 2
+  │
+  ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
+          emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC
+

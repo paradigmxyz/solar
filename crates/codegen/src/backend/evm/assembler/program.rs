@@ -8,6 +8,7 @@ use crate::backend::evm::ir::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::map::FxHashSet;
+use solar_interface::diagnostics::DiagCtxt;
 
 const OP_PREFIX: &str = "op_";
 const PUSH_MNEMONIC: &str = "push";
@@ -131,7 +132,7 @@ impl StructuredAsmProgram {
             return 0;
         };
 
-        debug_assert!(verify_evm_ir_module(&module).is_ok());
+        debug_assert!(is_valid_evm_ir(&module));
         let mut changed = 0;
 
         if context.run_evm_ir_stack_schedule() {
@@ -142,7 +143,7 @@ impl StructuredAsmProgram {
             // unexpected rewrite is dropped instead of changing produced code.
             let mut scheduled = module.clone();
             if EvmIrPass::StackSchedule.run(&mut scheduled)
-                && verify_evm_ir_module(&scheduled).is_ok()
+                && is_valid_evm_ir(&scheduled)
                 && modules_have_equal_code(&module, &scheduled)
             {
                 module = scheduled;
@@ -155,7 +156,7 @@ impl StructuredAsmProgram {
                 changed += usize::from(pass.run(&mut module));
             }
         }
-        debug_assert!(verify_evm_ir_module(&module).is_ok());
+        debug_assert!(is_valid_evm_ir(&module));
 
         *self = Self::from_evm_ir_module(&module, &mut labels, context);
         changed
@@ -451,6 +452,11 @@ fn modules_have_equal_code(before: &EvmIrModule, after: &EvmIrModule) -> bool {
                 && a.instructions == b.instructions
                 && a.terminator == b.terminator
         })
+}
+
+fn is_valid_evm_ir(module: &EvmIrModule) -> bool {
+    let dcx = DiagCtxt::with_silent_emitter(None);
+    verify_evm_ir_module(&dcx, module).is_ok()
 }
 
 fn push_instruction(operand: EvmIrOperand) -> EvmIrInstruction {
