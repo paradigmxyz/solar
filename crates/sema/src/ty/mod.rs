@@ -542,6 +542,16 @@ impl<'gcx> Gcx<'gcx> {
         self.typeck_results.get()?.resolved_member(id)
     }
 
+    /// Resolves every segment of a source path in its source and contract scopes.
+    pub fn source_path_resolutions(
+        self,
+        segments: &[Ident],
+        source: hir::SourceId,
+        contract: Option<hir::ContractId>,
+    ) -> Option<Vec<Vec<hir::Res>>> {
+        self.symbol_resolver.source_path_resolutions(segments, source, contract)
+    }
+
     /// Returns the selected builtin target for a non-call member access expression, if available.
     #[inline]
     pub fn builtin_member(self, id: hir::ExprId) -> Option<Builtin> {

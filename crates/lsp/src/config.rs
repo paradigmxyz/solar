@@ -27,6 +27,7 @@ pub(crate) struct Config {
     flycheck_options: FlycheckInitializationOptions,
     flychecks: Vec<FlycheckConfig>,
     watched_file_dynamic_registration: bool,
+    workspace_edit_document_changes: bool,
     hierarchical_document_symbol_support: bool,
     signature_help: SignatureHelpClientOptions,
 }
@@ -41,6 +42,10 @@ pub(crate) struct SignatureHelpClientOptions {
 impl Config {
     pub(crate) fn supports_watched_file_dynamic_registration(&self) -> bool {
         self.watched_file_dynamic_registration
+    }
+
+    pub(crate) fn supports_workspace_edit_document_changes(&self) -> bool {
+        self.workspace_edit_document_changes
     }
 
     pub(crate) fn supports_hierarchical_document_symbols(&self) -> bool {
@@ -170,8 +175,15 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
     // `root_uri`.
     let watched_file_dynamic_registration = capabilities
         .workspace
-        .and_then(|workspace| workspace.did_change_watched_files)
+        .as_ref()
+        .and_then(|workspace| workspace.did_change_watched_files.as_ref())
         .and_then(|capabilities| capabilities.dynamic_registration)
+        .unwrap_or(false);
+    let workspace_edit_document_changes = capabilities
+        .workspace
+        .as_ref()
+        .and_then(|workspace| workspace.workspace_edit.as_ref())
+        .and_then(|capabilities| capabilities.document_changes)
         .unwrap_or(false);
     let hierarchical_document_symbol_support = capabilities
         .text_document
@@ -248,6 +260,7 @@ pub(crate) fn negotiate_capabilities(params: InitializeParams) -> (ServerCapabil
             workspace_roots,
             flycheck_options,
             watched_file_dynamic_registration,
+            workspace_edit_document_changes,
             hierarchical_document_symbol_support,
             signature_help,
             ..Default::default()
@@ -263,7 +276,7 @@ mod tests {
         DidChangeWatchedFilesClientCapabilities, DocumentSymbolClientCapabilities, MarkupKind,
         OneOf, ParameterInformationSettings, RenameOptions, SignatureHelpClientCapabilities,
         SignatureInformationSettings, TextDocumentClientCapabilities, TextDocumentSyncCapability,
-        TextDocumentSyncSaveOptions, WorkspaceClientCapabilities,
+        TextDocumentSyncSaveOptions, WorkspaceClientCapabilities, WorkspaceEditClientCapabilities,
     };
 
     #[test]
@@ -283,6 +296,25 @@ mod tests {
         let (_, config) = negotiate_capabilities(params);
 
         assert!(config.supports_watched_file_dynamic_registration());
+    }
+
+    #[test]
+    fn negotiate_capabilities_records_document_changes_support() {
+        let (_, config) = negotiate_capabilities(InitializeParams::default());
+        assert!(!config.supports_workspace_edit_document_changes());
+
+        let mut params = InitializeParams::default();
+        params.capabilities.workspace = Some(WorkspaceClientCapabilities {
+            workspace_edit: Some(WorkspaceEditClientCapabilities {
+                document_changes: Some(true),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let (_, config) = negotiate_capabilities(params);
+
+        assert!(config.supports_workspace_edit_document_changes());
     }
 
     #[test]

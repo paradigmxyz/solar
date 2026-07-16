@@ -20,7 +20,11 @@ pub(crate) fn did_open_text_document(
         }
 
         let mut vfs = state.vfs.write();
-        vfs.set_file_contents(path, Some(Rope::from(params.text_document.text)));
+        vfs.set_file_contents_with_version(
+            path,
+            Some(Rope::from(params.text_document.text)),
+            Some(params.text_document.version),
+        );
         if vfs.mark_clean() {
             drop(vfs);
             state.recompute();
@@ -46,8 +50,12 @@ pub(crate) fn did_change_text_document(
             (contents != &new_contents, new_contents)
         };
 
+        state.vfs.write().set_file_contents_with_version(
+            path,
+            Some(new_contents),
+            Some(params.text_document.version),
+        );
         if changed {
-            state.vfs.write().set_file_contents(path, Some(new_contents));
             state.recompute();
         }
     }

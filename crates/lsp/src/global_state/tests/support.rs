@@ -92,6 +92,15 @@ impl RequestFixture {
         self.marked.project().read_file(path)
     }
 
+    pub(super) fn rename_state_and_params(
+        &self,
+        marker: &str,
+        new_name: &str,
+    ) -> (GlobalState, RenameParams) {
+        let (uri, position) = self.marker_location(marker);
+        (self.state(), rename_params(uri, position, new_name))
+    }
+
     pub(super) fn check_completion(&self, marker: &str, expected: impl IntoData) {
         let mut state = self.state();
         let (uri, position) = self.marker_location(marker);

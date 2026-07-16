@@ -1,6 +1,18 @@
 use super::support::RequestFixture;
+use crate::{config::negotiate_capabilities, global_state::GlobalState};
 use async_lsp::ErrorCode;
+use lsp_types::{
+    DidChangeTextDocumentParams, DocumentChanges, InitializeParams, TextDocumentContentChangeEvent,
+    Url, VersionedTextDocumentIdentifier, WorkspaceClientCapabilities,
+    WorkspaceEditClientCapabilities,
+};
 use snapbox::str;
+use std::{
+    future::Future,
+    sync::{Arc, mpsc},
+    task::{Context, Poll, Wake, Waker},
+    time::Duration,
+};
 
 #[test]
 fn prepares_and_renames_a_state_variable() {
@@ -421,6 +433,27 @@ fn renames_qualified_type_components_and_bases() {
 
 "#]],
     );
+}
+
+#[test]
+fn renames_inherited_qualified_type_components() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /InheritedQualifier.sol
+        contract Base { struct S { uint256 field; } }
+        contract $1Child is Base {}
+        contract Use { $2Child.S value; }
+        "#,
+        "/InheritedQualifier.sol",
+    );
+
+    let expected = str![[r#"
+/InheritedQualifier.sol:1:9-1:14 -> Renamed
+/InheritedQualifier.sol:2:15-2:20 -> Renamed
+
+"#]];
+    fixture.check_rename("$1", "Renamed", expected.clone());
+    fixture.check_rename("$2", "Renamed", expected);
 }
 
 #[test]
@@ -903,6 +936,70 @@ fn rejects_stale_disk_and_vfs_contents() {
 }
 
 #[test]
+fn in_flight_rename_response_keeps_the_validated_version() {
+    let fixture = RequestFixture::new(
+        r#"
+        //- /Race.sol open
+        contract C { uint256 $1value; }
+        "#,
+        "/Race.sol",
+    );
+    let contents = fixture.project_contents("/Race.sol");
+    let (mut state, params) = fixture.rename_state_and_params("$1", "renamed");
+    let uri = params.text_document_position.text_document.uri.clone();
+    let path = crate::proto::vfs_path(&uri).unwrap();
+
+    let mut initialize = InitializeParams::default();
+    initialize.capabilities.workspace = Some(WorkspaceClientCapabilities {
+        workspace_edit: Some(WorkspaceEditClientCapabilities {
+            document_changes: Some(true),
+            ..Default::default()
+        }),
+        ..Default::default()
+    });
+    let (_, config) = negotiate_capabilities(initialize);
+    state.config = Arc::new(config);
+    assert!(state.config.supports_workspace_edit_document_changes());
+
+    set_document_contents(&mut state, uri.clone(), 7, &contents);
+    assert_eq!(state.vfs.read().get_file_version(&path), Some(7));
+
+    let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+    let entered = runtime.enter();
+    let mut rename = Box::pin(crate::handlers::rename(&mut state, params));
+    let vfs = Arc::clone(&state.vfs);
+    let vfs_guard = vfs.write();
+    let (wake_tx, wake_rx) = mpsc::channel();
+    let waker = Waker::from(Arc::new(CompletionWaker(wake_tx)));
+    let mut context = Context::from_waker(&waker);
+
+    assert!(rename.as_mut().poll(&mut context).is_pending());
+    assert_eq!(wake_rx.try_recv(), Err(mpsc::TryRecvError::Empty));
+    drop(vfs_guard);
+    wake_rx.recv_timeout(Duration::from_secs(5)).expect("rename validation task should complete");
+
+    let changed_contents = format!("// changed while rename was in flight\n{contents}");
+    set_document_contents(&mut state, uri.clone(), 8, &changed_contents);
+    assert_eq!(state.vfs.read().get_file_version(&path), Some(8));
+
+    let Poll::Ready(response) = rename.as_mut().poll(&mut context) else {
+        panic!("completed rename task should make the handler ready");
+    };
+    let edit = response.unwrap().unwrap();
+    assert!(edit.changes.is_none());
+    let Some(DocumentChanges::Edits(edits)) = edit.document_changes else {
+        panic!("expected versioned document edits");
+    };
+    assert_eq!(edits.len(), 1);
+    assert_eq!(edits[0].text_document.uri, uri);
+    assert_eq!(edits[0].text_document.version, Some(7));
+
+    drop(rename);
+    drop(entered);
+    drop(runtime);
+}
+
+#[test]
 fn validates_and_edits_utf16_ranges() {
     let fixture = RequestFixture::new(
         r#"
@@ -1175,4 +1272,31 @@ fn renames_solidity_variables_but_not_yul_locals_in_inline_assembly() {
     fixture.check_rename("$3", "renamed", "<none>\n");
     fixture.check_rename_error("$1", "leave", ErrorCode::INVALID_PARAMS);
     fixture.check_rename_error("$2", "add", ErrorCode::INVALID_PARAMS);
+}
+
+struct CompletionWaker(mpsc::Sender<()>);
+
+impl Wake for CompletionWaker {
+    fn wake(self: Arc<Self>) {
+        self.wake_by_ref();
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        let _ = self.0.send(());
+    }
+}
+
+fn set_document_contents(state: &mut GlobalState, uri: Url, version: i32, text: &str) {
+    let result = crate::handlers::did_change_text_document(
+        state,
+        DidChangeTextDocumentParams {
+            text_document: VersionedTextDocumentIdentifier::new(uri, version),
+            content_changes: vec![TextDocumentContentChangeEvent {
+                range: None,
+                range_length: None,
+                text: text.into(),
+            }],
+        },
+    );
+    assert!(matches!(result, std::ops::ControlFlow::Continue(())));
 }

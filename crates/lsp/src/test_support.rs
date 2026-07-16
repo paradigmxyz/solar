@@ -134,7 +134,11 @@ impl TestProject {
     pub(crate) fn vfs(&self) -> Vfs {
         let mut vfs = Vfs::default();
         for (path, contents) in &self.open_files {
-            vfs.set_file_contents(VfsPath::from(path.clone()), Some(Rope::from(contents.as_str())));
+            vfs.set_file_contents_with_version(
+                VfsPath::from(path.clone()),
+                Some(Rope::from(contents.as_str())),
+                Some(0),
+            );
         }
         vfs
     }

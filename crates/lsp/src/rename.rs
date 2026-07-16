@@ -105,6 +105,15 @@ pub(crate) struct MappingBindings {
     params: FxHashMap<VariableId, MappingNameId>,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct RenameReferenceContext<'a> {
+    pub(crate) bindings: &'a ImportBindings,
+    pub(crate) source: hir::SourceId,
+    pub(crate) contract: Option<hir::ContractId>,
+    pub(crate) item_symbols: &'a FxHashMap<ItemId, SymbolId>,
+    pub(crate) declarations: &'a IndexVec<SymbolId, DeclarationSymbol>,
+}
+
 impl RenameIndex {
     pub(crate) fn record_source_contents(&mut self, gcx: Gcx<'_>) {
         for file in gcx.sess.source_map().files().iter() {
@@ -276,11 +285,15 @@ impl RenameIndex {
                         };
                         self.push_path_occurrences(
                             gcx,
-                            bindings,
-                            item.source(),
+                            RenameReferenceContext {
+                                bindings,
+                                source: item.source(),
+                                contract: item.contract(),
+                                item_symbols,
+                                declarations,
+                            },
                             contract.span,
                             &[symbol_id],
-                            declarations,
                         );
                     }
                     _ => {}
@@ -320,11 +333,9 @@ impl RenameIndex {
     pub(crate) fn push_symbol_reference(
         &mut self,
         gcx: Gcx<'_>,
-        bindings: &ImportBindings,
-        source: hir::SourceId,
+        context: RenameReferenceContext<'_>,
         span: Span,
         symbols: &[SymbolId],
-        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
     ) {
         let symbols = symbols
             .iter()
@@ -334,7 +345,7 @@ impl RenameIndex {
         if symbols.is_empty() {
             return;
         }
-        self.push_path_occurrences(gcx, bindings, source, span, &symbols, declarations);
+        self.push_path_occurrences(gcx, context, span, &symbols);
     }
 
     pub(crate) fn mark_yul_symbols(&mut self, symbols: &[SymbolId]) {
@@ -365,11 +376,15 @@ impl RenameIndex {
                 };
                 self.push_path_occurrences(
                     gcx,
-                    bindings,
-                    function.source,
+                    RenameReferenceContext {
+                        bindings,
+                        source: function.source,
+                        contract: function.contract,
+                        item_symbols,
+                        declarations,
+                    },
                     path_span(path),
                     &[symbol_id],
-                    declarations,
                 );
             }
         }
@@ -388,11 +403,15 @@ impl RenameIndex {
                 };
                 self.push_path_occurrences(
                     gcx,
-                    bindings,
-                    variable.source,
+                    RenameReferenceContext {
+                        bindings,
+                        source: variable.source,
+                        contract: variable.contract,
+                        item_symbols,
+                        declarations,
+                    },
                     path_span(path),
                     &[symbol_id],
-                    declarations,
                 );
             }
         }
@@ -661,67 +680,69 @@ impl RenameIndex {
     fn push_path_occurrences(
         &mut self,
         gcx: Gcx<'_>,
-        bindings: &ImportBindings,
-        source: hir::SourceId,
+        context: RenameReferenceContext<'_>,
         span: Span,
         symbols: &[SymbolId],
-        declarations: &IndexVec<SymbolId, DeclarationSymbol>,
     ) {
-        let mut identifiers = identifiers_in_span(gcx, span);
-        let Some(final_ident) = identifiers.pop() else { return };
+        let identifiers = identifiers_in_span(gcx, span);
+        let Some((&final_ident, qualifiers)) = identifiers.split_last() else { return };
         let final_targets = symbols
             .iter()
             .filter_map(|&symbol_id| {
-                target_for_ident(bindings, source, symbol_id, final_ident, declarations)
+                target_for_ident(
+                    context.bindings,
+                    context.source,
+                    symbol_id,
+                    final_ident,
+                    context.declarations,
+                )
             })
             .collect::<Vec<_>>();
         if final_targets.is_empty() {
             return;
         }
         self.push_span_occurrence(gcx, final_ident.span, final_targets);
-        if identifiers.is_empty() {
+        if qualifiers.is_empty() {
             return;
         }
 
-        let mut current_symbols = symbols.to_vec();
-        for ident in identifiers.into_iter().rev() {
-            let mut parents = current_symbols
-                .iter()
-                .filter_map(|&symbol_id| declarations[symbol_id].parent)
-                .collect::<Vec<_>>();
-            parents.sort_unstable();
-            parents.dedup();
-
-            let parent_targets = parents
-                .iter()
-                .filter_map(|&symbol_id| {
-                    target_for_ident(bindings, source, symbol_id, ident, declarations)
+        let Some(resolutions) =
+            gcx.source_path_resolutions(&identifiers, context.source, context.contract)
+        else {
+            return;
+        };
+        for (&ident, resolutions) in qualifiers.iter().zip(resolutions) {
+            let targets = resolutions
+                .into_iter()
+                .filter_map(|resolution| match resolution {
+                    hir::Res::Item(item_id) => context
+                        .item_symbols
+                        .get(&item_id)
+                        .copied()
+                        .filter(|symbol_id| self.symbol_targets.contains(symbol_id))
+                        .and_then(|symbol_id| {
+                            target_for_ident(
+                                context.bindings,
+                                context.source,
+                                symbol_id,
+                                ident,
+                                context.declarations,
+                            )
+                        }),
+                    hir::Res::Namespace(namespace) => context
+                        .bindings
+                        .aliases
+                        .get(&ImportBindingKey {
+                            source: context.source,
+                            resolution: ImportBindingResolution::Namespace(namespace),
+                            name: ident.name,
+                        })
+                        .copied()
+                        .map(RenameTarget::ImportAlias),
+                    hir::Res::Builtin(_) | hir::Res::Err(_) => None,
                 })
-                .collect::<Vec<_>>();
-            if !parent_targets.is_empty() {
-                self.push_span_occurrence(gcx, ident.span, parent_targets);
-                current_symbols = parents;
-                continue;
-            }
-
-            let namespace_targets = current_symbols
-                .iter()
-                .filter_map(|symbol_id| bindings.symbol_sources.get(symbol_id))
-                .filter_map(|&namespace| {
-                    bindings.aliases.get(&ImportBindingKey {
-                        source,
-                        resolution: ImportBindingResolution::Namespace(namespace),
-                        name: ident.name,
-                    })
-                })
-                .copied()
-                .map(RenameTarget::ImportAlias)
-                .collect::<Vec<_>>();
-            if namespace_targets.is_empty() {
-                break;
-            }
-            self.push_span_occurrence(gcx, ident.span, namespace_targets);
-            break;
+                .collect();
+            self.push_span_occurrence(gcx, ident.span, targets);
         }
     }
 

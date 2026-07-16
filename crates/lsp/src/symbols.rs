@@ -25,7 +25,9 @@ use std::ops::ControlFlow;
 use crate::{
     inlay_hints::InlayHintIndex,
     proto,
-    rename::{ImportBindings, MappingBindings, RenameCandidate, RenameIndex},
+    rename::{
+        ImportBindings, MappingBindings, RenameCandidate, RenameIndex, RenameReferenceContext,
+    },
     signature_help::SignatureHelpIndex,
 };
 
@@ -1354,11 +1356,15 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
             }
             self.tables.rename.push_symbol_reference(
                 self.gcx,
-                self.bindings,
-                source,
+                RenameReferenceContext {
+                    bindings: self.bindings,
+                    source,
+                    contract: self.contract,
+                    item_symbols: self.item_symbols,
+                    declarations: &self.tables.declarations,
+                },
                 span,
                 &targets,
-                &self.tables.declarations,
             );
         }
         if targets.is_empty() {
