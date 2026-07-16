@@ -232,7 +232,7 @@ impl ModelStack {
 /// Simulates each block's stack and checks cross-block edge consistency.
 ///
 /// For every block we start from its declared `entry_stack` (top first), apply
-/// each instruction's stack effect to a [`ModelStack`] of word identities, apply
+/// each instruction's stack effect to a `ModelStack` of word identities, apply
 /// the terminator's effect, and record the resulting exit stack. Physical stack
 /// ops (`dupN`/`swapN`/`pop`) are applied precisely; on the entry block (which
 /// has no implicit floor) underflows and out-of-range depths are rejected.
