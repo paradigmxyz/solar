@@ -259,7 +259,7 @@ impl LoadPreCostModel {
 struct Analysis {
     keys: Vec<LoadKey>,
     key_index: FxHashMap<LoadKey, usize>,
-    reachable: DenseBitSet<BlockId>,
+    cfg: CfgInfo,
     /// Per-block keys killed at any point in the block; only blocks that kill
     /// something have an entry.
     kills: FxHashMap<BlockId, KeySet>,
@@ -267,10 +267,6 @@ struct Analysis {
     ins: FxHashMap<BlockId, KeySet>,
     /// Availability at block exit.
     outs: FxHashMap<BlockId, KeySet>,
-    /// CFG path reachability for the value-location purity check; empty when
-    /// no block kills any key.
-    reach: FxHashMap<BlockId, DenseBitSet<BlockId>>,
-    dominators: DominatorTree,
     inst_results: FxHashMap<InstId, ValueId>,
     inst_blocks: FxHashMap<InstId, BlockId>,
 }
@@ -282,13 +278,14 @@ impl Analysis {
         if self.kills.is_empty() {
             return false;
         }
-        let Some(reachable_from) = self.reach.get(&from) else { return true };
+        let Some(reach) = self.cfg.cached_transitive_reachability() else { return true };
+        let Some(reachable_from) = reach.get(&from) else { return true };
         for (&mid, kills) in &self.kills {
             if mid == from || !kills.contains(key_idx) {
                 continue;
             }
             if reachable_from.contains(mid)
-                && self.reach.get(&mid).is_some_and(|reach| reach.contains(to))
+                && reach.get(&mid).is_some_and(|reachable| reachable.contains(to))
             {
                 return true;
             }
@@ -451,21 +448,17 @@ impl LoadRedundancyEliminator {
             }
         }
 
-        let reach = if kills.is_empty() {
-            FxHashMap::default()
-        } else {
-            cfg.transitive_reachability().clone()
-        };
+        if !kills.is_empty() {
+            cfg.transitive_reachability();
+        }
 
         Some(Analysis {
             keys,
             key_index,
-            reachable: cfg.reachable().clone(),
+            cfg,
             kills,
             ins,
             outs,
-            reach,
-            dominators: cfg.dominators().clone(),
             inst_results: func.inst_results(),
             inst_blocks: func.inst_blocks(),
         })
@@ -486,12 +479,12 @@ impl LoadRedundancyEliminator {
         let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
 
         'targets: for target in func.blocks.indices() {
-            if !cx.analysis.reachable.contains(target) {
+            if !cx.analysis.cfg.is_reachable(target) {
                 continue;
             }
             let predecessors = func.unique_predecessors(target);
             if predecessors.len() < 2
-                || predecessors.iter().any(|&pred| !cx.analysis.reachable.contains(pred))
+                || predecessors.iter().any(|&pred| !cx.analysis.cfg.is_reachable(pred))
             {
                 continue;
             }
@@ -685,8 +678,12 @@ impl LoadRedundancyEliminator {
             insertions.push(pred);
         }
 
-        let loop_carried =
-            Self::is_loop_carried_rewrite(&cx.analysis.dominators, target, &incoming, &insertions);
+        let loop_carried = Self::is_loop_carried_rewrite(
+            cx.analysis.cfg.dominators(),
+            target,
+            &incoming,
+            &insertions,
+        );
         let needs_phi = !insertions.is_empty()
             || incoming.first().is_none_or(|&(_, first)| {
                 first == result || incoming.iter().any(|&(_, value)| value != first)
@@ -711,10 +708,12 @@ impl LoadRedundancyEliminator {
             // by `LoadPreCostModel` above.
             let loop_insertion = incoming
                 .iter()
-                .all(|&(pred, _)| cx.analysis.dominators.dominates(target, pred))
-                && insertions.iter().all(|&pred| !cx.analysis.dominators.dominates(target, pred));
+                .all(|&(pred, _)| cx.analysis.cfg.dominators().dominates(target, pred))
+                && insertions
+                    .iter()
+                    .all(|&pred| !cx.analysis.cfg.dominators().dominates(target, pred));
             let diamond_insertion = Self::is_non_cyclic_diamond_insertion(
-                &cx.analysis.dominators,
+                cx.analysis.cfg.dominators(),
                 target,
                 &incoming,
                 &insertions,
@@ -810,7 +809,7 @@ impl LoadRedundancyEliminator {
         if !cx.analysis.ins.get(&block).is_some_and(|in_set| in_set.contains(key_idx)) {
             return None;
         }
-        let idom = cx.analysis.dominators.idom(block)?;
+        let idom = cx.analysis.cfg.dominators().idom(block)?;
         if idom == block {
             return None;
         }
@@ -1067,7 +1066,7 @@ impl LoadRedundancyEliminator {
             Value::Inst(inst_id) => analysis
                 .inst_blocks
                 .get(inst_id)
-                .is_some_and(|def_block| analysis.dominators.dominates(*def_block, block)),
+                .is_some_and(|def_block| analysis.cfg.dominators().dominates(*def_block, block)),
         })
     }
 

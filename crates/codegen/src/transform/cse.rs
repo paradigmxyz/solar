@@ -190,13 +190,18 @@ impl CommonSubexprEliminator {
     /// Runs CSE on a function.
     /// Returns the number of expressions eliminated.
     pub fn run(&mut self, func: &mut Function) -> usize {
+        let mut cfg = CfgInfo::new(func);
+        self.run_with_cfg(func, &mut cfg)
+    }
+
+    fn run_with_cfg(&mut self, func: &mut Function, cfg: &mut CfgInfo) -> usize {
         self.eliminated_count = 0;
 
-        self.sink_redundant_phi_expressions(func);
+        self.sink_redundant_phi_expressions(func, cfg);
 
         // Neither the global nor the local pass allocates values, so the map stays valid.
         let inst_results = func.inst_results();
-        self.process_global_pure(func, &inst_results);
+        self.process_global_pure(func, &inst_results, cfg);
 
         // Process each block independently (local CSE)
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
@@ -210,8 +215,9 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
+        let mut cfg = CfgInfo::new(func);
         loop {
-            let eliminated = self.run(func);
+            let eliminated = self.run_with_cfg(func, &mut cfg);
             if eliminated == 0 {
                 break;
             }
@@ -224,27 +230,37 @@ impl CommonSubexprEliminator {
         &mut self,
         func: &mut Function,
         inst_results: &FxHashMap<InstId, ValueId>,
+        cfg: &mut CfgInfo,
     ) {
-        let mut cfg = CfgInfo::new(func);
-        let block_clobbers = self.block_clobber_summaries(func);
-        let reachability = if block_clobbers.is_empty() {
-            FxHashMap::default()
+        let has_path_sensitive_expr = func.blocks.iter().any(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|&inst_id| Self::is_path_sensitive_kind(&func.instructions[inst_id].kind))
+        });
+        let block_clobbers = if has_path_sensitive_expr {
+            self.block_clobber_summaries(func)
         } else {
-            cfg.transitive_reachability().clone()
+            FxHashMap::default()
+        };
+        let empty_reachability = FxHashMap::default();
+        let (dom_tree, reachability) = if block_clobbers.is_empty() {
+            (cfg.dominators(), &empty_reachability)
+        } else {
+            cfg.dominators_and_transitive_reachability()
         };
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.instructions.len());
-        let mut cache = FxHashMap::default();
         let mut ctx = GlobalCseContext {
-            dom_tree: cfg.dominators(),
+            dom_tree,
             inst_results,
             block_clobbers: &block_clobbers,
-            reachability: &reachability,
+            reachability,
             replacements: &mut replacements,
             dead: &mut dead,
         };
 
-        self.process_global_block(func, func.entry_block, &mut cache, &mut ctx);
+        self.process_global_blocks(func, &mut ctx);
 
         if !replacements.is_empty() {
             self.apply_replacements_to_all_blocks(func, &replacements);
@@ -256,8 +272,7 @@ impl CommonSubexprEliminator {
         }
     }
 
-    fn sink_redundant_phi_expressions(&mut self, func: &mut Function) {
-        let cfg = CfgInfo::new(func);
+    fn sink_redundant_phi_expressions(&mut self, func: &mut Function, cfg: &CfgInfo) {
         let inst_results = func.inst_results();
         let inst_blocks = func.inst_blocks();
         let use_counts = Self::value_use_counts(func);
@@ -380,40 +395,50 @@ impl CommonSubexprEliminator {
         })
     }
 
-    fn process_global_block(
-        &mut self,
-        func: &Function,
-        block_id: BlockId,
-        cache: &mut FxHashMap<ExprKey, ValueId>,
-        ctx: &mut GlobalCseContext<'_>,
-    ) {
-        for &inst_id in &func.blocks[block_id].instructions {
-            let kind = func.instructions[inst_id].kind.clone();
-            if kind.has_side_effects() {
-                self.invalidate_for_side_effect(func, inst_id, &kind, ctx.replacements, cache);
-                continue;
+    fn process_global_blocks(&mut self, func: &Function, ctx: &mut GlobalCseContext<'_>) {
+        let mut worklist = vec![(func.entry_block, FxHashMap::default())];
+        while let Some((block_id, mut cache)) = worklist.pop() {
+            for &inst_id in &func.blocks[block_id].instructions {
+                let kind = func.instructions[inst_id].kind.clone();
+                if kind.has_side_effects() {
+                    self.invalidate_for_side_effect(
+                        func,
+                        inst_id,
+                        &kind,
+                        ctx.replacements,
+                        &mut cache,
+                    );
+                    continue;
+                }
+
+                let Some(key) = self.make_expr_key(func, inst_id, &kind, ctx.replacements) else {
+                    continue;
+                };
+
+                let Some(&result) = ctx.inst_results.get(&inst_id) else {
+                    continue;
+                };
+                if let Some(cached) = cache.get(&key) {
+                    ctx.replacements.insert(result, *cached);
+                    ctx.dead.insert(inst_id);
+                    self.eliminated_count += 1;
+                } else {
+                    cache.insert(key, result);
+                }
             }
 
-            let Some(key) = self.make_expr_key(func, inst_id, &kind, ctx.replacements) else {
+            let Some((&first_child, remaining_children)) =
+                ctx.dom_tree.children(block_id).split_first()
+            else {
                 continue;
             };
-
-            let Some(&result) = ctx.inst_results.get(&inst_id) else {
-                continue;
-            };
-            if let Some(cached) = cache.get(&key) {
-                ctx.replacements.insert(result, *cached);
-                ctx.dead.insert(inst_id);
-                self.eliminated_count += 1;
-            } else {
-                cache.insert(key, result);
+            for &child in remaining_children.iter().rev() {
+                let mut child_cache = cache.clone();
+                self.filter_inherited_cache(block_id, child, &mut child_cache, ctx);
+                worklist.push((child, child_cache));
             }
-        }
-
-        for &child in ctx.dom_tree.children(block_id) {
-            let mut child_cache = cache.clone();
-            self.filter_inherited_cache(block_id, child, &mut child_cache, ctx);
-            self.process_global_block(func, child, &mut child_cache, ctx);
+            self.filter_inherited_cache(block_id, first_child, &mut cache, ctx);
+            worklist.push((first_child, cache));
         }
     }
 
@@ -473,6 +498,21 @@ impl CommonSubexprEliminator {
         Self::is_memory_expr(key)
             || Self::is_account_environment_expr(key)
             || matches!(key, ExprKey::SLoad(_) | ExprKey::TLoad(_))
+    }
+
+    fn is_path_sensitive_kind(kind: &InstKind) -> bool {
+        matches!(
+            kind,
+            InstKind::MLoad(_)
+                | InstKind::Keccak256(_, _)
+                | InstKind::MappingSlotMemory(_, _)
+                | InstKind::SLoad(_)
+                | InstKind::TLoad(_)
+                | InstKind::ExtCodeSize(_)
+                | InstKind::ExtCodeHash(_)
+                | InstKind::Balance(_)
+                | InstKind::SelfBalance
+        )
     }
 
     /// Processes a single basic block.

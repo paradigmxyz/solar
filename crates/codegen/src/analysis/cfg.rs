@@ -66,6 +66,21 @@ impl CfgInfo {
     pub fn transitive_reachability(&mut self) -> &FxHashMap<BlockId, DenseBitSet<BlockId>> {
         self.reachability.get_or_insert_with(|| compute_transitive_reachability(&self.successors))
     }
+
+    /// Returns dominator and transitive-reachability facts without cloning either analysis.
+    pub fn dominators_and_transitive_reachability(
+        &mut self,
+    ) -> (&DominatorTree, &FxHashMap<BlockId, DenseBitSet<BlockId>>) {
+        self.reachability.get_or_insert_with(|| compute_transitive_reachability(&self.successors));
+        (&self.dominators, self.reachability.as_ref().unwrap())
+    }
+
+    /// Returns transitive reachability if it has already been requested.
+    pub fn cached_transitive_reachability(
+        &self,
+    ) -> Option<&FxHashMap<BlockId, DenseBitSet<BlockId>>> {
+        self.reachability.as_ref()
+    }
 }
 
 /// Returns the blocks reachable from the function entry without computing
