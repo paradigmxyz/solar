@@ -15,7 +15,10 @@ use crate::{
     pass::FunctionPass,
 };
 use alloy_primitives::{U256, keccak256};
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Local dead memory optimization pass.
 #[derive(Debug, Default)]
@@ -211,7 +214,7 @@ impl MemoryStoreEliminator {
         }
 
         // Collect dead stores using the stabilized live-out of each block.
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
         for &block_id in &block_ids {
             let out = Self::live_out(func, block_id, &live_in);
             let mut collector = Some(&mut dead);
@@ -221,9 +224,9 @@ impl MemoryStoreEliminator {
         if dead.is_empty() {
             return;
         }
-        self.eliminated_count += dead.len();
+        self.eliminated_count += dead.count();
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|id| !dead.contains(id));
+            block.instructions.retain(|&id| !dead.contains(id));
         }
     }
 
@@ -246,7 +249,7 @@ impl MemoryStoreEliminator {
         func: &Function,
         block: BlockId,
         mut live: MemLive,
-        dead: &mut Option<&mut FxHashSet<InstId>>,
+        dead: &mut Option<&mut DenseBitSet<InstId>>,
     ) -> MemLive {
         // Terminator first: it executes after every instruction in the block.
         match func.blocks[block].terminator.as_ref() {
@@ -388,7 +391,7 @@ impl MemoryStoreEliminator {
         let cfg = CfgInfo::new(func);
         let mut cached: FxHashMap<ImmutableCopyKey, CachedImmutableCopy> = FxHashMap::default();
         let mut replacements = FxHashMap::default();
-        let mut dead = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for (block_id, block) in func.blocks.iter_enumerated() {
             let insts = block.instructions.clone();
@@ -437,7 +440,7 @@ impl MemoryStoreEliminator {
 
         func.replace_uses_canonicalized(&replacements);
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|id| !dead.contains(id));
+            block.instructions.retain(|&id| !dead.contains(id));
         }
     }
 
@@ -457,7 +460,7 @@ impl MemoryStoreEliminator {
         let Some(reads) = Self::internal_frame_read_ranges(func) else {
             return;
         };
-        let mut dead = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for block in func.blocks.iter() {
             for &inst_id in &block.instructions {
@@ -479,9 +482,9 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        self.eliminated_count += dead.len();
+        self.eliminated_count += dead.count();
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|id| !dead.contains(id));
+            block.instructions.retain(|&id| !dead.contains(id));
         }
     }
 
@@ -526,7 +529,7 @@ impl MemoryStoreEliminator {
 
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut overwritten: FxHashSet<MemAddrKey> = FxHashSet::default();
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for &inst_id in inst_ids.iter().rev() {
             let inst = &func.instructions[inst_id];
@@ -595,7 +598,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
     fn constant_range_read(kind: &InstKind) -> Option<(ValueId, ValueId)> {
@@ -666,7 +669,7 @@ impl MemoryStoreEliminator {
         };
 
         let mut exit: FxHashMap<BlockId, FxHashMap<u64, U256>> = FxHashMap::default();
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         // Block index order approximates reverse postorder for this builder,
         // so a single predecessor is usually already computed; when it is not,
@@ -714,7 +717,7 @@ impl MemoryStoreEliminator {
             return;
         }
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|id| !dead.contains(id));
+            block.instructions.retain(|&id| !dead.contains(id));
         }
     }
 
@@ -731,7 +734,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        let mut dead = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for pred in func.blocks.indices() {
             let Some(succ) = Self::single_jump_successor(func, pred) else {
@@ -756,9 +759,9 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        self.eliminated_count += dead.len();
+        self.eliminated_count += dead.count();
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|id| !dead.contains(id));
+            block.instructions.retain(|&id| !dead.contains(id));
         }
     }
 
@@ -807,7 +810,7 @@ impl MemoryStoreEliminator {
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut stored_words: FxHashMap<MemAddrKey, U256> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for &inst_id in &inst_ids {
             match &func.instructions[inst_id].kind {
@@ -850,13 +853,13 @@ impl MemoryStoreEliminator {
         }
 
         func.replace_uses_canonicalized(&replacements);
-        func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
     fn remove_equal_stores(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut stored_values: FxHashMap<MemAddrKey, ValueId> = FxHashMap::default();
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for &inst_id in &inst_ids {
             let inst = &func.instructions[inst_id];
@@ -887,7 +890,7 @@ impl MemoryStoreEliminator {
             return;
         }
 
-        func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
     fn forward_loads(
@@ -899,7 +902,7 @@ impl MemoryStoreEliminator {
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut stored_values: FxHashMap<MemAddrKey, ValueId> = FxHashMap::default();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for &inst_id in &inst_ids {
             let inst = &func.instructions[inst_id];
@@ -977,8 +980,8 @@ impl MemoryStoreEliminator {
         }
 
         func.replace_uses_canonicalized(&replacements);
-        self.eliminated_count += dead.len();
-        func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+        self.eliminated_count += dead.count();
+        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
     fn mem_addr_key(func: &Function, value: ValueId) -> Option<MemAddrKey> {

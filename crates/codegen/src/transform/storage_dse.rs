@@ -9,7 +9,10 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::FunctionPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Local dead storage-store elimination pass.
 #[derive(Debug, Default)]
@@ -67,7 +70,7 @@ impl StorageStoreEliminator {
     fn remove_overwritten_stores(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut later_writes: FxHashSet<StorageAlias> = FxHashSet::default();
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::<InstId>::new_empty(func.instructions.len());
 
         for &inst_id in inst_ids.iter().rev() {
             match &func.instructions[inst_id].kind {
@@ -97,13 +100,13 @@ impl StorageStoreEliminator {
             return;
         }
 
-        func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
     fn remove_equal_stores(&mut self, func: &mut Function, block_id: BlockId) {
         let inst_ids = func.blocks[block_id].instructions.clone();
         let mut stored_values: FxHashMap<StorageAlias, ValueId> = FxHashMap::default();
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::<InstId>::new_empty(func.instructions.len());
 
         for &inst_id in &inst_ids {
             match &func.instructions[inst_id].kind {
@@ -129,7 +132,7 @@ impl StorageStoreEliminator {
             return;
         }
 
-        func.blocks[block_id].instructions.retain(|id| !dead.contains(id));
+        func.blocks[block_id].instructions.retain(|&id| !dead.contains(id));
     }
 
     fn remove_aliasing_set(aliases: &mut FxHashSet<StorageAlias>, alias: StorageAlias) {

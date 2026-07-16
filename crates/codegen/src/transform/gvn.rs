@@ -50,7 +50,7 @@ use crate::{
     },
     pass::FunctionPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Hard cap on value-numbering sweeps per round.
 const MAX_VN_SWEEPS: usize = 10;
@@ -130,7 +130,7 @@ struct ReplaceCtx<'a> {
     cfg: &'a CfgInfo,
     inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
-    dead: &'a mut FxHashSet<InstId>,
+    dead: &'a mut DenseBitSet<InstId>,
 }
 
 impl GlobalValueNumberer {
@@ -169,7 +169,7 @@ impl GlobalValueNumberer {
         }
 
         let mut replacements = FxHashMap::default();
-        let mut dead = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
         let mut ctx = ReplaceCtx {
             vn: &vn,
             cfg: &cfg,
@@ -184,7 +184,7 @@ impl GlobalValueNumberer {
         }
         Self::apply_replacements_to_all_blocks(func, &replacements);
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|id| !dead.contains(id));
+            block.instructions.retain(|&id| !dead.contains(id));
         }
         true
     }

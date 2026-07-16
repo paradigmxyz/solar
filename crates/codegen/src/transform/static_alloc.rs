@@ -30,7 +30,7 @@ use crate::{
     pass::ModulePass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Pass that places provably local fmp-bump allocations statically.
 pub struct StaticAllocPass;
@@ -91,7 +91,7 @@ fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
     let reachable = reachable_blocks(func);
     let mut cyclic = FxHashMap::default();
     candidates.retain(|cand| {
-        reachable.contains(&cand.block)
+        reachable.contains(cand.block)
             && !*cyclic.entry(cand.block).or_insert_with(|| block_in_cycle(func, cand.block))
     });
 
@@ -125,7 +125,7 @@ fn has_msize(func: &Function) -> bool {
 /// Returns true when `block` can execute more than once: it can reach itself.
 fn block_in_cycle(func: &Function, block: BlockId) -> bool {
     let mut stack = vec![block];
-    let mut seen = FxHashSet::default();
+    let mut seen = DenseBitSet::new_empty(func.blocks.len());
     while let Some(current) = stack.pop() {
         let Some(term) = func.blocks[current].terminator.as_ref() else { continue };
         for succ in term.successors() {

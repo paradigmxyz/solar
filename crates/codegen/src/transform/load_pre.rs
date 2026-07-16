@@ -303,7 +303,7 @@ impl LoadPreCostModel {
 struct Analysis {
     keys: Vec<LoadKey>,
     key_index: FxHashMap<LoadKey, usize>,
-    reachable: FxHashSet<BlockId>,
+    reachable: DenseBitSet<BlockId>,
     /// Per-block keys killed at any point in the block; only blocks that kill
     /// something have an entry.
     kills: FxHashMap<BlockId, KeySet>,
@@ -313,7 +313,7 @@ struct Analysis {
     outs: FxHashMap<BlockId, KeySet>,
     /// CFG path reachability for the value-location purity check; empty when
     /// no block kills any key.
-    reach: FxHashMap<BlockId, FxHashSet<BlockId>>,
+    reach: FxHashMap<BlockId, DenseBitSet<BlockId>>,
     dominators: DominatorTree,
     inst_results: FxHashMap<InstId, ValueId>,
     inst_blocks: FxHashMap<InstId, BlockId>,
@@ -331,8 +331,8 @@ impl Analysis {
             if mid == from || !kills.contains(key_idx) {
                 continue;
             }
-            if reachable_from.contains(&mid)
-                && self.reach.get(&mid).is_some_and(|reach| reach.contains(&to))
+            if reachable_from.contains(mid)
+                && self.reach.get(&mid).is_some_and(|reach| reach.contains(to))
             {
                 return true;
             }
@@ -528,12 +528,12 @@ impl LoadRedundancyEliminator {
         let mut eliminated_values: FxHashSet<ValueId> = FxHashSet::default();
 
         'targets: for target in func.blocks.indices() {
-            if !cx.analysis.reachable.contains(&target) {
+            if !cx.analysis.reachable.contains(target) {
                 continue;
             }
             let predecessors = func.unique_predecessors(target);
             if predecessors.len() < 2
-                || predecessors.iter().any(|pred| !cx.analysis.reachable.contains(pred))
+                || predecessors.iter().any(|&pred| !cx.analysis.reachable.contains(pred))
             {
                 continue;
             }

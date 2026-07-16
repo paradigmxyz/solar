@@ -19,7 +19,7 @@ use crate::{
     utils::evm_word,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Local MIR instruction simplification pass.
 #[derive(Debug, Default)]
@@ -53,7 +53,7 @@ impl InstSimplifier {
 
         let inst_results = func.inst_results();
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead = DenseBitSet::<InstId>::new_empty(func.instructions.len());
         let block_ids: Vec<_> = func.blocks.indices().collect();
 
         for block_id in block_ids {
@@ -94,7 +94,7 @@ impl InstSimplifier {
         }
         if !dead.is_empty() {
             for block in func.blocks.iter_mut() {
-                block.instructions.retain(|id| !dead.contains(id));
+                block.instructions.retain(|&id| !dead.contains(id));
             }
         }
         self.simplified_count += self.rewrite_terminators(func, &replacements);

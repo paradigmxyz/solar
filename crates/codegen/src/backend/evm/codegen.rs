@@ -23,7 +23,10 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use solar_interface::{Session, sym};
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
@@ -175,7 +178,7 @@ impl GlobalStackPlan {
         }
 
         let cfg = CfgInfo::new(func);
-        if cfg.reachable().len() < GLOBAL_STACK_MIN_BLOCKS {
+        if cfg.reachable().count() < GLOBAL_STACK_MIN_BLOCKS {
             return Self::default();
         }
         let mut decode_blocks = FxHashMap::default();
@@ -319,8 +322,8 @@ impl GlobalStackPlan {
             }
         }
         if arg_uses < GLOBAL_STACK_MIN_ARG_USES
-            || (entries.len() * 2 > cfg.reachable().len()
-                && cfg.reachable().len() < GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS)
+            || (entries.len() * 2 > cfg.reachable().count()
+                && cfg.reachable().count() < GLOBAL_STACK_DENSE_AMORTIZATION_BLOCKS)
         {
             entries.clear();
         }
@@ -487,7 +490,7 @@ impl<'a> StackPhiPlanner<'a> {
     fn carry_through_values(&self, loop_info: &Loop) -> Vec<ValueId> {
         let mut carry_through = Vec::new();
         for outer in &self.loops {
-            if outer.header == loop_info.header || !outer.blocks.contains(&loop_info.header) {
+            if outer.header == loop_info.header || !outer.blocks.contains(loop_info.header) {
                 continue;
             }
             let Some(results) = self.header_results.get(&outer.header) else {
@@ -505,8 +508,8 @@ impl<'a> StackPhiPlanner<'a> {
         carry_through
     }
 
-    fn value_used_in_blocks(&self, blocks: &FxHashSet<BlockId>, value: ValueId) -> bool {
-        for &block_id in blocks {
+    fn value_used_in_blocks(&self, blocks: &DenseBitSet<BlockId>, value: ValueId) -> bool {
+        for block_id in blocks.iter() {
             let block = &self.func.blocks[block_id];
             for &inst_id in &block.instructions {
                 if matches!(self.func.instructions[inst_id].kind, InstKind::Phi(_)) {
@@ -911,7 +914,7 @@ impl EvmCodegen {
 
             let call_graph = CallGraphInfo::new(module);
             let internal_targets = call_graph.reachable_bodies_from(std::iter::once(ctor_id));
-            for &func_id in &internal_targets {
+            for func_id in internal_targets.iter() {
                 self.function_labels.insert(func_id, self.asm.new_label());
             }
 
@@ -947,7 +950,7 @@ impl EvmCodegen {
                 self.asm.emit_op(op::JUMP);
 
                 for (func_id, func) in module.functions.iter_enumerated() {
-                    if !internal_targets.contains(&func_id) {
+                    if !internal_targets.contains(func_id) {
                         continue;
                     }
                     let label = self.function_labels[&func_id];
@@ -1105,7 +1108,7 @@ impl EvmCodegen {
                 continue;
             }
             let needs_body = Self::is_external_entry(func)
-                || (Self::has_body(func) && internal_targets.contains(&func_id));
+                || (Self::has_body(func) && internal_targets.contains(func_id));
             if needs_body {
                 let label = self.asm.new_label();
                 self.function_labels.insert(func_id, label);
@@ -1205,7 +1208,7 @@ impl EvmCodegen {
         for (func_id, func) in module.functions.iter_enumerated() {
             let external = Self::is_external_entry(func);
             let needs_body =
-                external || (Self::has_body(func) && internal_targets.contains(&func_id));
+                external || (Self::has_body(func) && internal_targets.contains(func_id));
             let label = needs_body.then(|| self.asm.new_label());
             if let Some(label) = label {
                 self.function_labels.insert(func_id, label);
@@ -1883,11 +1886,11 @@ impl EvmCodegen {
         // never queries.
         let reachable = reachable_blocks(func);
         let mut order = Vec::with_capacity(func.blocks.len());
-        let mut placed = FxHashSet::default();
+        let mut placed = DenseBitSet::new_empty(func.blocks.len());
 
         self.append_layout_chain(func, func.entry_block, &reachable, &mut placed, &mut order);
         for block_id in func.blocks.indices() {
-            if reachable.contains(&block_id) {
+            if reachable.contains(block_id) {
                 self.append_layout_chain(func, block_id, &reachable, &mut placed, &mut order);
             }
         }
@@ -1899,12 +1902,12 @@ impl EvmCodegen {
         &self,
         func: &Function,
         mut block_id: BlockId,
-        reachable: &FxHashSet<BlockId>,
-        placed: &mut FxHashSet<BlockId>,
+        reachable: &DenseBitSet<BlockId>,
+        placed: &mut DenseBitSet<BlockId>,
         order: &mut Vec<BlockId>,
     ) {
         loop {
-            if !reachable.contains(&block_id) || !placed.insert(block_id) {
+            if !reachable.contains(block_id) || !placed.insert(block_id) {
                 return;
             }
             order.push(block_id);
@@ -1926,7 +1929,7 @@ impl EvmCodegen {
                 }
                 _ => return,
             };
-            if placed.contains(&target) {
+            if placed.contains(target) {
                 return;
             }
 

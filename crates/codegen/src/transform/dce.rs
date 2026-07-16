@@ -7,7 +7,10 @@ use crate::{
     mir::{BlockId, Function, InstId, Terminator, Value, ValueId, utils::repair_reachability_phis},
     pass::FunctionPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 
 /// Dead Code Elimination pass.
 ///
@@ -139,7 +142,7 @@ impl DeadCodeEliminator {
         let unreachable: Vec<BlockId> = func
             .blocks
             .iter_enumerated()
-            .filter_map(|(id, _)| if !reachable.contains(&id) { Some(id) } else { None })
+            .filter_map(|(id, _)| if !reachable.contains(id) { Some(id) } else { None })
             .collect();
 
         self.blocks_removed = unreachable.len();
@@ -186,13 +189,15 @@ impl DeadCodeEliminator {
     }
 
     /// Collects all values that are used (appear in instructions or terminators).
-    fn collect_used_values(&self, func: &Function) -> FxHashSet<ValueId> {
-        let mut used = FxHashSet::default();
+    fn collect_used_values(&self, func: &Function) -> DenseBitSet<ValueId> {
+        let mut used = DenseBitSet::new_empty(func.values.len());
 
         // Add values used in terminators
         for (_, block) in func.blocks.iter_enumerated() {
             if let Some(term) = &block.terminator {
-                used.extend(term.operands());
+                for operand in term.operands() {
+                    used.insert(operand);
+                }
             }
         }
 
@@ -213,7 +218,7 @@ impl DeadCodeEliminator {
     fn find_dead_instructions(
         &self,
         func: &Function,
-        used_values: &FxHashSet<ValueId>,
+        used_values: &DenseBitSet<ValueId>,
         inst_to_value: &FxHashMap<InstId, ValueId>,
     ) -> Vec<(BlockId, InstId)> {
         let mut dead = Vec::new();
@@ -229,7 +234,7 @@ impl DeadCodeEliminator {
 
                 // O(1) lookup via precomputed map (was O(V) linear scan).
                 if let Some(&result) = inst_to_value.get(&inst_id)
-                    && !used_values.contains(&result)
+                    && !used_values.contains(result)
                 {
                     dead.push((block_id, inst_id));
                 }

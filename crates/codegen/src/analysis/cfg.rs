@@ -7,16 +7,16 @@
 //! rewrites are involved.
 
 use crate::mir::{BlockId, Function};
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
 pub struct CfgInfo {
     successors: Vec<Vec<BlockId>>,
-    reachable: FxHashSet<BlockId>,
+    reachable: DenseBitSet<BlockId>,
     rpo: Vec<BlockId>,
     dominators: DominatorTree,
-    reachability: Option<FxHashMap<BlockId, FxHashSet<BlockId>>>,
+    reachability: Option<FxHashMap<BlockId, DenseBitSet<BlockId>>>,
 }
 
 impl CfgInfo {
@@ -37,14 +37,14 @@ impl CfgInfo {
 
     /// Returns the blocks reachable from the entry.
     #[must_use]
-    pub fn reachable(&self) -> &FxHashSet<BlockId> {
+    pub fn reachable(&self) -> &DenseBitSet<BlockId> {
         &self.reachable
     }
 
     /// Returns true if `block` is reachable from the entry.
     #[must_use]
     pub fn is_reachable(&self, block: BlockId) -> bool {
-        self.reachable.contains(&block)
+        self.reachable.contains(block)
     }
 
     /// Returns reachable blocks in reverse postorder.
@@ -63,15 +63,15 @@ impl CfgInfo {
     ///
     /// The map is computed lazily because only memory/state-aware passes need
     /// this more expensive transitive query.
-    pub fn transitive_reachability(&mut self) -> &FxHashMap<BlockId, FxHashSet<BlockId>> {
+    pub fn transitive_reachability(&mut self) -> &FxHashMap<BlockId, DenseBitSet<BlockId>> {
         self.reachability.get_or_insert_with(|| compute_transitive_reachability(&self.successors))
     }
 }
 
 /// Returns the blocks reachable from the function entry without computing
 /// ordering or dominator information.
-pub fn reachable_blocks(func: &Function) -> FxHashSet<BlockId> {
-    let mut reachable = FxHashSet::default();
+pub fn reachable_blocks(func: &Function) -> DenseBitSet<BlockId> {
+    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
     let mut worklist = vec![func.entry_block];
     while let Some(block_id) = worklist.pop() {
         if !reachable.insert(block_id) {
@@ -204,11 +204,11 @@ impl DominatorTree {
 
 fn compute_transitive_reachability(
     successors: &[Vec<BlockId>],
-) -> FxHashMap<BlockId, FxHashSet<BlockId>> {
+) -> FxHashMap<BlockId, DenseBitSet<BlockId>> {
     let mut reachability = FxHashMap::default();
     for block_index in 0..successors.len() {
         let block_id = BlockId::from_usize(block_index);
-        let mut reachable = FxHashSet::default();
+        let mut reachable = DenseBitSet::new_empty(successors.len());
         let mut stack = successors[block_id.index()].clone();
         while let Some(block) = stack.pop() {
             if reachable.insert(block) {
@@ -236,8 +236,8 @@ fn collect_successors(func: &Function) -> Vec<Vec<BlockId>> {
 fn reachable_orders(
     func: &Function,
     successors: &[Vec<BlockId>],
-) -> (FxHashSet<BlockId>, Vec<BlockId>, Vec<BlockId>) {
-    let mut reachable = FxHashSet::default();
+) -> (DenseBitSet<BlockId>, Vec<BlockId>, Vec<BlockId>) {
+    let mut reachable = DenseBitSet::new_empty(func.blocks.len());
     let mut postorder = Vec::with_capacity(func.blocks.len());
     let mut stack = vec![(func.entry_block, 0usize)];
     reachable.insert(func.entry_block);

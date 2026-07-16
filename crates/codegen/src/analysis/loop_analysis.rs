@@ -11,7 +11,7 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, Terminator, Value, ValueId},
 };
 use smallvec::SmallVec;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// A natural loop in the control flow graph.
 #[derive(Clone, Debug)]
@@ -19,7 +19,7 @@ pub struct Loop {
     /// The header block (entry point with back edge).
     pub header: BlockId,
     /// All blocks in the loop body (including header).
-    pub blocks: FxHashSet<BlockId>,
+    pub blocks: DenseBitSet<BlockId>,
     /// Back edges: blocks that jump back to the header.
     pub back_edges: SmallVec<[BlockId; 2]>,
     /// Exit blocks: blocks outside the loop that are successors of loop blocks.
@@ -29,7 +29,7 @@ pub struct Loop {
     /// Loop induction variables.
     pub induction_vars: Vec<InductionVariable>,
     /// Instructions that are invariant (don't change within the loop).
-    pub invariant_insts: FxHashSet<InstId>,
+    pub invariant_insts: DenseBitSet<InstId>,
     /// Optional: constant trip count if statically known.
     pub trip_count: Option<u64>,
     /// Whether the guard that produced [`Self::trip_count`] is the header's
@@ -116,7 +116,7 @@ impl LoopAnalyzer {
             self.find_invariant_instructions(func, &mut loop_info);
             self.analyze_trip_count(func, &mut loop_info);
 
-            for &block in &loop_info.blocks {
+            for block in loop_info.blocks.iter() {
                 info.block_to_loop.insert(block, loop_info.header);
             }
             info.loops.insert(loop_info.header, loop_info);
@@ -136,12 +136,12 @@ impl LoopAnalyzer {
                     if cfg.dominators().dominates(succ, block_id) {
                         let loop_info = loops.entry(succ).or_insert_with(|| Loop {
                             header: succ,
-                            blocks: FxHashSet::default(),
+                            blocks: DenseBitSet::new_empty(func.blocks.len()),
                             back_edges: SmallVec::new(),
                             exit_blocks: SmallVec::new(),
                             preheader: None,
                             induction_vars: Vec::new(),
-                            invariant_insts: FxHashSet::default(),
+                            invariant_insts: DenseBitSet::new_empty(func.instructions.len()),
                             trip_count: None,
                             trip_guard_is_header: false,
                         });
@@ -160,14 +160,14 @@ impl LoopAnalyzer {
         func: &Function,
         header: BlockId,
         back_edge_src: BlockId,
-        blocks: &mut FxHashSet<BlockId>,
+        blocks: &mut DenseBitSet<BlockId>,
     ) {
         blocks.insert(header);
         let mut worklist = vec![back_edge_src];
         while let Some(block) = worklist.pop() {
             if blocks.insert(block) {
                 for &pred in &func.blocks[block].predecessors {
-                    if !blocks.contains(&pred) {
+                    if !blocks.contains(pred) {
                         worklist.push(pred);
                     }
                 }
@@ -176,10 +176,10 @@ impl LoopAnalyzer {
     }
 
     fn find_exit_blocks(&self, func: &Function, loop_info: &mut Loop) {
-        for &block_id in &loop_info.blocks {
+        for block_id in loop_info.blocks.iter() {
             if let Some(term) = &func.blocks[block_id].terminator {
                 for succ in term.successors() {
-                    if !loop_info.blocks.contains(&succ) && !loop_info.exit_blocks.contains(&succ) {
+                    if !loop_info.blocks.contains(succ) && !loop_info.exit_blocks.contains(&succ) {
                         loop_info.exit_blocks.push(succ);
                     }
                 }
@@ -191,7 +191,7 @@ impl LoopAnalyzer {
         let header_preds: Vec<BlockId> = func.blocks[loop_info.header]
             .predecessors
             .iter()
-            .filter(|&&pred| !loop_info.blocks.contains(&pred))
+            .filter(|&&pred| !loop_info.blocks.contains(pred))
             .copied()
             .collect();
 
@@ -216,7 +216,7 @@ impl LoopAnalyzer {
                 let mut conflicting = false;
 
                 for &(block, value) in incoming {
-                    let slot = if loop_info.blocks.contains(&block) {
+                    let slot = if loop_info.blocks.contains(block) {
                         &mut step_value
                     } else {
                         &mut init_value
@@ -301,7 +301,7 @@ impl LoopAnalyzer {
     }
 
     fn find_invariant_instructions(&self, func: &Function, loop_info: &mut Loop) {
-        let mut invariant_values: FxHashSet<ValueId> = FxHashSet::default();
+        let mut invariant_values = DenseBitSet::new_empty(func.values.len());
 
         for (value_id, value) in func.values.iter_enumerated() {
             match value {
@@ -312,7 +312,7 @@ impl LoopAnalyzer {
                     let in_loop = loop_info
                         .blocks
                         .iter()
-                        .any(|&block| func.blocks[block].instructions.contains(inst_id));
+                        .any(|block| func.blocks[block].instructions.contains(inst_id));
                     if !in_loop {
                         invariant_values.insert(value_id);
                     }
@@ -324,11 +324,11 @@ impl LoopAnalyzer {
         let mut changed = true;
         while changed {
             changed = false;
-            for &block_id in &loop_info.blocks {
+            for block_id in loop_info.blocks.iter() {
                 for &inst_id in &func.blocks[block_id].instructions {
                     let inst = &func.instructions[inst_id];
 
-                    if loop_info.invariant_insts.contains(&inst_id) {
+                    if loop_info.invariant_insts.contains(inst_id) {
                         continue;
                     }
                     if inst.kind.has_side_effects() {
@@ -339,7 +339,7 @@ impl LoopAnalyzer {
                     }
 
                     let operands = inst.kind.operands();
-                    if operands.iter().all(|op| invariant_values.contains(op)) {
+                    if operands.iter().all(|&op| invariant_values.contains(op)) {
                         loop_info.invariant_insts.insert(inst_id);
                         if let Some(result) = self.find_result_value(func, inst_id) {
                             invariant_values.insert(result);
@@ -409,7 +409,7 @@ impl LoopAnalyzer {
         loop_info: &Loop,
         iv_value: ValueId,
     ) -> Option<(alloy_primitives::U256, BlockId)> {
-        let mut blocks: Vec<BlockId> = loop_info.blocks.iter().copied().collect();
+        let mut blocks: Vec<BlockId> = loop_info.blocks.iter().collect();
         blocks.sort_by_key(|block| block.index());
 
         let mut bound: Option<(alloy_primitives::U256, BlockId)> = None;
@@ -419,7 +419,7 @@ impl LoopAnalyzer {
             else {
                 continue;
             };
-            if !loop_info.blocks.contains(then_block) || loop_info.blocks.contains(else_block) {
+            if !loop_info.blocks.contains(*then_block) || loop_info.blocks.contains(*else_block) {
                 continue;
             }
             // The bound only limits the induction variable if every completed
@@ -499,8 +499,8 @@ mod tests {
 
         assert_eq!(info.loops.len(), 1);
         let loop_info = info.loops.get(&header).expect("Loop should have header as key");
-        assert!(loop_info.blocks.contains(&header));
-        assert!(loop_info.blocks.contains(&body));
-        assert!(!loop_info.blocks.contains(&exit));
+        assert!(loop_info.blocks.contains(header));
+        assert!(loop_info.blocks.contains(body));
+        assert!(!loop_info.blocks.contains(exit));
     }
 }

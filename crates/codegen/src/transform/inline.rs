@@ -1169,7 +1169,7 @@ fn block_loop_depths(func: &Function) -> FxHashMap<BlockId, usize> {
     let loop_info = analyzer.analyze(func);
     let mut depths = FxHashMap::default();
     for loop_data in loop_info.all_loops() {
-        for &block in &loop_data.blocks {
+        for block in loop_data.blocks.iter() {
             *depths.entry(block).or_default() += 1;
         }
     }

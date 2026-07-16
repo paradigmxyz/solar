@@ -42,7 +42,7 @@ use crate::{
     mir::{Function, FunctionBuilder, FunctionId, InstKind, MirPhase, Module, Terminator},
     pass::ModulePass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{Ident, Symbol};
 
 /// Statistics from ABI wrapper lowering.
@@ -87,7 +87,7 @@ impl LowerAbiPass {
         // Snapshot the ids to wrap first; wrapping appends new functions, and we
         // must not revisit them.
         let mut targets = Vec::new();
-        let mut internally_called = FxHashSet::default();
+        let mut internally_called = DenseBitSet::new_empty(module.functions.len());
         let mut callvalue = super::DispatchCallvalue::default();
         for (id, func) in module.functions.iter_enumerated() {
             callvalue.observe(func);
@@ -95,13 +95,15 @@ impl LowerAbiPass {
                 targets.push(id);
                 self.stats.skipped_dynamic += usize::from(has_live_value_return(func));
             }
-            internally_called.extend(func.instructions.iter().filter_map(|inst| {
+            for function in func.instructions.iter().filter_map(|inst| {
                 if let InstKind::InternalCall { function, .. } = &inst.kind {
                     Some(*function)
                 } else {
                     None
                 }
-            }));
+            }) {
+                internally_called.insert(function);
+            }
         }
 
         // All-or-nothing: `abi` means *every* bodied external function is a
@@ -127,7 +129,7 @@ impl LowerAbiPass {
 
         let mut body_of_wrapper = FxHashMap::default();
         for id in targets {
-            if let Some(body_id) = self.wrap_function(module, id, internally_called.contains(&id)) {
+            if let Some(body_id) = self.wrap_function(module, id, internally_called.contains(id)) {
                 body_of_wrapper.insert(id, body_id);
             }
             self.stats.wrapped += 1;

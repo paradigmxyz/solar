@@ -23,7 +23,10 @@ use crate::{
     utils::evm_word,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    map::{FxHashMap, FxHashSet},
+};
 use std::collections::VecDeque;
 
 /// Lattice element for a single SSA value.
@@ -132,7 +135,7 @@ impl SccpPass {
         }
 
         // Track which blocks are executable.
-        let mut executable_blocks: FxHashSet<BlockId> = FxHashSet::default();
+        let mut executable_blocks = DenseBitSet::new_empty(func.blocks.len());
         // Track which CFG edges have been taken.
         let mut executable_edges: FxHashSet<(BlockId, BlockId)> = FxHashSet::default();
 
@@ -233,7 +236,7 @@ impl SccpPass {
         block_id: BlockId,
         inst_to_value: &FxHashMap<InstId, ValueId>,
         lattice: &mut [LatticeValue],
-        _executable_blocks: &FxHashSet<BlockId>,
+        _executable_blocks: &DenseBitSet<BlockId>,
         _executable_edges: &FxHashSet<(BlockId, BlockId)>,
         cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
@@ -567,15 +570,15 @@ impl SccpPass {
         vid: ValueId,
         inst_to_value: &FxHashMap<InstId, ValueId>,
         lattice: &mut [LatticeValue],
-        executable_blocks: &FxHashSet<BlockId>,
+        executable_blocks: &DenseBitSet<BlockId>,
         executable_edges: &FxHashSet<(BlockId, BlockId)>,
         cfg_worklist: &mut VecDeque<(BlockId, BlockId)>,
         ssa_worklist: &mut VecDeque<ValueId>,
     ) {
-        for block_id in executable_blocks {
+        for block_id in executable_blocks.iter() {
             self.evaluate_phis_in_block(
                 func,
-                *block_id,
+                block_id,
                 inst_to_value,
                 lattice,
                 executable_edges,
@@ -585,7 +588,7 @@ impl SccpPass {
 
         // Find all instructions that use this value and re-evaluate them.
         for (block_id, block) in func.blocks.iter_enumerated() {
-            if !executable_blocks.contains(&block_id) {
+            if !executable_blocks.contains(block_id) {
                 continue;
             }
             for &inst_id in &block.instructions {
@@ -619,13 +622,13 @@ impl SccpPass {
         func: &mut Function,
         lattice: &[LatticeValue],
         inst_to_value: &FxHashMap<InstId, ValueId>,
-        executable_blocks: &FxHashSet<BlockId>,
+        executable_blocks: &DenseBitSet<BlockId>,
         executable_edges: &FxHashSet<(BlockId, BlockId)>,
     ) -> usize {
         // Phase 1: Replace instructions whose results are constant with
         // immediate values, and remove the instruction from the block.
         let mut const_values: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead_insts: FxHashSet<InstId> = FxHashSet::default();
+        let mut dead_insts = DenseBitSet::new_empty(func.instructions.len());
 
         for (&inst_id, &vid) in inst_to_value {
             if let LatticeValue::Constant(c) = &lattice[vid.index()] {
@@ -647,7 +650,7 @@ impl SccpPass {
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut control_rewrites: Vec<(BlockId, BlockId)> = Vec::new();
         for &block_id in &block_ids {
-            if !executable_blocks.contains(&block_id) {
+            if !executable_blocks.contains(block_id) {
                 continue;
             }
             let Some(term) = &func.blocks[block_id].terminator else {
@@ -674,7 +677,7 @@ impl SccpPass {
                 .blocks
                 .iter()
                 .flat_map(|block| block.instructions.iter().copied())
-                .filter(|id| !dead_insts.contains(id))
+                .filter(|&id| !dead_insts.contains(id))
                 .collect();
             for inst_id in all_insts {
                 mir_utils::replace_inst_uses(&mut func.instructions[inst_id].kind, &const_values);
@@ -688,7 +691,7 @@ impl SccpPass {
 
         // Phase 4: Remove dead (folded) instructions from blocks.
         for &block_id in &block_ids {
-            func.blocks[block_id].instructions.retain(|id| !dead_insts.contains(id));
+            func.blocks[block_id].instructions.retain(|&id| !dead_insts.contains(id));
         }
 
         // Phase 5: Apply branch/switch rewrites.
@@ -716,7 +719,7 @@ impl SccpPass {
 
         // Phase 6: Mark non-executable blocks as invalid.
         for &block_id in &block_ids {
-            if executable_blocks.contains(&block_id) {
+            if executable_blocks.contains(block_id) {
                 continue;
             }
             let block = &mut func.blocks[block_id];

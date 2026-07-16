@@ -1,28 +1,29 @@
 //! Module-level call graph facts for MIR.
 
 use crate::mir::{Function, FunctionId, InstKind, Module, Terminator};
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::collections::VecDeque;
 
 /// Module-level internal-call graph facts.
 #[derive(Clone, Debug)]
 pub struct CallGraphInfo {
-    callees: FxHashMap<FunctionId, FxHashSet<FunctionId>>,
-    callers: FxHashMap<FunctionId, FxHashSet<FunctionId>>,
-    entry_functions: FxHashSet<FunctionId>,
-    reachable_from_entries: FxHashSet<FunctionId>,
-    recursive_functions: FxHashSet<FunctionId>,
-    has_body: FxHashSet<FunctionId>,
+    callees: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
+    callers: FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
+    entry_functions: DenseBitSet<FunctionId>,
+    reachable_from_entries: DenseBitSet<FunctionId>,
+    recursive_functions: DenseBitSet<FunctionId>,
+    has_body: DenseBitSet<FunctionId>,
 }
 
 impl CallGraphInfo {
     /// Computes call graph facts for `module`.
     #[must_use]
     pub fn new(module: &Module) -> Self {
-        let mut callees: FxHashMap<FunctionId, FxHashSet<FunctionId>> = FxHashMap::default();
-        let mut callers: FxHashMap<FunctionId, FxHashSet<FunctionId>> = FxHashMap::default();
-        let mut entry_functions = FxHashSet::default();
-        let mut has_body = FxHashSet::default();
+        let function_count = module.functions.len();
+        let mut callees = FxHashMap::default();
+        let mut callers: FxHashMap<FunctionId, DenseBitSet<FunctionId>> = FxHashMap::default();
+        let mut entry_functions = DenseBitSet::new_empty(function_count);
+        let mut has_body = DenseBitSet::new_empty(function_count);
 
         for (func_id, func) in module.functions.iter_enumerated() {
             if Self::is_entry_function(func) {
@@ -32,10 +33,13 @@ impl CallGraphInfo {
                 has_body.insert(func_id);
             }
 
-            let direct_callees = Self::collect_internal_callees(func);
+            let direct_callees = Self::collect_internal_callees(func, function_count);
             if !direct_callees.is_empty() {
-                for &callee in &direct_callees {
-                    callers.entry(callee).or_default().insert(func_id);
+                for callee in direct_callees.iter() {
+                    callers
+                        .entry(callee)
+                        .or_insert_with(|| DenseBitSet::new_empty(function_count))
+                        .insert(func_id);
                 }
                 callees.insert(func_id, direct_callees);
             }
@@ -43,7 +47,7 @@ impl CallGraphInfo {
 
         let reachable_from_entries =
             Self::reachable_from_roots_in_graph(&callees, &entry_functions);
-        let recursive_functions = Self::recursive_functions_in_graph(&callees);
+        let recursive_functions = Self::recursive_functions_in_graph(&callees, function_count);
 
         Self {
             callees,
@@ -57,32 +61,32 @@ impl CallGraphInfo {
 
     /// Returns functions directly called by `func`.
     #[must_use]
-    pub fn callees(&self, func: FunctionId) -> Option<&FxHashSet<FunctionId>> {
+    pub fn callees(&self, func: FunctionId) -> Option<&DenseBitSet<FunctionId>> {
         self.callees.get(&func)
     }
 
     /// Returns functions that directly call `func`.
     #[must_use]
-    pub fn callers(&self, func: FunctionId) -> Option<&FxHashSet<FunctionId>> {
+    pub fn callers(&self, func: FunctionId) -> Option<&DenseBitSet<FunctionId>> {
         self.callers.get(&func)
     }
 
     /// Returns entry functions: external ABI entries, constructor, fallback, and receive.
     #[must_use]
-    pub fn entry_functions(&self) -> &FxHashSet<FunctionId> {
+    pub fn entry_functions(&self) -> &DenseBitSet<FunctionId> {
         &self.entry_functions
     }
 
     /// Returns all functions reachable from entry functions.
     #[must_use]
-    pub fn reachable_from_entries(&self) -> &FxHashSet<FunctionId> {
+    pub fn reachable_from_entries(&self) -> &DenseBitSet<FunctionId> {
         &self.reachable_from_entries
     }
 
     /// Returns true if `func` is directly or indirectly recursive.
     #[must_use]
     pub fn is_recursive(&self, func: FunctionId) -> bool {
-        self.recursive_functions.contains(&func)
+        self.recursive_functions.contains(func)
     }
 
     /// Returns functions reachable from `roots` that have MIR bodies.
@@ -90,14 +94,14 @@ impl CallGraphInfo {
     pub fn reachable_bodies_from(
         &self,
         roots: impl IntoIterator<Item = FunctionId>,
-    ) -> FxHashSet<FunctionId> {
-        let mut reachable = FxHashSet::default();
+    ) -> DenseBitSet<FunctionId> {
+        let mut reachable = DenseBitSet::new_empty(self.has_body.domain_size());
         let mut worklist: VecDeque<_> = roots.into_iter().collect();
 
         while let Some(func) = worklist.pop_front() {
             let Some(callees) = self.callees.get(&func) else { continue };
-            for &callee in callees {
-                if self.has_body.contains(&callee) && reachable.insert(callee) {
+            for callee in callees.iter() {
+                if self.has_body.contains(callee) && reachable.insert(callee) {
                     worklist.push_back(callee);
                 }
             }
@@ -111,13 +115,16 @@ impl CallGraphInfo {
     pub fn reachable_from_roots(
         &self,
         roots: impl IntoIterator<Item = FunctionId>,
-    ) -> FxHashSet<FunctionId> {
-        let roots: FxHashSet<_> = roots.into_iter().collect();
-        Self::reachable_from_roots_in_graph(&self.callees, &roots)
+    ) -> DenseBitSet<FunctionId> {
+        let mut root_set = DenseBitSet::new_empty(self.has_body.domain_size());
+        for root in roots {
+            root_set.insert(root);
+        }
+        Self::reachable_from_roots_in_graph(&self.callees, &root_set)
     }
 
-    fn collect_internal_callees(func: &Function) -> FxHashSet<FunctionId> {
-        let mut callees = FxHashSet::default();
+    fn collect_internal_callees(func: &Function, function_count: usize) -> DenseBitSet<FunctionId> {
+        let mut callees = DenseBitSet::new_empty(function_count);
         for inst in &func.instructions {
             if let InstKind::InternalCall { function, .. } = inst.kind {
                 callees.insert(function);
@@ -145,19 +152,19 @@ impl CallGraphInfo {
     }
 
     fn reachable_from_roots_in_graph(
-        callees: &FxHashMap<FunctionId, FxHashSet<FunctionId>>,
-        roots: &FxHashSet<FunctionId>,
-    ) -> FxHashSet<FunctionId> {
-        let mut reachable = FxHashSet::default();
+        callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
+        roots: &DenseBitSet<FunctionId>,
+    ) -> DenseBitSet<FunctionId> {
+        let mut reachable = DenseBitSet::new_empty(roots.domain_size());
         let mut worklist = VecDeque::new();
-        for &root in roots {
+        for root in roots.iter() {
             reachable.insert(root);
             worklist.push_back(root);
         }
 
         while let Some(func) = worklist.pop_front() {
             let Some(callees) = callees.get(&func) else { continue };
-            for &callee in callees {
+            for callee in callees.iter() {
                 if reachable.insert(callee) {
                     worklist.push_back(callee);
                 }
@@ -168,11 +175,12 @@ impl CallGraphInfo {
     }
 
     fn recursive_functions_in_graph(
-        callees: &FxHashMap<FunctionId, FxHashSet<FunctionId>>,
-    ) -> FxHashSet<FunctionId> {
-        let mut recursive = FxHashSet::default();
+        callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
+        function_count: usize,
+    ) -> DenseBitSet<FunctionId> {
+        let mut recursive = DenseBitSet::new_empty(function_count);
         for &func_id in callees.keys() {
-            if Self::has_cycle_from(func_id, callees, &mut FxHashSet::default()) {
+            if Self::has_cycle_from(func_id, callees, &mut DenseBitSet::new_empty(function_count)) {
                 recursive.insert(func_id);
             }
         }
@@ -181,17 +189,17 @@ impl CallGraphInfo {
 
     fn has_cycle_from(
         func_id: FunctionId,
-        callees: &FxHashMap<FunctionId, FxHashSet<FunctionId>>,
-        visiting: &mut FxHashSet<FunctionId>,
+        callees: &FxHashMap<FunctionId, DenseBitSet<FunctionId>>,
+        visiting: &mut DenseBitSet<FunctionId>,
     ) -> bool {
         if !visiting.insert(func_id) {
             return true;
         }
 
         let recursive = callees.get(&func_id).is_some_and(|direct_callees| {
-            direct_callees.iter().any(|&callee| Self::has_cycle_from(callee, callees, visiting))
+            direct_callees.iter().any(|callee| Self::has_cycle_from(callee, callees, visiting))
         });
-        visiting.remove(&func_id);
+        visiting.remove(func_id);
         recursive
     }
 }

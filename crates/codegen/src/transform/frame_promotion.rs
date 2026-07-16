@@ -20,7 +20,7 @@ use crate::{
     },
     pass::FunctionPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 const LOW_MEMORY_START: u64 = 0x80;
 
@@ -127,20 +127,20 @@ struct SlotAccessInfo {
     slot: PromotableSlot,
     loads: Vec<SlotLoad>,
     stores: Vec<SlotStore>,
-    use_blocks: FxHashSet<BlockId>,
-    def_blocks: FxHashSet<BlockId>,
-    access_blocks: FxHashSet<BlockId>,
+    use_blocks: DenseBitSet<BlockId>,
+    def_blocks: DenseBitSet<BlockId>,
+    access_blocks: DenseBitSet<BlockId>,
 }
 
 impl SlotAccessInfo {
-    fn new(slot: PromotableSlot) -> Self {
+    fn new(slot: PromotableSlot, block_count: usize) -> Self {
         Self {
             slot,
             loads: Vec::new(),
             stores: Vec::new(),
-            use_blocks: FxHashSet::default(),
-            def_blocks: FxHashSet::default(),
-            access_blocks: FxHashSet::default(),
+            use_blocks: DenseBitSet::new_empty(block_count),
+            def_blocks: DenseBitSet::new_empty(block_count),
+            access_blocks: DenseBitSet::new_empty(block_count),
         }
     }
 
@@ -178,24 +178,22 @@ struct SlotSsaBuilder<'a> {
     cfg: &'a CfgInfo,
     inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: FxHashMap<ValueId, ValueId>,
-    dead: FxHashSet<InstId>,
+    dead: DenseBitSet<InstId>,
     phis: FxHashMap<BlockId, PendingPhi>,
     /// Blocks where this slot is live-in. Used to place phis only where the slot
     /// is actually live (pruned SSA): forcing a phi at a multi-predecessor block
     /// where the slot is dead can chain back to the entry with no reaching value
     /// and spuriously abort the whole promotion.
-    live_in: FxHashSet<BlockId>,
+    live_in: DenseBitSet<BlockId>,
     /// Blocks selected by pruned iterated-dominance-frontier phi placement.
-    phi_blocks: FxHashSet<BlockId>,
+    phi_blocks: DenseBitSet<BlockId>,
     failed: bool,
     loads_promoted: usize,
     stores_promoted: usize,
 }
 
-fn sorted_blocks(blocks: &FxHashSet<BlockId>) -> Vec<BlockId> {
-    let mut blocks: Vec<_> = blocks.iter().copied().collect();
-    blocks.sort_by_key(|block| block.index());
-    blocks
+fn sorted_blocks(blocks: &DenseBitSet<BlockId>) -> Vec<BlockId> {
+    blocks.iter().collect()
 }
 
 impl FrameSlotPromoter {
@@ -231,7 +229,12 @@ impl FrameSlotPromoter {
 
         for info in slots {
             let inst_results = func.inst_results();
-            let mut builder = SlotSsaBuilder::new(&info, &cfg, &inst_results);
+            let mut builder = SlotSsaBuilder::new(
+                &info,
+                &cfg,
+                &inst_results,
+                func.instructions.len() + func.blocks.len(),
+            );
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -268,7 +271,7 @@ impl FrameSlotPromoter {
                         if let Some(slot) = Self::promotable_slot(func, addr) {
                             accesses
                                 .entry(slot)
-                                .or_insert_with(|| SlotAccessInfo::new(slot))
+                                .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
                                 .note_load(block_id, inst_id);
                         }
                     }
@@ -276,7 +279,7 @@ impl FrameSlotPromoter {
                         if let Some(slot) = Self::promotable_slot(func, addr) {
                             accesses
                                 .entry(slot)
-                                .or_insert_with(|| SlotAccessInfo::new(slot))
+                                .or_insert_with(|| SlotAccessInfo::new(slot, func.blocks.len()))
                                 .note_store(block_id, inst_id, value);
                         }
                     }
@@ -637,16 +640,17 @@ impl<'a> SlotSsaBuilder<'a> {
         info: &'a SlotAccessInfo,
         cfg: &'a CfgInfo,
         inst_results: &'a FxHashMap<InstId, ValueId>,
+        instruction_capacity: usize,
     ) -> Self {
         Self {
             info,
             cfg,
             inst_results,
             replacements: FxHashMap::default(),
-            dead: FxHashSet::default(),
+            dead: DenseBitSet::new_empty(instruction_capacity),
             phis: FxHashMap::default(),
-            live_in: FxHashSet::default(),
-            phi_blocks: FxHashSet::default(),
+            live_in: DenseBitSet::new_empty(info.use_blocks.domain_size()),
+            phi_blocks: DenseBitSet::new_empty(info.use_blocks.domain_size()),
             failed: false,
             loads_promoted: 0,
             stores_promoted: 0,
@@ -681,9 +685,9 @@ impl<'a> SlotSsaBuilder<'a> {
         }
     }
 
-    fn compute_live_in(&self, func: &Function) -> FxHashSet<BlockId> {
-        let mut gen_set: FxHashSet<BlockId> = FxHashSet::default();
-        let mut kill: FxHashSet<BlockId> = FxHashSet::default();
+    fn compute_live_in(&self, func: &Function) -> DenseBitSet<BlockId> {
+        let mut gen_set = DenseBitSet::new_empty(func.blocks.len());
+        let mut kill = DenseBitSet::new_empty(func.blocks.len());
 
         for block in func.blocks.indices() {
             if !self.cfg.is_reachable(block) {
@@ -721,13 +725,12 @@ impl<'a> SlotSsaBuilder<'a> {
         while changed {
             changed = false;
             for block in func.blocks.indices() {
-                if !self.cfg.is_reachable(block)
-                    || live_in.contains(&block)
-                    || kill.contains(&block)
+                if !self.cfg.is_reachable(block) || live_in.contains(block) || kill.contains(block)
                 {
                     continue;
                 }
-                let live_out = self.cfg.successors(block).iter().any(|succ| live_in.contains(succ));
+                let live_out =
+                    self.cfg.successors(block).iter().any(|&succ| live_in.contains(succ));
                 if live_out {
                     live_in.insert(block);
                     changed = true;
@@ -740,16 +743,16 @@ impl<'a> SlotSsaBuilder<'a> {
     fn compute_phi_blocks(
         &self,
         func: &Function,
-        live_in: &FxHashSet<BlockId>,
-    ) -> FxHashSet<BlockId> {
+        live_in: &DenseBitSet<BlockId>,
+    ) -> DenseBitSet<BlockId> {
         let frontiers = self.compute_dominance_frontiers(func);
-        let mut phi_blocks = FxHashSet::default();
+        let mut phi_blocks = DenseBitSet::new_empty(func.blocks.len());
         let mut worklist = sorted_blocks(&self.info.def_blocks);
 
         while let Some(block) = worklist.pop() {
             let Some(frontier) = frontiers.get(block.index()) else { continue };
             for &frontier_block in frontier {
-                if !live_in.contains(&frontier_block) || !phi_blocks.insert(frontier_block) {
+                if !live_in.contains(frontier_block) || !phi_blocks.insert(frontier_block) {
                     continue;
                 }
                 worklist.push(frontier_block);
@@ -831,15 +834,15 @@ impl<'a> SlotSsaBuilder<'a> {
         func.replace_uses_canonicalized(&self.replacements);
 
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|id| !self.dead.contains(id));
+            block.instructions.retain(|&id| !self.dead.contains(id));
         }
     }
 
     fn rewrite_single_block(&mut self, func: &Function) -> bool {
-        if self.info.access_blocks.len() != 1 {
+        if self.info.access_blocks.count() != 1 {
             return false;
         }
-        let block = self.info.access_blocks.iter().copied().next().expect("checked len above");
+        let block = self.info.access_blocks.iter().next().expect("checked count above");
         if !self.cfg.is_reachable(block) {
             self.failed = true;
             return true;

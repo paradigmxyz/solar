@@ -44,7 +44,7 @@ use crate::{
     pass::FunctionPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use std::cmp::Ordering;
 
 /// Common Subexpression Elimination pass.
@@ -140,9 +140,9 @@ struct GlobalCseContext<'a> {
     dom_tree: &'a DominatorTree,
     inst_results: &'a FxHashMap<InstId, ValueId>,
     block_clobbers: &'a FxHashMap<BlockId, Vec<Clobber>>,
-    reachability: &'a FxHashMap<BlockId, FxHashSet<BlockId>>,
+    reachability: &'a FxHashMap<BlockId, DenseBitSet<BlockId>>,
     replacements: &'a mut FxHashMap<ValueId, ValueId>,
-    dead: &'a mut FxHashSet<InstId>,
+    dead: &'a mut DenseBitSet<InstId>,
 }
 
 /// A single cache-invalidating effect of a side-effecting instruction.
@@ -230,7 +230,7 @@ impl CommonSubexprEliminator {
             cfg.transitive_reachability().clone()
         };
         let mut replacements = FxHashMap::default();
-        let mut dead = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
         let mut cache = FxHashMap::default();
         let mut ctx = GlobalCseContext {
             dom_tree: cfg.dominators(),
@@ -248,7 +248,7 @@ impl CommonSubexprEliminator {
         }
         if !dead.is_empty() {
             for block in func.blocks.iter_mut() {
-                block.instructions.retain(|id| !dead.contains(id));
+                block.instructions.retain(|&id| !dead.contains(id));
             }
         }
     }
@@ -287,7 +287,7 @@ impl CommonSubexprEliminator {
             return;
         }
 
-        let mut dead = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len() + candidates.len());
         let mut replacements = FxHashMap::default();
         let mut inserted_by_block: FxHashMap<BlockId, usize> = FxHashMap::default();
 
@@ -317,7 +317,7 @@ impl CommonSubexprEliminator {
 
         self.apply_replacements_to_all_blocks(func, &replacements);
         for block in func.blocks.iter_mut() {
-            block.instructions.retain(|id| !dead.contains(id));
+            block.instructions.retain(|&id| !dead.contains(id));
         }
     }
 
@@ -436,10 +436,10 @@ impl CommonSubexprEliminator {
         let Some(reachable_from_parent) = ctx.reachability.get(&parent) else { return };
         for (&mid, clobbers) in ctx.block_clobbers {
             // Clobbers in `parent` itself were already applied while processing it sequentially.
-            if mid == parent || !reachable_from_parent.contains(&mid) {
+            if mid == parent || !reachable_from_parent.contains(mid) {
                 continue;
             }
-            if !ctx.reachability.get(&mid).is_some_and(|reachable| reachable.contains(&child)) {
+            if !ctx.reachability.get(&mid).is_some_and(|reachable| reachable.contains(child)) {
                 continue;
             }
             for clobber in clobbers {
@@ -487,7 +487,7 @@ impl CommonSubexprEliminator {
         let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
 
         // Instructions to remove
-        let mut to_remove: FxHashSet<InstId> = FxHashSet::default();
+        let mut to_remove = DenseBitSet::new_empty(func.instructions.len());
 
         // Get instruction list for this block
         let block = func.block(block_id);
@@ -531,7 +531,7 @@ impl CommonSubexprEliminator {
 
         // Remove eliminated instructions
         let block = func.block_mut(block_id);
-        block.instructions.retain(|id| !to_remove.contains(id));
+        block.instructions.retain(|&id| !to_remove.contains(id));
     }
 
     /// Creates a normalized expression key for an instruction.

@@ -146,7 +146,7 @@ impl StorageScalarPromoter {
         let mut slot_value: Option<ValueId> = None;
         let mut saw_loop_store = false;
 
-        for &block_id in &loop_data.blocks {
+        for block_id in loop_data.blocks.iter() {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::SStore(store_slot, _) = &func.instructions[inst_id].kind {
                     let store_key =
@@ -214,7 +214,7 @@ impl StorageScalarPromoter {
         }
 
         let mut stores: FxHashMap<StorageAlias, ValueId> = FxHashMap::default();
-        for &block_id in &loop_data.blocks {
+        for block_id in loop_data.blocks.iter() {
             for &inst_id in &func.blocks[block_id].instructions {
                 if let InstKind::SStore(store_slot, _) = &func.instructions[inst_id].kind {
                     let store_key =
@@ -264,7 +264,7 @@ impl StorageScalarPromoter {
 
     fn has_isolated_promotable_exits(&self, func: &Function, loop_data: &Loop) -> bool {
         loop_data.exit_blocks.iter().all(|&exit| {
-            func.blocks[exit].predecessors.iter().all(|pred| loop_data.blocks.contains(pred))
+            func.blocks[exit].predecessors.iter().all(|&pred| loop_data.blocks.contains(pred))
                 && if self.exit_rolls_back(func, exit) {
                     self.rollback_exit_has_no_observable_effects(func, exit)
                 } else {
@@ -304,7 +304,7 @@ impl StorageScalarPromoter {
     /// the loop body plus rollback exits, whose reads of the promoted slot
     /// must observe the memory temp instead of the stale storage value.
     fn promotion_block_ids(&self, func: &Function, loop_data: &Loop) -> Vec<BlockId> {
-        let mut blocks: Vec<BlockId> = loop_data.blocks.iter().copied().collect();
+        let mut blocks: Vec<BlockId> = loop_data.blocks.iter().collect();
         blocks.extend(
             loop_data.exit_blocks.iter().copied().filter(|&exit| self.exit_rolls_back(func, exit)),
         );
@@ -312,7 +312,7 @@ impl StorageScalarPromoter {
     }
 
     fn loop_has_no_unpromotable_side_effects(&self, func: &Function, loop_data: &Loop) -> bool {
-        for &block_id in &loop_data.blocks {
+        for block_id in loop_data.blocks.iter() {
             if matches!(
                 func.blocks[block_id].terminator,
                 Some(
@@ -620,7 +620,7 @@ impl StorageScalarPromoter {
         for block_id in self.promotion_block_ids(func, loop_data) {
             // Rollback exits never flush, so their rewritten stores do not
             // need to update the dirty flag.
-            let track_dirty = loop_data.blocks.contains(&block_id);
+            let track_dirty = loop_data.blocks.contains(block_id);
             let mut index = 0;
             while index < func.blocks[block_id].instructions.len() {
                 let inst_id = func.blocks[block_id].instructions[index];
@@ -902,7 +902,7 @@ impl StorageScalarPromoter {
             Value::Inst(inst_id) => loop_data
                 .blocks
                 .iter()
-                .any(|&block_id| func.blocks[block_id].instructions.contains(inst_id)),
+                .any(|block_id| func.blocks[block_id].instructions.contains(inst_id)),
             Value::Undef(_) | Value::Error(_) => true,
             Value::Arg { .. } | Value::Immediate(_) => false,
         }

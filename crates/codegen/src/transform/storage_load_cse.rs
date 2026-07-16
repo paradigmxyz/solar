@@ -8,7 +8,7 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Local storage load CSE pass.
 #[derive(Debug, Default)]
@@ -46,7 +46,7 @@ impl StorageLoadCse {
         let inst_results = func.inst_results();
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut replacements = FxHashMap::default();
-        let mut dead = FxHashSet::default();
+        let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for block_id in block_ids {
             self.process_block(
@@ -64,7 +64,7 @@ impl StorageLoadCse {
         }
         if !dead.is_empty() {
             for block in func.blocks.iter_mut() {
-                block.instructions.retain(|id| !dead.contains(id));
+                block.instructions.retain(|&id| !dead.contains(id));
             }
         }
 
@@ -91,7 +91,7 @@ impl StorageLoadCse {
         liveness: &Liveness,
         inst_results: &FxHashMap<InstId, ValueId>,
         replacements: &mut FxHashMap<ValueId, ValueId>,
-        dead: &mut FxHashSet<InstId>,
+        dead: &mut DenseBitSet<InstId>,
     ) {
         let mut cached_loads: FxHashMap<StorageAlias, ValueId> = FxHashMap::default();
         let inst_ids = func.blocks[block_id].instructions.clone();
