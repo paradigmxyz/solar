@@ -1,16 +1,23 @@
 use crate::workspace::load_foundry_document;
 use glob::{MatchOptions, Pattern};
 use normalize_path::NormalizePath;
-use std::{io, path::Path, process::Stdio, string::FromUtf8Error, time::Duration};
+use std::{env, io, path::Path, process::Stdio, string::FromUtf8Error, time::Duration};
 use tokio::{io::AsyncWriteExt, process::Command, time};
 
 const FORMATTER_TIMEOUT: Duration = Duration::from_secs(30);
+const DEFAULT_FOUNDRY_PROFILE: &str = "default";
 
 pub(crate) async fn run(forge: &Path, root: &Path, source: &str) -> Result<String, FormatterError> {
     run_with_timeout(forge, root, source, FORMATTER_TIMEOUT).await
 }
 
 pub(crate) fn is_ignored(path: &Path, root: &Path) -> bool {
+    let profile =
+        env::var("FOUNDRY_PROFILE").unwrap_or_else(|_| DEFAULT_FOUNDRY_PROFILE.to_owned());
+    is_ignored_with_profile(path, root, &profile)
+}
+
+fn is_ignored_with_profile(path: &Path, root: &Path, profile: &str) -> bool {
     let Ok(document) = load_foundry_document(&root.join("foundry.toml")) else {
         return false;
     };
@@ -18,7 +25,7 @@ pub(crate) fn is_ignored(path: &Path, root: &Path) -> bool {
     let path = path.normalize();
     let options = MatchOptions { require_literal_separator: true, ..MatchOptions::new() };
 
-    document.formatter_ignores().iter().any(|ignore| {
+    document.formatter_ignores(profile).iter().any(|ignore| {
         let ignore = root.join(ignore.trim_end_matches(['/', '\\'])).normalize();
         Pattern::new(&ignore.to_string_lossy()).is_ok_and(|pattern| {
             path.ancestors()
@@ -135,6 +142,33 @@ mod tests {
         assert!(is_ignored(&project.path("/src/Dot.sol"), project.root()));
         assert!(is_ignored(&project.path("/src/Parent.sol"), project.root()));
         assert!(!is_ignored(&project.path("/src/Formatted.sol"), project.root()));
+    }
+
+    #[test]
+    fn foundry_ignore_patterns_use_selected_profile_formatter_config() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [fmt]
+            ignore = ["src/Root.sol"]
+
+            [profile.default.fmt]
+            ignore = ["src/Default.sol"]
+
+            [profile.ci.fmt]
+            ignore = ["src/Ci.sol"]
+
+            //- /src/Root.sol
+
+            //- /src/Default.sol
+
+            //- /src/Ci.sol
+            "#,
+        );
+
+        assert!(is_ignored_with_profile(&project.path("/src/Ci.sol"), project.root(), "ci"));
+        assert!(!is_ignored_with_profile(&project.path("/src/Root.sol"), project.root(), "ci"));
+        assert!(!is_ignored_with_profile(&project.path("/src/Default.sol"), project.root(), "ci"));
     }
 
     #[test]
