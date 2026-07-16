@@ -169,59 +169,63 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) {
 /// Process a `.mir` input: read file, parse, run passes, print.
 fn process_mir(args: &MirOptArgs) -> solar_interface::Result {
     let sess = Session::builder().with_stderr_emitter().build();
-    let result = sess
+    let result = process_mir_inner(&sess, args);
+    result.and(sess.dcx.print_error_count())
+}
+
+fn process_mir_inner(sess: &Session, args: &MirOptArgs) -> solar_interface::Result {
+    let source = sess
         .source_map()
         .load_file(Path::new(&args.input))
-        .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())
-        .and_then(|source| {
-            sess.enter(|| {
-                let mut module = parse_module(source.src.as_str())
-                    .map_err(|e| sess.dcx.err(format!("{e}")).emit())?;
-                // Hand-written MIR is untrusted input: reject invalid modules with a
-                // diagnostic instead of tripping the post-pass validator ICE.
-                solar_codegen::analysis::validate_module(&sess.dcx, &module);
-                if sess.dcx.has_errors().is_ok() {
-                    // Use a fixed name for .mir input — the parser interns whatever the
-                    // file declared (or "module" by default).
-                    let name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
-                    run_pipeline(&mut module, &name, args);
-                }
-                Ok(())
-            })
-        });
-    result.and(sess.dcx.print_error_count())
+        .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
+    sess.enter(|| {
+        let mut module =
+            parse_module(source.src.as_str()).map_err(|e| sess.dcx.err(format!("{e}")).emit())?;
+        // Hand-written MIR is untrusted input: reject invalid modules with a
+        // diagnostic instead of tripping the post-pass validator ICE.
+        solar_codegen::analysis::validate_module(&sess.dcx, &module);
+        if sess.dcx.has_errors().is_ok() {
+            // Use a fixed name for .mir input — the parser interns whatever the
+            // file declared (or "module" by default).
+            let name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
+            run_pipeline(&mut module, &name, args);
+        }
+        Ok(())
+    })
 }
 
 /// Process a `.sol` input: full Solidity → MIR pipeline.
 fn process_sol(args: &MirOptArgs) -> solar_interface::Result {
     let sess = Session::builder().with_stderr_emitter().build();
     let mut compiler = Compiler::new(sess);
+    let result = process_sol_inner(&mut compiler, args);
+    result.and(compiler.sess().dcx.print_error_count())
+}
 
-    let result = compiler.enter_mut(|c| -> solar_interface::Result<_> {
+fn process_sol_inner(compiler: &mut Compiler, args: &MirOptArgs) -> solar_interface::Result {
+    compiler.enter_mut(|c| -> solar_interface::Result<_> {
         let mut pcx = c.parse();
         pcx.load_files([Path::new(&args.input)])?;
         pcx.parse();
         Ok(())
-    });
-    let result = result.and_then(|()| {
-        compiler.enter_mut(|c| -> solar_interface::Result<_> {
-            let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
-            let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
+    })?;
 
-            let gcx = c.gcx();
-            for id in gcx.hir.contract_ids() {
-                let contract = gcx.hir.contract(id);
-                if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
-                    continue;
-                }
-                let mut module = lower::lower_contract(gcx, id);
-                let name = gcx.contract_fully_qualified_name(id).to_string();
-                run_pipeline(&mut module, &name, args);
+    compiler.enter_mut(|c| -> solar_interface::Result<_> {
+        let ControlFlow::Continue(()) = c.lower_asts()? else { return Ok(()) };
+        let ControlFlow::Continue(()) = c.analysis()? else { return Ok(()) };
+
+        let gcx = c.gcx();
+        for id in gcx.hir.contract_ids() {
+            let contract = gcx.hir.contract(id);
+            if contract.kind.is_interface() || contract.kind.is_abstract_contract() {
+                continue;
             }
-            Ok(())
-        })
-    });
-    result.and(compiler.sess().dcx.print_error_count())
+            let mut module = lower::lower_contract(gcx, id);
+            let name = gcx.contract_fully_qualified_name(id).to_string();
+            run_pipeline(&mut module, &name, args);
+        }
+        Ok(())
+    })
 }
 
 /// Entry point for the `mir-opt` subcommand.
