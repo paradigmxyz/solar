@@ -1,5 +1,5 @@
 use crate::workspace::load_foundry_document;
-use glob::Pattern;
+use glob::{MatchOptions, Pattern};
 use normalize_path::NormalizePath;
 use std::{io, path::Path, process::Stdio, string::FromUtf8Error, time::Duration};
 use tokio::{io::AsyncWriteExt, process::Command, time};
@@ -24,13 +24,14 @@ fn is_ignored(path: &Path, root: &Path) -> bool {
     };
     let root = root.to_path_buf().normalize();
     let path = path.to_path_buf().normalize();
+    let options = MatchOptions { require_literal_separator: true, ..MatchOptions::new() };
 
     document.formatter_ignores().iter().any(|ignore| {
         let ignore = ignore.trim_end_matches(['/', '\\']);
         Pattern::new(&root.join(ignore).to_string_lossy()).is_ok_and(|pattern| {
             path.ancestors()
                 .take_while(|ancestor| ancestor.starts_with(&root))
-                .any(|candidate| pattern.matches_path(candidate))
+                .any(|candidate| pattern.matches_path_with(candidate, options))
         })
     })
 }
@@ -121,6 +122,24 @@ mod tests {
         assert!(is_ignored(&project.path("/generated/nested/Generated.sol"), project.root()));
         assert!(is_ignored(&project.path("/vendor/Nested.sol"), project.root()));
         assert!(!is_ignored(&project.path("/src/Formatted.sol"), project.root()));
+    }
+
+    #[test]
+    fn foundry_ignore_globs_do_not_cross_directories() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /foundry.toml
+            [fmt]
+            ignore = ["src/*.sol"]
+
+            //- /src/Direct.sol
+
+            //- /src/nested/Nested.sol
+            "#,
+        );
+
+        assert!(is_ignored(&project.path("/src/Direct.sol"), project.root()));
+        assert!(!is_ignored(&project.path("/src/nested/Nested.sol"), project.root()));
     }
 
     #[tokio::test(flavor = "current_thread")]
