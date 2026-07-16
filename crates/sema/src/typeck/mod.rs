@@ -91,7 +91,7 @@ fn merge_typeck_results<'gcx>(
         }
     }
 
-    for id in &new_results.unsupported_udvt_operators {
+    for id in new_results.unsupported_udvt_operators.iter() {
         results.unsupported_udvt_operators.insert(id);
     }
 }
