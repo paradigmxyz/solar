@@ -3,7 +3,7 @@
 use super::*;
 use solar_data_structures::fmt::FmtIteratorExt;
 
-impl EvmIrModule {
+impl Module {
     /// Returns the canonical EVM IR text-format representation.
     pub fn to_text(&self) -> impl fmt::Display + '_ {
         fmt::from_fn(move |f| {
@@ -19,13 +19,13 @@ impl EvmIrModule {
 }
 
 fn display_block<'a>(
-    module: &'a EvmIrModule,
-    block_id: EvmIrBlockId,
-    block: &'a EvmIrBlock,
+    module: &'a Module,
+    block_id: BlockId,
+    block: &'a Block,
 ) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         let entry = if module.entry_block == Some(block_id) { " (entry)" } else { "" };
-        let cold = if block.metadata.hotness == EvmIrBlockHotness::Cold { " [cold]" } else { "" };
+        let cold = if block.metadata.hotness == BlockHotness::Cold { " [cold]" } else { "" };
         write!(f, "{}{}{}", block.label, entry, cold)?;
         if !block.entry_stack.is_empty() {
             write!(f, " (in ")?;
@@ -48,10 +48,7 @@ fn display_block<'a>(
     })
 }
 
-fn display_instruction<'a>(
-    module: &'a EvmIrModule,
-    inst: &'a EvmIrInstruction,
-) -> impl fmt::Display + 'a {
+fn display_instruction<'a>(module: &'a Module, inst: &'a Instruction) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         if let Some(result) = inst.result {
             write!(f, "{} = ", display_value(module, result))?;
@@ -72,20 +69,17 @@ fn display_instruction<'a>(
     })
 }
 
-fn display_terminator<'a>(
-    module: &'a EvmIrModule,
-    term: &'a EvmIrTerminator,
-) -> impl fmt::Display + 'a {
+fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| {
         match &term.kind {
-            EvmIrTerminatorKind::Fallthrough(target) => {
+            TerminatorKind::Fallthrough(target) => {
                 write!(f, "fallthrough {}", display_block_id(module, *target))?;
             }
-            EvmIrTerminatorKind::FallthroughNext => write!(f, "fallthrough_next")?,
-            EvmIrTerminatorKind::Jump(target) => {
+            TerminatorKind::FallthroughNext => write!(f, "fallthrough_next")?,
+            TerminatorKind::Jump(target) => {
                 write!(f, "jump {}", display_block_id(module, *target))?;
             }
-            EvmIrTerminatorKind::Branch { condition, then_block, else_block } => {
+            TerminatorKind::Branch { condition, then_block, else_block } => {
                 write!(
                     f,
                     "br {}, {}, {}",
@@ -94,7 +88,7 @@ fn display_terminator<'a>(
                     display_block_id(module, *else_block)
                 )?;
             }
-            EvmIrTerminatorKind::Switch { value, default, cases } => {
+            TerminatorKind::Switch { value, default, cases } => {
                 write!(
                     f,
                     "switch {}, default {}, [",
@@ -115,7 +109,7 @@ fn display_terminator<'a>(
                 )?;
                 write!(f, "]")?;
             }
-            EvmIrTerminatorKind::Return { offset, size } => {
+            TerminatorKind::Return { offset, size } => {
                 write!(
                     f,
                     "return {}, {}",
@@ -123,7 +117,7 @@ fn display_terminator<'a>(
                     display_operand(module, size)
                 )?;
             }
-            EvmIrTerminatorKind::Revert { offset, size } => {
+            TerminatorKind::Revert { offset, size } => {
                 write!(
                     f,
                     "revert {}, {}",
@@ -131,12 +125,12 @@ fn display_terminator<'a>(
                     display_operand(module, size)
                 )?;
             }
-            EvmIrTerminatorKind::Stop => write!(f, "stop")?,
-            EvmIrTerminatorKind::Invalid => write!(f, "invalid")?,
-            EvmIrTerminatorKind::SelfDestruct { recipient } => {
+            TerminatorKind::Stop => write!(f, "stop")?,
+            TerminatorKind::Invalid => write!(f, "invalid")?,
+            TerminatorKind::SelfDestruct { recipient } => {
                 write!(f, "selfdestruct {}", display_operand(module, recipient))?;
             }
-            EvmIrTerminatorKind::RawOpcode(opcode) => {
+            TerminatorKind::RawOpcode(opcode) => {
                 if let Some(mnemonic) = super::super::assembler::op::mnemonic(*opcode) {
                     write!(f, "terminal {mnemonic}")?;
                 } else {
@@ -153,12 +147,12 @@ fn display_terminator<'a>(
 }
 
 fn display_metadata(
-    metadata: &EvmIrMetadata,
-    default_stack: Option<EvmIrStackEffect>,
+    metadata: &Metadata,
+    default_stack: Option<StackEffect>,
 ) -> impl fmt::Display + '_ {
     enum Field<'a> {
-        Stack(EvmIrStackEffect),
-        Attr(&'a EvmIrMetadataItem),
+        Stack(StackEffect),
+        Attr(&'a MetadataItem),
     }
 
     fn display_field(field: Field<'_>) -> impl fmt::Display + '_ {
@@ -193,23 +187,20 @@ fn display_metadata(
     })
 }
 
-fn display_operand<'a>(
-    module: &'a EvmIrModule,
-    operand: &'a EvmIrOperand,
-) -> impl fmt::Display + 'a {
+fn display_operand<'a>(module: &'a Module, operand: &'a Operand) -> impl fmt::Display + 'a {
     fmt::from_fn(move |f| match operand {
-        EvmIrOperand::Value(value) => write!(f, "{}", display_value(module, *value)),
-        EvmIrOperand::Immediate(value) => write!(f, "{}", display_u256(*value)),
-        EvmIrOperand::Block(block) => write!(f, "{}", display_block_id(module, *block)),
-        EvmIrOperand::Symbol(symbol) => write!(f, "{symbol}"),
+        Operand::Value(value) => write!(f, "{}", display_value(module, *value)),
+        Operand::Immediate(value) => write!(f, "{}", display_u256(*value)),
+        Operand::Block(block) => write!(f, "{}", display_block_id(module, *block)),
+        Operand::Symbol(symbol) => write!(f, "{symbol}"),
     })
 }
 
-fn display_value(module: &EvmIrModule, value: EvmIrValueId) -> impl fmt::Display + '_ {
+fn display_value(module: &Module, value: ValueId) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| write!(f, "%{}", module.values[value].name))
 }
 
-fn display_block_id(module: &EvmIrModule, block: EvmIrBlockId) -> impl fmt::Display + '_ {
+fn display_block_id(module: &Module, block: BlockId) -> impl fmt::Display + '_ {
     fmt::from_fn(move |f| write!(f, "{}", module.blocks[block].label))
 }
 

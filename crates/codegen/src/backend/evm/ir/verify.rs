@@ -10,11 +10,11 @@ use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 use std::fmt;
 
 /// Stateful EVM IR verifier.
-pub struct EvmIrVerifier<'a> {
+pub struct Verifier<'a> {
     dcx: &'a DiagCtxt,
 }
 
-impl<'a> EvmIrVerifier<'a> {
+impl<'a> Verifier<'a> {
     /// Creates a verifier that emits findings into `dcx`.
     pub const fn new(dcx: &'a DiagCtxt) -> Self {
         Self { dcx }
@@ -28,12 +28,12 @@ impl<'a> EvmIrVerifier<'a> {
     }
 
     #[track_caller]
-    fn error_in_block(&self, block: EvmIrBlockId, msg: impl fmt::Display) -> ErrorGuaranteed {
+    fn error_in_block(&self, block: BlockId, msg: impl fmt::Display) -> ErrorGuaranteed {
         self.error(format_args!("block {}: {msg}", block.index()))
     }
 
     /// Verifies basic EVM IR invariants.
-    pub fn verify_module(&self, module: &EvmIrModule) {
+    pub fn verify_module(&self, module: &Module) {
         let errors_before = self.dcx.err_count();
         if !is_valid_ident(&module.name) {
             self.error(format_args!("invalid program name `{}`", module.name));
@@ -174,7 +174,7 @@ impl<'a> EvmIrVerifier<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum AbstractWord {
     /// A word with a known SSA value identity.
-    Value(EvmIrValueId),
+    Value(ValueId),
     /// An anonymous word (a `push` immediate or a synthesized output) whose
     /// identity is not an SSA value.
     Unknown,
@@ -247,15 +247,15 @@ impl ModelStack {
 /// words the predecessor leaves, in order. The predecessor may leave additional
 /// words below them — a successor only names the prefix it consumes. The entry
 /// block must start from an empty stack.
-impl EvmIrVerifier<'_> {
-    fn verify_stack_consistency(&self, module: &EvmIrModule) {
+impl Verifier<'_> {
+    fn verify_stack_consistency(&self, module: &Module) {
         if let Some(entry) = module.entry_block
             && !module.blocks[entry].entry_stack.is_empty()
         {
             self.error_in_block(entry, "entry block must start from an empty stack");
         }
 
-        let mut exit_stacks: IndexVec<EvmIrBlockId, Option<Vec<AbstractWord>>> =
+        let mut exit_stacks: IndexVec<BlockId, Option<Vec<AbstractWord>>> =
             IndexVec::with_capacity(module.blocks.len());
         for (block_id, block) in module.blocks.iter_enumerated() {
             let is_entry = module.entry_block == Some(block_id);
@@ -294,9 +294,9 @@ impl EvmIrVerifier<'_> {
     /// model stack.
     fn simulate_block(
         &self,
-        module: &EvmIrModule,
-        block_id: EvmIrBlockId,
-        block: &EvmIrBlock,
+        module: &Module,
+        block_id: BlockId,
+        block: &Block,
         is_entry: bool,
     ) -> Result<Vec<AbstractWord>, ErrorGuaranteed> {
         let mut stack = ModelStack {
@@ -315,26 +315,26 @@ impl EvmIrVerifier<'_> {
 
     fn simulate_instruction(
         &self,
-        module: &EvmIrModule,
-        block_id: EvmIrBlockId,
-        inst: &EvmIrInstruction,
+        module: &Module,
+        block_id: BlockId,
+        inst: &Instruction,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
         match &inst.kind {
-            EvmIrInstructionKind::Stack(op) => self.apply_physical_stack_op(block_id, *op, stack),
-            EvmIrInstructionKind::Operation(_) if is_encoded_push_instruction(inst) => {
+            InstructionKind::Stack(op) => self.apply_physical_stack_op(block_id, *op, stack),
+            InstructionKind::Operation(_) if is_encoded_push_instruction(inst) => {
                 // An encoded `push` adds one word: its SSA result if it has one,
                 // otherwise an anonymous immediate word.
                 stack.push(self.result_word(inst));
                 Ok(())
             }
-            EvmIrInstructionKind::Operation(_) if !inst.operands.is_empty() => {
+            InstructionKind::Operation(_) if !inst.operands.is_empty() => {
                 // Unscheduled op: its value operands are still present, so they must
                 // be live on the model stack. They are not consumed (the operands
                 // sit on the stack until scheduling clears them); the result, if
                 // any, is pushed on top.
                 for operand in &inst.operands {
-                    if let EvmIrOperand::Value(value) = operand
+                    if let Operand::Value(value) = operand
                         && !stack.contains(AbstractWord::Value(*value))
                     {
                         return Err(self.error_in_block(
@@ -352,7 +352,7 @@ impl EvmIrVerifier<'_> {
                 }
                 Ok(())
             }
-            EvmIrInstructionKind::Operation(_) => {
+            InstructionKind::Operation(_) => {
                 // Scheduled op: operands cleared. Pop its declared inputs and push
                 // its outputs.
                 let effect =
@@ -364,9 +364,9 @@ impl EvmIrVerifier<'_> {
 
     fn apply_effect(
         &self,
-        block_id: EvmIrBlockId,
-        inst: &EvmIrInstruction,
-        effect: EvmIrStackEffect,
+        block_id: BlockId,
+        inst: &Instruction,
+        effect: StackEffect,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
         let inputs = usize::from(effect.inputs);
@@ -391,12 +391,12 @@ impl EvmIrVerifier<'_> {
 
     fn apply_physical_stack_op(
         &self,
-        block_id: EvmIrBlockId,
-        op: EvmIrStackOp,
+        block_id: BlockId,
+        op: StackOp,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
         match op {
-            EvmIrStackOp::Dup(n) => {
+            StackOp::Dup(n) => {
                 let depth = usize::from(n);
                 if !stack.ensure_depth(depth) {
                     return Err(self.error_in_block(
@@ -410,7 +410,7 @@ impl EvmIrVerifier<'_> {
                 let word = stack.words[depth - 1];
                 stack.push(word);
             }
-            EvmIrStackOp::Swap(n) => {
+            StackOp::Swap(n) => {
                 let depth = usize::from(n);
                 if !stack.ensure_depth(depth + 1) {
                     return Err(self.error_in_block(
@@ -423,7 +423,7 @@ impl EvmIrVerifier<'_> {
                 }
                 stack.words.swap(0, depth);
             }
-            EvmIrStackOp::Pop => {
+            StackOp::Pop => {
                 if !stack.ensure_depth(1) {
                     return Err(self.error_in_block(block_id, "`pop` on an empty stack"));
                 }
@@ -435,9 +435,9 @@ impl EvmIrVerifier<'_> {
 
     fn simulate_terminator(
         &self,
-        module: &EvmIrModule,
-        block_id: EvmIrBlockId,
-        kind: &EvmIrTerminatorKind,
+        module: &Module,
+        block_id: BlockId,
+        kind: &TerminatorKind,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
         // A terminator that still carries value operands is unscheduled: those
@@ -447,7 +447,7 @@ impl EvmIrVerifier<'_> {
         // to claim those consumed words as incoming stack values.
         let mut result = Ok(());
         visit_terminator_operands(kind, |operand| {
-            if let EvmIrOperand::Value(value) = operand
+            if let Operand::Value(value) = operand
                 && !stack.contains(AbstractWord::Value(*value))
             {
                 result = Err(self.error_in_block(
@@ -467,13 +467,13 @@ impl EvmIrVerifier<'_> {
 
     fn apply_terminator_effect(
         &self,
-        block_id: EvmIrBlockId,
-        kind: &EvmIrTerminatorKind,
+        block_id: BlockId,
+        kind: &TerminatorKind,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
         let mut consumed = GrowableBitSet::new_empty();
         visit_terminator_operands(kind, |operand| {
-            if let EvmIrOperand::Value(value) = operand
+            if let Operand::Value(value) = operand
                 && consumed.insert(*value)
             {
                 self.consume_stack_value(block_id, kind, *value, stack)?;
@@ -500,9 +500,9 @@ impl EvmIrVerifier<'_> {
 
     fn consume_stack_value(
         &self,
-        block_id: EvmIrBlockId,
-        kind: &EvmIrTerminatorKind,
-        value: EvmIrValueId,
+        block_id: BlockId,
+        kind: &TerminatorKind,
+        value: ValueId,
         stack: &mut ModelStack,
     ) -> Result<(), ErrorGuaranteed> {
         let needle = AbstractWord::Value(value);
@@ -519,31 +519,31 @@ impl EvmIrVerifier<'_> {
         Ok(())
     }
 
-    fn terminator_name(&self, kind: &EvmIrTerminatorKind) -> &'static str {
+    fn terminator_name(&self, kind: &TerminatorKind) -> &'static str {
         match kind {
-            EvmIrTerminatorKind::Fallthrough(_) => "fallthrough",
-            EvmIrTerminatorKind::FallthroughNext => "fallthrough_next",
-            EvmIrTerminatorKind::Jump(_) => "jump",
-            EvmIrTerminatorKind::Branch { .. } => "br",
-            EvmIrTerminatorKind::Switch { .. } => "switch",
-            EvmIrTerminatorKind::Return { .. } => "return",
-            EvmIrTerminatorKind::Revert { .. } => "revert",
-            EvmIrTerminatorKind::Stop => "stop",
-            EvmIrTerminatorKind::Invalid => "invalid",
-            EvmIrTerminatorKind::SelfDestruct { .. } => "selfdestruct",
-            EvmIrTerminatorKind::RawOpcode(_) => "terminal",
+            TerminatorKind::Fallthrough(_) => "fallthrough",
+            TerminatorKind::FallthroughNext => "fallthrough_next",
+            TerminatorKind::Jump(_) => "jump",
+            TerminatorKind::Branch { .. } => "br",
+            TerminatorKind::Switch { .. } => "switch",
+            TerminatorKind::Return { .. } => "return",
+            TerminatorKind::Revert { .. } => "revert",
+            TerminatorKind::Stop => "stop",
+            TerminatorKind::Invalid => "invalid",
+            TerminatorKind::SelfDestruct { .. } => "selfdestruct",
+            TerminatorKind::RawOpcode(_) => "terminal",
         }
     }
 
     /// The word a result-producing instruction leaves on top.
-    fn result_word(&self, inst: &EvmIrInstruction) -> AbstractWord {
+    fn result_word(&self, inst: &Instruction) -> AbstractWord {
         inst.result.map(AbstractWord::Value).unwrap_or(AbstractWord::Unknown)
     }
 
     fn format_entry_stack<'a>(
         &self,
-        module: &'a EvmIrModule,
-        stack: &'a [EvmIrValueId],
+        module: &'a Module,
+        stack: &'a [ValueId],
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
             for (index, &value) in stack.iter().enumerate() {
@@ -558,7 +558,7 @@ impl EvmIrVerifier<'_> {
 
     fn format_abstract_stack<'a>(
         &self,
-        module: &'a EvmIrModule,
+        module: &'a Module,
         stack: &'a [AbstractWord],
     ) -> impl fmt::Display + 'a {
         fmt::from_fn(move |f| {
@@ -575,8 +575,8 @@ impl EvmIrVerifier<'_> {
         })
     }
 
-    fn verify_instruction_shape(&self, block_id: EvmIrBlockId, inst: &EvmIrInstruction) {
-        if let EvmIrInstructionKind::Stack(op) = &inst.kind {
+    fn verify_instruction_shape(&self, block_id: BlockId, inst: &Instruction) {
+        if let InstructionKind::Stack(op) = &inst.kind {
             let expected = op.stack_effect();
             if inst.result.is_some() {
                 self.error_in_block(
@@ -614,7 +614,7 @@ impl EvmIrVerifier<'_> {
                     block_id,
                     format_args!("`{}` must have one operand", inst.mnemonic()),
                 );
-            } else if matches!(inst.operands[0], EvmIrOperand::Value(_)) {
+            } else if matches!(inst.operands[0], Operand::Value(_)) {
                 self.error_in_block(
                     block_id,
                     format_args!("`{}` cannot take a stack value operand", inst.mnemonic()),
@@ -625,7 +625,7 @@ impl EvmIrVerifier<'_> {
                 && inst.metadata.stack.is_none()
                 && matches!(
                     &inst.kind,
-                    EvmIrInstructionKind::Operation(mnemonic)
+                    InstructionKind::Operation(mnemonic)
                         if opcode_stack_effect(mnemonic).is_none()
                 )
             {
@@ -638,7 +638,7 @@ impl EvmIrVerifier<'_> {
                 );
             }
             for operand in &inst.operands {
-                if !matches!(operand, EvmIrOperand::Value(_)) {
+                if !matches!(operand, Operand::Value(_)) {
                     self.error_in_block(
                         block_id,
                         "non-`push` instruction operands must be stack values",
@@ -648,48 +648,42 @@ impl EvmIrVerifier<'_> {
         }
     }
 
-    fn verify_terminator_shape(&self, block_id: EvmIrBlockId, kind: &EvmIrTerminatorKind) {
+    fn verify_terminator_shape(&self, block_id: BlockId, kind: &TerminatorKind) {
         match kind {
-            EvmIrTerminatorKind::Branch { condition, .. } => {
+            TerminatorKind::Branch { condition, .. } => {
                 self.verify_stack_value_operand(block_id, condition, "branch condition")
             }
-            EvmIrTerminatorKind::Switch { value, cases, .. } => {
+            TerminatorKind::Switch { value, cases, .. } => {
                 self.verify_stack_value_operand(block_id, value, "switch value");
                 for (case, _) in cases {
-                    if !matches!(case, EvmIrOperand::Immediate(_)) {
+                    if !matches!(case, Operand::Immediate(_)) {
                         self.error_in_block(block_id, "switch case values must be immediates");
                     }
                 }
             }
-            EvmIrTerminatorKind::Return { offset, size }
-            | EvmIrTerminatorKind::Revert { offset, size } => {
+            TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
                 self.verify_stack_value_operand(block_id, offset, "memory offset");
                 self.verify_stack_value_operand(block_id, size, "memory size");
             }
-            EvmIrTerminatorKind::SelfDestruct { recipient } => {
+            TerminatorKind::SelfDestruct { recipient } => {
                 self.verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")
             }
-            EvmIrTerminatorKind::Fallthrough(_)
-            | EvmIrTerminatorKind::FallthroughNext
-            | EvmIrTerminatorKind::Jump(_)
-            | EvmIrTerminatorKind::Stop
-            | EvmIrTerminatorKind::Invalid
-            | EvmIrTerminatorKind::RawOpcode(_) => {}
+            TerminatorKind::Fallthrough(_)
+            | TerminatorKind::FallthroughNext
+            | TerminatorKind::Jump(_)
+            | TerminatorKind::Stop
+            | TerminatorKind::Invalid
+            | TerminatorKind::RawOpcode(_) => {}
         }
     }
 
-    fn verify_stack_value_operand(
-        &self,
-        block_id: EvmIrBlockId,
-        operand: &EvmIrOperand,
-        what: &str,
-    ) {
-        if !matches!(operand, EvmIrOperand::Value(_)) {
+    fn verify_stack_value_operand(&self, block_id: BlockId, operand: &Operand, what: &str) {
+        if !matches!(operand, Operand::Value(_)) {
             self.error_in_block(block_id, format_args!("{what} must be a stack value"));
         }
     }
 
-    fn verify_metadata_is_untyped(&self, block_id: EvmIrBlockId, metadata: &EvmIrMetadata) {
+    fn verify_metadata_is_untyped(&self, block_id: BlockId, metadata: &Metadata) {
         for item in &metadata.attrs {
             if matches!(item.key.as_str(), "type" | "ty" | "result_ty" | "mir_type") {
                 self.error_in_block(
@@ -700,15 +694,15 @@ impl EvmIrVerifier<'_> {
         }
     }
 
-    fn verify_operand(&self, block_id: EvmIrBlockId, module: &EvmIrModule, operand: &EvmIrOperand) {
+    fn verify_operand(&self, block_id: BlockId, module: &Module, operand: &Operand) {
         match operand {
-            EvmIrOperand::Value(value) if !self.value_exists(module, *value) => {
+            Operand::Value(value) if !self.value_exists(module, *value) => {
                 self.error_in_block(
                     block_id,
                     format_args!("value `{}` is out of range", value.index()),
                 );
             }
-            EvmIrOperand::Block(block) if !self.block_exists(module, *block) => {
+            Operand::Block(block) if !self.block_exists(module, *block) => {
                 self.error_in_block(
                     block_id,
                     format_args!("block `{}` is out of range", block.index()),
@@ -720,12 +714,12 @@ impl EvmIrVerifier<'_> {
 
     fn verify_value_defined(
         &self,
-        block_id: EvmIrBlockId,
-        module: &EvmIrModule,
-        operand: &EvmIrOperand,
-        defined_values: &DenseBitSet<EvmIrValueId>,
+        block_id: BlockId,
+        module: &Module,
+        operand: &Operand,
+        defined_values: &DenseBitSet<ValueId>,
     ) {
-        if let EvmIrOperand::Value(value) = operand
+        if let Operand::Value(value) = operand
             && self.value_exists(module, *value)
             && !defined_values.contains(*value)
         {
@@ -736,68 +730,65 @@ impl EvmIrVerifier<'_> {
         }
     }
 
-    fn block_exists(&self, module: &EvmIrModule, block: EvmIrBlockId) -> bool {
+    fn block_exists(&self, module: &Module, block: BlockId) -> bool {
         block.index() < module.blocks.len()
     }
 
-    fn value_exists(&self, module: &EvmIrModule, value: EvmIrValueId) -> bool {
+    fn value_exists(&self, module: &Module, value: ValueId) -> bool {
         value.index() < module.values.len()
     }
 }
 
 fn visit_terminator_operands<E>(
-    kind: &EvmIrTerminatorKind,
-    mut visit: impl FnMut(&EvmIrOperand) -> Result<(), E>,
+    kind: &TerminatorKind,
+    mut visit: impl FnMut(&Operand) -> Result<(), E>,
 ) -> Result<(), E> {
     match kind {
-        EvmIrTerminatorKind::Fallthrough(_)
-        | EvmIrTerminatorKind::FallthroughNext
-        | EvmIrTerminatorKind::Jump(_)
-        | EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::RawOpcode(_) => {}
-        EvmIrTerminatorKind::Branch { condition, .. } => visit(condition)?,
-        EvmIrTerminatorKind::Switch { value, cases, .. } => {
+        TerminatorKind::Fallthrough(_)
+        | TerminatorKind::FallthroughNext
+        | TerminatorKind::Jump(_)
+        | TerminatorKind::Stop
+        | TerminatorKind::Invalid
+        | TerminatorKind::RawOpcode(_) => {}
+        TerminatorKind::Branch { condition, .. } => visit(condition)?,
+        TerminatorKind::Switch { value, cases, .. } => {
             visit(value)?;
             for (case, _) in cases {
                 visit(case)?;
             }
         }
-        EvmIrTerminatorKind::Return { offset, size }
-        | EvmIrTerminatorKind::Revert { offset, size } => {
+        TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
             visit(offset)?;
             visit(size)?;
         }
-        EvmIrTerminatorKind::SelfDestruct { recipient } => visit(recipient)?,
+        TerminatorKind::SelfDestruct { recipient } => visit(recipient)?,
     }
     Ok(())
 }
 
 fn visit_terminator_targets<E>(
-    kind: &EvmIrTerminatorKind,
-    mut visit: impl FnMut(EvmIrBlockId) -> Result<(), E>,
+    kind: &TerminatorKind,
+    mut visit: impl FnMut(BlockId) -> Result<(), E>,
 ) -> Result<(), E> {
     match kind {
-        EvmIrTerminatorKind::Fallthrough(target) | EvmIrTerminatorKind::Jump(target) => {
-            visit(*target)?
-        }
-        EvmIrTerminatorKind::Branch { then_block, else_block, .. } => {
+        TerminatorKind::Fallthrough(target) | TerminatorKind::Jump(target) => visit(*target)?,
+        TerminatorKind::Branch { then_block, else_block, .. } => {
             visit(*then_block)?;
             visit(*else_block)?;
         }
-        EvmIrTerminatorKind::Switch { default, cases, .. } => {
+        TerminatorKind::Switch { default, cases, .. } => {
             visit(*default)?;
             for (_, target) in cases {
                 visit(*target)?;
             }
         }
-        EvmIrTerminatorKind::Return { .. }
-        | EvmIrTerminatorKind::Revert { .. }
-        | EvmIrTerminatorKind::FallthroughNext
-        | EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::SelfDestruct { .. }
-        | EvmIrTerminatorKind::RawOpcode(_) => {}
+        TerminatorKind::Return { .. }
+        | TerminatorKind::Revert { .. }
+        | TerminatorKind::FallthroughNext
+        | TerminatorKind::Stop
+        | TerminatorKind::Invalid
+        | TerminatorKind::SelfDestruct { .. }
+        | TerminatorKind::RawOpcode(_) => {}
     }
     Ok(())
 }

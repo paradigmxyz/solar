@@ -66,32 +66,25 @@
 //! inherits the empty prefix; only the linear `jump`/`fallthrough` case can hand
 //! down the words below.
 
-use super::{
-    ir::{
-        EvmIrBlock, EvmIrBlockId, EvmIrInstruction, EvmIrInstructionKind, EvmIrModule,
-        EvmIrOperand, EvmIrStackEffect, EvmIrStackOp, EvmIrTerminatorKind, EvmIrValueId,
-        default_instruction_stack_effect, is_encoded_push_instruction,
-    },
-    stack::SpillSlot,
-};
+use super::{ir, stack::SpillSlot};
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Maximum stack depth reachable by `DUP<N>`/`SWAP<N>`.
 const MAX_STACK_REACH: usize = 16;
 
-pub(super) fn schedule_stack_ops(module: &mut EvmIrModule) -> bool {
-    EvmIrStackScheduler::new(module).run()
+pub(super) fn schedule_stack_ops(module: &mut ir::Module) -> bool {
+    StackScheduler::new(module).run()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 enum ScheduledStackItem {
-    Value(EvmIrValueId),
+    Value(ir::ValueId),
     Anonymous(u32),
 }
 
-struct EvmIrStackScheduler<'a> {
-    module: &'a mut EvmIrModule,
+struct StackScheduler<'a> {
+    module: &'a mut ir::Module,
     next_anonymous: u32,
     changed: bool,
     /// Exit stack each successfully scheduled block leaves behind, keyed by
@@ -99,7 +92,7 @@ struct EvmIrStackScheduler<'a> {
     /// would inherit from it bails too. The entry value-word stack a block hands
     /// to a `jump`/`fallthrough` successor is the prefix of this exit stack that
     /// consists entirely of known SSA value words.
-    exit_stacks: FxHashMap<EvmIrBlockId, Vec<ScheduledStackItem>>,
+    exit_stacks: FxHashMap<ir::BlockId, Vec<ScheduledStackItem>>,
     /// Per-block spill state, reset for each block (see [`SpillState`]).
     spills: SpillState,
 }
@@ -116,7 +109,7 @@ struct SpillState {
     /// whose terminator propagates a named value-word stack to a successor.
     enabled: bool,
     /// Memory slot reserved for each currently-spilled value.
-    slots: FxHashMap<EvmIrValueId, SpillSlot>,
+    slots: FxHashMap<ir::ValueId, SpillSlot>,
     /// Next free spill slot offset (in 32-byte words).
     next_offset: u32,
 }
@@ -130,7 +123,7 @@ impl SpillState {
     }
 
     /// Reserves (or reuses) a memory slot for `value` and marks it spilled.
-    fn allocate(&mut self, value: EvmIrValueId) -> SpillSlot {
+    fn allocate(&mut self, value: ir::ValueId) -> SpillSlot {
         if let Some(&slot) = self.slots.get(&value) {
             return slot;
         }
@@ -141,23 +134,23 @@ impl SpillState {
     }
 
     /// Returns the slot a spilled value can be reloaded from, if any.
-    fn slot(&self, value: EvmIrValueId) -> Option<SpillSlot> {
+    fn slot(&self, value: ir::ValueId) -> Option<SpillSlot> {
         self.slots.get(&value).copied()
     }
 
     /// Clears the spilled marker once a value has been reloaded onto the stack.
-    fn mark_reloaded(&mut self, value: EvmIrValueId) {
+    fn mark_reloaded(&mut self, value: ir::ValueId) {
         self.slots.remove(&value);
     }
 
     /// Whether `value` is currently held in memory rather than on the stack.
-    fn is_spilled(&self, value: EvmIrValueId) -> bool {
+    fn is_spilled(&self, value: ir::ValueId) -> bool {
         self.slots.contains_key(&value)
     }
 }
 
-impl<'a> EvmIrStackScheduler<'a> {
-    fn new(module: &'a mut EvmIrModule) -> Self {
+impl<'a> StackScheduler<'a> {
+    fn new(module: &'a mut ir::Module) -> Self {
         Self {
             module,
             next_anonymous: 0,
@@ -182,13 +175,13 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// Reverse-postorder of the blocks reachable from the entry, followed by any
     /// unreachable blocks in layout order. Predecessors precede successors except
     /// across back-edges (loops), which the scheduler detects and bails on.
-    fn reverse_postorder(&self) -> Vec<EvmIrBlockId> {
+    fn reverse_postorder(&self) -> Vec<ir::BlockId> {
         let mut postorder = Vec::with_capacity(self.module.blocks.len());
         let mut visited = DenseBitSet::new_empty(self.module.blocks.len());
         if let Some(entry) = self.module.entry_block {
             // Iterative DFS recording postorder. Each frame remembers the
             // successors still to descend into.
-            let mut work: Vec<(EvmIrBlockId, Vec<EvmIrBlockId>)> = Vec::new();
+            let mut work: Vec<(ir::BlockId, Vec<ir::BlockId>)> = Vec::new();
             visited.insert(entry);
             work.push((entry, block_successors(&self.module.blocks[entry])));
             while let Some((block_id, succs)) = work.last_mut() {
@@ -214,7 +207,7 @@ impl<'a> EvmIrStackScheduler<'a> {
         postorder
     }
 
-    fn schedule_block(&mut self, block_id: EvmIrBlockId) {
+    fn schedule_block(&mut self, block_id: ir::BlockId) {
         // Infer the block's entry stack from the CFG: the value words its
         // predecessors leave behind. `None` means the entry could not be inferred
         // (a disagreeing merge or an unscheduled/back-edge predecessor), so the
@@ -287,7 +280,7 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// inconsistent with the CFG, so the block bails. When a (valid) signature is
     /// present it is used verbatim as the seed; otherwise the full inferred
     /// incoming stack is used.
-    fn infer_entry_stack(&self, block_id: EvmIrBlockId) -> Option<Vec<EvmIrValueId>> {
+    fn infer_entry_stack(&self, block_id: ir::BlockId) -> Option<Vec<ir::ValueId>> {
         let declared = &self.module.blocks[block_id].entry_stack;
 
         let inferred = if self.module.entry_block == Some(block_id) {
@@ -299,7 +292,7 @@ impl<'a> EvmIrStackScheduler<'a> {
             if preds.is_empty() {
                 Vec::new()
             } else {
-                let mut merged: Option<Vec<EvmIrValueId>> = None;
+                let mut merged: Option<Vec<ir::ValueId>> = None;
                 for pred in preds {
                     // A predecessor not yet scheduled (back-edge/loop) or one that
                     // bailed has no recorded exit: bail this block too.
@@ -327,7 +320,7 @@ impl<'a> EvmIrStackScheduler<'a> {
     }
 
     /// Predecessors of `block_id`: every block whose terminator targets it.
-    fn predecessors(&self, block_id: EvmIrBlockId) -> Vec<EvmIrBlockId> {
+    fn predecessors(&self, block_id: ir::BlockId) -> Vec<ir::BlockId> {
         let mut preds = Vec::new();
         for (id, block) in self.module.blocks.iter_enumerated() {
             if block_successors(block).contains(&block_id) {
@@ -342,13 +335,13 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// drops it; every other terminator leaves the model stack as is.
     fn terminator_exit_stack(
         &self,
-        block_id: EvmIrBlockId,
+        block_id: ir::BlockId,
         mut stack: Vec<ScheduledStackItem>,
     ) -> Vec<ScheduledStackItem> {
         if let Some(term) = &self.module.blocks[block_id].terminator
             && matches!(
                 term.kind,
-                EvmIrTerminatorKind::Branch { .. } | EvmIrTerminatorKind::Switch { .. }
+                ir::TerminatorKind::Branch { .. } | ir::TerminatorKind::Switch { .. }
             )
             && !stack.is_empty()
         {
@@ -369,10 +362,10 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// verifier still models the runtime pop.
     fn schedule_terminator(
         &mut self,
-        block_id: EvmIrBlockId,
+        block_id: ir::BlockId,
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
-        remaining: &FxHashMap<EvmIrValueId, usize>,
+        out: &mut Vec<ir::Instruction>,
+        remaining: &FxHashMap<ir::ValueId, usize>,
         changed: &mut bool,
     ) -> bool {
         let Some(terminator) = self.module.blocks[block_id].terminator.as_ref() else {
@@ -396,11 +389,11 @@ impl<'a> EvmIrStackScheduler<'a> {
     }
 
     /// Counts remaining value uses across the block's instructions and terminator.
-    fn collect_value_uses(&self, block_id: EvmIrBlockId) -> FxHashMap<EvmIrValueId, usize> {
+    fn collect_value_uses(&self, block_id: ir::BlockId) -> FxHashMap<ir::ValueId, usize> {
         let block = &self.module.blocks[block_id];
-        let mut uses = FxHashMap::<EvmIrValueId, usize>::default();
-        let mut count = |operand: &EvmIrOperand| {
-            if let EvmIrOperand::Value(value) = operand {
+        let mut uses = FxHashMap::<ir::ValueId, usize>::default();
+        let mut count = |operand: &ir::Operand| {
+            if let ir::Operand::Value(value) = operand {
                 *uses.entry(*value).or_default() += 1;
             }
         };
@@ -420,14 +413,14 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// partial work left in `out`/`stack`.
     fn schedule_instruction(
         &mut self,
-        mut inst: EvmIrInstruction,
+        mut inst: ir::Instruction,
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
-        remaining: &mut FxHashMap<EvmIrValueId, usize>,
+        out: &mut Vec<ir::Instruction>,
+        remaining: &mut FxHashMap<ir::ValueId, usize>,
         changed: &mut bool,
     ) -> bool {
         // Already-physical stack operations are replayed onto the model.
-        if let EvmIrInstructionKind::Stack(op) = inst.kind {
+        if let ir::InstructionKind::Stack(op) = inst.kind {
             if !Self::apply_stack_op(stack, op) {
                 return false;
             }
@@ -495,10 +488,10 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// whose terminator hands a named value-word stack to a successor (a linear
     /// `jump`/`fallthrough`). Every other terminator leaves no named exit words
     /// flowing across an edge, so reloading as anonymous is harmless.
-    fn block_allows_spilling(&self, block_id: EvmIrBlockId) -> bool {
+    fn block_allows_spilling(&self, block_id: ir::BlockId) -> bool {
         !matches!(
             self.module.blocks[block_id].terminator.as_ref().map(|term| &term.kind),
-            Some(EvmIrTerminatorKind::Jump(_) | EvmIrTerminatorKind::Fallthrough(_))
+            Some(ir::TerminatorKind::Jump(_) | ir::TerminatorKind::Fallthrough(_))
         )
     }
 
@@ -510,14 +503,14 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// rest of the partial schedule when the caller restores the block.
     fn prepare_operands_reachable(
         &mut self,
-        operands: &[EvmIrOperand],
+        operands: &[ir::Operand],
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
         // Reload any operand currently held in memory.
         for operand in operands {
-            if let EvmIrOperand::Value(value) = operand
+            if let ir::Operand::Value(value) = operand
                 && self.spills.is_spilled(*value)
                 && !self.reload_value(*value, stack, out, changed)
             {
@@ -526,10 +519,10 @@ impl<'a> EvmIrStackScheduler<'a> {
         }
 
         // The value operands that must end up reachable on the stack.
-        let needed: Vec<EvmIrValueId> = operands
+        let needed: Vec<ir::ValueId> = operands
             .iter()
             .filter_map(|operand| match operand {
-                EvmIrOperand::Value(value) => Some(*value),
+                ir::Operand::Value(value) => Some(*value),
                 _ => None,
             })
             .collect();
@@ -577,9 +570,9 @@ impl<'a> EvmIrStackScheduler<'a> {
     fn spill_value(
         &mut self,
         victim_depth: usize,
-        victim_value: EvmIrValueId,
+        victim_value: ir::ValueId,
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
         if victim_depth >= MAX_STACK_REACH {
@@ -596,7 +589,7 @@ impl<'a> EvmIrStackScheduler<'a> {
 
         // Bring the victim to the top of the stack so `mstore` can pop it.
         if victim_depth != 0
-            && !self.emit_stack_op(EvmIrStackOp::Swap(victim_depth as u8), stack, out, changed)
+            && !self.emit_stack_op(ir::StackOp::Swap(victim_depth as u8), stack, out, changed)
         {
             return false;
         }
@@ -605,8 +598,8 @@ impl<'a> EvmIrStackScheduler<'a> {
         // Push the slot's memory offset, then store: `mstore(offset, value)`.
         self.emit_push_immediate(byte_offset(slot), stack, out, changed);
         // `mstore` pops the offset and the value (2 inputs, no output).
-        let mut mstore = EvmIrInstruction::new("mstore", Vec::new());
-        mstore.metadata.stack = Some(EvmIrStackEffect::new(2, 0));
+        let mut mstore = ir::Instruction::new("mstore", Vec::new());
+        mstore.metadata.stack = Some(ir::StackEffect::new(2, 0));
         out.push(mstore);
         if stack.len() < 2 {
             return false;
@@ -625,9 +618,9 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// word is modeled as the spilled value again so later uses find it.
     fn reload_value(
         &mut self,
-        value: EvmIrValueId,
+        value: ir::ValueId,
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
         let Some(slot) = self.spills.slot(value) else {
@@ -635,8 +628,8 @@ impl<'a> EvmIrStackScheduler<'a> {
         };
         // Push the slot offset, then load: `mload(offset)`.
         self.emit_push_immediate(byte_offset(slot), stack, out, changed);
-        let mut mload = EvmIrInstruction::new("mload", Vec::new());
-        mload.metadata.stack = Some(EvmIrStackEffect::new(1, 1));
+        let mut mload = ir::Instruction::new("mload", Vec::new());
+        mload.metadata.stack = Some(ir::StackEffect::new(1, 1));
         out.push(mload);
         if stack.is_empty() {
             return false;
@@ -654,12 +647,12 @@ impl<'a> EvmIrStackScheduler<'a> {
         &mut self,
         immediate: U256,
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) {
         let item = self.fresh_anonymous();
-        let mut push = EvmIrInstruction::new("push", vec![EvmIrOperand::Immediate(immediate)]);
-        push.metadata.stack = Some(EvmIrStackEffect::new(0, 1));
+        let mut push = ir::Instruction::new("push", vec![ir::Operand::Immediate(immediate)]);
+        push.metadata.stack = Some(ir::StackEffect::new(0, 1));
         out.push(push);
         stack.insert(0, item);
         *changed = true;
@@ -669,19 +662,19 @@ impl<'a> EvmIrStackScheduler<'a> {
     /// pushing immediates inline. Returns `None` if a value operand is not live.
     fn materialize_operand_stack(
         &mut self,
-        operands: &[EvmIrOperand],
+        operands: &[ir::Operand],
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> Option<Vec<ScheduledStackItem>> {
         let mut target = Vec::with_capacity(operands.len());
         for operand in operands {
             match operand {
-                EvmIrOperand::Value(value) => target.push(ScheduledStackItem::Value(*value)),
-                EvmIrOperand::Immediate(_) | EvmIrOperand::Block(_) | EvmIrOperand::Symbol(_) => {
+                ir::Operand::Value(value) => target.push(ScheduledStackItem::Value(*value)),
+                ir::Operand::Immediate(_) | ir::Operand::Block(_) | ir::Operand::Symbol(_) => {
                     let item = self.fresh_anonymous();
-                    let mut push = EvmIrInstruction::new("push", vec![operand.clone()]);
-                    push.metadata.stack = Some(EvmIrStackEffect::new(0, 1));
+                    let mut push = ir::Instruction::new("push", vec![operand.clone()]);
+                    push.metadata.stack = Some(ir::StackEffect::new(0, 1));
                     out.push(push);
                     stack.insert(0, item);
                     target.push(item);
@@ -698,8 +691,8 @@ impl<'a> EvmIrStackScheduler<'a> {
         &mut self,
         stack: &mut Vec<ScheduledStackItem>,
         target: &[ScheduledStackItem],
-        remaining: &FxHashMap<EvmIrValueId, usize>,
-        out: &mut Vec<EvmIrInstruction>,
+        remaining: &FxHashMap<ir::ValueId, usize>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
         if !self.ensure_multiplicities(stack, target, remaining, out, changed) {
@@ -727,8 +720,7 @@ impl<'a> EvmIrStackScheduler<'a> {
             }
 
             if target_depth == 0 {
-                if !self.emit_stack_op(EvmIrStackOp::Swap(source_depth as u8), stack, out, changed)
-                {
+                if !self.emit_stack_op(ir::StackOp::Swap(source_depth as u8), stack, out, changed) {
                     return false;
                 }
             } else if !self.shuffle_item_to_depth(target_depth, target_item, stack, out, changed) {
@@ -743,13 +735,13 @@ impl<'a> EvmIrStackScheduler<'a> {
         target_depth: usize,
         target_item: ScheduledStackItem,
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
         if target_depth >= MAX_STACK_REACH {
             return false;
         }
-        if !self.emit_stack_op(EvmIrStackOp::Swap(target_depth as u8), stack, out, changed) {
+        if !self.emit_stack_op(ir::StackOp::Swap(target_depth as u8), stack, out, changed) {
             return false;
         }
         let Some(new_depth) = stack.iter().position(|item| *item == target_item) else {
@@ -758,10 +750,10 @@ impl<'a> EvmIrStackScheduler<'a> {
         if new_depth == 0 || new_depth >= MAX_STACK_REACH {
             return false;
         }
-        if !self.emit_stack_op(EvmIrStackOp::Swap(new_depth as u8), stack, out, changed) {
+        if !self.emit_stack_op(ir::StackOp::Swap(new_depth as u8), stack, out, changed) {
             return false;
         }
-        self.emit_stack_op(EvmIrStackOp::Swap(target_depth as u8), stack, out, changed)
+        self.emit_stack_op(ir::StackOp::Swap(target_depth as u8), stack, out, changed)
     }
 
     /// Duplicates values until the stack holds a copy for every remaining use,
@@ -770,8 +762,8 @@ impl<'a> EvmIrStackScheduler<'a> {
         &mut self,
         stack: &mut Vec<ScheduledStackItem>,
         target: &[ScheduledStackItem],
-        remaining: &FxHashMap<EvmIrValueId, usize>,
-        out: &mut Vec<EvmIrInstruction>,
+        remaining: &FxHashMap<ir::ValueId, usize>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
         let mut target_counts = FxHashMap::<ScheduledStackItem, usize>::default();
@@ -797,7 +789,7 @@ impl<'a> EvmIrStackScheduler<'a> {
                 if depth >= MAX_STACK_REACH {
                     return false;
                 }
-                if !self.emit_stack_op(EvmIrStackOp::Dup((depth + 1) as u8), stack, out, changed) {
+                if !self.emit_stack_op(ir::StackOp::Dup((depth + 1) as u8), stack, out, changed) {
                     return false;
                 }
                 have += 1;
@@ -808,36 +800,36 @@ impl<'a> EvmIrStackScheduler<'a> {
 
     fn emit_stack_op(
         &mut self,
-        op: EvmIrStackOp,
+        op: ir::StackOp,
         stack: &mut Vec<ScheduledStackItem>,
-        out: &mut Vec<EvmIrInstruction>,
+        out: &mut Vec<ir::Instruction>,
         changed: &mut bool,
     ) -> bool {
         if !Self::apply_stack_op(stack, op) {
             return false;
         }
-        out.push(EvmIrInstruction::stack_op(op));
+        out.push(ir::Instruction::stack_op(op));
         *changed = true;
         true
     }
 
-    fn apply_stack_op(stack: &mut Vec<ScheduledStackItem>, op: EvmIrStackOp) -> bool {
+    fn apply_stack_op(stack: &mut Vec<ScheduledStackItem>, op: ir::StackOp) -> bool {
         match op {
-            EvmIrStackOp::Dup(n) => {
+            ir::StackOp::Dup(n) => {
                 let depth = usize::from(n - 1);
                 let Some(value) = stack.get(depth).copied() else {
                     return false;
                 };
                 stack.insert(0, value);
             }
-            EvmIrStackOp::Swap(n) => {
+            ir::StackOp::Swap(n) => {
                 let depth = usize::from(n);
                 if depth >= stack.len() {
                     return false;
                 }
                 stack.swap(0, depth);
             }
-            EvmIrStackOp::Pop => {
+            ir::StackOp::Pop => {
                 if stack.is_empty() {
                     return false;
                 }
@@ -860,32 +852,32 @@ fn byte_offset(slot: SpillSlot) -> U256 {
 }
 
 /// The successor blocks a block's terminator can transfer control to.
-fn block_successors(block: &EvmIrBlock) -> Vec<EvmIrBlockId> {
+fn block_successors(block: &ir::Block) -> Vec<ir::BlockId> {
     let mut targets = Vec::new();
     let Some(term) = &block.terminator else {
         return targets;
     };
     match &term.kind {
-        EvmIrTerminatorKind::Fallthrough(target) | EvmIrTerminatorKind::Jump(target) => {
+        ir::TerminatorKind::Fallthrough(target) | ir::TerminatorKind::Jump(target) => {
             targets.push(*target);
         }
-        EvmIrTerminatorKind::Branch { then_block, else_block, .. } => {
+        ir::TerminatorKind::Branch { then_block, else_block, .. } => {
             targets.push(*then_block);
             targets.push(*else_block);
         }
-        EvmIrTerminatorKind::Switch { default, cases, .. } => {
+        ir::TerminatorKind::Switch { default, cases, .. } => {
             targets.push(*default);
             for (_, target) in cases {
                 targets.push(*target);
             }
         }
-        EvmIrTerminatorKind::Return { .. }
-        | EvmIrTerminatorKind::Revert { .. }
-        | EvmIrTerminatorKind::FallthroughNext
-        | EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::SelfDestruct { .. }
-        | EvmIrTerminatorKind::RawOpcode(_) => {}
+        ir::TerminatorKind::Return { .. }
+        | ir::TerminatorKind::Revert { .. }
+        | ir::TerminatorKind::FallthroughNext
+        | ir::TerminatorKind::Stop
+        | ir::TerminatorKind::Invalid
+        | ir::TerminatorKind::SelfDestruct { .. }
+        | ir::TerminatorKind::RawOpcode(_) => {}
     }
     targets
 }
@@ -901,10 +893,10 @@ fn block_successors(block: &EvmIrBlock) -> Vec<EvmIrBlockId> {
 /// entirely of known SSA value words; an anonymous `push`/synthesized word (or
 /// any deeper word below it) is left as an implicit inherited floor the
 /// successor does not name.
-fn edge_entry_stack(pred: &EvmIrBlock, exit: &[ScheduledStackItem]) -> Vec<EvmIrValueId> {
+fn edge_entry_stack(pred: &ir::Block, exit: &[ScheduledStackItem]) -> Vec<ir::ValueId> {
     let linear = matches!(
         pred.terminator.as_ref().map(|term| &term.kind),
-        Some(EvmIrTerminatorKind::Jump(_) | EvmIrTerminatorKind::Fallthrough(_))
+        Some(ir::TerminatorKind::Jump(_) | ir::TerminatorKind::Fallthrough(_))
     );
     if !linear {
         return Vec::new();
@@ -917,12 +909,12 @@ fn edge_entry_stack(pred: &EvmIrBlock, exit: &[ScheduledStackItem]) -> Vec<EvmIr
         .collect()
 }
 
-fn instruction_stack_effect(inst: &EvmIrInstruction) -> EvmIrStackEffect {
-    inst.metadata.stack.unwrap_or_else(|| default_instruction_stack_effect(inst))
+fn instruction_stack_effect(inst: &ir::Instruction) -> ir::StackEffect {
+    inst.metadata.stack.unwrap_or_else(|| ir::default_instruction_stack_effect(inst))
 }
 
-fn instruction_keeps_encoded_operands(inst: &EvmIrInstruction) -> bool {
-    is_encoded_push_instruction(inst)
+fn instruction_keeps_encoded_operands(inst: &ir::Instruction) -> bool {
+    ir::is_encoded_push_instruction(inst)
 }
 
 /// The value operands a terminator needs arranged on top of the stack, in the
@@ -931,56 +923,56 @@ fn instruction_keeps_encoded_operands(inst: &EvmIrInstruction) -> bool {
 /// Switch case immediates stay encoded and are not arranged, so only the
 /// discriminant is returned for a `switch`. Operand-less terminators (`jump`,
 /// `fallthrough`, `stop`, `invalid`, raw opcodes) return an empty list.
-fn terminator_arrange_operands(kind: &EvmIrTerminatorKind) -> Vec<EvmIrValueId> {
+fn terminator_arrange_operands(kind: &ir::TerminatorKind) -> Vec<ir::ValueId> {
     let mut operands = Vec::new();
-    let mut push = |operand: &EvmIrOperand| {
-        if let EvmIrOperand::Value(value) = operand {
+    let mut push = |operand: &ir::Operand| {
+        if let ir::Operand::Value(value) = operand {
             operands.push(*value);
         }
     };
     match kind {
-        EvmIrTerminatorKind::Branch { condition, .. } => push(condition),
-        EvmIrTerminatorKind::Switch { value, .. } => push(value),
-        EvmIrTerminatorKind::Return { offset, size }
-        | EvmIrTerminatorKind::Revert { offset, size } => {
+        ir::TerminatorKind::Branch { condition, .. } => push(condition),
+        ir::TerminatorKind::Switch { value, .. } => push(value),
+        ir::TerminatorKind::Return { offset, size }
+        | ir::TerminatorKind::Revert { offset, size } => {
             push(offset);
             push(size);
         }
-        EvmIrTerminatorKind::SelfDestruct { recipient } => push(recipient),
-        EvmIrTerminatorKind::Fallthrough(_)
-        | EvmIrTerminatorKind::FallthroughNext
-        | EvmIrTerminatorKind::Jump(_)
-        | EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::RawOpcode(_) => {}
+        ir::TerminatorKind::SelfDestruct { recipient } => push(recipient),
+        ir::TerminatorKind::Fallthrough(_)
+        | ir::TerminatorKind::FallthroughNext
+        | ir::TerminatorKind::Jump(_)
+        | ir::TerminatorKind::Stop
+        | ir::TerminatorKind::Invalid
+        | ir::TerminatorKind::RawOpcode(_) => {}
     }
     operands
 }
 
 /// Invokes `visit` for each value operand referenced by a terminator.
 fn visit_terminator_value_operands(
-    kind: &EvmIrTerminatorKind,
-    visit: &mut impl FnMut(&EvmIrOperand),
+    kind: &ir::TerminatorKind,
+    visit: &mut impl FnMut(&ir::Operand),
 ) {
     match kind {
-        EvmIrTerminatorKind::Branch { condition, .. } => visit(condition),
-        EvmIrTerminatorKind::Switch { value, cases, .. } => {
+        ir::TerminatorKind::Branch { condition, .. } => visit(condition),
+        ir::TerminatorKind::Switch { value, cases, .. } => {
             visit(value);
             for (case_value, _) in cases {
                 visit(case_value);
             }
         }
-        EvmIrTerminatorKind::Return { offset, size }
-        | EvmIrTerminatorKind::Revert { offset, size } => {
+        ir::TerminatorKind::Return { offset, size }
+        | ir::TerminatorKind::Revert { offset, size } => {
             visit(offset);
             visit(size);
         }
-        EvmIrTerminatorKind::SelfDestruct { recipient } => visit(recipient),
-        EvmIrTerminatorKind::Fallthrough(_)
-        | EvmIrTerminatorKind::FallthroughNext
-        | EvmIrTerminatorKind::Jump(_)
-        | EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::RawOpcode(_) => {}
+        ir::TerminatorKind::SelfDestruct { recipient } => visit(recipient),
+        ir::TerminatorKind::Fallthrough(_)
+        | ir::TerminatorKind::FallthroughNext
+        | ir::TerminatorKind::Jump(_)
+        | ir::TerminatorKind::Stop
+        | ir::TerminatorKind::Invalid
+        | ir::TerminatorKind::RawOpcode(_) => {}
     }
 }

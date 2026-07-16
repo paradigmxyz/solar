@@ -1,11 +1,7 @@
 //! Structured assembler block program and final linear assembly program.
 
 use super::{AsmInst, AsmInstKind, DeferredConst, Label, op};
-use crate::backend::evm::ir::{
-    EvmIrBlock, EvmIrBlockHotness, EvmIrInstruction, EvmIrInstructionKind, EvmIrModule,
-    EvmIrOperand, EvmIrPass, EvmIrPassOptions, EvmIrStackEffect, EvmIrStackOp, EvmIrTerminator,
-    EvmIrTerminatorKind, EvmIrVerifier,
-};
+use crate::backend::evm::ir;
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::GrowableBitSet;
 use solar_interface::diagnostics::DiagCtxt;
@@ -109,11 +105,11 @@ impl StructuredAsmProgram {
     /// # Experimental `StackSchedule` gating
     ///
     /// When `context.run_evm_ir_stack_schedule()` is true (off by default) the
-    /// bridge runs [`EvmIrPass::StackSchedule`]. The reality of what the bridge
+    /// bridge runs [`ir::Pass::StackSchedule`]. The reality of what the bridge
     /// feeds the scheduler matters here: MIR lowering has already materialized
     /// every virtual stack-word operand into physical `dup`/`swap`/`pop` and
     /// `push`/opcode instructions, so `to_evm_ir_module` produces
-    /// *operand-cleared* IR — no instruction carries an [`EvmIrOperand::Value`],
+    /// *operand-cleared* IR — no instruction carries an [`ir::Operand::Value`],
     /// and the only terminators emitted here (`jump`/`fallthrough`/raw terminal
     /// opcode/`stop`/`invalid`) carry no value operands either. `StackSchedule`
     /// only rewrites instructions that have value operands to materialize, so on
@@ -138,7 +134,7 @@ impl StructuredAsmProgram {
 
         debug_assert!(is_valid_evm_ir(&module));
         let mut changed = 0;
-        let pass_options = EvmIrPassOptions { time_passes: context.time_passes() };
+        let pass_options = ir::PassOptions { time_passes: context.time_passes() };
 
         if context.run_evm_ir_stack_schedule() {
             // Differential safety net: schedule a clone, and only adopt it if the
@@ -147,7 +143,7 @@ impl StructuredAsmProgram {
             // always holds (the pass is a near no-op), but the guard means an
             // unexpected rewrite is dropped instead of changing produced code.
             let mut scheduled = module.clone();
-            if EvmIrPass::StackSchedule.run(&mut scheduled, pass_options)
+            if ir::Pass::StackSchedule.run(&mut scheduled, pass_options)
                 && is_valid_evm_ir(&scheduled)
                 && modules_have_equal_code(&module, &scheduled)
             {
@@ -157,7 +153,7 @@ impl StructuredAsmProgram {
         }
 
         if context.run_evm_ir_layout_passes() {
-            for pass in [EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup] {
+            for pass in [ir::Pass::ColdLayout, ir::Pass::TerminalDedup] {
                 changed += usize::from(pass.run(&mut module, pass_options));
             }
         }
@@ -194,7 +190,7 @@ impl StructuredAsmProgram {
         &mut self.blocks[index]
     }
 
-    fn to_evm_ir_module<C>(&self, context: &mut C) -> Option<(EvmIrModule, Vec<Option<Label>>)>
+    fn to_evm_ir_module<C>(&self, context: &mut C) -> Option<(ir::Module, Vec<Option<Label>>)>
     where
         C: StructuredAsmContext,
     {
@@ -206,27 +202,27 @@ impl StructuredAsmProgram {
         let mut label_to_block = std::collections::BTreeMap::new();
         for (index, block) in self.blocks.iter().enumerate() {
             if let Some(label) = block.label {
-                label_to_block.insert(label, crate::backend::evm::EvmIrBlockId::from_usize(index));
+                label_to_block.insert(label, crate::backend::evm::ir::BlockId::from_usize(index));
             }
         }
 
-        let mut module = EvmIrModule::new("asm");
+        let mut module = ir::Module::new("asm");
         for (index, block) in self.blocks.iter().enumerate() {
-            let mut ir_block = EvmIrBlock::new(format!("bb{index}"));
+            let mut ir_block = ir::Block::new(format!("bb{index}"));
             if block.cold {
-                ir_block.metadata.hotness = EvmIrBlockHotness::Cold;
+                ir_block.metadata.hotness = ir::BlockHotness::Cold;
             }
             module.add_block(ir_block);
         }
 
         for (index, block) in self.blocks.iter().enumerate() {
-            let block_id = crate::backend::evm::EvmIrBlockId::from_usize(index);
+            let block_id = crate::backend::evm::ir::BlockId::from_usize(index);
             let next_block = (index + 1 < self.blocks.len())
-                .then(|| crate::backend::evm::EvmIrBlockId::from_usize(index + 1));
+                .then(|| crate::backend::evm::ir::BlockId::from_usize(index + 1));
             let (instructions, terminator) =
                 Self::translate_block_to_evm_ir(block, next_block, &label_to_block, context)?;
             module.blocks[block_id].instructions = instructions;
-            module.blocks[block_id].terminator = Some(EvmIrTerminator::new(terminator));
+            module.blocks[block_id].terminator = Some(ir::Terminator::new(terminator));
         }
 
         Some((module, labels))
@@ -234,10 +230,10 @@ impl StructuredAsmProgram {
 
     fn translate_block_to_evm_ir<C>(
         block: &StructuredAsmBlock,
-        next_block: Option<crate::backend::evm::EvmIrBlockId>,
-        label_to_block: &std::collections::BTreeMap<Label, crate::backend::evm::EvmIrBlockId>,
+        next_block: Option<crate::backend::evm::ir::BlockId>,
+        label_to_block: &std::collections::BTreeMap<Label, crate::backend::evm::ir::BlockId>,
         context: &mut C,
-    ) -> Option<(Vec<EvmIrInstruction>, EvmIrTerminatorKind)>
+    ) -> Option<(Vec<ir::Instruction>, ir::TerminatorKind)>
     where
         C: StructuredAsmContext,
     {
@@ -245,15 +241,15 @@ impl StructuredAsmProgram {
         let terminator =
             if let Some((target, len)) = Self::trailing_static_jump(block, label_to_block) {
                 body_len = len;
-                EvmIrTerminatorKind::Jump(target)
+                ir::TerminatorKind::Jump(target)
             } else if let Some(AsmInstKind::Op(opcode)) =
                 block.instructions.last().map(|inst| inst.kind())
                 && op::is_terminal(opcode)
             {
                 body_len = body_len.saturating_sub(1);
-                EvmIrTerminatorKind::RawOpcode(opcode)
+                ir::TerminatorKind::RawOpcode(opcode)
             } else {
-                EvmIrTerminatorKind::Fallthrough(next_block?)
+                ir::TerminatorKind::Fallthrough(next_block?)
             };
 
         let mut instructions = Vec::with_capacity(body_len);
@@ -265,8 +261,8 @@ impl StructuredAsmProgram {
 
     fn trailing_static_jump(
         block: &StructuredAsmBlock,
-        label_to_block: &std::collections::BTreeMap<Label, crate::backend::evm::EvmIrBlockId>,
-    ) -> Option<(crate::backend::evm::EvmIrBlockId, usize)> {
+        label_to_block: &std::collections::BTreeMap<Label, crate::backend::evm::ir::BlockId>,
+    ) -> Option<(crate::backend::evm::ir::BlockId, usize)> {
         let [rest @ .., push, jump] = block.instructions.as_slice() else {
             return None;
         };
@@ -281,44 +277,44 @@ impl StructuredAsmProgram {
 
     fn inst_to_evm_ir<C>(
         inst: AsmInst,
-        label_to_block: &std::collections::BTreeMap<Label, crate::backend::evm::EvmIrBlockId>,
+        label_to_block: &std::collections::BTreeMap<Label, crate::backend::evm::ir::BlockId>,
         context: &mut C,
-    ) -> Option<EvmIrInstruction>
+    ) -> Option<ir::Instruction>
     where
         C: StructuredAsmContext,
     {
         Some(match inst.kind() {
             AsmInstKind::Op(opcode) => {
                 if let Some(stack_op) = stack_op_from_opcode(opcode) {
-                    EvmIrInstruction::stack_op(stack_op)
+                    ir::Instruction::stack_op(stack_op)
                 } else {
-                    EvmIrInstruction::new(opcode_mnemonic(opcode), Vec::new())
+                    ir::Instruction::new(opcode_mnemonic(opcode), Vec::new())
                 }
             }
             AsmInstKind::PushInline(value) => {
-                push_instruction(EvmIrOperand::Immediate(U256::from(value)))
+                push_instruction(ir::Operand::Immediate(U256::from(value)))
             }
             AsmInstKind::Push(index) => {
-                push_instruction(EvmIrOperand::Immediate(context.push_value(index)))
+                push_instruction(ir::Operand::Immediate(context.push_value(index)))
             }
             AsmInstKind::PushLabel(label) => {
                 let block = *label_to_block.get(&label)?;
-                push_instruction(EvmIrOperand::Block(block))
+                push_instruction(ir::Operand::Block(block))
             }
-            AsmInstKind::PushDeferred(id) => EvmIrInstruction::new(
+            AsmInstKind::PushDeferred(id) => ir::Instruction::new(
                 PUSH_DEFERRED_MNEMONIC,
-                vec![EvmIrOperand::Immediate(U256::from(id.index()))],
+                vec![ir::Operand::Immediate(U256::from(id.index()))],
             ),
-            AsmInstKind::PushImmutable(id) => EvmIrInstruction::new(
+            AsmInstKind::PushImmutable(id) => ir::Instruction::new(
                 PUSH_IMMUTABLE_MNEMONIC,
-                vec![EvmIrOperand::Immediate(U256::from(id))],
+                vec![ir::Operand::Immediate(U256::from(id))],
             ),
             AsmInstKind::Label(_) => return None,
         })
     }
 
     fn from_evm_ir_module<C>(
-        module: &EvmIrModule,
+        module: &ir::Module,
         labels: &mut Vec<Option<Label>>,
         context: &mut C,
     ) -> Self
@@ -331,13 +327,13 @@ impl StructuredAsmProgram {
             let label = original.and_then(|index| labels.get(index).copied().flatten());
             if let Some(label) = label {
                 program.define_label(label);
-                if block.metadata.hotness == EvmIrBlockHotness::Cold {
+                if block.metadata.hotness == ir::BlockHotness::Cold {
                     program.mark_cold(label);
                 }
             } else {
                 program.blocks.push(StructuredAsmBlock {
                     label: None,
-                    cold: block.metadata.hotness == EvmIrBlockHotness::Cold,
+                    cold: block.metadata.hotness == ir::BlockHotness::Cold,
                     instructions: Vec::new(),
                 });
                 program.current = Some(program.blocks.len() - 1);
@@ -364,8 +360,8 @@ impl StructuredAsmProgram {
     }
 
     fn evm_ir_inst_to_asm<C>(
-        inst: &EvmIrInstruction,
-        module: &EvmIrModule,
+        inst: &ir::Instruction,
+        module: &ir::Module,
         labels: &mut Vec<Option<Label>>,
         context: &mut C,
     ) -> Option<AsmInst>
@@ -373,31 +369,31 @@ impl StructuredAsmProgram {
         C: StructuredAsmContext,
     {
         match &inst.kind {
-            EvmIrInstructionKind::Stack(op) => Some(AsmInst::op(opcode_from_stack_op(*op))),
-            EvmIrInstructionKind::Operation(mnemonic) if mnemonic == PUSH_MNEMONIC => {
+            ir::InstructionKind::Stack(op) => Some(AsmInst::op(opcode_from_stack_op(*op))),
+            ir::InstructionKind::Operation(mnemonic) if mnemonic == PUSH_MNEMONIC => {
                 match inst.operands.as_slice() {
-                    [EvmIrOperand::Immediate(value)] => Some(context.push_inst(*value)),
-                    [EvmIrOperand::Block(block)] => {
+                    [ir::Operand::Immediate(value)] => Some(context.push_inst(*value)),
+                    [ir::Operand::Block(block)] => {
                         Some(AsmInst::push_label(label_for_block(module, *block, labels, context)))
                     }
                     _ => None,
                 }
             }
-            EvmIrInstructionKind::Operation(mnemonic) if mnemonic == PUSH_DEFERRED_MNEMONIC => {
-                let [EvmIrOperand::Immediate(value)] = inst.operands.as_slice() else {
+            ir::InstructionKind::Operation(mnemonic) if mnemonic == PUSH_DEFERRED_MNEMONIC => {
+                let [ir::Operand::Immediate(value)] = inst.operands.as_slice() else {
                     return None;
                 };
                 Some(AsmInst::push_deferred(DeferredConst::from_usize(
                     usize::try_from(*value).ok()?,
                 )))
             }
-            EvmIrInstructionKind::Operation(mnemonic) if mnemonic == PUSH_IMMUTABLE_MNEMONIC => {
-                let [EvmIrOperand::Immediate(value)] = inst.operands.as_slice() else {
+            ir::InstructionKind::Operation(mnemonic) if mnemonic == PUSH_IMMUTABLE_MNEMONIC => {
+                let [ir::Operand::Immediate(value)] = inst.operands.as_slice() else {
                     return None;
                 };
                 Some(AsmInst::push_immutable(u32::try_from(*value).ok()?))
             }
-            EvmIrInstructionKind::Operation(mnemonic) => {
+            ir::InstructionKind::Operation(mnemonic) => {
                 parse_opcode_mnemonic(mnemonic).map(AsmInst::op)
             }
         }
@@ -405,36 +401,36 @@ impl StructuredAsmProgram {
 
     fn emit_evm_ir_terminator<C>(
         program: &mut Self,
-        block_id: crate::backend::evm::EvmIrBlockId,
-        kind: &EvmIrTerminatorKind,
-        module: &EvmIrModule,
+        block_id: crate::backend::evm::ir::BlockId,
+        kind: &ir::TerminatorKind,
+        module: &ir::Module,
         labels: &mut Vec<Option<Label>>,
         context: &mut C,
     ) where
         C: StructuredAsmContext,
     {
         match kind {
-            EvmIrTerminatorKind::Fallthrough(target) => {
+            ir::TerminatorKind::Fallthrough(target) => {
                 if next_block(module, block_id) != Some(*target) {
                     let label = label_for_block(module, *target, labels, context);
                     program.push(AsmInst::push_label(label));
                     program.push(AsmInst::op(op::JUMP));
                 }
             }
-            EvmIrTerminatorKind::Jump(target) => {
+            ir::TerminatorKind::Jump(target) => {
                 let label = label_for_block(module, *target, labels, context);
                 program.push(AsmInst::push_label(label));
                 program.push(AsmInst::op(op::JUMP));
             }
-            EvmIrTerminatorKind::RawOpcode(opcode) => program.push(AsmInst::op(*opcode)),
-            EvmIrTerminatorKind::FallthroughNext => {}
-            EvmIrTerminatorKind::Stop => program.push(AsmInst::op(op::STOP)),
-            EvmIrTerminatorKind::Invalid => program.push(AsmInst::op(op::INVALID)),
-            EvmIrTerminatorKind::Return { .. }
-            | EvmIrTerminatorKind::Revert { .. }
-            | EvmIrTerminatorKind::SelfDestruct { .. }
-            | EvmIrTerminatorKind::Branch { .. }
-            | EvmIrTerminatorKind::Switch { .. } => {
+            ir::TerminatorKind::RawOpcode(opcode) => program.push(AsmInst::op(*opcode)),
+            ir::TerminatorKind::FallthroughNext => {}
+            ir::TerminatorKind::Stop => program.push(AsmInst::op(op::STOP)),
+            ir::TerminatorKind::Invalid => program.push(AsmInst::op(op::INVALID)),
+            ir::TerminatorKind::Return { .. }
+            | ir::TerminatorKind::Revert { .. }
+            | ir::TerminatorKind::SelfDestruct { .. }
+            | ir::TerminatorKind::Branch { .. }
+            | ir::TerminatorKind::Switch { .. } => {
                 unreachable!("structured assembler bridge only emits machine-level terminators")
             }
         }
@@ -448,7 +444,7 @@ impl StructuredAsmProgram {
 /// affect produced bytecode. This compares the parts the bridge actually lowers
 /// back to assembly — block labels, hot/cold metadata, instruction streams, and
 /// terminators — while ignoring the entry-signature bookkeeping.
-fn modules_have_equal_code(before: &EvmIrModule, after: &EvmIrModule) -> bool {
+fn modules_have_equal_code(before: &ir::Module, after: &ir::Module) -> bool {
     before.entry_block == after.entry_block
         && before.blocks.len() == after.blocks.len()
         && before.blocks.iter().zip(after.blocks.iter()).all(|(a, b)| {
@@ -459,15 +455,15 @@ fn modules_have_equal_code(before: &EvmIrModule, after: &EvmIrModule) -> bool {
         })
 }
 
-fn is_valid_evm_ir(module: &EvmIrModule) -> bool {
+fn is_valid_evm_ir(module: &ir::Module) -> bool {
     let dcx = DiagCtxt::with_silent_emitter(None);
-    EvmIrVerifier::new(&dcx).verify_module(module);
+    ir::Verifier::new(&dcx).verify_module(module);
     dcx.has_errors().is_ok()
 }
 
-fn push_instruction(operand: EvmIrOperand) -> EvmIrInstruction {
-    let mut inst = EvmIrInstruction::new(PUSH_MNEMONIC, vec![operand]);
-    inst.metadata.stack = Some(EvmIrStackEffect::new(0, 1));
+fn push_instruction(operand: ir::Operand) -> ir::Instruction {
+    let mut inst = ir::Instruction::new(PUSH_MNEMONIC, vec![operand]);
+    inst.metadata.stack = Some(ir::StackEffect::new(0, 1));
     inst
 }
 
@@ -483,20 +479,20 @@ fn parse_opcode_mnemonic(mnemonic: &str) -> Option<u8> {
     u8::from_str_radix(value, 16).ok()
 }
 
-fn stack_op_from_opcode(opcode: u8) -> Option<EvmIrStackOp> {
+fn stack_op_from_opcode(opcode: u8) -> Option<ir::StackOp> {
     match opcode {
-        op::POP => Some(EvmIrStackOp::Pop),
-        op::DUP1..=op::DUP16 => EvmIrStackOp::dup(opcode - op::DUP1 + 1),
-        op::SWAP1..=op::SWAP16 => EvmIrStackOp::swap(opcode - op::SWAP1 + 1),
+        op::POP => Some(ir::StackOp::Pop),
+        op::DUP1..=op::DUP16 => ir::StackOp::dup(opcode - op::DUP1 + 1),
+        op::SWAP1..=op::SWAP16 => ir::StackOp::swap(opcode - op::SWAP1 + 1),
         _ => None,
     }
 }
 
-fn opcode_from_stack_op(op: EvmIrStackOp) -> u8 {
+fn opcode_from_stack_op(op: ir::StackOp) -> u8 {
     match op {
-        EvmIrStackOp::Dup(n) => op::dup(n),
-        EvmIrStackOp::Swap(n) => op::swap(n),
-        EvmIrStackOp::Pop => op::POP,
+        ir::StackOp::Dup(n) => op::dup(n),
+        ir::StackOp::Swap(n) => op::swap(n),
+        ir::StackOp::Pop => op::POP,
     }
 }
 
@@ -505,16 +501,16 @@ fn original_block_index(label: &str) -> Option<usize> {
 }
 
 fn next_block(
-    module: &EvmIrModule,
-    block: crate::backend::evm::EvmIrBlockId,
-) -> Option<crate::backend::evm::EvmIrBlockId> {
+    module: &ir::Module,
+    block: crate::backend::evm::ir::BlockId,
+) -> Option<crate::backend::evm::ir::BlockId> {
     let next = block.index() + 1;
-    (next < module.blocks.len()).then(|| crate::backend::evm::EvmIrBlockId::from_usize(next))
+    (next < module.blocks.len()).then(|| crate::backend::evm::ir::BlockId::from_usize(next))
 }
 
 fn label_for_block<C>(
-    module: &EvmIrModule,
-    block: crate::backend::evm::EvmIrBlockId,
+    module: &ir::Module,
+    block: crate::backend::evm::ir::BlockId,
     labels: &mut Vec<Option<Label>>,
     context: &mut C,
 ) -> Label
@@ -547,10 +543,7 @@ pub(in crate::backend::evm) struct EvmAsmProgram {
 
 impl EvmAsmProgram {
     /// Converts the final linear program back to EVM IR without running passes.
-    pub(in crate::backend::evm) fn to_evm_ir_module<C>(
-        &self,
-        context: &mut C,
-    ) -> Option<EvmIrModule>
+    pub(in crate::backend::evm) fn to_evm_ir_module<C>(&self, context: &mut C) -> Option<ir::Module>
     where
         C: StructuredAsmContext,
     {

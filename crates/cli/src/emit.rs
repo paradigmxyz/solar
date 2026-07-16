@@ -1,6 +1,6 @@
 use alloy_json_abi::AbiItem;
 use alloy_primitives::Bytes;
-use solar_codegen::{Backend, EvmCodegen, EvmCodegenConfig, EvmIrModule, lower};
+use solar_codegen::{Backend, EvmCodegen, EvmCodegenConfig, backend::evm::ir, lower};
 use solar_config::CompilerOutput;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::Result;
@@ -244,7 +244,7 @@ where
     serializer.serialize_str(&alloy_primitives::hex::encode(bytes))
 }
 
-pub(crate) fn format_deployment_evm_ir(modules: &[EvmIrModule]) -> String {
+pub(crate) fn format_deployment_evm_ir(modules: &[ir::Module]) -> String {
     use std::fmt::Write;
 
     let mut output = String::new();
