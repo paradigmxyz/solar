@@ -27,6 +27,17 @@ The codegen runtime workflow also publishes `common.json` using the vendored com
 result schema in [`schema/`](schema/). Its wall time is the total for the comparison suite, including
 the harness, both compilers, and runtime checks.
 
+The [benchmark workflow](../.github/workflows/bench.yml) runs automatically for pull requests and
+updates to `main`. It can also be dispatched for all families or one selected family. Dispatch inputs
+can select another Solar Git ref as the Gungraun baseline and override the pinned solc release or
+codegen benchmark corpus revision. For example:
+
+```bash
+gh workflow run bench.yml --ref my-branch \
+  -f benchmark=gungraun \
+  -f comparison_ref=main
+```
+
 The following results were achieved on:
 - Target: `x86_64-unknown-linux-gnu`
 - CPU: AMD Ryzen 9 5950X
