@@ -28,12 +28,7 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      const edit = await formatDocument(editor.document);
-      if (edit) {
-        await editor.edit((builder) => {
-          builder.replace(edit.range, edit.newText);
-        });
-      }
+      await vscode.commands.executeCommand("editor.action.formatDocument");
     },
   );
 
@@ -44,10 +39,7 @@ export function activate(context: vscode.ExtensionContext) {
       currentConfig.get("formatOnSave") &&
       event.document.languageId === "solidity"
     ) {
-      const edits = formatDocument(event.document).then((edit) => {
-        return edit ? [edit] : [];
-      });
-      event.waitUntil(edits);
+      event.waitUntil(formatDocument(event.document));
     }
   });
 
@@ -157,59 +149,18 @@ async function startLanguageServer(context: vscode.ExtensionContext) {
 
 async function formatDocument(
   document: vscode.TextDocument,
-): Promise<vscode.TextEdit | undefined> {
-  const config = vscode.workspace.getConfiguration("solarLsp");
-  const forgePath = config.get<string>("forgePath", "forge");
-
-  return new Promise((resolve) => {
-    const forgeProcess = spawn(forgePath, ["fmt", "--raw", "-"], {
-      stdio: ["pipe", "pipe", "pipe"],
-      shell: process.platform === "win32",
-      windowsHide: true,
-    });
-
-    let stdout = "";
-    let stderr = "";
-
-    forgeProcess.stdout.on("data", (data) => {
-      stdout += data.toString();
-    });
-
-    forgeProcess.stderr.on("data", (data) => {
-      stderr += data.toString();
-    });
-
-    forgeProcess.on("close", (code) => {
-      if (code === 0) {
-        // Create a TextEdit that replaces the entire document
-        const firstLine = document.lineAt(0);
-        const lastLine = document.lineAt(document.lineCount - 1);
-        const textRange = new vscode.Range(
-          firstLine.range.start,
-          lastLine.range.end,
-        );
-
-        const edit = new vscode.TextEdit(textRange, stdout);
-        resolve(edit);
-      } else {
-        console.error(`forge fmt failed with code ${code}: ${stderr}`);
-        vscode.window.showErrorMessage(`Formatting failed: ${stderr}`);
-        resolve(undefined);
-      }
-    });
-
-    forgeProcess.on("error", (error) => {
-      console.error("Failed to run forge fmt:", error);
-      vscode.window.showErrorMessage(
-        `Failed to run forge fmt: ${error.message}`,
-      );
-      resolve(undefined);
-    });
-
-    // Send document content to forge fmt via stdin
-    forgeProcess.stdin.write(document.getText());
-    forgeProcess.stdin.end();
-  });
+): Promise<vscode.TextEdit[]> {
+  const editorConfig = vscode.workspace.getConfiguration("editor", document.uri);
+  const options: vscode.FormattingOptions = {
+    tabSize: editorConfig.get<number>("tabSize", 4),
+    insertSpaces: editorConfig.get<boolean>("insertSpaces", true),
+  };
+  const edits = await vscode.commands.executeCommand<vscode.TextEdit[]>(
+    "vscode.executeFormatDocumentProvider",
+    document.uri,
+    options,
+  );
+  return edits ?? [];
 }
 
 export function deactivate(): Thenable<void> | undefined {
