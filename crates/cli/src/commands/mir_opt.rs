@@ -19,7 +19,7 @@ use solar_codegen::{
     },
 };
 use solar_data_structures::fmt::{self, FmtIteratorExt};
-use solar_interface::{Ident, Session, Symbol, diagnostics::DiagCtxt};
+use solar_interface::{Session, diagnostics::DiagCtxt};
 use solar_sema::Compiler;
 use std::{ops::ControlFlow, path::Path, process::ExitCode};
 
@@ -185,10 +185,7 @@ fn process_mir_inner(sess: &Session, args: &MirOptArgs) -> solar_interface::Resu
         // diagnostic instead of tripping the post-pass validator ICE.
         solar_codegen::analysis::validate_module(&sess.dcx, &module);
         if sess.dcx.has_errors().is_ok() {
-            // Use a fixed name for .mir input — the parser interns whatever the
-            // file declared (or "module" by default).
-            let name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
-            run_pipeline(&mut module, &name, args);
+            run_pipeline(&mut module, &args.input, args);
         }
         Ok(())
     })

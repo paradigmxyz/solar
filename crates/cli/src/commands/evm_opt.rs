@@ -9,7 +9,7 @@ use solar_codegen::backend::evm::{
     EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, parse_evm_ir_module,
     verify_evm_ir_module,
 };
-use solar_interface::{Ident, Session, Symbol, diagnostics::DiagCtxt};
+use solar_interface::{Session, diagnostics::DiagCtxt};
 use std::{path::Path, process::ExitCode};
 
 #[derive(clap::Args)]
@@ -91,12 +91,11 @@ fn process_evmir_inner(sess: &Session, args: &EvmOptArgs) -> solar_interface::Re
         .load_file(Path::new(&args.input))
         .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
     sess.enter(|| {
-        let input_name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
         let mut module = parse_evm_ir_module(source.src.as_str())
             .map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
         verify_evm_ir_module(&sess.dcx, &module);
         if sess.dcx.has_errors().is_ok() {
-            run_pipeline(&sess.dcx, &mut module, &input_name, args);
+            run_pipeline(&sess.dcx, &mut module, &args.input, args);
         }
         Ok(())
     })
