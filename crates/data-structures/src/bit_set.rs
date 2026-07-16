@@ -5,6 +5,7 @@
     clippy::use_self
 )]
 
+use smallvec::SmallVec;
 use std::{
     fmt, iter,
     marker::PhantomData,
@@ -21,6 +22,7 @@ mod tests;
 mod into_iter;
 
 type Word = u64;
+type WordVec = SmallVec<[Word; 2]>;
 const WORD_BYTES: usize = size_of::<Word>();
 const WORD_BITS: usize = WORD_BYTES * 8;
 
@@ -142,7 +144,7 @@ macro_rules! bit_relations_inherent_impls {
 #[derive(Eq, PartialEq, Hash)]
 pub struct DenseBitSet<T> {
     domain_size: usize,
-    words: Vec<Word>,
+    words: WordVec,
     marker: PhantomData<T>,
 }
 
@@ -158,15 +160,18 @@ impl<T: BitSetIndex> DenseBitSet<T> {
     #[inline]
     pub fn new_empty(domain_size: usize) -> DenseBitSet<T> {
         let num_words = num_words(domain_size);
-        DenseBitSet { domain_size, words: vec![0; num_words], marker: PhantomData }
+        DenseBitSet { domain_size, words: WordVec::from_elem(0, num_words), marker: PhantomData }
     }
 
     /// Creates a new, filled bitset with a given `domain_size`.
     #[inline]
     pub fn new_filled(domain_size: usize) -> DenseBitSet<T> {
         let num_words = num_words(domain_size);
-        let mut result =
-            DenseBitSet { domain_size, words: vec![!0; num_words], marker: PhantomData };
+        let mut result = DenseBitSet {
+            domain_size,
+            words: WordVec::from_elem(!0, num_words),
+            marker: PhantomData,
+        };
         result.clear_excess_bits();
         result
     }
@@ -1457,7 +1462,7 @@ impl<T: BitSetIndex> BitRelations<Self> for GrowableBitSet<T> {
 pub struct BitMatrix<R: BitSetIndex, C: BitSetIndex> {
     num_rows: usize,
     num_columns: usize,
-    words: Vec<Word>,
+    words: WordVec,
     marker: PhantomData<(R, C)>,
 }
 
@@ -1470,7 +1475,7 @@ impl<R: BitSetIndex, C: BitSetIndex> BitMatrix<R, C> {
         BitMatrix {
             num_rows,
             num_columns,
-            words: vec![0; num_rows * words_per_row],
+            words: WordVec::from_elem(0, num_rows * words_per_row),
             marker: PhantomData,
         }
     }
