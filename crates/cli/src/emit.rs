@@ -42,10 +42,17 @@ pub(crate) fn emit_requested(compiler: &mut CompilerRef<'_>) -> Result {
 
 fn emit_combined_json(gcx: Gcx<'_>) -> Result {
     let sess = gcx.sess;
-    let emit_abi = sess.opts.emit.contains(&CompilerOutput::Abi);
-    let emit_hashes = sess.opts.emit.contains(&CompilerOutput::Hashes);
-    let emit_bin = sess.opts.emit.contains(&CompilerOutput::Bin);
-    let emit_bin_runtime = sess.opts.emit.contains(&CompilerOutput::BinRuntime);
+    let (mut emit_abi, mut emit_hashes, mut emit_bin, mut emit_bin_runtime) =
+        (false, false, false, false);
+    for output in &sess.opts.emit {
+        match output {
+            CompilerOutput::Abi => emit_abi = true,
+            CompilerOutput::Hashes => emit_hashes = true,
+            CompilerOutput::Bin => emit_bin = true,
+            CompilerOutput::BinRuntime => emit_bin_runtime = true,
+            _ => {}
+        }
+    }
 
     if !emit_abi && !emit_hashes && !emit_bin && !emit_bin_runtime {
         return Ok(());
