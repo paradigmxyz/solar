@@ -17,15 +17,13 @@ mod passes;
 mod verify;
 
 pub use parse::{EvmIrParseError, parse_evm_ir_module};
-pub use passes::{EVM_IR_PASSES, EvmIrPass};
+pub use passes::{EVM_IR_PASSES, EvmIrPass, EvmIrPassOptions};
 pub use verify::{EvmIrVerifyError, verify_evm_ir_module};
 
 newtype_index! {
     /// A unique identifier for a basic block in EVM IR.
     pub struct EvmIrBlockId;
-}
 
-newtype_index! {
     /// A unique identifier for an untyped stack word in EVM IR.
     pub struct EvmIrValueId;
 }
@@ -301,6 +299,8 @@ impl EvmIrTerminator {
 pub enum EvmIrTerminatorKind {
     /// Physical fallthrough into the next laid-out block.
     Fallthrough(EvmIrBlockId),
+    /// Physical fallthrough into the next separately captured program segment.
+    FallthroughNext,
     /// Unconditional jump.
     Jump(EvmIrBlockId),
     /// Conditional branch.
@@ -413,11 +413,23 @@ pub(super) fn default_instruction_stack_effect(inst: &EvmIrInstruction) -> EvmIr
         EvmIrInstructionKind::Operation(_) if is_encoded_push_instruction(inst) => {
             EvmIrStackEffect::new(0, 1)
         }
-        EvmIrInstructionKind::Operation(_) => EvmIrStackEffect::new(
-            inst.operands.len().try_into().unwrap_or(u16::MAX),
-            u16::from(inst.result.is_some()),
-        ),
+        EvmIrInstructionKind::Operation(mnemonic) => {
+            if let Some(effect) = opcode_stack_effect(mnemonic) {
+                effect
+            } else {
+                EvmIrStackEffect::new(
+                    inst.operands.len().try_into().unwrap_or(u16::MAX),
+                    u16::from(inst.result.is_some()),
+                )
+            }
+        }
     }
+}
+
+fn opcode_stack_effect(mnemonic: &str) -> Option<EvmIrStackEffect> {
+    let opcode = super::assembler::op::from_mnemonic(mnemonic)?;
+    let (inputs, outputs) = super::assembler::op::stack_io(opcode)?;
+    Some(EvmIrStackEffect::new(inputs, outputs))
 }
 
 fn default_terminator_stack_effect(kind: &EvmIrTerminatorKind) -> EvmIrStackEffect {
@@ -429,10 +441,13 @@ fn default_terminator_stack_effect(kind: &EvmIrTerminatorKind) -> EvmIrStackEffe
         }
         EvmIrTerminatorKind::SelfDestruct { .. } => EvmIrStackEffect::new(1, 0),
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::RawOpcode(_) => EvmIrStackEffect::new(0, 0),
+        | EvmIrTerminatorKind::Invalid => EvmIrStackEffect::new(0, 0),
+        EvmIrTerminatorKind::RawOpcode(opcode) => super::assembler::op::stack_io(*opcode)
+            .map(|(inputs, outputs)| EvmIrStackEffect::new(inputs, outputs))
+            .unwrap_or_else(|| EvmIrStackEffect::new(0, 0)),
     }
 }
 

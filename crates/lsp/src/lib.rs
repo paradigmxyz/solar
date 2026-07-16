@@ -19,6 +19,7 @@ use tower::ServiceBuilder;
 mod config;
 mod diagnostics;
 mod flycheck;
+mod formatter;
 mod global_state;
 mod handlers;
 mod inlay_hints;
@@ -58,7 +59,8 @@ fn new_router(client: ClientSocket) -> Router<GlobalState> {
         .request::<req::Rename, _>(handlers::rename)
         .request::<req::SignatureHelpRequest, _>(handlers::signature_help)
         .request::<req::InlayHintRequest, _>(handlers::inlay_hints)
-        .request::<req::Completion, _>(handlers::completion);
+        .request::<req::Completion, _>(handlers::completion)
+        .request::<req::Formatting, _>(handlers::formatting);
 
     // Workspace management
     router
@@ -111,10 +113,11 @@ mod tests {
     use async_lsp::{AnyNotification, AnyRequest, LanguageServer, LspService, router::Router};
     use lsp_types::{
         DidChangeWatchedFilesClientCapabilities, DidChangeWatchedFilesParams,
-        DidSaveTextDocumentParams, FileChangeType, FileEvent, InitializeParams, InitializedParams,
-        Position, SignatureHelpParams, TextDocumentIdentifier, TextDocumentPositionParams,
-        WorkDoneProgressParams, WorkspaceClientCapabilities, notification as notif,
-        notification::Notification, request, request::Request,
+        DidSaveTextDocumentParams, DocumentFormattingParams, FileChangeType, FileEvent,
+        FormattingOptions, InitializeParams, InitializedParams, Position, SignatureHelpParams,
+        TextDocumentIdentifier, TextDocumentPositionParams, WorkDoneProgressParams,
+        WorkspaceClientCapabilities, notification as notif, notification::Notification, request,
+        request::Request,
     };
     use std::ops::ControlFlow;
     use tokio::sync::oneshot;
@@ -180,6 +183,29 @@ mod tests {
         let response = router.call(request).await.unwrap();
 
         assert_eq!(response, serde_json::Value::Null);
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn router_handles_document_formatting_requests() {
+        let mut router = new_router(ClientSocket::new_closed());
+        let params = DocumentFormattingParams {
+            text_document: TextDocumentIdentifier {
+                uri: lsp_types::Url::parse("file:///missing/Test.sol").unwrap(),
+            },
+            options: FormattingOptions::default(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+        let request = serde_json::from_value::<AnyRequest>(serde_json::json!({
+            "id": 1,
+            "method": request::Formatting::METHOD,
+            "params": params,
+        }))
+        .unwrap();
+
+        let error = router.call(request).await.unwrap_err();
+
+        assert_eq!(error.code, async_lsp::ErrorCode::REQUEST_FAILED);
+        assert!(!error.message.ends_with('.'));
     }
 
     #[tokio::test(flavor = "current_thread")]

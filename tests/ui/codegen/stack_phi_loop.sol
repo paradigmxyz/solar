@@ -1,5 +1,5 @@
 //@ignore-host: windows
-//@compile-flags: -Zcodegen --emit=bin-runtime --pretty-json
+//@compile-flags: -Zcodegen --emit=evm-ir-runtime --pretty-json
 
 contract StackPhiLoop {
     function loopCarried(uint256 n, bool flag) public pure returns (uint256) {

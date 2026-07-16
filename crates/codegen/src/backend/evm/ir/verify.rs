@@ -1,7 +1,11 @@
 //! EVM IR verifier.
 
 use super::*;
-use solar_data_structures::{index::IndexVec, map::FxHashSet};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    index::IndexVec,
+    map::FxHashSet,
+};
 use std::fmt as std_fmt;
 
 /// An error produced while validating EVM IR.
@@ -81,7 +85,7 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
         }
     }
 
-    let mut defined_values = FxHashSet::default();
+    let mut defined_values = DenseBitSet::new_empty(module.values.len());
     for (block_id, block) in module.blocks.iter_enumerated() {
         for inst in &block.instructions {
             verify_instruction_shape(block_id, inst)?;
@@ -130,7 +134,7 @@ pub fn verify_evm_ir_module(module: &EvmIrModule) -> Result<(), EvmIrVerifyError
                     format!("entry stack value `{}` is out of range", value.index()),
                 ));
             }
-            if !defined_values.contains(&value) {
+            if !defined_values.contains(value) {
                 return Err(EvmIrVerifyError::in_block(
                     block_id,
                     format!("entry stack value `%{}` is never defined", module.value(value).name),
@@ -237,12 +241,6 @@ impl ModelStack {
 /// words the predecessor leaves, in order. The predecessor may leave additional
 /// words below them — a successor only names the prefix it consumes. The entry
 /// block must start from an empty stack.
-///
-/// Limitation: a *scheduled* operation has its operands cleared and does not
-/// record a stack effect, so its input arity is no longer recoverable from the
-/// instruction alone; such ops fall back to [`default_instruction_stack_effect`]
-/// (inputs = 0). This does not affect the cross-block check, which compares a
-/// successor's declared value identities against the predecessor's exit words.
 fn verify_stack_consistency(module: &EvmIrModule) -> Result<(), EvmIrVerifyError> {
     if let Some(entry) = module.entry_block
         && !module.blocks[entry].entry_stack.is_empty()
@@ -460,7 +458,7 @@ fn apply_terminator_effect(
     kind: &EvmIrTerminatorKind,
     stack: &mut ModelStack,
 ) -> Result<(), EvmIrVerifyError> {
-    let mut consumed = FxHashSet::default();
+    let mut consumed = GrowableBitSet::new_empty();
     visit_terminator_operands(kind, |operand| {
         if let EvmIrOperand::Value(value) = operand
             && consumed.insert(*value)
@@ -510,6 +508,7 @@ fn consume_stack_value(
 fn terminator_name(kind: &EvmIrTerminatorKind) -> &'static str {
     match kind {
         EvmIrTerminatorKind::Fallthrough(_) => "fallthrough",
+        EvmIrTerminatorKind::FallthroughNext => "fallthrough_next",
         EvmIrTerminatorKind::Jump(_) => "jump",
         EvmIrTerminatorKind::Branch { .. } => "br",
         EvmIrTerminatorKind::Switch { .. } => "switch",
@@ -593,7 +592,14 @@ fn verify_instruction_shape(
             ));
         }
     } else {
-        if operandless_operation_needs_stack_metadata(inst) {
+        if inst.operands.is_empty()
+            && inst.metadata.stack.is_none()
+            && matches!(
+                &inst.kind,
+                EvmIrInstructionKind::Operation(mnemonic)
+                    if opcode_stack_effect(mnemonic).is_none()
+            )
+        {
             return Err(EvmIrVerifyError::in_block(
                 block_id,
                 format!(
@@ -612,43 +618,6 @@ fn verify_instruction_shape(
         }
     }
     Ok(())
-}
-
-fn operandless_operation_needs_stack_metadata(inst: &EvmIrInstruction) -> bool {
-    inst.operands.is_empty()
-        && inst.metadata.stack.is_none()
-        && matches!(
-            &inst.kind,
-            EvmIrInstructionKind::Operation(mnemonic)
-                if !(inst.result.is_some() && is_zero_input_operation(mnemonic))
-        )
-}
-
-fn is_zero_input_operation(mnemonic: &str) -> bool {
-    matches!(
-        mnemonic,
-        "address"
-            | "origin"
-            | "caller"
-            | "callvalue"
-            | "calldatasize"
-            | "codesize"
-            | "gasprice"
-            | "coinbase"
-            | "timestamp"
-            | "number"
-            | "prevrandao"
-            | "difficulty"
-            | "gaslimit"
-            | "chainid"
-            | "selfbalance"
-            | "basefee"
-            | "blobbasefee"
-            | "returndatasize"
-            | "msize"
-            | "gas"
-            | "pc"
-    )
 }
 
 fn verify_terminator_shape(
@@ -679,6 +648,7 @@ fn verify_terminator_shape(
             verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")?
         }
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
@@ -739,10 +709,10 @@ fn verify_value_defined(
     block_id: EvmIrBlockId,
     module: &EvmIrModule,
     operand: &EvmIrOperand,
-    defined_values: &FxHashSet<EvmIrValueId>,
+    defined_values: &DenseBitSet<EvmIrValueId>,
 ) -> Result<(), EvmIrVerifyError> {
     if let EvmIrOperand::Value(value) = operand
-        && !defined_values.contains(value)
+        && !defined_values.contains(*value)
     {
         return Err(EvmIrVerifyError::in_block(
             block_id,
@@ -766,6 +736,7 @@ fn visit_terminator_operands<E>(
 ) -> Result<(), E> {
     match kind {
         EvmIrTerminatorKind::Fallthrough(_)
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
@@ -807,6 +778,7 @@ fn visit_terminator_targets<E>(
         }
         EvmIrTerminatorKind::Return { .. }
         | EvmIrTerminatorKind::Revert { .. }
+        | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Stop
         | EvmIrTerminatorKind::Invalid
         | EvmIrTerminatorKind::SelfDestruct { .. }

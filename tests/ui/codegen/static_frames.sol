@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: -Zcodegen --emit=evm-ir-runtime
 
 // Static frame overlays: non-recursive internal functions get
 // compile-time-fixed frame addresses (absolute pushes, no frame-pointer or

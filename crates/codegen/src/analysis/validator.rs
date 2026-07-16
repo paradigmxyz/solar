@@ -20,6 +20,10 @@
 //! 8. **Instruction-block consistency**: each instruction's `block` field matches the block whose
 //!    `instructions` vector contains it.
 //! 9. **Predecessor consistency**: every stored predecessor actually branches to the block.
+//! 10. **Use reachability**: for every reachable cross-block use of an instruction result, the
+//!     defining block can reach the using block (phi inputs: their incoming predecessor). MIR is
+//!     deliberately loose SSA, but a use its definition can never reach is garbage on every
+//!     execution.
 //!
 //! # Usage
 //!
@@ -39,10 +43,11 @@
 //! ```
 
 use crate::{
-    mir::{BlockId, Function, InstId, InstKind, Module, Value},
+    analysis::CfgInfo,
+    mir::{BlockId, Function, InstId, InstKind, Module, Value, ValueId},
     pass::AnalysisPass,
 };
-use solar_data_structures::map::FxHashMap;
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::sym;
 use std::fmt;
 
@@ -299,6 +304,111 @@ impl Validator {
                 "entry block must have no predecessors",
                 func.entry_block,
             ));
+        }
+
+        // ----- Use reachability -----
+        // MIR is deliberately loose SSA: a definition need not dominate its
+        // uses, because cross-block values travel through reserved spill
+        // slots and the source guarantees definite assignment. The invariant
+        // that must still hold is reachability: if the defining block can
+        // never reach the using block (its incoming predecessor, for phi
+        // inputs), the use reads garbage on every execution. Structural
+        // errors are reported first: CFG construction assumes valid block
+        // references.
+        if !errors.is_empty() {
+            return errors;
+        }
+        let cfg = CfgInfo::new(func);
+        let mut def_block_of: FxHashMap<ValueId, BlockId> = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            for &inst_id in &block.instructions {
+                if let Some(result) = func.inst_result_value(inst_id) {
+                    def_block_of.insert(result, block_id);
+                }
+            }
+        }
+        let mut reach_cache: FxHashMap<BlockId, DenseBitSet<BlockId>> = FxHashMap::default();
+        let mut reaches = |from: BlockId, to: BlockId| {
+            if from == to {
+                return true;
+            }
+            let set = reach_cache.entry(from).or_insert_with(|| {
+                let mut seen = DenseBitSet::new_empty(func.blocks.len());
+                let mut stack = vec![from];
+                while let Some(current) = stack.pop() {
+                    if let Some(term) = func.blocks[current].terminator.as_ref() {
+                        for succ in term.successors() {
+                            if seen.insert(succ) {
+                                stack.push(succ);
+                            }
+                        }
+                    }
+                }
+                seen
+            });
+            set.contains(to)
+        };
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            if !cfg.is_reachable(block_id) {
+                continue;
+            }
+            for &inst_id in &block.instructions {
+                match &func.instructions[inst_id].kind {
+                    InstKind::Phi(incoming) => {
+                        for &(pred, value) in incoming {
+                            if let Some(&def) = def_block_of.get(&value)
+                                && !reaches(def, pred)
+                            {
+                                errors.push(ValidationError::at_inst(
+                                    format!(
+                                        "phi input {value:?} from bb{} can never be reached by \
+                                         its definition in bb{}",
+                                        pred.index(),
+                                        def.index()
+                                    ),
+                                    block_id,
+                                    inst_id,
+                                ));
+                            }
+                        }
+                    }
+                    kind => {
+                        for &operand in kind.operands().iter() {
+                            if let Some(&def) = def_block_of.get(&operand)
+                                && def != block_id
+                                && !reaches(def, block_id)
+                            {
+                                errors.push(ValidationError::at_inst(
+                                    format!(
+                                        "use of {operand:?} can never be reached by its \
+                                         definition in bb{}",
+                                        def.index()
+                                    ),
+                                    block_id,
+                                    inst_id,
+                                ));
+                            }
+                        }
+                    }
+                }
+            }
+            if let Some(term) = &block.terminator {
+                for &operand in term.operands().iter() {
+                    if let Some(&def) = def_block_of.get(&operand)
+                        && def != block_id
+                        && !reaches(def, block_id)
+                    {
+                        errors.push(ValidationError::at_block(
+                            format!(
+                                "terminator use of {operand:?} can never be reached by its \
+                                 definition in bb{}",
+                                def.index()
+                            ),
+                            block_id,
+                        ));
+                    }
+                }
+            }
         }
 
         errors

@@ -1,0 +1,259 @@
+// === ROOT/tests/ui/codegen/tuple_assign_branch_leak.sol:TupleAssignBranchLeak (runtime) ===
+bb0 (entry):
+  push 0x420
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x2143aa9
+  eq
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  swap1
+  slt
+  push 36
+  calldataload
+  swap1
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  dup1
+  push 736
+  mstore
+  iszero
+  iszero
+  push 736
+  mload
+  eq
+  push 4
+  calldataload
+  swap1
+  iszero
+  push bb1
+  jumpi
+  push bb8
+  jumpi
+  jump bb4
+bb3:
+  push 128
+  mload
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb4:
+  push 7
+  dup2
+  add
+  dup1
+  push 480
+  mstore
+  dup2
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 8
+  dup2
+  add
+  dup1
+  push 576
+  mstore
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 9
+  dup2
+  add
+  dup1
+  push 512
+  mstore
+  push 480
+  mload
+  dup1
+  push 480
+  mstore
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  push 32
+  mstore
+  push 512
+  mload
+  dup1
+  push 512
+  mstore
+  push 576
+  mload
+  add
+  dup1
+  push 544
+  mstore
+  push 576
+  mload
+  dup1
+  push 576
+  mstore
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 544
+  mload
+  add
+  dup1
+  push 608
+  mstore
+  push 544
+  mload
+  dup1
+  push 544
+  mstore
+  swap1
+  lt
+  push 36
+  calldataload
+  swap1
+  push bb9
+  jumpi
+  push 608
+  mload
+  dup1
+  push 608
+  fallthrough bb5
+bb5:
+  mstore
+  push 128
+  mstore
+  pop
+  jump bb3
+bb6:
+  push 36
+  calldataload
+  push 1
+  add
+  push 36
+  calldataload
+  push 2
+  add
+  add
+  dup1
+  push 704
+  jump bb5
+bb7:
+  push 36
+  calldataload
+  push 2
+  add
+  dup1
+  push 672
+  mstore
+  push 32
+  mstore
+  pop
+  push 672
+  mload
+  dup1
+  push 672
+  mstore
+  push 36
+  calldataload
+  push 1
+  add
+  dup1
+  push 640
+  mstore
+  add
+  dup1
+  push 704
+  mstore
+  push 640
+  mload
+  dup1
+  push 640
+  mstore
+  swap1
+  lt
+  push 36
+  calldataload
+  swap1
+  iszero
+  push bb6
+  jumpi
+  jump bb9
+bb8:
+  push 1
+  dup2
+  add
+  dup1
+  push 640
+  mstore
+  dup2
+  swap1
+  lt
+  push bb9
+  jumpi
+  push 2
+  dup2
+  add
+  dup1
+  push 672
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  pop
+  push 36
+  calldataload
+  swap1
+  iszero
+  push bb7
+  jumpi
+  jump bb9
+bb9:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  terminal revert

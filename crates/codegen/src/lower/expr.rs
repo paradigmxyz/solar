@@ -478,7 +478,7 @@ impl<'gcx> Lowerer<'gcx> {
                 // place; nulling the pointer would alias scratch memory on the
                 // next access. Storage targets keep the assignment path.
                 if let Some(var_id) = self.ident_variable(target)
-                    && !self.storage_ref_locals.contains(&var_id)
+                    && !self.storage_ref_locals.contains(var_id)
                     && !self.storage_slots.contains_key(&var_id)
                 {
                     let var = self.gcx.hir.variable(var_id);
@@ -1573,7 +1573,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(&slot) = self.storage_slots.get(var_id) {
             return Some((builder.imm_u64(slot), fixed_len, elem_slots));
         }
-        if self.storage_ref_locals.contains(var_id) {
+        if self.storage_ref_locals.contains(*var_id) {
             let slot_val = self.locals.get(var_id).copied()?;
             return Some((slot_val, fixed_len, elem_slots));
         }
@@ -1993,7 +1993,7 @@ impl<'gcx> Lowerer<'gcx> {
     ) -> Option<(hir::VariableId, hir::StructId, usize)> {
         if let ExprKind::Ident(res_slice) = &base.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-            && self.storage_ref_locals.contains(var_id)
+            && self.storage_ref_locals.contains(*var_id)
             && let hir::TypeKind::Custom(hir::ItemId::Struct(struct_id)) =
                 &self.gcx.hir.variable(*var_id).ty.kind
         {
@@ -2131,7 +2131,7 @@ impl<'gcx> Lowerer<'gcx> {
             ExprKind::Ident(res_slice) => {
                 if let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first() {
                     // Another storage reference: its value is already the slot.
-                    if self.storage_ref_locals.contains(var_id) {
+                    if self.storage_ref_locals.contains(*var_id) {
                         return self.locals.get(var_id).copied();
                     }
                     // A state variable: its base slot is known at compile time.
@@ -2816,17 +2816,7 @@ impl<'gcx> Lowerer<'gcx> {
         key: ValueId,
         slot: ValueId,
     ) -> ValueId {
-        // Store key at memory offset 0
-        let mem_0 = builder.imm_u64(0);
-        builder.mstore(mem_0, key);
-
-        // Store slot at memory offset 32
-        let mem_32 = builder.imm_u64(32);
-        builder.mstore(mem_32, slot);
-
-        // Compute keccak256 of 64 bytes starting at offset 0
-        let size_64 = builder.imm_u64(64);
-        builder.keccak256(mem_0, size_64)
+        builder.mapping_slot(key, slot)
     }
 
     /// Dispatches a mapping-key hash on the key kind. Dynamic (`string`/`bytes`)
@@ -2880,7 +2870,7 @@ impl<'gcx> Lowerer<'gcx> {
     fn is_storage_ref_bytes_local(&self, expr: &hir::Expr<'_>) -> bool {
         if let ExprKind::Ident(res_slice) = &expr.kind
             && let Some(hir::Res::Item(hir::ItemId::Variable(var_id))) = res_slice.first()
-            && self.storage_ref_locals.contains(var_id)
+            && self.storage_ref_locals.contains(*var_id)
         {
             let var = self.gcx.hir.variable(*var_id);
             return Self::is_dynamic_mapping_key(&var.ty.kind);
@@ -2922,6 +2912,10 @@ impl<'gcx> Lowerer<'gcx> {
         ptr: ValueId,
         slot: ValueId,
     ) -> ValueId {
+        if self.gcx.sess.opts.evm_version.has_mcopy() {
+            return builder.mapping_slot_memory(ptr, slot);
+        }
+
         let len = builder.mload(ptr);
         let word_size = builder.imm_u64(32);
         let data_start = builder.add(ptr, word_size);
@@ -2940,20 +2934,7 @@ impl<'gcx> Lowerer<'gcx> {
         head_offset: ValueId,
         slot: ValueId,
     ) -> ValueId {
-        let selector_size = builder.imm_u64(4);
-        let data_head = builder.add(head_offset, selector_size);
-        let len = builder.calldataload(data_head);
-        let word_size = builder.imm_u64(32);
-        let data_start = builder.add(data_head, word_size);
-        // Stage at the unbumped free-memory scratch: staging at offset 0 would
-        // clobber the free memory pointer (and live heap) for keys > 32 bytes.
-        let free_mem_ptr_slot = builder.imm_u64(0x40);
-        let scratch = builder.mload(free_mem_ptr_slot);
-        builder.calldatacopy(scratch, data_start, len);
-        let slot_addr = builder.add(scratch, len);
-        builder.mstore(slot_addr, slot);
-        let hash_len = builder.add(len, word_size);
-        builder.keccak256(scratch, hash_len)
+        builder.mapping_slot_calldata(head_offset, slot)
     }
 
     fn is_dynamic_mapping_key(kind: &hir::TypeKind<'_>) -> bool {

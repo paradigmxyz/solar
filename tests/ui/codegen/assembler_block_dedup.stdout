@@ -1,8 +1,107 @@
-{
-  "contracts": {
-    "ROOT/tests/ui/codegen/assembler_block_dedup.sol:AssemblerBlockDedup": {
-      "bin-runtime": "3460d55736600b5760d5565b5f3560e01c80630dbe671f14603c5780634df7e3d014603c5780635ce8bda8146091578063feb9742914604d5760d5565b5060a0604052600160805260206080f35b5060c060405236600481039050602081129050156069575b5f80fd5b6004358060a052151560a05114156065575b5f6080526004356065575b600260805260206080f35b5060c0604052366004810390506020811290501560ad575b5f80fd5b6004358060a052151560a051141560a9575b5f60805260043560a9575b600260805260206080f35b5f5ffd"
-    }
-  },
-  "version": "VERSION"
-}
+// === ROOT/tests/ui/codegen/assembler_block_dedup.sol:AssemblerBlockDedup (runtime) ===
+bb0 (entry):
+  push 192
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xdbe671f
+  eq
+  push bb2
+  jumpi
+  dup1
+  push 0x4df7e3d0
+  eq
+  push bb2
+  jumpi
+  dup1
+  push 0x5ce8bda8
+  eq
+  push bb6
+  jumpi
+  dup1
+  push 0xfeb97429
+  eq
+  push bb4
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  push 1
+  fallthrough bb3
+bb3:
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb4:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  dup1
+  push 160
+  mstore
+  iszero
+  iszero
+  push 160
+  mload
+  sub
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  push bb1
+  jumpi
+  fallthrough bb5
+bb5:
+  push 2
+  jump bb3
+bb6:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  dup1
+  push 160
+  mstore
+  iszero
+  iszero
+  push 160
+  mload
+  sub
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  push bb1
+  jumpi
+  jump bb5

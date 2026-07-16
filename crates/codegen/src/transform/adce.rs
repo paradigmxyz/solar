@@ -10,7 +10,7 @@ use crate::{
     pass::FunctionPass,
     transform::DeadCodeEliminator,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Statistics for aggressive dead-code elimination.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -52,16 +52,22 @@ impl FunctionPass for AdcePass {
 #[derive(Debug)]
 struct AdceContext {
     inst_results: FxHashMap<InstId, ValueId>,
-    value_uses: FxHashMap<ValueId, FxHashSet<BlockId>>,
+    value_uses: FxHashMap<ValueId, DenseBitSet<BlockId>>,
 }
 
 /// Shared state for one transparent-target search sweep over an unmodified CFG.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct TargetSearch {
     /// Blocks on the current depth-first search path, used to detect cycles.
-    visiting: FxHashSet<BlockId>,
+    visiting: DenseBitSet<BlockId>,
     /// Memoized transparent target per fully explored block.
     targets: FxHashMap<BlockId, Option<BlockId>>,
+}
+
+impl TargetSearch {
+    fn new(block_count: usize) -> Self {
+        Self { visiting: DenseBitSet::new_empty(block_count), targets: FxHashMap::default() }
+    }
 }
 
 impl AggressiveDeadCodeEliminator {
@@ -96,7 +102,7 @@ impl AggressiveDeadCodeEliminator {
 
     fn rewrite_dead_control(&self, func: &mut Function, ctx: &AdceContext) -> usize {
         let mut rewrites = Vec::new();
-        let mut search = TargetSearch::default();
+        let mut search = TargetSearch::new(func.blocks.len());
         for block_id in func.blocks.indices() {
             let Some(term) = &func.blocks[block_id].terminator else {
                 continue;
@@ -157,7 +163,7 @@ impl AggressiveDeadCodeEliminator {
             return None;
         }
         let target = self.compute_transparent_target(func, ctx, block_id, search);
-        search.visiting.remove(&block_id);
+        search.visiting.remove(block_id);
         search.targets.insert(block_id, target);
         target
     }
@@ -206,7 +212,7 @@ impl AggressiveDeadCodeEliminator {
             };
             ctx.value_uses
                 .get(&value)
-                .is_some_and(|uses| uses.iter().any(|&use_block| use_block != block_id))
+                .is_some_and(|uses| uses.iter().any(|use_block| use_block != block_id))
         })
     }
 
@@ -235,17 +241,21 @@ impl AdceContext {
         Self { inst_results, value_uses }
     }
 
-    fn value_uses(func: &Function) -> FxHashMap<ValueId, FxHashSet<BlockId>> {
-        let mut uses: FxHashMap<ValueId, FxHashSet<BlockId>> = FxHashMap::default();
+    fn value_uses(func: &Function) -> FxHashMap<ValueId, DenseBitSet<BlockId>> {
+        let mut uses = FxHashMap::default();
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
                 for operand in func.instructions[inst_id].kind.operands() {
-                    uses.entry(operand).or_default().insert(block_id);
+                    uses.entry(operand)
+                        .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
+                        .insert(block_id);
                 }
             }
             if let Some(term) = &block.terminator {
                 for operand in term.operands() {
-                    uses.entry(operand).or_default().insert(block_id);
+                    uses.entry(operand)
+                        .or_insert_with(|| DenseBitSet::new_empty(func.blocks.len()))
+                        .insert(block_id);
                 }
             }
         }

@@ -18,9 +18,7 @@ fn @items(arg0: u256) {
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
-    mstore 0, arg0 !metadata(memory=scratch)
-    mstore 32, 1 !metadata(memory=scratch)
-    v3 = keccak256 0, 64 !metadata(memory=scratch)
+    v3 = mapping_slot arg0, 1
     v4 = sload v3 !metadata(storage=symbolic(v3))
     v5 = add v3, 1
     v6 = sload v5 !metadata(storage=offset(v3, 1))

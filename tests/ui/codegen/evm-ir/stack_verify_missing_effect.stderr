@@ -1,1 +1,1 @@
-error: EVM IR verification failed: block 0: operand-cleared instruction `add` must declare an explicit stack effect
+error: EVM IR verification failed: block 0: operand-cleared instruction `mystery` must declare an explicit stack effect

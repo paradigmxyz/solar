@@ -1,1 +1,154 @@
-{"contracts":{"ROOT/tests/ui/codegen/library_wrapper_storage_param.sol:DataTypes":{"bin-runtime":""},"ROOT/tests/ui/codegen/library_wrapper_storage_param.sol:L":{"bin-runtime":"346101105736600d57610110565b5f3560e01c8063def537e014602157610110565b506101a06040523660048103905060808112905015603e575b5f80fd5b5f60805260026004350180610140528061014052806101405254602435818061018052018060a0528060a052818061018052811091508190509050156092575b634e487b7160e01b5f52601160045260245ffd5b60a0518060a052610140515561014051806101405254600435548061010052818060c0520180610160528061016052818060c052811091508190509050607e575b600160043501548060e05261016051018061012052806101205261016051806101605281109050607e575b61012051806101205260805260206080f35b5f5ffd"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/library_wrapper_storage_param.sol:DataTypes (runtime) ===
+// === ROOT/tests/ui/codegen/library_wrapper_storage_param.sol:L (runtime) ===
+bb0 (entry):
+  push 416
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xdef537e0
+  eq
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 128
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 2
+  push 4
+  calldataload
+  add
+  dup1
+  push 160
+  mstore
+  sload
+  push 36
+  calldataload
+  dup2
+  dup1
+  push 288
+  mstore
+  add
+  dup1
+  push 224
+  mstore
+  dup2
+  dup1
+  push 288
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb3
+  jumpi
+  push 224
+  mload
+  dup1
+  push 224
+  mstore
+  push 160
+  mload
+  sstore
+  push 160
+  mload
+  dup1
+  push 160
+  mstore
+  sload
+  push 4
+  calldataload
+  sload
+  dup1
+  push 352
+  mstore
+  dup2
+  dup1
+  push 320
+  mstore
+  add
+  dup1
+  push 192
+  mstore
+  dup2
+  dup1
+  push 320
+  mstore
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb3
+  jumpi
+  push 1
+  push 4
+  calldataload
+  add
+  sload
+  dup1
+  push 384
+  mstore
+  push 192
+  mload
+  add
+  dup1
+  push 256
+  mstore
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  swap1
+  lt
+  push bb3
+  jumpi
+  push 256
+  mload
+  dup1
+  push 256
+  mstore
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb3:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  terminal revert

@@ -2,16 +2,6 @@
 ; module @LowerAbiDynamicParams [phase = abi]
 fn @takesBytes() {
   bb0 (entry):
-    v2 = calldataload 4
-    v3 = calldataload 36
-    v0 = mload v2
-    v1 = add v0, v3
-    mstore 128, v1
-    returndata 128, 32
-}
-
-fn @takesBytes.body(arg0: memptr, arg1: u256) {
-  bb0 (entry):
     v0 = mload arg0
     v1 = add v0, arg1
     mstore 128, v1

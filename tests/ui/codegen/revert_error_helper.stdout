@@ -1,1 +1,336 @@
-{"contracts":{"ROOT/tests/ui/codegen/revert_error_helper.sol:Errors":{"bin-runtime":"346101425736600d57610142565b5f3560e01c8063561cce0a146048578063a871da9114602b57610142565b506101e06040525f60805261333960f01b610120526046607e565bfe5b506101e06040525f6080527f746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121610120526046607e565b6040518061018052806101805260208101806101c05260405280610180526101c05103610180515261012051518061016052806101605280610160526101c05152601f6101605101601f19811680610140529050806101405260406101805101806101a052806101a052819050905015610104575b602061014051036101a051015f8152505b602061012051016101405180610140526101a05101610160518061016052826101a051806101a0525e90506101805180610180528103905061018051f35b5f5ffd"},"ROOT/tests/ui/codegen/revert_error_helper.sol:R":{"bin-runtime":"346102445736600d57610244565b5f3560e01c80630c4186a61461013657806317a0525e146101d65780639927bee41460e65780639af992c014609b5780639ee36b0714604b57610244565b5061016060405236600481039050602081129050156068575b5f80fd5b5f608052600560043511608f575b60026101205261333960f01b61014052608d610222565bfe5b60043560805260206080f35b50610160604052366004810390506020811290501560b8575b5f80fd5b5f608052600560043511608f575b600b610120526a6c69746572616c206d736760a81b61014052608d610222565b506101606040523660048103905060208112905015610104575b5f80fd5b5f608052600560043511608f575b600f610120526e6c6f63616c2d636f6e73742d6d736760881b61014052608d610222565b506101606040523660048103905060208112905015610154575b5f80fd5b5f608052600560043511608f575b6040516060818060a0520160405260218152602081017f746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121818060c05252604082019150602160f81b825290506308c379a060e01b5f52602060045260216024525f6064526021818060c05260445e5060845ffd5b5061016060405236600481039050602081129050156101f4575b5f80fd5b5f608052600560043511608f575b600b610120526a7265766572742d7061746860a81b61014052608d610222565b6308c379a060e01b5f526020600452610120516024526101405160445260645ffd5b5f5ffd"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/revert_error_helper.sol:Errors (runtime) ===
+bb0 (entry):
+  push 320
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x561cce0a
+  eq
+  push bb4
+  jumpi
+  dup1
+  push 0xa871da91
+  eq
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  push 0
+  push 128
+  mstore
+  push 0x3339000000000000000000000000000000000000000000000000000000000000
+  fallthrough bb3
+bb3:
+  push 288
+  mstore
+  jump bb5
+bb4:
+  push 0
+  push 128
+  mstore
+  push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+  jump bb3
+bb5:
+  push 64
+  mload
+  push 32
+  dup2
+  mstore
+  push 288
+  mload
+  mload
+  push 32
+  dup3
+  add
+  dup2
+  dup2
+  mstore
+  pop
+  push 31
+  dup2
+  add
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  swap1
+  and
+  push 64
+  dup4
+  add
+  push 32
+  dup3
+  sub
+  dup2
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  push 32
+  push 288
+  mload
+  add
+  dup4
+  dup2
+  dup4
+  mcopy
+  pop
+  pop
+  swap1
+  pop
+  push 64
+  swap1
+  add
+  dup2
+  terminal return
+// === ROOT/tests/ui/codegen/revert_error_helper.sol:R (runtime) ===
+bb0 (entry):
+  push 352
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xc4186a6
+  eq
+  push bb14
+  jumpi
+  dup1
+  push 0x17a0525e
+  eq
+  push bb17
+  jumpi
+  dup1
+  push 0x9927bee4
+  eq
+  push bb11
+  jumpi
+  dup1
+  push 0x9af992c0
+  eq
+  push bb8
+  jumpi
+  dup1
+  push 0x9ee36b07
+  eq
+  push bb3
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  push 0
+  push 128
+  mstore
+  push 5
+  push 4
+  calldataload
+  gt
+  iszero
+  swap1
+  terminal jump
+bb3:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push bb4
+  jump bb2
+bb4:
+  push bb6
+  jumpi
+  fallthrough bb5
+bb5:
+  push 4
+  calldataload
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb6:
+  push 2
+  push 288
+  mstore
+  push 0x3339000000000000000000000000000000000000000000000000000000000000
+  fallthrough bb7
+bb7:
+  push 320
+  mstore
+  jump bb20
+bb8:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push bb9
+  jump bb2
+bb9:
+  push bb10
+  jumpi
+  jump bb5
+bb10:
+  push 11
+  push 288
+  mstore
+  push 0x6c69746572616c206d7367000000000000000000000000000000000000000000
+  jump bb7
+bb11:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push bb12
+  jump bb2
+bb12:
+  push bb13
+  jumpi
+  jump bb5
+bb13:
+  push 15
+  push 288
+  mstore
+  push 0x6c6f63616c2d636f6e73742d6d73670000000000000000000000000000000000
+  jump bb7
+bb14:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push bb15
+  jump bb2
+bb15:
+  push bb16
+  jumpi
+  jump bb5
+bb16:
+  push 64
+  mload
+  push 96
+  dup2
+  add
+  push 64
+  mstore
+  push 33
+  dup2
+  mstore
+  push 32
+  dup2
+  add
+  push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
+  dup2
+  mstore
+  push 64
+  dup3
+  add
+  swap2
+  pop
+  push 0x2100000000000000000000000000000000000000000000000000000000000000
+  dup3
+  mstore
+  swap1
+  pop
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 32
+  push 4
+  mstore
+  push 33
+  push 36
+  mstore
+  push 0
+  push 100
+  mstore
+  push 33
+  dup2
+  push 68
+  mcopy
+  pop
+  push 132
+  push 0
+  terminal revert
+bb17:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push bb18
+  jump bb2
+bb18:
+  push bb19
+  jumpi
+  jump bb5
+bb19:
+  push 11
+  push 288
+  mstore
+  push 0x7265766572742d70617468000000000000000000000000000000000000000000
+  jump bb7
+bb20:
+  push 0x8c379a000000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 32
+  push 4
+  mstore
+  push 288
+  mload
+  push 36
+  mstore
+  push 320
+  mload
+  push 68
+  mstore
+  push 100
+  push 0
+  terminal revert

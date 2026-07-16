@@ -3,11 +3,11 @@
 use super::{AsmInst, AsmInstKind, DeferredConst, Label, op};
 use crate::backend::evm::ir::{
     EvmIrBlock, EvmIrBlockHotness, EvmIrInstruction, EvmIrInstructionKind, EvmIrModule,
-    EvmIrOperand, EvmIrPass, EvmIrStackEffect, EvmIrStackOp, EvmIrTerminator, EvmIrTerminatorKind,
-    verify_evm_ir_module,
+    EvmIrOperand, EvmIrPass, EvmIrPassOptions, EvmIrStackEffect, EvmIrStackOp, EvmIrTerminator,
+    EvmIrTerminatorKind, verify_evm_ir_module,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::bit_set::GrowableBitSet;
 
 const OP_PREFIX: &str = "op_";
 const PUSH_MNEMONIC: &str = "push";
@@ -18,6 +18,10 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
     fn push_value(&self, index: super::PushValueId) -> U256;
     fn push_inst(&mut self, value: U256) -> AsmInst;
     fn new_label(&mut self) -> Label;
+    /// Whether EVM IR pass timings should be printed.
+    fn time_passes(&self) -> bool {
+        false
+    }
     /// Whether the bridge should run the experimental EVM IR `StackSchedule`
     /// pass. Off by default; see [`StructuredAsmProgram::optimize_with_evm_ir`].
     fn run_evm_ir_stack_schedule(&self) -> bool {
@@ -40,7 +44,7 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
 pub(in crate::backend::evm) struct StructuredAsmProgram {
     blocks: Vec<StructuredAsmBlock>,
     current: Option<usize>,
-    cold_labels: FxHashSet<Label>,
+    cold_labels: GrowableBitSet<Label>,
 }
 
 impl StructuredAsmProgram {
@@ -61,7 +65,7 @@ impl StructuredAsmProgram {
     pub(in crate::backend::evm) fn define_label(&mut self, label: Label) {
         let block = StructuredAsmBlock {
             label: Some(label),
-            cold: self.cold_labels.contains(&label),
+            cold: self.cold_labels.contains(label),
             instructions: Vec::new(),
         };
         self.blocks.push(block);
@@ -133,6 +137,7 @@ impl StructuredAsmProgram {
 
         debug_assert!(verify_evm_ir_module(&module).is_ok());
         let mut changed = 0;
+        let pass_options = EvmIrPassOptions { time_passes: context.time_passes() };
 
         if context.run_evm_ir_stack_schedule() {
             // Differential safety net: schedule a clone, and only adopt it if the
@@ -141,7 +146,7 @@ impl StructuredAsmProgram {
             // always holds (the pass is a near no-op), but the guard means an
             // unexpected rewrite is dropped instead of changing produced code.
             let mut scheduled = module.clone();
-            if EvmIrPass::StackSchedule.run(&mut scheduled)
+            if EvmIrPass::StackSchedule.run(&mut scheduled, pass_options)
                 && verify_evm_ir_module(&scheduled).is_ok()
                 && modules_have_equal_code(&module, &scheduled)
             {
@@ -152,7 +157,7 @@ impl StructuredAsmProgram {
 
         if context.run_evm_ir_layout_passes() {
             for pass in [EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup] {
-                changed += usize::from(pass.run(&mut module));
+                changed += usize::from(pass.run(&mut module, pass_options));
             }
         }
         debug_assert!(verify_evm_ir_module(&module).is_ok());
@@ -286,9 +291,7 @@ impl StructuredAsmProgram {
                 if let Some(stack_op) = stack_op_from_opcode(opcode) {
                     EvmIrInstruction::stack_op(stack_op)
                 } else {
-                    let mut inst = EvmIrInstruction::new(opcode_mnemonic(opcode), Vec::new());
-                    inst.metadata.stack = Some(EvmIrStackEffect::new(0, 0));
-                    inst
+                    EvmIrInstruction::new(opcode_mnemonic(opcode), Vec::new())
                 }
             }
             AsmInstKind::PushInline(value) => {
@@ -423,6 +426,7 @@ impl StructuredAsmProgram {
                 program.push(AsmInst::op(op::JUMP));
             }
             EvmIrTerminatorKind::RawOpcode(opcode) => program.push(AsmInst::op(*opcode)),
+            EvmIrTerminatorKind::FallthroughNext => {}
             EvmIrTerminatorKind::Stop => program.push(AsmInst::op(op::STOP)),
             EvmIrTerminatorKind::Invalid => program.push(AsmInst::op(op::INVALID)),
             EvmIrTerminatorKind::Return { .. }
@@ -461,10 +465,13 @@ fn push_instruction(operand: EvmIrOperand) -> EvmIrInstruction {
 }
 
 fn opcode_mnemonic(opcode: u8) -> String {
-    format!("{OP_PREFIX}{opcode:02x}")
+    op::mnemonic(opcode).map(str::to_string).unwrap_or_else(|| format!("{OP_PREFIX}{opcode:02x}"))
 }
 
 fn parse_opcode_mnemonic(mnemonic: &str) -> Option<u8> {
+    if let Some(opcode) = op::from_mnemonic(mnemonic) {
+        return Some(opcode);
+    }
     let value = mnemonic.strip_prefix(OP_PREFIX)?;
     u8::from_str_radix(value, 16).ok()
 }
@@ -529,4 +536,25 @@ struct StructuredAsmBlock {
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct EvmAsmProgram {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
+}
+
+impl EvmAsmProgram {
+    /// Converts the final linear program back to EVM IR without running passes.
+    pub(in crate::backend::evm) fn to_evm_ir_module<C>(
+        &self,
+        context: &mut C,
+    ) -> Option<EvmIrModule>
+    where
+        C: StructuredAsmContext,
+    {
+        let mut structured = StructuredAsmProgram::default();
+        for &inst in &self.instructions {
+            if let AsmInstKind::Label(label) = inst.kind() {
+                structured.define_label(label);
+            } else {
+                structured.push(inst);
+            }
+        }
+        structured.to_evm_ir_module(context).map(|(module, _)| module)
+    }
 }

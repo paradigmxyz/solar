@@ -1,1 +1,45 @@
-{"contracts":{"ROOT/tests/ui/codegen/enum_conversion_qualified.sol:DataTypes":{"bin-runtime":""},"ROOT/tests/ui/codegen/enum_conversion_qualified.sol:E":{"bin-runtime":"3460475736600b576047565b5f3560e01c8063bc477c0414601e576047565b5060a06040523660048103905060208112905015603a575b5f80fd5b6004351560805260206080f35b5f5ffd"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/enum_conversion_qualified.sol:DataTypes (runtime) ===
+// === ROOT/tests/ui/codegen/enum_conversion_qualified.sol:E (runtime) ===
+bb0 (entry):
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xbc477c04
+  eq
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  iszero
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return

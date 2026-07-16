@@ -1,1 +1,43 @@
-{"contracts":{"ROOT/tests/ui/codegen/yul_return.sol:R":{"bin-runtime":"3460485736600b576048565b5f3560e01c80636279e43c14601e576048565b5060a06040523660048103905060208112905015603a575b5f80fd5b5f6080526004355f5260205ff35b5f5ffd"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/yul_return.sol:R (runtime) ===
+bb0 (entry):
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x6279e43c
+  eq
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 32
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  push 0
+  mstore
+  push 32
+  push 0
+  terminal return

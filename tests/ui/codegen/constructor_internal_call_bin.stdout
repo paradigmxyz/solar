@@ -1,8 +1,286 @@
-{
-  "contracts": {
-    "ROOT/tests/ui/codegen/constructor_internal_call_bin.sol:ConstructorInternalCallBin": {
-      "bin": "6140006040526101a338036101a3608039610113565b60a0516080015f81525060a051604001516035575b600160a05160600152565b600b60a05160400151028060a05160c001528060a05160c00152600b810460a051604001518114905090506078575b634e487b7160e01b5f52601160045260245ffd5b600160a051604001510360405160a05181602001528181604001528060a052610100016040525060a56015565b60a051606001518060a05160e0015260a05160405260a0516020015160a0528060a05160e001528060a05160e0015260a05160c00151018060a05160a001528060a05160a0015260a05160c001518060a05160c00152811090506064575b60a05160a0015160a05160600152565b60076080511660405160a05181602001528181604001528060a052610100016040525061013d6015565b60a05160600151806110005260a05160405260a0516020015160a052806110005280611000525f556033806101705f395ff334602f5736600b57602f565b5f3560e01c80633fa4f24514601e57602f565b5060a06040525f5460805260206080f35b5f5ffd"
-    }
-  },
-  "version": "VERSION"
-}
+// === ROOT/tests/ui/codegen/constructor_internal_call_bin.sol:ConstructorInternalCallBin (creation) ===
+// === constructor ===
+bb0 (entry):
+  push 0x4000
+  push 64
+  mstore
+  push 400
+  codesize
+  sub
+  push 400
+  push 128
+  codecopy
+  jump bb6
+bb1:
+  push 160
+  mload
+  push 128
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  push 160
+  mload
+  push 64
+  add
+  mload
+  push bb3
+  jumpi
+  push 1
+  fallthrough bb2
+bb2:
+  push 160
+  mload
+  push 96
+  add
+  mstore
+  terminal jump
+bb3:
+  push 11
+  push 160
+  mload
+  push 64
+  add
+  mload
+  mul
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  push 11
+  dup2
+  div
+  push 160
+  mload
+  push 64
+  add
+  mload
+  swap1
+  eq
+  swap1
+  pop
+  iszero
+  push bb5
+  jumpi
+  push 1
+  push 160
+  mload
+  push 64
+  add
+  mload
+  sub
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 256
+  add
+  push 64
+  mstore
+  pop
+  push bb4
+  jump bb1
+bb4:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  push 160
+  mload
+  push 64
+  mstore
+  push 160
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 192
+  add
+  mstore
+  push 160
+  mload
+  push 160
+  add
+  mload
+  add
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  dup1
+  push 160
+  mload
+  push 224
+  add
+  mstore
+  push 160
+  mload
+  push 160
+  add
+  mload
+  dup1
+  push 160
+  mload
+  push 160
+  add
+  mstore
+  swap1
+  lt
+  push bb5
+  jumpi
+  push 160
+  mload
+  push 224
+  add
+  mload
+  jump bb2
+bb5:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  terminal revert
+bb6:
+  push 7
+  push 128
+  mload
+  and
+  push 64
+  mload
+  push 160
+  mload
+  dup2
+  push 32
+  add
+  mstore
+  dup2
+  dup2
+  push 64
+  add
+  mstore
+  dup1
+  push 160
+  mstore
+  push 256
+  add
+  push 64
+  mstore
+  pop
+  push bb7
+  jump bb1
+bb7:
+  push 160
+  mload
+  push 96
+  add
+  mload
+  dup1
+  push 0x1000
+  mstore
+  push 160
+  mload
+  push 64
+  mstore
+  push 160
+  mload
+  push 32
+  add
+  mload
+  push 160
+  mstore
+  dup1
+  push 0x1000
+  mstore
+  push 0
+  sstore
+  fallthrough_next
+
+// === deployment ===
+bb0 (entry):
+  push 47
+  dup1
+  push 353
+  push 0
+  codecopy
+  push 0
+  terminal return
+
+// === runtime ===
+bb0 (entry):
+  push 160
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x3fa4f245
+  eq
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  push 0
+  sload
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return

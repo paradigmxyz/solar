@@ -256,6 +256,18 @@ impl<'hir> Hir<'hir> {
         self.item_ids_vec().into_iter()
     }
 
+    /// Returns the total number of items.
+    pub fn item_count(&self) -> usize {
+        self.contracts.len()
+            + self.functions.len()
+            + self.variables.len()
+            + self.structs.len()
+            + self.enums.len()
+            + self.udvts.len()
+            + self.errors.len()
+            + self.events.len()
+    }
+
     /// Returns a parallel iterator over all item IDs.
     pub fn par_item_ids(&self) -> impl ParallelIterator<Item = ItemId> {
         self.item_ids_vec().into_par_iter()
@@ -264,16 +276,7 @@ impl<'hir> Hir<'hir> {
     fn item_ids_vec(&self) -> Vec<ItemId> {
         // NOTE: This is essentially an unrolled `.chain().chain() ... .collect()` since it's not
         // very efficient.
-        #[rustfmt::skip]
-        let len =
-              self.contracts.len()
-            + self.functions.len()
-            + self.variables.len()
-            + self.structs.len()
-            + self.enums.len()
-            + self.udvts.len()
-            + self.errors.len()
-            + self.events.len();
+        let len = self.item_count();
         let mut v = Vec::<ItemId>::with_capacity(len);
         let mut items = v.spare_capacity_mut().iter_mut();
         macro_rules! extend_unchecked {
