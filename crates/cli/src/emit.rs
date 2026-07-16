@@ -1,3 +1,4 @@
+use alloy_json_abi::AbiItem;
 use alloy_primitives::Bytes;
 use solar_codegen::{Backend, EvmCodegen, EvmCodegenConfig, EvmIrModule, lower};
 use solar_config::CompilerOutput;
@@ -13,32 +14,17 @@ use std::{
 type Hashes = BTreeMap<String, String>;
 
 #[derive(Default, serde::Serialize)]
-struct SemaCombinedJson<Abi> {
+struct CombinedJson<'a> {
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    contracts: BTreeMap<String, SemaCombinedJsonContract<Abi>>,
-    version: &'static str,
-}
-
-#[derive(Default, serde::Serialize)]
-struct SemaCombinedJsonContract<Abi> {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    abi: Option<Abi>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    hashes: Option<Hashes>,
-}
-
-#[derive(Default, serde::Serialize)]
-struct CodegenCombinedJson {
-    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
-    contracts: BTreeMap<String, CodegenCombinedJsonContract>,
+    contracts: BTreeMap<String, CombinedJsonContract<'a>>,
     version: &'static str,
 }
 
 #[derive(Default, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
-struct CodegenCombinedJsonContract {
+struct CombinedJsonContract<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
-    abi: Option<serde_json::Value>,
+    abi: Option<Vec<AbiItem<'a>>>,
     #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
     bin: Option<Bytes>,
     #[serde(serialize_with = "serialize_hex_bytes", skip_serializing_if = "Option::is_none")]
@@ -64,7 +50,7 @@ fn emit_sema_json(gcx: Gcx<'_>) -> Result {
         return Ok(());
     }
 
-    let mut output = SemaCombinedJson {
+    let mut output = CombinedJson {
         contracts: BTreeMap::default(),
         version: solar_config::version::SEMVER_VERSION,
     };
@@ -97,7 +83,7 @@ fn emit_codegen_json(gcx: Gcx<'_>) -> Result {
 
     let bytecodes = generate_contract_bytecodes(gcx, false)?;
 
-    let mut output = CodegenCombinedJson {
+    let mut output = CombinedJson {
         contracts: BTreeMap::default(),
         version: solar_config::version::SEMVER_VERSION,
     };
@@ -107,7 +93,7 @@ fn emit_codegen_json(gcx: Gcx<'_>) -> Result {
         let contract_output = output.contracts.entry(name).or_default();
 
         if emit_abi {
-            contract_output.abi = Some(serde_json::to_value(gcx.contract_abi(id)).unwrap());
+            contract_output.abi = Some(gcx.contract_abi(id));
         }
         if emit_hashes {
             contract_output.hashes = Some(contract_hashes(gcx, id));
