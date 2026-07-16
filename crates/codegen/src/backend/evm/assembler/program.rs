@@ -3,8 +3,8 @@
 use super::{AsmInst, AsmInstKind, DeferredConst, Label, op};
 use crate::backend::evm::ir::{
     EvmIrBlock, EvmIrBlockHotness, EvmIrInstruction, EvmIrInstructionKind, EvmIrModule,
-    EvmIrOperand, EvmIrPass, EvmIrStackEffect, EvmIrStackOp, EvmIrTerminator, EvmIrTerminatorKind,
-    verify_evm_ir_module,
+    EvmIrOperand, EvmIrPass, EvmIrPassOptions, EvmIrStackEffect, EvmIrStackOp, EvmIrTerminator,
+    EvmIrTerminatorKind, verify_evm_ir_module,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::GrowableBitSet;
@@ -18,6 +18,10 @@ pub(in crate::backend::evm) trait StructuredAsmContext {
     fn push_value(&self, index: super::PushValueId) -> U256;
     fn push_inst(&mut self, value: U256) -> AsmInst;
     fn new_label(&mut self) -> Label;
+    /// Whether EVM IR pass timings should be printed.
+    fn time_passes(&self) -> bool {
+        false
+    }
     /// Whether the bridge should run the experimental EVM IR `StackSchedule`
     /// pass. Off by default; see [`StructuredAsmProgram::optimize_with_evm_ir`].
     fn run_evm_ir_stack_schedule(&self) -> bool {
@@ -133,6 +137,7 @@ impl StructuredAsmProgram {
 
         debug_assert!(verify_evm_ir_module(&module).is_ok());
         let mut changed = 0;
+        let pass_options = EvmIrPassOptions { time_passes: context.time_passes() };
 
         if context.run_evm_ir_stack_schedule() {
             // Differential safety net: schedule a clone, and only adopt it if the
@@ -141,7 +146,7 @@ impl StructuredAsmProgram {
             // always holds (the pass is a near no-op), but the guard means an
             // unexpected rewrite is dropped instead of changing produced code.
             let mut scheduled = module.clone();
-            if EvmIrPass::StackSchedule.run(&mut scheduled)
+            if EvmIrPass::StackSchedule.run(&mut scheduled, pass_options)
                 && verify_evm_ir_module(&scheduled).is_ok()
                 && modules_have_equal_code(&module, &scheduled)
             {
@@ -152,7 +157,7 @@ impl StructuredAsmProgram {
 
         if context.run_evm_ir_layout_passes() {
             for pass in [EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup] {
-                changed += usize::from(pass.run(&mut module));
+                changed += usize::from(pass.run(&mut module, pass_options));
             }
         }
         debug_assert!(verify_evm_ir_module(&module).is_ok());
