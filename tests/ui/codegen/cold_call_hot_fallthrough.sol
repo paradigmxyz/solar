@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen -Zno-mir-dispatch -O size --emit=bin-runtime --pretty-json
+//@compile-flags: -Zcodegen -Zno-mir-dispatch -O size --emit=evm-ir-runtime --pretty-json
 
 // Calls to the non-returning helper make their blocks cold. The backend should
 // lay out each successful continuation as the branch fallthrough.

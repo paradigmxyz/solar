@@ -611,9 +611,19 @@ impl<'a> Parser<'a> {
                 EvmIrTerminatorKind::SelfDestruct { recipient }
             }
             "terminal" => {
-                let opcode = self.parse_uint_literal()?;
-                let Ok(opcode) = u8::try_from(opcode) else {
-                    return Err(self.error("raw terminal opcode must fit in one byte"));
+                self.skip_inline();
+                let opcode = if self.peek_char().is_some_and(|c| c.is_ascii_digit()) {
+                    let opcode = self.parse_uint_literal()?;
+                    let Ok(opcode) = u8::try_from(opcode) else {
+                        return Err(self.error("raw terminal opcode must fit in one byte"));
+                    };
+                    opcode
+                } else {
+                    let mnemonic = self.parse_ident()?;
+                    let Some(opcode) = opcode_by_mnemonic(mnemonic) else {
+                        return Err(self.error(format!("unknown terminal opcode `{mnemonic}`")));
+                    };
+                    opcode
                 };
                 EvmIrTerminatorKind::RawOpcode(opcode)
             }

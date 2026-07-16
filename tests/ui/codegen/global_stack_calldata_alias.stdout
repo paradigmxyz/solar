@@ -1,1 +1,230 @@
-{"contracts":{"ROOT/tests/ui/codegen/global_stack_calldata_alias.sol:Test":{"bin-runtime":"6101406040523460215736156021575f3560e01c8063c21f7bbb146025576021565b5f80fd5b366004900360409012602435906021576004355f1960601c8116810360215760018114604f57607f565b60018201806101205290508061012052818110915081915050608a5761012051806101205b525b60805260206080f35b60028114609e5760c2565b634e487b7160e01b5f52601160045260245ffd5b600282018060e05290508060e052818110915081915050608a5760e0518060e06074565b6003810360ed57600382018060a05290508060a052818110915081915050608a5760a0518060a06074565b6004810361011d5760048201806101005290508061010052818110915081915050608a5761010051806101006074565b60059003607657600581018060c052818110915081915050608a5760c0518060c0607456"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/global_stack_calldata_alias.sol:Test (runtime) ===
+bb0 (entry):
+  push 320
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0xc21f7bbb
+  eq
+  push bb2
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  swap1
+  slt
+  push 36
+  calldataload
+  swap1
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  dup2
+  and
+  dup2
+  sub
+  push bb1
+  jumpi
+  push 1
+  dup2
+  eq
+  push bb3
+  jumpi
+  jump bb6
+bb3:
+  push 1
+  dup3
+  add
+  dup1
+  push 288
+  mstore
+  swap1
+  pop
+  dup1
+  push 288
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb7
+  jumpi
+  push 288
+  mload
+  dup1
+  push 288
+  fallthrough bb4
+bb4:
+  mstore
+  fallthrough bb5
+bb5:
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb6:
+  push 2
+  dup2
+  eq
+  push bb8
+  jumpi
+  jump bb9
+bb7:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 17
+  push 4
+  mstore
+  push 36
+  push 0
+  terminal revert
+bb8:
+  push 2
+  dup3
+  add
+  dup1
+  push 224
+  mstore
+  swap1
+  pop
+  dup1
+  push 224
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb7
+  jumpi
+  push 224
+  mload
+  dup1
+  push 224
+  jump bb4
+bb9:
+  push 3
+  dup2
+  sub
+  push bb10
+  jumpi
+  push 3
+  dup3
+  add
+  dup1
+  push 160
+  mstore
+  swap1
+  pop
+  dup1
+  push 160
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb7
+  jumpi
+  push 160
+  mload
+  dup1
+  push 160
+  jump bb4
+bb10:
+  push 4
+  dup2
+  sub
+  push bb11
+  jumpi
+  push 4
+  dup3
+  add
+  dup1
+  push 256
+  mstore
+  swap1
+  pop
+  dup1
+  push 256
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb7
+  jumpi
+  push 256
+  mload
+  dup1
+  push 256
+  jump bb4
+bb11:
+  push 5
+  swap1
+  sub
+  push bb5
+  jumpi
+  push 5
+  dup2
+  add
+  dup1
+  push 192
+  mstore
+  dup2
+  dup2
+  lt
+  swap2
+  pop
+  dup2
+  swap2
+  pop
+  pop
+  push bb7
+  jumpi
+  push 192
+  mload
+  dup1
+  push 192
+  jump bb4

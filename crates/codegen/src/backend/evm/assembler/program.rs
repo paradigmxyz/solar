@@ -461,10 +461,15 @@ fn push_instruction(operand: EvmIrOperand) -> EvmIrInstruction {
 }
 
 fn opcode_mnemonic(opcode: u8) -> String {
-    format!("{OP_PREFIX}{opcode:02x}")
+    crate::backend::evm::ir::opcode_mnemonic(opcode)
+        .map(str::to_string)
+        .unwrap_or_else(|| format!("{OP_PREFIX}{opcode:02x}"))
 }
 
 fn parse_opcode_mnemonic(mnemonic: &str) -> Option<u8> {
+    if let Some(opcode) = crate::backend::evm::ir::opcode_by_mnemonic(mnemonic) {
+        return Some(opcode);
+    }
     let value = mnemonic.strip_prefix(OP_PREFIX)?;
     u8::from_str_radix(value, 16).ok()
 }
@@ -529,4 +534,25 @@ struct StructuredAsmBlock {
 #[derive(Clone, Debug, Default)]
 pub(in crate::backend::evm) struct EvmAsmProgram {
     pub(in crate::backend::evm) instructions: Vec<AsmInst>,
+}
+
+impl EvmAsmProgram {
+    /// Converts the final linear program back to EVM IR without running passes.
+    pub(in crate::backend::evm) fn to_evm_ir_module<C>(
+        &self,
+        context: &mut C,
+    ) -> Option<EvmIrModule>
+    where
+        C: StructuredAsmContext,
+    {
+        let mut structured = StructuredAsmProgram::default();
+        for &inst in &self.instructions {
+            if let AsmInstKind::Label(label) = inst.kind() {
+                structured.define_label(label);
+            } else {
+                structured.push(inst);
+            }
+        }
+        structured.to_evm_ir_module(context).map(|(module, _)| module)
+    }
 }

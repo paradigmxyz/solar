@@ -1,4 +1,4 @@
-use solar_codegen::{Backend, EvmCodegen, lower};
+use solar_codegen::{Backend, EvmCodegen, EvmCodegenConfig, EvmIrModule, lower};
 use solar_config::CompilerOutput;
 use solar_data_structures::map::{FxHashMap, FxHashSet};
 use solar_interface::Result;
@@ -49,6 +49,7 @@ pub(crate) fn emit_requested(compiler: &mut CompilerRef<'_>) -> Result {
     let gcx = compiler.gcx();
     emit_sema_json(gcx)?;
     emit_mir(gcx)?;
+    emit_evm_ir(gcx)?;
     emit_codegen_json(gcx)
 }
 
@@ -92,8 +93,7 @@ fn emit_codegen_json(gcx: Gcx<'_>) -> Result {
         return Ok(());
     }
 
-    let bytecodes =
-        if emit_bin || emit_bin_runtime { Some(generate_contract_bytecodes(gcx)?) } else { None };
+    let bytecodes = generate_contract_bytecodes(gcx, false)?;
 
     let mut output = CodegenCombinedJson {
         contracts: BTreeMap::default(),
@@ -111,9 +111,7 @@ fn emit_codegen_json(gcx: Gcx<'_>) -> Result {
             contract_output.hashes = Some(contract_hashes(gcx, id));
         }
 
-        if let Some(bytecodes) = &bytecodes
-            && let Some(bytecode) = bytecodes.get(&id)
-        {
+        if let Some(bytecode) = bytecodes.get(&id) {
             if emit_bin {
                 contract_output.bin = Some(bytecode.deployment.clone());
             }
@@ -180,13 +178,60 @@ fn emit_mir(gcx: Gcx<'_>) -> Result {
     Ok(())
 }
 
+fn emit_evm_ir(gcx: Gcx<'_>) -> Result {
+    let sess = gcx.sess;
+    let emit_deployment = sess.opts.emit.contains(&CompilerOutput::EvmIr);
+    let emit_runtime = sess.opts.emit.contains(&CompilerOutput::EvmIrRuntime);
+    if !emit_deployment && !emit_runtime {
+        return Ok(());
+    }
+
+    let bytecodes = generate_contract_bytecodes(gcx, true)?;
+    let out_path = sess.opts.out_dir.as_deref().map(|dir| dir.join("combined.evmir"));
+    let mut writer = out_writer(out_path.as_deref())
+        .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    if sess.opts.out_dir.is_none()
+        && sess
+            .opts
+            .emit
+            .iter()
+            .any(|output| matches!(output, CompilerOutput::Abi | CompilerOutput::Hashes))
+    {
+        writeln!(writer)
+            .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    }
+    for id in gcx.hir.contract_ids() {
+        let Some(bytecode) = bytecodes.get(&id) else { continue };
+        let name = gcx.contract_fully_qualified_name(id);
+        if emit_deployment {
+            writeln!(writer, "// === {name} (creation) ===")
+                .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+            write!(writer, "{}", bytecode.deployment_evm_ir.as_deref().unwrap_or_default())
+                .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
+        if emit_runtime {
+            writeln!(writer, "// === {name} (runtime) ===")
+                .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+            write!(writer, "{}", bytecode.runtime_evm_ir.as_deref().unwrap_or_default())
+                .map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+        }
+    }
+    writer.flush().map_err(|e| sess.dcx.err(format!("failed to write to output: {e}")).emit())?;
+    Ok(())
+}
+
 #[derive(Clone)]
 struct GeneratedBytecodes {
     deployment: String,
     runtime: String,
+    deployment_evm_ir: Option<String>,
+    runtime_evm_ir: Option<String>,
 }
 
-fn generate_contract_bytecodes(gcx: Gcx<'_>) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
+fn generate_contract_bytecodes(
+    gcx: Gcx<'_>,
+    capture_evm_ir: bool,
+) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
     let mut all_bytecodes = FxHashMap::default();
     let mut visiting = FxHashSet::default();
     for id in gcx.hir.contract_ids() {
@@ -205,18 +250,36 @@ fn generate_contract_bytecodes(gcx: Gcx<'_>) -> Result<FxHashMap<ContractId, Gen
 
         let mut module = lower::lower_contract_with_bytecodes(gcx, id, &all_bytecodes);
         gcx.dcx().has_errors()?;
-        let mut codegen = EvmCodegen::new(gcx);
+        let mut codegen =
+            EvmCodegen::new(EvmCodegenConfig { capture_evm_ir, ..EvmCodegenConfig::from(gcx) });
         let artifact = codegen.lower_module(&mut module);
         bytecodes.insert(
             id,
             GeneratedBytecodes {
                 deployment: alloy_primitives::hex::encode(artifact.deployment),
                 runtime: alloy_primitives::hex::encode(artifact.runtime),
+                deployment_evm_ir: capture_evm_ir
+                    .then(|| format_deployment_evm_ir(&artifact.deployment_evm_ir)),
+                runtime_evm_ir: artifact.runtime_evm_ir.map(|ir| ir.to_text().to_string()),
             },
         );
     }
 
     Ok(bytecodes)
+}
+
+pub(crate) fn format_deployment_evm_ir(modules: &[EvmIrModule]) -> String {
+    use std::fmt::Write;
+
+    let mut output = String::new();
+    for (index, module) in modules.iter().enumerate() {
+        if index != 0 {
+            output.push('\n');
+        }
+        writeln!(output, "// === {} ===", module.name).unwrap();
+        write!(output, "{}", module.to_text()).unwrap();
+    }
+    output
 }
 
 fn ensure_contract_bytecode(

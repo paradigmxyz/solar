@@ -136,7 +136,11 @@ fn display_terminator<'a>(
                 write!(f, "selfdestruct {}", display_operand(module, recipient))?;
             }
             EvmIrTerminatorKind::RawOpcode(opcode) => {
-                write!(f, "terminal 0x{opcode:02x}")?;
+                if let Some(mnemonic) = opcode_mnemonic(*opcode) {
+                    write!(f, "terminal {mnemonic}")?;
+                } else {
+                    write!(f, "terminal 0x{opcode:02x}")?;
+                }
             }
         }
         write!(

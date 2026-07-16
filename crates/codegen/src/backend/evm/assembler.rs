@@ -5,7 +5,7 @@
 //! - Two-pass assembly for resolving jump targets
 //! - Variable-width PUSH sizing based on offset magnitudes
 
-use crate::mir::IMMUTABLE_WORD_SIZE;
+use crate::{backend::evm::EvmIrModule, mir::IMMUTABLE_WORD_SIZE};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -62,6 +62,8 @@ pub struct AssembledCode {
     pub label_offsets: FxHashMap<Label, usize>,
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
+    /// Final EVM IR captured immediately before byte emission.
+    pub evm_ir: Option<EvmIrModule>,
 }
 
 /// Configuration for EVM bytecode assembly.
@@ -81,6 +83,8 @@ pub struct AssemblerConfig {
     /// Kept separate from `evm_ir_stack_schedule` so the experimental scheduler
     /// flag remains bytecode-neutral.
     pub evm_ir_layout_passes: bool,
+    /// Capture the final EVM IR without running additional passes.
+    pub capture_evm_ir: bool,
 }
 
 /// Two-pass assembler for EVM bytecode.
@@ -796,6 +800,8 @@ impl Assembler {
         }
         self.hoist_hot_terminal_spans(&mut program.instructions);
 
+        let evm_ir = self.config.capture_evm_ir.then(|| program.to_evm_ir_module(self)).flatten();
+
         // Label-free constructor and deployment snippets need neither offset
         // discovery nor push-width relaxation.
         if !program
@@ -803,7 +809,9 @@ impl Assembler {
             .iter()
             .any(|inst| matches!(inst.kind(), AsmInstKind::Label(_) | AsmInstKind::PushLabel(_)))
         {
-            let result = self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+            let mut result =
+                self.emit_bytecode(&program, FxHashMap::default(), &FxHashMap::default());
+            result.evm_ir = evm_ir;
             self.clear();
             return result;
         }
@@ -832,7 +840,8 @@ impl Assembler {
 
             if !changed {
                 // Stable - emit final bytecode
-                let result = self.emit_bytecode(&program, label_offsets, &push_widths);
+                let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
+                result.evm_ir = evm_ir;
                 self.clear();
                 return result;
             }
@@ -844,7 +853,8 @@ impl Assembler {
 
         // Fallback - just emit with current widths
         let (label_offsets, _) = self.compute_offsets(&program, &push_widths);
-        let result = self.emit_bytecode(&program, label_offsets, &push_widths);
+        let mut result = self.emit_bytecode(&program, label_offsets, &push_widths);
+        result.evm_ir = evm_ir;
         self.clear();
         result
     }
@@ -1406,6 +1416,7 @@ impl BytecodeAssembler {
             bytecode: self.bytecode,
             label_offsets,
             immutable_refs: self.immutable_refs,
+            evm_ir: None,
         }
     }
 }

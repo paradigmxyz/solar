@@ -1,1 +1,298 @@
-{"contracts":{"ROOT/tests/ui/codegen/low_level_call_calldata_bytes.sol:C":{"bin-runtime":"61016060405234602b573615602b575f3560e01c80636a57f6c71460c95780636b995abd14604c57602b565b5f80fd5b604051610100518061010052810160405260c0518060c052815290565b366004900360409012602b576004355f1960601c811603602b57606d61018a565b61013b57607861014f565b61013b576082602f565b60208101602060e0510381015f81525060246024350160c0518060c05281833750815191505a5f5f604051516040516020015f6004355af15b915050905060805260206080f35b366004900360409012602b576004355f1960601c811603602b5760ea61018a565b61013b5760f561014f565b61013b57610100602f565b60208101602060e0510381015f81525060246024350160c0518060c05281833750815191505a5f5f604051516040516020016004355af460bb565b634e487b7160e01b5f52604160045260245ffd5b601f19610120511680610140521561014051602082828203029050018060e05290508060e052602081018061010052818060e0529010905090565b5f608052600460243501358060c052601f81018061012052818060c052901090509056"}},"version":"VERSION"}
+// === ROOT/tests/ui/codegen/low_level_call_calldata_bytes.sol:C (runtime) ===
+bb0 (entry):
+  push 352
+  push 64
+  mstore
+  callvalue
+  push bb1
+  jumpi
+  calldatasize
+  iszero
+  push bb1
+  jumpi
+  push 0
+  calldataload
+  push 224
+  shr
+  dup1
+  push 0x6a57f6c7
+  eq
+  push bb8
+  jumpi
+  dup1
+  push 0x6b995abd
+  eq
+  push bb3
+  jumpi
+  jump bb1
+bb1:
+  push 0
+  dup1
+  terminal revert
+bb2:
+  push 64
+  mload
+  push 256
+  mload
+  dup1
+  push 256
+  mstore
+  dup2
+  add
+  push 64
+  mstore
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  dup2
+  mstore
+  swap1
+  terminal jump
+bb3:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  dup2
+  and
+  sub
+  push bb1
+  jumpi
+  push bb4
+  jump bb14
+bb4:
+  push bb12
+  jumpi
+  push bb5
+  jump bb13
+bb5:
+  push bb12
+  jumpi
+  push bb6
+  jump bb2
+bb6:
+  push 32
+  dup2
+  add
+  push 32
+  push 224
+  mload
+  sub
+  dup2
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  push 36
+  push 36
+  calldataload
+  add
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  dup2
+  dup4
+  calldatacopy
+  pop
+  dup2
+  mload
+  swap2
+  pop
+  gas
+  push 0
+  push 0
+  push 64
+  mload
+  mload
+  push 64
+  mload
+  push 32
+  add
+  push 0
+  push 4
+  calldataload
+  gas
+  call
+  fallthrough bb7
+bb7:
+  swap2
+  pop
+  pop
+  swap1
+  pop
+  push 128
+  mstore
+  push 32
+  push 128
+  terminal return
+bb8:
+  calldatasize
+  push 4
+  swap1
+  sub
+  push 64
+  swap1
+  slt
+  push bb1
+  jumpi
+  push 4
+  calldataload
+  push 0xffffffffffffffffffffffffffffffffffffffff
+  dup2
+  and
+  sub
+  push bb1
+  jumpi
+  push bb9
+  jump bb14
+bb9:
+  push bb12
+  jumpi
+  push bb10
+  jump bb13
+bb10:
+  push bb12
+  jumpi
+  push bb11
+  jump bb2
+bb11:
+  push 32
+  dup2
+  add
+  push 32
+  push 224
+  mload
+  sub
+  dup2
+  add
+  push 0
+  dup2
+  mstore
+  pop
+  push 36
+  push 36
+  calldataload
+  add
+  push 192
+  mload
+  dup1
+  push 192
+  mstore
+  dup2
+  dup4
+  calldatacopy
+  pop
+  dup2
+  mload
+  swap2
+  pop
+  gas
+  push 0
+  push 0
+  push 64
+  mload
+  mload
+  push 64
+  mload
+  push 32
+  add
+  push 4
+  calldataload
+  gas
+  delegatecall
+  jump bb7
+bb12:
+  push 0x4e487b7100000000000000000000000000000000000000000000000000000000
+  push 0
+  mstore
+  push 65
+  push 4
+  mstore
+  push 36
+  push 0
+  terminal revert
+bb13:
+  push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
+  push 288
+  mload
+  and
+  dup1
+  push 320
+  mstore
+  iszero
+  push 320
+  mload
+  push 32
+  dup3
+  dup3
+  dup3
+  sub
+  mul
+  swap1
+  pop
+  add
+  dup1
+  push 224
+  mstore
+  swap1
+  pop
+  dup1
+  push 224
+  mstore
+  push 32
+  dup2
+  add
+  dup1
+  push 256
+  mstore
+  dup2
+  dup1
+  push 224
+  mstore
+  swap1
+  lt
+  swap1
+  pop
+  swap1
+  terminal jump
+bb14:
+  push 0
+  push 128
+  mstore
+  push 4
+  push 36
+  calldataload
+  add
+  calldataload
+  dup1
+  push 192
+  mstore
+  push 31
+  dup2
+  add
+  dup1
+  push 288
+  mstore
+  dup2
+  dup1
+  push 192
+  mstore
+  swap1
+  lt
+  swap1
+  pop
+  swap1
+  terminal jump

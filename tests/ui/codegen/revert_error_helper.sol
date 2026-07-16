@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --emit=bin-runtime
+//@compile-flags: -Zcodegen --emit=evm-ir-runtime
 
 // Constant short revert messages share one synthesized `__revert_error`
 // helper per module: each `require`/`revert` site passes the length and the

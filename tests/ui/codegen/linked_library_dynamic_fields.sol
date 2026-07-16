@@ -1,4 +1,4 @@
-//@compile-flags: -Zcodegen --libraries L=0x1000000000000000000000000000000000000001 --emit=bin-runtime
+//@compile-flags: -Zcodegen --libraries L=0x1000000000000000000000000000000000000001 --emit=evm-ir-runtime
 
 // A linked library call whose struct parameter carries dynamic fields:
 // the head word of each dynamic field holds an args-relative offset and the

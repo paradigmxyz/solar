@@ -361,6 +361,55 @@ pub enum EvmIrOperand {
     Symbol(String),
 }
 
+macro_rules! evm_opcodes {
+    ($($opcode:literal => $mnemonic:literal),+ $(,)?) => {
+        pub(crate) fn opcode_mnemonic(opcode: u8) -> Option<&'static str> {
+            match opcode {
+                $($opcode => Some($mnemonic),)+
+                _ => None,
+            }
+        }
+
+        pub(crate) fn opcode_by_mnemonic(mnemonic: &str) -> Option<u8> {
+            match mnemonic {
+                $($mnemonic => Some($opcode),)+
+                _ => None,
+            }
+        }
+    };
+}
+
+evm_opcodes! {
+    0x00 => "stop", 0x01 => "add", 0x02 => "mul", 0x03 => "sub", 0x04 => "div",
+    0x05 => "sdiv", 0x06 => "mod", 0x07 => "smod", 0x08 => "addmod", 0x09 => "mulmod",
+    0x0a => "exp", 0x0b => "signextend",
+    0x10 => "lt", 0x11 => "gt", 0x12 => "slt", 0x13 => "sgt", 0x14 => "eq",
+    0x15 => "iszero", 0x16 => "and", 0x17 => "or", 0x18 => "xor", 0x19 => "not",
+    0x1a => "byte", 0x1b => "shl", 0x1c => "shr", 0x1d => "sar", 0x1e => "clz",
+    0x20 => "keccak256",
+    0x30 => "address", 0x31 => "balance", 0x32 => "origin", 0x33 => "caller",
+    0x34 => "callvalue", 0x35 => "calldataload", 0x36 => "calldatasize",
+    0x37 => "calldatacopy", 0x38 => "codesize", 0x39 => "codecopy", 0x3a => "gasprice",
+    0x3b => "extcodesize", 0x3c => "extcodecopy", 0x3d => "returndatasize",
+    0x3e => "returndatacopy", 0x3f => "extcodehash",
+    0x40 => "blockhash", 0x41 => "coinbase", 0x42 => "timestamp", 0x43 => "number",
+    0x44 => "prevrandao", 0x45 => "gaslimit", 0x46 => "chainid", 0x47 => "selfbalance",
+    0x48 => "basefee", 0x49 => "blobhash", 0x4a => "blobbasefee",
+    0x50 => "pop", 0x51 => "mload", 0x52 => "mstore", 0x53 => "mstore8",
+    0x54 => "sload", 0x55 => "sstore", 0x56 => "jump", 0x57 => "jumpi", 0x58 => "pc",
+    0x59 => "msize", 0x5a => "gas", 0x5b => "jumpdest", 0x5c => "tload",
+    0x5d => "tstore", 0x5e => "mcopy", 0x5f => "push0",
+    0xa0 => "log0", 0xa1 => "log1", 0xa2 => "log2", 0xa3 => "log3", 0xa4 => "log4",
+    0xd0 => "dataload", 0xd1 => "dataloadn", 0xd2 => "datasize", 0xd3 => "datacopy",
+    0xe0 => "rjump", 0xe1 => "rjumpi", 0xe2 => "rjumpv", 0xe3 => "callf",
+    0xe4 => "retf", 0xe5 => "jumpf", 0xe6 => "dupn", 0xe7 => "swapn",
+    0xe8 => "exchange", 0xec => "eofcreate", 0xee => "returncontract",
+    0xf0 => "create", 0xf1 => "call", 0xf2 => "callcode", 0xf3 => "return",
+    0xf4 => "delegatecall", 0xf5 => "create2", 0xf7 => "returndataload",
+    0xf8 => "extcall", 0xf9 => "extdelegatecall", 0xfa => "staticcall",
+    0xfb => "extstaticcall", 0xfd => "revert", 0xfe => "invalid", 0xff => "selfdestruct",
+}
+
 /// Generic metadata carried by instructions and terminators.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct EvmIrMetadata {
