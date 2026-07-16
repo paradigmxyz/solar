@@ -1,7 +1,14 @@
 use glob::{MatchOptions, Pattern};
 use normalize_path::NormalizePath;
 use serde::Deserialize;
-use std::{io, path::Path, process::Stdio, string::FromUtf8Error, time::Duration};
+use solar_interface::source_map::{FileLoader, SourceMap};
+use std::{
+    io,
+    path::{Path, PathBuf},
+    process::Stdio,
+    string::FromUtf8Error,
+    time::Duration,
+};
 use tokio::{io::AsyncWriteExt, process::Command, time};
 
 const FORMATTER_TIMEOUT: Duration = Duration::from_secs(30);
@@ -20,17 +27,37 @@ pub(crate) async fn is_ignored(
 }
 
 fn matches_ignore(path: &Path, root: &Path, ignores: &[String]) -> bool {
-    let root = root.normalize();
-    let path = path.normalize();
+    let source_map = SourceMap::empty();
+    let file_loader = source_map.file_loader();
+    let normalized_root = root.normalize();
+    let canonical_root =
+        file_loader.canonicalize_path(root).unwrap_or_else(|_| normalized_root.clone());
+    let path = canonicalize_or_normalize(file_loader, path, &normalized_root, &canonical_root);
     let options = MatchOptions { require_literal_separator: true, ..MatchOptions::new() };
 
     ignores.iter().any(|ignore| {
-        let ignore = root.join(ignore.trim_end_matches(['/', '\\'])).normalize();
+        let ignore = root.join(ignore.trim_end_matches(['/', '\\']));
+        let ignore =
+            canonicalize_or_normalize(file_loader, &ignore, &normalized_root, &canonical_root);
         Pattern::new(&ignore.to_string_lossy()).is_ok_and(|pattern| {
             path.ancestors()
-                .take_while(|ancestor| ancestor.starts_with(&root))
+                .take_while(|ancestor| ancestor.starts_with(&canonical_root))
                 .any(|candidate| pattern.matches_path_with(candidate, options))
         })
+    })
+}
+
+fn canonicalize_or_normalize(
+    file_loader: &dyn FileLoader,
+    path: &Path,
+    root: &Path,
+    canonical_root: &Path,
+) -> PathBuf {
+    file_loader.canonicalize_path(path).unwrap_or_else(|_| {
+        let path = path.normalize();
+        // Keep lexical fallbacks in the same root representation as canonicalized paths.
+        path.strip_prefix(root)
+            .map_or_else(|_| path.clone(), |relative| canonical_root.join(relative))
     })
 }
 
@@ -144,7 +171,11 @@ pub(crate) enum FormatterError {
 mod tests {
     use super::*;
     use crate::test_support::{TestProject, process_exists};
-    use std::{fs, os::unix::fs::PermissionsExt, path::PathBuf};
+    use std::{
+        fs,
+        os::unix::fs::{PermissionsExt, symlink},
+        path::PathBuf,
+    };
 
     #[test]
     fn foundry_ignore_patterns_match_files_and_directories() {
@@ -187,6 +218,57 @@ mod tests {
         assert!(matches_ignore(&project.path("/src/Dot.sol"), project.root(), &ignores));
         assert!(matches_ignore(&project.path("/src/Parent.sol"), project.root(), &ignores));
         assert!(!matches_ignore(&project.path("/src/Formatted.sol"), project.root(), &ignores));
+    }
+
+    #[test]
+    fn foundry_ignore_patterns_canonicalize_symlinked_paths() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /src/Target.sol
+
+            //- /generated/Generated.sol
+            "#,
+        );
+        symlink(project.path("/src/Target.sol"), project.path("/Alias.sol")).unwrap();
+        symlink(project.path("/generated"), project.path("/linked")).unwrap();
+
+        assert!(matches_ignore(
+            &project.path("/Alias.sol"),
+            project.root(),
+            &["src/Target.sol".to_owned()],
+        ));
+        assert!(matches_ignore(
+            &project.path("/generated/Generated.sol"),
+            project.root(),
+            &["linked/Generated.sol".to_owned()],
+        ));
+    }
+
+    #[test]
+    fn foundry_ignore_patterns_canonicalize_symlinked_roots() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /workspace/src/Target.sol
+            "#,
+        );
+        symlink(project.path("/workspace"), project.path("/alias")).unwrap();
+
+        assert!(matches_ignore(
+            &project.path("/alias/src/Target.sol"),
+            &project.path("/alias"),
+            &["src/Target.sol".to_owned()],
+        ));
+    }
+
+    #[test]
+    fn foundry_ignore_patterns_fall_back_for_nonexistent_paths() {
+        let project = TestProject::new();
+
+        assert!(matches_ignore(
+            &project.path("/src/Unsaved.sol"),
+            project.root(),
+            &["src/Unsaved.sol".to_owned()],
+        ));
     }
 
     #[test]
