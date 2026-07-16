@@ -25,7 +25,7 @@
 //! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
 
 use crate::{
-    analysis::reachable_blocks,
+    analysis::CfgInfo,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId},
     pass::ModulePass,
 };
@@ -88,10 +88,10 @@ fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
         return false;
     }
 
-    let reachable = reachable_blocks(func);
+    let cfg = CfgInfo::new(func);
     let mut cyclic = FxHashMap::default();
     candidates.retain(|cand| {
-        reachable.contains(cand.block)
+        cfg.is_reachable(cand.block)
             && !*cyclic.entry(cand.block).or_insert_with(|| block_in_cycle(func, cand.block))
     });
 

@@ -16,7 +16,7 @@ use crate::{
     IMMUTABLE_SCRATCH_BASE,
     analysis::{
         CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
-        PhiEliminator, reachable_blocks,
+        PhiEliminator,
     },
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
     pass::{PipelineOptions, run_default_pipeline_with_options},
@@ -1894,17 +1894,17 @@ impl EvmCodegen {
     }
 
     fn block_layout_order(&self, func: &Function) -> Vec<BlockId> {
-        // Layout only needs reachability. Building `CfgInfo` here also
-        // computes reverse postorder and a dominator tree that code emission
-        // never queries.
-        let reachable = reachable_blocks(func);
+        // Layout only initializes reachability; RPO, dominators, and
+        // transitive reachability remain unevaluated.
+        let cfg = CfgInfo::new(func);
+        let reachable = cfg.reachable();
         let mut order = Vec::with_capacity(func.blocks.len());
         let mut placed = DenseBitSet::new_empty(func.blocks.len());
 
-        self.append_layout_chain(func, func.entry_block, &reachable, &mut placed, &mut order);
+        self.append_layout_chain(func, func.entry_block, reachable, &mut placed, &mut order);
         for block_id in func.blocks.indices() {
             if reachable.contains(block_id) {
-                self.append_layout_chain(func, block_id, &reachable, &mut placed, &mut order);
+                self.append_layout_chain(func, block_id, reachable, &mut placed, &mut order);
             }
         }
 
