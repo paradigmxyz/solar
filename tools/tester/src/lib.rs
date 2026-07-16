@@ -125,10 +125,8 @@ fn config(cmd: &'static Path, args: &ui_test::Args, mode: Mode) -> ui_test::Conf
             program: cmd.into(),
             args: {
                 let mut args: Vec<OsString> = match mode {
-                    // `Mir` and `EvmIr` modes run subcommands which don't
-                    // accept the normal compiler flags.
-                    Mode::Mir => vec!["mir-opt".into()],
-                    Mode::EvmIr => vec!["evm-opt".into()],
+                    Mode::Mir => vec!["-Zui-testing".into(), "mir-opt".into()],
+                    Mode::EvmIr => vec!["-Zui-testing".into(), "evm-opt".into()],
                     Mode::StandardJson => vec![
                         "--standard-json".into(),
                         "--pretty-json".into(),

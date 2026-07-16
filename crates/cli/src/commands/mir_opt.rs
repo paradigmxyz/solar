@@ -12,7 +12,7 @@
 use clap::ValueHint;
 use solar_codegen::{
     lower,
-    mir::{Module, parse_module_with_source_map},
+    mir::Module,
     pass::{
         DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, PASS_REGISTRY, PassInfo, PipelineOptions,
         lookup_pass, run_default_pipeline, run_pass,
@@ -51,7 +51,7 @@ Default cleanup fixpoint:
 
 Input formats:
   *.sol  Solidity contract — lowered through the normal compiler pipeline
-  *.mir  Textual MIR — parsed directly via solar_codegen::mir::parse_module",
+  *.mir  Textual MIR — parsed directly via solar_codegen::mir::Module::parse",
             PASS_REGISTRY.iter().map(display_pass_help).format("\n"),
             "none",
             display_pass_list(DEFAULT_PIPELINE, " → "),
@@ -147,21 +147,15 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs, time_passes:
 
     let passes = args.selected_passes();
     let options = PipelineOptions { time_passes, ..PipelineOptions::default() };
-    if args.print_after_each {
-        for pass in &passes {
-            if let Some(pass) = *pass {
-                run_pass(module, pass, options);
-            }
-            print_module(module, name, pass_label(*pass));
+    let pipeline_label = args.pipeline_label(&passes);
+    for (index, &pass) in passes.iter().enumerate() {
+        if let Some(pass) = pass {
+            run_pass(module, pass, options);
         }
-    } else {
-        for &pass in &passes {
-            if let Some(pass) = pass {
-                run_pass(module, pass, options);
-            }
+        if args.print_after_each || index + 1 == passes.len() {
+            let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
+            print_module(module, name, label);
         }
-        let label = args.pipeline_label(&passes);
-        print_module(module, name, &label);
     }
 }
 
@@ -171,13 +165,11 @@ fn process_mir(sess: &Session, args: &MirOptArgs) -> solar_interface::Result {
         .source_map()
         .load_file(Path::new(&args.input))
         .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
-    let (mut module, source_map) =
-        parse_module_with_source_map(source.src.as_str(), source.start_pos)
-            .map_err(|e| sess.dcx.err(format!("{e}")).emit())?;
+    let mut module =
+        Module::parse(source.src.as_str()).map_err(|e| sess.dcx.err(format!("{e}")).emit())?;
     // Hand-written MIR is untrusted input: reject invalid modules with a
     // diagnostic instead of tripping the post-pass validator ICE.
-    solar_codegen::analysis::Validator::with_source_map(&sess.dcx, &source_map)
-        .validate_module(&module);
+    solar_codegen::analysis::validate_module(&sess.dcx, &module);
     if sess.dcx.has_errors().is_ok() {
         run_pipeline(&mut module, &args.input, args, sess.opts.unstable.time_passes);
     }

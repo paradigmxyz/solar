@@ -30,10 +30,7 @@ pub use builder::FunctionBuilder;
 mod display;
 
 mod parser;
-pub use parser::{
-    MirSourceMap, ParseError, parse_function, parse_module, parse_module_with_source_map,
-    parse_module_with_start_pos,
-};
+pub use parser::ParseError;
 
 pub(crate) mod utils;
 
@@ -67,7 +64,7 @@ newtype_index! {
 /// indices. A *second* round-trip must be stable.
 #[cfg(test)]
 mod round_trip {
-    use super::{Module, parse_module};
+    use super::Module;
     use crate::{analysis::validate_module, lower};
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
@@ -75,6 +72,10 @@ mod round_trip {
         ops::ControlFlow,
         path::{Path, PathBuf},
     };
+
+    fn parse_module(input: &str) -> Result<Module, super::ParseError> {
+        Module::parse(input)
+    }
 
     /// Path to `tests/ui/codegen/` (the workspace's UI test directory).
     fn ui_codegen_dir() -> PathBuf {

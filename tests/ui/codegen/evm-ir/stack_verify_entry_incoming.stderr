@@ -1,11 +1,4 @@
 error: EVM IR verification failed: block 0: entry block must start from an empty stack
-  ╭▸ ROOT/tests/ui/codegen/evm-ir/stack_verify_entry_incoming.evmir:LL:CC
-  │
-3 │ bb0 (entry) (in %a):
-  │ ━━━━━━━━━━━━━━━━━━━━
-  │
-  ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
-          emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC
 
 error: aborting due to 1 previous error
 

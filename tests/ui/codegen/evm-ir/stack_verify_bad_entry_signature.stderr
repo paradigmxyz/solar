@@ -1,11 +1,4 @@
 error: EVM IR verification failed: block 0: stack on edge to `bb1` is inconsistent: successor declares incoming stack [%a] but predecessor leaves [%b, %a]
-  ╭▸ ROOT/tests/ui/codegen/evm-ir/stack_verify_bad_entry_signature.evmir:LL:CC
-  │
-7 │   jump bb1
-  │   ━━━━━━━━
-  │
-  ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
-          emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC
 
 error: aborting due to 1 previous error
 

@@ -33,10 +33,8 @@ pub use backend::{
         AssembledCode, Assembler, AssemblerConfig, EvmArtifact, EvmCodegen, EvmCodegenConfig,
         EvmIrBlock, EvmIrBlockHotness, EvmIrBlockId, EvmIrBlockMetadata, EvmIrInstruction,
         EvmIrMetadata, EvmIrMetadataItem, EvmIrModule, EvmIrOperand, EvmIrParseError,
-        EvmIrSourceMap, EvmIrStackEffect, EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue,
-        EvmIrValueId, Label, SpillManager, SpillSlot, StackModel, StackScheduler,
-        parse_evm_ir_module, parse_evm_ir_module_with_source_map,
-        parse_evm_ir_module_with_start_pos,
+        EvmIrStackEffect, EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue, EvmIrValueId, Label,
+        SpillManager, SpillSlot, StackModel, StackScheduler,
     },
 };
 

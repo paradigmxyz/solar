@@ -2,56 +2,10 @@
 
 use super::*;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
-use solar_interface::{BytePos, Span};
 use std::fmt as std_fmt;
 
-/// Parses an EVM IR module from the text format.
-///
-/// # Errors
-///
-/// Returns an [`EvmIrParseError`] if `input` is malformed.
-pub fn parse_evm_ir_module(input: &str) -> Result<EvmIrModule, EvmIrParseError> {
-    parse_evm_ir_module_with_start_pos(input, BytePos(0))
-}
-
-/// Parses an EVM IR module whose text begins at `start_pos` in a source map.
-pub fn parse_evm_ir_module_with_start_pos(
-    input: &str,
-    start_pos: BytePos,
-) -> Result<EvmIrModule, EvmIrParseError> {
-    parse_evm_ir_module_with_source_map(input, start_pos).map(|(module, _)| module)
-}
-
-/// Parses EVM IR and returns the source locations of its textual operations.
-pub fn parse_evm_ir_module_with_source_map(
-    input: &str,
-    start_pos: BytePos,
-) -> Result<(EvmIrModule, EvmIrSourceMap), EvmIrParseError> {
-    let mut parser = Parser::new(input, start_pos);
-    let module = parser.parse_module()?;
-    Ok((module, parser.source_map))
-}
-
-/// Source locations recorded while parsing textual EVM IR.
-#[derive(Clone, Debug, Default)]
-pub struct EvmIrSourceMap {
-    blocks: FxHashMap<EvmIrBlockId, Span>,
-    instructions: FxHashMap<(EvmIrBlockId, usize), Span>,
-    terminators: FxHashMap<EvmIrBlockId, Span>,
-}
-
-impl EvmIrSourceMap {
-    pub(crate) fn block(&self, block: EvmIrBlockId) -> Option<Span> {
-        self.blocks.get(&block).copied()
-    }
-
-    pub(crate) fn instruction(&self, block: EvmIrBlockId, index: usize) -> Option<Span> {
-        self.instructions.get(&(block, index)).copied()
-    }
-
-    pub(crate) fn terminator(&self, block: EvmIrBlockId) -> Option<Span> {
-        self.terminators.get(&block).copied()
-    }
+pub(super) fn parse(input: &str) -> Result<EvmIrModule, EvmIrParseError> {
+    Parser::new(input).parse_module()
 }
 
 /// An error produced while parsing the EVM IR text format.
@@ -99,16 +53,14 @@ enum BodyEnd {
 
 struct Parser<'a> {
     input: &'a str,
-    start_pos: BytePos,
     pos: usize,
     line: usize,
     col: usize,
-    source_map: EvmIrSourceMap,
 }
 
 impl<'a> Parser<'a> {
-    fn new(input: &'a str, start_pos: BytePos) -> Self {
-        Self { input, start_pos, pos: 0, line: 1, col: 1, source_map: EvmIrSourceMap::default() }
+    fn new(input: &'a str) -> Self {
+        Self { input, pos: 0, line: 1, col: 1 }
     }
 
     fn is_eof(&self) -> bool {
@@ -168,13 +120,6 @@ impl<'a> Parser<'a> {
                 _ => break,
             }
         }
-    }
-
-    fn span(&self, start: usize, end: usize) -> Span {
-        Span::new(
-            self.start_pos + BytePos::from_usize(start),
-            self.start_pos + BytePos::from_usize(end),
-        )
     }
 
     fn error(&self, msg: impl Into<String>) -> EvmIrParseError {
@@ -370,15 +315,12 @@ impl<'a> Parser<'a> {
             if body_end == BodyEnd::Brace && self.try_punct('}') {
                 break;
             }
-            let header_start = self.pos;
             if let Some(header) = self.try_parse_block_header()? {
                 let block_id = block_labels[&header.label];
                 if header.entry {
                     module.entry_block = Some(block_id);
                 }
                 module.blocks[block_id].metadata.hotness = header.hotness;
-                let span = self.span(header_start, self.pos);
-                self.source_map.blocks.insert(block_id, span);
                 let mut entry_stack = Vec::with_capacity(header.entry_stack.len());
                 for name in &header.entry_stack {
                     entry_stack.push(value_id(module, &mut value_labels, name));
@@ -510,7 +452,6 @@ impl<'a> Parser<'a> {
         defined_values: &mut GrowableBitSet<EvmIrValueId>,
     ) -> Result<(), EvmIrParseError> {
         self.skip_inline_whitespace();
-        let instruction_start = self.pos;
         if module.blocks[block].terminator.is_some() {
             return Err(self.error(format!(
                 "instruction after terminator in block `{}`",
@@ -531,7 +472,6 @@ impl<'a> Parser<'a> {
                 return Err(self.error("terminator cannot produce a result"));
             }
             let metadata = self.parse_metadata()?;
-            self.source_map.terminators.insert(block, self.span(instruction_start, self.pos));
             module.blocks[block].terminator = Some(EvmIrTerminator { kind, metadata });
             self.skip_to_eol();
             return Ok(());
@@ -540,10 +480,6 @@ impl<'a> Parser<'a> {
         let operands =
             self.parse_operand_list(module, block_labels, value_labels, defined_values)?;
         let metadata = self.parse_metadata()?;
-        let instruction_index = module.blocks[block].instructions.len();
-        self.source_map
-            .instructions
-            .insert((block, instruction_index), self.span(instruction_start, self.pos));
         let kind = EvmIrStackOp::parse(&mnemonic)
             .map(EvmIrInstructionKind::Stack)
             .unwrap_or(EvmIrInstructionKind::Operation(mnemonic));
@@ -841,8 +777,13 @@ fn value_id(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_evm_ir_module;
+    use super::*;
+    use snapbox::{assert_data_eq, str};
     use std::path::{Path, PathBuf};
+
+    fn parse_module(input: &str) -> Result<EvmIrModule, EvmIrParseError> {
+        EvmIrModule::parse(input)
+    }
 
     fn evm_ir_fixture_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -893,17 +834,22 @@ fn @f {
     invalid
 }
 ";
-        let err = parse_evm_ir_module(input).unwrap_err().to_string();
-        assert!(err.contains("instruction after terminator"), "{err}");
+        assert_data_eq!(
+            parse_module(input).unwrap_err().to_string(),
+            str![[r#"
+EVM IR parse error at line 6, col 5: instruction after terminator in block `bb0`
+   |
+  6 |     invalid
+   |     ^
+"#]]
+        );
     }
 
     fn round_trip_fixture(path: &Path) -> Result<(), String> {
         #[allow(clippy::disallowed_methods)]
         let input = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
-        let print1 =
-            parse_evm_ir_module(&input).map_err(|err| err.to_string())?.to_text().to_string();
-        let print2 =
-            parse_evm_ir_module(&print1).map_err(|err| err.to_string())?.to_text().to_string();
+        let print1 = parse_module(&input).map_err(|err| err.to_string())?.to_text().to_string();
+        let print2 = parse_module(&print1).map_err(|err| err.to_string())?.to_text().to_string();
         if print1 != print2 {
             return Err(first_diff(&print1, &print2)
                 .map(|(line, a, b)| {

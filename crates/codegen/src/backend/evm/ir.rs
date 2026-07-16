@@ -16,10 +16,7 @@ mod parse;
 mod passes;
 mod verify;
 
-pub use parse::{
-    EvmIrParseError, EvmIrSourceMap, parse_evm_ir_module, parse_evm_ir_module_with_source_map,
-    parse_evm_ir_module_with_start_pos,
-};
+pub use parse::EvmIrParseError;
 pub use passes::{EVM_IR_PASSES, EvmIrPass, EvmIrPassOptions};
 pub use verify::{EvmIrVerifier, verify_evm_ir_module};
 
@@ -45,6 +42,11 @@ pub struct EvmIrModule {
 }
 
 impl EvmIrModule {
+    /// Parses textual EVM IR.
+    pub fn parse(input: &str) -> Result<Self, EvmIrParseError> {
+        parse::parse(input)
+    }
+
     /// Creates an empty EVM IR program.
     #[must_use]
     pub fn new(name: impl Into<String>) -> Self {

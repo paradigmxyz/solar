@@ -6,8 +6,7 @@
 
 use clap::ValueHint;
 use solar_codegen::backend::evm::{
-    EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, EvmIrVerifier,
-    parse_evm_ir_module_with_source_map, verify_evm_ir_module,
+    EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, verify_evm_ir_module,
 };
 use solar_config::CompileOpts;
 use solar_interface::Session;
@@ -58,23 +57,16 @@ fn print_module(module: &EvmIrModule, name: &str, after: &str) {
 fn run_pipeline(sess: &Session, module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) {
     let dcx = &sess.dcx;
     let options = EvmIrPassOptions { time_passes: sess.opts.unstable.time_passes };
-    if args.print_after_each {
-        for &pass in &args.passes {
-            pass.run(module, options);
+    let pipeline_label = selected_pass_list_label(&args.passes, ",");
+    for (index, &pass) in args.passes.iter().enumerate() {
+        pass.run(module, options);
+        if args.print_after_each || index + 1 == args.passes.len() {
             verify_evm_ir_module(dcx, module);
             if dcx.has_errors().is_err() {
                 break;
             }
-            print_module(module, name, pass.name());
-        }
-    } else {
-        for &pass in &args.passes {
-            pass.run(module, options);
-        }
-        verify_evm_ir_module(dcx, module);
-        if dcx.has_errors().is_ok() {
-            let label = selected_pass_list_label(&args.passes, ",");
-            print_module(module, name, &label);
+            let label = if args.print_after_each { pass.name() } else { &pipeline_label };
+            print_module(module, name, label);
         }
     }
 }
@@ -84,10 +76,9 @@ fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
         .source_map()
         .load_file(Path::new(&args.input))
         .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
-    let (mut module, source_map) =
-        parse_evm_ir_module_with_source_map(source.src.as_str(), source.start_pos)
-            .map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
-    EvmIrVerifier::with_source_map(&sess.dcx, &source_map).verify_module(&module);
+    let mut module = EvmIrModule::parse(source.src.as_str())
+        .map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
+    verify_evm_ir_module(&sess.dcx, &module);
     if sess.dcx.has_errors().is_ok() {
         run_pipeline(sess, &mut module, &args.input, args);
     }
