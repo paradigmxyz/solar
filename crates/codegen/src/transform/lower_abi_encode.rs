@@ -2,8 +2,8 @@
 
 use crate::{
     mir::{
-        AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, Module, SliceLocation,
-        Terminator, Value, ValueId,
+        AbiLayout, AbiType, BlockId, Function, FunctionBuilder, InstKind, MemoryObjectKind, Module,
+        SliceLocation, Terminator, Value, ValueId,
     },
     pass::ModulePass,
 };
@@ -224,7 +224,11 @@ fn encode_static(
         AbiType::Tuple(fields) => {
             let mut field_head = head_addr;
             for (index, field) in fields.iter().enumerate() {
-                let slot = offset_ptr(builder, value, index as u64 * 32);
+                let slot = builder.memory_object_field_addr(
+                    value,
+                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
+                    index as u64,
+                );
                 let field_value = builder.mload(slot);
                 encode_static(builder, field, field_value, field_head);
                 field_head = offset_ptr(builder, field_head, field.head_size());
@@ -233,7 +237,12 @@ fn encode_static(
         AbiType::FixedArray { element, len } => {
             let mut element_head = head_addr;
             for index in 0..*len {
-                let slot = offset_ptr(builder, value, index * 32);
+                let index_value = builder.imm_u64(index);
+                let slot = builder.memory_object_element_addr(
+                    value,
+                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
+                    index_value,
+                );
                 let element_value = builder.mload(slot);
                 encode_static(builder, element, element_value, element_head);
                 element_head = offset_ptr(builder, element_head, element.head_size());
@@ -263,7 +272,12 @@ fn encode_dynamic_body(
         AbiType::FixedArray { element, len } => {
             let mut values = Vec::with_capacity(*len as usize);
             for index in 0..*len {
-                let slot = offset_ptr(builder, value, index * 32);
+                let index_value = builder.imm_u64(index);
+                let slot = builder.memory_object_element_addr(
+                    value,
+                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
+                    index_value,
+                );
                 values.push(builder.mload(slot));
             }
             let types = vec![element.as_ref().clone(); *len as usize];
@@ -273,7 +287,11 @@ fn encode_dynamic_body(
         AbiType::Tuple(fields) => {
             let mut values = Vec::with_capacity(fields.len());
             for index in 0..fields.len() {
-                let slot = offset_ptr(builder, value, index as u64 * 32);
+                let slot = builder.memory_object_field_addr(
+                    value,
+                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
+                    index as u64,
+                );
                 values.push(builder.mload(slot));
             }
             let size = encode_tuple(builder, &values, fields, dest, scratch);
@@ -294,7 +312,7 @@ fn encode_dynamic_array(
     scratch: AbiScratch,
 ) -> ValueId {
     let scratch_base = scratch.base.expect("dynamic ABI array encoding requires scratch memory");
-    let len = builder.mload(value);
+    let len = builder.memory_object_len(value, MemoryObjectKind::DynamicArray);
     builder.mstore(dest, len);
 
     let word = builder.imm_u64(32);
@@ -302,7 +320,7 @@ fn encode_dynamic_array(
     let element_head_size = builder.imm_u64(element.head_size());
     let head_bytes = builder.mul(len, element_head_size);
     let initial_tail = builder.add(element_area, head_bytes);
-    let source_cursor = builder.add(value, word);
+    let source_cursor = builder.memory_object_data(value, MemoryObjectKind::DynamicArray);
 
     let remaining_slot = scratch_slot(builder, scratch_base, scratch.depth, 0);
     let tail_slot = scratch_slot(builder, scratch_base, scratch.depth, 1);
@@ -364,7 +382,7 @@ fn encode_word_array(
     location: SliceLocation,
 ) -> ValueId {
     let len = match location {
-        SliceLocation::Memory => builder.mload(value),
+        SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::DynamicArray),
         SliceLocation::Calldata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
@@ -372,7 +390,7 @@ fn encode_word_array(
     let bytes = builder.mul(len, word);
     let data_dest = builder.add(dest, word);
     let data_source = match location {
-        SliceLocation::Memory => builder.add(value, word),
+        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::DynamicArray),
         SliceLocation::Calldata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, bytes);
@@ -390,7 +408,7 @@ fn encode_bytes(
     location: SliceLocation,
 ) -> ValueId {
     let len = match location {
-        SliceLocation::Memory => builder.mload(value),
+        SliceLocation::Memory => builder.memory_object_len(value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata => builder.slice_len(value),
     };
     builder.mstore(dest, len);
@@ -416,7 +434,7 @@ fn encode_bytes(
 
     builder.switch_to_block(copy_block);
     let data_source = match location {
-        SliceLocation::Memory => builder.add(value, word),
+        SliceLocation::Memory => builder.memory_object_data(value, MemoryObjectKind::Bytes),
         SliceLocation::Calldata => builder.slice_ptr(value),
     };
     let tail = builder.add(data_dest, padded);

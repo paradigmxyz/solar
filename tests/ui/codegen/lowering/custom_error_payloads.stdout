@@ -12,8 +12,8 @@ fn @revert_empty() {
 fn @revert_args() {
   bb0 (entry):
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    mstore v0, 6
-    v1 = add v0, 32
+    set_memory_object_len memorybytes, v0, 6
+    v1 = memory_object_data memorybytes, v0
     v2 = add v1, 0
     mstore v2, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v3 = alloc raw, exact, uninitialized, infallible, 68
@@ -24,7 +24,7 @@ fn @revert_args() {
     v6 = add v4, 32
     v7 = sub v5, v4
     mstore v6, v7
-    v8 = mload v0
+    v8 = memory_object_len memorybytes, v0
     mstore v5, v8
     v9 = not 31
     v10 = add v8, 31
@@ -38,7 +38,7 @@ fn @revert_args() {
     mstore v15, 0
     jump bb2
   bb2:
-    v16 = add v0, 32
+    v16 = memory_object_data memorybytes, v0
     v17 = add v12, v11
     mcopy v12, v16, v8
     v18 = sub v17, v4
@@ -96,8 +96,8 @@ fn @require_named(arg0: bool) {
     br v7, bb5, bb6
   bb5:
     v8 = alloc memorybytes, exact, uninitialized, infallible, 64
-    mstore v8, 6
-    v9 = add v8, 32
+    set_memory_object_len memorybytes, v8, 6
+    v9 = memory_object_data memorybytes, v8
     v10 = add v9, 0
     mstore v10, 0x6661696c65640000000000000000000000000000000000000000000000000000
     v11 = alloc raw, exact, uninitialized, infallible, 68
@@ -108,7 +108,7 @@ fn @require_named(arg0: bool) {
     v14 = add v12, 32
     v15 = sub v13, v12
     mstore v14, v15
-    v16 = mload v8
+    v16 = memory_object_len memorybytes, v8
     mstore v13, v16
     v17 = not 31
     v18 = add v16, 31
@@ -124,7 +124,7 @@ fn @require_named(arg0: bool) {
     mstore v23, 0
     jump bb8
   bb8:
-    v24 = add v8, 32
+    v24 = memory_object_data memorybytes, v8
     v25 = add v20, v19
     mcopy v20, v24, v16
     v26 = sub v25, v12

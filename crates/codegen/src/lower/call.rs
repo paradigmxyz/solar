@@ -252,20 +252,20 @@ impl<'gcx> Lowerer<'gcx> {
         let total_size = builder.add(data_size, word_size);
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
-        let object_kind = if matches!(
+        let object_layout = if matches!(
             &ty.kind,
             hir::TypeKind::Elementary(ElementaryType::Bytes | ElementaryType::String)
         ) {
-            crate::mir::MemoryObjectKind::Bytes
+            crate::mir::MemoryObjectLayout::Bytes
         } else {
-            crate::mir::MemoryObjectKind::DynamicArray
+            crate::mir::MemoryObjectLayout::DynamicArray { element_words: 1 }
         };
         let ptr = builder.alloc_object(
             total_size,
-            object_kind,
+            object_layout,
             crate::mir::AllocationSemantics::SOLIDITY_ZEROED,
         );
-        builder.mstore(ptr, len);
+        builder.set_memory_object_len(ptr, len, object_layout.kind());
 
         ptr
     }
@@ -1195,7 +1195,7 @@ impl<'gcx> Lowerer<'gcx> {
                 let struct_size_val = builder.imm_u64(struct_size);
                 let struct_ptr = builder.alloc_object(
                     struct_size_val,
-                    crate::mir::MemoryObjectKind::Struct,
+                    crate::mir::MemoryObjectLayout::Struct { fields: field_count as u64 },
                     crate::mir::AllocationSemantics::INTERNAL,
                 );
 
@@ -1855,14 +1855,11 @@ impl<'gcx> Lowerer<'gcx> {
         for (i, (arg_val, slots)) in arg_vals.iter().zip(&arg_slots).enumerate() {
             if let Some(struct_id) = arg_structs[i] {
                 let field_tys = self.gcx.struct_field_types(struct_id);
+                let layout = crate::mir::MemoryObjectLayout::structure(*slots as u64);
                 for field_idx in 0..*slots {
-                    let field_val = if field_idx == 0 {
-                        builder.mload(*arg_val)
-                    } else {
-                        let field_offset = builder.imm_u64(field_idx as u64 * 32);
-                        let field_addr = builder.add(*arg_val, field_offset);
-                        builder.mload(field_addr)
-                    };
+                    let field_addr =
+                        builder.memory_object_field_addr(*arg_val, layout, field_idx as u64);
+                    let field_val = builder.mload(field_addr);
                     match field_tys.get(field_idx).and_then(|&f| self.linked_field_kind(f)) {
                         Some(kind @ (LinkedFieldKind::DynArray | LinkedFieldKind::DynBytes)) => {
                             // `field_val` is the caller-memory pointer of the
@@ -1891,11 +1888,16 @@ impl<'gcx> Lowerer<'gcx> {
         let mut tail_off = builder.imm_u64((head_size_bytes - 4) as u64);
         let word = builder.imm_u64(32);
         for (head_off, src, kind) in pending_tails {
+            let object_kind = match kind {
+                LinkedFieldKind::DynBytes => crate::mir::MemoryObjectKind::Bytes,
+                LinkedFieldKind::DynArray => crate::mir::MemoryObjectKind::DynamicArray,
+                LinkedFieldKind::Value => unreachable!(),
+            };
             let head_addr_off = builder.imm_u64(head_off);
             let head_addr = builder.add(calldata_start, head_addr_off);
             builder.mstore(head_addr, tail_off);
 
-            let len = builder.mload(src);
+            let len = builder.memory_object_len(src, object_kind);
             let byte_len = match kind {
                 LinkedFieldKind::DynBytes => {
                     let thirty_one = builder.imm_u64(31);
@@ -1911,7 +1913,7 @@ impl<'gcx> Lowerer<'gcx> {
             let dst = builder.add(args_base, tail_off);
             builder.mstore(dst, len);
             let dst_data = builder.add(dst, word);
-            let src_data = builder.add(src, word);
+            let src_data = builder.memory_object_data(src, object_kind);
             self.mcopy(builder, dst_data, src_data, byte_len, None);
 
             let advanced = builder.add(word, byte_len);

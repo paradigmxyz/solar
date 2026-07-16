@@ -16,20 +16,20 @@ fn @decode(arg0: memorybytes) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
-    v12 = mload v9
+    v12 = memory_object_len memorybytes, v9
     v13 = lt v12, 96
     br v13, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v14 = add v9, 32
+    v14 = memory_object_data memorybytes, v9
     v15 = mload v14
     v16 = add v14, 32
     v17 = mload v16

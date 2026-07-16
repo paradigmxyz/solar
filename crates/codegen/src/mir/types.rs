@@ -28,6 +28,77 @@ pub enum MemoryObjectKind {
     Struct,
 }
 
+/// Semantic layout of a one-word-referenced memory object.
+///
+/// Offsets are expressed in logical words rather than bytes. The selected
+/// memory-layout policy owns the physical word width and dynamic-object
+/// header, so high-level MIR does not bake EVM addresses into object access.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MemoryObjectLayout {
+    /// Dynamically sized bytes or string data.
+    Bytes,
+    /// A dynamically sized array with the given element stride in words.
+    DynamicArray {
+        /// Number of logical words occupied by one inline element.
+        element_words: u64,
+    },
+    /// A fixed-size array.
+    FixedArray {
+        /// Number of elements.
+        len: u64,
+        /// Number of logical words occupied by one inline element.
+        element_words: u64,
+    },
+    /// A struct with one logical word per direct field.
+    Struct {
+        /// Number of direct fields.
+        fields: u64,
+    },
+}
+
+impl MemoryObjectLayout {
+    /// Dynamic array whose direct elements occupy one logical word.
+    pub const WORD_ARRAY: Self = Self::DynamicArray { element_words: 1 };
+
+    /// Creates a fixed array whose direct elements occupy one logical word.
+    #[must_use]
+    pub const fn word_fixed_array(len: u64) -> Self {
+        Self::FixedArray { len, element_words: 1 }
+    }
+
+    /// Creates a direct-field struct layout.
+    #[must_use]
+    pub const fn structure(fields: u64) -> Self {
+        Self::Struct { fields }
+    }
+
+    /// Returns the nominal object kind represented by this layout.
+    #[must_use]
+    pub const fn kind(self) -> MemoryObjectKind {
+        match self {
+            Self::Bytes => MemoryObjectKind::Bytes,
+            Self::DynamicArray { .. } => MemoryObjectKind::DynamicArray,
+            Self::FixedArray { .. } => MemoryObjectKind::FixedArray,
+            Self::Struct { .. } => MemoryObjectKind::Struct,
+        }
+    }
+}
+
+impl fmt::Display for MemoryObjectLayout {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Bytes => write!(f, "memorybytes"),
+            Self::DynamicArray { element_words } => {
+                write!(f, "memoryarray<{element_words}>")
+            }
+            Self::FixedArray { len, element_words } => {
+                write!(f, "memoryfixedarray<{len}, {element_words}>")
+            }
+            Self::Struct { fields } => write!(f, "memorystruct<{fields}>"),
+        }
+    }
+}
+
 impl fmt::Display for MemoryObjectKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

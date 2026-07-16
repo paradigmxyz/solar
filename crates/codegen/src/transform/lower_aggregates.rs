@@ -95,28 +95,25 @@ fn lower_storage_to_memory(
         StorageLayout::Struct(fields) => {
             let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
-                lower_storage_field_to_memory(
-                    builder,
-                    field,
-                    storage,
-                    storage_offset,
+                let memory = builder.memory_object_field_addr(
                     memory,
-                    index as u64 * 32,
+                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
+                    index as u64,
                 );
+                lower_storage_field_to_memory(builder, field, storage, storage_offset, memory);
                 storage_offset += field.storage_slots();
             }
         }
         StorageLayout::Array { element, len } => {
             let mut storage_offset = 0;
             for index in 0..*len {
-                lower_storage_field_to_memory(
-                    builder,
-                    element,
-                    storage,
-                    storage_offset,
+                let index_value = builder.imm_u64(index);
+                let memory = builder.memory_object_element_addr(
                     memory,
-                    index * 32,
+                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
+                    index_value,
                 );
+                lower_storage_field_to_memory(builder, element, storage, storage_offset, memory);
                 storage_offset += element.storage_slots();
             }
         }
@@ -128,11 +125,9 @@ fn lower_storage_field_to_memory(
     field: &StorageField,
     storage: ValueId,
     storage_offset: u64,
-    memory: ValueId,
-    memory_offset: u64,
+    dest: ValueId,
 ) {
     let slot = offset_value(builder, storage, storage_offset);
-    let dest = offset_value(builder, memory, memory_offset);
     match field {
         StorageField::Word => {
             let value = builder.sload(slot);
@@ -140,12 +135,19 @@ fn lower_storage_field_to_memory(
         }
         StorageField::Aggregate(layout) => {
             let size = builder.imm_u64(layout.memory_words() * 32);
-            let kind = match layout.as_ref() {
-                StorageLayout::Struct(_) => crate::mir::MemoryObjectKind::Struct,
-                StorageLayout::Array { .. } => crate::mir::MemoryObjectKind::FixedArray,
+            let object_layout = match layout.as_ref() {
+                StorageLayout::Struct(fields) => {
+                    crate::mir::MemoryObjectLayout::Struct { fields: fields.len() as u64 }
+                }
+                StorageLayout::Array { len, .. } => {
+                    crate::mir::MemoryObjectLayout::FixedArray { len: *len, element_words: 1 }
+                }
             };
-            let nested =
-                builder.alloc_object(size, kind, crate::mir::AllocationSemantics::INTERNAL);
+            let nested = builder.alloc_object(
+                size,
+                object_layout,
+                crate::mir::AllocationSemantics::INTERNAL,
+            );
             lower_storage_to_memory(builder, layout, slot, nested);
             builder.mstore(dest, nested);
         }
@@ -162,28 +164,25 @@ fn lower_memory_to_storage(
         StorageLayout::Struct(fields) => {
             let mut storage_offset = 0;
             for (index, field) in fields.iter().enumerate() {
-                lower_memory_field_to_storage(
-                    builder,
-                    field,
+                let memory = builder.memory_object_field_addr(
                     memory,
-                    index as u64 * 32,
-                    storage,
-                    storage_offset,
+                    crate::mir::MemoryObjectLayout::structure(fields.len() as u64),
+                    index as u64,
                 );
+                lower_memory_field_to_storage(builder, field, memory, storage, storage_offset);
                 storage_offset += field.storage_slots();
             }
         }
         StorageLayout::Array { element, len } => {
             let mut storage_offset = 0;
             for index in 0..*len {
-                lower_memory_field_to_storage(
-                    builder,
-                    element,
+                let index_value = builder.imm_u64(index);
+                let memory = builder.memory_object_element_addr(
                     memory,
-                    index * 32,
-                    storage,
-                    storage_offset,
+                    crate::mir::MemoryObjectLayout::word_fixed_array(*len),
+                    index_value,
                 );
+                lower_memory_field_to_storage(builder, element, memory, storage, storage_offset);
                 storage_offset += element.storage_slots();
             }
         }
@@ -193,12 +192,10 @@ fn lower_memory_to_storage(
 fn lower_memory_field_to_storage(
     builder: &mut FunctionBuilder<'_>,
     field: &StorageField,
-    memory: ValueId,
-    memory_offset: u64,
+    source: ValueId,
     storage: ValueId,
     storage_offset: u64,
 ) {
-    let source = offset_value(builder, memory, memory_offset);
     let slot = offset_value(builder, storage, storage_offset);
     let value = builder.mload(source);
     match field {

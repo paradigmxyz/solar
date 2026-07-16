@@ -4,6 +4,27 @@
 //! embedding these addresses. Inline assembly can still access the conventional
 //! words directly, so alias analysis and backend lowering share this policy.
 
+use crate::mir::{MemoryObjectKind, MemoryObjectLayout};
+
+/// Policy interface between semantic memory-object MIR and a physical target
+/// memory representation.
+pub(crate) trait MemoryLayoutPolicy {
+    /// Target word size in bytes.
+    const WORD_SIZE: u64;
+
+    /// Returns the byte offset of an object's logical length word.
+    fn object_length_offset(kind: MemoryObjectKind) -> Option<u64>;
+
+    /// Returns the byte offset of the first payload byte.
+    fn object_data_offset(kind: MemoryObjectKind) -> u64;
+
+    /// Returns the byte offset of a direct struct field.
+    fn field_offset(layout: MemoryObjectLayout, field: u64) -> Option<u64>;
+
+    /// Returns the byte stride of an array element.
+    fn element_stride(layout: MemoryObjectLayout) -> Option<u64>;
+}
+
 /// The selected physical EVM memory layout.
 pub(crate) struct EvmMemoryLayout;
 
@@ -46,5 +67,37 @@ impl EvmMemoryLayout {
             Some(value) => Some(value & !(Self::WORD_SIZE - 1)),
             None => None,
         }
+    }
+}
+
+impl MemoryLayoutPolicy for EvmMemoryLayout {
+    const WORD_SIZE: u64 = Self::WORD_SIZE;
+
+    fn object_length_offset(kind: MemoryObjectKind) -> Option<u64> {
+        match kind {
+            MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => Some(0),
+            MemoryObjectKind::FixedArray | MemoryObjectKind::Struct => None,
+        }
+    }
+
+    fn object_data_offset(kind: MemoryObjectKind) -> u64 {
+        match kind {
+            MemoryObjectKind::Bytes | MemoryObjectKind::DynamicArray => Self::DYNAMIC_HEADER_SIZE,
+            MemoryObjectKind::FixedArray | MemoryObjectKind::Struct => 0,
+        }
+    }
+
+    fn field_offset(layout: MemoryObjectLayout, field: u64) -> Option<u64> {
+        let MemoryObjectLayout::Struct { fields } = layout else { return None };
+        (field < fields).then(|| field.saturating_mul(Self::WORD_SIZE))
+    }
+
+    fn element_stride(layout: MemoryObjectLayout) -> Option<u64> {
+        let words = match layout {
+            MemoryObjectLayout::DynamicArray { element_words }
+            | MemoryObjectLayout::FixedArray { element_words, .. } => element_words,
+            MemoryObjectLayout::Bytes | MemoryObjectLayout::Struct { .. } => return None,
+        };
+        words.checked_mul(Self::WORD_SIZE)
     }
 }

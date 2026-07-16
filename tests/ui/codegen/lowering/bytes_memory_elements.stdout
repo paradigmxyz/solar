@@ -22,8 +22,8 @@ fn @alloc() {
     revert 0, 36
   bb4:
     v6 = alloc memorybytes, exact, zeroed, panic, v4
-    mstore v6, 96
-    v7 = mload v6
+    set_memory_object_len memorybytes, v6, 96
+    v7 = memory_object_len memorybytes, v6
     v8 = lt 5, v7
     br v8, bb6, bb5
   bb5:
@@ -31,10 +31,10 @@ fn @alloc() {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v9 = add v6, 32
+    v9 = memory_object_data memorybytes, v6
     v10 = add v9, 5
     mstore8 v10, 170
-    v11 = mload v6
+    v11 = memory_object_len memorybytes, v6
     v12 = lt 95, v11
     br v12, bb8, bb7
   bb7:
@@ -42,11 +42,11 @@ fn @alloc() {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v13 = add v6, 32
+    v13 = memory_object_data memorybytes, v6
     v14 = add v13, 95
     mstore8 v14, 255
-    v15 = mload v6
-    v16 = add v6, 32
+    v15 = memory_object_len memorybytes, v6
+    v16 = memory_object_data memorybytes, v6
     v17 = keccak256 v16, v15
     mstore 128, v17
     returndata 128, 32
@@ -56,11 +56,11 @@ fn @literal() {
   bb0 (entry):
     mstore 128, 0
     v0 = alloc memorybytes, exact, uninitialized, infallible, 64
-    mstore v0, 10
-    v1 = add v0, 32
+    set_memory_object_len memorybytes, v0, 10
+    v1 = memory_object_data memorybytes, v0
     v2 = add v1, 0
     mstore v2, 0x1020304050607080900000000000000000000000000000000000000000000
-    v3 = mload v0
+    v3 = memory_object_len memorybytes, v0
     v4 = lt 5, v3
     br v4, bb2, bb1
   bb1:
@@ -68,11 +68,11 @@ fn @literal() {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v5 = add v0, 32
+    v5 = memory_object_data memorybytes, v0
     v6 = add v5, 5
     mstore8 v6, 170
-    v7 = mload v0
-    v8 = add v0, 32
+    v7 = memory_object_len memorybytes, v0
+    v8 = memory_object_data memorybytes, v0
     v9 = keccak256 v8, v7
     mstore 128, v9
     returndata 128, 32
@@ -107,7 +107,7 @@ fn @allocDynamic(arg0: u256) {
     revert 0, 36
   bb6:
     v9 = alloc memorybytes, exact, zeroed, panic, v7
-    mstore v9, arg0
+    set_memory_object_len memorybytes, v9, arg0
     v10 = mload v9
     mstore 128, v10
     returndata 128, 32
@@ -129,8 +129,8 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     v12 = calldataload 68
@@ -141,7 +141,7 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
     revert 0, 0
   bb4:
     mstore 128, 0
-    v15 = mload v9
+    v15 = memory_object_len memorybytes, v9
     v16 = lt arg1, v15
     br v16, bb6, bb5
   bb5:
@@ -149,11 +149,11 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v17 = add v9, 32
+    v17 = memory_object_data memorybytes, v9
     v18 = add v17, arg1
     v19 = shr 248, arg2
     mstore8 v18, v19
-    v20 = mload v9
+    v20 = memory_object_len memorybytes, v9
     v21 = lt arg1, v20
     br v21, bb8, bb7
   bb7:
@@ -161,7 +161,7 @@ fn @readWrite(arg0: memorybytes, arg1: u256, arg2: bytes1) {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v22 = add v9, 32
+    v22 = memory_object_data memorybytes, v9
     v23 = add v22, arg1
     v24 = mload v23
     v25 = and v24, 0xff00000000000000000000000000000000000000000000000000000000000000

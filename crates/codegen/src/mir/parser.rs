@@ -32,7 +32,8 @@ use super::{
     AbiLayout, AbiLayoutRef, AbiType, AllocationAlignment, AllocationFailure,
     AllocationInitialization, AllocationKind, AllocationSemantics, BlockId, EffectKind, Function,
     FunctionBuilder, FunctionId, InstId, InstKind, Instruction, InstructionMetadata,
-    MemoryObjectKind, MemoryRegion, Module, StorageAlias, StorageField, StorageLayout,
+    MemoryObjectKind, MemoryObjectLayout, MemoryRegion, Module, StorageAlias, StorageField,
+    StorageLayout,
     StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation};
@@ -731,6 +732,62 @@ kw::Bool => MirType::Bool,
         Ok(StorageField::Aggregate(self.parse_storage_layout()?))
     }
 
+    /// Parses a memory-object layout whose kind identifier `name` has already
+    /// been consumed, with optional `<...>` layout arguments.
+    fn parse_memory_object_layout(&mut self, name: Symbol) -> PResult<'sess, MemoryObjectLayout> {
+        let layout = match name {
+            sym::memorybytes => MemoryObjectLayout::Bytes,
+            sym::memoryarray => {
+                let element_words = if self.parser.eat(TokenKind::Lt) {
+                    let value = self.parser.parse_uint()?;
+                    let value = value
+                        .try_into()
+                        .map_err(|_| self.parser.error("memory-array stride does not fit"))?;
+                    self.parser.expect(TokenKind::Gt)?;
+                    value
+                } else {
+                    1
+                };
+                MemoryObjectLayout::DynamicArray { element_words }
+            }
+            sym::memoryfixedarray => {
+                let (len, element_words) = if self.parser.eat(TokenKind::Lt) {
+                    let len = self.parser.parse_uint()?;
+                    let len = len
+                        .try_into()
+                        .map_err(|_| self.parser.error("memory fixed-array length does not fit"))?;
+                    self.parser.expect(TokenKind::Comma)?;
+                    let element_words = self.parser.parse_uint()?;
+                    let element_words = element_words
+                        .try_into()
+                        .map_err(|_| self.parser.error("memory fixed-array stride does not fit"))?;
+                    self.parser.expect(TokenKind::Gt)?;
+                    (len, element_words)
+                } else {
+                    (0, 1)
+                };
+                MemoryObjectLayout::FixedArray { len, element_words }
+            }
+            sym::memorystruct => {
+                let fields = if self.parser.eat(TokenKind::Lt) {
+                    let value = self.parser.parse_uint()?;
+                    let value = value
+                        .try_into()
+                        .map_err(|_| self.parser.error("memory struct field count does not fit"))?;
+                    self.parser.expect(TokenKind::Gt)?;
+                    value
+                } else {
+                    0
+                };
+                MemoryObjectLayout::Struct { fields }
+            }
+            other => {
+                return Err(self.parser.error(format!("unknown memory-object layout `{other}`")));
+            }
+        };
+        Ok(layout)
+    }
+
     fn parse_function_id(&mut self) -> PResult<'sess, FunctionId> {
         if self.parser.eat(TokenKind::At) {
             let span = self.parser.token().span;
@@ -1145,15 +1202,10 @@ kw::Bool => MirType::Bool,
             sym::fmp => unit!(Fmp => MirType::MemPtr),
             sym::set_fmp => inst!(SetFmp(a)),
             sym::alloc => {
-                let kind = match self.parser.parse_ident()? {
+                let name = self.parser.parse_ident()?;
+                let kind = match name {
                     sym::raw => AllocationKind::Raw,
-                    sym::memorybytes => AllocationKind::Object(MemoryObjectKind::Bytes),
-                    sym::memoryarray => AllocationKind::Object(MemoryObjectKind::DynamicArray),
-                    sym::memoryfixedarray => AllocationKind::Object(MemoryObjectKind::FixedArray),
-                    sym::memorystruct => AllocationKind::Object(MemoryObjectKind::Struct),
-                    other => {
-                        return Err(self.parser.error(format!("unknown allocation kind `{other}`")));
-                    }
+                    _ => AllocationKind::Object(self.parse_memory_object_layout(name)?),
                 };
                 self.parser.expect(TokenKind::Comma)?;
                 let alignment = match self.parser.parse_ident()? {
@@ -1189,6 +1241,52 @@ kw::Bool => MirType::Bool,
                 let size = self.parse_value(builder)?;
                 let semantics = AllocationSemantics { alignment, initialization, failure };
                 (InstKind::Alloc { size, kind, semantics }, Some(kind.result_type()))
+            }
+
+            // Semantic memory-object accessors.
+            sym::memory_object_len => {
+                let name = self.parser.parse_ident()?;
+                let kind = self.parse_memory_object_layout(name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                (InstKind::MemoryObjectLen(object, kind), Some(MirType::uint256()))
+            }
+            sym::set_memory_object_len => {
+                let name = self.parser.parse_ident()?;
+                let kind = self.parse_memory_object_layout(name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let len = self.parse_value(builder)?;
+                (InstKind::SetMemoryObjectLen(object, len, kind), None)
+            }
+            sym::memory_object_data => {
+                let name = self.parser.parse_ident()?;
+                let kind = self.parse_memory_object_layout(name)?.kind();
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                (InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
+            }
+            sym::memory_object_field_addr => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let field = self.parser.parse_uint()?;
+                let field = field
+                    .try_into()
+                    .map_err(|_| self.parser.error("memory field index does not fit in u64"))?;
+                (InstKind::MemoryObjectFieldAddr { object, layout, field }, Some(MirType::MemPtr))
+            }
+            sym::memory_object_element_addr => {
+                let name = self.parser.parse_ident()?;
+                let layout = self.parse_memory_object_layout(name)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let object = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let index = self.parse_value(builder)?;
+                (InstKind::MemoryObjectElementAddr { object, layout, index }, Some(MirType::MemPtr))
             }
 
             // Semantic ABI encoding.
@@ -1437,6 +1535,7 @@ fn @f() {
                 crate::mir::MirPhase::Optimized,
                 crate::mir::MirPhase::Abi,
                 crate::mir::MirPhase::Dispatch,
+                crate::mir::MirPhase::MemoryLowered,
                 crate::mir::MirPhase::EvmShaped,
             ] {
                 let src = format!(

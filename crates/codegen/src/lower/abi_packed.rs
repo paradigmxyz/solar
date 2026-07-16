@@ -1,7 +1,7 @@
 //! ABI packed encoding lowering helpers.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, Value, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, Value, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{ElementaryType, LitKind};
 use solar_interface::{Symbol, sym};
@@ -35,11 +35,11 @@ impl<'gcx> Lowerer<'gcx> {
         // free memory pointer and reserving it afterwards is safe.
         let packed_args = self.collect_packed_abi_args(builder, args);
 
-        let ptr = builder.fmp();
+        let ptr = builder.fmp_object(crate::mir::MemoryObjectLayout::Bytes);
 
         // Data starts at ptr+32 (leaving room for the length word).
         let thirty_two = builder.imm_u64(32);
-        let data_start = builder.add(ptr, thirty_two);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let (end, static_len) = self.write_packed_abi_args(builder, data_start, &packed_args);
 
         // Finalize the allocation: length word + data padded to a word
@@ -55,7 +55,7 @@ impl<'gcx> Lowerer<'gcx> {
                 (length, builder.add(aligned, thirty_two))
             }
         };
-        builder.mstore(ptr, length);
+        builder.set_memory_object_len(ptr, length, MemoryObjectKind::Bytes);
         let new_free_ptr = builder.add(ptr, total_size);
         builder.set_fmp(new_free_ptr);
 
@@ -256,9 +256,8 @@ impl<'gcx> Lowerer<'gcx> {
                 }
                 &PackedAbiArg::DynamicBytes(ptr) => {
                     let dest = self.offset_ptr(builder, base, offset);
-                    let len = builder.mload(ptr);
-                    let word = builder.imm_u64(32);
-                    let src = builder.add(ptr, word);
+                    let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+                    let src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     self.mcopy(builder, dest, src, len, None);
                     base = builder.add(dest, len);
                     offset = 0;

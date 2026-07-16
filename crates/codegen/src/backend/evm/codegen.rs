@@ -1052,6 +1052,9 @@ impl<'gcx> EvmCodegen<'gcx> {
         run_pass(self.gcx, module, &crate::pass::LOWER_SLICES_PASS);
         if !self.gcx.sess.opts.unstable.no_mir_dispatch {
             run_pass(self.gcx, module, &crate::pass::LOWER_DISPATCH_PASS);
+        }
+        run_pass(self.gcx, module, &crate::pass::LOWER_MEMORY_OBJECTS_PASS);
+        if !self.gcx.sess.opts.unstable.no_mir_dispatch {
             run_pass(self.gcx, module, &crate::pass::LOWER_EVM_SHAPED_PASS);
         }
         let deferred = self.static_alloc_candidates.keys().copied().collect();
@@ -3320,6 +3323,14 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => {
                 unreachable!("slice instructions must be lowered before EVM codegen")
+            }
+
+            InstKind::MemoryObjectLen(_, _)
+            | InstKind::SetMemoryObjectLen(_, _, _)
+            | InstKind::MemoryObjectData(_, _)
+            | InstKind::MemoryObjectFieldAddr { .. }
+            | InstKind::MemoryObjectElementAddr { .. } => {
+                unreachable!("memory-object instructions must be lowered before EVM codegen")
             }
 
             InstKind::AbiEncode { .. } => {

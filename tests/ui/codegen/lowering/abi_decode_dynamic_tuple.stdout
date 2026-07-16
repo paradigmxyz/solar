@@ -16,20 +16,20 @@ fn @decode(arg0: memorybytes) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
-    v12 = mload v9
+    v12 = memory_object_len memorybytes, v9
     v13 = lt v12, 96
     br v13, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v14 = add v9, 32
+    v14 = memory_object_data memorybytes, v9
     v15 = mload v14
     v16 = add v14, 32
     v17 = mload v16
@@ -81,8 +81,8 @@ fn @decode(arg0: memorybytes) {
     revert 0, 36
   bb18:
     v35 = alloc memorybytes, exact, uninitialized, infallible, v33
-    mstore v35, v23
-    v36 = add v35, 32
+    set_memory_object_len memorybytes, v35, v23
+    v36 = memory_object_data memorybytes, v35
     v37 = sub v32, 32
     v38 = add v36, v37
     mstore v38, 0
@@ -138,8 +138,8 @@ fn @decode(arg0: memorybytes) {
     revert 0, 36
   bb32:
     v59 = alloc memorybytes, exact, uninitialized, infallible, v57
-    mstore v59, v47
-    v60 = add v59, 32
+    set_memory_object_len memorybytes, v59, v47
+    v60 = memory_object_data memorybytes, v59
     v61 = sub v56, 32
     v62 = add v60, v61
     mstore v62, 0
@@ -162,7 +162,7 @@ fn @decode(arg0: memorybytes) {
     v74 = add v72, 32
     v75 = sub v73, v72
     mstore v74, v75
-    v76 = mload v69
+    v76 = memory_object_len memorybytes, v69
     mstore v73, v76
     v77 = not 31
     v78 = add v76, 31
@@ -176,13 +176,13 @@ fn @decode(arg0: memorybytes) {
     mstore v83, 0
     jump bb34
   bb34:
-    v84 = add v69, 32
+    v84 = memory_object_data memorybytes, v69
     v85 = add v80, v79
     mcopy v80, v84, v76
     v86 = add v72, 64
     v87 = sub v85, v72
     mstore v86, v87
-    v88 = mload v71
+    v88 = memory_object_len memorybytes, v71
     mstore v85, v88
     v89 = not 31
     v90 = add v88, 31
@@ -196,7 +196,7 @@ fn @decode(arg0: memorybytes) {
     mstore v95, 0
     jump bb36
   bb36:
-    v96 = add v71, 32
+    v96 = memory_object_data memorybytes, v71
     v97 = add v92, v91
     mcopy v92, v96, v88
     v98 = sub v97, v72
@@ -219,8 +219,8 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     v12 = add 4, arg2
@@ -230,21 +230,21 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     v16 = and v14, v15
     v17 = add v16, 32
     v18 = alloc memorybytes, exact, uninitialized, infallible, v17
-    mstore v18, v13
-    v19 = add v18, 32
+    set_memory_object_len memorybytes, v18, v13
+    v19 = memory_object_data memorybytes, v18
     v20 = add v12, 32
     calldatacopy v19, v20, v13
     mstore 128, 0
     mstore 160, 0
     mstore 192, 0
     v21 = fmp
-    v22 = add v21, 32
+    v22 = memory_object_data memorybytes, v21
     v23 = add v22, 96
     mstore v22, arg0
     v24 = add v22, 32
     v25 = sub v23, v22
     mstore v24, v25
-    v26 = mload v9
+    v26 = memory_object_len memorybytes, v9
     mstore v23, v26
     v27 = not 31
     v28 = add v26, 31
@@ -258,13 +258,13 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     mstore v33, 0
     jump bb4
   bb4:
-    v34 = add v9, 32
+    v34 = memory_object_data memorybytes, v9
     v35 = add v30, v29
     mcopy v30, v34, v26
     v36 = add v22, 64
     v37 = sub v35, v22
     mstore v36, v37
-    v38 = mload v18
+    v38 = memory_object_len memorybytes, v18
     mstore v35, v38
     v39 = not 31
     v40 = add v38, 31
@@ -278,21 +278,21 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     mstore v45, 0
     jump bb6
   bb6:
-    v46 = add v18, 32
+    v46 = memory_object_data memorybytes, v18
     v47 = add v42, v41
     mcopy v42, v46, v38
     v48 = sub v47, v22
-    mstore v21, v48
+    set_memory_object_len memorybytes, v21, v48
     v49 = add v48, 32
     v50 = add v21, v49
     set_fmp v50
-    v51 = mload v21
+    v51 = memory_object_len memorybytes, v21
     v52 = lt v51, 96
     br v52, bb7, bb8
   bb7:
     revert 0, 0
   bb8:
-    v53 = add v21, 32
+    v53 = memory_object_data memorybytes, v21
     v54 = mload v53
     v55 = add v53, 32
     v56 = mload v55
@@ -344,8 +344,8 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     revert 0, 36
   bb22:
     v74 = alloc memorybytes, exact, uninitialized, infallible, v72
-    mstore v74, v62
-    v75 = add v74, 32
+    set_memory_object_len memorybytes, v74, v62
+    v75 = memory_object_data memorybytes, v74
     v76 = sub v71, 32
     v77 = add v75, v76
     mstore v77, 0
@@ -401,8 +401,8 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     revert 0, 36
   bb36:
     v98 = alloc memorybytes, exact, uninitialized, infallible, v96
-    mstore v98, v86
-    v99 = add v98, 32
+    set_memory_object_len memorybytes, v98, v86
+    v99 = memory_object_data memorybytes, v98
     v100 = sub v95, 32
     v101 = add v99, v100
     mstore v101, 0
@@ -425,7 +425,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     v113 = add v111, 32
     v114 = sub v112, v111
     mstore v113, v114
-    v115 = mload v108
+    v115 = memory_object_len memorybytes, v108
     mstore v112, v115
     v116 = not 31
     v117 = add v115, 31
@@ -439,13 +439,13 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     mstore v122, 0
     jump bb38
   bb38:
-    v123 = add v108, 32
+    v123 = memory_object_data memorybytes, v108
     v124 = add v119, v118
     mcopy v119, v123, v115
     v125 = add v111, 64
     v126 = sub v124, v111
     mstore v125, v126
-    v127 = mload v110
+    v127 = memory_object_len memorybytes, v110
     mstore v124, v127
     v128 = not 31
     v129 = add v127, 31
@@ -459,7 +459,7 @@ fn @roundtrip(arg0: u256, arg1: memorybytes, arg2: memorybytes) {
     mstore v134, 0
     jump bb40
   bb40:
-    v135 = add v110, 32
+    v135 = memory_object_data memorybytes, v110
     v136 = add v131, v130
     mcopy v131, v135, v127
     v137 = sub v136, v111
@@ -482,18 +482,18 @@ fn @decodeBytes(arg0: memorybytes) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     mstore 128, 0
-    v12 = mload v9
+    v12 = memory_object_len memorybytes, v9
     v13 = lt v12, 32
     br v13, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v14 = add v9, 32
+    v14 = memory_object_data memorybytes, v9
     v15 = mload v14
     v16 = lt v15, 32
     br v16, bb5, bb6
@@ -543,8 +543,8 @@ fn @decodeBytes(arg0: memorybytes) {
     revert 0, 36
   bb18:
     v33 = alloc memorybytes, exact, uninitialized, infallible, v31
-    mstore v33, v21
-    v34 = add v33, 32
+    set_memory_object_len memorybytes, v33, v21
+    v34 = memory_object_data memorybytes, v33
     v35 = sub v30, 32
     v36 = add v34, v35
     mstore v36, 0
@@ -558,7 +558,7 @@ fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32
-    v1 = mload arg0
+    v1 = memory_object_len memorybytes, arg0
     v2 = add v0, 32
     mstore v2, v1
     v3 = add v1, 31
@@ -568,7 +568,7 @@ fn @__ret_bytes(arg0: memorybytes) {
     v7 = sub v5, 32
     v8 = add v6, v7
     mstore v8, 0
-    v9 = add arg0, 32
+    v9 = memory_object_data memorybytes, arg0
     mcopy v6, v9, v1
     v10 = add 64, v5
     returndata v0, v10

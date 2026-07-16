@@ -313,13 +313,8 @@ fn display_inst_kind<'a>(
         InstKind::LoadImmutable(offset) => write!(f, "loadimmutable {offset}"),
         InstKind::Alloc { size, kind, semantics } => {
             let kind = match kind {
-                crate::mir::AllocationKind::Raw => "raw",
-                crate::mir::AllocationKind::Object(kind) => match kind {
-                    crate::mir::MemoryObjectKind::Bytes => "memorybytes",
-                    crate::mir::MemoryObjectKind::DynamicArray => "memoryarray",
-                    crate::mir::MemoryObjectKind::FixedArray => "memoryfixedarray",
-                    crate::mir::MemoryObjectKind::Struct => "memorystruct",
-                },
+                crate::mir::AllocationKind::Raw => "raw".to_string(),
+                crate::mir::AllocationKind::Object(layout) => layout.to_string(),
             };
             let alignment = match semantics.alignment {
                 crate::mir::AllocationAlignment::Exact => "exact",
@@ -338,6 +333,27 @@ fn display_inst_kind<'a>(
                 "alloc {kind}, {alignment}, {initialization}, {failure}, {}",
                 display_val(*size, func)
             )
+        }
+        InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+            write!(f, "memory_object_field_addr {layout}, {}, {field}", display_val(*object, func))
+        }
+        InstKind::MemoryObjectElementAddr { object, layout, index } => write!(
+            f,
+            "memory_object_element_addr {layout}, {}, {}",
+            display_val(*object, func),
+            display_val(*index, func)
+        ),
+        InstKind::MemoryObjectLen(object, kind) => {
+            write!(f, "memory_object_len {kind}, {}", display_val(*object, func))
+        }
+        InstKind::SetMemoryObjectLen(object, len, kind) => write!(
+            f,
+            "set_memory_object_len {kind}, {}, {}",
+            display_val(*object, func),
+            display_val(*len, func)
+        ),
+        InstKind::MemoryObjectData(object, kind) => {
+            write!(f, "memory_object_data {kind}, {}", display_val(*object, func))
         }
         InstKind::AbiEncode { selector, args, layout } => {
             write!(f, "abi_encode {layout}")?;

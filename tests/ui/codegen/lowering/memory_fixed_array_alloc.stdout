@@ -10,13 +10,13 @@ fn @guardedFix(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
-    mstore v3, 0
-    v4 = add v3, 32
+    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
     mstore v4, 0
-    v5 = add v3, 64
+    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 1
     mstore v5, 0
-    v6 = mul arg0, 32
+    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 2
+    mstore v6, 0
     v7 = lt arg0, 3
     br v7, bb4, bb3
   bb3:
@@ -24,7 +24,7 @@ fn @guardedFix(arg0: u256) {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v8 = add v3, v6
+    v8 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
     v9 = mload v8
     mstore 128, v9
     returndata 128, 32
@@ -40,26 +40,28 @@ fn @structArr(arg0: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = alloc memorystruct, exact, uninitialized, infallible, 32
-    v4 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
-    mstore v4, 0
-    v5 = add v4, 32
+    v3 = alloc memorystruct<1>, exact, uninitialized, infallible, 32
+    v4 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 0
     mstore v5, 0
-    v6 = add v4, 64
+    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 1
     mstore v6, 0
-    mstore v3, v4
-    v7 = mload v3
-    v8 = mul arg0, 32
-    v9 = lt arg0, 3
-    br v9, bb4, bb3
+    v7 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 2
+    mstore v7, 0
+    v8 = memory_object_field_addr memorystruct<1>, v3, 0
+    mstore v8, v4
+    v9 = memory_object_field_addr memorystruct<1>, v3, 0
+    v10 = mload v9
+    v11 = lt arg0, 3
+    br v11, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v10 = add v7, v8
-    v11 = mload v10
-    mstore 128, v11
+    v12 = memory_object_element_addr memoryfixedarray<3, 1>, v10, arg0
+    v13 = mload v12
+    mstore 128, v13
     returndata 128, 32
 }
 
@@ -73,41 +75,41 @@ fn @nested(arg0: u256, arg1: u256) {
     revert 0, 0
   bb2:
     mstore 128, 0
-    v3 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
-    v4 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
-    mstore v4, 0
-    v5 = add v4, 32
+    v3 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v4 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v5 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 0
     mstore v5, 0
-    mstore v3, v4
-    v6 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
+    v6 = memory_object_element_addr memoryfixedarray<2, 1>, v4, 1
     mstore v6, 0
-    v7 = add v6, 32
-    mstore v7, 0
-    v8 = add v3, 32
-    mstore v8, v6
-    v9 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
+    v7 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
+    mstore v7, v4
+    v8 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v9 = memory_object_element_addr memoryfixedarray<2, 1>, v8, 0
     mstore v9, 0
-    v10 = add v9, 32
+    v10 = memory_object_element_addr memoryfixedarray<2, 1>, v8, 1
     mstore v10, 0
-    v11 = add v3, 64
-    mstore v11, v9
-    v12 = mul 0, 32
-    v13 = add v3, v12
-    v14 = mload v13
-    v15 = mul 0, 32
-    v16 = add v14, v15
-    mstore v16, 1
-    v17 = mul arg0, 32
-    v18 = lt arg0, 3
-    br v18, bb4, bb3
+    v11 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 1
+    mstore v11, v8
+    v12 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v13 = memory_object_element_addr memoryfixedarray<2, 1>, v12, 0
+    mstore v13, 0
+    v14 = memory_object_element_addr memoryfixedarray<2, 1>, v12, 1
+    mstore v14, 0
+    v15 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 2
+    mstore v15, v12
+    v16 = memory_object_element_addr memoryfixedarray<3, 1>, v3, 0
+    v17 = mload v16
+    v18 = memory_object_element_addr memoryfixedarray<2, 1>, v17, 0
+    mstore v18, 1
+    v19 = lt arg0, 3
+    br v19, bb4, bb3
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v19 = add v3, v17
-    v20 = mload v19
-    v21 = mul arg1, 32
+    v20 = memory_object_element_addr memoryfixedarray<3, 1>, v3, arg0
+    v21 = mload v20
     v22 = lt arg1, 2
     br v22, bb6, bb5
   bb5:
@@ -115,7 +117,7 @@ fn @nested(arg0: u256, arg1: u256) {
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v23 = add v20, v21
+    v23 = memory_object_element_addr memoryfixedarray<2, 1>, v21, arg1
     v24 = mload v23
     mstore 128, v24
     returndata 128, 32
@@ -125,14 +127,14 @@ fn @fmpIntegrity() {
   bb0 (entry):
     mstore 128, 0
     mstore 160, 0
-    v0 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
-    mstore v0, 0
-    v1 = add v0, 32
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
     mstore v1, 0
-    v2 = add v0, 64
+    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
     mstore v2, 0
-    v3 = mul 2, 32
-    v4 = add v0, v3
+    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    mstore v3, 0
+    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
     mstore v4, 7
     v5 = mul 1, 32
     v6 = div v5, 32
@@ -151,55 +153,49 @@ fn @fmpIntegrity() {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v10 = alloc memoryarray, exact, zeroed, panic, v8
-    mstore v10, 1
-    v11 = mul 0, 32
-    v12 = mload v10
-    v13 = lt 0, v12
-    br v13, bb6, bb5
+    v10 = alloc memoryarray<1>, exact, zeroed, panic, v8
+    set_memory_object_len memoryarray, v10, 1
+    v11 = memory_object_len memoryarray, v10
+    v12 = lt 0, v11
+    br v12, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v14 = add v10, 32
-    v15 = add v14, v11
-    mstore v15, 9
-    v16 = mul 2, 32
-    v17 = add v0, v16
-    v18 = mload v17
-    v19 = mul 0, 32
-    v20 = mload v10
-    v21 = lt 0, v20
-    br v21, bb8, bb7
+    v13 = memory_object_element_addr memoryarray<1>, v10, 0
+    mstore v13, 9
+    v14 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    v15 = mload v14
+    v16 = memory_object_len memoryarray, v10
+    v17 = lt 0, v16
+    br v17, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v22 = add v10, 32
-    v23 = add v22, v19
-    v24 = mload v23
-    mstore 128, v18
-    v25 = add 128, 32
-    mstore v25, v24
+    v18 = memory_object_element_addr memoryarray<1>, v10, 0
+    v19 = mload v18
+    mstore 128, v15
+    v20 = add 128, 32
+    mstore v20, v19
     returndata 128, 64
 }
 
 fn @literal() {
   bb0 (entry):
     mstore 128, 0
-    v0 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
     v1 = add v0, 0
     mstore v1, 1
     v2 = add v0, 32
     mstore v2, 2
     v3 = add v0, 64
     mstore v3, 3
-    v4 = mul 2, 32
-    v5 = add v0, v4
-    v6 = mload v5
-    mstore 128, v6
+    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    v5 = mload v4
+    mstore 128, v5
     returndata 128, 32
 }
 
@@ -207,83 +203,83 @@ fn @literal() {
 @module NamedReturnAndDelete
 fn @namedReturn() {
   bb0 (entry):
-    v0 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
-    mstore v0, 0
-    v1 = add v0, 32
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
     mstore v1, 0
-    v2 = add v0, 64
+    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
     mstore v2, 0
+    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    mstore v3, 0
     mstore 128, v0
     mstore 160, 0
-    v3 = mload 128
-    v4 = mul 0, 32
-    v5 = add v3, v4
+    v4 = mload 128
+    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v4, 0
     mstore v5, 1
     v6 = mload 128
-    v7 = mul 2, 32
-    v8 = add v6, v7
-    mstore v8, 3
-    v9 = add 32, 31
-    v10 = lt v9, 32
-    br v10, bb1, bb2
+    v7 = memory_object_element_addr memoryfixedarray<3, 1>, v6, 2
+    mstore v7, 3
+    v8 = add 32, 31
+    v9 = lt v8, 32
+    br v9, bb1, bb2
   bb1:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb2:
-    v11 = not 31
-    v12 = and v9, v11
-    v13 = add v12, 32
-    v14 = lt v13, v12
-    br v14, bb3, bb4
+    v10 = not 31
+    v11 = and v8, v10
+    v12 = add v11, 32
+    v13 = lt v12, v11
+    br v13, bb3, bb4
   bb3:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb4:
-    v15 = alloc memorybytes, exact, zeroed, panic, v13
-    mstore v15, 32
-    v16 = mload v15
-    v17 = lt 0, v16
-    br v17, bb6, bb5
+    v14 = alloc memorybytes, exact, zeroed, panic, v12
+    set_memory_object_len memorybytes, v14, 32
+    v15 = memory_object_len memorybytes, v14
+    v16 = lt 0, v15
+    br v16, bb6, bb5
   bb5:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v18 = add v15, 32
-    v19 = add v18, 0
-    mstore8 v19, 238
-    v20 = mload v15
-    v21 = lt 0, v20
-    br v21, bb8, bb7
+    v17 = memory_object_data memorybytes, v14
+    v18 = add v17, 0
+    mstore8 v18, 238
+    v19 = memory_object_len memorybytes, v14
+    v20 = lt 0, v19
+    br v20, bb8, bb7
   bb7:
     mstore 0, 0x4e487b7100000000000000000000000000000000000000000000000000000000 !metadata(memory=scratch)
     mstore 4, 50 !metadata(memory=scratch)
     revert 0, 36
   bb8:
-    v22 = add v15, 32
-    v23 = add v22, 0
-    v24 = mload v23
-    v25 = and v24, 0xff00000000000000000000000000000000000000000000000000000000000000
-    v26 = shr 248, v25
-    v27 = and v26, 255
-    mstore 160, v27
-    v28 = mload 128
-    v29 = mload 160
-    v30 = mload v28
+    v21 = memory_object_data memorybytes, v14
+    v22 = add v21, 0
+    v23 = mload v22
+    v24 = and v23, 0xff00000000000000000000000000000000000000000000000000000000000000
+    v25 = shr 248, v24
+    v26 = and v25, 255
+    mstore 160, v26
+    v27 = mload 128
+    v28 = mload 160
+    v29 = memory_object_element_addr memoryfixedarray<3, 1>, v27, 0
+    v30 = mload v29
     mstore 128, v30
     v31 = add 128, 32
-    v32 = add v28, 32
+    v32 = memory_object_element_addr memoryfixedarray<3, 1>, v27, 1
     v33 = mload v32
     mstore v31, v33
     v34 = add v31, 32
-    v35 = add v28, 64
+    v35 = memory_object_element_addr memoryfixedarray<3, 1>, v27, 2
     v36 = mload v35
     mstore v34, v36
     v37 = add v34, 32
     v38 = add 128, 96
-    mstore v38, v29
+    mstore v38, v28
     returndata 128, 128
 }
 
@@ -291,38 +287,33 @@ fn @deleteInPlace() {
   bb0 (entry):
     mstore 128, 0
     mstore 160, 0
-    v0 = alloc memoryfixedarray, exact, uninitialized, infallible, 96
-    mstore v0, 0
-    v1 = add v0, 32
+    v0 = alloc memoryfixedarray<3, 1>, exact, uninitialized, infallible, 96
+    v1 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
     mstore v1, 0
-    v2 = add v0, 64
+    v2 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
     mstore v2, 0
-    v3 = mul 0, 32
-    v4 = add v0, v3
+    v3 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    mstore v3, 0
+    v4 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
     mstore v4, 5
-    v5 = mul 1, 32
-    v6 = add v0, v5
-    mstore v6, 6
-    v7 = mul 2, 32
-    v8 = add v0, v7
-    mstore v8, 7
+    v5 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 1
+    mstore v5, 6
+    v6 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    mstore v6, 7
     mstore v0, 0
-    v9 = add v0, 32
-    mstore v9, 0
-    v10 = add v0, 64
-    mstore v10, 0
-    v11 = mul 2, 32
-    v12 = add v0, v11
-    mstore v12, 9
-    v13 = mul 0, 32
-    v14 = add v0, v13
-    v15 = mload v14
-    v16 = mul 2, 32
-    v17 = add v0, v16
-    v18 = mload v17
-    mstore 128, v15
-    v19 = add 128, 32
-    mstore v19, v18
+    v7 = add v0, 32
+    mstore v7, 0
+    v8 = add v0, 64
+    mstore v8, 0
+    v9 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    mstore v9, 9
+    v10 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 0
+    v11 = mload v10
+    v12 = memory_object_element_addr memoryfixedarray<3, 1>, v0, 2
+    v13 = mload v12
+    mstore 128, v11
+    v14 = add 128, 32
+    mstore v14, v13
     returndata 128, 64
 }
 

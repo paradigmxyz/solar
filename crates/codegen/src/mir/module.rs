@@ -49,6 +49,9 @@ pub(crate) enum MirPhase {
     /// function that routes to the ABI wrappers, instead of being generated
     /// inside the backend.
     Dispatch,
+    /// Semantic memory objects have been lowered to physical pointer and word
+    /// operations. Produced by the `lower-memory-objects` pass.
+    MemoryLowered,
     /// Functions take the shape the backend expects: every call edge either
     /// returns or is an explicit `tail_call` (a call to a callee that cannot
     /// return is rewritten into one, arguments included). Produced by the
@@ -65,6 +68,7 @@ impl MirPhase {
             Self::Optimized => "optimized",
             Self::Abi => "abi",
             Self::Dispatch => "dispatch",
+            Self::MemoryLowered => "memory-lowered",
             Self::EvmShaped => "evm-shaped",
         }
     }
@@ -77,6 +81,7 @@ impl MirPhase {
             sym::optimized => Self::Optimized,
             sym::abi => Self::Abi,
             sym::dispatch => Self::Dispatch,
+            sym::memory_dash_lowered => Self::MemoryLowered,
             sym::evm_dash_shaped => Self::EvmShaped,
             _ => return None,
         })

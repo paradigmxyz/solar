@@ -1,0 +1,6 @@
+error: invalid MIR input:
+  [fn0] memory-object signature type `memorybytes` survives the `memory-lowered` phase boundary
+  [fn0] memory-object signature type `memorystruct` survives the `memory-lowered` phase boundary
+  [bb0, inst0] [fn0] memory-object instruction `alloc` survives the `memory-lowered` phase boundary
+  [bb0, inst1] [fn0] memory-object instruction `memory_object_len` survives the `memory-lowered` phase boundary
+  [bb0, inst2] [fn0] memory-object instruction `set_memory_object_len` survives the `memory-lowered` phase boundary

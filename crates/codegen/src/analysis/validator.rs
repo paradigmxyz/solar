@@ -519,6 +519,55 @@ impl<'a> Validator<'a> {
                 module.phase.name()
             ));
         }
+        // The memory-lowered phase is a strict representation boundary: no
+        // nominal object types, layouts, or semantic accesses may survive.
+        if module.phase >= crate::mir::MirPhase::MemoryLowered {
+            for ty in func.params.iter().chain(&func.returns) {
+                if matches!(ty, crate::mir::MirType::MemoryObject(_)) {
+                    self.emit(format_args!(
+                        "memory-object signature type `{ty}` survives the `{}` phase boundary",
+                        module.phase.name()
+                    ));
+                }
+            }
+            for value in func.values.iter() {
+                if let Value::Undef(ty) = value
+                    && matches!(ty, crate::mir::MirType::MemoryObject(_))
+                {
+                    self.emit(format_args!(
+                        "memory-object value type survives the `{}` phase boundary",
+                        module.phase.name()
+                    ));
+                }
+            }
+            for (block_id, block) in func.blocks.iter_enumerated() {
+                for &inst_id in &block.instructions {
+                    let inst = &func.instructions[inst_id];
+                    let semantic = matches!(
+                        inst.kind,
+                        InstKind::Alloc { kind: crate::mir::AllocationKind::Object(_), .. }
+                            | InstKind::MemoryObjectLen(_, _)
+                            | InstKind::SetMemoryObjectLen(_, _, _)
+                            | InstKind::MemoryObjectData(_, _)
+                            | InstKind::MemoryObjectFieldAddr { .. }
+                            | InstKind::MemoryObjectElementAddr { .. }
+                    ) || inst
+                        .result_ty
+                        .is_some_and(|ty| matches!(ty, crate::mir::MirType::MemoryObject(_)));
+                    if semantic {
+                        self.emit_at_inst(
+                            format_args!(
+                                "memory-object instruction `{}` survives the `{}` phase boundary",
+                                inst.kind.mnemonic(),
+                                module.phase.name()
+                            ),
+                            block_id,
+                            inst_id,
+                        );
+                    }
+                }
+            }
+        }
         // EVM-shaped MIR is the semantic boundary consumed by the word-based
         // backend. High-level memory operations must have been expanded by
         // their named lowering passes before the module enters this phase.

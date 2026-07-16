@@ -645,7 +645,7 @@ impl<'gcx> Lowerer<'gcx> {
             let word = builder.imm_u64(32);
             builder.mstore(buf, word);
 
-            let len = builder.mload(ptr);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
             let len_dst = builder.add(buf, word);
             builder.mstore(len_dst, len);
 
@@ -664,7 +664,7 @@ impl<'gcx> Lowerer<'gcx> {
             let zero = builder.imm_u64(0);
             builder.mstore(last_word, zero);
 
-            let data_src = builder.add(ptr, word);
+            let data_src = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             self.mcopy(&mut builder, data_dst, data_src, len, None);
             let prefix_size = builder.imm_u64(64);
             let size = builder.add(prefix_size, padded);
@@ -895,18 +895,20 @@ impl<'gcx> Lowerer<'gcx> {
                                         builder.mul(len, word)
                                     };
                                     let alloc = builder.add(word, byte_len);
-                                    let object_kind = if kind == call::LinkedFieldKind::DynBytes {
-                                        MemoryObjectKind::Bytes
+                                    let object_layout = if kind == call::LinkedFieldKind::DynBytes {
+                                        crate::mir::MemoryObjectLayout::Bytes
                                     } else {
-                                        MemoryObjectKind::DynamicArray
+                                        crate::mir::MemoryObjectLayout::DynamicArray {
+                                            element_words: 1,
+                                        }
                                     };
                                     let ptr = builder.alloc_object(
                                         alloc,
-                                        object_kind,
+                                        object_layout,
                                         crate::mir::AllocationSemantics::INTERNAL,
                                     );
-                                    builder.mstore(ptr, len);
-                                    let dst = builder.add(ptr, word);
+                                    builder.set_memory_object_len(ptr, len, object_layout.kind());
+                                    let dst = builder.memory_object_data(ptr, object_layout.kind());
                                     let src = builder.add(pos, word);
                                     builder.calldatacopy(dst, src, byte_len);
                                     ptr
@@ -915,14 +917,12 @@ impl<'gcx> Lowerer<'gcx> {
                             };
 
                         // Store the field value into the struct memory
-                        let field_offset = (field_idx as u64) * 32;
-                        if field_offset == 0 {
-                            builder.mstore(struct_ptr, stored_val);
-                        } else {
-                            let offset_val = builder.imm_u64(field_offset);
-                            let field_addr = builder.add(struct_ptr, offset_val);
-                            builder.mstore(field_addr, stored_val);
-                        }
+                        let field_addr = builder.memory_object_field_addr(
+                            struct_ptr,
+                            crate::mir::MemoryObjectLayout::structure(num_fields as u64),
+                            field_idx as u64,
+                        );
+                        builder.mstore(field_addr, stored_val);
                     }
 
                     // Store the memory pointer as the local (not the Arg value)
@@ -952,13 +952,13 @@ impl<'gcx> Lowerer<'gcx> {
                             elem_hir_ty,
                             abi_param_source,
                         );
-                        if elem_idx == 0 {
-                            builder.mstore(array_ptr, elem_val);
-                        } else {
-                            let offset_val = builder.imm_u64(elem_idx * 32);
-                            let elem_addr = builder.add(array_ptr, offset_val);
-                            builder.mstore(elem_addr, elem_val);
-                        }
+                        let elem_index = builder.imm_u64(elem_idx);
+                        let elem_addr = builder.memory_object_element_addr(
+                            array_ptr,
+                            crate::mir::MemoryObjectLayout::word_fixed_array(len),
+                            elem_index,
+                        );
+                        builder.mstore(elem_addr, elem_val);
                     }
                     self.locals.insert(param_id, array_ptr);
                 } else if decodes_abi_params && self.is_dyn_word_array_memory_param(param) {
@@ -984,11 +984,11 @@ impl<'gcx> Lowerer<'gcx> {
                     let total_bytes = builder.add(data_bytes, word);
                     let array_ptr = builder.alloc_object(
                         total_bytes,
-                        MemoryObjectKind::DynamicArray,
+                        crate::mir::MemoryObjectLayout::DynamicArray { element_words: 1 },
                         crate::mir::AllocationSemantics::INTERNAL,
                     );
-                    builder.mstore(array_ptr, len);
-                    let dst = builder.add(array_ptr, word);
+                    builder.set_memory_object_len(array_ptr, len, MemoryObjectKind::DynamicArray);
+                    let dst = builder.memory_object_data(array_ptr, MemoryObjectKind::DynamicArray);
                     let src = builder.add(len_pos, word);
                     if self.lowering_constructor {
                         self.mcopy(&mut builder, dst, src, data_bytes, None);
@@ -1031,8 +1031,8 @@ impl<'gcx> Lowerer<'gcx> {
                         total,
                         MemoryObjectKind::Bytes,
                     );
-                    builder.mstore(ptr, len);
-                    let data_ptr = builder.add(ptr, word);
+                    builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
+                    let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
                     let src = builder.add(len_pos, word);
                     if self.lowering_constructor {
                         self.mcopy(&mut builder, data_ptr, src, len, None);

@@ -9,18 +9,20 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
   bb1:
     revert 0, 0
   bb2:
-    v3 = alloc memorystruct, exact, uninitialized, infallible, 96
-    mstore v3, arg1
-    v4 = alloc memorystruct, exact, uninitialized, infallible, 64
-    mstore v4, arg2
-    v5 = add v4, 32
-    mstore v5, arg3
-    v6 = add v3, 32
-    mstore v6, v4
-    v7 = add v3, 64
-    mstore v7, arg4
-    v8 = mapping_slot arg0, 0
-    memory_to_storage struct<word, struct<word, word>, word>, v3, v8
+    v3 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
+    v4 = memory_object_field_addr memorystruct<3>, v3, 0
+    mstore v4, arg1
+    v5 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v6 = memory_object_field_addr memorystruct<2>, v5, 0
+    mstore v6, arg2
+    v7 = memory_object_field_addr memorystruct<2>, v5, 1
+    mstore v7, arg3
+    v8 = memory_object_field_addr memorystruct<3>, v3, 1
+    mstore v8, v5
+    v9 = memory_object_field_addr memorystruct<3>, v3, 2
+    mstore v9, arg4
+    v10 = mapping_slot arg0, 0
+    memory_to_storage struct<word, struct<word, word>, word>, v3, v10
     stop
 }
 
@@ -38,25 +40,27 @@ fn @get(arg0: u256) {
     mstore 192, 0
     mstore 224, 0
     v3 = mapping_slot arg0, 0
-    v4 = alloc memorystruct, exact, uninitialized, infallible, 96
+    v4 = alloc memorystruct<3>, exact, uninitialized, infallible, 96
     storage_to_memory struct<word, struct<word, word>, word>, v3, v4
-    v5 = mload v4
-    v6 = add v4, 32
-    v7 = mload v6
+    v5 = memory_object_field_addr memorystruct<3>, v4, 0
+    v6 = mload v5
+    v7 = memory_object_field_addr memorystruct<3>, v4, 1
     v8 = mload v7
-    v9 = add v4, 32
+    v9 = memory_object_field_addr memorystruct<2>, v8, 0
     v10 = mload v9
-    v11 = add v10, 32
+    v11 = memory_object_field_addr memorystruct<3>, v4, 1
     v12 = mload v11
-    v13 = add v4, 64
+    v13 = memory_object_field_addr memorystruct<2>, v12, 1
     v14 = mload v13
-    mstore 128, v5
-    v15 = add 128, 32
-    mstore v15, v8
-    v16 = add 128, 64
-    mstore v16, v12
-    v17 = add 128, 96
-    mstore v17, v14
+    v15 = memory_object_field_addr memorystruct<3>, v4, 2
+    v16 = mload v15
+    mstore 128, v6
+    v17 = add 128, 32
+    mstore v17, v10
+    v18 = add 128, 64
+    mstore v18, v14
+    v19 = add 128, 96
+    mstore v19, v16
     returndata 128, 128
 }
 

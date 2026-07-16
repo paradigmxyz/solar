@@ -35,10 +35,9 @@ impl<'gcx> Lowerer<'gcx> {
         let ptr =
             self.allocate_memory_object(builder, (32 + aligned) as u64, MemoryObjectKind::Bytes);
         let len_val = builder.imm_u64(len as u64);
-        builder.mstore(ptr, len_val);
+        builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
-        let word = builder.imm_u64(32);
-        let data_start = builder.add(ptr, word);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         for (i, chunk) in bytes.chunks(32).enumerate() {
             let mut padded = [0u8; 32];
             padded[..chunk.len()].copy_from_slice(chunk);
@@ -91,9 +90,9 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
-        builder.mstore(ptr, len);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
 
-        let data_ptr = builder.add(ptr, word_size);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word_size);
         let last_word = builder.add(data_ptr, last_word_offset);
@@ -126,7 +125,7 @@ impl<'gcx> Lowerer<'gcx> {
         let total_overflow = builder.lt(total_size, data_size);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
         builder.mstore(ptr, len);
 
         let data_ptr = builder.add(ptr, word_size);
@@ -178,9 +177,9 @@ impl<'gcx> Lowerer<'gcx> {
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
         let ptr = self.allocate_memory_object_dynamic(builder, total_size, MemoryObjectKind::Bytes);
-        builder.mstore(ptr, len);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
 
-        let data_ptr = builder.add(ptr, word_size);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word_size);
         let last_word = builder.add(data_ptr, last_word_offset);
@@ -289,8 +288,8 @@ impl<'gcx> Lowerer<'gcx> {
             total_size,
             MemoryObjectKind::DynamicArray,
         );
-        builder.mstore(ptr, len);
-        let data_ptr = builder.add(ptr, word_size);
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::DynamicArray);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::DynamicArray);
         builder.calldatacopy(data_ptr, data_pos, byte_len);
         ptr
     }
@@ -347,7 +346,11 @@ impl<'gcx> Lowerer<'gcx> {
         let total_overflow = builder.lt(total_size, byte_len);
         self.emit_panic_if(builder, total_overflow, PanicCode::MemoryAllocationOverflow);
 
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            MemoryObjectKind::DynamicArray,
+        );
         builder.mstore(ptr, len);
 
         // Recursive materialization allocates memory and can introduce CFG, so
@@ -581,7 +584,7 @@ impl<'gcx> Lowerer<'gcx> {
         args: &CallArgs<'_>,
     ) -> ValueId {
         let current = self.materialize_storage_bytes(builder, slot);
-        let len = builder.mload(current);
+        let len = builder.memory_object_len(current, MemoryObjectKind::Bytes);
         match method {
             sym::push => {
                 let one = builder.imm_u64(1);
@@ -598,8 +601,7 @@ impl<'gcx> Lowerer<'gcx> {
                         self.bytes1_store_byte(builder, value)
                     })
                     .unwrap_or_else(|| builder.imm_u64(0));
-                let word = builder.imm_u64(32);
-                let data = builder.add(resized, word);
+                let data = builder.memory_object_data(resized, MemoryObjectKind::Bytes);
                 let dst = builder.add(data, len);
                 builder.mstore8(dst, byte);
                 self.copy_memory_bytes_to_storage(builder, slot, resized);
@@ -633,14 +635,14 @@ impl<'gcx> Lowerer<'gcx> {
         let data_size = builder.select(is_empty, word, padded);
         let total = builder.add(word, data_size);
         let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
-        builder.mstore(ptr, new_len);
+        builder.set_memory_object_len(ptr, new_len, MemoryObjectKind::Bytes);
 
-        let data = builder.add(ptr, word);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let last_word_off = builder.sub(data_size, word);
         let last_word = builder.add(data, last_word_off);
         builder.mstore(last_word, zero);
 
-        let src_data = builder.add(src, word);
+        let src_data = builder.memory_object_data(src, MemoryObjectKind::Bytes);
         self.mcopy(builder, data, src_data, copy_len, None);
         ptr
     }
@@ -723,8 +725,8 @@ impl<'gcx> Lowerer<'gcx> {
         let word = builder.imm_u64(32);
         let total = builder.add(padded, word);
         let ptr = self.allocate_memory_object_dynamic(builder, total, MemoryObjectKind::Bytes);
-        builder.mstore(ptr, size);
-        let data_ptr = builder.add(ptr, word);
+        builder.set_memory_object_len(ptr, size, MemoryObjectKind::Bytes);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         builder.returndatacopy(data_ptr, zero, size);
         ptr
@@ -778,9 +780,8 @@ impl<'gcx> Lowerer<'gcx> {
                 sym::encodePacked => {
                     // Returns a `bytes memory` pointer: `[length][data...]`.
                     let ptr = self.lower_abi_encode_packed(builder, args);
-                    let word = builder.imm_u64(32);
-                    let data = builder.add(ptr, word);
-                    let len = builder.mload(ptr);
+                    let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+                    let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
                     return (data, len);
                 }
                 sym::encode => {
@@ -840,9 +841,8 @@ impl<'gcx> Lowerer<'gcx> {
         // A `bytes memory` value: `[length][data...]` pointer.
         if self.expr_yields_memory_bytes(expr) {
             let ptr = self.lower_expr(builder, expr);
-            let word = builder.imm_u64(32);
-            let data = builder.add(ptr, word);
-            let len = builder.mload(ptr);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
             return (data, len);
         }
 
@@ -852,9 +852,8 @@ impl<'gcx> Lowerer<'gcx> {
         if self.expr_is_calldata_dynamic_bytes(expr) {
             let slice = self.lower_expr(builder, expr);
             let ptr = self.materialize_calldata_bytes(builder, slice);
-            let word = builder.imm_u64(32);
-            let len = builder.mload(ptr);
-            let data = builder.add(ptr, word);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             return (data, len);
         }
 
@@ -913,18 +912,16 @@ impl<'gcx> Lowerer<'gcx> {
         if self.expr_is_calldata_dynamic_bytes(inner) {
             let slice = self.lower_expr(builder, inner);
             let ptr = self.materialize_calldata_bytes(builder, slice);
-            let word = builder.imm_u64(32);
-            let len = builder.mload(ptr);
-            let data = builder.add(ptr, word);
+            let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+            let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
             return Some(builder.keccak256(data, len));
         }
 
         // Memory and storage values lower to a memory `[length][data...]`
         // pointer; hash the data that follows the length word.
         let ptr = self.lower_expr(builder, inner);
-        let word = builder.imm_u64(32);
-        let len = builder.mload(ptr);
-        let data = builder.add(ptr, word);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         Some(builder.keccak256(data, len))
     }
 

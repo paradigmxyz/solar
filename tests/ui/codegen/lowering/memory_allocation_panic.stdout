@@ -29,7 +29,7 @@ fn @makeBytes(arg0: u256) {
     revert 0, 36
   bb6:
     v9 = alloc memorybytes, exact, zeroed, panic, v7
-    mstore v9, arg0
+    set_memory_object_len memorybytes, v9, arg0
     v10 = mload v9
     mstore 128, v10
     returndata 128, 32
@@ -62,8 +62,8 @@ fn @makeArray(arg0: u256) {
     mstore 4, 65 !metadata(memory=scratch)
     revert 0, 36
   bb6:
-    v8 = alloc memoryarray, exact, zeroed, panic, v6
-    mstore v8, arg0
+    v8 = alloc memoryarray<1>, exact, zeroed, panic, v6
+    set_memory_object_len memoryarray, v8, arg0
     v9 = mload v8
     mstore 128, v9
     returndata 128, 32

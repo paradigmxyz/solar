@@ -23,7 +23,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     v7 = add v3, arg1
     v8 = make_calldata_slice v7, v6
     v9 = fmp
-    v10 = add v9, 32
+    v10 = memory_object_data memorybytes, v9
     v11 = add v10, 32
     v12 = sub v11, v10
     mstore v10, v12
@@ -45,7 +45,7 @@ fn @encode(arg0: calldataslice, arg1: u256) {
     v22 = add v17, v16
     calldatacopy v17, v21, v13
     v23 = sub v22, v10
-    mstore v9, v23
+    set_memory_object_len memorybytes, v9, v23
     v24 = add v23, 32
     v25 = add v9, v24
     set_fmp v25
@@ -57,7 +57,7 @@ fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32
-    v1 = mload arg0
+    v1 = memory_object_len memorybytes, arg0
     v2 = add v0, 32
     mstore v2, v1
     v3 = add v1, 31
@@ -67,7 +67,7 @@ fn @__ret_bytes(arg0: memorybytes) {
     v7 = sub v5, 32
     v8 = add v6, v7
     mstore v8, 0
-    v9 = add arg0, 32
+    v9 = memory_object_data memorybytes, arg0
     mcopy v6, v9, v1
     v10 = add 64, v5
     returndata v0, v10

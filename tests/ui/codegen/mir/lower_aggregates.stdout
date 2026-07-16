@@ -2,53 +2,59 @@
 ; module @LowerAggregates
 fn @storage_to_memory(arg0: u256, arg1: memptr) {
   bb0 (entry):
-    v0 = sload arg0 !metadata(storage=symbolic(arg0))
-    mstore arg1, v0
-    v1 = add arg0, 1
-    v2 = add arg1, 32
-    v3 = alloc memorystruct, exact, uninitialized, infallible, 64
-    v4 = sload v1 !metadata(storage=offset(arg0, 1))
-    mstore v3, v4
-    v5 = add v1, 1
-    v6 = add v3, 32
-    v7 = sload v5 !metadata(storage=offset(arg0, 2))
-    mstore v6, v7
-    mstore v2, v3
-    v8 = add arg0, 3
-    v9 = add arg1, 64
-    v10 = alloc memoryfixedarray, exact, uninitialized, infallible, 64
-    v11 = sload v8 !metadata(storage=offset(arg0, 3))
-    mstore v10, v11
-    v12 = add v8, 1
-    v13 = add v10, 32
-    v14 = sload v12 !metadata(storage=offset(arg0, 4))
+    v0 = memory_object_field_addr memorystruct<3>, arg1, 0
+    v1 = sload arg0 !metadata(storage=symbolic(arg0))
+    mstore v0, v1
+    v2 = memory_object_field_addr memorystruct<3>, arg1, 1
+    v3 = add arg0, 1
+    v4 = alloc memorystruct<2>, exact, uninitialized, infallible, 64
+    v5 = memory_object_field_addr memorystruct<2>, v4, 0
+    v6 = sload v3 !metadata(storage=offset(arg0, 1))
+    mstore v5, v6
+    v7 = memory_object_field_addr memorystruct<2>, v4, 1
+    v8 = add v3, 1
+    v9 = sload v8 !metadata(storage=offset(arg0, 2))
+    mstore v7, v9
+    mstore v2, v4
+    v10 = memory_object_field_addr memorystruct<3>, arg1, 2
+    v11 = add arg0, 3
+    v12 = alloc memoryfixedarray<2, 1>, exact, uninitialized, infallible, 64
+    v13 = memory_object_element_addr memoryfixedarray<2, 1>, v12, 0
+    v14 = sload v11 !metadata(storage=offset(arg0, 3))
     mstore v13, v14
-    mstore v9, v10
+    v15 = memory_object_element_addr memoryfixedarray<2, 1>, v12, 1
+    v16 = add v11, 1
+    v17 = sload v16 !metadata(storage=offset(arg0, 4))
+    mstore v15, v17
+    mstore v10, v12
     stop
 }
 
 fn @memory_to_storage(arg0: memptr, arg1: u256) {
   bb0 (entry):
-    v0 = mload arg0
-    sstore arg1, v0 !metadata(storage=symbolic(arg1))
-    v1 = add arg0, 32
-    v2 = add arg1, 1
-    v3 = mload v1
-    v4 = mload v3
-    sstore v2, v4 !metadata(storage=offset(arg1, 1))
-    v5 = add v3, 32
-    v6 = add v2, 1
-    v7 = mload v5
-    sstore v6, v7 !metadata(storage=offset(arg1, 2))
-    v8 = add arg0, 64
-    v9 = add arg1, 3
-    v10 = mload v8
-    v11 = mload v10
-    sstore v9, v11 !metadata(storage=offset(arg1, 3))
-    v12 = add v10, 32
-    v13 = add v9, 1
-    v14 = mload v12
-    sstore v13, v14 !metadata(storage=offset(arg1, 4))
+    v0 = memory_object_field_addr memorystruct<3>, arg0, 0
+    v1 = mload v0
+    sstore arg1, v1 !metadata(storage=symbolic(arg1))
+    v2 = memory_object_field_addr memorystruct<3>, arg0, 1
+    v3 = add arg1, 1
+    v4 = mload v2
+    v5 = memory_object_field_addr memorystruct<2>, v4, 0
+    v6 = mload v5
+    sstore v3, v6 !metadata(storage=offset(arg1, 1))
+    v7 = memory_object_field_addr memorystruct<2>, v4, 1
+    v8 = add v3, 1
+    v9 = mload v7
+    sstore v8, v9 !metadata(storage=offset(arg1, 2))
+    v10 = memory_object_field_addr memorystruct<3>, arg0, 2
+    v11 = add arg1, 3
+    v12 = mload v10
+    v13 = memory_object_element_addr memoryfixedarray<2, 1>, v12, 0
+    v14 = mload v13
+    sstore v11, v14 !metadata(storage=offset(arg1, 3))
+    v15 = memory_object_element_addr memoryfixedarray<2, 1>, v12, 1
+    v16 = add v11, 1
+    v17 = mload v15
+    sstore v16, v17 !metadata(storage=offset(arg1, 4))
     stop
 }
 

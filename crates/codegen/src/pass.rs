@@ -24,9 +24,9 @@ use crate::{
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
         JumpThreadingPass, LicmPass, LoadPrePass, LoopCanonicalizePass, LowerAbiEncodePass,
         LowerAbiPass, LowerAggregatesPass, LowerAllocPass, LowerDispatchPass, LowerEvmShapedPass,
-        LowerMappingSlotsPass, LowerSlicesPass, MemoryDsePass, OutlineRevertsPass, PrePass,
-        PureEvalPass, SccpTransformPass, StaticAllocPass, StorageDsePass, StorageLoadCsePass,
-        StorageScalarPromotionPass,
+        LowerMappingSlotsPass, LowerMemoryObjectsPass, LowerSlicesPass, MemoryDsePass,
+        OutlineRevertsPass, PrePass, PureEvalPass, SccpTransformPass, StaticAllocPass,
+        StorageDsePass, StorageLoadCsePass, StorageScalarPromotionPass,
     },
 };
 use solar_data_structures::map::FxHashMap;
@@ -183,6 +183,9 @@ declare_passes! {
     /// Lower semantic memory/storage aggregate operations to word operations.
     pub const LOWER_AGGREGATES_PASS -> "lower-aggregates" = LowerAggregatesPass;
 
+    /// Lower semantic memory-object layouts and accesses to physical words.
+    const LOWER_MEMORY_OBJECTS_PASS_BASE -> "lower-memory-objects" = LowerMemoryObjectsPass::default();
+
     /// Lower logical slices to their pointer and length words.
     pub(crate) const LOWER_SLICES_PASS -> "lower-slices" = LowerSlicesPass::default();
 
@@ -200,10 +203,15 @@ pub(crate) const LOWER_ABI_PASS: PassInfo =
 pub(crate) const LOWER_DISPATCH_PASS: PassInfo =
     LOWER_DISPATCH_PASS_BASE.phases(MirPhase::Abi, MirPhase::Abi);
 
+/// Memory-object phase lowering: consumes up to `dispatch`-phase MIR and, for
+/// a dispatched module, produces the `memory-lowered` phase.
+pub const LOWER_MEMORY_OBJECTS_PASS: PassInfo =
+    LOWER_MEMORY_OBJECTS_PASS_BASE.phases(MirPhase::Built, MirPhase::Dispatch);
+
 /// EVM-shape lowering with its phase range declared: consumes exactly
-/// `dispatch`-phase MIR and produces the `evm-shaped` phase.
+/// `memory-lowered` MIR and produces the `evm-shaped` phase.
 pub(crate) const LOWER_EVM_SHAPED_PASS: PassInfo =
-    LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::Dispatch, MirPhase::Dispatch);
+    LOWER_EVM_SHAPED_PASS_BASE.phases(MirPhase::MemoryLowered, MirPhase::MemoryLowered);
 
 /// All known MIR passes exposed to `solar mir-opt`.
 pub const PASS_REGISTRY: &[PassInfo] = &[
@@ -237,6 +245,7 @@ pub const PASS_REGISTRY: &[PassInfo] = &[
     LOWER_MAPPING_SLOTS_PASS,
     LOWER_ABI_ENCODE_PASS,
     LOWER_AGGREGATES_PASS,
+    LOWER_MEMORY_OBJECTS_PASS,
     LOWER_SLICES_PASS,
     LOWER_ALLOC_PASS,
 ];

@@ -44,6 +44,9 @@ impl LowerEvmShapedPass {
         if module.phase >= MirPhase::EvmShaped {
             return false;
         }
+        if module.phase != MirPhase::MemoryLowered {
+            return false;
+        }
 
         // Dispatch already uses explicit tail calls. Most modules have no
         // resultless internal call left to reshape, so avoid building a call

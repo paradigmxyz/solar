@@ -32,13 +32,13 @@ fn @encode3(arg0: u256, arg1: u256, arg2: u256) {
   bb2:
     mstore 128, 0
     v3 = fmp
-    v4 = add v3, 32
+    v4 = memory_object_data memorybytes, v3
     mstore v4, arg0
     v5 = add v4, 32
     mstore v5, arg1
     v6 = add v4, 64
     mstore v6, arg2
-    mstore v3, 96
+    set_memory_object_len memorybytes, v3, 96
     v7 = add 96, 32
     v8 = add v3, v7
     set_fmp v8
@@ -50,7 +50,7 @@ fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32
-    v1 = mload arg0
+    v1 = memory_object_len memorybytes, arg0
     v2 = add v0, 32
     mstore v2, v1
     v3 = add v1, 31
@@ -60,7 +60,7 @@ fn @__ret_bytes(arg0: memorybytes) {
     v7 = sub v5, 32
     v8 = add v6, v7
     mstore v8, 0
-    v9 = add arg0, 32
+    v9 = memory_object_data memorybytes, arg0
     mcopy v6, v9, v1
     v10 = add 64, v5
     returndata v0, v10
@@ -82,19 +82,19 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     mstore 128, 0
     v12 = fmp
-    v13 = add v12, 32
+    v13 = memory_object_data memorybytes, v12
     v14 = add v13, 64
     mstore v13, arg0
     v15 = add v13, 32
     v16 = sub v14, v13
     mstore v15, v16
-    v17 = mload v9
+    v17 = memory_object_len memorybytes, v9
     mstore v14, v17
     v18 = not 31
     v19 = add v17, 31
@@ -108,11 +108,11 @@ fn @encodeDynamic(arg0: u256, arg1: memorybytes) {
     mstore v24, 0
     jump bb4
   bb4:
-    v25 = add v9, 32
+    v25 = memory_object_data memorybytes, v9
     v26 = add v21, v20
     mcopy v21, v25, v17
     v27 = sub v26, v13
-    mstore v12, v27
+    set_memory_object_len memorybytes, v12, v27
     v28 = add v27, 32
     v29 = add v12, v28
     set_fmp v29
@@ -136,8 +136,8 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     mstore 128, 0
@@ -147,7 +147,7 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) {
     v14 = add v12, 32
     v15 = sub v13, v12
     mstore v14, v15
-    v16 = mload v9
+    v16 = memory_object_len memorybytes, v9
     mstore v13, v16
     v17 = not 31
     v18 = add v16, 31
@@ -161,7 +161,7 @@ fn @hashDynamic(arg0: u256, arg1: memorybytes) {
     mstore v23, 0
     jump bb4
   bb4:
-    v24 = add v9, 32
+    v24 = memory_object_data memorybytes, v9
     v25 = add v20, v19
     mcopy v20, v24, v16
     v26 = sub v25, v12
@@ -181,19 +181,19 @@ fn @roundtrip(arg0: u256) {
   bb2:
     mstore 128, 0
     v3 = fmp
-    v4 = add v3, 32
+    v4 = memory_object_data memorybytes, v3
     mstore v4, arg0
-    mstore v3, 32
+    set_memory_object_len memorybytes, v3, 32
     v5 = add 32, 32
     v6 = add v3, v5
     set_fmp v6
-    v7 = mload v3
+    v7 = memory_object_len memorybytes, v3
     v8 = lt v7, 32
     br v8, bb3, bb4
   bb3:
     revert 0, 0
   bb4:
-    v9 = add v3, 32
+    v9 = memory_object_data memorybytes, v3
     v10 = mload v9
     mstore 128, v10
     returndata 128, 32

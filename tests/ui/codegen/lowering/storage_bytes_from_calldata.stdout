@@ -31,15 +31,15 @@ fn @setText(arg0: calldataslice) {
     revert 0, 36
   bb6:
     v12 = alloc memorybytes, exact, uninitialized, infallible, v10
-    mstore v12, v3
-    v13 = add v12, 32
+    set_memory_object_len memorybytes, v12, v3
+    v13 = memory_object_data memorybytes, v12
     v14 = sub v9, 32
     v15 = add v13, v14
     mstore v15, 0
     v16 = slice_ptr arg0
     calldatacopy v13, v16, v3
-    v17 = mload v12
-    v18 = add v12, 32
+    v17 = memory_object_len memorybytes, v12
+    v18 = memory_object_data memorybytes, v12
     v19 = sload 0 !metadata(storage=slot(0))
     v20 = and v19, 1
     v21 = eq v20, 1
@@ -140,15 +140,15 @@ fn @setBlob(arg0: calldataslice) {
     revert 0, 36
   bb6:
     v12 = alloc memorybytes, exact, uninitialized, infallible, v10
-    mstore v12, v3
-    v13 = add v12, 32
+    set_memory_object_len memorybytes, v12, v3
+    v13 = memory_object_data memorybytes, v12
     v14 = sub v9, 32
     v15 = add v13, v14
     mstore v15, 0
     v16 = slice_ptr arg0
     calldatacopy v13, v16, v3
-    v17 = mload v12
-    v18 = add v12, 32
+    v17 = memory_object_len memorybytes, v12
+    v18 = memory_object_data memorybytes, v12
     v19 = sload 1 !metadata(storage=slot(1))
     v20 = and v19, 1
     v21 = eq v20, 1
@@ -242,9 +242,9 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v11 = select v10, 32, v9
     v12 = add 32, v11
     v13 = alloc raw, exact, uninitialized, infallible, 32
-    v14 = alloc raw, exact, uninitialized, infallible, v12
-    mstore v14, v6
-    v15 = add v14, 32
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v14, v6
+    v15 = memory_object_data memorybytes, v14
     br v2, bb2, bb1
   bb1:
     v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -276,7 +276,7 @@ fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32
-    v1 = mload arg0
+    v1 = memory_object_len memorybytes, arg0
     v2 = add v0, 32
     mstore v2, v1
     v3 = add v1, 31
@@ -286,7 +286,7 @@ fn @__ret_bytes(arg0: memorybytes) {
     v7 = sub v5, 32
     v8 = add v6, v7
     mstore v8, 0
-    v9 = add arg0, 32
+    v9 = memory_object_data memorybytes, arg0
     mcopy v6, v9, v1
     v10 = add 64, v5
     returndata v0, v10

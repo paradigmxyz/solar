@@ -1,8 +1,8 @@
 //! MIR instructions.
 
 use super::{
-    AbiLayoutRef, BlockId, Function, FunctionId, MemoryObjectKind, MirType, SliceLocation,
-    StorageLayoutRef, Value, ValueId,
+    AbiLayoutRef, BlockId, Function, FunctionId, MemoryObjectKind, MemoryObjectLayout, MirType,
+    SliceLocation, StorageLayoutRef, Value, ValueId,
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
@@ -399,7 +399,7 @@ pub enum AllocationKind {
     /// Untyped compiler scratch or ABI staging memory.
     Raw,
     /// A Solidity memory object whose layout is owned by the memory model.
-    Object(MemoryObjectKind),
+    Object(MemoryObjectLayout),
 }
 
 impl AllocationKind {
@@ -408,7 +408,7 @@ impl AllocationKind {
     pub const fn result_type(self) -> MirType {
         match self {
             Self::Raw => MirType::MemPtr,
-            Self::Object(kind) => MirType::MemoryObject(kind),
+            Self::Object(layout) => MirType::MemoryObject(layout.kind()),
         }
     }
 }
@@ -550,6 +550,30 @@ pub(crate) enum InstKind {
         kind: AllocationKind,
         /// Alignment, initialization, and failure behavior.
         semantics: AllocationSemantics,
+    },
+    /// Read the logical length of a dynamic memory object.
+    MemoryObjectLen(ValueId, MemoryObjectKind),
+    /// Set the logical length of a dynamic memory object.
+    SetMemoryObjectLen(ValueId, ValueId, MemoryObjectKind),
+    /// Project the address of the first payload byte from an object.
+    MemoryObjectData(ValueId, MemoryObjectKind),
+    /// Address a direct field of a struct object.
+    MemoryObjectFieldAddr {
+        /// Struct object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Zero-based direct field index.
+        field: u64,
+    },
+    /// Address an array element under the semantic object layout.
+    MemoryObjectElementAddr {
+        /// Array object reference.
+        object: ValueId,
+        /// Complete direct-object layout.
+        layout: MemoryObjectLayout,
+        /// Runtime element index.
+        index: ValueId,
     },
     /// ABI-encode values into a freshly allocated memory slice.
     AbiEncode {
@@ -808,6 +832,12 @@ impl InstKind {
                 out.push(*len);
             }
 
+            Self::SetMemoryObjectLen(object, len, _)
+            | Self::MemoryObjectElementAddr { object, index: len, .. } => {
+                out.push(*object);
+                out.push(*len);
+            }
+
             Self::StorageToMemory { storage, memory, .. }
             | Self::MemoryToStorage { memory, storage, .. } => {
                 out.push(*storage);
@@ -831,7 +861,10 @@ impl InstKind {
             | Self::ExtCodeHash(a)
             | Self::Balance(a)
             | Self::BlockHash(a)
-            | Self::BlobHash(a) => {
+            | Self::BlobHash(a)
+            | Self::MemoryObjectLen(a, _)
+            | Self::MemoryObjectData(a, _)
+            | Self::MemoryObjectFieldAddr { object: a, .. } => {
                 out.push(*a);
             }
 
@@ -996,6 +1029,12 @@ impl InstKind {
                 f(len);
             }
 
+            Self::SetMemoryObjectLen(object, len, _)
+            | Self::MemoryObjectElementAddr { object, index: len, .. } => {
+                f(object);
+                f(len);
+            }
+
             Self::StorageToMemory { storage, memory, .. }
             | Self::MemoryToStorage { memory, storage, .. } => {
                 f(storage);
@@ -1024,7 +1063,10 @@ impl InstKind {
             | Self::BlockHash(a)
             | Self::BlobHash(a)
             | Self::SlicePtr(a)
-            | Self::SliceLen(a) => f(a),
+            | Self::SliceLen(a)
+            | Self::MemoryObjectLen(a, _)
+            | Self::MemoryObjectData(a, _)
+            | Self::MemoryObjectFieldAddr { object: a, .. } => f(a),
 
             Self::Alloc { size, .. } => f(size),
 
@@ -1162,6 +1204,7 @@ impl InstKind {
                 | Self::MStore8(_, _)
                 | Self::SetFmp(_)
                 | Self::Alloc { .. }
+                | Self::SetMemoryObjectLen(_, _, _)
                 | Self::AbiEncode { .. }
                 | Self::StorageToMemory { .. }
                 | Self::MCopy(_, _, _)
@@ -1213,6 +1256,11 @@ impl InstKind {
             Self::Fmp => "fmp",
             Self::SetFmp(_) => "set_fmp",
             Self::Alloc { .. } => "alloc",
+            Self::MemoryObjectLen(_, _) => "memory_object_len",
+            Self::SetMemoryObjectLen(_, _, _) => "set_memory_object_len",
+            Self::MemoryObjectData(_, _) => "memory_object_data",
+            Self::MemoryObjectFieldAddr { .. } => "memory_object_field_addr",
+            Self::MemoryObjectElementAddr { .. } => "memory_object_element_addr",
             Self::AbiEncode { .. } => "abi_encode",
             Self::StorageToMemory { .. } => "storage_to_memory",
             Self::MemoryToStorage { .. } => "memory_to_storage",
@@ -1293,6 +1341,7 @@ impl InstKind {
             | Self::MStore8(_, _)
             | Self::SetFmp(_)
             | Self::Alloc { .. }
+            | Self::SetMemoryObjectLen(_, _, _)
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
@@ -1326,6 +1375,7 @@ impl InstKind {
             | Self::MStore8(_, _)
             | Self::SetFmp(_)
             | Self::Alloc { .. }
+            | Self::SetMemoryObjectLen(_, _, _)
             | Self::AbiEncode { .. }
             | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
@@ -1334,6 +1384,7 @@ impl InstKind {
             | Self::ExtCodeCopy(_, _, _, _)
             | Self::ReturnDataCopy(_, _, _) => EffectKind::MemoryWrite,
             Self::MLoad(_)
+            | Self::MemoryObjectLen(_, _)
             | Self::Fmp
             | Self::MSize
             | Self::Keccak256(_, _)
@@ -1408,6 +1459,9 @@ impl InstKind {
             | Self::MakeSlice { .. }
             | Self::SlicePtr(_)
             | Self::SliceLen(_)
+            | Self::MemoryObjectData(_, _)
+            | Self::MemoryObjectFieldAddr { .. }
+            | Self::MemoryObjectElementAddr { .. }
             | Self::InternalFrameAddr(_)
             | Self::Phi(_)
             | Self::Select(_, _, _)

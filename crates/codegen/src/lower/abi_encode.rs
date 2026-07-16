@@ -9,7 +9,10 @@
 use super::Lowerer;
 use crate::{
     memory::EvmMemoryLayout,
-    mir::{AbiLayout, AbiType, FunctionBuilder, MirType, SliceLocation, Value, ValueId},
+    mir::{
+        AbiLayout, AbiType, FunctionBuilder, MemoryObjectKind, MirType, SliceLocation, Value,
+        ValueId,
+    },
     transform::lower_abi_encode::{AbiScratch, encode_tuple},
 };
 use alloy_primitives::U256;
@@ -273,14 +276,6 @@ impl<'gcx> Lowerer<'gcx> {
         }
     }
 
-    pub(super) fn allocate_memory_dynamic(
-        &mut self,
-        builder: &mut FunctionBuilder<'_>,
-        size: ValueId,
-    ) -> ValueId {
-        builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL)
-    }
-
     /// Allocates a shaped Solidity memory object with a dynamic byte size.
     pub(super) fn allocate_memory_object_dynamic(
         &mut self,
@@ -288,7 +283,16 @@ impl<'gcx> Lowerer<'gcx> {
         size: ValueId,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
-        builder.alloc_object(size, kind, crate::mir::AllocationSemantics::INTERNAL)
+        let layout = match kind {
+            crate::mir::MemoryObjectKind::Bytes => crate::mir::MemoryObjectLayout::Bytes,
+            crate::mir::MemoryObjectKind::DynamicArray => {
+                crate::mir::MemoryObjectLayout::DynamicArray { element_words: 1 }
+            }
+            crate::mir::MemoryObjectKind::FixedArray | crate::mir::MemoryObjectKind::Struct => {
+                unreachable!("statically shaped objects require a constant allocation size")
+            }
+        };
+        builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL)
     }
 
     /// Resolves each argument's ABI type and lowers it to a `(value, type)`
@@ -348,9 +352,9 @@ impl<'gcx> Lowerer<'gcx> {
         let scratch_base =
             (scratch_words > 0).then(|| self.allocate_memory(builder, scratch_words * 32));
 
-        let ptr = builder.fmp();
+        let ptr = builder.fmp_object(crate::mir::MemoryObjectLayout::Bytes);
         let word = builder.imm_u64(32);
-        let dest = builder.add(ptr, word);
+        let dest = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let size = if items.is_empty() {
             builder.imm_u64(0)
         } else {
@@ -362,7 +366,7 @@ impl<'gcx> Lowerer<'gcx> {
                 AbiScratch { base: scratch_base, depth: 0 },
             )
         };
-        builder.mstore(ptr, size);
+        builder.set_memory_object_len(ptr, size, MemoryObjectKind::Bytes);
 
         // Finalize the allocation: length word + encoded data. The tuple
         // encoder itself never allocates (its scratch is reserved above), so
@@ -557,9 +561,13 @@ impl<'gcx> Lowerer<'gcx> {
         let total_size = builder.add(word_size, data_size);
 
         let scratch_base = self.allocate_memory(builder, 32);
-        let ptr = self.allocate_memory_dynamic(builder, total_size);
-        builder.mstore(ptr, len);
-        let data_ptr = builder.add(ptr, word_size);
+        let ptr = self.allocate_memory_object_dynamic(
+            builder,
+            total_size,
+            crate::mir::MemoryObjectKind::Bytes,
+        );
+        builder.set_memory_object_len(ptr, len, MemoryObjectKind::Bytes);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
 
         let short_block = builder.create_block();
         let long_block = builder.create_block();
@@ -617,9 +625,9 @@ impl<'gcx> Lowerer<'gcx> {
         slot: ValueId,
         ptr: ValueId,
     ) {
-        let len = builder.mload(ptr);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let word_size = builder.imm_u64(32);
-        let data = builder.add(ptr, word_size);
+        let data = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
 
         // Decode the previous value's data-word count so stale slots are cleared.
         let old_word = builder.sload(slot);

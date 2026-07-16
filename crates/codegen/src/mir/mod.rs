@@ -5,7 +5,7 @@
 use solar_data_structures::newtype_index;
 
 mod types;
-pub(crate) use types::{MemoryObjectKind, MirType, SliceLocation};
+pub(crate) use types::{MemoryObjectKind, MemoryObjectLayout, MirType, SliceLocation};
 
 mod abi;
 pub use abi::{AbiLayout, AbiLayoutRef, AbiType};

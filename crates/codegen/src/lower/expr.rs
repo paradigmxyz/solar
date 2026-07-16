@@ -4,7 +4,7 @@ use super::{
     Lowerer,
     checked_arith::{ArithmeticInfo, PanicCode},
 };
-use crate::mir::{FunctionBuilder, MirType, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, MirType, ValueId};
 use alloy_primitives::U256;
 use solar_ast::{LitKind, StrKind};
 use solar_interface::{Ident, Span, Symbol, kw, sym};
@@ -342,12 +342,12 @@ impl<'gcx> Lowerer<'gcx> {
                     && self.is_memory_struct_base(base, struct_id)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
-                    if field_offset == 0 {
-                        return builder.mload(base_val);
-                    }
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(base_val, offset_val);
+                    let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                    let field_addr = builder.memory_object_field_addr(
+                        base_val,
+                        crate::mir::MemoryObjectLayout::structure(fields),
+                        field_index as u64,
+                    );
                     return builder.mload(field_addr);
                 }
 
@@ -355,12 +355,12 @@ impl<'gcx> Lowerer<'gcx> {
                     self.get_memory_struct_field_info(base, *member)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
-                    if field_offset == 0 {
-                        return builder.mload(base_val);
-                    }
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(base_val, offset_val);
+                    let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                    let field_addr = builder.memory_object_field_addr(
+                        base_val,
+                        crate::mir::MemoryObjectLayout::structure(fields),
+                        field_index as u64,
+                    );
                     return builder.mload(field_addr);
                 }
 
@@ -545,7 +545,11 @@ impl<'gcx> Lowerer<'gcx> {
                     let padded = builder.and(rounded, mask);
                     let word = builder.imm_u64(32);
                     let total = builder.add(word, padded);
-                    let ptr = self.allocate_memory_dynamic(builder, total);
+                    let ptr = self.allocate_memory_object_dynamic(
+                        builder,
+                        total,
+                        crate::mir::MemoryObjectKind::Bytes,
+                    );
                     builder.mstore(ptr, slice_len);
                     let dst = builder.add(ptr, word);
                     let data = builder.add(base_ptr, word);
@@ -912,7 +916,7 @@ impl<'gcx> Lowerer<'gcx> {
         let head_offset = builder.imm_u64(32);
         builder.mstore(selector_size, head_offset);
 
-        let len = builder.mload(ptr);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let len_offset = builder.imm_u64(36);
         builder.mstore(len_offset, len);
 
@@ -1094,11 +1098,10 @@ impl<'gcx> Lowerer<'gcx> {
 
         // Store length at ptr
         let len_val = builder.imm_u64(bytecode_len as u64);
-        builder.mstore(ptr, len_val);
+        builder.set_memory_object_len(ptr, len_val, MemoryObjectKind::Bytes);
 
         // Copy bytecode to ptr+32 using MSTORE loop
-        let thirty_two = builder.imm_u64(32);
-        let data_start = builder.add(ptr, thirty_two);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
 
         let mut offset = 0u64;
         for chunk in bytecode.chunks(32) {
@@ -1335,13 +1338,12 @@ impl<'gcx> Lowerer<'gcx> {
                     && self.is_memory_struct_base(base, struct_id)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
-                    if field_offset == 0 {
-                        builder.mstore(base_val, rhs);
-                        return;
-                    }
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(base_val, offset_val);
+                    let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                    let field_addr = builder.memory_object_field_addr(
+                        base_val,
+                        crate::mir::MemoryObjectLayout::structure(fields),
+                        field_index as u64,
+                    );
                     builder.mstore(field_addr, rhs);
                     return;
                 }
@@ -1350,13 +1352,12 @@ impl<'gcx> Lowerer<'gcx> {
                     self.get_memory_struct_field_info(base, *member)
                 {
                     let base_val = self.lower_expr(builder, base);
-                    let field_offset = self.get_struct_field_memory_offset(struct_id, field_index);
-                    if field_offset == 0 {
-                        builder.mstore(base_val, rhs);
-                        return;
-                    }
-                    let offset_val = builder.imm_u64(field_offset);
-                    let field_addr = builder.add(base_val, offset_val);
+                    let fields = self.gcx.hir.strukt(struct_id).fields.len() as u64;
+                    let field_addr = builder.memory_object_field_addr(
+                        base_val,
+                        crate::mir::MemoryObjectLayout::structure(fields),
+                        field_index as u64,
+                    );
                     builder.mstore(field_addr, rhs);
                     return;
                 }
@@ -1732,14 +1733,12 @@ impl<'gcx> Lowerer<'gcx> {
             // values therefore materialize recursively before storing their
             // pointer in the field slot.
             let field_val = self.lower_return_value_for_ty(builder, arg, field_tys[i]);
-            let field_offset = (i as u64) * 32;
-            if field_offset == 0 {
-                builder.mstore(struct_ptr, field_val);
-            } else {
-                let offset_val = builder.imm_u64(field_offset);
-                let field_addr = builder.add(struct_ptr, offset_val);
-                builder.mstore(field_addr, field_val);
-            }
+            let field_addr = builder.memory_object_field_addr(
+                struct_ptr,
+                crate::mir::MemoryObjectLayout::structure(num_fields as u64),
+                i as u64,
+            );
+            builder.mstore(field_addr, field_val);
         }
 
         // Return the pointer to the struct
@@ -1763,8 +1762,20 @@ impl<'gcx> Lowerer<'gcx> {
         size: u64,
         kind: crate::mir::MemoryObjectKind,
     ) -> ValueId {
+        let layout = match kind {
+            crate::mir::MemoryObjectKind::Bytes => crate::mir::MemoryObjectLayout::Bytes,
+            crate::mir::MemoryObjectKind::DynamicArray => {
+                crate::mir::MemoryObjectLayout::DynamicArray { element_words: 1 }
+            }
+            crate::mir::MemoryObjectKind::FixedArray => {
+                crate::mir::MemoryObjectLayout::FixedArray { len: size / 32, element_words: 1 }
+            }
+            crate::mir::MemoryObjectKind::Struct => {
+                crate::mir::MemoryObjectLayout::Struct { fields: size / 32 }
+            }
+        };
         let size = builder.imm_u64(size);
-        builder.alloc_object(size, kind, crate::mir::AllocationSemantics::INTERNAL)
+        builder.alloc_object(size, layout, crate::mir::AllocationSemantics::INTERNAL)
     }
 
     /// Lowers `abi.decode(data, (T...))` for elementary values from memory
@@ -1797,14 +1808,13 @@ impl<'gcx> Lowerer<'gcx> {
         } else {
             self.lower_expr(builder, data)
         };
-        let word = builder.imm_u64(32);
-        let len = builder.mload(ptr);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let head_size = (elems.len() * 32) as u64;
         let required = builder.imm_u64(head_size);
         let is_short = builder.lt(len, required);
         self.emit_abi_decode_revert_if(builder, is_short);
 
-        let data_start = builder.add(ptr, word);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let mut decoded_values = Vec::with_capacity(elems.len());
         for (i, elem) in elems.iter().enumerate() {
             let addr = self.offset_ptr(builder, data_start, (i * 32) as u64);
@@ -1908,9 +1918,9 @@ impl<'gcx> Lowerer<'gcx> {
             total_size,
             crate::mir::MemoryObjectKind::Bytes,
         );
-        builder.mstore(ptr, tail_len);
+        builder.set_memory_object_len(ptr, tail_len, MemoryObjectKind::Bytes);
 
-        let data_ptr = builder.add(ptr, word);
+        let data_ptr = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let zero = builder.imm_u64(0);
         let last_word_offset = builder.sub(data_size, word);
         let last_word = builder.add(data_ptr, last_word_offset);
@@ -2807,9 +2817,9 @@ impl<'gcx> Lowerer<'gcx> {
             return builder.mapping_slot_memory(ptr, slot);
         }
 
-        let len = builder.mload(ptr);
+        let len = builder.memory_object_len(ptr, MemoryObjectKind::Bytes);
         let word_size = builder.imm_u64(32);
-        let data_start = builder.add(ptr, word_size);
+        let data_start = builder.memory_object_data(ptr, MemoryObjectKind::Bytes);
         let scratch = builder.fmp();
         self.mcopy(builder, scratch, data_start, len, None);
         let slot_addr = builder.add(scratch, len);

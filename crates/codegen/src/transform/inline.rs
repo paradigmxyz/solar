@@ -462,7 +462,13 @@ struct MirCost {
 
 fn estimate_inst_cost(kind: &InstKind) -> MirCost {
     let (runtime_gas, code_size) = match kind {
-        InstKind::MakeSlice { .. } | InstKind::SlicePtr(_) | InstKind::SliceLen(_) => (0, 0),
+        InstKind::MakeSlice { .. }
+        | InstKind::SlicePtr(_)
+        | InstKind::SliceLen(_)
+        | InstKind::MemoryObjectData(_, _)
+        | InstKind::MemoryObjectFieldAddr { .. } => (0, 0),
+        InstKind::MemoryObjectElementAddr { .. } => (5, 2),
+        InstKind::MemoryObjectLen(_, _) | InstKind::SetMemoryObjectLen(_, _, _) => (3, 1),
         InstKind::Fmp | InstKind::SetFmp(_) => (3, 1),
         InstKind::Alloc { .. } => (9, 3),
         InstKind::AbiEncode { args, layout, .. } => {
@@ -799,6 +805,27 @@ impl<'a> InlineCloner<'a> {
             },
             InstKind::SlicePtr(slice) => InstKind::SlicePtr(self.clone_value(slice)?),
             InstKind::SliceLen(slice) => InstKind::SliceLen(self.clone_value(slice)?),
+            InstKind::MemoryObjectLen(object, kind) => {
+                InstKind::MemoryObjectLen(self.clone_value(object)?, kind)
+            }
+            InstKind::SetMemoryObjectLen(object, len, kind) => InstKind::SetMemoryObjectLen(
+                self.clone_value(object)?,
+                self.clone_value(len)?,
+                kind,
+            ),
+            InstKind::MemoryObjectData(object, kind) => {
+                InstKind::MemoryObjectData(self.clone_value(object)?, kind)
+            }
+            InstKind::MemoryObjectFieldAddr { object, layout, field } => {
+                InstKind::MemoryObjectFieldAddr { object: self.clone_value(object)?, layout, field }
+            }
+            InstKind::MemoryObjectElementAddr { object, layout, index } => {
+                InstKind::MemoryObjectElementAddr {
+                    object: self.clone_value(object)?,
+                    layout,
+                    index: self.clone_value(index)?,
+                }
+            }
             InstKind::StorageToMemory { storage, memory, layout } => InstKind::StorageToMemory {
                 storage: self.clone_value(storage)?,
                 memory: self.clone_value(memory)?,

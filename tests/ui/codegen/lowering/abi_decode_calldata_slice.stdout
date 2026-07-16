@@ -44,20 +44,20 @@ fn @decode(arg0: calldataslice) {
     revert 0, 36
   bb8:
     v18 = alloc memorybytes, exact, uninitialized, infallible, v16
-    mstore v18, v9
-    v19 = add v18, 32
+    set_memory_object_len memorybytes, v18, v9
+    v19 = memory_object_data memorybytes, v18
     v20 = sub v15, 32
     v21 = add v19, v20
     mstore v21, 0
     v22 = slice_ptr v8
     calldatacopy v19, v22, v9
-    v23 = mload v18
+    v23 = memory_object_len memorybytes, v18
     v24 = lt v23, 32
     br v24, bb9, bb10
   bb9:
     revert 0, 0
   bb10:
-    v25 = add v18, 32
+    v25 = memory_object_data memorybytes, v18
     v26 = mload v25
     mstore 128, v26
     returndata 128, 32

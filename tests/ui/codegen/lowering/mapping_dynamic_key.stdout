@@ -32,8 +32,8 @@ fn @set(arg0: memorybytes, arg1: address) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     v12 = calldataload 36
@@ -64,8 +64,8 @@ fn @get(arg0: memorybytes) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     mstore 128, 0
@@ -165,9 +165,9 @@ fn @__load_storage_bytes(arg0: u256) -> memorybytes {
     v11 = select v10, 32, v9
     v12 = add 32, v11
     v13 = alloc raw, exact, uninitialized, infallible, 32
-    v14 = alloc raw, exact, uninitialized, infallible, v12
-    mstore v14, v6
-    v15 = add v14, 32
+    v14 = alloc memorybytes, exact, uninitialized, infallible, v12
+    set_memory_object_len memorybytes, v14, v6
+    v15 = memory_object_data memorybytes, v14
     br v2, bb2, bb1
   bb1:
     v16 = and v0, 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00
@@ -199,7 +199,7 @@ fn @__ret_bytes(arg0: memorybytes) {
   bb0 (entry):
     v0 = fmp
     mstore v0, 32
-    v1 = mload arg0
+    v1 = memory_object_len memorybytes, arg0
     v2 = add v0, 32
     mstore v2, v1
     v3 = add v1, 31
@@ -209,7 +209,7 @@ fn @__ret_bytes(arg0: memorybytes) {
     v7 = sub v5, 32
     v8 = add v6, v7
     mstore v8, 0
-    v9 = add arg0, 32
+    v9 = memory_object_data memorybytes, arg0
     mcopy v6, v9, v1
     v10 = add 64, v5
     returndata v0, v10
@@ -273,8 +273,8 @@ fn @setNestedFirst(arg0: memorybytes, arg1: address, arg2: u256) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     v12 = calldataload 36
@@ -306,8 +306,8 @@ fn @getNestedFirst(arg0: memorybytes, arg1: address) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
     v12 = calldataload 36
@@ -348,8 +348,8 @@ fn @setNestedSecond(arg0: address, arg1: memorybytes, arg2: u256) {
     v10 = and v8, v9
     v11 = add v10, 32
     v12 = alloc memorybytes, exact, uninitialized, infallible, v11
-    mstore v12, v7
-    v13 = add v12, 32
+    set_memory_object_len memorybytes, v12, v7
+    v13 = memory_object_data memorybytes, v12
     v14 = add v6, 32
     calldatacopy v13, v14, v7
     v15 = mapping_slot arg0, 2
@@ -374,12 +374,12 @@ fn @setSkey(arg0: memorybytes) {
     v7 = and v5, v6
     v8 = add v7, 32
     v9 = alloc memorybytes, exact, uninitialized, infallible, v8
-    mstore v9, v4
-    v10 = add v9, 32
+    set_memory_object_len memorybytes, v9, v4
+    v10 = memory_object_data memorybytes, v9
     v11 = add v3, 32
     calldatacopy v10, v11, v4
-    v12 = mload v9
-    v13 = add v9, 32
+    v12 = memory_object_len memorybytes, v9
+    v13 = memory_object_data memorybytes, v9
     v14 = sload 3 !metadata(storage=slot(3))
     v15 = and v14, 1
     v16 = eq v15, 1
@@ -495,7 +495,7 @@ fn @setThenAlloc(arg0: calldataslice, arg1: u256) {
     revert 0, 36
   bb6:
     v10 = alloc memorybytes, exact, zeroed, panic, v8
-    mstore v10, 32
+    set_memory_object_len memorybytes, v10, 32
     v11 = mload v10
     mstore 128, v11
     returndata 128, 32

@@ -1,7 +1,7 @@
 //! Index expression lowering.
 
 use super::Lowerer;
-use crate::mir::{FunctionBuilder, ValueId};
+use crate::mir::{FunctionBuilder, MemoryObjectKind, MemoryObjectLayout, ValueId};
 use alloy_primitives::U256;
 use solar_sema::{
     hir::{self, ElementaryType},
@@ -71,10 +71,9 @@ impl<'gcx> Lowerer<'gcx> {
         if self.expr_is_storage_bytes_lvalue(base) {
             let base_val = self.lower_expr(builder, base);
             let index_val = self.lower_index_or_zero(builder, index);
-            let len = builder.mload(base_val);
+            let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
-            let offset_32 = builder.imm_u64(32);
-            let data_base = builder.add(base_val, offset_32);
+            let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
             let byte_addr = builder.add(data_base, index_val);
             let word = builder.mload(byte_addr);
             let mask = builder.imm_u256(U256::from(0xffu64) << 248);
@@ -84,10 +83,9 @@ impl<'gcx> Lowerer<'gcx> {
         if self.is_memory_bytes_expr(base) {
             let base_val = self.lower_expr(builder, base);
             let index_val = self.lower_index_or_zero(builder, index);
-            let len = builder.mload(base_val);
+            let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
-            let offset_32 = builder.imm_u64(32);
-            let data_base = builder.add(base_val, offset_32);
+            let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
             let byte_addr = builder.add(data_base, index_val);
             let word = builder.mload(byte_addr);
             let mask = builder.imm_u256(U256::from(0xffu64) << 248);
@@ -109,23 +107,24 @@ impl<'gcx> Lowerer<'gcx> {
 
         let base_val = self.lower_expr(builder, base);
         let index_val = self.lower_index_or_zero(builder, index);
-        let offset_32 = builder.imm_u64(32);
-        let byte_offset = builder.mul(index_val, offset_32);
-        let data_base = if self.is_dynamic_memory_array_expr(base) {
+        let layout = if self.is_dynamic_memory_array_expr(base) {
             let len = self
                 .new_dynamic_memory_array_const_len(base)
                 .map(|len| builder.imm_u64(len))
-                .unwrap_or_else(|| builder.mload(base_val));
+                .unwrap_or_else(|| {
+                    builder.memory_object_len(base_val, MemoryObjectKind::DynamicArray)
+                });
             self.emit_index_bounds_check(builder, index_val, len);
-            builder.add(base_val, offset_32)
+            MemoryObjectLayout::WORD_ARRAY
         } else {
-            if let Some(len) = self.fixed_array_len_of_expr(base) {
+            let fixed_len = self.fixed_array_len_of_expr(base);
+            if let Some(len) = fixed_len {
                 let len_val = builder.imm_u64(len);
                 self.emit_index_bounds_check(builder, index_val, len_val);
             }
-            base_val
+            MemoryObjectLayout::word_fixed_array(fixed_len.unwrap_or(0))
         };
-        let addr = builder.add(data_base, byte_offset);
+        let addr = builder.memory_object_element_addr(base_val, layout, index_val);
         builder.mload(addr)
     }
 
@@ -172,10 +171,9 @@ impl<'gcx> Lowerer<'gcx> {
         if self.is_memory_bytes_expr(base) {
             let base_val = self.lower_expr(builder, base);
             let index_val = self.lower_index_or_zero(builder, index);
-            let len = builder.mload(base_val);
+            let len = builder.memory_object_len(base_val, MemoryObjectKind::Bytes);
             self.emit_index_bounds_check(builder, index_val, len);
-            let offset_32 = builder.imm_u64(32);
-            let data_base = builder.add(base_val, offset_32);
+            let data_base = builder.memory_object_data(base_val, MemoryObjectKind::Bytes);
             let byte_addr = builder.add(data_base, index_val);
             let byte_val = self.bytes1_store_byte(builder, rhs);
             builder.mstore8(byte_addr, byte_val);
@@ -184,20 +182,19 @@ impl<'gcx> Lowerer<'gcx> {
 
         let base_val = self.lower_expr(builder, base);
         let index_val = self.lower_index_or_zero(builder, index);
-        let offset_32 = builder.imm_u64(32);
-        let byte_offset = builder.mul(index_val, offset_32);
-        let data_base = if self.is_dynamic_memory_array_expr(base) {
-            let len = builder.mload(base_val);
+        let layout = if self.is_dynamic_memory_array_expr(base) {
+            let len = builder.memory_object_len(base_val, MemoryObjectKind::DynamicArray);
             self.emit_index_bounds_check(builder, index_val, len);
-            builder.add(base_val, offset_32)
+            MemoryObjectLayout::WORD_ARRAY
         } else {
-            if let Some(len) = self.fixed_array_len_of_expr(base) {
+            let fixed_len = self.fixed_array_len_of_expr(base);
+            if let Some(len) = fixed_len {
                 let len_val = builder.imm_u64(len);
                 self.emit_index_bounds_check(builder, index_val, len_val);
             }
-            base_val
+            MemoryObjectLayout::word_fixed_array(fixed_len.unwrap_or(0))
         };
-        let addr = builder.add(data_base, byte_offset);
+        let addr = builder.memory_object_element_addr(base_val, layout, index_val);
         builder.mstore(addr, rhs);
     }
 

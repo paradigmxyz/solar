@@ -339,6 +339,11 @@ impl<'a> FunctionBuilder<'a> {
         self.emit_inst(InstKind::Fmp, Some(MirType::MemPtr))
     }
 
+    /// Reads the free-memory pointer as the base of a semantic object being built in place.
+    pub fn fmp_object(&mut self, layout: crate::mir::MemoryObjectLayout) -> ValueId {
+        self.emit_inst(InstKind::Fmp, Some(MirType::MemoryObject(layout.kind())))
+    }
+
     /// Sets the free-memory pointer.
     pub fn set_fmp(&mut self, ptr: ValueId) {
         self.emit_void_inst(InstKind::SetFmp(ptr))
@@ -353,10 +358,64 @@ impl<'a> FunctionBuilder<'a> {
     pub fn alloc_object(
         &mut self,
         size: ValueId,
-        kind: crate::mir::MemoryObjectKind,
+        layout: crate::mir::MemoryObjectLayout,
         semantics: AllocationSemantics,
     ) -> ValueId {
-        self.alloc_kind(size, crate::mir::AllocationKind::Object(kind), semantics)
+        self.alloc_kind(size, crate::mir::AllocationKind::Object(layout), semantics)
+    }
+
+    /// Reads the logical length of a dynamic memory object.
+    pub fn memory_object_len(
+        &mut self,
+        object: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+    ) -> ValueId {
+        self.emit_inst(InstKind::MemoryObjectLen(object, kind), Some(MirType::uint256()))
+    }
+
+    /// Sets the logical length of a dynamic memory object.
+    pub fn set_memory_object_len(
+        &mut self,
+        object: ValueId,
+        len: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+    ) {
+        self.emit_void_inst(InstKind::SetMemoryObjectLen(object, len, kind))
+    }
+
+    /// Projects an object's data address.
+    pub fn memory_object_data(
+        &mut self,
+        object: ValueId,
+        kind: crate::mir::MemoryObjectKind,
+    ) -> ValueId {
+        self.emit_inst(InstKind::MemoryObjectData(object, kind), Some(MirType::MemPtr))
+    }
+
+    /// Addresses a direct struct field.
+    pub fn memory_object_field_addr(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        field: u64,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectFieldAddr { object, layout, field },
+            Some(MirType::MemPtr),
+        )
+    }
+
+    /// Addresses an array element.
+    pub fn memory_object_element_addr(
+        &mut self,
+        object: ValueId,
+        layout: crate::mir::MemoryObjectLayout,
+        index: ValueId,
+    ) -> ValueId {
+        self.emit_inst(
+            InstKind::MemoryObjectElementAddr { object, layout, index },
+            Some(MirType::MemPtr),
+        )
     }
 
     fn alloc_kind(

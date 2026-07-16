@@ -325,13 +325,13 @@ impl<'gcx> Lowerer<'gcx> {
         );
         for i in 0..len {
             let value = self.zero_memory_field_value_ty(builder, elem_ty, ty.span);
-            if i == 0 {
-                builder.mstore(ptr, value);
-            } else {
-                let offset = builder.imm_u64(i * 32);
-                let addr = builder.add(ptr, offset);
-                builder.mstore(addr, value);
-            }
+            let index = builder.imm_u64(i);
+            let addr = builder.memory_object_element_addr(
+                ptr,
+                crate::mir::MemoryObjectLayout::word_fixed_array(len),
+                index,
+            );
+            builder.mstore(addr, value);
         }
         Some(ptr)
     }
@@ -366,13 +366,13 @@ impl<'gcx> Lowerer<'gcx> {
                 );
                 for i in 0..len {
                     let value = self.zero_memory_field_value_ty(builder, elem_ty, span);
-                    if i == 0 {
-                        builder.mstore(ptr, value);
-                    } else {
-                        let offset = builder.imm_u64(i * 32);
-                        let addr = builder.add(ptr, offset);
-                        builder.mstore(addr, value);
-                    }
+                    let index = builder.imm_u64(i);
+                    let addr = builder.memory_object_element_addr(
+                        ptr,
+                        crate::mir::MemoryObjectLayout::word_fixed_array(len),
+                        index,
+                    );
+                    builder.mstore(addr, value);
                 }
                 ptr
             }
@@ -383,7 +383,11 @@ impl<'gcx> Lowerer<'gcx> {
                     crate::mir::MemoryObjectKind::DynamicArray,
                 );
                 let zero = builder.imm_u256(U256::ZERO);
-                builder.mstore(ptr, zero);
+                builder.set_memory_object_len(
+                    ptr,
+                    zero,
+                    crate::mir::MemoryObjectKind::DynamicArray,
+                );
                 ptr
             }
             TyKind::Struct(_) => {
@@ -413,16 +417,11 @@ impl<'gcx> Lowerer<'gcx> {
         };
 
         let field_tys = self.gcx.struct_field_types(struct_id).to_vec();
+        let layout = crate::mir::MemoryObjectLayout::structure(field_tys.len() as u64);
         for (i, field_ty) in field_tys.into_iter().enumerate() {
             let value = self.zero_memory_field_value_ty(builder, field_ty, span);
-            let field_offset = (i as u64) * 32;
-            if field_offset == 0 {
-                builder.mstore(ptr, value);
-            } else {
-                let offset_val = builder.imm_u64(field_offset);
-                let field_addr = builder.add(ptr, offset_val);
-                builder.mstore(field_addr, value);
-            }
+            let field_addr = builder.memory_object_field_addr(ptr, layout, i as u64);
+            builder.mstore(field_addr, value);
         }
     }
 
