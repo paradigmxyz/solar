@@ -310,15 +310,7 @@ impl Default for PipelineOptions {
 }
 
 /// Runs a named MIR pass over a module.
-pub fn run_pass(module: &mut Module, pass: &PassInfo) -> bool {
-    run_pass_with_options(module, pass, PipelineOptions::default())
-}
-
-pub fn run_pass_with_options(
-    module: &mut Module,
-    pass: &PassInfo,
-    options: PipelineOptions,
-) -> bool {
+pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
     if !pass.admits(module) {
@@ -337,23 +329,10 @@ pub fn run_pass_with_options(
 }
 
 /// Runs a named MIR pass pipeline over a module.
-pub fn run_pipeline(module: &mut Module, passes: &[PassInfo]) -> bool {
+pub fn run_pipeline(module: &mut Module, passes: &[PassInfo], options: PipelineOptions) -> bool {
     let mut changed = false;
     for pass in passes {
-        changed |= run_pass(module, pass);
-    }
-    changed
-}
-
-/// Runs a named MIR pass pipeline over a module with observer options.
-pub fn run_pipeline_with_options(
-    module: &mut Module,
-    passes: &[PassInfo],
-    options: PipelineOptions,
-) -> bool {
-    let mut changed = false;
-    for pass in passes {
-        changed |= run_pass_with_options(module, pass, options);
+        changed |= run_pass(module, pass, options);
         if options.print_after_each {
             println!("// === {} (after {}) ===", module.name, pass.name);
             print!("{}", module.to_text());
@@ -363,17 +342,12 @@ pub fn run_pipeline_with_options(
 }
 
 /// Runs the canonical MIR optimization pipeline used by EVM codegen.
-pub fn run_default_pipeline(module: &mut Module) -> bool {
-    run_default_pipeline_with_options(module, PipelineOptions::default())
-}
-
-/// Runs the canonical MIR optimization pipeline used by EVM codegen with options.
 ///
 /// This is a phase transition: the module comes out in [`MirPhase::Optimized`].
 /// Ad-hoc pass lists run through [`run_pipeline`], such as `solar mir-opt`
 /// invocations, deliberately do not advance the phase.
-pub fn run_default_pipeline_with_options(module: &mut Module, options: PipelineOptions) -> bool {
-    let mut changed = run_pipeline_with_options(module, DEFAULT_PIPELINE, options);
+pub fn run_default_pipeline(module: &mut Module, options: PipelineOptions) -> bool {
+    let mut changed = run_pipeline(module, DEFAULT_PIPELINE, options);
     changed |=
         run_cleanup_pipeline_to_fixpoint(module, DEFAULT_CLEANUP_PIPELINE, options, "cleanup");
     module.advance_phase(crate::mir::MirPhase::Optimized);
@@ -390,7 +364,7 @@ fn run_cleanup_pipeline_to_fixpoint(
     for round in 1..=DEFAULT_CLEANUP_MAX_ROUNDS {
         let mut round_changed = false;
         for pass in passes {
-            let pass_changed = run_pass_with_options(module, pass, options);
+            let pass_changed = run_pass(module, pass, options);
             round_changed |= pass_changed;
             if options.print_after_each {
                 println!("// === {} (after {label}-{round}:{}) ===", module.name, pass.name);

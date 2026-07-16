@@ -38,12 +38,7 @@ impl EvmIrPass {
     }
 
     /// Runs this pass on an EVM IR module.
-    pub fn run(self, module: &mut EvmIrModule) -> bool {
-        self.run_with_options(module, EvmIrPassOptions::default())
-    }
-
-    /// Runs this pass on an EVM IR module with observer options.
-    pub fn run_with_options(self, module: &mut EvmIrModule, options: EvmIrPassOptions) -> bool {
+    pub fn run(self, module: &mut EvmIrModule, options: EvmIrPassOptions) -> bool {
         let timer = PassTimer::new(options.time_passes);
         let changed = match self {
             Self::None => false,

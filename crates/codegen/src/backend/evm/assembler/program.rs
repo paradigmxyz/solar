@@ -146,7 +146,7 @@ impl StructuredAsmProgram {
             // always holds (the pass is a near no-op), but the guard means an
             // unexpected rewrite is dropped instead of changing produced code.
             let mut scheduled = module.clone();
-            if EvmIrPass::StackSchedule.run_with_options(&mut scheduled, pass_options)
+            if EvmIrPass::StackSchedule.run(&mut scheduled, pass_options)
                 && verify_evm_ir_module(&scheduled).is_ok()
                 && modules_have_equal_code(&module, &scheduled)
             {
@@ -157,7 +157,7 @@ impl StructuredAsmProgram {
 
         if context.run_evm_ir_layout_passes() {
             for pass in [EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup] {
-                changed += usize::from(pass.run_with_options(&mut module, pass_options));
+                changed += usize::from(pass.run(&mut module, pass_options));
             }
         }
         debug_assert!(verify_evm_ir_module(&module).is_ok());

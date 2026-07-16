@@ -60,14 +60,14 @@ fn run_pipeline(module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) -> Resu
     let options = EvmIrPassOptions { time_passes: args.time_passes };
     if args.print_after_each {
         for &pass in &args.passes {
-            pass.run_with_options(module, options);
+            pass.run(module, options);
             verify_evm_ir_module(module)
                 .map_err(|e| format!("EVM IR pass `{}` produced invalid IR: {e}", pass.name()))?;
             print_module(module, name, pass.name());
         }
     } else {
         for &pass in &args.passes {
-            pass.run_with_options(module, options);
+            pass.run(module, options);
         }
         verify_evm_ir_module(module)
             .map_err(|e| format!("EVM IR pipeline produced invalid IR: {e}"))?;

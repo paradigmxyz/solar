@@ -15,7 +15,7 @@ use solar_codegen::{
     mir::{Module, parse_module},
     pass::{
         DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, PASS_REGISTRY, PassInfo, PipelineOptions,
-        lookup_pass, run_default_pipeline_with_options, run_pass_with_options,
+        lookup_pass, run_default_pipeline, run_pass,
     },
 };
 use solar_data_structures::fmt::{self, FmtIteratorExt};
@@ -132,7 +132,7 @@ fn print_module(module: &Module, name: &str, after: &str) {
 /// Used for both .sol contracts and .mir input.
 fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) -> Result<(), String> {
     if args.pipeline_default {
-        run_default_pipeline_with_options(
+        run_default_pipeline(
             module,
             PipelineOptions {
                 print_after_each: args.print_after_each,
@@ -151,14 +151,14 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) -> Result<()
     if args.print_after_each {
         for pass in &passes {
             if let Some(pass) = *pass {
-                run_pass_with_options(module, pass, options);
+                run_pass(module, pass, options);
             }
             print_module(module, name, pass_label(*pass));
         }
     } else {
         for &pass in &passes {
             if let Some(pass) = pass {
-                run_pass_with_options(module, pass, options);
+                run_pass(module, pass, options);
             }
         }
         let label = args.pipeline_label(&passes);

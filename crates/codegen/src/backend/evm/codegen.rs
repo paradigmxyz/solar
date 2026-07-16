@@ -19,7 +19,7 @@ use crate::{
         PhiEliminator, reachable_blocks,
     },
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
-    pass::{PipelineOptions, run_default_pipeline_with_options, run_pass_with_options},
+    pass::{PipelineOptions, run_default_pipeline, run_pass},
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -1003,22 +1003,22 @@ impl EvmCodegen {
             ..PipelineOptions::default()
         };
         if self.optimization != OptimizationMode::None {
-            run_default_pipeline_with_options(module, options);
+            run_default_pipeline(module, options);
             // MIR outlining remains profitable even though the assembler can
             // merge byte-identical terminal spans: lowering and stack layout
             // can make equivalent revert blocks differ before they reach that
             // late pass.
-            run_pass_with_options(module, &crate::pass::OUTLINE_REVERTS_PASS, options);
+            run_pass(module, &crate::pass::OUTLINE_REVERTS_PASS, options);
         }
-        run_pass_with_options(module, &crate::pass::LOWER_MAPPING_SLOTS_PASS, options);
+        run_pass(module, &crate::pass::LOWER_MAPPING_SLOTS_PASS, options);
         // Progressive lowering: materialize ABI wrappers, the dispatcher, and
         // tail-call edges as MIR. Each pass bails without advancing the phase
         // when the module is outside its scope, in which case runtime
         // generation falls back to the backend dispatcher.
         if self.mir_dispatch {
-            run_pass_with_options(module, &crate::pass::LOWER_ABI_PASS, options);
-            run_pass_with_options(module, &crate::pass::LOWER_DISPATCH_PASS, options);
-            run_pass_with_options(module, &crate::pass::LOWER_EVM_SHAPED_PASS, options);
+            run_pass(module, &crate::pass::LOWER_ABI_PASS, options);
+            run_pass(module, &crate::pass::LOWER_DISPATCH_PASS, options);
+            run_pass(module, &crate::pass::LOWER_EVM_SHAPED_PASS, options);
         }
     }
 
