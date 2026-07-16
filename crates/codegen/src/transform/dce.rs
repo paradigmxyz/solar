@@ -158,7 +158,7 @@ impl DeadCodeEliminator {
     /// Returns the indices of parameters that are never used.
     pub fn find_unused_parameters(&self, func: &Function) -> Vec<u32> {
         // Collect all used argument indices
-        let mut used_args = vec![false; func.params.len()];
+        let mut used_args = DenseBitSet::new_empty(func.params.len());
 
         // Collect from all values used in instructions
         for (_, block) in func.blocks.iter_enumerated() {
@@ -166,7 +166,10 @@ impl DeadCodeEliminator {
                 let inst = &func.instructions[inst_id];
                 for val_id in inst.kind.operands() {
                     if let Value::Arg { index, .. } = &func.values[val_id] {
-                        used_args[*index as usize] = true;
+                        let index = *index as usize;
+                        if index < used_args.domain_size() {
+                            used_args.insert(index);
+                        }
                     }
                 }
             }
@@ -175,17 +178,19 @@ impl DeadCodeEliminator {
             if let Some(ref term) = block.terminator {
                 for val_id in term.operands() {
                     if let Value::Arg { index, .. } = &func.values[val_id] {
-                        used_args[*index as usize] = true;
+                        let index = *index as usize;
+                        if index < used_args.domain_size() {
+                            used_args.insert(index);
+                        }
                     }
                 }
             }
         }
 
         // Find unused parameter indices
-        used_args
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, used)| (!used).then_some(index as u32))
+        (0..func.params.len())
+            .filter(|&index| !used_args.contains(index))
+            .map(|index| index as u32)
             .collect()
     }
 

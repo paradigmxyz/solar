@@ -6,11 +6,7 @@ use crate::{
 use alloy_primitives::{B256, U256};
 use rayon::prelude::*;
 use solar_ast::{DataLocation, StateMutability, Visibility};
-use solar_data_structures::{
-    Never,
-    map::{FxHashSet, FxIndexMap},
-    parallel,
-};
+use solar_data_structures::{Never, bit_set::GrowableBitSet, map::FxIndexMap, parallel};
 use solar_interface::{Span, diagnostics::ErrorGuaranteed, error_code};
 use std::ops::ControlFlow;
 
@@ -95,7 +91,9 @@ fn merge_typeck_results<'gcx>(
         }
     }
 
-    results.unsupported_udvt_operators.extend(new_results.unsupported_udvt_operators);
+    for id in new_results.unsupported_udvt_operators {
+        results.unsupported_udvt_operators.insert(id);
+    }
 }
 
 fn check_using_directive<'gcx>(gcx: Gcx<'gcx>, using: &'gcx hir::UsingDirective<'gcx>) {
@@ -286,14 +284,14 @@ fn check_duplicate_definitions(gcx: Gcx<'_>, scope: &Declarations) {
         true
     };
 
-    let mut reported = FxHashSet::default();
+    let mut reported = GrowableBitSet::new_empty();
     for (_name, decls) in scope.iter() {
         if decls.len() <= 1 {
             continue;
         }
         reported.clear();
         for (i, &decl) in decls.iter().enumerate() {
-            if reported.contains(&i) {
+            if reported.contains(i) {
                 continue;
             }
 

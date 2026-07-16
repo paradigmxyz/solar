@@ -1,6 +1,6 @@
 use solar_codegen::{Backend, EvmCodegen, lower};
 use solar_config::CompilerOutput;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::Result;
 use solar_sema::{CompilerRef, Gcx, hir::ContractId};
 use std::{
@@ -188,7 +188,7 @@ struct GeneratedBytecodes {
 
 fn generate_contract_bytecodes(gcx: Gcx<'_>) -> Result<FxHashMap<ContractId, GeneratedBytecodes>> {
     let mut all_bytecodes = FxHashMap::default();
-    let mut visiting = FxHashSet::default();
+    let mut visiting = DenseBitSet::new_empty(gcx.hir.contract_ids().len());
     for id in gcx.hir.contract_ids() {
         let contract = gcx.hir.contract(id);
         if !contract.kind.is_interface() && !contract.kind.is_abstract_contract() {
@@ -223,7 +223,7 @@ fn ensure_contract_bytecode(
     gcx: Gcx<'_>,
     contract_id: ContractId,
     all_bytecodes: &mut FxHashMap<ContractId, Vec<u8>>,
-    visiting: &mut FxHashSet<ContractId>,
+    visiting: &mut DenseBitSet<ContractId>,
 ) -> Result {
     if all_bytecodes.contains_key(&contract_id) {
         return Ok(());
@@ -255,7 +255,7 @@ fn ensure_contract_bytecode(
     let mut codegen = EvmCodegen::new(gcx);
     let artifact = codegen.lower_module(&mut module);
     all_bytecodes.insert(contract_id, artifact.deployment);
-    visiting.remove(&contract_id);
+    visiting.remove(contract_id);
 
     Ok(())
 }
