@@ -17,7 +17,6 @@ pub use ir::{
     EvmIrInstruction, EvmIrInstructionKind, EvmIrMetadata, EvmIrMetadataItem, EvmIrModule,
     EvmIrOperand, EvmIrParseError, EvmIrPass, EvmIrPassOptions, EvmIrStackEffect, EvmIrStackOp,
     EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue, EvmIrValueId, EvmIrVerifier,
-    verify_evm_ir_module,
 };
 
 pub mod assembler;

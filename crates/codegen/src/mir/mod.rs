@@ -65,7 +65,7 @@ newtype_index! {
 #[cfg(test)]
 mod round_trip {
     use super::Module;
-    use crate::{analysis::validate_module, lower};
+    use crate::{analysis::Validator, lower};
     use solar_interface::{ColorChoice, Session};
     use solar_sema::Compiler;
     use std::{
@@ -178,7 +178,7 @@ mod round_trip {
                 }
                 let module = lower::lower_contract(gcx, id);
                 let errors_before = gcx.dcx().err_count();
-                validate_module(gcx.dcx(), &module);
+                Validator::new(gcx.dcx()).validate_module(&module);
                 if gcx.dcx().err_count() != errors_before {
                     result = Err(format!(
                         "contract `{}` has invalid MIR:\n{}",

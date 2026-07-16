@@ -4,7 +4,7 @@ use super::{AsmInst, AsmInstKind, DeferredConst, Label, op};
 use crate::backend::evm::ir::{
     EvmIrBlock, EvmIrBlockHotness, EvmIrInstruction, EvmIrInstructionKind, EvmIrModule,
     EvmIrOperand, EvmIrPass, EvmIrPassOptions, EvmIrStackEffect, EvmIrStackOp, EvmIrTerminator,
-    EvmIrTerminatorKind, verify_evm_ir_module,
+    EvmIrTerminatorKind, EvmIrVerifier,
 };
 use alloy_primitives::U256;
 use solar_data_structures::bit_set::GrowableBitSet;
@@ -461,7 +461,7 @@ fn modules_have_equal_code(before: &EvmIrModule, after: &EvmIrModule) -> bool {
 
 fn is_valid_evm_ir(module: &EvmIrModule) -> bool {
     let dcx = DiagCtxt::with_silent_emitter(None);
-    verify_evm_ir_module(&dcx, module);
+    EvmIrVerifier::new(&dcx).verify_module(module);
     dcx.has_errors().is_ok()
 }
 

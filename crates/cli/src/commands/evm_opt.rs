@@ -6,7 +6,7 @@
 
 use clap::ValueHint;
 use solar_codegen::backend::evm::{
-    EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, verify_evm_ir_module,
+    EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, EvmIrVerifier,
 };
 use solar_config::CompileOpts;
 use solar_interface::Session;
@@ -61,7 +61,7 @@ fn run_pipeline(sess: &Session, module: &mut EvmIrModule, name: &str, args: &Evm
     for (index, &pass) in args.passes.iter().enumerate() {
         pass.run(module, options);
         if args.print_after_each || index + 1 == args.passes.len() {
-            verify_evm_ir_module(dcx, module);
+            EvmIrVerifier::new(dcx).verify_module(module);
             if dcx.has_errors().is_err() {
                 break;
             }
@@ -78,7 +78,7 @@ fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
         .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
     let mut module = EvmIrModule::parse(source.src.as_str())
         .map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
-    verify_evm_ir_module(&sess.dcx, &module);
+    EvmIrVerifier::new(&sess.dcx).verify_module(&module);
     if sess.dcx.has_errors().is_ok() {
         run_pipeline(sess, &mut module, &args.input, args);
     }

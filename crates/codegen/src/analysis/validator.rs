@@ -469,16 +469,6 @@ impl<'a> Validator<'a> {
     }
 }
 
-/// Validates a single function and emits every finding into `dcx`.
-pub fn validate_function(dcx: &DiagCtxt, func: &Function) {
-    Validator::new(dcx).validate_function(func);
-}
-
-/// Validates every function in a module and emits every finding into `dcx`.
-pub fn validate_module(dcx: &DiagCtxt, module: &Module) {
-    Validator::new(dcx).validate_module(module);
-}
-
 // =============================================================================
 // Tests
 // =============================================================================
@@ -511,7 +501,7 @@ mod tests {
                 let sum = b.add(x, one);
                 b.ret([sum]);
             }
-            validate_function(&sess.dcx, &func);
+            Validator::new(&sess.dcx).validate_function(&func);
             assert!(sess.dcx.has_errors().is_ok());
         });
     }
@@ -526,7 +516,7 @@ mod tests {
                 let _p = b.add_param(MirType::uint256());
                 // Don't terminate — leave the entry block dangling.
             }
-            validate_function(&sess.dcx, &func);
+            Validator::new(&sess.dcx).validate_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
@@ -551,7 +541,7 @@ error: [bb0] block has no terminator
             // Manually corrupt: replace the terminator with a Jump to a nonexistent block.
             let bad_block = BlockId::from_usize(99);
             func.blocks[func.entry_block].terminator = Some(Terminator::Jump(bad_block));
-            validate_function(&sess.dcx, &func);
+            Validator::new(&sess.dcx).validate_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
@@ -576,11 +566,11 @@ error: [bb0] terminator references nonexistent block bb99
                 b.switch_to_block(target);
                 b.stop();
             }
-            validate_function(&sess.dcx, &func);
+            Validator::new(&sess.dcx).validate_function(&func);
             assert!(sess.dcx.has_errors().is_ok());
             // Drop the back-link.
             func.blocks[target].predecessors.clear();
-            validate_function(&sess.dcx, &func);
+            Validator::new(&sess.dcx).validate_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
@@ -605,7 +595,7 @@ error: [bb0] successor bb1 does not list bb0 as a predecessor
             }
             // Add the invalid predecessor to the entry block.
             func.blocks[func.entry_block].predecessors.push(func.entry_block);
-            validate_function(&sess.dcx, &func);
+            Validator::new(&sess.dcx).validate_function(&func);
             assert!(sess.dcx.has_errors().is_err());
             assert_data_eq!(
                 sess.emitted_diagnostics().unwrap().to_string(),
@@ -628,7 +618,7 @@ error: [bb0] entry block must have no predecessors
                 let mut b = FunctionBuilder::new(&mut func);
                 b.stop();
             }
-            validate_function(&sess.dcx, &func);
+            Validator::new(&sess.dcx).validate_function(&func);
             assert!(sess.dcx.has_errors().is_ok());
         });
     }

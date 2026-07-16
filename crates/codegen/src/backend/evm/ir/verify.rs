@@ -164,11 +164,6 @@ impl<'a> EvmIrVerifier<'a> {
     }
 }
 
-/// Verifies basic EVM IR invariants and emits findings into `dcx`.
-pub fn verify_evm_ir_module(dcx: &DiagCtxt, module: &EvmIrModule) {
-    EvmIrVerifier::new(dcx).verify_module(module);
-}
-
 /// One abstract stack word tracked by the consistency simulator.
 ///
 /// Words carry their value identity when known so cross-block edges can compare

@@ -11,6 +11,7 @@
 
 use clap::ValueHint;
 use solar_codegen::{
+    analysis::Validator,
     lower,
     mir::Module,
     pass::{
@@ -169,7 +170,7 @@ fn process_mir(sess: &Session, args: &MirOptArgs) -> solar_interface::Result {
         Module::parse(source.src.as_str()).map_err(|e| sess.dcx.err(format!("{e}")).emit())?;
     // Hand-written MIR is untrusted input: reject invalid modules with a
     // diagnostic instead of tripping the post-pass validator ICE.
-    solar_codegen::analysis::validate_module(&sess.dcx, &module);
+    Validator::new(&sess.dcx).validate_module(&module);
     if sess.dcx.has_errors().is_ok() {
         run_pipeline(&mut module, &args.input, args, sess.opts.unstable.time_passes);
     }
