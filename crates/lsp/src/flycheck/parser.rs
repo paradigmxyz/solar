@@ -1,6 +1,8 @@
-use crate::{diagnostics::DiagnosticMap, flycheck::config::FlycheckOutput, proto};
+use crate::{diagnostics::DiagnosticMap, flycheck::config::FlycheckOutput};
 use crop::Rope;
-use lsp_types::{Diagnostic as LspDiagnostic, DiagnosticSeverity, NumberOrString, Range, Url};
+use lsp_types::{
+    Diagnostic as LspDiagnostic, DiagnosticSeverity, NumberOrString, Position, Range, Url,
+};
 use serde::Deserialize;
 use solar_interface::{
     data_structures::map::FxHashMap,
@@ -219,11 +221,17 @@ impl ByteRangeCache {
         }
 
         let file = self.files.get(path)?;
-        Some(Range {
-            start: proto::position_at_byte(file, start),
-            end: proto::position_at_byte(file, end),
-        })
+        Some(Range { start: position_at_byte(file, start), end: position_at_byte(file, end) })
     }
+}
+
+fn position_at_byte(file: &Rope, byte: usize) -> Position {
+    let byte = byte.min(file.byte_len());
+    let line = file.line_of_byte(byte);
+    let line_start = file.byte_of_line(line);
+    let character = file.utf16_code_unit_of_byte(byte) - file.utf16_code_unit_of_byte(line_start);
+
+    Position { line: line as u32, character: character as u32 }
 }
 
 #[cfg(test)]
@@ -411,6 +419,21 @@ mod tests {
         let uri = Url::from_file_path(project.path("/src/Test.sol")).unwrap();
         let range = diagnostics[&uri][0].range;
         assert_eq!(range.end.character - range.start.character, 2);
+    }
+
+    #[test]
+    fn position_at_byte_handles_utf16_and_line_endings() {
+        for (text, expected) in [
+            ("", Position::new(0, 0)),
+            ("plain", Position::new(0, 5)),
+            ("🚀中文", Position::new(0, 4)),
+            ("a\r\n🚀中", Position::new(1, 3)),
+            ("a\r\n", Position::new(1, 0)),
+            ("a\n", Position::new(1, 0)),
+        ] {
+            let rope = Rope::from(text);
+            assert_eq!(position_at_byte(&rope, usize::MAX), expected, "{text:?}");
+        }
     }
 
     fn solc_diagnostic_fixture(

@@ -36,16 +36,6 @@ pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Rang
     start..end
 }
 
-/// Converts a byte offset to an LSP UTF-16 position.
-pub(crate) fn position_at_byte(rope: &Rope, byte: usize) -> lsp_types::Position {
-    let byte = byte.min(rope.byte_len());
-    let line = rope.line_of_byte(byte);
-    let line_start = rope.byte_of_line(line);
-    let character = rope.utf16_code_unit_of_byte(byte) - rope.utf16_code_unit_of_byte(line_start);
-
-    lsp_types::Position { line: line as u32, character: character as u32 }
-}
-
 // TODO: track `None`s here as they shouldn't happen?
 pub(crate) fn diagnostic(
     source_map: &SourceMap,
@@ -121,27 +111,6 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
         Level::Help | Level::OnceHelp => DiagnosticSeverity::HINT,
         Level::Note | Level::OnceNote | Level::FailureNote | Level::Allow => {
             DiagnosticSeverity::INFORMATION
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use lsp_types::Position;
-
-    #[test]
-    fn byte_offsets_are_converted_to_utf16_positions() {
-        for (text, expected) in [
-            ("", Position::new(0, 0)),
-            ("plain", Position::new(0, 5)),
-            ("🚀中文", Position::new(0, 4)),
-            ("a\r\n🚀中", Position::new(1, 3)),
-            ("a\r\n", Position::new(1, 0)),
-            ("a\n", Position::new(1, 0)),
-        ] {
-            let rope = Rope::from(text);
-            assert_eq!(position_at_byte(&rope, usize::MAX), expected, "{text:?}");
         }
     }
 }

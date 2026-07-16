@@ -1,4 +1,4 @@
-use glob::{MatchOptions, Pattern};
+use glob::{MatchOptions, Pattern, glob_with};
 use normalize_path::NormalizePath;
 use serde::Deserialize;
 use solar_interface::source_map::{FileLoader, SourceMap};
@@ -37,12 +37,27 @@ fn matches_ignore(path: &Path, root: &Path, ignores: &[String]) -> bool {
 
     ignores.iter().any(|ignore| {
         let ignore = root.join(ignore.trim_end_matches(['/', '\\']));
-        let ignore =
-            canonicalize_or_normalize(file_loader, &ignore, &normalized_root, &canonical_root);
-        Pattern::new(&ignore.to_string_lossy()).is_ok_and(|pattern| {
+        let lexical_ignore = normalize_under_root(&ignore, &normalized_root, &canonical_root);
+        if Pattern::new(&lexical_ignore.to_string_lossy()).is_ok_and(|pattern| {
             path.ancestors()
                 .take_while(|ancestor| ancestor.starts_with(&canonical_root))
                 .any(|candidate| pattern.matches_path_with(candidate, options))
+        }) {
+            return true;
+        }
+
+        glob_with(&ignore.to_string_lossy(), options).is_ok_and(|paths| {
+            paths.filter_map(Result::ok).any(|ignore| {
+                let ignore = canonicalize_or_normalize(
+                    file_loader,
+                    &ignore,
+                    &normalized_root,
+                    &canonical_root,
+                );
+                path.ancestors()
+                    .take_while(|ancestor| ancestor.starts_with(&canonical_root))
+                    .any(|candidate| candidate == ignore)
+            })
         })
     })
 }
@@ -53,12 +68,15 @@ fn canonicalize_or_normalize(
     root: &Path,
     canonical_root: &Path,
 ) -> PathBuf {
-    file_loader.canonicalize_path(path).unwrap_or_else(|_| {
-        let path = path.normalize();
-        // Keep lexical fallbacks in the same root representation as canonicalized paths.
-        path.strip_prefix(root)
-            .map_or_else(|_| path.clone(), |relative| canonical_root.join(relative))
-    })
+    file_loader
+        .canonicalize_path(path)
+        .unwrap_or_else(|_| normalize_under_root(path, root, canonical_root))
+}
+
+fn normalize_under_root(path: &Path, root: &Path, canonical_root: &Path) -> PathBuf {
+    let path = path.normalize();
+    // Keep lexical paths in the same root representation as canonicalized paths.
+    path.strip_prefix(root).map_or_else(|_| path.clone(), |relative| canonical_root.join(relative))
 }
 
 async fn resolved_formatter_ignores(
@@ -72,8 +90,6 @@ async fn resolved_formatter_ignores(
         .arg(root)
         .env("FOUNDRY_DISABLE_NIGHTLY_WARNING", "1")
         .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
         .kill_on_drop(true);
     let output = time::timeout(timeout, command.output())
         .await
@@ -227,6 +243,8 @@ mod tests {
             //- /src/Target.sol
 
             //- /generated/Generated.sol
+
+            //- /generated/nested/Nested.sol
             "#,
         );
         symlink(project.path("/src/Target.sol"), project.path("/Alias.sol")).unwrap();
@@ -241,6 +259,31 @@ mod tests {
             &project.path("/generated/Generated.sol"),
             project.root(),
             &["linked/Generated.sol".to_owned()],
+        ));
+        assert!(matches_ignore(
+            &project.path("/generated/Generated.sol"),
+            project.root(),
+            &["linked/*.sol".to_owned()],
+        ));
+        assert!(!matches_ignore(
+            &project.path("/generated/nested/Nested.sol"),
+            project.root(),
+            &["linked/*.sol".to_owned()],
+        ));
+        assert!(matches_ignore(
+            &project.path("/generated/nested/Nested.sol"),
+            project.root(),
+            &["linked/*".to_owned()],
+        ));
+        assert!(matches_ignore(
+            &project.path("/linked/Unsaved.sol"),
+            project.root(),
+            &["linked/*.sol".to_owned()],
+        ));
+        assert!(matches_ignore(
+            &project.path("/linked/Unsaved.sol"),
+            project.root(),
+            &["linked/".to_owned()],
         ));
     }
 
@@ -268,6 +311,11 @@ mod tests {
             &project.path("/src/Unsaved.sol"),
             project.root(),
             &["src/Unsaved.sol".to_owned()],
+        ));
+        assert!(matches_ignore(
+            &project.path("/src/Unsaved.sol"),
+            project.root(),
+            &["src/*.sol".to_owned()],
         ));
     }
 
