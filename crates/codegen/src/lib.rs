@@ -42,6 +42,7 @@ pub mod lower;
 pub use lower::Lowerer;
 
 pub mod pass;
+mod timing;
 pub mod transform;
 pub(crate) mod utils;
 pub use transform::{

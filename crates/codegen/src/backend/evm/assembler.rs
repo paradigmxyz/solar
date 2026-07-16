@@ -76,6 +76,8 @@ pub struct AssemblerConfig {
     pub evm_version: EvmVersion,
     /// Optimization mode for alternate byte encodings.
     pub optimization: OptimizationMode,
+    /// Print the time spent in each EVM IR pass.
+    pub time_passes: bool,
     /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
     ///
     /// Off by default. See `StructuredAsmProgram::optimize_with_evm_ir` for why
@@ -1237,6 +1239,10 @@ impl StructuredAsmContext for Assembler {
 
     fn new_label(&mut self) -> Label {
         self.new_label()
+    }
+
+    fn time_passes(&self) -> bool {
+        self.config.time_passes
     }
 
     fn run_evm_ir_stack_schedule(&self) -> bool {

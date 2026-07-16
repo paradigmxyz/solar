@@ -81,7 +81,7 @@
         "solarLsp.formatOnSave": {
           "type": "boolean",
           "default": true,
-          "description": "Format files on save using forge fmt"
+          "description": "Format files on save using Solar LSP"
         },
         "solarLsp.flychecks": {
           "type": [

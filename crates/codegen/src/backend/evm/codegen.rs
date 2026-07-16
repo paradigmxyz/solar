@@ -20,7 +20,7 @@ use crate::{
         PhiEliminator,
     },
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
-    pass::{PipelineOptions, run_default_pipeline_with_options},
+    pass::{PipelineOptions, run_default_pipeline, run_pass},
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -60,6 +60,8 @@ pub struct EvmCodegenConfig {
     pub optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     pub mir_print_after_each: bool,
+    /// Print the time spent in each MIR and EVM IR pass.
+    pub time_passes: bool,
     /// Lower dispatch/ABI as MIR phases and consume them here.
     pub mir_dispatch: bool,
     /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
@@ -83,6 +85,7 @@ impl EvmCodegenConfig {
             evm_version: sess.opts.evm_version,
             optimization: sess.opts.optimization,
             mir_print_after_each: sess.opts.unstable.mir_print_after_each,
+            time_passes: sess.opts.unstable.time_passes,
             mir_dispatch: !sess.opts.unstable.no_mir_dispatch,
             // Keep the experimental EVM IR stack scheduler off in every default
             // compilation path so produced bytecode is unchanged.
@@ -96,6 +99,7 @@ impl EvmCodegenConfig {
         AssemblerConfig {
             evm_version: self.evm_version,
             optimization: self.optimization,
+            time_passes: self.time_passes,
             evm_ir_stack_schedule: self.evm_ir_stack_schedule,
             evm_ir_layout_passes: self.evm_ir_layout_passes,
             capture_evm_ir: self.capture_evm_ir,
@@ -649,6 +653,7 @@ pub struct EvmCodegen {
     optimization: OptimizationMode,
     /// Print MIR after each pass before bytecode generation.
     mir_print_after_each: bool,
+    time_passes: bool,
     mir_dispatch: bool,
 }
 
@@ -687,6 +692,7 @@ impl EvmCodegen {
             emitting_dispatch_entry: false,
             optimization: config.optimization,
             mir_print_after_each: config.mir_print_after_each,
+            time_passes: config.time_passes,
             mir_dispatch: config.mir_dispatch,
         }
     }
@@ -1054,29 +1060,28 @@ impl EvmCodegen {
     /// Runs the canonical MIR optimization pipeline on the module.
     fn run_optimization_passes(&mut self, module: &mut Module) {
         module.optimize_for_size = self.optimization == OptimizationMode::Size;
+        let options = PipelineOptions {
+            print_after_each: self.mir_print_after_each,
+            time_passes: self.time_passes,
+            ..PipelineOptions::default()
+        };
         if self.optimization != OptimizationMode::None {
-            run_default_pipeline_with_options(
-                module,
-                PipelineOptions {
-                    print_after_each: self.mir_print_after_each,
-                    ..PipelineOptions::default()
-                },
-            );
+            run_default_pipeline(module, options);
             // MIR outlining remains profitable even though the assembler can
             // merge byte-identical terminal spans: lowering and stack layout
             // can make equivalent revert blocks differ before they reach that
             // late pass.
-            crate::pass::run_pass(module, &crate::pass::OUTLINE_REVERTS_PASS);
+            run_pass(module, &crate::pass::OUTLINE_REVERTS_PASS, options);
         }
-        crate::pass::run_pass(module, &crate::pass::LOWER_MAPPING_SLOTS_PASS);
+        run_pass(module, &crate::pass::LOWER_MAPPING_SLOTS_PASS, options);
         // Progressive lowering: materialize ABI wrappers, the dispatcher, and
         // tail-call edges as MIR. Each pass bails without advancing the phase
         // when the module is outside its scope, in which case runtime
         // generation falls back to the backend dispatcher.
         if self.mir_dispatch {
-            crate::pass::run_pass(module, &crate::pass::LOWER_ABI_PASS);
-            crate::pass::run_pass(module, &crate::pass::LOWER_DISPATCH_PASS);
-            crate::pass::run_pass(module, &crate::pass::LOWER_EVM_SHAPED_PASS);
+            run_pass(module, &crate::pass::LOWER_ABI_PASS, options);
+            run_pass(module, &crate::pass::LOWER_DISPATCH_PASS, options);
+            run_pass(module, &crate::pass::LOWER_EVM_SHAPED_PASS, options);
         }
     }
 

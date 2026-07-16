@@ -6,7 +6,8 @@
 
 use clap::ValueHint;
 use solar_codegen::backend::evm::{
-    EVM_IR_PASSES, EvmIrModule, EvmIrPass, parse_evm_ir_module, verify_evm_ir_module,
+    EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, parse_evm_ir_module,
+    verify_evm_ir_module,
 };
 use solar_interface::{Ident, Session, Symbol, diagnostics::DiagCtxt};
 use std::{path::Path, process::ExitCode};
@@ -30,6 +31,8 @@ pub(crate) struct EvmOptArgs {
     /// Path to input file. Extension determines whether it's .evmir.
     #[arg(value_hint = ValueHint::FilePath)]
     input: String,
+    #[arg(skip)]
+    time_passes: bool,
 }
 
 fn parse_pass(name: &str) -> Result<EvmIrPass, String> {
@@ -54,9 +57,10 @@ fn print_module(module: &EvmIrModule, name: &str, after: &str) {
 }
 
 fn run_pipeline(dcx: &DiagCtxt, module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) {
+    let options = EvmIrPassOptions { time_passes: args.time_passes };
     if args.print_after_each {
         for &pass in &args.passes {
-            pass.run(module);
+            pass.run(module, options);
             verify_evm_ir_module(dcx, module);
             if dcx.has_errors().is_err() {
                 break;
@@ -65,7 +69,7 @@ fn run_pipeline(dcx: &DiagCtxt, module: &mut EvmIrModule, name: &str, args: &Evm
         }
     } else {
         for &pass in &args.passes {
-            pass.run(module);
+            pass.run(module, options);
         }
         verify_evm_ir_module(dcx, module);
         if dcx.has_errors().is_ok() {
@@ -96,7 +100,8 @@ fn process_evmir(args: &EvmOptArgs) -> solar_interface::Result {
     result.and(sess.dcx.print_error_count())
 }
 
-pub(crate) fn run(args: EvmOptArgs) -> ExitCode {
+pub(crate) fn run(mut args: EvmOptArgs, time_passes: bool) -> ExitCode {
+    args.time_passes = time_passes;
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
     let result = match ext {
         "evmir" => process_evmir(&args),
