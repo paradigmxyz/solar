@@ -25,12 +25,12 @@
 //! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
 
 use crate::{
-    analysis::reachable_blocks,
+    analysis::CfgInfo,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId},
     pass::ModulePass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Pass that places provably local fmp-bump allocations statically.
 pub struct StaticAllocPass;
@@ -88,10 +88,10 @@ fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
         return false;
     }
 
-    let reachable = reachable_blocks(func);
+    let cfg = CfgInfo::new(func);
     let mut cyclic = FxHashMap::default();
     candidates.retain(|cand| {
-        reachable.contains(&cand.block)
+        cfg.is_reachable(cand.block)
             && !*cyclic.entry(cand.block).or_insert_with(|| block_in_cycle(func, cand.block))
     });
 
@@ -125,7 +125,7 @@ fn has_msize(func: &Function) -> bool {
 /// Returns true when `block` can execute more than once: it can reach itself.
 fn block_in_cycle(func: &Function, block: BlockId) -> bool {
     let mut stack = vec![block];
-    let mut seen = FxHashSet::default();
+    let mut seen = DenseBitSet::new_empty(func.blocks.len());
     while let Some(current) = stack.pop() {
         let Some(term) = func.blocks[current].terminator.as_ref() else { continue };
         for succ in term.successors() {

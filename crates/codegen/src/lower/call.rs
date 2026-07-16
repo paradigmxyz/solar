@@ -4,7 +4,7 @@ use super::{Lowerer, checked_arith::PanicCode};
 use crate::mir::{FunctionBuilder, ValueId};
 use alloy_primitives::{U256, keccak256};
 use solar_ast::{LitKind, Span};
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::bit_set::GrowableBitSet;
 use solar_interface::{Ident, Symbol, kw, sym};
 use solar_sema::{
     builtins::Builtin,
@@ -2164,7 +2164,7 @@ impl<'gcx> Lowerer<'gcx> {
         if let Some(&cached) = self.recursive_functions.get(&func_id) {
             return cached;
         }
-        let mut visiting = FxHashSet::default();
+        let mut visiting = GrowableBitSet::new_empty();
         let result = self.function_reaches(func_id, func_id, &mut visiting);
         self.recursive_functions.insert(func_id, result);
         result
@@ -2174,7 +2174,7 @@ impl<'gcx> Lowerer<'gcx> {
         &self,
         current: hir::FunctionId,
         target: hir::FunctionId,
-        visiting: &mut FxHashSet<hir::FunctionId>,
+        visiting: &mut GrowableBitSet<hir::FunctionId>,
     ) -> bool {
         if !visiting.insert(current) {
             return false;

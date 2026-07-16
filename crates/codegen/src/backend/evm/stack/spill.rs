@@ -4,7 +4,7 @@
 //! via DUP16/SWAP16), we spill values to memory.
 
 use crate::mir::ValueId;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 
 /// A slot in memory where a spilled value is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -51,9 +51,9 @@ pub struct SpillManager {
     /// Map from value to its spill slot.
     slots: FxHashMap<ValueId, SpillSlot>,
     /// Values whose reserved spill slot can be loaded at the current program point.
-    reloadable: FxHashSet<ValueId>,
+    reloadable: GrowableBitSet<ValueId>,
     /// Values whose reserved spill slot was stored by already-emitted code.
-    stored: FxHashSet<ValueId>,
+    stored: GrowableBitSet<ValueId>,
     /// Next available spill slot offset.
     next_offset: u32,
     /// Maximum offset used (for tracking spill area size).
@@ -66,8 +66,8 @@ impl SpillManager {
     pub fn new() -> Self {
         Self {
             slots: FxHashMap::default(),
-            reloadable: FxHashSet::default(),
-            stored: FxHashSet::default(),
+            reloadable: GrowableBitSet::new_empty(),
+            stored: GrowableBitSet::new_empty(),
             next_offset: 0,
             max_offset: 0,
         }
@@ -115,21 +115,21 @@ impl SpillManager {
     /// Returns true if the value has a spill slot that can be loaded.
     #[must_use]
     pub fn is_reloadable(&self, value: ValueId) -> bool {
-        self.reloadable.contains(&value)
+        self.reloadable.contains(value)
     }
 
     /// Returns true if already-emitted code has stored this value.
     #[must_use]
     pub fn is_stored(&self, value: ValueId) -> bool {
-        self.stored.contains(&value)
+        self.stored.contains(value)
     }
 
     /// Frees a spill slot (when the value is reloaded and no longer needed in memory).
     /// Note: Simple implementation doesn't reuse slots.
     pub fn free(&mut self, value: ValueId) {
         self.slots.remove(&value);
-        self.reloadable.remove(&value);
-        self.stored.remove(&value);
+        self.reloadable.remove(value);
+        self.stored.remove(value);
     }
 
     /// Returns the total size of the spill area in bytes.

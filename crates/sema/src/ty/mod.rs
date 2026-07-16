@@ -9,6 +9,7 @@ use either::Either;
 use solar_ast::{DataLocation, StateMutability, TypeSize, UserDefinableOperator, Visibility};
 use solar_data_structures::{
     BumpExt,
+    bit_set::{DenseBitSet, GrowableBitSet},
     fmt::{from_fn, or_list},
     map::{FxBuildHasher, FxHashMap, FxHashSet},
     smallvec::SmallVec,
@@ -78,7 +79,7 @@ pub struct TypeckResults<'gcx> {
     pub(crate) expr_types: FxHashMap<hir::ExprId, Ty<'gcx>>,
     pub(crate) resolved_callees: FxHashMap<hir::ExprId, ResolvedCallee>,
     pub(crate) resolved_members: FxHashMap<hir::ExprId, ResolvedMember>,
-    pub(crate) unsupported_udvt_operators: FxHashSet<hir::ExprId>,
+    pub(crate) unsupported_udvt_operators: GrowableBitSet<hir::ExprId>,
 }
 
 /// The target selected for a call callee expression.
@@ -193,7 +194,7 @@ impl<'gcx> TypeckResults<'gcx> {
     /// Returns whether codegen cannot lower the user-defined operator used by this expression.
     #[inline]
     pub fn unsupported_udvt_operator(&self, id: hir::ExprId) -> bool {
-        self.unsupported_udvt_operators.contains(&id)
+        self.unsupported_udvt_operators.contains(id)
     }
 }
 
@@ -1113,7 +1114,7 @@ impl<'gcx> Gcx<'gcx> {
             return;
         };
         let ty = self.type_of_item(user_ty.into());
-        let mut seen = FxHashSet::default();
+        let mut seen = DenseBitSet::new_empty(self.hir.function_ids().len());
         self.for_each_using_directive_for_type(ty, source, contract, &mut |using| {
             for entry in using.entries {
                 if entry.operator == Some(op)

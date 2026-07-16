@@ -19,7 +19,7 @@ use crate::{
     },
     pass::FunctionPass,
 };
-use solar_data_structures::map::FxHashSet;
+use solar_data_structures::bit_set::DenseBitSet;
 
 /// Statistics from loop canonicalization.
 #[derive(Clone, Debug, Default)]
@@ -105,12 +105,12 @@ impl LoopCanonicalizer {
         func: &Function,
         loop_data: &crate::analysis::Loop,
     ) -> Vec<BlockId> {
-        let mut seen = FxHashSet::default();
+        let mut seen = DenseBitSet::new_empty(func.blocks.len());
         func.blocks[loop_data.header]
             .predecessors
             .iter()
             .copied()
-            .filter(|pred| !loop_data.blocks.contains(pred))
+            .filter(|&pred| !loop_data.blocks.contains(pred))
             .filter(|pred| seen.insert(*pred))
             .collect()
     }

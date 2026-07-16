@@ -11,7 +11,7 @@ use alloy_primitives::U256;
 use solar_ast::{
     DataLocation, ElementaryType, Span, StateMutability, TypeSize, UserDefinableOperator,
 };
-use solar_data_structures::{Never, pluralize, smallvec::SmallVec};
+use solar_data_structures::{Never, bit_set::DenseBitSet, pluralize, smallvec::SmallVec};
 use solar_interface::{
     Ident, Symbol,
     diagnostics::{DiagCtxt, ErrorGuaranteed},
@@ -1771,16 +1771,15 @@ impl<'gcx> TypeChecker<'gcx> {
                 if named_args.len() != param_tys.len() {
                     return false;
                 }
-                let mut seen = vec![false; param_tys.len()];
+                let mut seen = DenseBitSet::new_empty(param_tys.len());
                 for arg in named_args {
                     let Some(index) = names.iter().position(|&name| name == Some(arg.name.name))
                     else {
                         return false;
                     };
-                    if seen[index] {
+                    if !seen.insert(index) {
                         return false;
                     }
-                    seen[index] = true;
                     if !self.arg_matches(&arg.value, param_tys[index]) {
                         return false;
                     }

@@ -1,12 +1,12 @@
 use super::{EnumVariantSize, Stats};
 use solar_ast::{self as ast, ItemId, visit::Visit, yul};
-use solar_data_structures::{Never, map::FxHashSet};
+use solar_data_structures::{Never, bit_set::DenseBitSet};
 use std::ops::ControlFlow;
 
 /// AST stat collector.
 struct StatCollector {
     stats: Stats,
-    seen: FxHashSet<ItemId>,
+    seen: DenseBitSet<ItemId>,
 }
 
 impl EnumVariantSize for ast::ItemKind<'_> {
@@ -117,7 +117,8 @@ impl EnumVariantSize for yul::ExprKind<'_> {
 }
 
 pub fn print_ast_stats<'ast>(ast: &'ast ast::SourceUnit<'ast>, title: &str) {
-    let mut collector = StatCollector { stats: Stats::new(), seen: FxHashSet::default() };
+    let mut collector =
+        StatCollector { stats: Stats::new(), seen: DenseBitSet::new_empty(ast.items.len()) };
     let _ = collector.visit_source_unit(ast);
     collector.print(title)
 }

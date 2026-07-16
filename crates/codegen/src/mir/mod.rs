@@ -37,19 +37,13 @@ pub(crate) mod utils;
 newtype_index! {
     /// A unique identifier for a value in the MIR.
     pub struct ValueId;
-}
 
-newtype_index! {
     /// A unique identifier for an instruction in the MIR.
     pub struct InstId;
-}
 
-newtype_index! {
     /// A unique identifier for a basic block in the MIR.
     pub struct BlockId;
-}
 
-newtype_index! {
     /// A unique identifier for a function in the MIR.
     pub struct FunctionId;
 }

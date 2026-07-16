@@ -197,7 +197,7 @@ fn value_defined_in_loop(func: &Function, value: ValueId, loop_data: &Loop) -> b
         Value::Inst(inst_id) => loop_data
             .blocks
             .iter()
-            .any(|&block_id| func.blocks[block_id].instructions.contains(inst_id)),
+            .any(|block_id| func.blocks[block_id].instructions.contains(inst_id)),
         Value::Undef(_) | Value::Error(_) => true,
         Value::Arg { .. } | Value::Immediate(_) => false,
     }

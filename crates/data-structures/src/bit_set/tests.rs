@@ -13,7 +13,7 @@ newtype_index! {
 }
 
 fn idx(index: usize) -> TestIdx {
-    TestIdx::from_usize(index)
+    <TestIdx as Idx>::from_usize(index)
 }
 
 fn idx_range(range: std::ops::Range<usize>) -> std::ops::Range<TestIdx> {
@@ -1012,4 +1012,32 @@ fn dense_contains_any() {
 
     set.insert(idx(22));
     assert!(set.contains_any(idx_range(20..59)));
+}
+
+#[test]
+fn borrowed_bit_sets_are_iterable() {
+    let mut usize_dense = DenseBitSet::new_empty(70);
+    usize_dense.insert(1);
+    usize_dense.insert(65);
+    assert_eq!((&usize_dense).into_iter().collect::<Vec<_>>(), [1, 65]);
+
+    let mut dense = DenseBitSet::new_empty(8);
+    dense.insert(idx(1));
+    dense.insert(idx(6));
+    assert_eq!((&dense).into_iter().collect::<Vec<_>>(), [idx(1), idx(6)]);
+
+    let mut chunked = ChunkedBitSet::new_empty(5000);
+    chunked.insert(idx(3));
+    chunked.insert(idx(2050));
+    assert_eq!((&chunked).into_iter().collect::<Vec<_>>(), [idx(3), idx(2050)]);
+
+    let mut mixed = MixedBitSet::new_empty(8);
+    mixed.insert(idx(2));
+    mixed.insert(idx(7));
+    assert_eq!((&mixed).into_iter().collect::<Vec<_>>(), [idx(2), idx(7)]);
+
+    let mut growable = GrowableBitSet::new_empty();
+    growable.insert(idx(3));
+    growable.insert(idx(9));
+    assert_eq!((&growable).into_iter().collect::<Vec<_>>(), [idx(3), idx(9)]);
 }
