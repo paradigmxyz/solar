@@ -98,7 +98,7 @@ bb6:
   push 11
   push 0
   mstore
-  fallthrough bb7
+  jump bb7
 bb7:
   push 0
   mload
@@ -109,7 +109,7 @@ bb7:
   push 0
   push 0
   swap1
-  fallthrough bb8
+  jump bb8
 bb8:
   dup1
   push 352
@@ -123,7 +123,7 @@ bb8:
   dup2
   dup1
   push 288
-  fallthrough bb9
+  jump bb9
 bb9:
   mstore
   push 128
@@ -384,7 +384,7 @@ bb18:
 bb19:
   push 0
   swap1
-  fallthrough bb20
+  jump bb20
 bb20:
   dup2
   push 352

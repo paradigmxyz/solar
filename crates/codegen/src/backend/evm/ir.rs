@@ -18,7 +18,7 @@ mod verify;
 
 pub use parse::ParseError;
 pub use passes::{
-    COLD_LAYOUT_PASS, DEFAULT_LAYOUT_PIPELINE, JUMP_TO_FALLTHROUGH_PASS, PASS_REGISTRY, PassInfo,
+    BLOCK_LAYOUT_PASS, COLD_LAYOUT_PASS, DEFAULT_LAYOUT_PIPELINE, PASS_REGISTRY, PassInfo,
     PassOptions, STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
 };
 pub use verify::Verifier;
@@ -311,10 +311,8 @@ impl Terminator {
 /// Control-flow terminators in EVM IR.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TerminatorKind {
-    /// Physical fallthrough into the next laid-out block.
-    Fallthrough(BlockId),
-    /// Physical fallthrough into the next separately captured program segment.
-    FallthroughNext,
+    /// Continue into the next separately captured program segment.
+    Continue,
     /// Unconditional jump.
     Jump(BlockId),
     /// Conditional branch.
@@ -452,8 +450,7 @@ fn default_terminator_stack_effect(kind: &TerminatorKind) -> StackEffect {
         TerminatorKind::Switch { .. } => StackEffect::new(1, 0),
         TerminatorKind::Return { .. } | TerminatorKind::Revert { .. } => StackEffect::new(2, 0),
         TerminatorKind::SelfDestruct { .. } => StackEffect::new(1, 0),
-        TerminatorKind::Fallthrough(_)
-        | TerminatorKind::FallthroughNext
+        TerminatorKind::Continue
         | TerminatorKind::Jump(_)
         | TerminatorKind::Stop
         | TerminatorKind::Invalid => StackEffect::new(0, 0),

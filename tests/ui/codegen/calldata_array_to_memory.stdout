@@ -42,7 +42,7 @@ bb1:
 bb2:
   push 0
   sload
-  fallthrough bb3
+  jump bb3
 bb3:
   push 128
   mstore
@@ -264,7 +264,7 @@ bb7:
   mstore
   pop
   push 50
-  fallthrough bb8
+  jump bb8
 bb8:
   push 4
   mstore

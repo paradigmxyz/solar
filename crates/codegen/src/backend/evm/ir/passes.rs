@@ -6,7 +6,7 @@ use crate::{
     timing::PassTimer,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{index::IndexVec, map::FxHashMap};
+use solar_data_structures::{bit_set::DenseBitSet, index::IndexVec, map::FxHashMap};
 
 type PassRunner = fn(&mut Module) -> bool;
 
@@ -46,14 +46,14 @@ declare_passes! {
     /// Materialize virtual instruction operands with physical stack operations.
     pub const STACK_SCHEDULE_PASS -> "stack-schedule" = ir_stack_schedule::schedule_stack_ops;
 
-    /// Move cold terminal blocks after hot fallthrough code when this preserves fallthrough edges.
+    /// Move cold terminal blocks after hot code without changing control flow.
     pub const COLD_LAYOUT_PASS -> "cold-layout" = move_cold_terminal_blocks;
 
     /// Replace duplicate terminal block bodies with jumps to the first copy when profitable.
     pub const TERMINAL_DEDUP_PASS -> "terminal-dedup" = deduplicate_terminal_blocks;
 
-    /// Replace jumps to the next laid-out block with fallthrough edges.
-    pub const JUMP_TO_FALLTHROUGH_PASS -> "jump-to-fallthrough" = replace_jumps_to_next_block;
+    /// Reorder blocks to maximize jumps assembled as physical fallthroughs.
+    pub const BLOCK_LAYOUT_PASS -> "block-layout" = layout_blocks_for_fallthrough;
 }
 
 /// Options for running an EVM IR pass.
@@ -65,11 +65,11 @@ pub struct PassOptions {
 
 /// All EVM IR passes exposed by `solar evm-opt`.
 pub const PASS_REGISTRY: &[PassInfo] =
-    &[STACK_SCHEDULE_PASS, COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS, JUMP_TO_FALLTHROUGH_PASS];
+    &[STACK_SCHEDULE_PASS, COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
 pub const DEFAULT_LAYOUT_PIPELINE: &[PassInfo] =
-    &[COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS, JUMP_TO_FALLTHROUGH_PASS];
+    &[COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS, BLOCK_LAYOUT_PASS];
 
 /// Finds a pass in the EVM IR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
@@ -84,18 +84,55 @@ pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> b
     changed
 }
 
-fn replace_jumps_to_next_block(module: &mut Module) -> bool {
-    let mut changed = false;
-    for index in 0..module.blocks.len().saturating_sub(1) {
-        let block = BlockId::from_usize(index);
-        let next = BlockId::from_usize(index + 1);
-        let Some(term) = &mut module.blocks[block].terminator else { continue };
-        if matches!(term.kind, TerminatorKind::Jump(target) if target == next) {
-            term.kind = TerminatorKind::Fallthrough(next);
-            changed = true;
+fn layout_blocks_for_fallthrough(module: &mut Module) -> bool {
+    let mut predecessor_counts = vec![0usize; module.blocks.len()];
+    for block in &module.blocks {
+        if let Some(target) = layout_successor(block)
+            && target.index() < predecessor_counts.len()
+        {
+            predecessor_counts[target.index()] += 1;
         }
     }
-    changed
+
+    let mut order = Vec::with_capacity(module.blocks.len());
+    let mut placed = DenseBitSet::new_empty(module.blocks.len());
+    if let Some(entry) = module.entry_block {
+        append_layout_trace(module, entry, &mut placed, &mut order);
+    }
+    for block in module.blocks.indices() {
+        if predecessor_counts[block.index()] == 0 {
+            append_layout_trace(module, block, &mut placed, &mut order);
+        }
+    }
+    for block in module.blocks.indices() {
+        append_layout_trace(module, block, &mut placed, &mut order);
+    }
+
+    if order.iter().copied().eq(module.blocks.indices()) {
+        return false;
+    }
+    remap_block_order(module, &order);
+    true
+}
+
+fn append_layout_trace(
+    module: &Module,
+    mut block: BlockId,
+    placed: &mut DenseBitSet<BlockId>,
+    order: &mut Vec<BlockId>,
+) {
+    while block.index() < module.blocks.len() && placed.insert(block) {
+        order.push(block);
+        let Some(target) = layout_successor(&module.blocks[block]) else { return };
+        block = target;
+    }
+}
+
+fn layout_successor(block: &Block) -> Option<BlockId> {
+    match &block.terminator.as_ref()?.kind {
+        TerminatorKind::Jump(target) => Some(*target),
+        _ => None,
+    }
 }
 
 fn move_cold_terminal_blocks(module: &mut Module) -> bool {
@@ -200,8 +237,7 @@ fn estimated_terminator_size(kind: &TerminatorKind) -> usize {
         }
         TerminatorKind::SelfDestruct { recipient } => operand_pushes(&[recipient]),
         TerminatorKind::Stop | TerminatorKind::Invalid | TerminatorKind::RawOpcode(_) => 1,
-        TerminatorKind::Fallthrough(_)
-        | TerminatorKind::FallthroughNext
+        TerminatorKind::Continue
         | TerminatorKind::Jump(_)
         | TerminatorKind::Branch { .. }
         | TerminatorKind::Switch { .. } => 0,
@@ -271,8 +307,7 @@ fn terminal_terminator_key(
     locals: &FxHashMap<ValueId, usize>,
 ) -> TerminalTerminatorKey {
     match kind {
-        TerminatorKind::Fallthrough(target) => TerminalTerminatorKey::Fallthrough(*target),
-        TerminatorKind::FallthroughNext => TerminalTerminatorKey::FallthroughNext,
+        TerminatorKind::Continue => TerminalTerminatorKey::Continue,
         TerminatorKind::Jump(target) => TerminalTerminatorKey::Jump(*target),
         TerminatorKind::Branch { condition, then_block, else_block } => {
             TerminalTerminatorKey::Branch {
@@ -321,8 +356,7 @@ struct TerminalInstructionKey {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TerminalTerminatorKey {
-    Fallthrough(BlockId),
-    FallthroughNext,
+    Continue,
     Jump(BlockId),
     Branch {
         condition: TerminalOperandKey,
@@ -399,7 +433,7 @@ fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &[BlockId]) {
 
 fn visit_terminator_targets_mut(kind: &mut TerminatorKind, mut visit: impl FnMut(&mut BlockId)) {
     match kind {
-        TerminatorKind::Fallthrough(target) | TerminatorKind::Jump(target) => visit(target),
+        TerminatorKind::Jump(target) => visit(target),
         TerminatorKind::Branch { then_block, else_block, .. } => {
             visit(then_block);
             visit(else_block);
@@ -412,7 +446,7 @@ fn visit_terminator_targets_mut(kind: &mut TerminatorKind, mut visit: impl FnMut
         }
         TerminatorKind::Return { .. }
         | TerminatorKind::Revert { .. }
-        | TerminatorKind::FallthroughNext
+        | TerminatorKind::Continue
         | TerminatorKind::Stop
         | TerminatorKind::Invalid
         | TerminatorKind::SelfDestruct { .. }

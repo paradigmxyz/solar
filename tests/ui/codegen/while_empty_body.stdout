@@ -45,7 +45,7 @@ bb2:
   slt
   push bb1
   jumpi
-  fallthrough bb3
+  jump bb3
 bb3:
   push 4
   calldataload

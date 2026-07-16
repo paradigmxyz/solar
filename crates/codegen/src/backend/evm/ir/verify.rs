@@ -125,18 +125,6 @@ impl<'a> Verifier<'a> {
                 Ok::<(), ()>(())
             })
             .unwrap();
-            if let TerminatorKind::Fallthrough(target) = term.kind
-                && self.block_exists(module, target)
-                && target.index() != block_id.index() + 1
-            {
-                self.error_in_block(
-                    block_id,
-                    format_args!(
-                        "fallthrough target `{}` is not the next laid-out block",
-                        module.block(target).label
-                    ),
-                );
-            }
             self.verify_metadata_is_untyped(block_id, &term.metadata);
         }
 
@@ -533,8 +521,7 @@ impl Verifier<'_> {
 
     fn terminator_name(&self, kind: &TerminatorKind) -> &'static str {
         match kind {
-            TerminatorKind::Fallthrough(_) => "fallthrough",
-            TerminatorKind::FallthroughNext => "fallthrough_next",
+            TerminatorKind::Continue => "continue",
             TerminatorKind::Jump(_) => "jump",
             TerminatorKind::Branch { .. } => "br",
             TerminatorKind::Switch { .. } => "switch",
@@ -680,8 +667,7 @@ impl Verifier<'_> {
             TerminatorKind::SelfDestruct { recipient } => {
                 self.verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")
             }
-            TerminatorKind::Fallthrough(_)
-            | TerminatorKind::FallthroughNext
+            TerminatorKind::Continue
             | TerminatorKind::Jump(_)
             | TerminatorKind::Stop
             | TerminatorKind::Invalid
@@ -756,8 +742,7 @@ fn visit_terminator_operands<E>(
     mut visit: impl FnMut(&Operand) -> Result<(), E>,
 ) -> Result<(), E> {
     match kind {
-        TerminatorKind::Fallthrough(_)
-        | TerminatorKind::FallthroughNext
+        TerminatorKind::Continue
         | TerminatorKind::Jump(_)
         | TerminatorKind::Stop
         | TerminatorKind::Invalid
@@ -783,7 +768,7 @@ fn visit_terminator_targets<E>(
     mut visit: impl FnMut(BlockId) -> Result<(), E>,
 ) -> Result<(), E> {
     match kind {
-        TerminatorKind::Fallthrough(target) | TerminatorKind::Jump(target) => visit(*target)?,
+        TerminatorKind::Jump(target) => visit(*target)?,
         TerminatorKind::Branch { then_block, else_block, .. } => {
             visit(*then_block)?;
             visit(*else_block)?;
@@ -796,7 +781,7 @@ fn visit_terminator_targets<E>(
         }
         TerminatorKind::Return { .. }
         | TerminatorKind::Revert { .. }
-        | TerminatorKind::FallthroughNext
+        | TerminatorKind::Continue
         | TerminatorKind::Stop
         | TerminatorKind::Invalid
         | TerminatorKind::SelfDestruct { .. }

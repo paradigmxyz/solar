@@ -1,7 +1,0 @@
-// === ROOT/tests/ui/codegen/evm-ir/jump_to_fallthrough.evmir (after jump-to-fallthrough) ===
-bb0 (entry):
-  fallthrough bb1
-bb1:
-  fallthrough bb2
-bb2:
-  return

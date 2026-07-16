@@ -34,7 +34,7 @@ bb2:
   push 128
   mstore
   push 0x3339000000000000000000000000000000000000000000000000000000000000
-  fallthrough bb3
+  jump bb3
 bb3:
   push 288
   mstore
@@ -168,7 +168,7 @@ bb3:
 bb4:
   push bb6
   jumpi
-  fallthrough bb5
+  jump bb5
 bb5:
   push 4
   calldataload
@@ -182,7 +182,7 @@ bb6:
   push 288
   mstore
   push 0x3339000000000000000000000000000000000000000000000000000000000000
-  fallthrough bb7
+  jump bb7
 bb7:
   push 320
   mstore

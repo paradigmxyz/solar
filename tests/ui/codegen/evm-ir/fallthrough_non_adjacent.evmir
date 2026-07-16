@@ -1,7 +1,0 @@
-//@ failure-status: 1
-bb0 (entry):
-  fallthrough bb2
-bb1:
-  stop
-bb2:
-  stop

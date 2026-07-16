@@ -126,7 +126,7 @@ bb6:
   calldataload
   gas
   call
-  fallthrough bb7
+  jump bb7
 bb7:
   swap2
   pop

@@ -79,10 +79,10 @@ bb3:
   mload
   dup1
   push 160
-  fallthrough bb4
+  jump bb4
 bb4:
   mstore
-  fallthrough bb5
+  jump bb5
 bb5:
   push 128
   mstore

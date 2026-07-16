@@ -1047,7 +1047,7 @@ impl EvmCodegen {
                     .and_then(|block| block.terminator.as_mut())
                     && matches!(&terminator.kind, ir::TerminatorKind::RawOpcode(op::STOP))
                 {
-                    terminator.kind = ir::TerminatorKind::FallthroughNext;
+                    terminator.kind = ir::TerminatorKind::Continue;
                 }
             }
 

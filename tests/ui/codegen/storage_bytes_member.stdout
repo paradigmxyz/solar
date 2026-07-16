@@ -114,7 +114,7 @@ bb4:
   lt
   push bb7
   jumpi
-  fallthrough bb5
+  jump bb5
 bb5:
   stop
 bb6:
@@ -459,7 +459,7 @@ bb9:
   pop
   pop
   push 65
-  fallthrough bb10
+  jump bb10
 bb10:
   push 4
   mstore
@@ -522,7 +522,7 @@ bb13:
   mload
   mstore
   push 0
-  fallthrough bb14
+  jump bb14
 bb14:
   push 352
   mload
@@ -583,7 +583,7 @@ bb15:
   mstore
   push 352
   mload
-  fallthrough bb16
+  jump bb16
 bb16:
   push 512
   mload
@@ -938,7 +938,7 @@ bb21:
   push 128
   mstore
   push 0
-  fallthrough bb22
+  jump bb22
 bb22:
   push 288
   mload
@@ -993,7 +993,7 @@ bb23:
   mstore
   push 288
   mload
-  fallthrough bb24
+  jump bb24
 bb24:
   push 416
   mload
@@ -1058,7 +1058,7 @@ bb26:
   push 224
   mstore
   mload
-  fallthrough bb27
+  jump bb27
 bb27:
   push 128
   mstore
@@ -1296,7 +1296,7 @@ bb32:
   or
   swap1
   sstore
-  fallthrough bb33
+  jump bb33
 bb33:
   stop
 bb34:

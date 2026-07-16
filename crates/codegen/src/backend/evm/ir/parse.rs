@@ -542,8 +542,7 @@ impl<'a> Parser<'a> {
         defined_values: &mut GrowableBitSet<ValueId>,
     ) -> Result<Option<TerminatorKind>, ParseError> {
         let kind = match mnemonic {
-            "fallthrough" => TerminatorKind::Fallthrough(self.parse_block_ref(block_labels)?),
-            "fallthrough_next" => TerminatorKind::FallthroughNext,
+            "continue" => TerminatorKind::Continue,
             "jump" => TerminatorKind::Jump(self.parse_block_ref(block_labels)?),
             "br" => {
                 let condition =

@@ -161,7 +161,7 @@ bb5:
   sub
   push 352
   mload
-  fallthrough bb6
+  jump bb6
 bb6:
   keccak256
   push 128
