@@ -936,10 +936,9 @@ impl<'gcx> OverrideChecker<'gcx> {
         let mut seen_sigs: FxHashSet<OverrideSignature<'gcx>> = FxHashSet::default();
         for (proxy, base_id) in unimplemented {
             let sig = self.signature(proxy);
-            if seen_sigs.contains(&sig) {
+            if !seen_sigs.insert(sig) {
                 continue;
             }
-            seen_sigs.insert(sig);
 
             let base_name = self.gcx.hir.contract(base_id).name.as_str();
             let mut diag = self

@@ -792,10 +792,9 @@ impl LoopOptimizer {
             visited: &mut DenseBitSet<InstId>,
             result: &mut Vec<InstId>,
         ) {
-            if visited.contains(inst_id) {
+            if !visited.insert(inst_id) {
                 return;
             }
-            visited.insert(inst_id);
 
             let inst = &func.instructions[inst_id];
             for operand in inst.kind.operands() {

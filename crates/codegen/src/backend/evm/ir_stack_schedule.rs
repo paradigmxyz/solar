@@ -193,8 +193,7 @@ impl<'a> EvmIrStackScheduler<'a> {
             work.push((entry, block_successors(&self.module.blocks[entry])));
             while let Some((block_id, succs)) = work.last_mut() {
                 if let Some(succ) = succs.pop() {
-                    if !visited.contains(succ) {
-                        visited.insert(succ);
+                    if visited.insert(succ) {
                         let succs = block_successors(&self.module.blocks[succ]);
                         work.push((succ, succs));
                     }

@@ -536,11 +536,9 @@ impl MemoryStoreEliminator {
             match &inst.kind {
                 InstKind::MStore(addr, _) => {
                     if let Some(key) = Self::mem_addr_key(func, *addr) {
-                        if overwritten.contains(&key) {
+                        if !overwritten.insert(key) {
                             dead.insert(inst_id);
                             self.eliminated_count += 1;
-                        } else {
-                            overwritten.insert(key);
                         }
                     } else {
                         overwritten.clear();
