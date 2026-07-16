@@ -15,8 +15,6 @@ use std::{
 
 use Chunk::*;
 
-use crate::index::Idx;
-
 #[cfg(test)]
 mod tests;
 
@@ -40,6 +38,27 @@ const WORD_BITS: usize = WORD_BYTES * 8;
 const CHUNK_WORDS: usize = 32;
 const CHUNK_BITS: usize = CHUNK_WORDS * WORD_BITS; // 2048 bits
 
+/// An index that can be stored in a bitset.
+pub trait BitSetIndex: Copy + 'static + Ord + fmt::Debug + std::hash::Hash {
+    /// Creates an index from its integer representation.
+    fn from_usize(index: usize) -> Self;
+
+    /// Returns the integer representation of this index.
+    fn index(self) -> usize;
+}
+
+impl BitSetIndex for usize {
+    #[inline]
+    fn from_usize(index: usize) -> Self {
+        index
+    }
+
+    #[inline]
+    fn index(self) -> usize {
+        self
+    }
+}
+
 /// ChunkSize is small to keep `Chunk` small. The static assertion ensures it's
 /// not too small.
 type ChunkSize = u16;
@@ -52,7 +71,7 @@ pub trait BitRelations<Rhs> {
 }
 
 #[inline]
-fn inclusive_start_end<T: Idx>(
+fn inclusive_start_end<T: BitSetIndex>(
     range: impl RangeBounds<T>,
     domain: usize,
 ) -> Option<(usize, usize)> {
@@ -135,7 +154,7 @@ impl<T> DenseBitSet<T> {
     }
 }
 
-impl<T: Idx> DenseBitSet<T> {
+impl<T: BitSetIndex> DenseBitSet<T> {
     /// Creates a new, empty bitset with a given `domain_size`.
     #[inline]
     pub fn new_empty(domain_size: usize) -> DenseBitSet<T> {
@@ -336,7 +355,7 @@ impl<T: Idx> DenseBitSet<T> {
 }
 
 // dense REL dense
-impl<T: Idx> BitRelations<DenseBitSet<T>> for DenseBitSet<T> {
+impl<T: BitSetIndex> BitRelations<DenseBitSet<T>> for DenseBitSet<T> {
     fn union(&mut self, other: &DenseBitSet<T>) -> bool {
         assert_eq!(self.domain_size, other.domain_size);
         update_words(&mut self.words, &other.words, |a, b| a | b)
@@ -353,7 +372,7 @@ impl<T: Idx> BitRelations<DenseBitSet<T>> for DenseBitSet<T> {
     }
 }
 
-impl<T: Idx> From<GrowableBitSet<T>> for DenseBitSet<T> {
+impl<T: BitSetIndex> From<GrowableBitSet<T>> for DenseBitSet<T> {
     fn from(bit_set: GrowableBitSet<T>) -> Self {
         bit_set.bit_set
     }
@@ -374,13 +393,13 @@ impl<T> Clone for DenseBitSet<T> {
     }
 }
 
-impl<T: Idx> fmt::Debug for DenseBitSet<T> {
+impl<T: BitSetIndex> fmt::Debug for DenseBitSet<T> {
     fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
         w.debug_list().entries(self.iter()).finish()
     }
 }
 
-impl<T: Idx> ToString for DenseBitSet<T> {
+impl<T: BitSetIndex> ToString for DenseBitSet<T> {
     fn to_string(&self) -> String {
         let mut result = String::new();
         let mut sep = '[';
@@ -416,7 +435,7 @@ impl<T: Idx> ToString for DenseBitSet<T> {
     }
 }
 
-pub struct BitIter<'a, T: Idx> {
+pub struct BitIter<'a, T: BitSetIndex> {
     /// A copy of the current word, but with any already-visited bits cleared.
     /// (This lets us use `trailing_zeros()` to find the next set bit.) When it
     /// is reduced to 0, we move onto the next word.
@@ -431,7 +450,7 @@ pub struct BitIter<'a, T: Idx> {
     marker: PhantomData<T>,
 }
 
-impl<'a, T: Idx> BitIter<'a, T> {
+impl<'a, T: BitSetIndex> BitIter<'a, T> {
     #[inline]
     fn new(words: &'a [Word]) -> BitIter<'a, T> {
         // We initialize `word` and `offset` to degenerate values. On the first
@@ -448,7 +467,7 @@ impl<'a, T: Idx> BitIter<'a, T> {
     }
 }
 
-impl<'a, T: Idx> Iterator for BitIter<'a, T> {
+impl<'a, T: BitSetIndex> Iterator for BitIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
         loop {
@@ -559,7 +578,7 @@ impl<T> ChunkedBitSet<T> {
     }
 }
 
-impl<T: Idx> ChunkedBitSet<T> {
+impl<T: BitSetIndex> ChunkedBitSet<T> {
     /// Creates a new bitset with a given `domain_size` and chunk kind.
     fn new(domain_size: usize, is_empty: bool) -> Self {
         let chunks = if domain_size == 0 {
@@ -756,7 +775,7 @@ impl<T: Idx> ChunkedBitSet<T> {
     bit_relations_inherent_impls! {}
 }
 
-impl<T: Idx> BitRelations<ChunkedBitSet<T>> for ChunkedBitSet<T> {
+impl<T: BitSetIndex> BitRelations<ChunkedBitSet<T>> for ChunkedBitSet<T> {
     fn union(&mut self, other: &ChunkedBitSet<T>) -> bool {
         assert_eq!(self.domain_size, other.domain_size);
 
@@ -971,7 +990,7 @@ impl<T> Clone for ChunkedBitSet<T> {
     }
 }
 
-pub struct ChunkedBitIter<'a, T: Idx> {
+pub struct ChunkedBitIter<'a, T: BitSetIndex> {
     bit_set: &'a ChunkedBitSet<T>,
 
     // The index of the current chunk.
@@ -981,14 +1000,14 @@ pub struct ChunkedBitIter<'a, T: Idx> {
     chunk_iter: ChunkIter<'a>,
 }
 
-impl<'a, T: Idx> ChunkedBitIter<'a, T> {
+impl<'a, T: BitSetIndex> ChunkedBitIter<'a, T> {
     #[inline]
     fn new(bit_set: &'a ChunkedBitSet<T>) -> ChunkedBitIter<'a, T> {
         ChunkedBitIter { bit_set, chunk_index: 0, chunk_iter: bit_set.chunk_iter(0) }
     }
 }
 
-impl<'a, T: Idx> Iterator for ChunkedBitIter<'a, T> {
+impl<'a, T: BitSetIndex> Iterator for ChunkedBitIter<'a, T> {
     type Item = T;
 
     fn next(&mut self) -> Option<T> {
@@ -1056,11 +1075,9 @@ enum ChunkIter<'a> {
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct ChunkBitIdx(usize);
 
-impl Idx for ChunkBitIdx {
-    const MAX: usize = usize::MAX;
-
-    unsafe fn from_usize_unchecked(idx: usize) -> Self {
-        Self(idx)
+impl BitSetIndex for ChunkBitIdx {
+    fn from_usize(index: usize) -> Self {
+        Self(index)
     }
 
     fn index(self) -> usize {
@@ -1068,7 +1085,7 @@ impl Idx for ChunkBitIdx {
     }
 }
 
-impl<T: Idx> fmt::Debug for ChunkedBitSet<T> {
+impl<T: BitSetIndex> fmt::Debug for ChunkedBitSet<T> {
     fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
         w.debug_list().entries(self.iter()).finish()
     }
@@ -1168,7 +1185,7 @@ impl<T> MixedBitSet<T> {
     }
 }
 
-impl<T: Idx> MixedBitSet<T> {
+impl<T: BitSetIndex> MixedBitSet<T> {
     #[inline]
     pub fn new_empty(domain_size: usize) -> MixedBitSet<T> {
         if domain_size <= CHUNK_BITS {
@@ -1256,7 +1273,7 @@ impl<T> Clone for MixedBitSet<T> {
     }
 }
 
-impl<T: Idx> BitRelations<MixedBitSet<T>> for MixedBitSet<T> {
+impl<T: BitSetIndex> BitRelations<MixedBitSet<T>> for MixedBitSet<T> {
     fn union(&mut self, other: &MixedBitSet<T>) -> bool {
         match (self, other) {
             (MixedBitSet::Small(set), MixedBitSet::Small(other)) => set.union(other),
@@ -1278,7 +1295,7 @@ impl<T: Idx> BitRelations<MixedBitSet<T>> for MixedBitSet<T> {
     }
 }
 
-impl<T: Idx> fmt::Debug for MixedBitSet<T> {
+impl<T: BitSetIndex> fmt::Debug for MixedBitSet<T> {
     fn fmt(&self, w: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MixedBitSet::Small(set) => set.fmt(w),
@@ -1287,12 +1304,12 @@ impl<T: Idx> fmt::Debug for MixedBitSet<T> {
     }
 }
 
-pub enum MixedBitIter<'a, T: Idx> {
+pub enum MixedBitIter<'a, T: BitSetIndex> {
     Small(BitIter<'a, T>),
     Large(ChunkedBitIter<'a, T>),
 }
 
-impl<'a, T: Idx> Iterator for MixedBitIter<'a, T> {
+impl<'a, T: BitSetIndex> Iterator for MixedBitIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<T> {
         match self {
@@ -1310,17 +1327,17 @@ impl<'a, T: Idx> Iterator for MixedBitIter<'a, T> {
 /// All operations that involve an element will panic if the element is equal
 /// to or greater than the domain size.
 #[derive(Clone, Debug, PartialEq)]
-pub struct GrowableBitSet<T: Idx> {
+pub struct GrowableBitSet<T: BitSetIndex> {
     bit_set: DenseBitSet<T>,
 }
 
-impl<T: Idx> Default for GrowableBitSet<T> {
+impl<T: BitSetIndex> Default for GrowableBitSet<T> {
     fn default() -> Self {
         GrowableBitSet::new_empty()
     }
 }
 
-impl<T: Idx> GrowableBitSet<T> {
+impl<T: BitSetIndex> GrowableBitSet<T> {
     /// Ensure that the set can hold at least `min_domain_size` elements.
     pub fn ensure(&mut self, min_domain_size: usize) {
         if self.bit_set.domain_size < min_domain_size {
@@ -1403,13 +1420,13 @@ impl<T: Idx> GrowableBitSet<T> {
     bit_relations_inherent_impls! {}
 }
 
-impl<T: Idx> From<DenseBitSet<T>> for GrowableBitSet<T> {
+impl<T: BitSetIndex> From<DenseBitSet<T>> for GrowableBitSet<T> {
     fn from(bit_set: DenseBitSet<T>) -> Self {
         Self { bit_set }
     }
 }
 
-impl<T: Idx> BitRelations<Self> for GrowableBitSet<T> {
+impl<T: BitSetIndex> BitRelations<Self> for GrowableBitSet<T> {
     fn union(&mut self, other: &Self) -> bool {
         self.ensure(other.bit_set.domain_size);
         update_words(&mut self.bit_set.words, &other.bit_set.words, |a, b| a | b)
@@ -1438,14 +1455,14 @@ impl<T: Idx> BitRelations<Self> for GrowableBitSet<T> {
 /// All operations that involve a row and/or column index will panic if the
 /// index exceeds the relevant bound.
 #[derive(Clone, Eq, PartialEq, Hash)]
-pub struct BitMatrix<R: Idx, C: Idx> {
+pub struct BitMatrix<R: BitSetIndex, C: BitSetIndex> {
     num_rows: usize,
     num_columns: usize,
     words: Vec<Word>,
     marker: PhantomData<(R, C)>,
 }
 
-impl<R: Idx, C: Idx> BitMatrix<R, C> {
+impl<R: BitSetIndex, C: BitSetIndex> BitMatrix<R, C> {
     /// Creates a new `rows x columns` matrix, initially empty.
     pub fn new(num_rows: usize, num_columns: usize) -> BitMatrix<R, C> {
         // For every element, we need one bit for every other
@@ -1596,7 +1613,7 @@ impl<R: Idx, C: Idx> BitMatrix<R, C> {
     }
 }
 
-impl<R: Idx, C: Idx> fmt::Debug for BitMatrix<R, C> {
+impl<R: BitSetIndex, C: BitSetIndex> fmt::Debug for BitMatrix<R, C> {
     fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
         /// Forces its contents to print in regular mode instead of alternate mode.
         struct OneLinePrinter<T>(T);
@@ -1626,15 +1643,15 @@ impl<R: Idx, C: Idx> fmt::Debug for BitMatrix<R, C> {
 #[derive(Clone, Debug)]
 pub struct SparseBitMatrix<R, C>
 where
-    R: Idx,
-    C: Idx,
+    R: BitSetIndex,
+    C: BitSetIndex,
 {
     num_columns: usize,
     rows: Vec<Option<DenseBitSet<C>>>,
     marker: PhantomData<R>,
 }
 
-impl<R: Idx, C: Idx> SparseBitMatrix<R, C> {
+impl<R: BitSetIndex, C: BitSetIndex> SparseBitMatrix<R, C> {
     /// Creates a new empty sparse bit matrix with no rows or columns.
     pub fn new(num_columns: usize) -> Self {
         Self { num_columns, rows: Vec::new(), marker: PhantomData }
@@ -1774,7 +1791,7 @@ fn num_words(domain_size: usize) -> usize {
 }
 
 #[inline]
-fn word_index_and_mask<T: Idx>(elem: T) -> (usize, Word) {
+fn word_index_and_mask<T: BitSetIndex>(elem: T) -> (usize, Word) {
     word_index_and_mask_usize(elem.index())
 }
 
@@ -1786,12 +1803,12 @@ fn word_index_and_mask_usize(elem: usize) -> (usize, Word) {
 }
 
 #[inline]
-fn chunk_index<T: Idx>(elem: T) -> usize {
+fn chunk_index<T: BitSetIndex>(elem: T) -> usize {
     elem.index() / CHUNK_BITS
 }
 
 #[inline]
-fn chunk_word_index_and_mask<T: Idx>(elem: T) -> (usize, Word) {
+fn chunk_word_index_and_mask<T: BitSetIndex>(elem: T) -> (usize, Word) {
     let chunk_elem = elem.index() % CHUNK_BITS;
     word_index_and_mask_usize(chunk_elem)
 }

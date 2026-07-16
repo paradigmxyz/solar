@@ -85,7 +85,6 @@ use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
-    newtype_index,
 };
 
 /// Statistics for load PRE.
@@ -157,51 +156,8 @@ enum GenSource {
     Stored(ValueId),
 }
 
-newtype_index! {
-    struct KeyIdx;
-}
-
 /// A dense bitset over key-universe indices.
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct KeySet(DenseBitSet<KeyIdx>);
-
-impl KeySet {
-    fn empty(len: usize) -> Self {
-        Self(DenseBitSet::new_empty(len))
-    }
-
-    fn full(len: usize) -> Self {
-        Self(DenseBitSet::new_filled(len))
-    }
-
-    fn insert(&mut self, idx: usize) -> bool {
-        self.0.insert(KeyIdx::from_usize(idx))
-    }
-
-    fn remove(&mut self, idx: usize) {
-        self.0.remove(KeyIdx::from_usize(idx));
-    }
-
-    fn contains(&self, idx: usize) -> bool {
-        self.0.contains(KeyIdx::from_usize(idx))
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    fn intersect_with(&mut self, other: &Self) {
-        self.0.intersect(&other.0);
-    }
-
-    fn subtract(&mut self, other: &Self) {
-        self.0.subtract(&other.0);
-    }
-
-    fn union_with(&mut self, other: &Self) {
-        self.0.union(&other.0);
-    }
-}
+type KeySet = DenseBitSet<usize>;
 
 /// A join-block load rewrite: replace `inst` with a phi over `incoming`, after
 /// inserting copies of `kind` at the end of the `insertions` predecessors.
@@ -420,8 +376,8 @@ impl LoadRedundancyEliminator {
         let mut gens = FxHashMap::default();
         let mut kills = FxHashMap::default();
         for &block in rpo {
-            let mut gen_set = KeySet::empty(key_count);
-            let mut kill_set = KeySet::empty(key_count);
+            let mut gen_set = KeySet::new_empty(key_count);
+            let mut kill_set = KeySet::new_empty(key_count);
             for &inst_id in &func.blocks[block].instructions {
                 if func.instructions[inst_id].kind.has_side_effects() {
                     for (idx, &key) in keys.iter().enumerate() {
@@ -454,7 +410,7 @@ impl LoadRedundancyEliminator {
                 let out = if block == func.entry_block {
                     gens[&block].clone()
                 } else {
-                    KeySet::full(key_count)
+                    KeySet::new_filled(key_count)
                 };
                 (block, out)
             })
@@ -463,7 +419,7 @@ impl LoadRedundancyEliminator {
             let mut changed = false;
             for &block in rpo {
                 let in_set = if block == func.entry_block {
-                    KeySet::empty(key_count)
+                    KeySet::new_empty(key_count)
                 } else {
                     let mut acc: Option<KeySet> = None;
                     for &pred in &func.blocks[block].predecessors {
@@ -471,17 +427,19 @@ impl LoadRedundancyEliminator {
                         // contribute a path.
                         let Some(out) = outs.get(&pred) else { continue };
                         match &mut acc {
-                            Some(acc) => acc.intersect_with(out),
+                            Some(acc) => {
+                                acc.intersect(out);
+                            }
                             None => acc = Some(out.clone()),
                         }
                     }
-                    acc.unwrap_or_else(|| KeySet::empty(key_count))
+                    acc.unwrap_or_else(|| KeySet::new_empty(key_count))
                 };
                 let mut out = in_set.clone();
                 if let Some(kill) = kills.get(&block) {
                     out.subtract(kill);
                 }
-                out.union_with(&gens[&block]);
+                out.union(&gens[&block]);
                 ins.insert(block, in_set);
                 if outs.get(&block) != Some(&out) {
                     outs.insert(block, out);
@@ -597,8 +555,8 @@ impl LoadRedundancyEliminator {
     /// observation in the join prefix.
     fn first_loads(func: &Function, analysis: &Analysis, target: BlockId) -> Vec<(InstId, usize)> {
         let key_count = analysis.keys.len();
-        let mut blocked = KeySet::empty(key_count);
-        let mut taken = KeySet::empty(key_count);
+        let mut blocked = KeySet::new_empty(key_count);
+        let mut taken = KeySet::new_empty(key_count);
         let mut found = Vec::new();
 
         for &inst_id in &func.blocks[target].instructions {

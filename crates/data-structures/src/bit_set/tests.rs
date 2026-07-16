@@ -13,7 +13,7 @@ newtype_index! {
 }
 
 fn idx(index: usize) -> TestIdx {
-    TestIdx::from_usize(index)
+    <TestIdx as Idx>::from_usize(index)
 }
 
 fn idx_range(range: std::ops::Range<usize>) -> std::ops::Range<TestIdx> {
@@ -1034,6 +1034,11 @@ fn borrowed_bit_sets_are_iterable() {
 
 #[test]
 fn owned_bit_sets_are_iterable() {
+    let mut usize_dense = DenseBitSet::new_empty(70);
+    usize_dense.insert(1);
+    usize_dense.insert(65);
+    assert_eq!(usize_dense.into_iter().collect::<Vec<_>>(), [1, 65]);
+
     let mut dense = DenseBitSet::new_empty(130);
     for index in [0, 63, 64, 129] {
         dense.insert(idx(index));

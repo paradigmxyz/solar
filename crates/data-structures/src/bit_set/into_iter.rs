@@ -1,8 +1,7 @@
 use super::{
-    BitIter, CHUNK_BITS, Chunk, ChunkedBitIter, ChunkedBitSet, DenseBitSet, GrowableBitSet,
-    MixedBitIter, MixedBitSet, WORD_BITS, Word, num_words,
+    BitIter, BitSetIndex, CHUNK_BITS, Chunk, ChunkedBitIter, ChunkedBitSet, DenseBitSet,
+    GrowableBitSet, MixedBitIter, MixedBitSet, WORD_BITS, Word, num_words,
 };
-use crate::index::Idx;
 use std::{marker::PhantomData, ops::Range, rc::Rc, vec};
 
 /// A consuming iterator over a [`DenseBitSet`].
@@ -13,7 +12,7 @@ pub struct DenseBitIntoIter<T> {
     marker: PhantomData<T>,
 }
 
-impl<T: Idx> DenseBitIntoIter<T> {
+impl<T: BitSetIndex> DenseBitIntoIter<T> {
     fn new(words: Vec<Word>) -> Self {
         Self {
             word: 0,
@@ -24,7 +23,7 @@ impl<T: Idx> DenseBitIntoIter<T> {
     }
 }
 
-impl<T: Idx> Iterator for DenseBitIntoIter<T> {
+impl<T: BitSetIndex> Iterator for DenseBitIntoIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -49,7 +48,7 @@ pub struct ChunkedBitIntoIter<T> {
     marker: PhantomData<T>,
 }
 
-impl<T: Idx> ChunkedBitIntoIter<T> {
+impl<T: BitSetIndex> ChunkedBitIntoIter<T> {
     fn new(chunks: Box<[Chunk]>) -> Self {
         Self {
             chunks: chunks.into_vec().into_iter(),
@@ -61,7 +60,7 @@ impl<T: Idx> ChunkedBitIntoIter<T> {
     }
 }
 
-impl<T: Idx> Iterator for ChunkedBitIntoIter<T> {
+impl<T: BitSetIndex> Iterator for ChunkedBitIntoIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -130,14 +129,14 @@ impl Iterator for ChunkIntoIter {
 }
 
 /// A consuming iterator over a [`MixedBitSet`].
-pub enum MixedBitIntoIter<T: Idx> {
+pub enum MixedBitIntoIter<T: BitSetIndex> {
     /// Iteration over the dense representation.
     Small(DenseBitIntoIter<T>),
     /// Iteration over the chunked representation.
     Large(ChunkedBitIntoIter<T>),
 }
 
-impl<T: Idx> Iterator for MixedBitIntoIter<T> {
+impl<T: BitSetIndex> Iterator for MixedBitIntoIter<T> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -148,7 +147,7 @@ impl<T: Idx> Iterator for MixedBitIntoIter<T> {
     }
 }
 
-impl<'a, T: Idx> IntoIterator for &'a DenseBitSet<T> {
+impl<'a, T: BitSetIndex> IntoIterator for &'a DenseBitSet<T> {
     type Item = T;
     type IntoIter = BitIter<'a, T>;
 
@@ -158,7 +157,7 @@ impl<'a, T: Idx> IntoIterator for &'a DenseBitSet<T> {
     }
 }
 
-impl<T: Idx> IntoIterator for DenseBitSet<T> {
+impl<T: BitSetIndex> IntoIterator for DenseBitSet<T> {
     type Item = T;
     type IntoIter = DenseBitIntoIter<T>;
 
@@ -167,7 +166,7 @@ impl<T: Idx> IntoIterator for DenseBitSet<T> {
     }
 }
 
-impl<'a, T: Idx> IntoIterator for &'a ChunkedBitSet<T> {
+impl<'a, T: BitSetIndex> IntoIterator for &'a ChunkedBitSet<T> {
     type Item = T;
     type IntoIter = ChunkedBitIter<'a, T>;
 
@@ -176,7 +175,7 @@ impl<'a, T: Idx> IntoIterator for &'a ChunkedBitSet<T> {
     }
 }
 
-impl<T: Idx> IntoIterator for ChunkedBitSet<T> {
+impl<T: BitSetIndex> IntoIterator for ChunkedBitSet<T> {
     type Item = T;
     type IntoIter = ChunkedBitIntoIter<T>;
 
@@ -185,7 +184,7 @@ impl<T: Idx> IntoIterator for ChunkedBitSet<T> {
     }
 }
 
-impl<'a, T: Idx> IntoIterator for &'a MixedBitSet<T> {
+impl<'a, T: BitSetIndex> IntoIterator for &'a MixedBitSet<T> {
     type Item = T;
     type IntoIter = MixedBitIter<'a, T>;
 
@@ -195,7 +194,7 @@ impl<'a, T: Idx> IntoIterator for &'a MixedBitSet<T> {
     }
 }
 
-impl<T: Idx> IntoIterator for MixedBitSet<T> {
+impl<T: BitSetIndex> IntoIterator for MixedBitSet<T> {
     type Item = T;
     type IntoIter = MixedBitIntoIter<T>;
 
@@ -207,7 +206,7 @@ impl<T: Idx> IntoIterator for MixedBitSet<T> {
     }
 }
 
-impl<'a, T: Idx> IntoIterator for &'a GrowableBitSet<T> {
+impl<'a, T: BitSetIndex> IntoIterator for &'a GrowableBitSet<T> {
     type Item = T;
     type IntoIter = BitIter<'a, T>;
 
@@ -217,7 +216,7 @@ impl<'a, T: Idx> IntoIterator for &'a GrowableBitSet<T> {
     }
 }
 
-impl<T: Idx> IntoIterator for GrowableBitSet<T> {
+impl<T: BitSetIndex> IntoIterator for GrowableBitSet<T> {
     type Item = T;
     type IntoIter = DenseBitIntoIter<T>;
 
