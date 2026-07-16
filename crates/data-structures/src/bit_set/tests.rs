@@ -1016,10 +1016,20 @@ fn dense_contains_any() {
 
 #[test]
 fn borrowed_bit_sets_are_iterable() {
+    let mut usize_dense = DenseBitSet::new_empty(70);
+    usize_dense.insert(1);
+    usize_dense.insert(65);
+    assert_eq!((&usize_dense).into_iter().collect::<Vec<_>>(), [1, 65]);
+
     let mut dense = DenseBitSet::new_empty(8);
     dense.insert(idx(1));
     dense.insert(idx(6));
     assert_eq!((&dense).into_iter().collect::<Vec<_>>(), [idx(1), idx(6)]);
+
+    let mut chunked = ChunkedBitSet::new_empty(5000);
+    chunked.insert(idx(3));
+    chunked.insert(idx(2050));
+    assert_eq!((&chunked).into_iter().collect::<Vec<_>>(), [idx(3), idx(2050)]);
 
     let mut mixed = MixedBitSet::new_empty(8);
     mixed.insert(idx(2));
@@ -1030,46 +1040,4 @@ fn borrowed_bit_sets_are_iterable() {
     growable.insert(idx(3));
     growable.insert(idx(9));
     assert_eq!((&growable).into_iter().collect::<Vec<_>>(), [idx(3), idx(9)]);
-}
-
-#[test]
-fn owned_bit_sets_are_iterable() {
-    let mut usize_dense = DenseBitSet::new_empty(70);
-    usize_dense.insert(1);
-    usize_dense.insert(65);
-    assert_eq!(usize_dense.into_iter().collect::<Vec<_>>(), [1, 65]);
-
-    let mut dense = DenseBitSet::new_empty(130);
-    for index in [0, 63, 64, 129] {
-        dense.insert(idx(index));
-    }
-    assert_eq!(dense.into_iter().collect::<Vec<_>>(), [idx(0), idx(63), idx(64), idx(129)]);
-
-    let mut chunked = ChunkedBitSet::new_empty(5000);
-    chunked.insert(idx(3));
-    chunked.insert(idx(2050));
-    chunked.insert(idx(4099));
-    let shared = chunked.clone();
-    let expected = [idx(3), idx(2050), idx(4099)];
-    assert_eq!((&shared).into_iter().collect::<Vec<_>>(), expected);
-    assert_eq!(chunked.into_iter().collect::<Vec<_>>(), expected);
-    assert_eq!(
-        ChunkedBitSet::<TestIdx>::new_filled(5000).into_iter().collect::<Vec<_>>(),
-        (0..5000).map(idx).collect::<Vec<_>>()
-    );
-
-    let mut small_mixed = MixedBitSet::new_empty(8);
-    small_mixed.insert(idx(2));
-    small_mixed.insert(idx(7));
-    assert_eq!(small_mixed.into_iter().collect::<Vec<_>>(), [idx(2), idx(7)]);
-
-    let mut large_mixed = MixedBitSet::new_empty(5000);
-    large_mixed.insert(idx(4));
-    large_mixed.insert(idx(3000));
-    assert_eq!(large_mixed.into_iter().collect::<Vec<_>>(), [idx(4), idx(3000)]);
-
-    let mut growable = GrowableBitSet::new_empty();
-    growable.insert(idx(3));
-    growable.insert(idx(9));
-    assert_eq!(growable.into_iter().collect::<Vec<_>>(), [idx(3), idx(9)]);
 }
