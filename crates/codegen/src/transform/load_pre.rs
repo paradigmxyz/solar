@@ -83,7 +83,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_data_structures::{
-    bit_set::DenseBitSet,
+    bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
     newtype_index,
 };
@@ -174,8 +174,8 @@ impl KeySet {
         Self(DenseBitSet::new_filled(len))
     }
 
-    fn insert(&mut self, idx: usize) {
-        self.0.insert(KeyIdx::from_usize(idx));
+    fn insert(&mut self, idx: usize) -> bool {
+        self.0.insert(KeyIdx::from_usize(idx))
     }
 
     fn remove(&mut self, idx: usize) {
@@ -345,7 +345,7 @@ impl Analysis {
 struct CandidateCx<'a> {
     analysis: &'a Analysis,
     eliminated_keys: &'a FxHashSet<(LoadKey, BlockId)>,
-    inserted_insts: &'a FxHashSet<InstId>,
+    inserted_insts: &'a GrowableBitSet<InstId>,
     locate_cache: FxHashMap<(BlockId, usize), Option<ValueId>>,
 }
 
@@ -368,7 +368,7 @@ impl LoadRedundancyEliminator {
         let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
         let mut eliminated_keys: FxHashSet<(LoadKey, BlockId)> = FxHashSet::default();
-        let mut inserted_insts: FxHashSet<InstId> = FxHashSet::default();
+        let mut inserted_insts = GrowableBitSet::with_capacity(func.instructions.len());
 
         while rewrites < rewrite_limit {
             let Some(analysis) = Self::compute_analysis(func) else { break };
@@ -524,8 +524,8 @@ impl LoadRedundancyEliminator {
         let mut batch = Vec::new();
         // Candidates whose analysis would be invalidated by an earlier
         // candidate in this batch are deferred to the next round.
-        let mut modified_blocks: FxHashSet<BlockId> = FxHashSet::default();
-        let mut eliminated_values: FxHashSet<ValueId> = FxHashSet::default();
+        let mut modified_blocks = DenseBitSet::new_empty(func.blocks.len());
+        let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
 
         'targets: for target in func.blocks.indices() {
             if !cx.analysis.reachable.contains(target) {
@@ -543,7 +543,7 @@ impl LoadRedundancyEliminator {
                     break 'targets;
                 }
                 // Termination rule 1: never rewrite a load this run inserted.
-                if cx.inserted_insts.contains(&inst) {
+                if cx.inserted_insts.contains(inst) {
                     continue;
                 }
                 let Some(candidate) =
@@ -555,8 +555,12 @@ impl LoadRedundancyEliminator {
                     continue;
                 }
                 modified_blocks.insert(candidate.target);
-                modified_blocks.extend(candidate.insertions.iter().copied());
-                eliminated_values.extend(candidate.loads.iter().map(|&(_, value)| value));
+                for &block in &candidate.insertions {
+                    modified_blocks.insert(block);
+                }
+                for &(_, value) in &candidate.loads {
+                    eliminated_values.insert(value);
+                }
                 batch.push(candidate);
             }
         }
@@ -569,19 +573,19 @@ impl LoadRedundancyEliminator {
     /// references a value whose defining load the batch removes.
     fn interferes_with_batch(
         candidate: &Candidate,
-        modified_blocks: &FxHashSet<BlockId>,
-        eliminated_values: &FxHashSet<ValueId>,
+        modified_blocks: &DenseBitSet<BlockId>,
+        eliminated_values: &DenseBitSet<ValueId>,
     ) -> bool {
-        modified_blocks.contains(&candidate.target)
-            || candidate.insertions.iter().any(|block| modified_blocks.contains(block))
-            || candidate.incoming.iter().any(|(_, value)| eliminated_values.contains(value))
-            || candidate.loads.iter().any(|&(_, value)| eliminated_values.contains(&value))
+        modified_blocks.contains(candidate.target)
+            || candidate.insertions.iter().any(|&block| modified_blocks.contains(block))
+            || candidate.incoming.iter().any(|&(_, value)| eliminated_values.contains(value))
+            || candidate.loads.iter().any(|&(_, value)| eliminated_values.contains(value))
             || (!candidate.insertions.is_empty()
                 && candidate
                     .kind
                     .operands()
                     .into_iter()
-                    .any(|value| eliminated_values.contains(&value)))
+                    .any(|value| eliminated_values.contains(value)))
     }
 
     /// Returns, in program order, the first load of each key in `target` that
@@ -594,7 +598,7 @@ impl LoadRedundancyEliminator {
     fn first_loads(func: &Function, analysis: &Analysis, target: BlockId) -> Vec<(InstId, usize)> {
         let key_count = analysis.keys.len();
         let mut blocked = KeySet::empty(key_count);
-        let mut taken: FxHashSet<usize> = FxHashSet::default();
+        let mut taken = KeySet::empty(key_count);
         let mut found = Vec::new();
 
         for &inst_id in &func.blocks[target].instructions {
@@ -866,7 +870,7 @@ impl LoadRedundancyEliminator {
         func: &mut Function,
         candidate: Candidate,
         eliminated_keys: &mut FxHashSet<(LoadKey, BlockId)>,
-        inserted_insts: &mut FxHashSet<InstId>,
+        inserted_insts: &mut GrowableBitSet<InstId>,
     ) {
         let Candidate { target, key, result_ty, kind, metadata, loads, mut incoming, insertions } =
             candidate;
@@ -919,8 +923,11 @@ impl LoadRedundancyEliminator {
         for &(_, load_result) in &loads {
             Self::replace_uses(func, load_result, replacement);
         }
-        let load_insts: FxHashSet<InstId> = loads.iter().map(|&(inst_id, _)| inst_id).collect();
-        func.blocks[target].instructions.retain(|&inst_id| !load_insts.contains(&inst_id));
+        let mut load_insts = DenseBitSet::new_empty(func.instructions.len());
+        for &(inst_id, _) in &loads {
+            load_insts.insert(inst_id);
+        }
+        func.blocks[target].instructions.retain(|&inst_id| !load_insts.contains(inst_id));
         self.stats.loads_eliminated += loads.len();
     }
 

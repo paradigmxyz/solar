@@ -7,10 +7,7 @@ use crate::{
     mir::{BlockId, Function, InstId, Terminator, Value, ValueId, utils::repair_reachability_phis},
     pass::FunctionPass,
 };
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Dead Code Elimination pass.
 ///
@@ -161,7 +158,7 @@ impl DeadCodeEliminator {
     /// Returns the indices of parameters that are never used.
     pub fn find_unused_parameters(&self, func: &Function) -> Vec<u32> {
         // Collect all used argument indices
-        let mut used_args = FxHashSet::default();
+        let mut used_args = vec![false; func.params.len()];
 
         // Collect from all values used in instructions
         for (_, block) in func.blocks.iter_enumerated() {
@@ -169,7 +166,7 @@ impl DeadCodeEliminator {
                 let inst = &func.instructions[inst_id];
                 for val_id in inst.kind.operands() {
                     if let Value::Arg { index, .. } = &func.values[val_id] {
-                        used_args.insert(*index);
+                        used_args[*index as usize] = true;
                     }
                 }
             }
@@ -178,14 +175,18 @@ impl DeadCodeEliminator {
             if let Some(ref term) = block.terminator {
                 for val_id in term.operands() {
                     if let Value::Arg { index, .. } = &func.values[val_id] {
-                        used_args.insert(*index);
+                        used_args[*index as usize] = true;
                     }
                 }
             }
         }
 
         // Find unused parameter indices
-        (0..func.params.len() as u32).filter(|idx| !used_args.contains(idx)).collect()
+        used_args
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, used)| (!used).then_some(index as u32))
+            .collect()
     }
 
     /// Collects all values that are used (appear in instructions or terminators).

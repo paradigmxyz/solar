@@ -38,7 +38,10 @@ use crate::{
     },
     pass::FunctionPass,
 };
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    map::{FxHashMap, FxHashSet},
+};
 use std::cmp::Ordering;
 
 const MAX_INSERTIONS_PER_REWRITE: usize = 2;
@@ -144,7 +147,7 @@ impl PartialRedundancyEliminator {
         let mut inst_blocks = func.inst_blocks();
 
         let mut eliminated_keys = FxHashSet::default();
-        let mut inserted_insts = FxHashSet::default();
+        let mut inserted_insts = GrowableBitSet::with_capacity(func.instructions.len());
         let rewrite_limit = func.instructions.len().saturating_mul(2).max(64);
         let mut rewrites = 0usize;
 
@@ -191,14 +194,14 @@ impl PartialRedundancyEliminator {
         inst_results: &FxHashMap<InstId, ValueId>,
         inst_blocks: &FxHashMap<InstId, BlockId>,
         eliminated_keys: &FxHashSet<(ExprKey, BlockId)>,
-        inserted_insts: &FxHashSet<InstId>,
+        inserted_insts: &GrowableBitSet<InstId>,
         limit: usize,
     ) -> Vec<PreCandidate> {
         let mut batch = Vec::new();
         // Candidates whose analysis would be invalidated by an earlier
         // candidate in this batch are deferred to the next scan.
-        let mut modified_blocks: FxHashSet<BlockId> = FxHashSet::default();
-        let mut eliminated_values: FxHashSet<ValueId> = FxHashSet::default();
+        let mut modified_blocks = DenseBitSet::new_empty(func.blocks.len());
+        let mut eliminated_values = DenseBitSet::new_empty(func.values.len());
 
         'targets: for target in func.blocks.indices() {
             let predecessors = func.unique_predecessors(target);
@@ -212,7 +215,7 @@ impl PartialRedundancyEliminator {
                 }
                 // Termination rule 1: never re-eliminate an instruction this
                 // run inserted.
-                if inserted_insts.contains(&inst) {
+                if inserted_insts.contains(inst) {
                     continue;
                 }
                 let instruction = &func.instructions[inst];
@@ -246,7 +249,9 @@ impl PartialRedundancyEliminator {
                     continue;
                 }
                 modified_blocks.insert(candidate.target);
-                modified_blocks.extend(candidate.insertions.iter().map(|(block, _)| *block));
+                for &(block, _) in &candidate.insertions {
+                    modified_blocks.insert(block);
+                }
                 eliminated_values.insert(candidate.result);
                 batch.push(candidate);
             }
@@ -260,14 +265,14 @@ impl PartialRedundancyEliminator {
     /// references a value whose defining instruction the batch removes.
     fn interferes_with_batch(
         candidate: &PreCandidate,
-        modified_blocks: &FxHashSet<BlockId>,
-        eliminated_values: &FxHashSet<ValueId>,
+        modified_blocks: &DenseBitSet<BlockId>,
+        eliminated_values: &DenseBitSet<ValueId>,
     ) -> bool {
-        modified_blocks.contains(&candidate.target)
-            || candidate.insertions.iter().any(|(block, _)| modified_blocks.contains(block))
-            || candidate.incoming.iter().any(|(_, value)| eliminated_values.contains(value))
+        modified_blocks.contains(candidate.target)
+            || candidate.insertions.iter().any(|&(block, _)| modified_blocks.contains(block))
+            || candidate.incoming.iter().any(|&(_, value)| eliminated_values.contains(value))
             || candidate.insertions.iter().any(|(_, kind)| {
-                kind.operands().into_iter().any(|value| eliminated_values.contains(&value))
+                kind.operands().into_iter().any(|value| eliminated_values.contains(value))
             })
     }
 
@@ -336,7 +341,7 @@ impl PartialRedundancyEliminator {
         inst_results: &mut FxHashMap<InstId, ValueId>,
         inst_blocks: &mut FxHashMap<InstId, BlockId>,
         eliminated_keys: &mut FxHashSet<(ExprKey, BlockId)>,
-        inserted_insts: &mut FxHashSet<InstId>,
+        inserted_insts: &mut GrowableBitSet<InstId>,
     ) {
         let PreCandidate { target, inst, result, result_ty, metadata, mut incoming, insertions } =
             candidate;

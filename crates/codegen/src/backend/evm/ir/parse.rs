@@ -1,7 +1,7 @@
 //! EVM IR text parser.
 
 use super::*;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use std::fmt as std_fmt;
 
 /// Parses an EVM IR module from the text format.
@@ -308,7 +308,7 @@ impl<'a> Parser<'a> {
 
         let mut current_block = None;
         let mut value_labels = FxHashMap::default();
-        let mut defined_values = FxHashSet::default();
+        let mut defined_values = GrowableBitSet::with_capacity(module.values.len());
         loop {
             self.skip_blank_and_comments();
             if self.is_eof() {
@@ -454,7 +454,7 @@ impl<'a> Parser<'a> {
         block: EvmIrBlockId,
         block_labels: &FxHashMap<String, EvmIrBlockId>,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        defined_values: &mut FxHashSet<EvmIrValueId>,
+        defined_values: &mut GrowableBitSet<EvmIrValueId>,
     ) -> Result<(), EvmIrParseError> {
         self.skip_inline_whitespace();
         if module.blocks[block].terminator.is_some() {
@@ -502,7 +502,7 @@ impl<'a> Parser<'a> {
         &mut self,
         module: &mut EvmIrModule,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        defined_values: &mut FxHashSet<EvmIrValueId>,
+        defined_values: &mut GrowableBitSet<EvmIrValueId>,
     ) -> Result<Option<EvmIrValueId>, EvmIrParseError> {
         let save = (self.pos, self.line, self.col);
         if self.peek_char() != Some('%') {
@@ -548,7 +548,7 @@ impl<'a> Parser<'a> {
         module: &mut EvmIrModule,
         block_labels: &FxHashMap<String, EvmIrBlockId>,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        defined_values: &mut FxHashSet<EvmIrValueId>,
+        defined_values: &mut GrowableBitSet<EvmIrValueId>,
     ) -> Result<Option<EvmIrTerminatorKind>, EvmIrParseError> {
         let kind = match mnemonic {
             "fallthrough" => EvmIrTerminatorKind::Fallthrough(self.parse_block_ref(block_labels)?),
@@ -627,7 +627,7 @@ impl<'a> Parser<'a> {
         module: &mut EvmIrModule,
         block_labels: &FxHashMap<String, EvmIrBlockId>,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        defined_values: &mut FxHashSet<EvmIrValueId>,
+        defined_values: &mut GrowableBitSet<EvmIrValueId>,
     ) -> Result<Vec<EvmIrOperand>, EvmIrParseError> {
         let mut operands = Vec::new();
         self.skip_inline();
@@ -654,7 +654,7 @@ impl<'a> Parser<'a> {
         module: &mut EvmIrModule,
         block_labels: &FxHashMap<String, EvmIrBlockId>,
         value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        _defined_values: &mut FxHashSet<EvmIrValueId>,
+        _defined_values: &mut GrowableBitSet<EvmIrValueId>,
     ) -> Result<EvmIrOperand, EvmIrParseError> {
         self.skip_inline();
         if self.peek_char() == Some('%') {

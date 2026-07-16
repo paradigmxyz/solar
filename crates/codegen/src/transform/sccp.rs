@@ -660,13 +660,14 @@ impl SccpPass {
                 continue;
             }
 
-            let executable_successors: FxHashSet<_> = term
-                .successors()
-                .into_iter()
-                .filter(|&successor| executable_edges.contains(&(block_id, successor)))
-                .collect();
-            if executable_successors.len() == 1 {
-                let target = executable_successors.into_iter().next().expect("checked len");
+            let mut executable_successors = DenseBitSet::new_empty(func.blocks.len());
+            for successor in term.successors() {
+                if executable_edges.contains(&(block_id, successor)) {
+                    executable_successors.insert(successor);
+                }
+            }
+            if executable_successors.count() == 1 {
+                let target = executable_successors.iter().next().expect("checked count");
                 control_rewrites.push((block_id, target));
             }
         }

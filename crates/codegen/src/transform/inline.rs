@@ -28,7 +28,10 @@ use crate::{
 };
 use alloy_primitives::U256;
 use smallvec::SmallVec;
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    map::FxHashMap,
+};
 use solar_sema::hir::{self, FunctionId, StmtKind};
 
 /// Optimization level for the compiler.
@@ -175,7 +178,7 @@ pub struct InlineAnalyzer<'a> {
     /// Analysis results for each function.
     info: FxHashMap<FunctionId, FunctionInlineInfo>,
     /// Call graph: maps caller -> set of callees.
-    call_graph: FxHashMap<FunctionId, FxHashSet<FunctionId>>,
+    call_graph: FxHashMap<FunctionId, GrowableBitSet<FunctionId>>,
 }
 
 impl<'a> InlineAnalyzer<'a> {
@@ -327,8 +330,8 @@ impl<'a> InlineAnalyzer<'a> {
     }
 
     /// Collects all function callees in a block.
-    fn collect_callees(&self, block: &hir::Block<'_>) -> FxHashSet<FunctionId> {
-        let mut callees = FxHashSet::default();
+    fn collect_callees(&self, block: &hir::Block<'_>) -> GrowableBitSet<FunctionId> {
+        let mut callees = GrowableBitSet::new_empty();
         for stmt in block.stmts {
             self.collect_callees_stmt(stmt, &mut callees);
         }
@@ -336,7 +339,7 @@ impl<'a> InlineAnalyzer<'a> {
     }
 
     /// Collects callees from a statement.
-    fn collect_callees_stmt(&self, stmt: &hir::Stmt<'_>, callees: &mut FxHashSet<FunctionId>) {
+    fn collect_callees_stmt(&self, stmt: &hir::Stmt<'_>, callees: &mut GrowableBitSet<FunctionId>) {
         match &stmt.kind {
             StmtKind::Expr(expr) => self.collect_callees_expr(expr, callees),
             StmtKind::Block(block) | StmtKind::UncheckedBlock(block) => {
@@ -370,7 +373,7 @@ impl<'a> InlineAnalyzer<'a> {
     }
 
     /// Collects callees from an expression.
-    fn collect_callees_expr(&self, expr: &hir::Expr<'_>, callees: &mut FxHashSet<FunctionId>) {
+    fn collect_callees_expr(&self, expr: &hir::Expr<'_>, callees: &mut GrowableBitSet<FunctionId>) {
         match &expr.kind {
             hir::ExprKind::Call(callee, args, _) => {
                 // Check if callee is a function reference
@@ -429,7 +432,7 @@ impl<'a> InlineAnalyzer<'a> {
     fn detect_recursion(&mut self) {
         let func_ids: Vec<_> = self.info.keys().copied().collect();
         for func_id in func_ids {
-            if self.is_recursive(func_id, &mut FxHashSet::default())
+            if self.is_recursive(func_id, &mut GrowableBitSet::new_empty())
                 && let Some(info) = self.info.get_mut(&func_id)
             {
                 info.is_recursive = true;
@@ -438,20 +441,20 @@ impl<'a> InlineAnalyzer<'a> {
     }
 
     /// Checks if a function is recursive (directly or indirectly).
-    fn is_recursive(&self, func_id: FunctionId, visited: &mut FxHashSet<FunctionId>) -> bool {
+    fn is_recursive(&self, func_id: FunctionId, visited: &mut GrowableBitSet<FunctionId>) -> bool {
         if !visited.insert(func_id) {
             return true; // Cycle detected
         }
 
         if let Some(callees) = self.call_graph.get(&func_id) {
-            for &callee in callees {
+            for callee in callees.iter() {
                 if self.is_recursive(callee, visited) {
                     return true;
                 }
             }
         }
 
-        visited.remove(&func_id);
+        visited.remove(func_id);
         false
     }
 
@@ -461,7 +464,7 @@ impl<'a> InlineAnalyzer<'a> {
         let mut call_counts: FxHashMap<FunctionId, usize> = FxHashMap::default();
 
         for callees in self.call_graph.values() {
-            for &callee in callees {
+            for callee in callees.iter() {
                 *call_counts.entry(callee).or_default() += 1;
             }
         }
@@ -750,7 +753,7 @@ impl MirInliner {
                 });
                 if module_code_size >= self.config.max_module_code_size
                     || grew_too_much
-                    || recursive_functions.contains(&site.callee)
+                    || recursive_functions.contains(site.callee)
                     || !self.is_inlineable(caller_id, site, summary, call_count)
                 {
                     stats.skipped += 1;
@@ -802,10 +805,10 @@ impl MirInliner {
         counts
     }
 
-    fn recursive_functions(&self, module: &Module) -> FxHashSet<MirFunctionId> {
-        let mut recursive = FxHashSet::default();
+    fn recursive_functions(&self, module: &Module) -> DenseBitSet<MirFunctionId> {
+        let mut recursive = DenseBitSet::new_empty(module.functions.len());
         for func_id in module.functions.indices() {
-            let mut visiting = FxHashSet::default();
+            let mut visiting = DenseBitSet::new_empty(module.functions.len());
             if self.function_reaches(module, func_id, func_id, &mut visiting) {
                 recursive.insert(func_id);
             }
@@ -818,7 +821,7 @@ impl MirInliner {
         module: &Module,
         current: MirFunctionId,
         target: MirFunctionId,
-        visiting: &mut FxHashSet<MirFunctionId>,
+        visiting: &mut DenseBitSet<MirFunctionId>,
     ) -> bool {
         if !visiting.insert(current) {
             return false;

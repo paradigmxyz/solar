@@ -23,10 +23,7 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::{
-    bit_set::DenseBitSet,
-    map::{FxHashMap, FxHashSet},
-};
+use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{Session, sym};
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
@@ -136,7 +133,7 @@ struct SelectorDispatchEntry {
 struct StackPhiPlan {
     entries: FxHashMap<BlockId, Vec<ValueId>>,
     edges: FxHashMap<BlockId, StackPhiEdge>,
-    edge_sources: FxHashMap<BlockId, FxHashSet<ValueId>>,
+    edge_sources: FxHashMap<BlockId, DenseBitSet<ValueId>>,
 }
 
 #[derive(Clone, Debug)]
@@ -268,14 +265,18 @@ impl GlobalStackPlan {
         // Switch lowering owns the selector stack, and stack-phi loop headers
         // own their edge layouts. Disable their whole branch-sibling component
         // so every predecessor of every affected block still agrees.
-        let mut disabled = FxHashSet::default();
-        disabled.extend(stack_phi_plan.entries.keys().copied());
+        let mut disabled = DenseBitSet::new_empty(func.blocks.len());
+        for &block in stack_phi_plan.entries.keys() {
+            disabled.insert(block);
+        }
         for block_id in func.blocks.indices() {
             if let Some(Terminator::Switch { default, cases, .. }) =
                 func.blocks[block_id].terminator.as_ref()
             {
                 disabled.insert(*default);
-                disabled.extend(cases.iter().map(|&(_, target)| target));
+                for &(_, target) in cases {
+                    disabled.insert(target);
+                }
             }
         }
         let mut changed = true;
@@ -292,13 +293,13 @@ impl GlobalStackPlan {
                 {
                     continue;
                 }
-                if disabled.contains(then_block) || disabled.contains(else_block) {
+                if disabled.contains(*then_block) || disabled.contains(*else_block) {
                     changed |= disabled.insert(*then_block);
                     changed |= disabled.insert(*else_block);
                 }
             }
         }
-        entries.retain(|block, _| !disabled.contains(block));
+        entries.retain(|block, _| !disabled.contains(*block));
 
         // Canonicalization pays DUP/SWAP/POP traffic on every planned edge.
         // Require enough real argument reuse to recover that fixed cost, and
@@ -473,7 +474,11 @@ impl<'a> StackPhiPlanner<'a> {
 
         plan.entries.insert(loop_info.header, entry.clone());
         for (pred, sources) in edges {
-            plan.edge_sources.insert(pred, sources.iter().copied().collect());
+            let mut source_set = DenseBitSet::new_empty(self.func.values.len());
+            for &source in &sources {
+                source_set.insert(source);
+            }
+            plan.edge_sources.insert(pred, source_set);
             plan.edges.insert(pred, StackPhiEdge { sources, results: entry.clone() });
         }
     }
@@ -555,10 +560,10 @@ pub struct EvmCodegen {
     function_labels: FxHashMap<FunctionId, Label>,
     /// Functions whose reachable exits all abort. Calls to these functions
     /// make their containing block cold as well.
-    cold_functions: FxHashSet<FunctionId>,
+    cold_functions: DenseBitSet<FunctionId>,
     /// Cold blocks in the function currently being emitted, including blocks
     /// that only forward control to other cold blocks.
-    cold_blocks: FxHashSet<BlockId>,
+    cold_blocks: DenseBitSet<BlockId>,
     /// Per-function static local frame sizes for direct internal calls.
     ///
     /// Spill slots are allocated lazily during body emission, so the spill part
@@ -583,12 +588,12 @@ pub struct EvmCodegen {
     /// shortest addresses.
     spill_addr_consts: FxHashMap<u64, (DeferredConst, usize)>,
     /// Callees whose internal-call frame can be deallocated after return.
-    restorable_internal_frames: FxHashSet<FunctionId>,
+    restorable_internal_frames: DenseBitSet<FunctionId>,
     /// Functions whose frame lives at a compile-time-fixed address (static
     /// frames): internal-convention, non-recursive functions in the runtime
     /// passes. Their arg/local/spill accesses are absolute pushes and their
     /// call sites skip all frame-pointer and free-pointer bookkeeping.
-    static_frame_functions: FxHashSet<FunctionId>,
+    static_frame_functions: DenseBitSet<FunctionId>,
     /// Interned deferred constants for absolute static-frame addresses, keyed
     /// by (function, byte offset within its frame). Resolved at the end of
     /// the pass, once every body's exact spill size is known.
@@ -604,7 +609,7 @@ pub struct EvmCodegen {
     /// Copies to insert at block exits (from phi elimination).
     block_copies: FxHashMap<BlockId, Vec<ParallelCopy>>,
     /// Values carried by planned stack-resident phi edges, keyed by predecessor block.
-    stack_phi_sources: FxHashMap<BlockId, FxHashSet<ValueId>>,
+    stack_phi_sources: FxHashMap<BlockId, DenseBitSet<ValueId>>,
     /// Whether the current function has canonical cross-block argument layouts.
     global_stack_active: bool,
     /// Calldata words physically identical to arguments in the active global
@@ -643,16 +648,16 @@ impl EvmCodegen {
             scheduler: StackScheduler::new(),
             block_labels: FxHashMap::default(),
             function_labels: FxHashMap::default(),
-            cold_functions: FxHashSet::default(),
-            cold_blocks: FxHashSet::default(),
+            cold_functions: DenseBitSet::new_empty(0),
+            cold_blocks: DenseBitSet::new_empty(0),
             function_static_frame_sizes: FxHashMap::default(),
             function_spill_sizes: FxHashMap::default(),
             pending_frame_size_consts: Vec::new(),
             stack_arg_masks: FxHashMap::default(),
             runtime_stack_args: false,
             spill_addr_consts: FxHashMap::default(),
-            restorable_internal_frames: FxHashSet::default(),
-            static_frame_functions: FxHashSet::default(),
+            restorable_internal_frames: DenseBitSet::new_empty(0),
+            static_frame_functions: DenseBitSet::new_empty(0),
             static_frame_addr_consts: FxHashMap::default(),
             runtime_free_memory_const: None,
             runtime_entry_funcs: Vec::new(),
@@ -887,15 +892,15 @@ impl EvmCodegen {
             self.block_copies.clear();
             self.function_labels.clear();
             self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
-                FxHashSet::default()
+                DenseBitSet::new_empty(module.functions.len())
             } else {
                 Self::collect_cold_functions(module)
             };
             self.function_static_frame_sizes.clear();
             self.function_spill_sizes.clear();
             self.pending_frame_size_consts.clear();
-            self.restorable_internal_frames.clear();
-            self.static_frame_functions.clear();
+            self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
+            self.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
             self.stack_arg_masks.clear();
             self.runtime_stack_args = false;
             self.static_frame_addr_consts.clear();
@@ -1026,15 +1031,15 @@ impl EvmCodegen {
         self.block_labels.clear();
         self.function_labels.clear();
         self.cold_functions = if matches!(self.optimization, OptimizationMode::None) {
-            FxHashSet::default()
+            DenseBitSet::new_empty(module.functions.len())
         } else {
             Self::collect_cold_functions(module)
         };
         self.function_static_frame_sizes.clear();
         self.function_spill_sizes.clear();
         self.pending_frame_size_consts.clear();
-        self.restorable_internal_frames.clear();
-        self.static_frame_functions.clear();
+        self.restorable_internal_frames = DenseBitSet::new_empty(module.functions.len());
+        self.static_frame_functions = DenseBitSet::new_empty(module.functions.len());
         self.static_frame_addr_consts.clear();
         self.runtime_free_memory_const = None;
         self.runtime_entry_funcs.clear();
@@ -1737,11 +1742,13 @@ impl EvmCodegen {
         }
 
         let targets = [*then_block, *else_block];
-        let mut live_in_any_target = FxHashSet::default();
+        let mut live_in_any_target = DenseBitSet::new_empty(func.values.len());
         for target in targets {
-            live_in_any_target.extend(liveness.live_in(target).iter());
+            for value in liveness.live_in(target).iter() {
+                live_in_any_target.insert(value);
+            }
         }
-        if carried.iter().any(|value| !live_in_any_target.contains(value)) {
+        if carried.iter().any(|&value| !live_in_any_target.contains(value)) {
             return Vec::new();
         }
 
@@ -1763,16 +1770,16 @@ impl EvmCodegen {
 
     /// Finds functions whose reachable exits all abort, including chains of
     /// calls to other cold functions.
-    fn collect_cold_functions(module: &Module) -> FxHashSet<FunctionId> {
-        let mut cold = FxHashSet::default();
+    fn collect_cold_functions(module: &Module) -> DenseBitSet<FunctionId> {
+        let mut cold = DenseBitSet::new_empty(module.functions.len());
         loop {
             let mut changed = false;
             for (function_id, func) in module.functions.iter_enumerated() {
-                if cold.contains(&function_id) || func.blocks.is_empty() {
+                if cold.contains(function_id) || func.blocks.is_empty() {
                     continue;
                 }
                 let mut worklist = vec![func.entry_block];
-                let mut visited = FxHashSet::default();
+                let mut visited = DenseBitSet::new_empty(func.blocks.len());
                 let mut saw_exit = false;
                 let mut all_exits_cold = true;
                 while let Some(block_id) = worklist.pop()
@@ -1785,7 +1792,7 @@ impl EvmCodegen {
                     if block.instructions.iter().any(|&inst_id| {
                         matches!(
                             func.instructions[inst_id].kind,
-                            InstKind::InternalCall { function, .. } if cold.contains(&function)
+                            InstKind::InternalCall { function, .. } if cold.contains(function)
                         )
                     }) {
                         saw_exit = true;
@@ -1799,7 +1806,7 @@ impl EvmCodegen {
                         Terminator::Revert { .. } | Terminator::Invalid => {
                             saw_exit = true;
                         }
-                        Terminator::TailCall { function, .. } if cold.contains(function) => {
+                        Terminator::TailCall { function, .. } if cold.contains(*function) => {
                             saw_exit = true;
                         }
                         _ => {
@@ -1824,8 +1831,8 @@ impl EvmCodegen {
     }
 
     /// Finds blocks that abort directly or can only reach other cold blocks.
-    fn collect_cold_blocks(&self, func: &Function) -> FxHashSet<BlockId> {
-        let mut cold = FxHashSet::default();
+    fn collect_cold_blocks(&self, func: &Function) -> DenseBitSet<BlockId> {
+        let mut cold = DenseBitSet::new_empty(func.blocks.len());
         let mut worklist = Vec::new();
         for block_id in func.blocks.indices() {
             if self.block_aborts(func, block_id) {
@@ -1839,7 +1846,7 @@ impl EvmCodegen {
 
         while let Some(block_id) = worklist.pop() {
             for &predecessor in &func.blocks[block_id].predecessors {
-                if cold.contains(&predecessor) {
+                if cold.contains(predecessor) {
                     continue;
                 }
                 let Some(term) = func.blocks[predecessor].terminator.as_ref() else {
@@ -1847,7 +1854,7 @@ impl EvmCodegen {
                 };
                 let successors = term.successors();
                 if !successors.is_empty()
-                    && successors.iter().all(|successor| cold.contains(successor))
+                    && successors.iter().all(|&successor| cold.contains(successor))
                 {
                     cold.insert(predecessor);
                     worklist.push(predecessor);
@@ -1865,19 +1872,19 @@ impl EvmCodegen {
             || matches!(
                 block.terminator,
                 Some(Terminator::TailCall { function, .. })
-                    if self.cold_functions.contains(&function)
+                    if self.cold_functions.contains(function)
             )
             || block.instructions.iter().any(|&inst_id| {
                 matches!(
                     func.instructions[inst_id].kind,
                     InstKind::InternalCall { function, .. }
-                        if self.cold_functions.contains(&function)
+                        if self.cold_functions.contains(function)
                 )
             })
     }
 
     fn block_is_cold(&self, block_id: BlockId) -> bool {
-        self.cold_blocks.contains(&block_id)
+        self.cold_blocks.contains(block_id)
     }
 
     fn block_layout_order(&self, func: &Function) -> Vec<BlockId> {
@@ -2119,7 +2126,7 @@ impl EvmCodegen {
     }
 
     fn is_stack_phi_source(&self, block: BlockId, value: ValueId) -> bool {
-        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(&value))
+        self.stack_phi_sources.get(&block).is_some_and(|sources| sources.contains(value))
     }
 
     /// Preallocates stable spill slots for values that may cross block boundaries.
@@ -2129,13 +2136,13 @@ impl EvmCodegen {
     /// front lets the later load use a stable memory location; stores still happen only when the
     /// value is actually available on the stack.
     fn preallocate_cross_block_spills(&mut self, func: &Function, liveness: &Liveness) {
-        for val in Self::cross_block_spill_values(func, liveness) {
+        for val in Self::cross_block_spill_values(func, liveness).iter() {
             self.scheduler.spills.allocate(val);
         }
     }
 
-    fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> FxHashSet<ValueId> {
-        let mut values = FxHashSet::default();
+    fn cross_block_spill_values(func: &Function, liveness: &Liveness) -> DenseBitSet<ValueId> {
+        let mut values = DenseBitSet::new_empty(func.values.len());
         for block_id in func.blocks.indices() {
             for val in liveness.live_in(block_id).iter().chain(liveness.live_out(block_id).iter()) {
                 if matches!(func.value(val), crate::mir::Value::Inst(_)) {
@@ -2155,7 +2162,7 @@ impl EvmCodegen {
         // non-rematerializable operand leaves, which may be live only within the
         // defining block; spill those leaves too, or the recomputation reads a
         // value that is neither on the stack nor stored.
-        let seeds: Vec<ValueId> = values.iter().copied().collect();
+        let seeds: Vec<ValueId> = values.iter().collect();
         for val in seeds {
             if Self::is_cheap_recomputable_value(func, val) {
                 Self::collect_recompute_leaves(func, val, &mut values);
@@ -2167,7 +2174,7 @@ impl EvmCodegen {
     /// Adds the non-rematerializable values that recomputing `val` depends on:
     /// operands are followed through further cheap-recomputable values, and
     /// every other non-rematerializable operand is a leaf that must be spilled.
-    fn collect_recompute_leaves(func: &Function, val: ValueId, out: &mut FxHashSet<ValueId>) {
+    fn collect_recompute_leaves(func: &Function, val: ValueId, out: &mut DenseBitSet<ValueId>) {
         let crate::mir::Value::Inst(inst_id) = func.value(val) else {
             return;
         };
@@ -2200,9 +2207,12 @@ impl EvmCodegen {
         block_id: BlockId,
         exempt: &[ValueId],
     ) {
-        let exempt: FxHashSet<_> = exempt.iter().copied().collect();
+        let mut exempt_values = DenseBitSet::new_empty(func.values.len());
+        for &value in exempt {
+            exempt_values.insert(value);
+        }
         for val in liveness.live_out(block_id).iter() {
-            if !exempt.contains(&val) {
+            if !exempt_values.contains(val) {
                 self.spill_value_if_needed(func, val);
             }
         }
@@ -3329,7 +3339,7 @@ impl EvmCodegen {
     /// otherwise.
     fn emit_own_frame_addr(&mut self, offset: u64) {
         if let Some(func_id) = self.current_internal_function
-            && self.static_frame_functions.contains(&func_id)
+            && self.static_frame_functions.contains(func_id)
         {
             let addr = self.static_frame_addr(func_id, offset);
             self.asm.emit_push_deferred(addr);
@@ -3359,13 +3369,13 @@ impl EvmCodegen {
         }
 
         let mut scores: FxHashMap<FunctionId, Vec<i32>> = FxHashMap::default();
-        let mut excluded: FxHashSet<FunctionId> = FxHashSet::default();
+        let mut excluded = DenseBitSet::new_empty(module.functions.len());
         for (caller_id, func) in module.functions.iter_enumerated() {
             let mut has_candidate_call = false;
             for block in func.blocks.iter() {
                 if let Some(Terminator::TailCall { function, args }) = &block.terminator
                     && !args.is_empty()
-                    && self.static_frame_functions.contains(function)
+                    && self.static_frame_functions.contains(*function)
                 {
                     excluded.insert(*function);
                 }
@@ -3373,7 +3383,7 @@ impl EvmCodegen {
                     matches!(
                         &func.instructions[inst_id].kind,
                         InstKind::InternalCall { function, .. }
-                            if self.static_frame_functions.contains(function)
+                            if self.static_frame_functions.contains(*function)
                     )
                 });
             }
@@ -3382,7 +3392,7 @@ impl EvmCodegen {
             }
 
             let caller_is_entry = Self::is_external_entry(func);
-            let caller_static = self.static_frame_functions.contains(&caller_id);
+            let caller_static = self.static_frame_functions.contains(caller_id);
             let raw_leaves_ok = caller_is_entry || caller_static;
             // Where each instruction result is defined, to spot cross-block
             // arguments (already stored at their definition).
@@ -3408,7 +3418,7 @@ impl EvmCodegen {
                     else {
                         continue;
                     };
-                    if !self.static_frame_functions.contains(function) {
+                    if !self.static_frame_functions.contains(*function) {
                         continue;
                     }
                     let score = scores.entry(*function).or_insert_with(|| vec![0; args.len()]);
@@ -3454,7 +3464,7 @@ impl EvmCodegen {
             }
         }
         scores.retain(|func_id, _| {
-            self.static_frame_functions.contains(func_id) && !excluded.contains(func_id)
+            self.static_frame_functions.contains(*func_id) && !excluded.contains(*func_id)
         });
         let mut masks: FxHashMap<FunctionId, Vec<bool>> = FxHashMap::default();
         for (func_id, score) in scores {
@@ -3624,7 +3634,7 @@ impl EvmCodegen {
             let mut changed = false;
             for &(caller, callee) in &edges {
                 let mut contribution = depth.get(&caller).copied().unwrap_or(0);
-                if self.static_frame_functions.contains(&caller) {
+                if self.static_frame_functions.contains(caller) {
                     contribution += self.emitted_frame_size(module, caller);
                 }
                 if contribution > depth.get(&callee).copied().unwrap_or(0) {
@@ -3637,11 +3647,13 @@ impl EvmCodegen {
             }
         }
 
-        let placed: FxHashSet<FunctionId> =
-            self.static_frame_addr_consts.keys().map(|&(func_id, _)| func_id).collect();
+        let mut placed = DenseBitSet::new_empty(module.functions.len());
+        for &(func_id, _) in self.static_frame_addr_consts.keys() {
+            placed.insert(func_id);
+        }
         let mut region_end = region_start;
         let mut bases = FxHashMap::default();
-        for &func_id in &placed {
+        for func_id in placed.iter() {
             let base = region_start + depth.get(&func_id).copied().unwrap_or(0);
             region_end = region_end.max(base + self.emitted_frame_size(module, func_id));
             bases.insert(func_id, base);
@@ -3755,7 +3767,7 @@ impl EvmCodegen {
         // A static-frame callee needs none of the frame-pointer or
         // free-pointer bookkeeping below: its addresses are compile-time
         // constants.
-        if self.static_frame_functions.contains(&callee) {
+        if self.static_frame_functions.contains(callee) {
             self.emit_internal_call_static(
                 func,
                 callee,
@@ -3860,7 +3872,7 @@ impl EvmCodegen {
         // the callee install a fresh pointer into caller-visible memory. Solidity
         // allocation lowering zero-initializes new arrays/bytes/structs, so reclaimed
         // frame bytes need not be wiped.
-        if self.restorable_internal_frames.contains(&callee) {
+        if self.restorable_internal_frames.contains(callee) {
             self.emit_current_internal_frame_addr(0);
             self.asm.emit_push(U256::from(0x40));
             self.asm.emit_op(op::MSTORE);
@@ -4708,7 +4720,7 @@ impl EvmCodegen {
                     // `lower-evm-shaped` only forms argument-carrying tail
                     // calls to callees the backend statically frames.
                     assert!(
-                        self.static_frame_functions.contains(function),
+                        self.static_frame_functions.contains(*function),
                         "argument-carrying tail call to a non-static-frame callee"
                     );
                     for (i, &arg) in args.iter().enumerate() {
@@ -4986,8 +4998,8 @@ mod tests {
         let caller = &module.functions[caller];
         codegen.cold_blocks = codegen.collect_cold_blocks(caller);
 
-        assert!(codegen.cold_functions.contains(&cold_func));
-        assert!(codegen.cold_functions.contains(&cold_wrapper));
+        assert!(codegen.cold_functions.contains(cold_func));
+        assert!(codegen.cold_functions.contains(cold_wrapper));
         assert!(codegen.block_aborts(caller, cold_block));
         assert!(!codegen.block_aborts(caller, cold_forwarder));
         assert!(codegen.block_is_cold(cold_forwarder));

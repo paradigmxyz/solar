@@ -9,7 +9,7 @@ use crate::mir::IMMUTABLE_WORD_SIZE;
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::map::{FxHashMap, FxHashSet};
+use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 
 const EVM_WORD_BYTES: usize = 32;
 const EVM_WORD_BITS: usize = EVM_WORD_BYTES * 8;
@@ -978,15 +978,14 @@ impl Assembler {
     /// Rewrites and span dedup orphan labels, and running this before the
     /// span dedup also exposes more spans whose predecessor is terminating.
     fn remove_unreferenced_labels(instructions: &mut Vec<AsmInst>) {
-        let referenced: FxHashSet<Label> = instructions
-            .iter()
-            .filter_map(|inst| match inst.kind() {
-                AsmInstKind::PushLabel(label) => Some(label),
-                _ => None,
-            })
-            .collect();
+        let mut referenced = GrowableBitSet::new_empty();
+        for inst in instructions.iter() {
+            if let AsmInstKind::PushLabel(label) = inst.kind() {
+                referenced.insert(label);
+            }
+        }
         instructions.retain(|inst| match inst.kind() {
-            AsmInstKind::Label(label) => referenced.contains(&label),
+            AsmInstKind::Label(label) => referenced.contains(label),
             _ => true,
         });
     }
