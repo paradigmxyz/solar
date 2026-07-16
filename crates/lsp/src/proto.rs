@@ -36,6 +36,41 @@ pub(crate) fn text_range(rope: &Rope, range: lsp_types::Range) -> std::ops::Rang
     start..end
 }
 
+/// Converts an LSP UTF-16 range to a byte range, rejecting invalid positions.
+pub(crate) fn checked_text_range(
+    rope: &Rope,
+    range: lsp_types::Range,
+) -> Option<std::ops::Range<usize>> {
+    let start = checked_byte_position(rope, range.start)?;
+    let end = checked_byte_position(rope, range.end)?;
+    (start <= end).then_some(start..end)
+}
+
+fn checked_byte_position(rope: &Rope, position: lsp_types::Position) -> Option<usize> {
+    let line_index = usize::try_from(position.line).ok()?;
+    if line_index >= rope.line_len() {
+        return None;
+    }
+
+    let line_start = rope.byte_of_line(line_index);
+    let line = rope.line(line_index);
+    let target = usize::try_from(position.character).ok()?;
+    let mut utf16 = 0;
+    let mut byte = 0;
+    for ch in line.chars() {
+        if utf16 == target {
+            return Some(line_start + byte);
+        }
+        let next = utf16 + ch.len_utf16();
+        if target < next {
+            return None;
+        }
+        utf16 = next;
+        byte += ch.len_utf8();
+    }
+    (utf16 == target).then_some(line_start + byte)
+}
+
 // TODO: track `None`s here as they shouldn't happen?
 pub(crate) fn diagnostic(
     source_map: &SourceMap,
@@ -112,5 +147,33 @@ fn severity(level: Level) -> lsp_types::DiagnosticSeverity {
         Level::Note | Level::OnceNote | Level::FailureNote | Level::Allow => {
             DiagnosticSeverity::INFORMATION
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::checked_text_range;
+    use crop::Rope;
+    use lsp_types::{Position, Range};
+
+    #[test]
+    fn checked_text_range_uses_utf16_columns() {
+        let rope = Rope::from("a😀中value\r\n");
+        let range = checked_text_range(&rope, Range::new(Position::new(0, 4), Position::new(0, 9)))
+            .unwrap();
+        assert_eq!(rope.byte_slice(range).to_string(), "value");
+    }
+
+    #[test]
+    fn checked_text_range_rejects_split_surrogates_and_missing_lines() {
+        let rope = Rope::from("😀");
+        assert!(
+            checked_text_range(&rope, Range::new(Position::new(0, 1), Position::new(0, 2)),)
+                .is_none()
+        );
+        assert!(
+            checked_text_range(&rope, Range::new(Position::new(1, 0), Position::new(1, 0)),)
+                .is_none()
+        );
     }
 }

@@ -35,7 +35,11 @@ use crate::{
     analysis::CfgInfo,
     mir::{BlockId, Function, InstId, InstKind, Module, Value, ValueId},
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::DenseBitSet,
+    index::{IndexVec, index_vec},
+    map::FxHashMap,
+};
 use solar_interface::{diagnostics::DiagCtxt, sym};
 use std::fmt;
 
@@ -92,25 +96,40 @@ impl<'a> Validator<'a> {
 
         // ----- Single-definition check -----
         // Count how many Value entries claim to be the result of each InstId.
-        let mut inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
-        for v in func.values.iter() {
+        let mut inst_def_count: IndexVec<InstId, usize> = index_vec![0; num_insts];
+        let mut invalid_inst_def_count: FxHashMap<InstId, usize> = FxHashMap::default();
+        let mut inst_results: IndexVec<InstId, Option<ValueId>> = index_vec![None; num_insts];
+        for (value_id, v) in func.values.iter_enumerated() {
             if let Value::Inst(inst_id) = v {
-                *inst_def_count.entry(*inst_id).or_default() += 1;
+                if inst_id.index() < num_insts {
+                    inst_def_count[*inst_id] += 1;
+                    inst_results[*inst_id] = Some(value_id);
+                } else {
+                    *invalid_inst_def_count.entry(*inst_id).or_default() += 1;
+                }
             }
         }
-        for (inst_id, count) in inst_def_count.iter() {
-            if *count > 1 {
+        for (inst_id, &count) in inst_def_count.iter_enumerated() {
+            if count > 1 {
                 self.emit(format_args!(
                     "instruction inst{} is defined by {count} Value entries (must be 1)",
                     inst_id.index()
                 ));
             }
             // Only value-producing instructions may have a result value.
-            if inst_id.index() < num_insts && func.instructions[*inst_id].result_ty.is_none() {
+            if count != 0 && func.instructions[inst_id].result_ty.is_none() {
                 self.emit(format_args!(
                     "instruction inst{} (`{:?}`) has a result Value entry but no result type",
                     inst_id.index(),
-                    func.instructions[*inst_id].kind
+                    func.instructions[inst_id].kind
+                ));
+            }
+        }
+        for (inst_id, count) in invalid_inst_def_count {
+            if count > 1 {
+                self.emit(format_args!(
+                    "instruction inst{} is defined by {count} Value entries (must be 1)",
+                    inst_id.index()
                 ));
             }
         }
@@ -302,11 +321,11 @@ impl<'a> Validator<'a> {
             return;
         }
         let cfg = CfgInfo::new(func);
-        let mut def_block_of: FxHashMap<ValueId, BlockId> = FxHashMap::default();
+        let mut def_block_of: IndexVec<ValueId, Option<BlockId>> = index_vec![None; num_values];
         for (block_id, block) in func.blocks.iter_enumerated() {
             for &inst_id in &block.instructions {
-                if let Some(result) = func.inst_result_value(inst_id) {
-                    def_block_of.insert(result, block_id);
+                if let Some(result) = inst_results[inst_id] {
+                    def_block_of[result] = Some(block_id);
                 }
             }
         }
@@ -339,7 +358,7 @@ impl<'a> Validator<'a> {
                 match &func.instructions[inst_id].kind {
                     InstKind::Phi(incoming) => {
                         for &(pred, value) in incoming {
-                            if let Some(&def) = def_block_of.get(&value)
+                            if let Some(def) = def_block_of[value]
                                 && !reaches(def, pred)
                             {
                                 self.emit_at_inst(
@@ -357,7 +376,7 @@ impl<'a> Validator<'a> {
                     }
                     kind => {
                         for &operand in kind.operands().iter() {
-                            if let Some(&def) = def_block_of.get(&operand)
+                            if let Some(def) = def_block_of[operand]
                                 && def != block_id
                                 && !reaches(def, block_id)
                             {
@@ -377,7 +396,7 @@ impl<'a> Validator<'a> {
             }
             if let Some(term) = &block.terminator {
                 for &operand in term.operands().iter() {
-                    if let Some(&def) = def_block_of.get(&operand)
+                    if let Some(def) = def_block_of[operand]
                         && def != block_id
                         && !reaches(def, block_id)
                     {
