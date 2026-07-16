@@ -8,8 +8,8 @@
 //! attaching pass-specific facts to MIR values.
 
 use crate::mir::{
-    Function, InstId, InstKind, MemoryRegion, SliceLocation, StorageAlias, Terminator, Value,
-    ValueId,
+    AbiType, Function, InstId, InstKind, MemoryRegion, SliceLocation, StorageAlias, Terminator,
+    Value, ValueId,
 };
 use smallvec::SmallVec;
 use solar_data_structures::map::FxHashMap;
@@ -241,10 +241,22 @@ impl ModRef {
         self.reads.iter().any(|access| access.address_space() == space)
     }
 
+    /// Returns whether an address-space-wide access reads `space`.
+    #[must_use]
+    pub fn reads_anywhere(&self, space: AddressSpace) -> bool {
+        self.reads.contains(&Access::Any(space))
+    }
+
     /// Returns whether any access writes `space`.
     #[must_use]
     pub fn writes_space(&self, space: AddressSpace) -> bool {
         self.writes.iter().any(|access| access.address_space() == space)
+    }
+
+    /// Returns whether an address-space-wide access writes `space`.
+    #[must_use]
+    pub fn writes_anywhere(&self, space: AddressSpace) -> bool {
+        self.writes.contains(&Access::Any(space))
     }
 
     /// Returns whether this operation may read `location`.
@@ -326,6 +338,12 @@ impl AliasAnalysis {
     #[must_use]
     pub fn storage_alias(self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
         func.storage_alias(inst_id, slot)
+    }
+
+    /// Canonicalizes a value used as a storage slot without instruction metadata.
+    #[must_use]
+    pub fn storage_alias_for_value(self, func: &Function, slot: ValueId) -> StorageAlias {
+        StorageAlias::for_value(func, slot)
     }
 
     /// Returns the canonical storage alias after value replacements.
@@ -423,7 +441,12 @@ impl AliasAnalysis {
                 effects.write(fmp);
             }
             InstKind::AbiEncode { .. } => {
-                effects.read_any(AddressSpace::Memory);
+                let InstKind::AbiEncode { args, layout, .. } = kind else { unreachable!() };
+                for (&arg, ty) in args.iter().zip(layout.types.iter()) {
+                    if Self::abi_type_reads_memory(ty) {
+                        read_memory(&mut effects, arg, SizeOperand::Unknown);
+                    }
+                }
                 effects.write_any(AddressSpace::Memory);
             }
             InstKind::MCopy(dest, source, size) => {
@@ -447,7 +470,9 @@ impl AliasAnalysis {
             | InstKind::Log4(address, size, _, _, _, _) => {
                 read_memory(&mut effects, address, SizeOperand::Value(size));
             }
-            InstKind::MappingSlotMemory(_, _) => effects.read_any(AddressSpace::Memory),
+            InstKind::MappingSlotMemory(address, _) => {
+                read_memory(&mut effects, address, SizeOperand::Unknown);
+            }
             InstKind::MSize => effects.observes_memory_size = true,
             InstKind::Gas => effects.observes_gas = true,
             InstKind::SLoad(slot) => effects.read(Access::Location(Location::Storage(
@@ -508,12 +533,11 @@ impl AliasAnalysis {
                     effects.read_any(AddressSpace::Memory);
                 }
             }
-            Terminator::Return { .. } | Terminator::TailCall { .. } => {
-                effects.read_any(AddressSpace::Memory);
-            }
             Terminator::Jump(_)
             | Terminator::Branch { .. }
             | Terminator::Switch { .. }
+            | Terminator::Return { .. }
+            | Terminator::TailCall { .. }
             | Terminator::Stop
             | Terminator::Invalid
             | Terminator::SelfDestruct { .. } => {}
@@ -541,7 +565,9 @@ impl AliasAnalysis {
         }
     }
 
-    fn memory_alias(self, first: MemoryLocation, second: MemoryLocation) -> AliasResult {
+    /// Computes the alias relationship between two memory ranges.
+    #[must_use]
+    pub fn memory_alias(self, first: MemoryLocation, second: MemoryLocation) -> AliasResult {
         if matches!(first.size, LocationSize::Const(0))
             || matches!(second.size, LocationSize::Const(0))
         {
@@ -705,6 +731,19 @@ impl AliasAnalysis {
                 let value = crate::mir::utils::resolve_replacement(value, replacements);
                 self.location_size(func, value)
             }
+            SizeOperand::Unknown => LocationSize::Unknown,
+        }
+    }
+
+    fn abi_type_reads_memory(ty: &AbiType) -> bool {
+        match ty {
+            AbiType::Word
+            | AbiType::Bytes(SliceLocation::Calldata)
+            | AbiType::DynamicArray { location: SliceLocation::Calldata, .. } => false,
+            AbiType::Bytes(SliceLocation::Memory)
+            | AbiType::DynamicArray { location: SliceLocation::Memory, .. }
+            | AbiType::FixedArray { .. }
+            | AbiType::Tuple(_) => true,
         }
     }
 }
@@ -713,6 +752,7 @@ impl AliasAnalysis {
 enum SizeOperand {
     Const(u64),
     Value(ValueId),
+    Unknown,
 }
 
 #[cfg(test)]

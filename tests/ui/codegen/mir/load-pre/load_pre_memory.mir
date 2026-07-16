@@ -106,7 +106,7 @@ fn @mload_loop_header(arg0: u256) -> u256 {
     ret v2
 }
 
-fn @staticcall_kills_memory(arg0: bool, arg1: address) -> u256 {
+fn @staticcall_zero_return_preserves_memory(arg0: bool, arg1: address) -> u256 {
   bb0 (entry):
     v1 = mload 128
     br arg0, bb1, bb2

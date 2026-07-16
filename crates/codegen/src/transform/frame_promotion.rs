@@ -13,7 +13,7 @@
 //! - preserve SSA values across control flow with explicit phi insertion
 
 use crate::{
-    analysis::CfgInfo,
+    analysis::{AliasAnalysis, CfgInfo, LocationSize, MemoryAddress, MemoryLocation},
     mir::{
         BlockId, Function, InstId, InstKind, Instruction, MirType, Terminator, Value, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
@@ -294,30 +294,8 @@ impl FrameSlotPromoter {
     }
 
     fn external_local_addr(func: &Function, value: ValueId) -> Option<u64> {
-        Self::external_local_addr_with_depth(func, value, 0)
-    }
-
-    fn external_local_addr_with_depth(
-        func: &Function,
-        value: ValueId,
-        depth: usize,
-    ) -> Option<u64> {
-        if depth > 8 {
-            return None;
-        }
-
-        if let Some(addr) = func.value_u64(value)
-            && Self::external_local_addr_in_range(func, addr).is_some()
-        {
-            return Some(addr);
-        }
-
-        let Value::Inst(inst_id) = func.values[value] else { return None };
-        match func.instructions[inst_id].kind {
-            InstKind::Add(a, b) => Self::external_local_add_offset(func, a, b, depth)
-                .or_else(|| Self::external_local_add_offset(func, b, a, depth)),
-            _ => None,
-        }
+        let address = AliasAnalysis.memory_address(func, value)?.as_absolute()?;
+        Self::external_local_addr_in_range(func, address)
     }
 
     fn external_local_addr_in_range(func: &Function, addr: u64) -> Option<u64> {
@@ -328,58 +306,31 @@ impl FrameSlotPromoter {
         .then_some(addr)
     }
 
-    fn external_local_add_offset(
-        func: &Function,
-        base: ValueId,
-        offset: ValueId,
-        depth: usize,
-    ) -> Option<u64> {
-        let base = Self::external_local_addr_with_depth(func, base, depth + 1)?;
-        let addr = base.checked_add(func.value_u64(offset)?)?;
-        Self::external_local_addr_in_range(func, addr)
-    }
-
     fn internal_frame_offset(func: &Function, value: ValueId) -> Option<u64> {
-        Self::internal_frame_offset_with_depth(func, value, 0)
-    }
-
-    fn internal_frame_offset_with_depth(
-        func: &Function,
-        value: ValueId,
-        depth: usize,
-    ) -> Option<u64> {
-        if depth > 8 {
-            return None;
-        }
-
-        match func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[inst_id].kind {
-                InstKind::InternalFrameAddr(offset) => Some(offset),
-                InstKind::Add(a, b) => Self::internal_frame_add_offset(func, a, b, depth)
-                    .or_else(|| Self::internal_frame_add_offset(func, b, a, depth)),
-                _ => None,
-            },
-            _ => None,
-        }
+        AliasAnalysis.memory_address(func, value)?.as_internal_frame_offset()
     }
 
     fn internal_frame_add_offset(
         func: &Function,
         base: ValueId,
         offset: ValueId,
-        depth: usize,
+        _depth: usize,
     ) -> Option<u64> {
-        let base = Self::internal_frame_offset_with_depth(func, base, depth + 1)?;
+        let base = Self::internal_frame_offset(func, base)?;
         base.checked_add(func.value_u64(offset)?)
     }
 
     fn external_local_slot_safe(func: &Function, slot_addr: u64) -> bool {
-        if mir_utils::ranges_overlap(
-            slot_addr,
-            32,
-            LOW_MEMORY_START,
-            func.external_static_return_size,
-        ) {
+        if AliasAnalysis
+            .memory_alias(
+                MemoryLocation::new(MemoryAddress::absolute(slot_addr), LocationSize::Const(32)),
+                MemoryLocation::new(
+                    MemoryAddress::absolute(LOW_MEMORY_START),
+                    LocationSize::Const(func.external_static_return_size),
+                ),
+            )
+            .may_alias()
+        {
             return false;
         }
 
@@ -598,12 +549,20 @@ impl FrameSlotPromoter {
         size: Option<u64>,
         slot_offset: u64,
     ) -> bool {
-        let Some(offset) = Self::internal_frame_offset(func, addr) else { return false };
-        let Some(size) = size else { return true };
-        if size == 0 {
+        let Some(address) = AliasAnalysis.memory_address(func, addr) else { return false };
+        if address.as_internal_frame_offset().is_none() {
             return false;
         }
-        mir_utils::ranges_overlap(offset, size, slot_offset, 32)
+        let Some(size) = size else { return true };
+        AliasAnalysis
+            .memory_alias(
+                MemoryLocation::new(address, LocationSize::Const(size)),
+                MemoryLocation::new(
+                    MemoryAddress::internal_frame(slot_offset),
+                    LocationSize::Const(32),
+                ),
+            )
+            .may_alias()
     }
 
     fn memory_range_may_overlap(
@@ -613,11 +572,13 @@ impl FrameSlotPromoter {
         slot_addr: u64,
     ) -> bool {
         let Some(size) = size else { return true };
-        if size == 0 {
-            return false;
-        }
-        let Some(addr) = func.value_u64(addr) else { return true };
-        mir_utils::ranges_overlap(addr, size, slot_addr, 32)
+        let Some(address) = AliasAnalysis.memory_address(func, addr) else { return true };
+        AliasAnalysis
+            .memory_alias(
+                MemoryLocation::new(address, LocationSize::Const(size)),
+                MemoryLocation::new(MemoryAddress::absolute(slot_addr), LocationSize::Const(32)),
+            )
+            .may_alias()
     }
 }
 

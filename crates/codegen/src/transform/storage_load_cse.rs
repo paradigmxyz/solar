@@ -4,7 +4,7 @@
 //! no intervening storage write may alias the loaded slot.
 
 use crate::{
-    analysis::Liveness,
+    analysis::{AddressSpace, AliasAnalysis, Liveness, Location},
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
 };
@@ -97,11 +97,16 @@ impl StorageLoadCse {
         inst_results: &FxHashMap<InstId, ValueId>,
         state: &mut RunState,
     ) {
+        let aa = AliasAnalysis;
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.instructions[inst_id].kind {
                 InstKind::SLoad(slot) => {
-                    let alias =
-                        func.storage_alias_after_replacements(inst_id, *slot, &state.replacements);
+                    let alias = aa.storage_alias_after_replacements(
+                        func,
+                        inst_id,
+                        *slot,
+                        &state.replacements,
+                    );
                     let Some(&result) = inst_results.get(&inst_id) else {
                         continue;
                     };
@@ -119,10 +124,23 @@ impl StorageLoadCse {
                 }
                 InstKind::SStore(slot, _) => {
                     let alias =
-                        func.storage_alias_after_replacements(inst_id, *slot, &state.replacements);
-                    state.cached_loads.retain(|cached_alias, _| !cached_alias.may_alias(alias));
+                        aa.storage_alias_after_replacements(
+                            func,
+                            inst_id,
+                            *slot,
+                            &state.replacements,
+                        );
+                    state.cached_loads.retain(|cached_alias, _| {
+                        !aa.alias(Location::Storage(*cached_alias), Location::Storage(alias))
+                            .may_alias()
+                    });
                 }
-                kind if kind.may_mutate_storage() => state.cached_loads.clear(),
+                _ if aa
+                    .instruction_mod_ref_with_replacements(func, inst_id, &state.replacements)
+                    .writes_anywhere(AddressSpace::Storage) =>
+                {
+                    state.cached_loads.clear();
+                }
                 _ => {}
             }
         }

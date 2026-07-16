@@ -73,15 +73,17 @@
 //! 3. A function-size-derived rewrite budget backstops the above.
 
 use crate::{
-    analysis::{CfgInfo, DominatorTree},
+    analysis::{
+        AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize, MemoryAddress,
+        MemoryLocation,
+    },
     mir::{
-        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion,
-        MirType, StorageAlias, Terminator, Value, ValueId,
+        BlockId, Function, InstId, InstKind, Instruction, InstructionMetadata, MirType,
+        StorageAlias, Terminator, Value, ValueId,
         utils::{self as mir_utils, repair_reachability_phis},
     },
     pass::FunctionPass,
 };
-use alloy_primitives::U256;
 use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::{FxHashMap, FxHashSet},
@@ -124,17 +126,8 @@ enum LoadKey {
     Storage(StorageAlias),
     Transient(StorageAlias),
     /// A 32-byte memory read at a canonical address.
-    Memory(MemAddr),
-    Keccak(MemAddr, KeccakSize),
-}
-
-/// A canonical memory address: an optional symbolic base plus a known offset.
-/// A `None` base is an absolute address.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-struct MemAddr {
-    region: MemoryRegion,
-    base: Option<ValueId>,
-    offset: u64,
+    Memory(MemoryAddress),
+    Keccak(MemoryAddress, KeccakSize),
 }
 
 /// The size of a keccak read: a known constant or the canonical size operand.
@@ -879,19 +872,22 @@ impl LoadRedundancyEliminator {
 
     /// Returns the key an instruction gens and where its value comes from.
     fn gen_key_value(func: &Function, inst_id: InstId) -> Option<(LoadKey, GenSource)> {
+        let aa = AliasAnalysis;
         match func.instructions[inst_id].kind {
-            InstKind::SLoad(slot) => {
-                Some((LoadKey::Storage(func.storage_alias(inst_id, slot)), GenSource::LoadResult))
-            }
+            InstKind::SLoad(slot) => Some((
+                LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
+                GenSource::LoadResult,
+            )),
             InstKind::SStore(slot, value) => Some((
-                LoadKey::Storage(func.storage_alias(inst_id, slot)),
+                LoadKey::Storage(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
-            InstKind::TLoad(slot) => {
-                Some((LoadKey::Transient(func.storage_alias(inst_id, slot)), GenSource::LoadResult))
-            }
+            InstKind::TLoad(slot) => Some((
+                LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
+                GenSource::LoadResult,
+            )),
             InstKind::TStore(slot, value) => Some((
-                LoadKey::Transient(func.storage_alias(inst_id, slot)),
+                LoadKey::Transient(aa.storage_alias(func, inst_id, slot)),
                 GenSource::Stored(value),
             )),
             InstKind::MLoad(addr) => Self::mem_addr(func, inst_id, addr)
@@ -913,142 +909,33 @@ impl LoadRedundancyEliminator {
 
     /// Returns true if an instruction may invalidate the value of `key`.
     fn inst_kills_key(func: &Function, inst_id: InstId, key: LoadKey) -> bool {
-        let kind = &func.instructions[inst_id].kind;
+        let aa = AliasAnalysis;
+        let effects = aa.instruction_mod_ref(func, inst_id);
         match key {
-            LoadKey::Storage(alias) => match *kind {
-                InstKind::SStore(slot, _) => func.storage_alias(inst_id, slot).may_alias(alias),
-                // Calls and creates may re-enter and mutate storage;
-                // STATICCALL cannot.
-                _ => kind.may_mutate_storage(),
-            },
-            LoadKey::Transient(alias) => match *kind {
-                InstKind::TStore(slot, _) => func.storage_alias(inst_id, slot).may_alias(alias),
-                _ => kind.may_mutate_transient_storage(),
-            },
-            LoadKey::Memory(addr) => Self::memory_write_clobbers(func, inst_id, addr, Some(32)),
-            LoadKey::Keccak(addr, size) => {
+            LoadKey::Storage(alias) => effects.may_write(&aa, Location::Storage(alias)),
+            LoadKey::Transient(alias) => effects.may_write(&aa, Location::Transient(alias)),
+            LoadKey::Memory(address) => effects.may_write(
+                &aa,
+                Location::Memory(MemoryLocation::new(address, LocationSize::Const(32))),
+            ),
+            LoadKey::Keccak(address, size) => {
                 let size = match size {
-                    KeccakSize::Const(size) => Some(size),
-                    KeccakSize::Dyn(_) => None,
+                    KeccakSize::Const(size) => LocationSize::Const(size),
+                    KeccakSize::Dyn(size) => LocationSize::Dynamic(size),
                 };
-                Self::memory_write_clobbers(func, inst_id, addr, size)
+                effects.may_write(&aa, Location::Memory(MemoryLocation::new(address, size)))
             }
         }
     }
 
-    /// Returns true if a memory-writing instruction may overlap the read
-    /// range; reads with an unknown size are clobbered by any write that the
-    /// region split cannot rule out.
-    fn memory_write_clobbers(
-        func: &Function,
-        inst_id: InstId,
-        read: MemAddr,
-        read_size: Option<u64>,
-    ) -> bool {
-        let kind = &func.instructions[inst_id].kind;
-        if matches!(kind, InstKind::SetFmp(_) | InstKind::Alloc(_)) {
-            if read.region != MemoryRegion::Unknown && read.region != MemoryRegion::Scratch {
-                return false;
-            }
-            if read.base.is_some() {
-                return true;
-            }
-            return read_size
-                .is_none_or(|size| mir_utils::ranges_overlap(read.offset, size, 0x40, 32));
-        }
-        let (dest, write_size) = match *kind {
-            InstKind::MStore(dest, _) => (dest, Some(32)),
-            InstKind::MStore8(dest, _) => (dest, Some(1)),
-            InstKind::MCopy(dest, _, size)
-            | InstKind::CalldataCopy(dest, _, size)
-            | InstKind::CodeCopy(dest, _, size)
-            | InstKind::ReturnDataCopy(dest, _, size) => (dest, func.value_u64(size)),
-            InstKind::ExtCodeCopy(_, dest, _, size) => (dest, func.value_u64(size)),
-            // Every call clobbers tracked memory, including STATICCALL: its
-            // return buffer write is a memory effect even in a static context.
-            _ => return kind.may_mutate_memory(),
-        };
-
-        let write_region = func.instructions[inst_id]
-            .metadata
-            .memory_region()
-            .unwrap_or_else(|| func.memory_region_for_addr(dest));
-        if read.region != MemoryRegion::Unknown
-            && write_region != MemoryRegion::Unknown
-            && read.region != write_region
-        {
-            return false;
-        }
-        let (write_base, write_offset) = Self::memory_addr_base_offset(func, dest);
-        if read.base != write_base {
-            return true;
-        }
-        let (Some(read_size), Some(write_offset), Some(write_size)) =
-            (read_size, write_offset, write_size)
-        else {
-            return true;
-        };
-        mir_utils::ranges_overlap(read.offset, read_size, write_offset, write_size)
+    fn mem_addr(func: &Function, inst_id: InstId, addr: ValueId) -> Option<MemoryAddress> {
+        AliasAnalysis
+            .memory_location(func, inst_id, addr, LocationSize::Const(1))
+            .map(|location| location.address)
     }
 
-    fn mem_addr(func: &Function, inst_id: InstId, addr: ValueId) -> Option<MemAddr> {
-        let region = func.instructions[inst_id]
-            .metadata
-            .memory_region()
-            .unwrap_or_else(|| func.memory_region_for_addr(addr));
-        let (base, offset) = Self::memory_addr_base_offset(func, addr);
-        Some(MemAddr { region, base, offset: offset? })
-    }
-
-    fn fmp_addr() -> MemAddr {
-        MemAddr { region: MemoryRegion::Scratch, base: None, offset: 0x40 }
-    }
-
-    fn memory_addr_base_offset(func: &Function, addr: ValueId) -> (Option<ValueId>, Option<u64>) {
-        if let Some((base, offset)) = Self::offset_chain(func, addr, 0) {
-            if let Some(offset) = mir_utils::u256_to_u64(offset) {
-                return (Some(base), Some(offset));
-            }
-            return (Some(addr), Some(0));
-        }
-        match func.value(addr) {
-            Value::Immediate(imm) => (None, imm.as_u256().and_then(mir_utils::u256_to_u64)),
-            Value::Arg { .. } | Value::Inst(_) | Value::Undef(_) | Value::Error(_) => {
-                (Some(addr), Some(0))
-            }
-        }
-    }
-
-    /// Splits `value` into a symbolic base plus a constant offset by walking
-    /// constant `add`/`sub` chains, so syntactically different addresses of
-    /// the same location unify.
-    fn offset_chain(func: &Function, value: ValueId, depth: usize) -> Option<(ValueId, U256)> {
-        if depth >= 4 {
-            return None;
-        }
-        match func.value(value) {
-            Value::Immediate(_) => None,
-            Value::Arg { .. } | Value::Undef(_) | Value::Error(_) => Some((value, U256::ZERO)),
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
-                InstKind::Add(a, b) => {
-                    if let Some(offset) = func.value_u256(b) {
-                        let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
-                        Some((base, existing.wrapping_add(offset)))
-                    } else if let Some(offset) = func.value_u256(a) {
-                        let (base, existing) = Self::offset_chain(func, b, depth + 1)?;
-                        Some((base, existing.wrapping_add(offset)))
-                    } else {
-                        Some((value, U256::ZERO))
-                    }
-                }
-                InstKind::Sub(a, b) => {
-                    let offset = func.value_u256(b)?;
-                    let (base, existing) = Self::offset_chain(func, a, depth + 1)?;
-                    Some((base, existing.wrapping_sub(offset)))
-                }
-                _ => Some((value, U256::ZERO)),
-            },
-        }
+    fn fmp_addr() -> MemoryAddress {
+        AliasAnalysis::fmp_location().address
     }
 
     // ----- CFG helpers -----

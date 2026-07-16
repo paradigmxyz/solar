@@ -7,7 +7,10 @@
 //! no intervening operation can mutate memory.
 
 use crate::{
-    analysis::CfgInfo,
+    analysis::{
+        Access, AddressSpace, AliasAnalysis, CfgInfo, Location, LocationSize, MemoryAddress,
+        MemoryLocation,
+    },
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Terminator, Value, ValueId,
         utils as mir_utils,
@@ -37,10 +40,7 @@ impl FunctionPass for MemoryDsePass {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-enum MemAddrKey {
-    Const(u64),
-    BaseOffset { base: ValueId, offset: u64 },
-}
+struct MemAddrKey(MemoryAddress);
 
 /// Above this many tracked live slots the backward DSE gives up precision and
 /// treats all memory as live. Keeps the lattice height (and cost) bounded.
@@ -336,7 +336,7 @@ impl MemoryStoreEliminator {
                 InstKind::MStore8(_, _) => {}
                 // Anything that may read or alias memory we cannot model
                 // precisely: assume it observes everything above.
-                kind if Self::is_memory_or_gas_observer(kind) => live = MemLive::All,
+                _ if Self::is_memory_or_gas_observer(func, inst_id) => live = MemLive::All,
                 _ => {}
             }
         }
@@ -377,10 +377,7 @@ impl MemoryStoreEliminator {
 
     /// Returns a constant, 32-byte-aligned memory address, or `None` otherwise.
     fn word_aligned_const(func: &Function, addr: ValueId) -> Option<u64> {
-        match Self::mem_addr_key(func, addr) {
-            Some(MemAddrKey::Const(a)) if a % 32 == 0 => Some(a),
-            _ => None,
-        }
+        Self::mem_addr_key(func, addr)?.0.as_absolute().filter(|address| address % 32 == 0)
     }
 
     /// Runs local memory optimization until no more instructions can be eliminated.
@@ -482,7 +479,18 @@ impl MemoryStoreEliminator {
                     continue;
                 };
                 if !reads.iter().any(|&(read_offset, read_size)| {
-                    mir_utils::ranges_overlap(offset, 32, read_offset, read_size)
+                    AliasAnalysis
+                        .memory_alias(
+                            MemoryLocation::new(
+                                MemoryAddress::internal_frame(offset),
+                                LocationSize::Const(32),
+                            ),
+                            MemoryLocation::new(
+                                MemoryAddress::internal_frame(read_offset),
+                                LocationSize::Const(read_size),
+                            ),
+                        )
+                        .may_alias()
                 }) {
                     dead.insert(inst_id);
                 }
@@ -566,10 +574,13 @@ impl MemoryStoreEliminator {
                     }
                 }
                 InstKind::Fmp | InstKind::Alloc(_) => {
-                    Self::remove_overlapping_set(&mut scratch.overwritten, MemAddrKey::Const(0x40));
+                    Self::remove_overlapping_set(
+                        &mut scratch.overwritten,
+                        MemAddrKey(AliasAnalysis::fmp_location().address),
+                    );
                 }
                 InstKind::SetFmp(_) => {
-                    scratch.overwritten.insert(MemAddrKey::Const(0x40));
+                    scratch.overwritten.insert(MemAddrKey(AliasAnalysis::fmp_location().address));
                 }
                 InstKind::CalldataCopy(dest, _, size)
                 | InstKind::CodeCopy(dest, _, size)
@@ -605,7 +616,7 @@ impl MemoryStoreEliminator {
                         size,
                     );
                 }
-                kind if Self::is_memory_or_gas_observer(kind) => {
+                _ if Self::is_memory_or_gas_observer(func, inst_id) => {
                     scratch.overwritten.clear();
                 }
                 _ => {}
@@ -649,9 +660,18 @@ impl MemoryStoreEliminator {
         if read_size == 0 {
             return;
         }
-        overwritten.retain(|&key| match key {
-            MemAddrKey::Const(addr) => !mir_utils::ranges_overlap(addr, 32, read_offset, read_size),
-            MemAddrKey::BaseOffset { .. } => false,
+        overwritten.retain(|key| {
+            key.0.as_absolute().is_some_and(|_| {
+                !AliasAnalysis
+                    .memory_alias(
+                        MemoryLocation::new(key.0, LocationSize::Const(32)),
+                        MemoryLocation::new(
+                            MemoryAddress::absolute(read_offset),
+                            LocationSize::Const(read_size),
+                        ),
+                    )
+                    .may_alias()
+            })
         });
     }
 
@@ -710,17 +730,19 @@ impl MemoryStoreEliminator {
                                 known.insert(a, v);
                             }
                         }
-                        None => match Self::mem_addr_key(func, *addr) {
+                        None => match Self::mem_addr_key(func, *addr)
+                            .and_then(|key| key.0.as_absolute())
+                        {
                             // A non-constant value written to a constant scratch
                             // slot makes its contents unknown.
-                            Some(MemAddrKey::Const(a)) => {
+                            Some(a) => {
                                 known.remove(&a);
                             }
                             // An address we cannot pin could alias anything.
                             _ => known.clear(),
                         },
                     },
-                    kind if Self::can_mutate_memory(kind) => known.clear(),
+                    _ if Self::can_mutate_memory(func, inst_id) => known.clear(),
                     // A byte store may touch any slot.
                     InstKind::MStore8(_, _) => known.clear(),
                     // Loads and keccak read memory but never write it.
@@ -801,7 +823,7 @@ impl MemoryStoreEliminator {
                     let key = Self::mem_addr_key(func, addr)?;
                     return Some((inst_id, key));
                 }
-                ref kind if Self::cross_block_memory_barrier(kind) => return None,
+                _ if Self::cross_block_memory_barrier(func, inst_id) => return None,
                 _ => {}
             }
         }
@@ -812,7 +834,7 @@ impl MemoryStoreEliminator {
         for &inst_id in &func.blocks[block].instructions {
             match func.instructions[inst_id].kind {
                 InstKind::MStore(addr, _) => return Self::mem_addr_key(func, addr),
-                ref kind if Self::cross_block_memory_barrier(kind) => return None,
+                _ if Self::cross_block_memory_barrier(func, inst_id) => return None,
                 _ => {}
             }
         }
@@ -860,7 +882,7 @@ impl MemoryStoreEliminator {
                     scratch.dead.insert(inst_id);
                     self.eliminated_count += 1;
                 }
-                kind if Self::can_mutate_memory(kind) => {
+                _ if Self::can_mutate_memory(func, inst_id) => {
                     scratch.stored_words.clear();
                 }
                 _ => {}
@@ -902,7 +924,7 @@ impl MemoryStoreEliminator {
                     Self::remove_overlapping_map(&mut scratch.stored_values, key);
                     scratch.stored_values.insert(key, *value);
                 }
-                kind if Self::can_mutate_memory(kind) => {
+                _ if Self::can_mutate_memory(func, inst_id) => {
                     scratch.stored_values.clear();
                 }
                 _ => {}
@@ -1001,7 +1023,7 @@ impl MemoryStoreEliminator {
                         scratch.stored_values.clear();
                     }
                 }
-                kind if Self::can_mutate_memory(kind) => {
+                _ if Self::can_mutate_memory(func, inst_id) => {
                     scratch.stored_values.clear();
                 }
                 _ => {}
@@ -1018,47 +1040,7 @@ impl MemoryStoreEliminator {
     }
 
     fn mem_addr_key(func: &Function, value: ValueId) -> Option<MemAddrKey> {
-        Self::mem_addr_key_with_depth(func, value, 0)
-    }
-
-    fn mem_addr_key_with_depth(
-        func: &Function,
-        value: ValueId,
-        depth: usize,
-    ) -> Option<MemAddrKey> {
-        if depth > 8 {
-            return Some(MemAddrKey::BaseOffset { base: value, offset: 0 });
-        }
-
-        match &func.values[value] {
-            Value::Immediate(imm) => {
-                let addr = imm.as_u256()?;
-                u64::try_from(addr).ok().map(MemAddrKey::Const)
-            }
-            Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
-                InstKind::Add(a, b) => Self::add_addr_offset(func, a, b, depth)
-                    .or_else(|| Self::add_addr_offset(func, b, a, depth))
-                    .or(Some(MemAddrKey::BaseOffset { base: value, offset: 0 })),
-                _ => Some(MemAddrKey::BaseOffset { base: value, offset: 0 }),
-            },
-            Value::Arg { .. } => Some(MemAddrKey::BaseOffset { base: value, offset: 0 }),
-            Value::Undef(_) | Value::Error(_) => None,
-        }
-    }
-
-    fn add_addr_offset(
-        func: &Function,
-        base: ValueId,
-        offset: ValueId,
-        depth: usize,
-    ) -> Option<MemAddrKey> {
-        let offset = func.value_u64(offset)?;
-        match Self::mem_addr_key_with_depth(func, base, depth + 1)? {
-            MemAddrKey::Const(addr) => addr.checked_add(offset).map(MemAddrKey::Const),
-            MemAddrKey::BaseOffset { base, offset: base_offset } => base_offset
-                .checked_add(offset)
-                .map(|offset| MemAddrKey::BaseOffset { base, offset }),
-        }
+        AliasAnalysis.memory_address(func, value).map(MemAddrKey)
     }
 
     fn immutable_copy_key(func: &Function, src: ValueId) -> Option<ImmutableCopyKey> {
@@ -1118,21 +1100,19 @@ impl MemoryStoreEliminator {
         let mut bytes = Vec::with_capacity(size as usize);
         for word_offset in (0..size).step_by(32) {
             let addr = offset.checked_add(word_offset)?;
-            let word = stored_words.get(&MemAddrKey::Const(addr))?;
+            let word = stored_words.get(&MemAddrKey(MemoryAddress::absolute(addr)))?;
             bytes.extend_from_slice(&word.to_be_bytes::<32>());
         }
         Some(bytes)
     }
 
     fn overlaps(a: MemAddrKey, b: MemAddrKey) -> bool {
-        match (a, b) {
-            (MemAddrKey::Const(a), MemAddrKey::Const(b)) => mir_utils::ranges_overlap(a, 32, b, 32),
-            (
-                MemAddrKey::BaseOffset { base: a_base, offset: a_offset },
-                MemAddrKey::BaseOffset { base: b_base, offset: b_offset },
-            ) if a_base == b_base => mir_utils::ranges_overlap(a_offset, 32, b_offset, 32),
-            _ => true,
-        }
+        AliasAnalysis
+            .memory_alias(
+                MemoryLocation::new(a.0, LocationSize::Const(32)),
+                MemoryLocation::new(b.0, LocationSize::Const(32)),
+            )
+            .may_alias()
     }
 
     fn remove_overlapping_map<T>(map: &mut FxHashMap<MemAddrKey, T>, key: MemAddrKey) {
@@ -1193,105 +1173,39 @@ impl MemoryStoreEliminator {
     }
 
     fn offset_mem_addr_key(key: MemAddrKey, add: u64) -> Option<MemAddrKey> {
-        match key {
-            MemAddrKey::Const(offset) => offset.checked_add(add).map(MemAddrKey::Const),
-            MemAddrKey::BaseOffset { base, offset } => {
-                offset.checked_add(add).map(|offset| MemAddrKey::BaseOffset { base, offset })
-            }
-        }
+        key.0.checked_add(add).map(MemAddrKey)
     }
 
     fn ranges_overlap_mem_keys(
-        func: &Function,
+        _func: &Function,
         read: MemAddrKey,
         read_size: u64,
         write: MemAddrKey,
         write_size: u64,
     ) -> bool {
-        if (Self::is_scratch_const(read) && Self::is_fmp_heap_key(func, write))
-            || (Self::is_fmp_heap_key(func, read) && Self::is_scratch_const(write))
-        {
-            return false;
-        }
-
-        match (read, write) {
-            (MemAddrKey::Const(read), MemAddrKey::Const(write)) => {
-                mir_utils::ranges_overlap(read, read_size, write, write_size)
-            }
-            (
-                MemAddrKey::BaseOffset { base: read_base, offset: read },
-                MemAddrKey::BaseOffset { base: write_base, offset: write },
-            ) if read_base == write_base => {
-                mir_utils::ranges_overlap(read, read_size, write, write_size)
-            }
-            _ => true,
-        }
+        AliasAnalysis
+            .memory_alias(
+                MemoryLocation::new(read.0, LocationSize::Const(read_size)),
+                MemoryLocation::new(write.0, LocationSize::Const(write_size)),
+            )
+            .may_alias()
     }
 
-    fn is_scratch_const(key: MemAddrKey) -> bool {
-        matches!(key, MemAddrKey::Const(offset) if offset < 128)
-    }
-
-    fn is_fmp_heap_key(func: &Function, key: MemAddrKey) -> bool {
-        let MemAddrKey::BaseOffset { base, .. } = key else {
-            return false;
-        };
-        Self::is_fmp_heap_value(func, base, 0)
-    }
-
-    fn is_fmp_heap_value(func: &Function, value: ValueId, depth: usize) -> bool {
-        if depth > 8 {
-            return false;
-        }
-        let Value::Inst(inst_id) = func.values[value] else {
-            return false;
-        };
-        match func.instructions[inst_id].kind {
-            InstKind::MLoad(addr) => func.value_u64(addr) == Some(0x40),
-            InstKind::Fmp | InstKind::Alloc(_) => true,
-            InstKind::Add(a, b) => {
-                Self::is_fmp_heap_value(func, a, depth + 1)
-                    || Self::is_fmp_heap_value(func, b, depth + 1)
-            }
-            _ => false,
-        }
-    }
-
-    fn is_memory_or_gas_observer(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::MStore8(_, _)
-                | InstKind::MSize
-                | InstKind::MCopy(_, _, _)
-                | InstKind::CalldataCopy(_, _, _)
-                | InstKind::CodeCopy(_, _, _)
-                | InstKind::ReturnDataCopy(_, _, _)
-                | InstKind::ExtCodeCopy(_, _, _, _)
-                | InstKind::Keccak256(_, _)
-                | InstKind::MappingSlotMemory(_, _)
-                | InstKind::AbiEncode { .. }
-                | InstKind::Call { .. }
-                | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::InternalCall { .. }
-                | InstKind::Create(_, _, _)
-                | InstKind::Create2(_, _, _, _)
-                | InstKind::Log0(_, _)
-                | InstKind::Log1(_, _, _)
-                | InstKind::Log2(_, _, _, _)
-                | InstKind::Log3(_, _, _, _, _)
-                | InstKind::Log4(_, _, _, _, _, _)
-                | InstKind::Gas
-        )
+    fn is_memory_or_gas_observer(func: &Function, inst_id: InstId) -> bool {
+        let effects = AliasAnalysis.instruction_mod_ref(func, inst_id);
+        effects.reads_space(AddressSpace::Memory)
+            || effects.writes_space(AddressSpace::Memory)
+            || effects.observes_memory_size()
+            || effects.observes_gas()
     }
 
     fn has_frame_observer(func: &Function) -> bool {
         func.blocks.iter().any(|block| {
             block.instructions.iter().any(|&inst_id| {
-                matches!(
-                    func.instructions[inst_id].kind,
-                    InstKind::Gas | InstKind::MSize | InstKind::InternalCall { .. }
-                )
+                let effects = AliasAnalysis.instruction_mod_ref(func, inst_id);
+                effects.observes_gas()
+                    || effects.observes_memory_size()
+                    || matches!(func.instructions[inst_id].kind, InstKind::InternalCall { .. })
             })
         })
     }
@@ -1301,133 +1215,53 @@ impl MemoryStoreEliminator {
 
         for block in func.blocks.iter() {
             for &inst_id in &block.instructions {
-                match func.instructions[inst_id].kind {
-                    InstKind::MLoad(addr) => {
-                        if let Some(offset) = Self::internal_frame_offset(func, addr) {
-                            reads.push((offset, 32));
-                        }
-                    }
-                    InstKind::MappingSlotMemory(ptr, _)
-                        if Self::internal_frame_offset(func, ptr).is_some() =>
-                    {
-                        return None;
-                    }
-                    InstKind::Keccak256(offset, size)
-                    | InstKind::Log0(offset, size)
-                    | InstKind::Create(_, offset, size) => {
-                        Self::push_frame_read(func, &mut reads, offset, size)?;
-                    }
-                    InstKind::Log1(offset, size, _) => {
-                        Self::push_frame_read(func, &mut reads, offset, size)?;
-                    }
-                    InstKind::Log2(offset, size, _, _)
-                    | InstKind::MCopy(_, offset, size)
-                    | InstKind::Create2(_, offset, size, _) => {
-                        Self::push_frame_read(func, &mut reads, offset, size)?;
-                    }
-                    InstKind::Log3(offset, size, _, _, _) => {
-                        Self::push_frame_read(func, &mut reads, offset, size)?;
-                    }
-                    InstKind::Log4(offset, size, _, _, _, _) => {
-                        Self::push_frame_read(func, &mut reads, offset, size)?;
-                    }
-                    InstKind::Call { args_offset, args_size, .. }
-                    | InstKind::StaticCall { args_offset, args_size, .. }
-                    | InstKind::DelegateCall { args_offset, args_size, .. } => {
-                        Self::push_frame_read(func, &mut reads, args_offset, args_size)?;
-                    }
-                    _ => {}
-                }
+                Self::push_frame_reads(
+                    &mut reads,
+                    AliasAnalysis.instruction_mod_ref(func, inst_id).reads(),
+                )?;
             }
         }
 
         for block in func.blocks.iter() {
-            match block.terminator.as_ref() {
-                Some(Terminator::ReturnData { offset, size })
-                | Some(Terminator::Revert { offset, size }) => {
-                    Self::push_frame_read(func, &mut reads, *offset, *size)?;
-                }
-                _ => {}
+            if let Some(terminator) = &block.terminator {
+                Self::push_frame_reads(
+                    &mut reads,
+                    AliasAnalysis.terminator_mod_ref(func, terminator).reads(),
+                )?;
             }
         }
 
         Some(reads)
     }
 
-    fn push_frame_read(
-        func: &Function,
-        reads: &mut Vec<(u64, u64)>,
-        offset: ValueId,
-        size: ValueId,
-    ) -> Option<()> {
-        if let Some(frame_offset) = Self::internal_frame_offset(func, offset) {
-            reads.push((frame_offset, func.value_u64(size)?));
+    fn push_frame_reads(reads: &mut Vec<(u64, u64)>, accesses: &[Access]) -> Option<()> {
+        for access in accesses {
+            match *access {
+                Access::Any(AddressSpace::Memory) => return None,
+                Access::Location(Location::Memory(location)) => {
+                    if let Some(offset) = location.address.as_internal_frame_offset() {
+                        reads.push((offset, location.size.as_const()?));
+                    }
+                }
+                Access::Location(Location::Storage(_))
+                | Access::Location(Location::Transient(_))
+                | Access::Any(AddressSpace::Storage)
+                | Access::Any(AddressSpace::Transient) => {}
+            }
         }
         Some(())
     }
 
     fn internal_frame_offset(func: &Function, value: ValueId) -> Option<u64> {
-        Self::internal_frame_offset_with_depth(func, value, 0)
+        AliasAnalysis.memory_address(func, value)?.as_internal_frame_offset()
     }
 
-    fn internal_frame_offset_with_depth(
-        func: &Function,
-        value: ValueId,
-        depth: usize,
-    ) -> Option<u64> {
-        if depth > 8 {
-            return None;
-        }
-
-        match func.values[value] {
-            Value::Inst(inst_id) => match func.instructions[inst_id].kind {
-                InstKind::InternalFrameAddr(offset) => Some(offset),
-                InstKind::Add(a, b) => Self::internal_frame_add_offset(func, a, b, depth)
-                    .or_else(|| Self::internal_frame_add_offset(func, b, a, depth)),
-                _ => None,
-            },
-            _ => None,
-        }
+    fn can_mutate_memory(func: &Function, inst_id: InstId) -> bool {
+        AliasAnalysis.instruction_mod_ref(func, inst_id).writes_space(AddressSpace::Memory)
     }
 
-    fn internal_frame_add_offset(
-        func: &Function,
-        base: ValueId,
-        offset: ValueId,
-        depth: usize,
-    ) -> Option<u64> {
-        let base = Self::internal_frame_offset_with_depth(func, base, depth + 1)?;
-        base.checked_add(func.value_u64(offset)?)
-    }
-
-    fn can_mutate_memory(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::MStore8(_, _)
-                | InstKind::SetFmp(_)
-                | InstKind::Alloc(_)
-                | InstKind::AbiEncode { .. }
-                | InstKind::MCopy(_, _, _)
-                | InstKind::CalldataCopy(_, _, _)
-                | InstKind::CodeCopy(_, _, _)
-                | InstKind::ReturnDataCopy(_, _, _)
-                | InstKind::ExtCodeCopy(_, _, _, _)
-                | InstKind::Call { .. }
-                | InstKind::StaticCall { .. }
-                | InstKind::DelegateCall { .. }
-                | InstKind::InternalCall { .. }
-        )
-    }
-
-    fn cross_block_memory_barrier(kind: &InstKind) -> bool {
-        matches!(
-            kind,
-            InstKind::MLoad(_)
-                | InstKind::Fmp
-                | InstKind::SetFmp(_)
-                | InstKind::Alloc(_)
-                | InstKind::AbiEncode { .. }
-        ) || Self::is_memory_or_gas_observer(kind)
+    fn cross_block_memory_barrier(func: &Function, inst_id: InstId) -> bool {
+        Self::is_memory_or_gas_observer(func, inst_id)
     }
 }
 
