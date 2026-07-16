@@ -83,6 +83,7 @@ fn formatter_failed(error: FormatterError) -> ResponseError {
         FormatterError::Io(_) => "failed to run Forge formatter",
         FormatterError::Failed { .. } => "Forge formatting failed",
         FormatterError::InvalidUtf8(_) => "Forge returned invalid UTF-8",
+        FormatterError::EmptyOutput => "Forge formatter returned empty output",
     };
     request_failed(message)
 }
@@ -537,6 +538,27 @@ mod formatting_tests {
 
         assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
         assert_eq!(error.message, "Forge executable was not found");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn formatting_rejects_empty_output_for_non_whitespace_source() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /workspace/Test.sol
+            contract Test {}
+            "#,
+        );
+        let forge = write_executable(&project, "/fake-forge", "#!/bin/sh\ncat >/dev/null\n");
+        let mut state = formatting_state(&project, &forge, &["/workspace"]);
+        let path = project.path("/workspace/Test.sol");
+
+        let error = formatting(&mut state, formatting_params(Url::from_file_path(path).unwrap()))
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
+        assert_eq!(error.message, "Forge formatter returned empty output");
     }
 
     #[cfg(unix)]

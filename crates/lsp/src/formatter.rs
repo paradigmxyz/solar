@@ -72,7 +72,11 @@ async fn run_with_timeout(
         });
     }
 
-    String::from_utf8(output.stdout).map_err(FormatterError::InvalidUtf8)
+    let formatted = String::from_utf8(output.stdout).map_err(FormatterError::InvalidUtf8)?;
+    if !source.trim().is_empty() && formatted.trim().is_empty() {
+        return Err(FormatterError::EmptyOutput);
+    }
+    Ok(formatted)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -85,6 +89,8 @@ pub(crate) enum FormatterError {
     Failed { status: Option<i32>, stderr: String },
     #[error("Forge formatter returned invalid UTF-8: {0}")]
     InvalidUtf8(#[source] FromUtf8Error),
+    #[error("Forge formatter returned empty output")]
+    EmptyOutput,
 }
 
 #[cfg(all(test, unix))]
