@@ -28,9 +28,13 @@ result schema in [`schema/`](schema/). Its wall time is the total for the compar
 the harness, both compilers, and runtime checks.
 
 The [benchmark workflow](../.github/workflows/bench.yml) runs automatically for pull requests and
-updates to `main`. It can also be dispatched for all families or one selected family. Dispatch inputs
-can select another Solar Git ref as the Gungraun baseline and override the pinned solc release or
-codegen benchmark corpus revision. For example:
+updates to `main`. It can also be dispatched for all benchmark families or one selected family:
+codegen runtime comparisons, CodSpeed instrumentation, or Gungraun instruction counts. Dispatch
+inputs can select another Solar Git ref as the Gungraun baseline and override the pinned solc release
+or codegen benchmark corpus revision.
+
+For example, this command benchmarks the `my-branch` candidate with Gungraun, compares it against
+`main`, and skips the codegen runtime and CodSpeed jobs:
 
 ```bash
 gh workflow run bench.yml --ref my-branch \
