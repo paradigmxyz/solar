@@ -1,6 +1,7 @@
 //! EVM IR text parser.
 
 use super::*;
+use crate::backend::evm::assembler::op;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use std::fmt as std_fmt;
 
@@ -578,6 +579,7 @@ impl<'a> Parser<'a> {
                 }
                 TerminatorKind::Switch { value, default, cases }
             }
+            "return" if self.at_end_of_operation() => TerminatorKind::RawOpcode(op::RETURN),
             "return" => {
                 let offset =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
@@ -586,6 +588,7 @@ impl<'a> Parser<'a> {
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
                 TerminatorKind::Return { offset, size }
             }
+            "revert" if self.at_end_of_operation() => TerminatorKind::RawOpcode(op::REVERT),
             "revert" => {
                 let offset =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
@@ -596,6 +599,9 @@ impl<'a> Parser<'a> {
             }
             "stop" => TerminatorKind::Stop,
             "invalid" => TerminatorKind::Invalid,
+            "selfdestruct" if self.at_end_of_operation() => {
+                TerminatorKind::RawOpcode(op::SELFDESTRUCT)
+            }
             "selfdestruct" => {
                 let recipient =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
@@ -611,10 +617,17 @@ impl<'a> Parser<'a> {
                     opcode
                 } else {
                     let mnemonic = self.parse_ident()?;
-                    let Some(opcode) = super::super::assembler::op::from_mnemonic(mnemonic) else {
+                    let Some(opcode) = op::from_mnemonic(mnemonic) else {
                         return Err(self.error(format!("unknown terminal opcode `{mnemonic}`")));
                     };
                     opcode
+                };
+                TerminatorKind::RawOpcode(opcode)
+            }
+            "raw" => {
+                let opcode = self.parse_uint_literal()?;
+                let Ok(opcode) = u8::try_from(opcode) else {
+                    return Err(self.error("raw opcode must fit in one byte"));
                 };
                 TerminatorKind::RawOpcode(opcode)
             }

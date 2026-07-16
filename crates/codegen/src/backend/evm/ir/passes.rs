@@ -1,21 +1,57 @@
 //! EVM IR optimization and layout passes.
 
 use super::*;
-use crate::timing::PassTimer;
+use crate::{
+    backend::evm::{assembler::op, ir_stack_schedule},
+    timing::PassTimer,
+};
 use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 
-/// A named EVM IR pass exposed to `solar evm-opt`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Pass {
-    /// No transform; validate and print the module.
-    None,
+type PassRunner = fn(&mut Module) -> bool;
+
+/// Registry entry for an EVM IR transform pass.
+#[derive(Clone, Copy, Debug)]
+pub struct PassInfo {
+    /// Command-line and pipeline name.
+    pub name: &'static str,
+    /// Human-readable help text.
+    pub description: &'static str,
+    run_pass: PassRunner,
+}
+
+impl PassInfo {
+    const fn new(name: &'static str, description: &'static str, run_pass: PassRunner) -> Self {
+        Self { name, description, run_pass }
+    }
+}
+
+macro_rules! declare_passes {
+    ($(
+        $(#[doc = $description:literal])+
+        $vis:vis const $const_name:ident -> $name:literal = $run_pass:path;
+    )+) => {
+        $(
+            $(#[doc = $description])+
+            $vis const $const_name: PassInfo = PassInfo::new(
+                $name,
+                concat!($($description, "\n"),+).trim_ascii(),
+                $run_pass,
+            );
+        )+
+    };
+}
+
+declare_passes! {
     /// Materialize virtual instruction operands with physical stack operations.
-    StackSchedule,
+    pub const STACK_SCHEDULE_PASS -> "stack-schedule" = ir_stack_schedule::schedule_stack_ops;
+
     /// Move cold terminal blocks after hot fallthrough code when this preserves fallthrough edges.
-    ColdLayout,
+    pub const COLD_LAYOUT_PASS -> "cold-layout" = move_cold_terminal_blocks;
+
     /// Replace duplicate terminal block bodies with jumps to the first copy when profitable.
-    TerminalDedup,
+    pub const TERMINAL_DEDUP_PASS -> "terminal-dedup" = deduplicate_terminal_blocks;
+
 }
 
 /// Options for running an EVM IR pass.
@@ -25,47 +61,25 @@ pub struct PassOptions {
     pub time_passes: bool,
 }
 
-impl Pass {
-    /// Stable command-line pass name.
-    #[must_use]
-    pub const fn name(self) -> &'static str {
-        match self {
-            Self::None => "none",
-            Self::StackSchedule => "stack-schedule",
-            Self::ColdLayout => "cold-layout",
-            Self::TerminalDedup => "terminal-dedup",
-        }
-    }
+/// All EVM IR passes exposed by `solar evm-opt`.
+pub const PASS_REGISTRY: &[PassInfo] =
+    &[STACK_SCHEDULE_PASS, COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS];
 
-    /// Runs this pass on an EVM IR module.
-    pub fn run(self, module: &mut Module, options: PassOptions) -> bool {
-        let timer = PassTimer::new(options.time_passes);
-        let changed = match self {
-            Self::None => false,
-            Self::StackSchedule => super::super::ir_stack_schedule::schedule_stack_ops(module),
-            Self::ColdLayout => move_cold_terminal_blocks(module),
-            Self::TerminalDedup => deduplicate_terminal_blocks(module),
-        };
-        timer.finish("EVM IR", &module.name, self.name(), changed);
-        changed
-    }
+/// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
+pub const DEFAULT_LAYOUT_PIPELINE: &[PassInfo] = &[COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS];
 
-    /// Looks up a pass by command-line name.
-    #[must_use]
-    pub fn by_name(name: &str) -> Option<Self> {
-        Some(match name {
-            "none" => Self::None,
-            "stack-schedule" => Self::StackSchedule,
-            "cold-layout" => Self::ColdLayout,
-            "terminal-dedup" => Self::TerminalDedup,
-            _ => return None,
-        })
-    }
+/// Finds a pass in the EVM IR pass registry by command-line name.
+pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
+    PASS_REGISTRY.iter().find(|pass| pass.name == name)
 }
 
-/// All EVM IR passes exposed by `solar evm-opt`.
-pub const PASSES: &[Pass] =
-    &[Pass::None, Pass::StackSchedule, Pass::ColdLayout, Pass::TerminalDedup];
+/// Runs a named EVM IR pass over a module.
+pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> bool {
+    let timer = PassTimer::new(options.time_passes);
+    let changed = (pass.run_pass)(module);
+    timer.finish("EVM IR", &module.name, pass.name, changed);
+    changed
+}
 
 fn move_cold_terminal_blocks(module: &mut Module) -> bool {
     let mut kept = Vec::with_capacity(module.blocks.len());
@@ -194,7 +208,7 @@ fn is_evm_terminal(kind: &TerminatorKind) -> bool {
             | TerminatorKind::Stop
             | TerminatorKind::Invalid
             | TerminatorKind::SelfDestruct { .. }
-    ) || matches!(kind, TerminatorKind::RawOpcode(opcode) if super::super::assembler::op::is_terminal(*opcode))
+    ) || matches!(kind, TerminatorKind::RawOpcode(opcode) if op::is_terminal(*opcode))
 }
 
 fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {

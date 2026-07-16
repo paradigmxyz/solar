@@ -22,7 +22,7 @@ pub(crate) struct EvmOptArgs {
         value_parser = parse_pass,
         default_value = "none"
     )]
-    passes: Vec<ir::Pass>,
+    passes: Vec<Option<&'static ir::PassInfo>>,
     /// If true, print EVM IR after every pass; otherwise only after the last.
     #[arg(long)]
     print_after_each: bool,
@@ -31,19 +31,36 @@ pub(crate) struct EvmOptArgs {
     input: String,
 }
 
-fn parse_pass(name: &str) -> Result<ir::Pass, String> {
-    ir::Pass::by_name(name).ok_or_else(|| format!("unknown EVM IR pass: {name}"))
+fn parse_pass(name: &str) -> Result<Option<&'static ir::PassInfo>, String> {
+    match name {
+        "none" => Ok(None),
+        other => {
+            ir::lookup_pass(other).map(Some).ok_or_else(|| format!("unknown EVM IR pass: {other}"))
+        }
+    }
 }
 
 fn after_help() -> String {
     format!(
-        "Passes:\n  {}\n\nInput formats:\n  *.evmir  EVM IR",
-        ir::PASSES.iter().map(|pass| pass.name()).collect::<Vec<_>>().join("\n  ")
+        "Passes:\n  {}\n  {:<20} No transform; validate and print the module\n\nInput formats:\n  *.evmir  EVM IR",
+        ir::PASS_REGISTRY
+            .iter()
+            .map(|pass| format!("{:<20} {}", pass.name, pass.description))
+            .collect::<Vec<_>>()
+            .join("\n  "),
+        "none",
     )
 }
 
-fn selected_pass_list_label(passes: &[ir::Pass], separator: &str) -> String {
-    passes.iter().map(|pass| pass.name()).collect::<Vec<_>>().join(separator)
+fn pass_label(pass: Option<&ir::PassInfo>) -> &'static str {
+    match pass {
+        Some(pass) => pass.name,
+        None => "none",
+    }
+}
+
+fn selected_pass_list_label(passes: &[Option<&ir::PassInfo>], separator: &str) -> String {
+    passes.iter().copied().map(pass_label).collect::<Vec<_>>().join(separator)
 }
 
 /// Prints a module with a header indicating which pass(es) produced it.
@@ -57,13 +74,15 @@ fn run_pipeline(sess: &Session, module: &mut ir::Module, name: &str, args: &EvmO
     let options = ir::PassOptions { time_passes: sess.opts.unstable.time_passes };
     let pipeline_label = selected_pass_list_label(&args.passes, ",");
     for (index, &pass) in args.passes.iter().enumerate() {
-        pass.run(module, options);
+        if let Some(pass) = pass {
+            ir::run_pass(module, pass, options);
+        }
         if args.print_after_each || index + 1 == args.passes.len() {
             ir::Verifier::new(dcx).verify_module(module);
             if dcx.has_errors().is_err() {
                 break;
             }
-            let label = if args.print_after_each { pass.name() } else { &pipeline_label };
+            let label = if args.print_after_each { pass_label(pass) } else { &pipeline_label };
             print_module(module, name, label);
         }
     }

@@ -1,6 +1,7 @@
 //! EVM IR text formatting.
 
 use super::*;
+use crate::backend::evm::assembler::op;
 use solar_data_structures::fmt::FmtIteratorExt;
 
 impl Module {
@@ -131,10 +132,10 @@ fn display_terminator<'a>(module: &'a Module, term: &'a Terminator) -> impl fmt:
                 write!(f, "selfdestruct {}", display_operand(module, recipient))?;
             }
             TerminatorKind::RawOpcode(opcode) => {
-                if let Some(mnemonic) = super::super::assembler::op::mnemonic(*opcode) {
-                    write!(f, "terminal {mnemonic}")?;
+                if let Some(mnemonic) = op::mnemonic(*opcode) {
+                    write!(f, "{mnemonic}")?;
                 } else {
-                    write!(f, "terminal 0x{opcode:02x}")?;
+                    write!(f, "raw 0x{opcode:02x}")?;
                 }
             }
         }

@@ -33,7 +33,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   dup1
   push 288
@@ -132,7 +132,7 @@ bb9:
   pop
   push 32
   push 128
-  terminal return
+  return
 bb10:
   push 1
   push 352
@@ -492,4 +492,4 @@ bb23:
   mstore
   push 36
   push 0
-  terminal revert
+  revert
