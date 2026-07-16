@@ -1,4 +1,8 @@
 error: EVM IR verification failed: block 0: `swap2` reaches depth 2 but the stack has 2
+  ╭▸ ROOT/tests/ui/codegen/evm-ir/stack_verify_swap_out_of_range.evmir:LL:CC
+  │
+6 │   swap2
+  │   ━━━━━
   │
   ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
           emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC

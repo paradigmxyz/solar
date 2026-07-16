@@ -16,7 +16,10 @@ mod parse;
 mod passes;
 mod verify;
 
-pub use parse::{EvmIrParseError, parse_evm_ir_module};
+pub use parse::{
+    EvmIrParseError, EvmIrSourceMap, parse_evm_ir_module, parse_evm_ir_module_with_source_map,
+    parse_evm_ir_module_with_start_pos,
+};
 pub use passes::{EVM_IR_PASSES, EvmIrPass, EvmIrPassOptions};
 pub use verify::{EvmIrVerifier, verify_evm_ir_module};
 

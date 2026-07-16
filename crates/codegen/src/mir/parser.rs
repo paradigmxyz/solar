@@ -30,7 +30,7 @@
 //! - Phi nodes are represented only as phi *instructions* (`InstKind::Phi`).
 
 use super::{
-    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstKind, Instruction,
+    BasicBlock, BlockId, EffectKind, Function, FunctionId, InstId, InstKind, Instruction,
     InstructionMetadata, MemoryRegion, Module, StorageAlias, Terminator, Value, ValueId,
 };
 use crate::mir::{Immediate, MirType};
@@ -56,8 +56,39 @@ use std::fmt;
 /// Must be called inside an active `solar_interface::Session::enter`,
 /// because module and function names are interned via [`Symbol::intern`].
 pub fn parse_module(input: &str) -> Result<Module, ParseError> {
-    let mut p = Parser::new(input);
-    p.parse_module()
+    parse_module_with_start_pos(input, BytePos(0))
+}
+
+/// Parses a textual MIR module whose text begins at `start_pos` in a source map.
+pub fn parse_module_with_start_pos(input: &str, start_pos: BytePos) -> Result<Module, ParseError> {
+    parse_module_with_source_map(input, start_pos).map(|(module, _)| module)
+}
+
+/// Parses MIR and returns the source locations of its textual instructions.
+pub fn parse_module_with_source_map(
+    input: &str,
+    start_pos: BytePos,
+) -> Result<(Module, MirSourceMap), ParseError> {
+    let mut parser = Parser::new(input, start_pos);
+    let module = parser.parse_module()?;
+    Ok((module, parser.source_map))
+}
+
+/// Source locations recorded while parsing textual MIR.
+#[derive(Clone, Debug, Default)]
+pub struct MirSourceMap {
+    instructions: FxHashMap<(usize, InstId), Span>,
+    terminators: FxHashMap<(usize, BlockId), Span>,
+}
+
+impl MirSourceMap {
+    pub(crate) fn instruction(&self, function: usize, inst: InstId) -> Option<Span> {
+        self.instructions.get(&(function, inst)).copied()
+    }
+
+    pub(crate) fn terminator(&self, function: usize, block: BlockId) -> Option<Span> {
+        self.terminators.get(&(function, block)).copied()
+    }
 }
 
 /// Parses a single textual MIR function.
@@ -70,7 +101,7 @@ pub fn parse_module(input: &str) -> Result<Module, ParseError> {
 ///
 /// Must be called inside an active `solar_interface::Session::enter`.
 pub fn parse_function(input: &str) -> Result<Function, ParseError> {
-    let mut p = Parser::new(input);
+    let mut p = Parser::new(input, BytePos(0));
     p.skip_blank_and_comments();
     let func = p.parse_function()?;
     p.skip_blank_and_comments();
@@ -119,9 +150,13 @@ impl std::error::Error for ParseError {}
 /// A simple line-and-column-tracking parser over a `&str`.
 struct Parser<'a> {
     input: &'a str,
+    start_pos: BytePos,
     pos: usize,
     line: usize,
     col: usize,
+    item_start: usize,
+    current_function: usize,
+    source_map: MirSourceMap,
     /// Function names in declaration order, pre-scanned from the `fn @name(`
     /// headers so `@name` call references resolve even when they point
     /// forward.
@@ -129,7 +164,7 @@ struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    fn new(input: &'a str) -> Self {
+    fn new(input: &'a str, start_pos: BytePos) -> Self {
         let function_names = input
             .lines()
             .filter_map(|line| {
@@ -138,13 +173,30 @@ impl<'a> Parser<'a> {
                 Some(&rest[..end])
             })
             .collect();
-        Self { input, pos: 0, line: 1, col: 1, function_names }
+        Self {
+            input,
+            start_pos,
+            pos: 0,
+            line: 1,
+            col: 1,
+            item_start: 0,
+            current_function: 0,
+            source_map: MirSourceMap::default(),
+            function_names,
+        }
     }
 
     // ----- low-level cursor primitives -----
 
     fn is_eof(&self) -> bool {
         self.pos >= self.input.len()
+    }
+
+    fn span(&self, start: usize, end: usize) -> Span {
+        Span::new(
+            self.start_pos + BytePos::from_usize(start),
+            self.start_pos + BytePos::from_usize(end),
+        )
     }
 
     fn peek_char(&self) -> Option<char> {
@@ -437,6 +489,7 @@ impl<'a> Parser<'a> {
             }
             let func = self.parse_function()?;
             module.add_function(func);
+            self.current_function += 1;
         }
 
         Ok(module)
@@ -889,6 +942,7 @@ impl<'a> Parser<'a> {
         value_labels: &mut FxHashMap<u32, ValueId>,
     ) -> Result<(), ParseError> {
         self.skip_inline_whitespace();
+        self.item_start = self.pos;
 
         // Optional result: `vN = ...`
         let result_label: Option<u32> = if self.input[self.pos..].starts_with('v')
@@ -1057,6 +1111,9 @@ impl<'a> Parser<'a> {
         let mut inst = Instruction::new(kind, result_ty);
         inst.metadata = metadata;
         let inst_id = func.alloc_inst(inst);
+        self.source_map
+            .instructions
+            .insert((self.current_function, inst_id), self.span(self.item_start, self.pos));
         func.blocks[block].instructions.push(inst_id);
         if let Some(label) = result_label {
             self.resolve_result_label(func, value_labels, label, inst_id)?;
@@ -1203,13 +1260,15 @@ impl<'a> Parser<'a> {
         value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
     }
 
-    fn set_terminator(&self, func: &mut Function, block: BlockId, term: Terminator) {
+    fn set_terminator(&mut self, func: &mut Function, block: BlockId, term: Terminator) {
         // Update predecessors so downstream passes see a valid CFG.
         let succs = term.successors();
         for s in succs {
             func.blocks[s].predecessors.push(block);
         }
         func.blocks[block].terminator = Some(term);
+        let span = self.span(self.item_start, self.pos);
+        self.source_map.terminators.insert((self.current_function, block), span);
     }
 
     /// Parses one instruction by mnemonic. Returns the constructed [`InstKind`]

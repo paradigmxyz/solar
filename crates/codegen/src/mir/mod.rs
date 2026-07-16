@@ -30,7 +30,10 @@ pub use builder::FunctionBuilder;
 mod display;
 
 mod parser;
-pub use parser::{ParseError, parse_function, parse_module};
+pub use parser::{
+    MirSourceMap, ParseError, parse_function, parse_module, parse_module_with_source_map,
+    parse_module_with_start_pos,
+};
 
 pub(crate) mod utils;
 

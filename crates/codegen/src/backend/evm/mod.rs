@@ -15,9 +15,10 @@ mod ir_stack_schedule;
 pub use ir::{
     EVM_IR_PASSES, EvmIrBlock, EvmIrBlockHotness, EvmIrBlockId, EvmIrBlockMetadata,
     EvmIrInstruction, EvmIrInstructionKind, EvmIrMetadata, EvmIrMetadataItem, EvmIrModule,
-    EvmIrOperand, EvmIrParseError, EvmIrPass, EvmIrPassOptions, EvmIrStackEffect, EvmIrStackOp,
-    EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue, EvmIrValueId, EvmIrVerifier,
-    parse_evm_ir_module, verify_evm_ir_module,
+    EvmIrOperand, EvmIrParseError, EvmIrPass, EvmIrPassOptions, EvmIrSourceMap, EvmIrStackEffect,
+    EvmIrStackOp, EvmIrTerminator, EvmIrTerminatorKind, EvmIrValue, EvmIrValueId, EvmIrVerifier,
+    parse_evm_ir_module, parse_evm_ir_module_with_source_map, parse_evm_ir_module_with_start_pos,
+    verify_evm_ir_module,
 };
 
 pub mod assembler;

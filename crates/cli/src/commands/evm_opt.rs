@@ -6,10 +6,11 @@
 
 use clap::ValueHint;
 use solar_codegen::backend::evm::{
-    EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, parse_evm_ir_module,
-    verify_evm_ir_module,
+    EVM_IR_PASSES, EvmIrModule, EvmIrPass, EvmIrPassOptions, EvmIrVerifier,
+    parse_evm_ir_module_with_source_map, verify_evm_ir_module,
 };
-use solar_interface::{Session, diagnostics::DiagCtxt};
+use solar_config::CompileOpts;
+use solar_interface::Session;
 use std::{path::Path, process::ExitCode};
 
 #[derive(clap::Args)]
@@ -31,8 +32,6 @@ pub(crate) struct EvmOptArgs {
     /// Path to input file. Extension determines whether it's .evmir.
     #[arg(value_hint = ValueHint::FilePath)]
     input: String,
-    #[arg(skip)]
-    time_passes: bool,
 }
 
 fn parse_pass(name: &str) -> Result<EvmIrPass, String> {
@@ -56,8 +55,9 @@ fn print_module(module: &EvmIrModule, name: &str, after: &str) {
     print!("{}", module.to_text());
 }
 
-fn run_pipeline(dcx: &DiagCtxt, module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) {
-    let options = EvmIrPassOptions { time_passes: args.time_passes };
+fn run_pipeline(sess: &Session, module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) {
+    let dcx = &sess.dcx;
+    let options = EvmIrPassOptions { time_passes: sess.opts.unstable.time_passes };
     if args.print_after_each {
         for &pass in &args.passes {
             pass.run(module, options);
@@ -79,40 +79,31 @@ fn run_pipeline(dcx: &DiagCtxt, module: &mut EvmIrModule, name: &str, args: &Evm
     }
 }
 
-fn process_evmir(args: &EvmOptArgs) -> solar_interface::Result {
-    let sess = Session::builder().with_stderr_emitter().build();
-    let result = process_evmir_inner(&sess, args);
-    result.and(sess.dcx.print_error_count())
-}
-
-fn process_evmir_inner(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
+fn process_evmir(sess: &Session, args: &EvmOptArgs) -> solar_interface::Result {
     let source = sess
         .source_map()
         .load_file(Path::new(&args.input))
         .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
-    sess.enter(|| {
-        let mut module = parse_evm_ir_module(source.src.as_str())
+    let (mut module, source_map) =
+        parse_evm_ir_module_with_source_map(source.src.as_str(), source.start_pos)
             .map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
-        verify_evm_ir_module(&sess.dcx, &module);
-        if sess.dcx.has_errors().is_ok() {
-            run_pipeline(&sess.dcx, &mut module, &args.input, args);
-        }
-        Ok(())
-    })
+    EvmIrVerifier::with_source_map(&sess.dcx, &source_map).verify_module(&module);
+    if sess.dcx.has_errors().is_ok() {
+        run_pipeline(sess, &mut module, &args.input, args);
+    }
+    Ok(())
 }
 
-pub(crate) fn run(mut args: EvmOptArgs, time_passes: bool) -> ExitCode {
-    args.time_passes = time_passes;
+pub(crate) fn run(args: EvmOptArgs, mut opts: CompileOpts) -> ExitCode {
+    opts.input.push(args.input.clone());
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
-    let result = match ext {
-        "evmir" => process_evmir(&args),
-        _ => {
-            let dcx = DiagCtxt::new_early();
-            Err(dcx
-                .err(format!("unsupported input file extension `.{ext}` (expected .evmir)"))
-                .emit())
-        }
-    };
+    let result = super::compile::run_session_with(opts, |sess| match ext {
+        "evmir" => process_evmir(sess, &args),
+        _ => Err(sess
+            .dcx
+            .err(format!("unsupported input file extension `.{ext}` (expected .evmir)"))
+            .emit()),
+    });
 
     if result.is_ok() { ExitCode::SUCCESS } else { ExitCode::FAILURE }
 }

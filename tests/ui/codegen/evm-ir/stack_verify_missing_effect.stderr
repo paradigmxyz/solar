@@ -1,9 +1,17 @@
 error: EVM IR verification failed: block 0: operand-cleared instruction `mystery` must declare an explicit stack effect
+  ╭▸ ROOT/tests/ui/codegen/evm-ir/stack_verify_missing_effect.evmir:LL:CC
+  │
+6 │   %r = mystery
+  │   ━━━━━━━━━━━━
   │
   ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
           emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC
 
 error: EVM IR verification failed: block 0: operand-cleared instruction `unknown` must declare an explicit stack effect
+  ╭▸ ROOT/tests/ui/codegen/evm-ir/stack_verify_missing_effect.evmir:LL:CC
+  │
+7 │   %s = unknown
+  │   ━━━━━━━━━━━━
   │
   ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
           emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC

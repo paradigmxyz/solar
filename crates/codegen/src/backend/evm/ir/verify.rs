@@ -7,21 +7,34 @@ use solar_data_structures::{
     map::FxHashSet,
 };
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use std::cell::Cell;
 
 /// Stateful EVM IR verifier.
 pub struct EvmIrVerifier<'a> {
     dcx: &'a DiagCtxt,
+    source_map: Option<&'a EvmIrSourceMap>,
+    span: Cell<Option<solar_interface::Span>>,
 }
 
 impl<'a> EvmIrVerifier<'a> {
     /// Creates a verifier that emits findings into `dcx`.
     pub const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx }
+        Self { dcx, source_map: None, span: Cell::new(None) }
+    }
+
+    /// Creates a verifier with locations from parsed textual EVM IR.
+    pub const fn with_source_map(dcx: &'a DiagCtxt, source_map: &'a EvmIrSourceMap) -> Self {
+        Self { dcx, source_map: Some(source_map), span: Cell::new(None) }
     }
 
     #[track_caller]
     fn error(&self, msg: impl Into<String>) -> ErrorGuaranteed {
-        self.dcx.err(format!("EVM IR verification failed: {}", msg.into())).emit()
+        let msg = format!("EVM IR verification failed: {}", msg.into());
+        if let Some(span) = self.span.get() {
+            self.dcx.err(msg).span(span).emit()
+        } else {
+            self.dcx.err(msg).emit()
+        }
     }
 
     #[track_caller]
@@ -53,6 +66,7 @@ impl<'a> EvmIrVerifier<'a> {
 
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
+            self.span.set(self.source_map.and_then(|map| map.block(block_id)));
             if !is_valid_block_label(&block.label) {
                 self.error_in_block(block_id, format!("invalid block label `{}`", block.label));
             }
@@ -64,6 +78,7 @@ impl<'a> EvmIrVerifier<'a> {
             }
         }
 
+        self.span.set(None);
         let mut value_names = FxHashSet::default();
         for (_, value) in module.values.iter_enumerated() {
             if !is_valid_value_name(&value.name) {
@@ -76,7 +91,11 @@ impl<'a> EvmIrVerifier<'a> {
 
         let mut defined_values = DenseBitSet::new_empty(module.values.len());
         for (block_id, block) in module.blocks.iter_enumerated() {
-            for inst in &block.instructions {
+            self.span.set(self.source_map.and_then(|map| map.block(block_id)));
+            for (instruction_index, inst) in block.instructions.iter().enumerate() {
+                self.span.set(
+                    self.source_map.and_then(|map| map.instruction(block_id, instruction_index)),
+                );
                 self.verify_instruction_shape(block_id, inst);
                 if let Some(result) = inst.result {
                     if !self.value_exists(module, result) {
@@ -100,6 +119,7 @@ impl<'a> EvmIrVerifier<'a> {
                 self.verify_metadata_is_untyped(block_id, &inst.metadata);
             }
             let Some(term) = &block.terminator else { continue };
+            self.span.set(self.source_map.and_then(|map| map.terminator(block_id)));
             self.verify_terminator_shape(block_id, &term.kind);
             visit_terminator_operands(&term.kind, |operand| {
                 self.verify_operand(block_id, module, operand);
@@ -120,6 +140,7 @@ impl<'a> EvmIrVerifier<'a> {
         }
 
         for (block_id, block) in module.blocks.iter_enumerated() {
+            self.span.set(self.source_map.and_then(|map| map.block(block_id)));
             for &value in &block.entry_stack {
                 if !self.value_exists(module, value) {
                     self.error_in_block(
@@ -136,12 +157,16 @@ impl<'a> EvmIrVerifier<'a> {
                     );
                 }
             }
-            for inst in &block.instructions {
+            for (instruction_index, inst) in block.instructions.iter().enumerate() {
+                self.span.set(
+                    self.source_map.and_then(|map| map.instruction(block_id, instruction_index)),
+                );
                 for operand in &inst.operands {
                     self.verify_value_defined(block_id, module, operand, &defined_values);
                 }
             }
             let Some(term) = &block.terminator else { continue };
+            self.span.set(self.source_map.and_then(|map| map.terminator(block_id)));
             visit_terminator_operands(&term.kind, |operand| {
                 self.verify_value_defined(block_id, module, operand, &defined_values);
                 Ok::<(), ()>(())
@@ -150,6 +175,7 @@ impl<'a> EvmIrVerifier<'a> {
         }
 
         if entry.is_some() && self.dcx.err_count() == errors_before {
+            self.span.set(None);
             self.verify_stack_consistency(module);
         }
     }
@@ -248,6 +274,7 @@ impl EvmIrVerifier<'_> {
         if let Some(entry) = module.entry_block
             && !module.blocks[entry].entry_stack.is_empty()
         {
+            self.span.set(self.source_map.and_then(|map| map.block(entry)));
             self.error_in_block(entry, "entry block must start from an empty stack");
         }
 
@@ -261,6 +288,7 @@ impl EvmIrVerifier<'_> {
         for (block_id, block) in module.blocks.iter_enumerated() {
             let Some(exit) = &exit_stacks[block_id] else { continue };
             let term = block.terminator.as_ref().expect("checked above");
+            self.span.set(self.source_map.and_then(|map| map.terminator(block_id)));
             visit_terminator_targets(&term.kind, |succ| {
                 let succ_entry: Vec<AbstractWord> = module.blocks[succ]
                     .entry_stack
@@ -300,11 +328,14 @@ impl EvmIrVerifier<'_> {
             infinite_floor: !is_entry,
         };
 
-        for inst in &block.instructions {
+        for (instruction_index, inst) in block.instructions.iter().enumerate() {
+            self.span
+                .set(self.source_map.and_then(|map| map.instruction(block_id, instruction_index)));
             self.simulate_instruction(module, block_id, inst, &mut stack)?;
         }
 
         let term = block.terminator.as_ref().expect("checked above");
+        self.span.set(self.source_map.and_then(|map| map.terminator(block_id)));
         self.simulate_terminator(module, block_id, &term.kind, &mut stack)?;
         Ok(stack.words)
     }

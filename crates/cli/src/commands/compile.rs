@@ -100,13 +100,27 @@ pub(crate) fn run_pipeline(
     Ok(ControlFlow::Continue(()))
 }
 
-fn run_compiler_with(
+pub(crate) fn run_compiler_with(
     opts: CompileOpts,
     f: impl FnOnce(&mut CompilerRef<'_>) -> Result + Send,
 ) -> Result {
+    run_compiler_session_with(new_session(opts), f, true)
+}
+
+pub(crate) fn run_session_with(
+    opts: CompileOpts,
+    f: impl FnOnce(&Session) -> Result + Send,
+) -> Result {
+    let sess = new_session(opts);
+    sess.validate()?;
+    let result = sess.enter(|| f(&sess));
+    finish_session(&sess, result)
+}
+
+fn new_session(opts: CompileOpts) -> Session {
     let mut sess = Session::new(opts);
     sess.infer_language();
-    run_compiler_session_with(sess, f, true)
+    sess
 }
 
 pub(crate) fn run_compiler_session_with(
@@ -117,14 +131,16 @@ pub(crate) fn run_compiler_session_with(
     sess.validate()?;
     let mut compiler = solar_sema::Compiler::new(sess);
     compiler.enter_mut(|compiler| {
-        let mut r = f(compiler);
-        if finish {
-            r = r.and(finish_diagnostics(compiler.gcx().sess));
+        let result = f(compiler);
+        if !finish {
+            return result;
         }
-        r
+        finish_session(compiler.gcx().sess, result)
     })
 }
 
-fn finish_diagnostics(sess: &Session) -> Result {
-    sess.dcx.print_error_count()
+fn finish_session(sess: &Session, result: Result) -> Result {
+    let diagnostics = sess.dcx.print_error_count();
+    result?;
+    diagnostics
 }

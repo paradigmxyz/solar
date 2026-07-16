@@ -33,44 +33,80 @@
 
 use crate::{
     analysis::CfgInfo,
-    mir::{BlockId, Function, InstId, InstKind, Module, Value, ValueId},
+    mir::{BlockId, Function, InstId, InstKind, MirSourceMap, Module, Value, ValueId},
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
-use solar_interface::{diagnostics::DiagCtxt, sym};
+use solar_interface::{Span, diagnostics::DiagCtxt, sym};
 
 /// Stateful MIR verifier.
 pub struct Validator<'a> {
     dcx: &'a DiagCtxt,
+    source_map: Option<&'a MirSourceMap>,
     function: Option<usize>,
     error_count: usize,
+    instruction_spans: Vec<Option<Span>>,
+    block_spans: Vec<Option<Span>>,
 }
 
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
     pub const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx, function: None, error_count: 0 }
+        Self {
+            dcx,
+            source_map: None,
+            function: None,
+            error_count: 0,
+            instruction_spans: Vec::new(),
+            block_spans: Vec::new(),
+        }
+    }
+
+    /// Creates a verifier with locations from parsed textual MIR.
+    pub const fn with_source_map(dcx: &'a DiagCtxt, source_map: &'a MirSourceMap) -> Self {
+        Self {
+            dcx,
+            source_map: Some(source_map),
+            function: None,
+            error_count: 0,
+            instruction_spans: Vec::new(),
+            block_spans: Vec::new(),
+        }
     }
 
     #[track_caller]
     fn emit(&mut self, message: impl Into<String>) {
+        self.emit_with_span(message, None);
+    }
+
+    #[track_caller]
+    fn emit_with_span(&mut self, message: impl Into<String>, span: Option<Span>) {
         let message = message.into();
         let message = if let Some(function) = self.function {
             format!("[fn{function}] {message}")
         } else {
             message
         };
-        self.dcx.err(message).emit();
+        if let Some(span) = span {
+            self.dcx.err(message).span(span).emit();
+        } else {
+            self.dcx.err(message).emit();
+        }
         self.error_count += 1;
     }
 
     #[track_caller]
     fn emit_at_block(&mut self, message: impl Into<String>, block: BlockId) {
-        self.emit(format!("[bb{}] {}", block.index(), message.into()));
+        let span = self.block_spans.get(block.index()).copied().flatten();
+        self.emit_with_span(format!("[bb{}] {}", block.index(), message.into()), span);
     }
 
     #[track_caller]
     fn emit_at_inst(&mut self, message: impl Into<String>, block: BlockId, inst: InstId) {
-        self.emit(format!("[bb{}, inst{}] {}", block.index(), inst.index(), message.into()));
+        let span = self.instruction_spans.get(inst.index()).copied().flatten();
+        self.emit_with_span(
+            format!("[bb{}, inst{}] {}", block.index(), inst.index(), message.into()),
+            span,
+        );
     }
 
     /// Validates a single function.
@@ -79,6 +115,21 @@ impl<'a> Validator<'a> {
     }
 
     fn validate_function_inner(&mut self, func: &Function) {
+        let function = self.function.unwrap_or_default();
+        self.instruction_spans = func
+            .instructions
+            .iter_enumerated()
+            .map(|(id, inst)| {
+                self.source_map
+                    .and_then(|map| map.instruction(function, id))
+                    .or_else(|| inst.metadata.source_span())
+            })
+            .collect();
+        self.block_spans = func
+            .blocks
+            .iter_enumerated()
+            .map(|(id, _)| self.source_map.and_then(|map| map.terminator(function, id)))
+            .collect();
         let errors_before = self.error_count;
         let num_values = func.values.len();
         let num_blocks = func.blocks.len();
