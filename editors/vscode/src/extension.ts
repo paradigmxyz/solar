@@ -32,11 +32,15 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
-  // Register format on save
+  // Preserve the legacy setting without duplicating VS Code's standard format-on-save.
   const formatOnSave = vscode.workspace.onWillSaveTextDocument((event) => {
     const currentConfig = vscode.workspace.getConfiguration("solarLsp");
+    const editorFormatOnSave = vscode.workspace
+      .getConfiguration("editor", event.document.uri)
+      .get<boolean>("formatOnSave", false);
     if (
       currentConfig.get("formatOnSave") &&
+      !editorFormatOnSave &&
       event.document.languageId === "solidity"
     ) {
       event.waitUntil(formatDocument(event.document));
@@ -76,14 +80,12 @@ async function startLanguageServer(context: vscode.ExtensionContext) {
 
   // Check if solar is available first
   let serverCommand: string;
-  let serverArgs: string[];
 
   const solarExists = await checkExecutableExists(solarPath);
 
   if (solarExists) {
     console.log("Using solar lsp");
     serverCommand = solarPath;
-    serverArgs = ["lsp"];
   } else {
     console.log("Solar not found, checking for forge lsp...");
     const forgeExists = await checkExecutableExists(forgePath);
@@ -91,7 +93,6 @@ async function startLanguageServer(context: vscode.ExtensionContext) {
     if (forgeExists) {
       console.log("Using forge lsp as fallback");
       serverCommand = forgePath;
-      serverArgs = ["lsp"];
     } else {
       const errorMessage =
         "Neither solar nor forge are available. Please install one of them.";
@@ -104,7 +105,7 @@ async function startLanguageServer(context: vscode.ExtensionContext) {
   // Define server options
   const serverOptions: ServerOptions = {
     command: serverCommand,
-    args: serverArgs,
+    args: ["lsp"],
     transport: TransportKind.stdio,
   };
 

@@ -35,23 +35,23 @@ pub(crate) fn formatting(
 
     async move {
         let (vfs_path, path, root, forge) = request?;
+        if formatter::is_ignored(&path, &root) {
+            return Ok(None);
+        }
         let source =
             document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        let Some(formatted) =
-            formatter::run(&forge, &path, &root, &source).await.map_err(formatter_failed)?
-        else {
-            return Ok(None);
-        };
-        let current =
-            document_contents(&vfs, &vfs_path, &path).await.map_err(document_read_failed)?;
-        if current != source {
+        let formatted = formatter::run(&forge, &root, &source).await.map_err(formatter_failed)?;
+        let is_current = document_is_current(&vfs, &vfs_path, &path, &source)
+            .await
+            .map_err(document_read_failed)?;
+        if !is_current {
             return Err(ResponseError::new(
                 ErrorCode::CONTENT_MODIFIED,
                 "document changed during formatting",
             ));
         }
 
-        Ok(formatting_edits(&source, &formatted))
+        Ok(formatting_edits(&source, formatted))
     }
 }
 
@@ -60,12 +60,34 @@ async fn document_contents(
     vfs_path: &VfsPath,
     path: &Path,
 ) -> io::Result<String> {
-    let contents = { vfs.read().get_file_contents(vfs_path).map(ToString::to_string) };
+    let contents = { vfs.read().get_file_contents(vfs_path).cloned() };
     if let Some(contents) = contents {
-        return Ok(contents);
+        return Ok(rope_to_string(&contents));
     }
 
     tokio::fs::read_to_string(path).await
+}
+
+async fn document_is_current(
+    vfs: &Arc<RwLock<Vfs>>,
+    vfs_path: &VfsPath,
+    path: &Path,
+    source: &str,
+) -> io::Result<bool> {
+    let contents = { vfs.read().get_file_contents(vfs_path).cloned() };
+    if let Some(contents) = contents {
+        return Ok(contents == source);
+    }
+
+    Ok(tokio::fs::read_to_string(path).await? == source)
+}
+
+fn rope_to_string(contents: &Rope) -> String {
+    let mut string = String::with_capacity(contents.byte_len());
+    for chunk in contents.chunks() {
+        string.push_str(chunk);
+    }
+    string
 }
 
 fn document_read_failed(error: io::Error) -> ResponseError {
@@ -92,14 +114,14 @@ fn request_failed(message: &'static str) -> ResponseError {
     ResponseError::new(ErrorCode::REQUEST_FAILED, message)
 }
 
-fn formatting_edits(source: &str, formatted: &str) -> Option<Vec<TextEdit>> {
+fn formatting_edits(source: &str, formatted: String) -> Option<Vec<TextEdit>> {
     if source == formatted {
         return None;
     }
 
     Some(vec![TextEdit {
         range: lsp_types::Range::new(Position::new(0, 0), end_position(source)),
-        new_text: formatted.to_owned(),
+        new_text: formatted,
     }])
 }
 
@@ -470,12 +492,12 @@ mod formatting_tests {
 
     #[test]
     fn unchanged_formatting_returns_none() {
-        assert_eq!(formatting_edits("contract C {}", "contract C {}"), None);
+        assert_eq!(formatting_edits("contract C {}", "contract C {}".into()), None);
     }
 
     #[test]
     fn changed_formatting_returns_one_full_document_edit() {
-        let edits = formatting_edits("a\r\n🚀中\n", "formatted").unwrap();
+        let edits = formatting_edits("a\r\n🚀中\n", "formatted".into()).unwrap();
 
         assert_eq!(edits.len(), 1);
         assert_eq!(
@@ -489,7 +511,8 @@ mod formatting_tests {
 
     #[test]
     fn changed_formatting_covers_documents_with_bare_carriage_returns() {
-        let edits = formatting_edits("contract First{}\rcontract Second{}\r", "formatted").unwrap();
+        let edits =
+            formatting_edits("contract First{}\rcontract Second{}\r", "formatted".into()).unwrap();
 
         assert_eq!(edits[0].range, Range::new(Position::new(0, 0), Position::new(2, 0)));
     }
@@ -644,6 +667,26 @@ cat
 
         assert_eq!(edits, None);
         assert!(!project.path("/fake-forge.called").exists());
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn formatting_skips_ignored_files_before_reading_contents() {
+        let project = TestProject::from_fixture(
+            r#"
+            //- /workspace/foundry.toml
+            [fmt]
+            ignore = ["src/Ignored.sol"]
+            "#,
+        );
+        let mut state =
+            formatting_state(&project, &project.path("/missing-forge"), &["/workspace"]);
+        let path = project.path("/workspace/src/Ignored.sol");
+
+        let edits = formatting(&mut state, formatting_params(Url::from_file_path(path).unwrap()))
+            .await
+            .unwrap();
+
+        assert_eq!(edits, None);
     }
 
     #[cfg(unix)]
