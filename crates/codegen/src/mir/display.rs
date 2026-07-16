@@ -322,6 +322,21 @@ fn display_inst_kind<'a>(
             }
             Ok(())
         }
+        InstKind::StorageToMemory { storage, memory, layout } => write!(
+            f,
+            "storage_to_memory {layout}, {}, {}",
+            display_val(*storage, func),
+            display_val(*memory, func)
+        ),
+        InstKind::MemoryToStorage { memory, storage, layout } => write!(
+            f,
+            "memory_to_storage {layout}, {}, {}",
+            display_val(*memory, func),
+            display_val(*storage, func)
+        ),
+        InstKind::ClearStorage { storage, layout } => {
+            write!(f, "clear_storage {layout}, {}", display_val(*storage, func))
+        }
         InstKind::InternalCall { function, args, returns } => {
             write!(f, "internal_call {}, {returns}", display_function_ref(*function, funcs))?;
             if !args.is_empty() {

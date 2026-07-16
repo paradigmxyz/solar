@@ -533,6 +533,12 @@ impl MemoryStoreEliminator {
                 }
                 InstKind::MLoad(_) => has_load = true,
                 InstKind::Keccak256(_, _) => has_keccak = true,
+                _ if AliasAnalysis
+                    .instruction_mod_ref(func, inst_id)
+                    .writes_space(AddressSpace::Memory) =>
+                {
+                    memory_writes += 1;
+                }
                 _ => {}
             }
         }
@@ -616,10 +622,7 @@ impl MemoryStoreEliminator {
                         size,
                     );
                 }
-                _ if Self::is_memory_or_gas_observer(func, inst_id) => {
-                    scratch.overwritten.clear();
-                }
-                _ => {}
+                _ => Self::apply_memory_effects(func, inst_id, &mut scratch.overwritten),
             }
         }
 
@@ -628,6 +631,55 @@ impl MemoryStoreEliminator {
         }
 
         func.blocks[block_id].instructions.retain(|&id| !scratch.dead.contains(id));
+    }
+
+    fn apply_memory_effects(
+        func: &Function,
+        inst_id: InstId,
+        overwritten: &mut FxHashSet<MemAddrKey>,
+    ) {
+        let effects = AliasAnalysis.instruction_mod_ref(func, inst_id);
+        if effects.observes_memory_size()
+            || effects.observes_gas()
+            || effects.reads_anywhere(AddressSpace::Memory)
+            || effects.writes_anywhere(AddressSpace::Memory)
+        {
+            overwritten.clear();
+            return;
+        }
+
+        for &access in effects.writes() {
+            if let Access::Location(Location::Memory(location)) = access
+                && !Self::insert_memory_location(overwritten, location)
+            {
+                overwritten.clear();
+                return;
+            }
+        }
+        for &access in effects.reads() {
+            if let Access::Location(Location::Memory(location)) = access {
+                overwritten.retain(|key| {
+                    !AliasAnalysis
+                        .memory_alias(MemoryLocation::new(key.0, LocationSize::Const(32)), location)
+                        .may_alias()
+                });
+            }
+        }
+    }
+
+    fn insert_memory_location(
+        overwritten: &mut FxHashSet<MemAddrKey>,
+        location: MemoryLocation,
+    ) -> bool {
+        let LocationSize::Const(size) = location.size else { return false };
+        if !size.is_multiple_of(32) || size > 4096 || !location.address.offset.is_multiple_of(32) {
+            return false;
+        }
+        for offset in (0..size).step_by(32) {
+            let Some(address) = location.address.checked_add(offset) else { return false };
+            overwritten.insert(MemAddrKey(address));
+        }
+        true
     }
 
     fn constant_range_read(kind: &InstKind) -> Option<(ValueId, ValueId)> {

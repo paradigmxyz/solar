@@ -10,6 +10,9 @@ pub(crate) use types::{MirType, SliceLocation};
 mod abi;
 pub use abi::{AbiLayout, AbiLayoutRef, AbiType};
 
+mod storage;
+pub use storage::{StorageField, StorageLayout, StorageLayoutRef};
+
 mod value;
 pub(crate) use value::{Immediate, Value};
 

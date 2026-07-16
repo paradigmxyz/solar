@@ -6,7 +6,7 @@
 //! repeated equal stores when no intervening instruction can clobber storage.
 
 use crate::{
-    analysis::{AddressSpace, AliasAnalysis, Location},
+    analysis::{Access, AddressSpace, AliasAnalysis, Location, ModRef},
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::FunctionPass,
 };
@@ -113,10 +113,10 @@ impl StorageStoreEliminator {
                     let alias = aa.storage_alias(func, inst_id, *slot);
                     Self::remove_aliasing_set(&aa, later_writes, alias);
                 }
-                _ if Self::may_observe_or_mutate_storage(&aa, func, inst_id) => {
-                    later_writes.clear();
+                _ => {
+                    let effects = aa.instruction_mod_ref(func, inst_id);
+                    Self::apply_reverse_effects(&aa, &effects, later_writes);
                 }
-                _ => {}
             }
         }
 
@@ -151,10 +151,10 @@ impl StorageStoreEliminator {
                     Self::remove_aliasing_map(&aa, stored_values, alias);
                     stored_values.insert(alias, *value);
                 }
-                _ if Self::may_observe_or_mutate_storage(&aa, func, inst_id) => {
-                    stored_values.clear();
+                _ => {
+                    let effects = aa.instruction_mod_ref(func, inst_id);
+                    Self::apply_forward_writes(&aa, &effects, stored_values);
                 }
-                _ => {}
             }
         }
 
@@ -185,9 +185,44 @@ impl StorageStoreEliminator {
         });
     }
 
-    fn may_observe_or_mutate_storage(aa: &AliasAnalysis, func: &Function, inst_id: InstId) -> bool {
-        let effects = aa.instruction_mod_ref(func, inst_id);
-        effects.reads_anywhere(AddressSpace::Storage)
+    fn apply_reverse_effects(
+        aa: &AliasAnalysis,
+        effects: &ModRef,
+        later_writes: &mut FxHashSet<StorageAlias>,
+    ) {
+        if effects.reads_anywhere(AddressSpace::Storage)
             || effects.writes_anywhere(AddressSpace::Storage)
+        {
+            later_writes.clear();
+            return;
+        }
+
+        for &access in effects.reads() {
+            if let Access::Location(Location::Storage(alias)) = access {
+                Self::remove_aliasing_set(aa, later_writes, alias);
+            }
+        }
+        for &access in effects.writes() {
+            if let Access::Location(Location::Storage(alias)) = access {
+                Self::remove_aliasing_set(aa, later_writes, alias);
+                later_writes.insert(alias);
+            }
+        }
+    }
+
+    fn apply_forward_writes(
+        aa: &AliasAnalysis,
+        effects: &ModRef,
+        stored_values: &mut FxHashMap<StorageAlias, ValueId>,
+    ) {
+        if effects.writes_anywhere(AddressSpace::Storage) {
+            stored_values.clear();
+            return;
+        }
+        for &access in effects.writes() {
+            if let Access::Location(Location::Storage(alias)) = access {
+                Self::remove_aliasing_map(aa, stored_values, alias);
+            }
+        }
     }
 }

@@ -1047,7 +1047,10 @@ impl<'gcx> EvmCodegen<'gcx> {
             run_pass(self.gcx, module, &crate::pass::LOWER_ABI_PASS);
         }
         let lowered_abi_encode = run_pass(self.gcx, module, &crate::pass::LOWER_ABI_ENCODE_PASS);
-        if lowered_abi_encode && self.gcx.sess.opts.optimization != OptimizationMode::None {
+        let lowered_aggregates = run_pass(self.gcx, module, &crate::pass::LOWER_AGGREGATES_PASS);
+        if (lowered_abi_encode || lowered_aggregates)
+            && self.gcx.sess.opts.optimization != OptimizationMode::None
+        {
             run_pass(self.gcx, module, &crate::pass::INST_SIMPLIFY_PASS);
             run_pass(self.gcx, module, &crate::pass::CFG_SIMPLIFY_PASS);
             run_pass(self.gcx, module, &crate::pass::DCE_PASS);
@@ -3325,6 +3328,12 @@ impl<'gcx> EvmCodegen<'gcx> {
 
             InstKind::AbiEncode { .. } => {
                 unreachable!("ABI encoding must be lowered before EVM codegen")
+            }
+
+            InstKind::StorageToMemory { .. }
+            | InstKind::MemoryToStorage { .. }
+            | InstKind::ClearStorage { .. } => {
+                unreachable!("aggregate operations must be lowered before EVM codegen")
             }
         }
 

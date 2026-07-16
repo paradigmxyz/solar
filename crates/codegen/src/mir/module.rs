@@ -1,6 +1,6 @@
 //! MIR module (top-level container).
 
-use super::{AbiLayout, AbiLayoutRef, Function, FunctionId};
+use super::{AbiLayout, AbiLayoutRef, Function, FunctionId, StorageLayout, StorageLayoutRef};
 use solar_data_structures::{
     fmt::{self, FmtIteratorExt},
     index::IndexVec,
@@ -92,6 +92,8 @@ pub struct Module {
     pub(crate) functions: IndexVec<FunctionId, Function>,
     /// Canonical ABI layouts referenced by semantic encoding operations.
     pub(crate) abi_layouts: Vec<AbiLayoutRef>,
+    /// Canonical storage layouts referenced by semantic aggregate operations.
+    pub(crate) aggregate_layouts: Vec<StorageLayoutRef>,
     /// Size of the constructor scratch area used to stage immutables.
     immutable_data_len: usize,
     /// Whether this is an interface (no bytecode generation).
@@ -116,6 +118,7 @@ impl Module {
             name,
             functions: IndexVec::new(),
             abi_layouts: Vec::new(),
+            aggregate_layouts: Vec::new(),
             immutable_data_len: 0,
             is_interface: false,
             phase: MirPhase::Built,
@@ -161,6 +164,18 @@ impl Module {
         }
         let layout = Arc::new(layout);
         self.abi_layouts.push(Arc::clone(&layout));
+        layout
+    }
+
+    /// Interns a storage layout and returns its canonical shared reference.
+    pub(crate) fn intern_storage_layout(&mut self, layout: StorageLayout) -> StorageLayoutRef {
+        if let Some(existing) =
+            self.aggregate_layouts.iter().find(|existing| existing.as_ref() == &layout)
+        {
+            return Arc::clone(existing);
+        }
+        let layout = Arc::new(layout);
+        self.aggregate_layouts.push(Arc::clone(&layout));
         layout
     }
 

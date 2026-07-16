@@ -20,21 +20,7 @@ fn @set(arg0: u256, arg1: u256, arg2: u256, arg3: u256, arg4: u256) {
     v7 = add v3, 64
     mstore v7, arg4
     v8 = mapping_slot arg0, 0
-    v9 = mload v3
-    sstore v8, v9 !metadata(storage=symbolic(v8))
-    v10 = add v8, 1
-    v11 = add v3, 32
-    v12 = mload v11
-    v13 = mload v12
-    sstore v10, v13 !metadata(storage=offset(v8, 1))
-    v14 = add v10, 1
-    v15 = add v12, 32
-    v16 = mload v15
-    sstore v14, v16 !metadata(storage=offset(v8, 2))
-    v17 = add v8, 3
-    v18 = add v3, 64
-    v19 = mload v18
-    sstore v17, v19 !metadata(storage=offset(v8, 3))
+    memory_to_storage struct<word, struct<word, word>, word>, v3, v8
     stop
 }
 
@@ -53,39 +39,24 @@ fn @get(arg0: u256) {
     mstore 224, 0
     v3 = mapping_slot arg0, 0
     v4 = alloc 96
-    v5 = sload v3 !metadata(storage=symbolic(v3))
-    mstore v4, v5
-    v6 = add v3, 1
-    v7 = alloc 64
-    v8 = sload v6 !metadata(storage=offset(v3, 1))
-    mstore v7, v8
-    v9 = add v6, 1
-    v10 = sload v9 !metadata(storage=offset(v3, 2))
-    v11 = add v7, 32
-    mstore v11, v10
-    v12 = add v4, 32
-    mstore v12, v7
-    v13 = add v3, 3
-    v14 = sload v13 !metadata(storage=offset(v3, 3))
-    v15 = add v4, 64
-    mstore v15, v14
-    v16 = mload v4
-    v17 = add v4, 32
-    v18 = mload v17
-    v19 = mload v18
-    v20 = add v4, 32
-    v21 = mload v20
-    v22 = add v21, 32
-    v23 = mload v22
-    v24 = add v4, 64
-    v25 = mload v24
-    mstore 128, v16
-    v26 = add 128, 32
-    mstore v26, v19
-    v27 = add 128, 64
-    mstore v27, v23
-    v28 = add 128, 96
-    mstore v28, v25
+    storage_to_memory struct<word, struct<word, word>, word>, v3, v4
+    v5 = mload v4
+    v6 = add v4, 32
+    v7 = mload v6
+    v8 = mload v7
+    v9 = add v4, 32
+    v10 = mload v9
+    v11 = add v10, 32
+    v12 = mload v11
+    v13 = add v4, 64
+    v14 = mload v13
+    mstore 128, v5
+    v15 = add 128, 32
+    mstore v15, v8
+    v16 = add 128, 64
+    mstore v16, v12
+    v17 = add 128, 96
+    mstore v17, v14
     returndata 128, 128
 }
 
@@ -99,13 +70,7 @@ fn @clear(arg0: u256) {
     revert 0, 0
   bb2:
     v3 = mapping_slot arg0, 0
-    sstore v3, 0 !metadata(storage=symbolic(v3))
-    v4 = add v3, 1
-    sstore v4, 0 !metadata(storage=offset(v3, 1))
-    v5 = add v3, 2
-    sstore v5, 0 !metadata(storage=offset(v3, 2))
-    v6 = add v3, 3
-    sstore v6, 0 !metadata(storage=offset(v3, 3))
+    clear_storage struct<word, struct<word, word>, word>, v3
     stop
 }
 

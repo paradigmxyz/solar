@@ -1,6 +1,9 @@
 //! MIR instructions.
 
-use super::{AbiLayoutRef, BlockId, Function, FunctionId, MirType, SliceLocation, Value, ValueId};
+use super::{
+    AbiLayoutRef, BlockId, Function, FunctionId, MirType, SliceLocation, StorageLayoutRef, Value,
+    ValueId,
+};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_interface::Span;
@@ -258,8 +261,10 @@ impl StorageAlias {
         }
     }
 
-    fn add_offset(func: &Function, value: ValueId, offset: U256) -> Self {
-        match Self::for_value(func, value) {
+    /// Returns this alias advanced by a constant slot offset.
+    #[must_use]
+    pub fn offset_by(self, offset: U256) -> Self {
+        match self {
             Self::Slot(slot) => Self::Slot(slot.wrapping_add(offset)),
             Self::Symbolic(base) if offset.is_zero() => Self::Symbolic(base),
             Self::Symbolic(base) => Self::Offset { base, offset },
@@ -268,6 +273,10 @@ impl StorageAlias {
                 if offset.is_zero() { Self::Symbolic(base) } else { Self::Offset { base, offset } }
             }
         }
+    }
+
+    fn add_offset(func: &Function, value: ValueId, offset: U256) -> Self {
+        Self::for_value(func, value).offset_by(offset)
     }
 
     fn immediate_u256(func: &Function, value: ValueId) -> Option<U256> {
@@ -466,6 +475,31 @@ pub(crate) enum InstKind {
         args: Box<[ValueId]>,
         /// Interned semantic ABI layout.
         layout: AbiLayoutRef,
+    },
+    /// Copy a statically shaped aggregate from storage into an existing memory allocation.
+    StorageToMemory {
+        /// Base storage slot.
+        storage: ValueId,
+        /// Destination memory pointer.
+        memory: ValueId,
+        /// Interned aggregate layout.
+        layout: StorageLayoutRef,
+    },
+    /// Copy a statically shaped aggregate from memory into storage.
+    MemoryToStorage {
+        /// Source memory pointer.
+        memory: ValueId,
+        /// Base storage slot.
+        storage: ValueId,
+        /// Interned aggregate layout.
+        layout: StorageLayoutRef,
+    },
+    /// Clear every storage slot occupied by a statically shaped aggregate.
+    ClearStorage {
+        /// Base storage slot.
+        storage: ValueId,
+        /// Interned aggregate layout.
+        layout: StorageLayoutRef,
     },
     /// Copy memory: `mcopy(dest, src, len)`
     MCopy(ValueId, ValueId, ValueId),
@@ -690,6 +724,12 @@ impl InstKind {
                 out.push(*len);
             }
 
+            Self::StorageToMemory { storage, memory, .. }
+            | Self::MemoryToStorage { memory, storage, .. } => {
+                out.push(*storage);
+                out.push(*memory);
+            }
+
             Self::AbiEncode { selector, args, .. } => {
                 out.extend(selector.iter().copied());
                 out.extend(args.iter().copied());
@@ -711,6 +751,8 @@ impl InstKind {
             | Self::BlobHash(a) => {
                 out.push(*a);
             }
+
+            Self::ClearStorage { storage, .. } => out.push(*storage),
 
             Self::SlicePtr(slice) | Self::SliceLen(slice) => out.push(*slice),
 
@@ -869,6 +911,12 @@ impl InstKind {
                 f(len);
             }
 
+            Self::StorageToMemory { storage, memory, .. }
+            | Self::MemoryToStorage { memory, storage, .. } => {
+                f(storage);
+                f(memory);
+            }
+
             Self::AbiEncode { selector, args, .. } => {
                 if let Some(selector) = selector {
                     f(selector);
@@ -893,6 +941,8 @@ impl InstKind {
             | Self::BlobHash(a)
             | Self::SlicePtr(a)
             | Self::SliceLen(a) => f(a),
+
+            Self::ClearStorage { storage, .. } => f(storage),
 
             Self::MCopy(a, b, c)
             | Self::CalldataCopy(a, b, c)
@@ -993,6 +1043,8 @@ impl InstKind {
         matches!(
             self,
             Self::SStore(_, _)
+                | Self::MemoryToStorage { .. }
+                | Self::ClearStorage { .. }
                 | Self::Call { .. }
                 | Self::DelegateCall { .. }
                 | Self::InternalCall { .. }
@@ -1025,6 +1077,7 @@ impl InstKind {
                 | Self::SetFmp(_)
                 | Self::Alloc(_)
                 | Self::AbiEncode { .. }
+                | Self::StorageToMemory { .. }
                 | Self::MCopy(_, _, _)
                 | Self::CalldataCopy(_, _, _)
                 | Self::CodeCopy(_, _, _)
@@ -1075,6 +1128,9 @@ impl InstKind {
             Self::SetFmp(_) => "set_fmp",
             Self::Alloc(_) => "alloc",
             Self::AbiEncode { .. } => "abi_encode",
+            Self::StorageToMemory { .. } => "storage_to_memory",
+            Self::MemoryToStorage { .. } => "memory_to_storage",
+            Self::ClearStorage { .. } => "clear_storage",
             Self::MCopy(_, _, _) => "mcopy",
             Self::SLoad(_) => "sload",
             Self::SStore(_, _) => "sstore",
@@ -1143,6 +1199,8 @@ impl InstKind {
             self,
             // Storage writes
             Self::SStore(_, _)
+            | Self::MemoryToStorage { .. }
+            | Self::ClearStorage { .. }
             | Self::TStore(_, _)
             // Memory writes (may affect external calls)
             | Self::MStore(_, _)
@@ -1150,6 +1208,7 @@ impl InstKind {
             | Self::SetFmp(_)
             | Self::Alloc(_)
             | Self::AbiEncode { .. }
+            | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
             // External calls
             | Self::Call { .. }
@@ -1182,6 +1241,7 @@ impl InstKind {
             | Self::SetFmp(_)
             | Self::Alloc(_)
             | Self::AbiEncode { .. }
+            | Self::StorageToMemory { .. }
             | Self::MCopy(_, _, _)
             | Self::CalldataCopy(_, _, _)
             | Self::CodeCopy(_, _, _)
@@ -1193,7 +1253,9 @@ impl InstKind {
             | Self::Keccak256(_, _)
             | Self::MappingSlotMemory(_, _) => EffectKind::MemoryRead,
             Self::SLoad(_) => EffectKind::StorageRead,
-            Self::SStore(_, _) => EffectKind::StorageWrite,
+            Self::SStore(_, _) | Self::MemoryToStorage { .. } | Self::ClearStorage { .. } => {
+                EffectKind::StorageWrite
+            }
             Self::TLoad(_) => EffectKind::TransientRead,
             Self::TStore(_, _) => EffectKind::TransientWrite,
             Self::Call { .. } | Self::StaticCall { .. } | Self::DelegateCall { .. } => {

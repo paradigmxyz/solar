@@ -31,7 +31,7 @@
 use super::{
     AbiLayout, AbiLayoutRef, AbiType, BlockId, EffectKind, Function, FunctionBuilder, FunctionId,
     InstId, InstKind, Instruction, InstructionMetadata, MemoryRegion, Module, StorageAlias,
-    Terminator, Value, ValueId,
+    StorageField, StorageLayout, StorageLayoutRef, Terminator, Value, ValueId,
 };
 use crate::mir::{MirType, SliceLocation};
 use alloy_primitives::U256;
@@ -103,6 +103,8 @@ struct Parser<'sess, 'ast> {
     value_labels: FxHashMap<u32, ValueId>,
     /// ABI layouts interned while parsing instructions.
     abi_layouts: Vec<AbiLayoutRef>,
+    /// Aggregate storage layouts interned while parsing instructions.
+    storage_layouts: Vec<StorageLayoutRef>,
 }
 
 struct PendingFunctionRef {
@@ -134,6 +136,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
             block_order: Vec::new(),
             value_labels: FxHashMap::default(),
             abi_layouts: Vec::new(),
+            storage_layouts: Vec::new(),
         }
     }
 
@@ -207,6 +210,7 @@ impl<'sess, 'ast> Parser<'sess, 'ast> {
         self.resolve_function_refs(&mut module, function_refs)?;
 
         module.abi_layouts = std::mem::take(&mut self.abi_layouts);
+        module.aggregate_layouts = std::mem::take(&mut self.storage_layouts);
 
         Ok(module)
     }
@@ -674,6 +678,53 @@ kw::Bool => MirType::Bool,
         })
     }
 
+    /// Parses a storage layout: `struct<field, ...>` or `array<len, field>`.
+    /// Structurally identical layouts are interned.
+    fn parse_storage_layout(&mut self) -> PResult<'sess, StorageLayoutRef> {
+        let name = self.parser.parse_ident()?;
+        let layout = match name {
+            kw::Struct => {
+                self.parser.expect(TokenKind::Lt)?;
+                let mut fields = Vec::new();
+                if !self.parser.eat(TokenKind::Gt) {
+                    loop {
+                        fields.push(self.parse_storage_field()?);
+                        if self.parser.eat(TokenKind::Gt) {
+                            break;
+                        }
+                        self.parser.expect(TokenKind::Comma)?;
+                    }
+                }
+                StorageLayout::Struct(fields.into())
+            }
+            sym::array => {
+                self.parser.expect(TokenKind::Lt)?;
+                let len = self.parser.parse_uint()?;
+                let len = len
+                    .try_into()
+                    .map_err(|_| self.parser.error("storage array length does not fit in u64"))?;
+                self.parser.expect(TokenKind::Comma)?;
+                let element = self.parse_storage_field()?;
+                self.parser.expect(TokenKind::Gt)?;
+                StorageLayout::Array { element, len }
+            }
+            _ => return Err(self.parser.error(format!("unknown storage layout `{name}`"))),
+        };
+        if let Some(existing) = self.storage_layouts.iter().find(|item| item.as_ref() == &layout) {
+            return Ok(std::sync::Arc::clone(existing));
+        }
+        let layout = std::sync::Arc::new(layout);
+        self.storage_layouts.push(std::sync::Arc::clone(&layout));
+        Ok(layout)
+    }
+
+    fn parse_storage_field(&mut self) -> PResult<'sess, StorageField> {
+        if self.parser.eat_keyword(sym::word) {
+            return Ok(StorageField::Word);
+        }
+        Ok(StorageField::Aggregate(self.parse_storage_layout()?))
+    }
+
     fn parse_function_id(&mut self) -> PResult<'sess, FunctionId> {
         if self.parser.eat(TokenKind::At) {
             let span = self.parser.token().span;
@@ -1125,6 +1176,29 @@ kw::Bool => MirType::Bool,
                     InstKind::AbiEncode { selector, args: args.into(), layout },
                     Some(MirType::Slice(SliceLocation::Memory)),
                 )
+            }
+            // Aggregate storage/memory copies with interned layouts.
+            sym::storage_to_memory => {
+                let layout = self.parse_storage_layout()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let storage = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let memory = self.parse_value(builder)?;
+                (InstKind::StorageToMemory { storage, memory, layout }, None)
+            }
+            sym::memory_to_storage => {
+                let layout = self.parse_storage_layout()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let memory = self.parse_value(builder)?;
+                self.parser.expect(TokenKind::Comma)?;
+                let storage = self.parse_value(builder)?;
+                (InstKind::MemoryToStorage { memory, storage, layout }, None)
+            }
+            sym::clear_storage => {
+                let layout = self.parse_storage_layout()?;
+                self.parser.expect(TokenKind::Comma)?;
+                let storage = self.parse_value(builder)?;
+                (InstKind::ClearStorage { storage, layout }, None)
             }
 
             // Calldata, code, and return data.

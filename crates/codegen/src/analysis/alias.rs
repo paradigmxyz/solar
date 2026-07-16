@@ -288,6 +288,18 @@ impl ModRef {
     }
 }
 
+fn add_storage_range(effects: &mut ModRef, base: StorageAlias, slots: u64, write: bool) {
+    for offset in 0..slots {
+        let offset = alloy_primitives::U256::from_limbs([offset, 0, 0, 0]);
+        let access = Access::Location(Location::Storage(base.offset_by(offset)));
+        if write {
+            effects.write(access);
+        } else {
+            effects.read(access);
+        }
+    }
+}
+
 /// Shared value-local basic alias and ModRef analysis.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AliasAnalysis;
@@ -448,6 +460,44 @@ impl AliasAnalysis {
                     }
                 }
                 effects.write_any(AddressSpace::Memory);
+            }
+            InstKind::StorageToMemory { .. } => {
+                let InstKind::StorageToMemory { storage, memory, layout } = kind else {
+                    unreachable!()
+                };
+                let base =
+                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
+                add_storage_range(&mut effects, base, layout.storage_slots(), false);
+                write_memory(&mut effects, *memory, SizeOperand::Const(layout.memory_words() * 32));
+                if layout.has_nested_layout() {
+                    effects.write_any(AddressSpace::Memory);
+                    let fmp = Access::Location(Location::Memory(Self::fmp_location()));
+                    effects.read(fmp);
+                    effects.write(fmp);
+                }
+            }
+            InstKind::MemoryToStorage { .. } => {
+                let InstKind::MemoryToStorage { memory, storage, layout } = kind else {
+                    unreachable!()
+                };
+                if layout.has_nested_layout() {
+                    effects.read_any(AddressSpace::Memory);
+                } else {
+                    read_memory(
+                        &mut effects,
+                        *memory,
+                        SizeOperand::Const(layout.memory_words() * 32),
+                    );
+                }
+                let base =
+                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
+                add_storage_range(&mut effects, base, layout.storage_slots(), true);
+            }
+            InstKind::ClearStorage { .. } => {
+                let InstKind::ClearStorage { storage, layout } = kind else { unreachable!() };
+                let base =
+                    self.storage_alias_after_replacements(func, inst_id, *storage, replacements);
+                add_storage_range(&mut effects, base, layout.storage_slots(), true);
             }
             InstKind::MCopy(dest, source, size) => {
                 read_memory(&mut effects, source, SizeOperand::Value(size));

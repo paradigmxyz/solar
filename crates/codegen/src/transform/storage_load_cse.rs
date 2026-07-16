@@ -4,7 +4,7 @@
 //! no intervening storage write may alias the loaded slot.
 
 use crate::{
-    analysis::{AddressSpace, AliasAnalysis, Liveness, Location},
+    analysis::{Access, AddressSpace, AliasAnalysis, Liveness, Location},
     mir::{BlockId, Function, InstId, InstKind, StorageAlias, ValueId, utils as mir_utils},
     pass::{AnalysisManager, FunctionPass, LivenessAnalysis},
 };
@@ -135,13 +135,32 @@ impl StorageLoadCse {
                             .may_alias()
                     });
                 }
-                _ if aa
-                    .instruction_mod_ref_with_replacements(func, inst_id, &state.replacements)
-                    .writes_anywhere(AddressSpace::Storage) =>
-                {
-                    state.cached_loads.clear();
+                _ => {
+                    let effects = aa.instruction_mod_ref_with_replacements(
+                        func,
+                        inst_id,
+                        &state.replacements,
+                    );
+                    for &access in effects.writes() {
+                        match access {
+                            Access::Any(AddressSpace::Storage) => {
+                                state.cached_loads.clear();
+                                break;
+                            }
+                            Access::Location(Location::Storage(alias)) => {
+                                state.cached_loads.retain(|cached_alias, _| {
+                                    !aa.alias(
+                                        Location::Storage(*cached_alias),
+                                        Location::Storage(alias),
+                                    )
+                                    .may_alias()
+                                });
+                            }
+                            Access::Any(AddressSpace::Memory | AddressSpace::Transient)
+                            | Access::Location(Location::Memory(_) | Location::Transient(_)) => {}
+                        }
+                    }
                 }
-                _ => {}
             }
         }
     }

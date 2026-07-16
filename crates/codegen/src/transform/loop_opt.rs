@@ -532,14 +532,15 @@ impl LoopOptimizer {
                             return true;
                         }
                     }
-                    _ if aa.instruction_mod_ref(func, inst_id).writes_anywhere(match space {
-                        StorageSpace::Persistent => AddressSpace::Storage,
-                        StorageSpace::Transient => AddressSpace::Transient,
-                    }) =>
-                    {
-                        return true;
+                    _ => {
+                        let location = match space {
+                            StorageSpace::Persistent => Location::Storage(load_alias),
+                            StorageSpace::Transient => Location::Transient(load_alias),
+                        };
+                        if aa.instruction_mod_ref(func, inst_id).may_write(&aa, location) {
+                            return true;
+                        }
                     }
-                    _ => {}
                 }
             }
         }

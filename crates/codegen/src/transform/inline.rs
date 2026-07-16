@@ -469,6 +469,14 @@ fn estimate_inst_cost(kind: &InstKind) -> MirCost {
             let words = layout.head_size() / 32;
             (30 + words * 12, 8 + args.len() * 3)
         }
+        InstKind::StorageToMemory { layout, .. } => {
+            let slots = layout.storage_slots();
+            (slots * 103, slots as usize * 2)
+        }
+        InstKind::MemoryToStorage { layout, .. } | InstKind::ClearStorage { layout, .. } => {
+            let slots = layout.storage_slots();
+            (slots * 5_000, slots as usize * 2)
+        }
         InstKind::Add(..)
         | InstKind::Sub(..)
         | InstKind::Lt(..)
@@ -788,6 +796,19 @@ impl<'a> InlineCloner<'a> {
             },
             InstKind::SlicePtr(slice) => InstKind::SlicePtr(self.clone_value(slice)?),
             InstKind::SliceLen(slice) => InstKind::SliceLen(self.clone_value(slice)?),
+            InstKind::StorageToMemory { storage, memory, layout } => InstKind::StorageToMemory {
+                storage: self.clone_value(storage)?,
+                memory: self.clone_value(memory)?,
+                layout,
+            },
+            InstKind::MemoryToStorage { memory, storage, layout } => InstKind::MemoryToStorage {
+                memory: self.clone_value(memory)?,
+                storage: self.clone_value(storage)?,
+                layout,
+            },
+            InstKind::ClearStorage { storage, layout } => {
+                InstKind::ClearStorage { storage: self.clone_value(storage)?, layout }
+            }
             InstKind::Add(a, b) => InstKind::Add(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Sub(a, b) => InstKind::Sub(self.clone_value(a)?, self.clone_value(b)?),
             InstKind::Mul(a, b) => InstKind::Mul(self.clone_value(a)?, self.clone_value(b)?),

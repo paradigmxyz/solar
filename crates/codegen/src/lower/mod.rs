@@ -17,7 +17,7 @@ use crate::{
     IMMUTABLE_SCRATCH_BASE,
     mir::{
         BlockId, Function, FunctionAttributes, FunctionBuilder, FunctionId, IMMUTABLE_WORD_SIZE,
-        MirType, Module, SliceLocation, ValueId,
+        MirType, Module, SliceLocation, StorageLayoutRef, ValueId,
     },
 };
 use alloy_primitives::U256;
@@ -133,6 +133,8 @@ pub(crate) struct Lowerer<'gcx> {
     pub(crate) struct_field_offsets: FxHashMap<(hir::StructId, usize), u64>,
     /// Cached struct field memory offsets: (struct_type_id, field_index) -> byte offset from base.
     pub(crate) struct_field_memory_offsets: FxHashMap<(hir::StructId, usize), u64>,
+    /// Interned semantic memory/storage layout for each lowered struct type.
+    struct_storage_layouts: FxHashMap<hir::StructId, StorageLayoutRef>,
 }
 
 impl<'gcx> Lowerer<'gcx> {
@@ -190,6 +192,7 @@ impl<'gcx> Lowerer<'gcx> {
             memory_backed_calldata_bytes: FxHashSet::default(),
             struct_field_offsets: FxHashMap::default(),
             struct_field_memory_offsets: FxHashMap::default(),
+            struct_storage_layouts: FxHashMap::default(),
         }
     }
 

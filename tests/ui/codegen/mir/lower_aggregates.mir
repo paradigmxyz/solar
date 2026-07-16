@@ -1,0 +1,20 @@
+//@compile-flags: --passes lower-aggregates
+; module @LowerAggregates
+
+fn @storage_to_memory(arg0: u256, arg1: memptr) {
+  bb0 (entry):
+    storage_to_memory struct<word, struct<word, word>, array<2, word>>, arg0, arg1
+    stop
+}
+
+fn @memory_to_storage(arg0: memptr, arg1: u256) {
+  bb0 (entry):
+    memory_to_storage struct<word, struct<word, word>, array<2, word>>, arg0, arg1
+    stop
+}
+
+fn @clear_storage(arg0: u256) {
+  bb0 (entry):
+    clear_storage struct<word, struct<word, word>, array<2, word>>, arg0
+    stop
+}
