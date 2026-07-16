@@ -6,6 +6,8 @@
 //! differences between passes when unreachable predecessors or critical-edge
 //! rewrites are involved.
 
+use std::cell::OnceCell;
+
 use crate::mir::{BlockId, Function};
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
@@ -16,7 +18,7 @@ pub struct CfgInfo {
     reachable: DenseBitSet<BlockId>,
     rpo: Vec<BlockId>,
     dominators: DominatorTree,
-    reachability: Option<FxHashMap<BlockId, DenseBitSet<BlockId>>>,
+    reachability: OnceCell<FxHashMap<BlockId, DenseBitSet<BlockId>>>,
 }
 
 impl CfgInfo {
@@ -26,7 +28,7 @@ impl CfgInfo {
         let successors = collect_successors(func);
         let (reachable, postorder, rpo) = reachable_orders(func, &successors);
         let dominators = DominatorTree::compute(func, &postorder);
-        Self { successors, reachable, rpo, dominators, reachability: None }
+        Self { successors, reachable, rpo, dominators, reachability: OnceCell::new() }
     }
 
     /// Returns successor blocks for `block`.
@@ -63,23 +65,8 @@ impl CfgInfo {
     ///
     /// The map is computed lazily because only memory/state-aware passes need
     /// this more expensive transitive query.
-    pub fn transitive_reachability(&mut self) -> &FxHashMap<BlockId, DenseBitSet<BlockId>> {
-        self.reachability.get_or_insert_with(|| compute_transitive_reachability(&self.successors))
-    }
-
-    /// Returns dominator and transitive-reachability facts without cloning either analysis.
-    pub fn dominators_and_transitive_reachability(
-        &mut self,
-    ) -> (&DominatorTree, &FxHashMap<BlockId, DenseBitSet<BlockId>>) {
-        self.reachability.get_or_insert_with(|| compute_transitive_reachability(&self.successors));
-        (&self.dominators, self.reachability.as_ref().unwrap())
-    }
-
-    /// Returns transitive reachability if it has already been requested.
-    pub fn cached_transitive_reachability(
-        &self,
-    ) -> Option<&FxHashMap<BlockId, DenseBitSet<BlockId>>> {
-        self.reachability.as_ref()
+    pub fn transitive_reachability(&self) -> &FxHashMap<BlockId, DenseBitSet<BlockId>> {
+        self.reachability.get_or_init(|| compute_transitive_reachability(&self.successors))
     }
 }
 

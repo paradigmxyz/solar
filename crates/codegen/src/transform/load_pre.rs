@@ -278,7 +278,7 @@ impl Analysis {
         if self.kills.is_empty() {
             return false;
         }
-        let Some(reach) = self.cfg.cached_transitive_reachability() else { return true };
+        let reach = self.cfg.transitive_reachability();
         let Some(reachable_from) = reach.get(&from) else { return true };
         for (&mid, kills) in &self.kills {
             if mid == from || !kills.contains(key_idx) {
@@ -347,7 +347,7 @@ impl LoadRedundancyEliminator {
     /// Computes the key universe, the per-block gen/kill summaries, and the
     /// availability fixpoint. Returns `None` if no read is trackable.
     fn compute_analysis(func: &Function) -> Option<Analysis> {
-        let mut cfg = CfgInfo::new(func);
+        let cfg = CfgInfo::new(func);
         let rpo = cfg.rpo();
 
         // The key universe: every key genned in a reachable block.
@@ -446,10 +446,6 @@ impl LoadRedundancyEliminator {
             if !changed {
                 break;
             }
-        }
-
-        if !kills.is_empty() {
-            cfg.transitive_reachability();
         }
 
         Some(Analysis {

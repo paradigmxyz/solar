@@ -190,11 +190,11 @@ impl CommonSubexprEliminator {
     /// Runs CSE on a function.
     /// Returns the number of expressions eliminated.
     pub fn run(&mut self, func: &mut Function) -> usize {
-        let mut cfg = CfgInfo::new(func);
-        self.run_with_cfg(func, &mut cfg)
+        let cfg = CfgInfo::new(func);
+        self.run_with_cfg(func, &cfg)
     }
 
-    fn run_with_cfg(&mut self, func: &mut Function, cfg: &mut CfgInfo) -> usize {
+    fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
         self.eliminated_count = 0;
 
         self.sink_redundant_phi_expressions(func, cfg);
@@ -215,9 +215,9 @@ impl CommonSubexprEliminator {
     /// Runs CSE iteratively until no more changes.
     pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
-        let mut cfg = CfgInfo::new(func);
+        let cfg = CfgInfo::new(func);
         loop {
-            let eliminated = self.run_with_cfg(func, &mut cfg);
+            let eliminated = self.run_with_cfg(func, &cfg);
             if eliminated == 0 {
                 break;
             }
@@ -230,7 +230,7 @@ impl CommonSubexprEliminator {
         &mut self,
         func: &mut Function,
         inst_results: &FxHashMap<InstId, ValueId>,
-        cfg: &mut CfgInfo,
+        cfg: &CfgInfo,
     ) {
         let has_path_sensitive_expr = func.blocks.iter().any(|block| {
             block
@@ -247,7 +247,7 @@ impl CommonSubexprEliminator {
         let (dom_tree, reachability) = if block_clobbers.is_empty() {
             (cfg.dominators(), &empty_reachability)
         } else {
-            cfg.dominators_and_transitive_reachability()
+            (cfg.dominators(), cfg.transitive_reachability())
         };
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.instructions.len());
