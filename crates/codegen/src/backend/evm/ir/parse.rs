@@ -4,18 +4,13 @@ use super::*;
 use solar_data_structures::{bit_set::GrowableBitSet, map::FxHashMap};
 use std::fmt as std_fmt;
 
-/// Parses an EVM IR module from the text format.
-///
-/// # Errors
-///
-/// Returns an [`EvmIrParseError`] if `input` is malformed.
-pub fn parse_evm_ir_module(input: &str) -> Result<EvmIrModule, EvmIrParseError> {
+pub(super) fn parse(input: &str) -> Result<Module, ParseError> {
     Parser::new(input).parse_module()
 }
 
 /// An error produced while parsing the EVM IR text format.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EvmIrParseError {
+pub struct ParseError {
     /// 1-based line number.
     pub line: usize,
     /// 1-based column number.
@@ -26,7 +21,7 @@ pub struct EvmIrParseError {
     pub line_text: String,
 }
 
-impl std_fmt::Display for EvmIrParseError {
+impl std_fmt::Display for ParseError {
     fn fmt(&self, f: &mut std_fmt::Formatter<'_>) -> std_fmt::Result {
         writeln!(f, "EVM IR parse error at line {}, col {}: {}", self.line, self.col, self.msg)?;
         if !self.line_text.is_empty() {
@@ -39,13 +34,13 @@ impl std_fmt::Display for EvmIrParseError {
     }
 }
 
-impl std::error::Error for EvmIrParseError {}
+impl std::error::Error for ParseError {}
 
 #[derive(Clone, Debug)]
 struct ParsedBlockHeader {
     label: String,
     entry: bool,
-    hotness: EvmIrBlockHotness,
+    hotness: Hotness,
     /// Incoming stack-word names from an `(in %a, %b)` signature, top first.
     entry_stack: Vec<String>,
 }
@@ -127,8 +122,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn error(&self, msg: impl Into<String>) -> EvmIrParseError {
-        EvmIrParseError {
+    fn error(&self, msg: impl Into<String>) -> ParseError {
+        ParseError {
             line: self.line,
             col: self.col,
             msg: msg.into(),
@@ -150,7 +145,7 @@ impl<'a> Parser<'a> {
         self.input[start..end].trim_end_matches('\r').to_string()
     }
 
-    fn expect_keyword(&mut self, kw: &str) -> Result<(), EvmIrParseError> {
+    fn expect_keyword(&mut self, kw: &str) -> Result<(), ParseError> {
         self.skip_inline();
         if self.input[self.pos..].starts_with(kw) {
             for _ in 0..kw.chars().count() {
@@ -162,7 +157,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn expect_punct(&mut self, expected: char) -> Result<(), EvmIrParseError> {
+    fn expect_punct(&mut self, expected: char) -> Result<(), ParseError> {
         self.skip_inline();
         match self.peek_char() {
             Some(c) if c == expected => {
@@ -184,7 +179,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_ident(&mut self) -> Result<&'a str, EvmIrParseError> {
+    fn parse_ident(&mut self) -> Result<&'a str, ParseError> {
         self.skip_inline();
         let start = self.pos;
         match self.peek_char() {
@@ -203,7 +198,7 @@ impl<'a> Parser<'a> {
         Ok(&self.input[start..self.pos])
     }
 
-    fn parse_uint_literal(&mut self) -> Result<U256, EvmIrParseError> {
+    fn parse_uint_literal(&mut self) -> Result<U256, ParseError> {
         self.skip_inline();
         let start = self.pos;
         if self.input[self.pos..].starts_with("0x") || self.input[self.pos..].starts_with("0X") {
@@ -236,7 +231,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_module(&mut self) -> Result<EvmIrModule, EvmIrParseError> {
+    fn parse_module(&mut self) -> Result<Module, ParseError> {
         self.skip_blank_and_comments();
         let name = if self.try_punct(';') {
             self.expect_keyword("evm")?;
@@ -249,7 +244,7 @@ impl<'a> Parser<'a> {
             "module".to_string()
         };
 
-        let mut module = EvmIrModule::new(name);
+        let mut module = Module::new(name);
         self.skip_blank_and_comments();
         let legacy_function_wrapper = self.input[self.pos..].starts_with("fn");
         if legacy_function_wrapper {
@@ -266,9 +261,9 @@ impl<'a> Parser<'a> {
 
     fn parse_program_body(
         &mut self,
-        module: &mut EvmIrModule,
+        module: &mut Module,
         body_end: BodyEnd,
-    ) -> Result<(), EvmIrParseError> {
+    ) -> Result<(), ParseError> {
         self.skip_blank_and_comments();
         let body_pos = self.pos;
         let body_line = self.line;
@@ -290,7 +285,7 @@ impl<'a> Parser<'a> {
                 if block_labels.contains_key(&header.label) {
                     return Err(self.error(format!("duplicate block `{}`", header.label)));
                 }
-                let block_id = module.add_block(EvmIrBlock::new(header.label.clone()));
+                let block_id = module.add_block(Block::new(header.label.clone()));
                 block_labels.insert(header.label, block_id);
                 self.skip_to_eol();
             } else {
@@ -350,7 +345,7 @@ impl<'a> Parser<'a> {
         Ok(())
     }
 
-    fn try_parse_block_header(&mut self) -> Result<Option<ParsedBlockHeader>, EvmIrParseError> {
+    fn try_parse_block_header(&mut self) -> Result<Option<ParsedBlockHeader>, ParseError> {
         let save = (self.pos, self.line, self.col);
         self.skip_inline_whitespace();
         let Some(label) = self.try_parse_block_label_text()? else {
@@ -367,18 +362,18 @@ impl<'a> Parser<'a> {
             entry = true;
         }
 
-        let mut hotness = EvmIrBlockHotness::Hot;
+        let mut hotness = Hotness::Hot;
         self.skip_inline_whitespace();
         if self.try_punct('[') {
             let key = self.parse_ident()?;
             if key == "cold" {
-                hotness = EvmIrBlockHotness::Cold;
+                hotness = Hotness::Cold;
             } else if key == "hot" {
-                hotness = EvmIrBlockHotness::Hot;
+                hotness = Hotness::Hot;
             } else if key == "hotness" {
                 self.expect_punct('=')?;
                 let value = self.parse_ident()?;
-                hotness = EvmIrBlockHotness::parse(value)
+                hotness = Hotness::parse(value)
                     .ok_or_else(|| self.error(format!("unknown block hotness `{value}`")))?;
             } else {
                 return Err(self.error(format!("unknown block metadata `{key}`")));
@@ -426,7 +421,7 @@ impl<'a> Parser<'a> {
         Ok(Some(ParsedBlockHeader { label, entry, hotness, entry_stack }))
     }
 
-    fn try_parse_block_label_text(&mut self) -> Result<Option<String>, EvmIrParseError> {
+    fn try_parse_block_label_text(&mut self) -> Result<Option<String>, ParseError> {
         self.skip_inline();
         if !self.input[self.pos..].starts_with("bb") {
             return Ok(None);
@@ -450,12 +445,12 @@ impl<'a> Parser<'a> {
 
     fn parse_instruction_or_terminator(
         &mut self,
-        module: &mut EvmIrModule,
-        block: EvmIrBlockId,
-        block_labels: &FxHashMap<String, EvmIrBlockId>,
-        value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        defined_values: &mut GrowableBitSet<EvmIrValueId>,
-    ) -> Result<(), EvmIrParseError> {
+        module: &mut Module,
+        block: BlockId,
+        block_labels: &FxHashMap<String, BlockId>,
+        value_labels: &mut FxHashMap<String, ValueId>,
+        defined_values: &mut GrowableBitSet<ValueId>,
+    ) -> Result<(), ParseError> {
         self.skip_inline_whitespace();
         if module.blocks[block].terminator.is_some() {
             return Err(self.error(format!(
@@ -477,7 +472,7 @@ impl<'a> Parser<'a> {
                 return Err(self.error("terminator cannot produce a result"));
             }
             let metadata = self.parse_metadata()?;
-            module.blocks[block].terminator = Some(EvmIrTerminator { kind, metadata });
+            module.blocks[block].terminator = Some(Terminator { kind, metadata });
             self.skip_to_eol();
             return Ok(());
         }
@@ -485,25 +480,20 @@ impl<'a> Parser<'a> {
         let operands =
             self.parse_operand_list(module, block_labels, value_labels, defined_values)?;
         let metadata = self.parse_metadata()?;
-        let kind = EvmIrStackOp::parse(&mnemonic)
-            .map(EvmIrInstructionKind::Stack)
-            .unwrap_or(EvmIrInstructionKind::Operation(mnemonic));
-        module.blocks[block].instructions.push(EvmIrInstruction {
-            result,
-            kind,
-            operands,
-            metadata,
-        });
+        let kind = StackOp::parse(&mnemonic)
+            .map(InstructionKind::Stack)
+            .unwrap_or(InstructionKind::Operation(mnemonic));
+        module.blocks[block].instructions.push(Instruction { result, kind, operands, metadata });
         self.skip_to_eol();
         Ok(())
     }
 
     fn try_parse_result(
         &mut self,
-        module: &mut EvmIrModule,
-        value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        defined_values: &mut GrowableBitSet<EvmIrValueId>,
-    ) -> Result<Option<EvmIrValueId>, EvmIrParseError> {
+        module: &mut Module,
+        value_labels: &mut FxHashMap<String, ValueId>,
+        defined_values: &mut GrowableBitSet<ValueId>,
+    ) -> Result<Option<ValueId>, ParseError> {
         let save = (self.pos, self.line, self.col);
         if self.peek_char() != Some('%') {
             return Ok(None);
@@ -522,7 +512,7 @@ impl<'a> Parser<'a> {
         Ok(Some(value))
     }
 
-    fn parse_value_name(&mut self) -> Result<String, EvmIrParseError> {
+    fn parse_value_name(&mut self) -> Result<String, ParseError> {
         self.skip_inline();
         self.expect_punct('%')?;
         let start = self.pos;
@@ -545,15 +535,15 @@ impl<'a> Parser<'a> {
     fn parse_terminator_kind(
         &mut self,
         mnemonic: &str,
-        module: &mut EvmIrModule,
-        block_labels: &FxHashMap<String, EvmIrBlockId>,
-        value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        defined_values: &mut GrowableBitSet<EvmIrValueId>,
-    ) -> Result<Option<EvmIrTerminatorKind>, EvmIrParseError> {
+        module: &mut Module,
+        block_labels: &FxHashMap<String, BlockId>,
+        value_labels: &mut FxHashMap<String, ValueId>,
+        defined_values: &mut GrowableBitSet<ValueId>,
+    ) -> Result<Option<TerminatorKind>, ParseError> {
         let kind = match mnemonic {
-            "fallthrough" => EvmIrTerminatorKind::Fallthrough(self.parse_block_ref(block_labels)?),
-            "fallthrough_next" => EvmIrTerminatorKind::FallthroughNext,
-            "jump" => EvmIrTerminatorKind::Jump(self.parse_block_ref(block_labels)?),
+            "fallthrough" => TerminatorKind::Fallthrough(self.parse_block_ref(block_labels)?),
+            "fallthrough_next" => TerminatorKind::FallthroughNext,
+            "jump" => TerminatorKind::Jump(self.parse_block_ref(block_labels)?),
             "br" => {
                 let condition =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
@@ -561,7 +551,7 @@ impl<'a> Parser<'a> {
                 let then_block = self.parse_block_ref(block_labels)?;
                 self.expect_punct(',')?;
                 let else_block = self.parse_block_ref(block_labels)?;
-                EvmIrTerminatorKind::Branch { condition, then_block, else_block }
+                TerminatorKind::Branch { condition, then_block, else_block }
             }
             "switch" => {
                 let value =
@@ -586,7 +576,7 @@ impl<'a> Parser<'a> {
                         break;
                     }
                 }
-                EvmIrTerminatorKind::Switch { value, default, cases }
+                TerminatorKind::Switch { value, default, cases }
             }
             "return" => {
                 let offset =
@@ -594,7 +584,7 @@ impl<'a> Parser<'a> {
                 self.expect_punct(',')?;
                 let size =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
-                EvmIrTerminatorKind::Return { offset, size }
+                TerminatorKind::Return { offset, size }
             }
             "revert" => {
                 let offset =
@@ -602,14 +592,14 @@ impl<'a> Parser<'a> {
                 self.expect_punct(',')?;
                 let size =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
-                EvmIrTerminatorKind::Revert { offset, size }
+                TerminatorKind::Revert { offset, size }
             }
-            "stop" => EvmIrTerminatorKind::Stop,
-            "invalid" => EvmIrTerminatorKind::Invalid,
+            "stop" => TerminatorKind::Stop,
+            "invalid" => TerminatorKind::Invalid,
             "selfdestruct" => {
                 let recipient =
                     self.parse_operand(module, block_labels, value_labels, defined_values)?;
-                EvmIrTerminatorKind::SelfDestruct { recipient }
+                TerminatorKind::SelfDestruct { recipient }
             }
             "terminal" => {
                 self.skip_inline();
@@ -626,7 +616,7 @@ impl<'a> Parser<'a> {
                     };
                     opcode
                 };
-                EvmIrTerminatorKind::RawOpcode(opcode)
+                TerminatorKind::RawOpcode(opcode)
             }
             _ => return Ok(None),
         };
@@ -635,11 +625,11 @@ impl<'a> Parser<'a> {
 
     fn parse_operand_list(
         &mut self,
-        module: &mut EvmIrModule,
-        block_labels: &FxHashMap<String, EvmIrBlockId>,
-        value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        defined_values: &mut GrowableBitSet<EvmIrValueId>,
-    ) -> Result<Vec<EvmIrOperand>, EvmIrParseError> {
+        module: &mut Module,
+        block_labels: &FxHashMap<String, BlockId>,
+        value_labels: &mut FxHashMap<String, ValueId>,
+        defined_values: &mut GrowableBitSet<ValueId>,
+    ) -> Result<Vec<Operand>, ParseError> {
         let mut operands = Vec::new();
         self.skip_inline();
         if self.at_end_of_operation() {
@@ -662,41 +652,41 @@ impl<'a> Parser<'a> {
 
     fn parse_operand(
         &mut self,
-        module: &mut EvmIrModule,
-        block_labels: &FxHashMap<String, EvmIrBlockId>,
-        value_labels: &mut FxHashMap<String, EvmIrValueId>,
-        _defined_values: &mut GrowableBitSet<EvmIrValueId>,
-    ) -> Result<EvmIrOperand, EvmIrParseError> {
+        module: &mut Module,
+        block_labels: &FxHashMap<String, BlockId>,
+        value_labels: &mut FxHashMap<String, ValueId>,
+        _defined_values: &mut GrowableBitSet<ValueId>,
+    ) -> Result<Operand, ParseError> {
         self.skip_inline();
         if self.peek_char() == Some('%') {
             let name = self.parse_value_name()?;
-            return Ok(EvmIrOperand::Value(value_id(module, value_labels, &name)));
+            return Ok(Operand::Value(value_id(module, value_labels, &name)));
         }
         if matches!(self.peek_char(), Some(c) if c.is_ascii_digit()) {
-            return Ok(EvmIrOperand::Immediate(self.parse_uint_literal()?));
+            return Ok(Operand::Immediate(self.parse_uint_literal()?));
         }
         if self.peek_char() == Some('@') {
             self.advance();
             let symbol = self.parse_ident()?;
-            return Ok(EvmIrOperand::Symbol(format!("@{symbol}")));
+            return Ok(Operand::Symbol(format!("@{symbol}")));
         }
         if self.input[self.pos..].starts_with("bb") {
             let save = (self.pos, self.line, self.col);
             if let Some(label) = self.try_parse_block_label_text()? {
                 if let Some(block) = block_labels.get(&label).copied() {
-                    return Ok(EvmIrOperand::Block(block));
+                    return Ok(Operand::Block(block));
                 }
                 return Err(self.error(format!("unknown block `{label}`")));
             }
             self.restore(save);
         }
-        Ok(EvmIrOperand::Symbol(self.parse_ident()?.to_string()))
+        Ok(Operand::Symbol(self.parse_ident()?.to_string()))
     }
 
     fn parse_block_ref(
         &mut self,
-        block_labels: &FxHashMap<String, EvmIrBlockId>,
-    ) -> Result<EvmIrBlockId, EvmIrParseError> {
+        block_labels: &FxHashMap<String, BlockId>,
+    ) -> Result<BlockId, ParseError> {
         let label =
             self.try_parse_block_label_text()?.ok_or_else(|| self.error("expected block label"))?;
         block_labels
@@ -705,8 +695,8 @@ impl<'a> Parser<'a> {
             .ok_or_else(|| self.error(format!("unknown block `{label}`")))
     }
 
-    fn parse_metadata(&mut self) -> Result<EvmIrMetadata, EvmIrParseError> {
-        let mut metadata = EvmIrMetadata::default();
+    fn parse_metadata(&mut self) -> Result<Metadata, ParseError> {
+        let mut metadata = Metadata::default();
         self.skip_inline();
         if !self.try_punct('!') {
             return Ok(metadata);
@@ -724,12 +714,12 @@ impl<'a> Parser<'a> {
                 let inputs = self.parse_u16()?;
                 self.expect_keyword("->")?;
                 let outputs = self.parse_u16()?;
-                metadata.stack = Some(EvmIrStackEffect::new(inputs, outputs));
+                metadata.stack = Some(StackEffect::new(inputs, outputs));
             } else if self.try_punct('=') {
                 let value = self.parse_metadata_value()?;
-                metadata.attrs.push(EvmIrMetadataItem { key, value: Some(value) });
+                metadata.attrs.push(MetadataItem { key, value: Some(value) });
             } else {
-                metadata.attrs.push(EvmIrMetadataItem { key, value: None });
+                metadata.attrs.push(MetadataItem { key, value: None });
             }
 
             if self.try_punct(',') {
@@ -741,7 +731,7 @@ impl<'a> Parser<'a> {
         Ok(metadata)
     }
 
-    fn parse_metadata_value(&mut self) -> Result<String, EvmIrParseError> {
+    fn parse_metadata_value(&mut self) -> Result<String, ParseError> {
         self.skip_inline();
         let start = self.pos;
         while let Some(c) = self.peek_char() {
@@ -757,7 +747,7 @@ impl<'a> Parser<'a> {
         Ok(value.to_string())
     }
 
-    fn parse_u16(&mut self) -> Result<u16, EvmIrParseError> {
+    fn parse_u16(&mut self) -> Result<u16, ParseError> {
         let value = self.parse_uint_literal()?;
         value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
     }
@@ -768,10 +758,10 @@ impl<'a> Parser<'a> {
 }
 
 fn value_id(
-    module: &mut EvmIrModule,
-    value_labels: &mut FxHashMap<String, EvmIrValueId>,
+    module: &mut Module,
+    value_labels: &mut FxHashMap<String, ValueId>,
     name: &str,
-) -> EvmIrValueId {
+) -> ValueId {
     if let Some(value) = value_labels.get(name).copied() {
         return value;
     }
@@ -782,8 +772,13 @@ fn value_id(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_evm_ir_module;
+    use super::*;
+    use snapbox::{assert_data_eq, str};
     use std::path::{Path, PathBuf};
+
+    fn parse_module(input: &str) -> Result<Module, ParseError> {
+        Module::parse(input)
+    }
 
     fn evm_ir_fixture_dir() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -834,17 +829,22 @@ fn @f {
     invalid
 }
 ";
-        let err = parse_evm_ir_module(input).unwrap_err().to_string();
-        assert!(err.contains("instruction after terminator"), "{err}");
+        assert_data_eq!(
+            parse_module(input).unwrap_err().to_string(),
+            str![[r#"
+EVM IR parse error at line 6, col 5: instruction after terminator in block `bb0`
+   |
+  6 |     invalid
+   |     ^
+"#]]
+        );
     }
 
     fn round_trip_fixture(path: &Path) -> Result<(), String> {
         #[allow(clippy::disallowed_methods)]
         let input = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
-        let print1 =
-            parse_evm_ir_module(&input).map_err(|err| err.to_string())?.to_text().to_string();
-        let print2 =
-            parse_evm_ir_module(&print1).map_err(|err| err.to_string())?.to_text().to_string();
+        let print1 = parse_module(&input).map_err(|err| err.to_string())?.to_text().to_string();
+        let print2 = parse_module(&print1).map_err(|err| err.to_string())?.to_text().to_string();
         if print1 != print2 {
             return Err(first_diff(&print1, &print2)
                 .map(|(line, a, b)| {

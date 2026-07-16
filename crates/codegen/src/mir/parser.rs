@@ -15,9 +15,8 @@
 //!
 //! # Session requirement
 //!
-//! Both [`parse_module`] and [`parse_function`] intern function and module
-//! names via [`Symbol::intern`], which requires an active
-//! [`solar_interface::Session`]. Wrap calls in `sess.enter(|| ...)`.
+//! [`Module::parse`] interns function and module names via [`Symbol::intern`], which requires an
+//! active [`solar_interface::Session`]. Wrap calls in `sess.enter(|| ...)`.
 //!
 //! # Caveats
 //!
@@ -44,32 +43,17 @@ use std::fmt;
 // Public API
 // =============================================================================
 
-/// Parses a textual MIR module.
-///
-/// # Errors
-///
-/// Returns a [`ParseError`] if the input does not conform to the MIR
-/// textual format produced by [`Module::to_text`](super::Module::to_text).
-///
-/// # Session
-///
-/// Must be called inside an active `solar_interface::Session::enter`,
-/// because module and function names are interned via [`Symbol::intern`].
-pub fn parse_module(input: &str) -> Result<Module, ParseError> {
-    let mut p = Parser::new(input);
-    p.parse_module()
+pub(super) fn parse(input: &str) -> Result<Module, ParseError> {
+    Parser::new(input).parse_module()
 }
 
-/// Parses a single textual MIR function.
-///
-/// # Errors
-///
-/// Returns a [`ParseError`] on malformed input.
-///
-/// # Session
-///
-/// Must be called inside an active `solar_interface::Session::enter`.
-pub fn parse_function(input: &str) -> Result<Function, ParseError> {
+#[cfg(test)]
+fn parse_module(input: &str) -> Result<Module, ParseError> {
+    Module::parse(input)
+}
+
+#[cfg(test)]
+fn parse_function(input: &str) -> Result<Function, ParseError> {
     let mut p = Parser::new(input);
     p.skip_blank_and_comments();
     let func = p.parse_function()?;
@@ -1203,7 +1187,7 @@ impl<'a> Parser<'a> {
         value.try_into().map_err(|_| self.error(format!("integer `{value}` does not fit in u16")))
     }
 
-    fn set_terminator(&self, func: &mut Function, block: BlockId, term: Terminator) {
+    fn set_terminator(&mut self, func: &mut Function, block: BlockId, term: Terminator) {
         // Update predecessors so downstream passes see a valid CFG.
         let succs = term.successors();
         for s in succs {

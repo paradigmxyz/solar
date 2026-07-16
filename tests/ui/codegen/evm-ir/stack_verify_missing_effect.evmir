@@ -1,6 +1,8 @@
 //@ failure-status: 1
 // Once operands are cleared, unregistered operations must carry an explicit
-// stack effect. Otherwise the verifier cannot model their runtime pops.
+// stack effect. Otherwise the verifier cannot model their runtime pops. Keep
+// checking after the first invalid instruction so both diagnostics are emitted.
 bb0 (entry):
   %r = mystery
+  %s = unknown
   stop

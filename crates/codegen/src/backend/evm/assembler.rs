@@ -5,7 +5,7 @@
 //! - Two-pass assembly for resolving jump targets
 //! - Variable-width PUSH sizing based on offset magnitudes
 
-use crate::{backend::evm::EvmIrModule, mir::IMMUTABLE_WORD_SIZE};
+use crate::{backend::evm::ir, mir::IMMUTABLE_WORD_SIZE};
 use alloy_primitives::U256;
 use smallvec::SmallVec;
 use solar_config::{EvmVersion, OptimizationMode};
@@ -66,7 +66,7 @@ pub struct AssembledCode {
     /// All immutable placeholders, in emission order.
     pub immutable_refs: Vec<ImmutableRef>,
     /// Final EVM IR captured immediately before byte emission.
-    pub evm_ir: Option<EvmIrModule>,
+    pub evm_ir: Option<ir::Module>,
 }
 
 /// Configuration for EVM bytecode assembly.

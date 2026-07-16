@@ -7,7 +7,7 @@ use solar_data_structures::{index::IndexVec, map::FxHashMap};
 
 /// A named EVM IR pass exposed to `solar evm-opt`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum EvmIrPass {
+pub enum Pass {
     /// No transform; validate and print the module.
     None,
     /// Materialize virtual instruction operands with physical stack operations.
@@ -20,12 +20,12 @@ pub enum EvmIrPass {
 
 /// Options for running an EVM IR pass.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct EvmIrPassOptions {
+pub struct PassOptions {
     /// Print the time spent in the pass.
     pub time_passes: bool,
 }
 
-impl EvmIrPass {
+impl Pass {
     /// Stable command-line pass name.
     #[must_use]
     pub const fn name(self) -> &'static str {
@@ -38,7 +38,7 @@ impl EvmIrPass {
     }
 
     /// Runs this pass on an EVM IR module.
-    pub fn run(self, module: &mut EvmIrModule, options: EvmIrPassOptions) -> bool {
+    pub fn run(self, module: &mut Module, options: PassOptions) -> bool {
         let timer = PassTimer::new(options.time_passes);
         let changed = match self {
             Self::None => false,
@@ -64,10 +64,10 @@ impl EvmIrPass {
 }
 
 /// All EVM IR passes exposed by `solar evm-opt`.
-pub const EVM_IR_PASSES: &[EvmIrPass] =
-    &[EvmIrPass::None, EvmIrPass::StackSchedule, EvmIrPass::ColdLayout, EvmIrPass::TerminalDedup];
+pub const PASSES: &[Pass] =
+    &[Pass::None, Pass::StackSchedule, Pass::ColdLayout, Pass::TerminalDedup];
 
-fn move_cold_terminal_blocks(module: &mut EvmIrModule) -> bool {
+fn move_cold_terminal_blocks(module: &mut Module) -> bool {
     let mut kept = Vec::with_capacity(module.blocks.len());
     let mut moved = Vec::new();
 
@@ -88,30 +88,26 @@ fn move_cold_terminal_blocks(module: &mut EvmIrModule) -> bool {
     true
 }
 
-fn is_movable_cold_terminal_block(
-    module: &EvmIrModule,
-    block_id: EvmIrBlockId,
-    block: &EvmIrBlock,
-) -> bool {
+fn is_movable_cold_terminal_block(module: &Module, block_id: BlockId, block: &Block) -> bool {
     if module.entry_block == Some(block_id) || block_id.index() == 0 {
         return false;
     }
     let Some(term) = &block.terminator else {
         return false;
     };
-    if block.metadata.hotness != EvmIrBlockHotness::Cold || !is_evm_terminal(&term.kind) {
+    if !block.metadata.hotness.is_cold() || !is_evm_terminal(&term.kind) {
         return false;
     }
-    let previous = EvmIrBlockId::from_usize(block_id.index() - 1);
+    let previous = BlockId::from_usize(block_id.index() - 1);
     module.blocks[previous].terminator.as_ref().is_some_and(|term| is_layout_barrier(&term.kind))
 }
 
-fn is_layout_barrier(kind: &EvmIrTerminatorKind) -> bool {
-    matches!(kind, EvmIrTerminatorKind::Jump(_)) || is_evm_terminal(kind)
+fn is_layout_barrier(kind: &TerminatorKind) -> bool {
+    matches!(kind, TerminatorKind::Jump(_)) || is_evm_terminal(kind)
 }
 
-fn deduplicate_terminal_blocks(module: &mut EvmIrModule) -> bool {
-    let mut canonical = Vec::<(TerminalBlockKey, EvmIrBlockId)>::new();
+fn deduplicate_terminal_blocks(module: &mut Module) -> bool {
+    let mut canonical = Vec::<(TerminalBlockKey, BlockId)>::new();
     let mut changed = false;
 
     let block_ids: Vec<_> = module.blocks.indices().collect();
@@ -124,7 +120,7 @@ fn deduplicate_terminal_blocks(module: &mut EvmIrModule) -> bool {
         if let Some((_, target)) = canonical.iter().find(|(known, _)| *known == key) {
             module.blocks[block_id].instructions.clear();
             module.blocks[block_id].terminator =
-                Some(EvmIrTerminator::new(EvmIrTerminatorKind::Jump(*target)));
+                Some(Terminator::new(TerminatorKind::Jump(*target)));
             changed = true;
         } else {
             canonical.push((key, block_id));
@@ -134,7 +130,7 @@ fn deduplicate_terminal_blocks(module: &mut EvmIrModule) -> bool {
     changed
 }
 
-fn terminal_block_dedup_is_profitable(block: &EvmIrBlock) -> bool {
+fn terminal_block_dedup_is_profitable(block: &Block) -> bool {
     let Some(term) = &block.terminator else { return false };
     if !is_evm_terminal(&term.kind) {
         return false;
@@ -149,60 +145,59 @@ fn terminal_block_dedup_is_profitable(block: &EvmIrBlock) -> bool {
     current_size > replacement_size
 }
 
-fn estimated_instruction_size(inst: &EvmIrInstruction) -> usize {
+fn estimated_instruction_size(inst: &Instruction) -> usize {
     match &inst.kind {
-        EvmIrInstructionKind::Stack(_) => 1,
-        EvmIrInstructionKind::Operation(mnemonic) if mnemonic == "push" => {
+        InstructionKind::Stack(_) => 1,
+        InstructionKind::Operation(mnemonic) if mnemonic == "push" => {
             match inst.operands.as_slice() {
                 [operand] => estimated_push_size(operand),
                 _ => 1,
             }
         }
-        EvmIrInstructionKind::Operation(mnemonic) if mnemonic == "push_immutable" => 33,
-        EvmIrInstructionKind::Operation(_) => 1,
+        InstructionKind::Operation(mnemonic) if mnemonic == "push_immutable" => 33,
+        InstructionKind::Operation(_) => 1,
     }
 }
 
-fn estimated_terminator_size(kind: &EvmIrTerminatorKind) -> usize {
-    let operand_pushes = |operands: &[&EvmIrOperand]| {
+fn estimated_terminator_size(kind: &TerminatorKind) -> usize {
+    let operand_pushes = |operands: &[&Operand]| {
         operands.iter().map(|operand| estimated_push_size(operand)).sum::<usize>() + 1
     };
     match kind {
-        EvmIrTerminatorKind::Return { offset, size }
-        | EvmIrTerminatorKind::Revert { offset, size } => operand_pushes(&[offset, size]),
-        EvmIrTerminatorKind::SelfDestruct { recipient } => operand_pushes(&[recipient]),
-        EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::RawOpcode(_) => 1,
-        EvmIrTerminatorKind::Fallthrough(_)
-        | EvmIrTerminatorKind::FallthroughNext
-        | EvmIrTerminatorKind::Jump(_)
-        | EvmIrTerminatorKind::Branch { .. }
-        | EvmIrTerminatorKind::Switch { .. } => 0,
+        TerminatorKind::Return { offset, size } | TerminatorKind::Revert { offset, size } => {
+            operand_pushes(&[offset, size])
+        }
+        TerminatorKind::SelfDestruct { recipient } => operand_pushes(&[recipient]),
+        TerminatorKind::Stop | TerminatorKind::Invalid | TerminatorKind::RawOpcode(_) => 1,
+        TerminatorKind::Fallthrough(_)
+        | TerminatorKind::FallthroughNext
+        | TerminatorKind::Jump(_)
+        | TerminatorKind::Branch { .. }
+        | TerminatorKind::Switch { .. } => 0,
     }
 }
 
-fn estimated_push_size(operand: &EvmIrOperand) -> usize {
+fn estimated_push_size(operand: &Operand) -> usize {
     match operand {
-        EvmIrOperand::Immediate(value) if *value == U256::ZERO => 1,
-        EvmIrOperand::Immediate(value) => value.byte_len() + 1,
-        EvmIrOperand::Block(_) | EvmIrOperand::Symbol(_) => 3,
-        EvmIrOperand::Value(_) => 0,
+        Operand::Immediate(value) if *value == U256::ZERO => 1,
+        Operand::Immediate(value) => value.byte_len() + 1,
+        Operand::Block(_) | Operand::Symbol(_) => 3,
+        Operand::Value(_) => 0,
     }
 }
 
-fn is_evm_terminal(kind: &EvmIrTerminatorKind) -> bool {
+fn is_evm_terminal(kind: &TerminatorKind) -> bool {
     matches!(
         kind,
-        EvmIrTerminatorKind::Return { .. }
-            | EvmIrTerminatorKind::Revert { .. }
-            | EvmIrTerminatorKind::Stop
-            | EvmIrTerminatorKind::Invalid
-            | EvmIrTerminatorKind::SelfDestruct { .. }
-    ) || matches!(kind, EvmIrTerminatorKind::RawOpcode(opcode) if super::super::assembler::op::is_terminal(*opcode))
+        TerminatorKind::Return { .. }
+            | TerminatorKind::Revert { .. }
+            | TerminatorKind::Stop
+            | TerminatorKind::Invalid
+            | TerminatorKind::SelfDestruct { .. }
+    ) || matches!(kind, TerminatorKind::RawOpcode(opcode) if super::super::assembler::op::is_terminal(*opcode))
 }
 
-fn terminal_block_key(block: &EvmIrBlock) -> Option<TerminalBlockKey> {
+fn terminal_block_key(block: &Block) -> Option<TerminalBlockKey> {
     let mut locals = FxHashMap::default();
     let mut instructions = Vec::with_capacity(block.instructions.len());
 
@@ -225,37 +220,37 @@ fn terminal_block_key(block: &EvmIrBlock) -> Option<TerminalBlockKey> {
 }
 
 fn terminal_operand_key(
-    operand: &EvmIrOperand,
-    locals: &FxHashMap<EvmIrValueId, usize>,
+    operand: &Operand,
+    locals: &FxHashMap<ValueId, usize>,
 ) -> TerminalOperandKey {
     match operand {
-        EvmIrOperand::Value(value) => locals
+        Operand::Value(value) => locals
             .get(value)
             .copied()
             .map(TerminalOperandKey::LocalValue)
             .unwrap_or(TerminalOperandKey::ExternalValue(*value)),
-        EvmIrOperand::Immediate(value) => TerminalOperandKey::Immediate(*value),
-        EvmIrOperand::Block(block) => TerminalOperandKey::Block(*block),
-        EvmIrOperand::Symbol(symbol) => TerminalOperandKey::Symbol(symbol.clone()),
+        Operand::Immediate(value) => TerminalOperandKey::Immediate(*value),
+        Operand::Block(block) => TerminalOperandKey::Block(*block),
+        Operand::Symbol(symbol) => TerminalOperandKey::Symbol(symbol.clone()),
     }
 }
 
 fn terminal_terminator_key(
-    kind: &EvmIrTerminatorKind,
-    locals: &FxHashMap<EvmIrValueId, usize>,
+    kind: &TerminatorKind,
+    locals: &FxHashMap<ValueId, usize>,
 ) -> TerminalTerminatorKey {
     match kind {
-        EvmIrTerminatorKind::Fallthrough(target) => TerminalTerminatorKey::Fallthrough(*target),
-        EvmIrTerminatorKind::FallthroughNext => TerminalTerminatorKey::FallthroughNext,
-        EvmIrTerminatorKind::Jump(target) => TerminalTerminatorKey::Jump(*target),
-        EvmIrTerminatorKind::Branch { condition, then_block, else_block } => {
+        TerminatorKind::Fallthrough(target) => TerminalTerminatorKey::Fallthrough(*target),
+        TerminatorKind::FallthroughNext => TerminalTerminatorKey::FallthroughNext,
+        TerminatorKind::Jump(target) => TerminalTerminatorKey::Jump(*target),
+        TerminatorKind::Branch { condition, then_block, else_block } => {
             TerminalTerminatorKey::Branch {
                 condition: terminal_operand_key(condition, locals),
                 then_block: *then_block,
                 else_block: *else_block,
             }
         }
-        EvmIrTerminatorKind::Switch { value, default, cases } => TerminalTerminatorKey::Switch {
+        TerminatorKind::Switch { value, default, cases } => TerminalTerminatorKey::Switch {
             value: terminal_operand_key(value, locals),
             default: *default,
             cases: cases
@@ -263,20 +258,20 @@ fn terminal_terminator_key(
                 .map(|(case, target)| (terminal_operand_key(case, locals), *target))
                 .collect(),
         },
-        EvmIrTerminatorKind::Return { offset, size } => TerminalTerminatorKey::Return {
+        TerminatorKind::Return { offset, size } => TerminalTerminatorKey::Return {
             offset: terminal_operand_key(offset, locals),
             size: terminal_operand_key(size, locals),
         },
-        EvmIrTerminatorKind::Revert { offset, size } => TerminalTerminatorKey::Revert {
+        TerminatorKind::Revert { offset, size } => TerminalTerminatorKey::Revert {
             offset: terminal_operand_key(offset, locals),
             size: terminal_operand_key(size, locals),
         },
-        EvmIrTerminatorKind::Stop => TerminalTerminatorKey::Stop,
-        EvmIrTerminatorKind::Invalid => TerminalTerminatorKey::Invalid,
-        EvmIrTerminatorKind::SelfDestruct { recipient } => TerminalTerminatorKey::SelfDestruct {
+        TerminatorKind::Stop => TerminalTerminatorKey::Stop,
+        TerminatorKind::Invalid => TerminalTerminatorKey::Invalid,
+        TerminatorKind::SelfDestruct { recipient } => TerminalTerminatorKey::SelfDestruct {
             recipient: terminal_operand_key(recipient, locals),
         },
-        EvmIrTerminatorKind::RawOpcode(opcode) => TerminalTerminatorKey::RawOpcode(*opcode),
+        TerminatorKind::RawOpcode(opcode) => TerminalTerminatorKey::RawOpcode(*opcode),
     }
 }
 
@@ -289,24 +284,24 @@ struct TerminalBlockKey {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TerminalInstructionKey {
     result: Option<usize>,
-    kind: EvmIrInstructionKind,
+    kind: InstructionKind,
     operands: Vec<TerminalOperandKey>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TerminalTerminatorKey {
-    Fallthrough(EvmIrBlockId),
+    Fallthrough(BlockId),
     FallthroughNext,
-    Jump(EvmIrBlockId),
+    Jump(BlockId),
     Branch {
         condition: TerminalOperandKey,
-        then_block: EvmIrBlockId,
-        else_block: EvmIrBlockId,
+        then_block: BlockId,
+        else_block: BlockId,
     },
     Switch {
         value: TerminalOperandKey,
-        default: EvmIrBlockId,
-        cases: Vec<(TerminalOperandKey, EvmIrBlockId)>,
+        default: BlockId,
+        cases: Vec<(TerminalOperandKey, BlockId)>,
     },
     Return {
         offset: TerminalOperandKey,
@@ -327,16 +322,16 @@ enum TerminalTerminatorKey {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TerminalOperandKey {
     LocalValue(usize),
-    ExternalValue(EvmIrValueId),
+    ExternalValue(ValueId),
     Immediate(U256),
-    Block(EvmIrBlockId),
+    Block(BlockId),
     Symbol(String),
 }
 
-fn remap_block_order(module: &mut EvmIrModule, order: &[EvmIrBlockId]) {
+fn remap_block_order(module: &mut Module, order: &[BlockId]) {
     debug_assert_eq!(order.len(), module.blocks.len());
-    let mut remap = vec![EvmIrBlockId::from_usize(0); module.blocks.len()];
-    let mut old_blocks: Vec<Option<EvmIrBlock>> =
+    let mut remap = vec![BlockId::from_usize(0); module.blocks.len()];
+    let mut old_blocks: Vec<Option<Block>> =
         std::mem::take(&mut module.blocks).into_iter().map(Some).collect();
     let mut blocks = IndexVec::with_capacity(old_blocks.len());
     for &old_block in order {
@@ -361,40 +356,35 @@ fn remap_block_order(module: &mut EvmIrModule, order: &[EvmIrBlockId]) {
     }
 }
 
-fn remap_operand_blocks(operand: &mut EvmIrOperand, remap: &[EvmIrBlockId]) {
-    if let EvmIrOperand::Block(block) = operand {
+fn remap_operand_blocks(operand: &mut Operand, remap: &[BlockId]) {
+    if let Operand::Block(block) = operand {
         *block = remap[block.index()];
     }
 }
 
-fn remap_terminator_blocks(kind: &mut EvmIrTerminatorKind, remap: &[EvmIrBlockId]) {
+fn remap_terminator_blocks(kind: &mut TerminatorKind, remap: &[BlockId]) {
     visit_terminator_targets_mut(kind, |target| *target = remap[target.index()]);
 }
 
-fn visit_terminator_targets_mut(
-    kind: &mut EvmIrTerminatorKind,
-    mut visit: impl FnMut(&mut EvmIrBlockId),
-) {
+fn visit_terminator_targets_mut(kind: &mut TerminatorKind, mut visit: impl FnMut(&mut BlockId)) {
     match kind {
-        EvmIrTerminatorKind::Fallthrough(target) | EvmIrTerminatorKind::Jump(target) => {
-            visit(target)
-        }
-        EvmIrTerminatorKind::Branch { then_block, else_block, .. } => {
+        TerminatorKind::Fallthrough(target) | TerminatorKind::Jump(target) => visit(target),
+        TerminatorKind::Branch { then_block, else_block, .. } => {
             visit(then_block);
             visit(else_block);
         }
-        EvmIrTerminatorKind::Switch { default, cases, .. } => {
+        TerminatorKind::Switch { default, cases, .. } => {
             visit(default);
             for (_, target) in cases {
                 visit(target);
             }
         }
-        EvmIrTerminatorKind::Return { .. }
-        | EvmIrTerminatorKind::Revert { .. }
-        | EvmIrTerminatorKind::FallthroughNext
-        | EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::SelfDestruct { .. }
-        | EvmIrTerminatorKind::RawOpcode(_) => {}
+        TerminatorKind::Return { .. }
+        | TerminatorKind::Revert { .. }
+        | TerminatorKind::FallthroughNext
+        | TerminatorKind::Stop
+        | TerminatorKind::Invalid
+        | TerminatorKind::SelfDestruct { .. }
+        | TerminatorKind::RawOpcode(_) => {}
     }
 }
