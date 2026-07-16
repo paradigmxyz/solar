@@ -17,7 +17,7 @@ mod passes;
 mod verify;
 
 pub use parse::{EvmIrParseError, parse_evm_ir_module};
-pub use passes::{EVM_IR_PASSES, EvmIrPass};
+pub use passes::{EVM_IR_PASSES, EvmIrPass, EvmIrPassOptions};
 pub use verify::{EvmIrVerifyError, verify_evm_ir_module};
 
 newtype_index! {

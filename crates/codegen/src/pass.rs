@@ -22,6 +22,7 @@
 use crate::{
     analysis::Validator,
     mir::{Function, MirPhase, Module},
+    timing::PassTimer,
     transform::{
         AdcePass, CfgSimplifyPass, CheckElimPass, CsePass, DcePass, FrameSlotPromotionPass,
         FunctionDcePass, GvnPass, IndVarSimplifyPass, InlinePass, InstSimplifyPass,
@@ -292,13 +293,19 @@ const DEFAULT_CLEANUP_MAX_ROUNDS: usize = 3;
 pub struct PipelineOptions {
     /// Print the full module after every pass in the pipeline.
     pub print_after_each: bool,
+    /// Print the time spent in each pass.
+    pub time_passes: bool,
     /// Validate MIR after every pass.
     pub validate_after_each: bool,
 }
 
 impl Default for PipelineOptions {
     fn default() -> Self {
-        Self { print_after_each: false, validate_after_each: cfg!(debug_assertions) }
+        Self {
+            print_after_each: false,
+            time_passes: false,
+            validate_after_each: cfg!(debug_assertions),
+        }
     }
 }
 
@@ -307,7 +314,11 @@ pub fn run_pass(module: &mut Module, pass: &PassInfo) -> bool {
     run_pass_with_options(module, pass, PipelineOptions::default())
 }
 
-fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: PipelineOptions) -> bool {
+pub fn run_pass_with_options(
+    module: &mut Module,
+    pass: &PassInfo,
+    options: PipelineOptions,
+) -> bool {
     // Passes declare which phases they operate on; the manager enforces it so a
     // pipeline entry cannot silently corrupt a module in the wrong phase.
     if !pass.admits(module) {
@@ -316,7 +327,9 @@ fn run_pass_with_options(module: &mut Module, pass: &PassInfo, options: Pipeline
     if options.validate_after_each {
         validate_module_after_pass(module, "input");
     }
+    let timer = PassTimer::new(options.time_passes);
     let changed = (pass.run_pass)(module);
+    timer.finish("MIR", module.name, pass.name, changed);
     if options.validate_after_each {
         validate_module_after_pass(module, pass.name);
     }

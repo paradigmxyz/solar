@@ -1,6 +1,7 @@
 //! EVM IR optimization and layout passes.
 
 use super::*;
+use crate::timing::PassTimer;
 use alloy_primitives::U256;
 use solar_data_structures::{index::IndexVec, map::FxHashMap};
 
@@ -17,6 +18,13 @@ pub enum EvmIrPass {
     TerminalDedup,
 }
 
+/// Options for running an EVM IR pass.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct EvmIrPassOptions {
+    /// Print the time spent in the pass.
+    pub time_passes: bool,
+}
+
 impl EvmIrPass {
     /// Stable command-line pass name.
     #[must_use]
@@ -31,12 +39,20 @@ impl EvmIrPass {
 
     /// Runs this pass on an EVM IR module.
     pub fn run(self, module: &mut EvmIrModule) -> bool {
-        match self {
+        self.run_with_options(module, EvmIrPassOptions::default())
+    }
+
+    /// Runs this pass on an EVM IR module with observer options.
+    pub fn run_with_options(self, module: &mut EvmIrModule, options: EvmIrPassOptions) -> bool {
+        let timer = PassTimer::new(options.time_passes);
+        let changed = match self {
             Self::None => false,
             Self::StackSchedule => super::super::ir_stack_schedule::schedule_stack_ops(module),
             Self::ColdLayout => move_cold_terminal_blocks(module),
             Self::TerminalDedup => deduplicate_terminal_blocks(module),
-        }
+        };
+        timer.finish("EVM IR", &module.name, self.name(), changed);
+        changed
     }
 
     /// Looks up a pass by command-line name.

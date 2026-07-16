@@ -15,7 +15,7 @@ use solar_codegen::{
     mir::{Module, parse_module},
     pass::{
         DEFAULT_CLEANUP_PIPELINE, DEFAULT_PIPELINE, PASS_REGISTRY, PassInfo, PipelineOptions,
-        lookup_pass, run_default_pipeline_with_options, run_pass as run_codegen_pass,
+        lookup_pass, run_default_pipeline_with_options, run_pass_with_options,
     },
 };
 use solar_data_structures::fmt::{self, FmtIteratorExt};
@@ -86,6 +86,8 @@ pub(crate) struct MirOptArgs {
     /// Path to input file. Extension determines whether it's .sol or .mir.
     #[arg(value_hint = ValueHint::FilePath)]
     input: String,
+    #[arg(skip)]
+    time_passes: bool,
 }
 
 impl MirOptArgs {
@@ -134,6 +136,7 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) -> Result<()
             module,
             PipelineOptions {
                 print_after_each: args.print_after_each,
+                time_passes: args.time_passes,
                 ..PipelineOptions::default()
             },
         );
@@ -144,17 +147,18 @@ fn run_pipeline(module: &mut Module, name: &str, args: &MirOptArgs) -> Result<()
     }
 
     let passes = args.selected_passes();
+    let options = PipelineOptions { time_passes: args.time_passes, ..PipelineOptions::default() };
     if args.print_after_each {
         for pass in &passes {
             if let Some(pass) = *pass {
-                run_codegen_pass(module, pass);
+                run_pass_with_options(module, pass, options);
             }
             print_module(module, name, pass_label(*pass));
         }
     } else {
         for &pass in &passes {
             if let Some(pass) = pass {
-                run_codegen_pass(module, pass);
+                run_pass_with_options(module, pass, options);
             }
         }
         let label = args.pipeline_label(&passes);
@@ -246,7 +250,8 @@ fn process_sol(args: &MirOptArgs) -> Result<(), String> {
 }
 
 /// Entry point for the `mir-opt` subcommand.
-pub(super) fn run(args: MirOptArgs) -> ExitCode {
+pub(super) fn run(mut args: MirOptArgs, time_passes: bool) -> ExitCode {
+    args.time_passes = time_passes;
     // Dispatch on input file extension.
     let ext = Path::new(&args.input).extension().and_then(|s| s.to_str()).unwrap_or("");
     let result = match ext {

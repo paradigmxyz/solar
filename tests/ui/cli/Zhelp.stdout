@@ -45,6 +45,9 @@ Options:
       -Zmir-print-after-each
           Print MIR after every MIR optimization pass during codegen
 
+      -Ztime-passes
+          Print the time spent in each MIR and EVM IR pass
+
       -Zcodegen
           Enable the experimental EVM code generator (MIR lowering and backend).
           
