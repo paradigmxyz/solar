@@ -1291,12 +1291,30 @@ fn fn_state_mutability(kind: TyFnKind, state_mutability: StateMutability) -> Sta
     }
 }
 
+macro_rules! cached_key_type {
+    ($key_type:ty) => {
+        $key_type
+    };
+    ($key_type:ty, $cache_key_type:ty) => {
+        $cache_key_type
+    };
+}
+
+macro_rules! cached_key_expr {
+    ($key:expr) => {
+        $key
+    };
+    ($key:expr, $cache_key:expr) => {
+        $cache_key
+    };
+}
+
 macro_rules! cached {
-    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) -> $value:ty $imp:block)*) => {
+    ($($(#[$attr:meta])* $vis:vis fn $name:ident($gcx:ident: _, $key:ident : $key_type:ty) $(cached_by($cache_key_type:ty, $cache_key:expr))? -> $value:ty $imp:block)*) => {
         #[derive(Default)]
         struct Cache<'gcx> {
             $(
-                $name: FxOnceMap<$key_type, $value>,
+                $name: FxOnceMap<cached_key_type!($key_type $(, $cache_key_type)?), $value>,
             )*
         }
 
@@ -1304,11 +1322,12 @@ macro_rules! cached {
             $(
                 $(#[$attr])*
                 $vis fn $name(self, $key: $key_type) -> $value {
+                    let cache_key = cached_key_expr!($key $(, $cache_key)?);
                     #[cfg(false)]
-                    let _guard = log_cache_query(stringify!($name), &$key);
+                    let _guard = log_cache_query(stringify!($name), &cache_key);
                     #[cfg(false)]
                     let mut hit = true;
-                    let r = cache_insert(&self.cache.$name, $key, |&$key| {
+                    let r = cache_insert(&self.cache.$name, cache_key, |_| {
                         #[cfg(false)]
                         {
                             hit = false;
@@ -1604,7 +1623,14 @@ fn internal_function_members_in_context(
     let (id, current_contract) = key;
     gcx.bump().alloc_vec(members::internal_function_members_in_context(gcx, id, current_contract))
 }
+
+pub(crate) fn eval_const_value_result(gcx: _, expr: &hir::Expr<'_>)
+    cached_by(hir::ExprId, expr.id) -> &'gcx crate::eval::EvalResult
+{
+    gcx.alloc(crate::eval::eval_const(gcx, expr))
 }
+
+} // cached!
 
 fn var_type<'gcx>(gcx: Gcx<'gcx>, var: &'gcx hir::Variable<'gcx>, ty: Ty<'gcx>) -> Ty<'gcx> {
     use hir::DataLocation::*;
