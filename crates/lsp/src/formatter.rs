@@ -1,31 +1,30 @@
-use crate::workspace::load_foundry_document;
 use glob::{MatchOptions, Pattern};
 use normalize_path::NormalizePath;
-use std::{env, io, path::Path, process::Stdio, string::FromUtf8Error, time::Duration};
+use serde::Deserialize;
+use std::{io, path::Path, process::Stdio, string::FromUtf8Error, time::Duration};
 use tokio::{io::AsyncWriteExt, process::Command, time};
 
 const FORMATTER_TIMEOUT: Duration = Duration::from_secs(30);
-const DEFAULT_FOUNDRY_PROFILE: &str = "default";
 
 pub(crate) async fn run(forge: &Path, root: &Path, source: &str) -> Result<String, FormatterError> {
     run_with_timeout(forge, root, source, FORMATTER_TIMEOUT).await
 }
 
-pub(crate) fn is_ignored(path: &Path, root: &Path) -> bool {
-    let profile =
-        env::var("FOUNDRY_PROFILE").unwrap_or_else(|_| DEFAULT_FOUNDRY_PROFILE.to_owned());
-    is_ignored_with_profile(path, root, &profile)
+pub(crate) async fn is_ignored(
+    forge: &Path,
+    path: &Path,
+    root: &Path,
+) -> Result<bool, FormatterError> {
+    let ignores = resolved_formatter_ignores(forge, root, FORMATTER_TIMEOUT).await?;
+    Ok(matches_ignore(path, root, &ignores))
 }
 
-fn is_ignored_with_profile(path: &Path, root: &Path, profile: &str) -> bool {
-    let Ok(document) = load_foundry_document(&root.join("foundry.toml")) else {
-        return false;
-    };
+fn matches_ignore(path: &Path, root: &Path, ignores: &[String]) -> bool {
     let root = root.normalize();
     let path = path.normalize();
     let options = MatchOptions { require_literal_separator: true, ..MatchOptions::new() };
 
-    document.formatter_ignores(profile).iter().any(|ignore| {
+    ignores.iter().any(|ignore| {
         let ignore = root.join(ignore.trim_end_matches(['/', '\\'])).normalize();
         Pattern::new(&ignore.to_string_lossy()).is_ok_and(|pattern| {
             path.ancestors()
@@ -33,6 +32,48 @@ fn is_ignored_with_profile(path: &Path, root: &Path, profile: &str) -> bool {
                 .any(|candidate| pattern.matches_path_with(candidate, options))
         })
     })
+}
+
+async fn resolved_formatter_ignores(
+    forge: &Path,
+    root: &Path,
+    timeout: Duration,
+) -> Result<Vec<String>, FormatterError> {
+    let mut command = Command::new(forge);
+    command
+        .args(["config", "--json", "--root"])
+        .arg(root)
+        .env("FOUNDRY_DISABLE_NIGHTLY_WARNING", "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    let output = time::timeout(timeout, command.output())
+        .await
+        .map_err(|_| FormatterError::ConfigTimeout)??;
+
+    if !output.status.success() {
+        return Err(FormatterError::ConfigFailed {
+            status: output.status.code(),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+        });
+    }
+
+    let config = serde_json::from_slice::<ResolvedForgeConfig>(&output.stdout)
+        .map_err(FormatterError::InvalidConfig)?;
+    Ok(config.fmt.ignore)
+}
+
+#[derive(Deserialize)]
+struct ResolvedForgeConfig {
+    #[serde(default)]
+    fmt: ResolvedFormatterConfig,
+}
+
+#[derive(Default, Deserialize)]
+struct ResolvedFormatterConfig {
+    #[serde(default)]
+    ignore: Vec<String>,
 }
 
 async fn run_with_timeout(
@@ -83,10 +124,16 @@ async fn run_with_timeout(
 pub(crate) enum FormatterError {
     #[error("Forge formatting timed out")]
     Timeout,
+    #[error("Forge config resolution timed out")]
+    ConfigTimeout,
     #[error("failed to run Forge formatter: {0}")]
     Io(#[from] io::Error),
     #[error("Forge formatter failed with status {status:?}: {stderr}")]
     Failed { status: Option<i32>, stderr: String },
+    #[error("Forge config failed with status {status:?}: {stderr}")]
+    ConfigFailed { status: Option<i32>, stderr: String },
+    #[error("Forge returned invalid config: {0}")]
+    InvalidConfig(#[source] serde_json::Error),
     #[error("Forge formatter returned invalid UTF-8: {0}")]
     InvalidUtf8(#[source] FromUtf8Error),
     #[error("Forge formatter returned empty output")]
@@ -103,10 +150,6 @@ mod tests {
     fn foundry_ignore_patterns_match_files_and_directories() {
         let project = TestProject::from_fixture(
             r#"
-            //- /foundry.toml
-            [fmt]
-            ignore = ["src/Exact.sol", "generated/**/*.sol", "vendor/"]
-
             //- /src/Exact.sol
 
             //- /generated/nested/Generated.sol
@@ -116,21 +159,22 @@ mod tests {
             //- /src/Formatted.sol
             "#,
         );
+        let ignores = ["src/Exact.sol", "generated/**/*.sol", "vendor/"].map(str::to_owned);
 
-        assert!(is_ignored(&project.path("/src/Exact.sol"), project.root()));
-        assert!(is_ignored(&project.path("/generated/nested/Generated.sol"), project.root()));
-        assert!(is_ignored(&project.path("/vendor/Nested.sol"), project.root()));
-        assert!(!is_ignored(&project.path("/src/Formatted.sol"), project.root()));
+        assert!(matches_ignore(&project.path("/src/Exact.sol"), project.root(), &ignores));
+        assert!(matches_ignore(
+            &project.path("/generated/nested/Generated.sol"),
+            project.root(),
+            &ignores
+        ));
+        assert!(matches_ignore(&project.path("/vendor/Nested.sol"), project.root(), &ignores));
+        assert!(!matches_ignore(&project.path("/src/Formatted.sol"), project.root(), &ignores));
     }
 
     #[test]
     fn foundry_ignore_patterns_normalize_dot_components() {
         let project = TestProject::from_fixture(
             r#"
-            //- /foundry.toml
-            [fmt]
-            ignore = ["./src/Dot.sol", "src/../src/Parent.sol"]
-
             //- /src/Dot.sol
 
             //- /src/Parent.sol
@@ -138,55 +182,26 @@ mod tests {
             //- /src/Formatted.sol
             "#,
         );
+        let ignores = ["./src/Dot.sol", "src/../src/Parent.sol"].map(str::to_owned);
 
-        assert!(is_ignored(&project.path("/src/Dot.sol"), project.root()));
-        assert!(is_ignored(&project.path("/src/Parent.sol"), project.root()));
-        assert!(!is_ignored(&project.path("/src/Formatted.sol"), project.root()));
-    }
-
-    #[test]
-    fn foundry_ignore_patterns_use_selected_profile_formatter_config() {
-        let project = TestProject::from_fixture(
-            r#"
-            //- /foundry.toml
-            [fmt]
-            ignore = ["src/Root.sol"]
-
-            [profile.default.fmt]
-            ignore = ["src/Default.sol"]
-
-            [profile.ci.fmt]
-            ignore = ["src/Ci.sol"]
-
-            //- /src/Root.sol
-
-            //- /src/Default.sol
-
-            //- /src/Ci.sol
-            "#,
-        );
-
-        assert!(is_ignored_with_profile(&project.path("/src/Ci.sol"), project.root(), "ci"));
-        assert!(!is_ignored_with_profile(&project.path("/src/Root.sol"), project.root(), "ci"));
-        assert!(!is_ignored_with_profile(&project.path("/src/Default.sol"), project.root(), "ci"));
+        assert!(matches_ignore(&project.path("/src/Dot.sol"), project.root(), &ignores));
+        assert!(matches_ignore(&project.path("/src/Parent.sol"), project.root(), &ignores));
+        assert!(!matches_ignore(&project.path("/src/Formatted.sol"), project.root(), &ignores));
     }
 
     #[test]
     fn foundry_ignore_globs_do_not_cross_directories() {
         let project = TestProject::from_fixture(
             r#"
-            //- /foundry.toml
-            [fmt]
-            ignore = ["src/*.sol"]
-
             //- /src/Direct.sol
 
             //- /src/nested/Nested.sol
             "#,
         );
+        let ignores = ["src/*.sol".to_owned()];
 
-        assert!(is_ignored(&project.path("/src/Direct.sol"), project.root()));
-        assert!(!is_ignored(&project.path("/src/nested/Nested.sol"), project.root()));
+        assert!(matches_ignore(&project.path("/src/Direct.sol"), project.root(), &ignores));
+        assert!(!matches_ignore(&project.path("/src/nested/Nested.sol"), project.root(), &ignores));
     }
 
     #[tokio::test(flavor = "current_thread")]

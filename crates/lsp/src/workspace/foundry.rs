@@ -1,41 +1,22 @@
 use serde::Deserialize;
 use solar_config::{EvmVersion, ImportRemapping};
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct FoundryDocument {
-    #[serde(default)]
-    profile: BTreeMap<String, FoundryProfile>,
+    profile: Option<FoundryProfiles>,
     default: Option<FoundryProfile>,
-    #[serde(default)]
-    fmt: FoundryFormatterConfig,
 }
 
 impl FoundryDocument {
-    pub(crate) fn default_profile(mut self) -> FoundryProfile {
-        self.profile.remove("default").or(self.default).unwrap_or_default()
-    }
-
-    pub(crate) fn formatter_ignores(&self, profile: &str) -> &[String] {
-        self.profile(profile)
-            .and_then(|profile| profile.fmt.ignore.as_deref())
-            .or(self.fmt.ignore.as_deref())
-            .unwrap_or(&[])
-    }
-
-    fn profile(&self, profile: &str) -> Option<&FoundryProfile> {
-        self.profile
-            .get(profile)
-            .or_else(|| (profile == "default").then_some(self.default.as_ref()).flatten())
+    pub(crate) fn default_profile(self) -> FoundryProfile {
+        self.profile.and_then(|profiles| profiles.default).or(self.default).unwrap_or_default()
     }
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct FoundryFormatterConfig {
-    ignore: Option<Vec<String>>,
+struct FoundryProfiles {
+    default: Option<FoundryProfile>,
 }
 
 /// A subset of Foundry config relevant to LSP compilation.
@@ -48,8 +29,6 @@ pub(crate) struct FoundryProfile {
     remappings: Vec<ImportRemapping>,
     #[serde(default, with = "crate::serde::optional_display_fromstr")]
     evm_version: Option<EvmVersion>,
-    #[serde(default)]
-    fmt: FoundryFormatterConfig,
 }
 
 impl FoundryProfile {
@@ -113,68 +92,4 @@ fn read_remappings_txt(root: &Path) -> Vec<ImportRemapping> {
         .filter(|line| !line.is_empty())
         .filter_map(|line| line.parse().ok())
         .collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn formatter_ignores_resolve_selected_default_profile() {
-        let document = toml_edit::de::from_str::<FoundryDocument>(
-            r#"
-            [fmt]
-            ignore = ["root.sol"]
-
-            [profile.default.fmt]
-            ignore = ["default.sol"]
-
-            [profile.ci.fmt]
-            ignore = ["ci.sol"]
-
-            [profile.inherit.fmt]
-            line_length = 88
-
-            [profile.clear.fmt]
-            ignore = []
-            "#,
-        )
-        .unwrap();
-
-        assert_eq!(document.formatter_ignores("default"), ["default.sol"]);
-        assert_eq!(document.formatter_ignores("ci"), ["ci.sol"]);
-        assert_eq!(document.formatter_ignores("inherit"), ["root.sol"]);
-        assert!(document.formatter_ignores("clear").is_empty());
-        assert_eq!(document.formatter_ignores("unknown"), ["root.sol"]);
-    }
-
-    #[test]
-    fn formatter_ignores_use_legacy_default_only_without_standard_default() {
-        let legacy = toml_edit::de::from_str::<FoundryDocument>(
-            r#"
-            [fmt]
-            ignore = ["root.sol"]
-
-            [default.fmt]
-            ignore = ["legacy.sol"]
-            "#,
-        )
-        .unwrap();
-        assert_eq!(legacy.formatter_ignores("default"), ["legacy.sol"]);
-
-        let standard = toml_edit::de::from_str::<FoundryDocument>(
-            r#"
-            [fmt]
-            ignore = ["root.sol"]
-
-            [default.fmt]
-            ignore = ["legacy.sol"]
-
-            [profile.default.fmt]
-            line_length = 88
-            "#,
-        )
-        .unwrap();
-        assert_eq!(standard.formatter_ignores("default"), ["root.sol"]);
-    }
 }

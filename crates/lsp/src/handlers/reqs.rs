@@ -35,7 +35,7 @@ pub(crate) fn formatting(
 
     async move {
         let (vfs_path, path, root, forge) = request?;
-        if formatter::is_ignored(&path, &root) {
+        if formatter::is_ignored(&forge, &path, &root).await.map_err(formatter_failed)? {
             return Ok(None);
         }
         let source =
@@ -99,11 +99,14 @@ fn formatter_failed(error: FormatterError) -> ResponseError {
     warn!(%error, "document formatting failed");
     let message = match &error {
         FormatterError::Timeout => "Forge formatting timed out",
+        FormatterError::ConfigTimeout => "Forge config resolution timed out",
         FormatterError::Io(error) if error.kind() == io::ErrorKind::NotFound => {
             "Forge executable was not found"
         }
         FormatterError::Io(_) => "failed to run Forge formatter",
         FormatterError::Failed { .. } => "Forge formatting failed",
+        FormatterError::ConfigFailed { .. } => "Forge config resolution failed",
+        FormatterError::InvalidConfig(_) => "Forge returned invalid config",
         FormatterError::InvalidUtf8(_) => "Forge returned invalid UTF-8",
         FormatterError::EmptyOutput => "Forge formatter returned empty output",
     };
@@ -521,6 +524,7 @@ mod formatting_tests {
     fn formatter_failures_map_to_concise_request_failed_errors() {
         let failures = [
             (FormatterError::Timeout, "Forge formatting timed out"),
+            (FormatterError::ConfigTimeout, "Forge config resolution timed out"),
             (
                 FormatterError::Io(io::Error::new(io::ErrorKind::NotFound, "missing")),
                 "Forge executable was not found",
@@ -531,9 +535,20 @@ mod formatting_tests {
                 "Forge formatting failed",
             ),
             (
+                FormatterError::ConfigFailed { status: Some(1), stderr: "failed".into() },
+                "Forge config resolution failed",
+            ),
+            (
+                FormatterError::InvalidConfig(
+                    serde_json::from_slice::<serde_json::Value>(b"{").unwrap_err(),
+                ),
+                "Forge returned invalid config",
+            ),
+            (
                 FormatterError::InvalidUtf8(String::from_utf8(vec![0xff]).unwrap_err()),
                 "Forge returned invalid UTF-8",
             ),
+            (FormatterError::EmptyOutput, "Forge formatter returned empty output"),
         ];
 
         for (failure, message) in failures {
@@ -572,7 +587,7 @@ mod formatting_tests {
             contract Test {}
             "#,
         );
-        let forge = write_executable(&project, "/fake-forge", "#!/bin/sh\ncat >/dev/null\n");
+        let forge = write_formatter_executable(&project, "/fake-forge", &[], "cat >/dev/null");
         let mut state = formatting_state(&project, &forge, &["/workspace"]);
         let path = project.path("/workspace/Test.sol");
 
@@ -598,15 +613,13 @@ mod formatting_tests {
         );
         let unsaved = "contract Test{string s=\"🚀\";}";
         project.open_file("/workspace/nested/Test.sol", unsaved);
-        let forge = write_executable(
+        let forge = write_formatter_executable(
             &project,
             "/fake-forge",
-            r#"#!/bin/sh
-set -eu
-printf '%s\n' "$@" > "$0.args"
-cat > "$0.stdin"
-printf 'contract Test { string s = "🚀"; }'
-"#,
+            &[],
+            r#"printf '%s\n' "$@" > "$0.args"
+    cat > "$0.stdin"
+    printf 'contract Test { string s = "🚀"; }'"#,
         );
         let mut state = formatting_state(&project, &forge, &["/workspace", "/workspace/nested"]);
         let path = project.path("/workspace/nested/Test.sol");
@@ -648,15 +661,11 @@ printf 'contract Test { string s = "🚀"; }'
         );
         let unsaved = "contract Ignored{uint value;}";
         project.open_file("/workspace/src/Ignored.sol", unsaved);
-        let forge = write_executable(
+        let forge = write_formatter_executable(
             &project,
             "/fake-forge",
-            r#"#!/bin/sh
-set -eu
-if [ "${1-}" = lint ]; then exit 1; fi
-printf '%s\n' "$@" > "$0.called"
-cat
-"#,
+            &["src/Ignored.sol"],
+            "printf '%s\\n' \"$@\" > \"$0.called\"\ncat",
         );
         let mut state = formatting_state(&project, &forge, &["/workspace"]);
         let path = project.path("/workspace/src/Ignored.sol");
@@ -669,6 +678,75 @@ cat
         assert!(!project.path("/fake-forge.called").exists());
     }
 
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn formatting_uses_resolved_forge_ignore_config() {
+        let mut project = TestProject::from_fixture(
+            r#"
+            //- /workspace/foundry.toml
+            [fmt]
+            ignore = ["src/Local.sol"]
+
+            //- /workspace/src/Resolved.sol
+            contract Resolved {}
+            "#,
+        );
+        project.open_file("/workspace/src/Resolved.sol", "contract Resolved{uint value;}");
+        let forge = write_formatter_executable(
+            &project,
+            "/fake-forge",
+            &["src/Resolved.sol"],
+            ": > \"$0.formatted\"\ncat",
+        );
+        let mut state = formatting_state(&project, &forge, &["/workspace"]);
+        let path = project.path("/workspace/src/Resolved.sol");
+
+        let edits = formatting(&mut state, formatting_params(Url::from_file_path(path).unwrap()))
+            .await
+            .unwrap();
+
+        assert_eq!(edits, None);
+        assert!(!project.path("/fake-forge.formatted").exists());
+        assert_eq!(
+            project.read_file("/fake-forge.config-args"),
+            format!("config\n--json\n--root\n{}\n", project.path("/workspace").display())
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn formatting_stops_when_forge_config_resolution_fails() {
+        let mut project = TestProject::from_fixture(
+            r#"
+            //- /workspace/Test.sol
+            contract Test {}
+            "#,
+        );
+        project.open_file("/workspace/Test.sol", "contract Test{}");
+        let forge = write_executable(
+            &project,
+            "/fake-forge",
+            r#"#!/bin/sh
+set -eu
+if [ "${1-}" = lint ]; then exit 1; fi
+if [ "${1-}" = config ]; then printf 'invalid config' >&2; exit 7; fi
+: > "$0.formatted"
+cat
+"#,
+        );
+        let mut state = formatting_state(&project, &forge, &["/workspace"]);
+        let path = project.path("/workspace/Test.sol");
+
+        let error = formatting(&mut state, formatting_params(Url::from_file_path(path).unwrap()))
+            .await
+            .unwrap_err();
+
+        assert_eq!(error.code, ErrorCode::REQUEST_FAILED);
+        assert_eq!(error.message, "Forge config resolution failed");
+        assert!(!project.path("/fake-forge.formatted").exists());
+    }
+
+    #[cfg(unix)]
     #[tokio::test(flavor = "current_thread")]
     async fn formatting_skips_ignored_files_before_reading_contents() {
         let project = TestProject::from_fixture(
@@ -678,8 +756,9 @@ cat
             ignore = ["src/Ignored.sol"]
             "#,
         );
-        let mut state =
-            formatting_state(&project, &project.path("/missing-forge"), &["/workspace"]);
+        let forge =
+            write_formatter_executable(&project, "/fake-forge", &["src/Ignored.sol"], "exit 2");
+        let mut state = formatting_state(&project, &forge, &["/workspace"]);
         let path = project.path("/workspace/src/Ignored.sol");
 
         let edits = formatting(&mut state, formatting_params(Url::from_file_path(path).unwrap()))
@@ -704,15 +783,13 @@ cat
             contract Test {}
             "#,
         );
-        let forge = write_executable(
+        let forge = write_formatter_executable(
             &project,
             "/fake-forge",
-            r#"#!/bin/sh
-set -eu
-printf '%s\n' "$@" > "$0.args"
-cat > "$0.stdin"
-cat "$0.stdin"
-"#,
+            &[],
+            r#"printf '%s\n' "$@" > "$0.args"
+    cat > "$0.stdin"
+    cat "$0.stdin""#,
         );
         let mut state = formatting_state(&project, &forge, &["/workspace"]);
         let path = project.path("/outside/src/Test.sol");
@@ -739,17 +816,15 @@ cat "$0.stdin"
             "#,
         );
         project.open_file("/workspace/Test.sol", "contract Test{}");
-        let forge = write_executable(
+        let forge = write_formatter_executable(
             &project,
             "/fake-forge",
-            r#"#!/bin/sh
-set -eu
-cat > "$0.stdin"
-: > "$0.ready.tmp"
-mv "$0.ready.tmp" "$0.ready"
-while [ ! -e "$0.release" ]; do sleep 0.01; done
-printf 'contract Test {}'
-"#,
+            &[],
+            r#"cat > "$0.stdin"
+    : > "$0.ready.tmp"
+    mv "$0.ready.tmp" "$0.ready"
+    while [ ! -e "$0.release" ]; do sleep 0.01; done
+    printf 'contract Test {}'"#,
         );
         let mut state = formatting_state(&project, &forge, &["/workspace"]);
         let uri = Url::from_file_path(project.path("/workspace/Test.sol")).unwrap();
@@ -796,6 +871,34 @@ printf 'contract Test {}'
         state.config = Arc::new(config);
         *state.vfs.write() = project.vfs();
         state
+    }
+
+    #[cfg(unix)]
+    fn write_formatter_executable(
+        project: &TestProject,
+        path: &str,
+        ignores: &[&str],
+        formatter: &str,
+    ) -> PathBuf {
+        let config = serde_json::json!({ "fmt": { "ignore": ignores } });
+        let contents = format!(
+            r#"#!/bin/sh
+set -eu
+case "${{1-}}" in
+lint)
+    exit 1
+    ;;
+config)
+    printf '%s\n' "$@" > "$0.config-args"
+    printf '%s' '{config}'
+    ;;
+fmt)
+    {formatter}
+    ;;
+esac
+"#
+        );
+        write_executable(project, path, &contents)
     }
 
     #[cfg(unix)]
