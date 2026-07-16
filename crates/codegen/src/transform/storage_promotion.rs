@@ -557,9 +557,7 @@ impl StorageScalarPromoter {
             }
         }
 
-        let instruction_count = func.blocks[preheader].instructions.len();
-        for pos in 0..instruction_count {
-            let inst_id = func.blocks[preheader].instructions[pos];
+        for (pos, inst_id) in func.blocks[preheader].instructions.iter().copied().enumerate() {
             if let InstKind::SLoad(load_slot) = &func.instructions[inst_id].kind {
                 let alias = func.storage_alias(inst_id, *load_slot);
                 if let Some(&(temp_addr, init_pos)) = temps.get(&alias)
@@ -693,17 +691,12 @@ impl StorageScalarPromoter {
                     self.stats.stores_promoted += 1;
                 }
 
-                let mut rewrite = false;
-                let instruction_count = func.blocks[candidate.preheader].instructions.len();
-                for index in 0..instruction_count {
-                    let inst_id = func.blocks[candidate.preheader].instructions[index];
-                    if inst_id == init_store {
-                        rewrite = true;
-                        continue;
-                    }
-                    if !rewrite {
-                        continue;
-                    }
+                let init_pos = func.blocks[candidate.preheader]
+                    .instructions
+                    .iter()
+                    .position(|&inst_id| inst_id == init_store)
+                    .expect("candidate init store should be in the preheader");
+                for &inst_id in &func.blocks[candidate.preheader].instructions[init_pos + 1..] {
                     if let InstKind::SLoad(load_slot) = &func.instructions[inst_id].kind
                         && func.storage_alias(inst_id, *load_slot) == candidate.slot
                     {

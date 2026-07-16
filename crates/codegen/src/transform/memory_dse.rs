@@ -420,51 +420,30 @@ impl MemoryStoreEliminator {
         let mut dead = DenseBitSet::new_empty(func.instructions.len());
 
         for block_id in func.blocks.indices() {
-            let mut index = 0;
-            while index + 1 < func.blocks[block_id].instructions.len() {
-                let codecopy = func.blocks[block_id].instructions[index];
-                let load = func.blocks[block_id].instructions[index + 1];
-                let InstKind::CodeCopy(dest, src, size) = func.instructions[codecopy].kind else {
-                    index += 1;
-                    continue;
-                };
-                if func.value_u64(size) != Some(32) {
-                    index += 1;
-                    continue;
-                }
-                let Some(key) = Self::immutable_copy_key(func, src) else {
-                    index += 1;
-                    continue;
-                };
-                let InstKind::MLoad(load_addr) = func.instructions[load].kind else {
-                    index += 1;
-                    continue;
-                };
-                if Self::mem_addr_key(func, dest) != Self::mem_addr_key(func, load_addr) {
-                    index += 1;
-                    continue;
-                }
-                let Some(&loaded_value) = inst_results.get(&load) else {
-                    index += 1;
-                    continue;
-                };
-
-                if let Some(cached_copy) = cached.get(&key).copied()
-                    && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
+            for (index, window) in func.blocks[block_id].instructions.windows(2).enumerate() {
+                let [codecopy, load] = *window else { unreachable!() };
+                if let InstKind::CodeCopy(dest, src, size) = func.instructions[codecopy].kind
+                    && func.value_u64(size) == Some(32)
+                    && let Some(key) = Self::immutable_copy_key(func, src)
+                    && let InstKind::MLoad(load_addr) = func.instructions[load].kind
+                    && Self::mem_addr_key(func, dest) == Self::mem_addr_key(func, load_addr)
+                    && let Some(&loaded_value) = inst_results.get(&load)
                 {
-                    replacements.insert(loaded_value, cached_copy.value);
-                    func.instructions[codecopy].kind = InstKind::MStore(dest, cached_copy.value);
-                    dead.insert(load);
-                    self.eliminated_count += 1;
-                    index += 1;
-                    continue;
+                    if let Some(cached_copy) = cached.get(&key).copied()
+                        && Self::copy_dominates(cfg.dominators(), cached_copy, block_id, index)
+                    {
+                        replacements.insert(loaded_value, cached_copy.value);
+                        func.instructions[codecopy].kind =
+                            InstKind::MStore(dest, cached_copy.value);
+                        dead.insert(load);
+                        self.eliminated_count += 1;
+                    } else {
+                        cached.insert(
+                            key,
+                            CachedImmutableCopy { block: block_id, index, value: loaded_value },
+                        );
+                    }
                 }
-
-                cached.insert(
-                    key,
-                    CachedImmutableCopy { block: block_id, index, value: loaded_value },
-                );
-                index += 1;
             }
         }
 
@@ -844,14 +823,12 @@ impl MemoryStoreEliminator {
         scratch.replacements.clear();
         scratch.dead.clear();
 
-        let mut index = 0;
-        while index < func.blocks[block_id].instructions.len() {
+        for index in 0..func.blocks[block_id].instructions.len() {
             let inst_id = func.blocks[block_id].instructions[index];
             match &func.instructions[inst_id].kind {
                 InstKind::MStore(addr, value) => {
                     let Some(key) = Self::mem_addr_key(func, *addr) else {
                         scratch.stored_words.clear();
-                        index += 1;
                         continue;
                     };
                     Self::remove_overlapping_map(&mut scratch.stored_words, key);
@@ -863,11 +840,9 @@ impl MemoryStoreEliminator {
                     let Some(bytes) =
                         Self::constant_memory_bytes(func, &scratch.stored_words, *offset, *size)
                     else {
-                        index += 1;
                         continue;
                     };
                     let Some(&result) = inst_results.get(&inst_id) else {
-                        index += 1;
                         continue;
                     };
                     let hash = keccak256(&bytes);
@@ -883,7 +858,6 @@ impl MemoryStoreEliminator {
                 }
                 _ => {}
             }
-            index += 1;
         }
 
         if scratch.dead.is_empty() {
