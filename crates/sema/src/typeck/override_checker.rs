@@ -254,7 +254,7 @@ impl<'gcx> OverrideGraph<'gcx> {
 /// Reference: <https://en.wikipedia.org/wiki/Biconnected_component#Pseudocode>
 struct CutVertexFinder<'a, 'gcx> {
     graph: &'a OverrideGraph<'gcx>,
-    visited: Vec<bool>,
+    visited: DenseBitSet<usize>,
     depths: Vec<i32>,
     low: Vec<i32>,
     parent: Vec<i32>,
@@ -265,7 +265,7 @@ impl<'a, 'gcx> CutVertexFinder<'a, 'gcx> {
     fn find(graph: &'a OverrideGraph<'gcx>) -> FxHashSet<OverrideProxy> {
         let mut finder = Self {
             graph,
-            visited: vec![false; graph.num_nodes],
+            visited: DenseBitSet::new_empty(graph.num_nodes),
             depths: vec![-1; graph.num_nodes],
             low: vec![-1; graph.num_nodes],
             parent: vec![-1; graph.num_nodes],
@@ -276,7 +276,7 @@ impl<'a, 'gcx> CutVertexFinder<'a, 'gcx> {
     }
 
     fn run(&mut self, u: usize, depth: i32) {
-        self.visited[u] = true;
+        self.visited.insert(u);
         self.depths[u] = depth;
         self.low[u] = depth;
 
@@ -284,7 +284,7 @@ impl<'a, 'gcx> CutVertexFinder<'a, 'gcx> {
             self.graph.edges.get(&u).map(|s| s.into_iter().collect()).unwrap_or_default();
 
         for v in neighbors {
-            if !self.visited[v] {
+            if !self.visited.contains(v) {
                 self.parent[v] = u as i32;
                 self.run(v, depth + 1);
 
