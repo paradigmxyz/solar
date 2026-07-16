@@ -20,6 +20,7 @@ use solar_data_structures::{
 pub(crate) struct StorageStoreEliminator {
     /// Number of storage stores eliminated.
     pub eliminated_count: usize,
+    alias: Option<AliasAnalysis>,
 }
 
 struct RunState {
@@ -56,6 +57,7 @@ impl StorageStoreEliminator {
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        self.alias = Some(AliasAnalysis::new(func));
 
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
@@ -92,7 +94,7 @@ impl StorageStoreEliminator {
         later_writes: &mut FxHashSet<StorageAlias>,
         dead: &mut DenseBitSet<InstId>,
     ) {
-        let aa = AliasAnalysis;
+        let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
         later_writes.clear();
         dead.clear();
 
@@ -106,16 +108,16 @@ impl StorageStoreEliminator {
                         continue;
                     }
 
-                    Self::remove_aliasing_set(&aa, later_writes, alias);
+                    Self::remove_aliasing_set(aa, later_writes, alias);
                     later_writes.insert(alias);
                 }
                 InstKind::SLoad(slot) => {
                     let alias = aa.storage_alias(func, inst_id, *slot);
-                    Self::remove_aliasing_set(&aa, later_writes, alias);
+                    Self::remove_aliasing_set(aa, later_writes, alias);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
-                    Self::apply_reverse_effects(&aa, &effects, later_writes);
+                    Self::apply_reverse_effects(aa, &effects, later_writes);
                 }
             }
         }
@@ -134,7 +136,7 @@ impl StorageStoreEliminator {
         stored_values: &mut FxHashMap<StorageAlias, ValueId>,
         dead: &mut DenseBitSet<InstId>,
     ) {
-        let aa = AliasAnalysis;
+        let aa = self.alias.as_ref().expect("storage DSE alias snapshot is initialized");
         stored_values.clear();
         dead.clear();
 
@@ -148,12 +150,12 @@ impl StorageStoreEliminator {
                         continue;
                     }
 
-                    Self::remove_aliasing_map(&aa, stored_values, alias);
+                    Self::remove_aliasing_map(aa, stored_values, alias);
                     stored_values.insert(alias, *value);
                 }
                 _ => {
                     let effects = aa.instruction_mod_ref(func, inst_id);
-                    Self::apply_forward_writes(&aa, &effects, stored_values);
+                    Self::apply_forward_writes(aa, &effects, stored_values);
                 }
             }
         }

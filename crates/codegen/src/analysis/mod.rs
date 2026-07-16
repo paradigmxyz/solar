@@ -11,6 +11,9 @@ pub use alias::{
     MemoryBase, MemoryLocation, ModRef,
 };
 
+mod memory_summary;
+pub use memory_summary::{FunctionMemorySummary, MemoryCallSummaries};
+
 mod cfg;
 pub(crate) use cfg::{CfgInfo, DominatorTree};
 

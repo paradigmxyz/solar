@@ -38,11 +38,11 @@
 use crate::{
     analysis::{
         Access, AddressSpace, AliasAnalysis, CfgInfo, DominatorTree, Location, LocationSize,
-        MemoryLocation,
+        MemoryCallSummaries, MemoryLocation,
     },
     mir::{
-        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, SliceLocation,
-        StorageAlias, Value, ValueId, utils as mir_utils,
+        BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, Module,
+        SliceLocation, StorageAlias, Value, ValueId, utils as mir_utils,
     },
     pass::FunctionPass,
 };
@@ -51,13 +51,15 @@ use solar_data_structures::{
     bit_set::{DenseBitSet, GrowableBitSet},
     map::FxHashMap,
 };
-use std::cmp::Ordering;
+use std::{cmp::Ordering, sync::Arc};
 
 /// Common Subexpression Elimination pass.
 #[derive(Debug, Default)]
 pub(crate) struct CommonSubexprEliminator {
     /// Number of instructions eliminated.
     pub eliminated_count: usize,
+    alias: Option<AliasAnalysis>,
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
 }
 
 /// Function pass for local common subexpression elimination.
@@ -66,6 +68,17 @@ pub(crate) struct CsePass;
 impl FunctionPass for CsePass {
     fn run_on_function(&mut self, func: &mut Function) -> bool {
         CommonSubexprEliminator::new().run_to_fixpoint(func) != 0
+    }
+
+    fn run_on_module(&mut self, module: &mut Module) -> bool {
+        let summaries = Arc::new(MemoryCallSummaries::new(module));
+        let mut changed = false;
+        for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
+            changed |= CommonSubexprEliminator::with_call_summaries(Arc::clone(&summaries))
+                .run_to_fixpoint(func)
+                != 0;
+        }
+        changed
     }
 }
 
@@ -176,18 +189,36 @@ impl CommonSubexprEliminator {
         Self::default()
     }
 
+    fn with_call_summaries(summaries: Arc<MemoryCallSummaries>) -> Self {
+        Self { call_summaries: Some(summaries), ..Self::default() }
+    }
+
+    fn refresh_alias(&mut self, func: &Function) {
+        self.alias = Some(match &self.call_summaries {
+            Some(summaries) => AliasAnalysis::with_call_summaries(func, Arc::clone(summaries)),
+            None => AliasAnalysis::new(func),
+        });
+    }
+
+    fn alias(&self) -> &AliasAnalysis {
+        self.alias.as_ref().expect("CSE alias snapshot is initialized")
+    }
+
     fn run_with_cfg(&mut self, func: &mut Function, cfg: &CfgInfo) -> usize {
         self.eliminated_count = 0;
 
+        self.refresh_alias(func);
         self.sink_redundant_phi_expressions(func, cfg);
 
         // Neither the global nor the local pass allocates values, so the map stays valid.
         let inst_results = func.inst_results();
+        self.refresh_alias(func);
         self.process_global_pure(func, &inst_results, cfg);
 
         // Process each block independently (local CSE)
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         for block_id in block_ids {
+            self.refresh_alias(func);
             self.process_block(func, block_id, &inst_results);
         }
 
@@ -681,10 +712,10 @@ impl CommonSubexprEliminator {
             InstKind::SliceLen(slice) => Some(ExprKey::SliceLen(operand(*slice))),
 
             InstKind::SLoad(slot) => Some(ExprKey::SLoad(
-                AliasAnalysis.storage_alias_after_replacements(func, inst_id, *slot, replacements),
+                self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
             )),
             InstKind::TLoad(slot) => Some(ExprKey::TLoad(
-                AliasAnalysis.storage_alias_after_replacements(func, inst_id, *slot, replacements),
+                self.alias().storage_alias_after_replacements(func, inst_id, *slot, replacements),
             )),
 
             InstKind::SelfBalance => Some(ExprKey::SelfBalance),
@@ -724,7 +755,7 @@ impl CommonSubexprEliminator {
         clobbers: &mut Vec<Clobber>,
     ) {
         let effects =
-            AliasAnalysis.instruction_mod_ref_with_replacements(func, inst_id, replacements);
+            self.alias().instruction_mod_ref_with_replacements(func, inst_id, replacements);
         for &write in effects.writes() {
             clobbers.push(match write {
                 Access::Location(Location::Memory(location)) => Clobber::Memory(Some(location)),
@@ -746,9 +777,11 @@ impl CommonSubexprEliminator {
             Clobber::Memory(write) => self.invalidate_memory(expr_cache, write),
             Clobber::Storage(alias) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::SLoad(cached) => !AliasAnalysis
-                        .alias(Location::Storage(*cached), Location::Storage(alias))
-                        .may_alias(),
+                    ExprKey::SLoad(cached) => !AliasAnalysis::alias_locations(
+                        Location::Storage(*cached),
+                        Location::Storage(alias),
+                    )
+                    .may_alias(),
                     _ => true,
                 });
             }
@@ -757,9 +790,11 @@ impl CommonSubexprEliminator {
             }
             Clobber::Transient(alias) => {
                 expr_cache.retain(|key, _| match key {
-                    ExprKey::TLoad(cached) => !AliasAnalysis
-                        .alias(Location::Transient(*cached), Location::Transient(alias))
-                        .may_alias(),
+                    ExprKey::TLoad(cached) => !AliasAnalysis::alias_locations(
+                        Location::Transient(*cached),
+                        Location::Transient(alias),
+                    )
+                    .may_alias(),
                     _ => true,
                 });
             }
@@ -778,9 +813,9 @@ impl CommonSubexprEliminator {
         write: Option<MemRangeKey>,
     ) {
         expr_cache.retain(|key, _| match key {
-            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => {
-                write.is_some_and(|write| !AliasAnalysis.memory_alias(*read, write).may_alias())
-            }
+            ExprKey::MLoad(read) | ExprKey::Keccak256(read) => write.is_some_and(|write| {
+                !AliasAnalysis::memory_alias_locations(*read, write).may_alias()
+            }),
             ExprKey::MappingSlotMemory(..) => false,
             _ => true,
         });
@@ -868,7 +903,7 @@ impl CommonSubexprEliminator {
         addr: ValueId,
         size: LocationSize,
     ) -> Option<MemRangeKey> {
-        AliasAnalysis.memory_location(func, inst_id, addr, size)
+        self.alias().memory_location(func, inst_id, addr, size)
     }
 
     fn fmp_range_key() -> MemRangeKey {

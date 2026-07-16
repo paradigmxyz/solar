@@ -16,13 +16,14 @@
 //! - functions observing `msize` are skipped: eliding a bump changes the high-water mark.
 
 use crate::{
-    analysis::CfgInfo,
+    analysis::{AliasAnalysis, CfgInfo, MemoryCallSummaries},
     memory::EvmMemoryLayout,
     mir::{BlockId, Function, Immediate, InstId, InstKind, Module, Terminator, Value, ValueId},
     pass::ModulePass,
 };
 use alloy_primitives::U256;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use std::sync::Arc;
 
 /// Pass that places provably local allocations statically.
 pub(crate) struct StaticAllocPass;
@@ -44,12 +45,14 @@ impl ModulePass for StaticAllocPass {
             .max()
             .unwrap_or(EvmMemoryLayout::HEAP_START);
 
+        let summaries = Arc::new(MemoryCallSummaries::new(module));
         let mut changed = false;
         for func in module.functions.iter_mut() {
             if !is_entry(func) || has_msize(func) {
                 continue;
             }
-            changed |= run_on_entry(func, shadow);
+            let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
+            changed |= run_on_entry(func, shadow, &aa);
         }
         changed
     }
@@ -61,9 +64,9 @@ fn is_entry(func: &Function) -> bool {
         && (func.selector.is_some() || func.attributes.is_receive || func.attributes.is_fallback)
 }
 
-fn run_on_entry(func: &mut Function, shadow: u64) -> bool {
+fn run_on_entry(func: &mut Function, shadow: u64, aa: &AliasAnalysis) -> bool {
     let mut changed = false;
-    for cand in eligible_static_allocations(func) {
+    for cand in eligible_static_allocations(func, aa) {
         changed |= apply_candidate(func, &cand, shadow);
     }
     changed
@@ -80,7 +83,10 @@ pub(crate) struct StaticAllocCandidate {
 
 /// Returns constant-size, non-escaping allocations that the backend may place
 /// in an entry-local static region.
-pub(crate) fn eligible_static_allocations(func: &Function) -> Vec<StaticAllocCandidate> {
+pub(crate) fn eligible_static_allocations(
+    func: &Function,
+    aa: &AliasAnalysis,
+) -> Vec<StaticAllocCandidate> {
     if !is_entry(func) || has_msize(func) {
         return Vec::new();
     }
@@ -107,7 +113,7 @@ pub(crate) fn eligible_static_allocations(func: &Function) -> Vec<StaticAllocCan
                 continue;
             }
             let candidate = StaticAllocCandidate { block, alloc, ptr: inst_results[&alloc], size };
-            if candidate_uses_are_safe(func, &candidate) {
+            if !aa.value_escapes(func, candidate.ptr) && candidate_uses_are_safe(func, &candidate) {
                 candidates.push(candidate);
             }
         }

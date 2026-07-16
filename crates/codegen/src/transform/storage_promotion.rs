@@ -15,7 +15,7 @@
 //! - leave loop-variant mapping/array slots in storage
 
 use crate::{
-    analysis::{AliasAnalysis, Location, Loop, LoopAnalyzer},
+    analysis::{AliasAnalysis, Loop, LoopAnalyzer},
     memory::EvmMemoryLayout,
     mir::{
         BlockId, Function, Immediate, InstId, InstKind, Instruction, MirType, StorageAlias,
@@ -882,7 +882,7 @@ impl StorageScalarPromoter {
         value: ValueId,
         loop_data: &Loop,
     ) -> Option<StorageAlias> {
-        let alias = AliasAnalysis.storage_alias_for_value(func, value);
+        let alias = AliasAnalysis::storage_alias_for_value_at(func, value);
         if let Some(base) = alias.symbolic_base()
             && self.value_defined_in_loop(func, base, loop_data)
         {
@@ -907,11 +907,13 @@ impl StorageScalarPromoter {
     }
 
     fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
-        AliasAnalysis.storage_alias(func, inst_id, slot)
+        AliasAnalysis::storage_alias_at(func, inst_id, slot)
     }
 
     fn storage_may_alias(&self, first: StorageAlias, second: StorageAlias) -> bool {
-        AliasAnalysis.alias(Location::Storage(first), Location::Storage(second)).may_alias()
+        // Storage-only aliasing does not depend on pointer provenance, but the
+        // shared analysis still owns the comparison API.
+        first == second || first.may_alias(second)
     }
 }
 

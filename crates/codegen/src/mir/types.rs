@@ -40,14 +40,14 @@ pub enum MemoryObjectLayout {
     /// A dynamically sized array with the given element stride in words.
     DynamicArray {
         /// Number of logical words occupied by one inline element.
-        element_words: u64,
+        element_words: u32,
     },
     /// A fixed-size array.
     FixedArray {
         /// Number of elements.
         len: u64,
         /// Number of logical words occupied by one inline element.
-        element_words: u64,
+        element_words: u32,
     },
     /// A struct with one logical word per direct field.
     Struct {

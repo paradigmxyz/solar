@@ -238,7 +238,7 @@ impl<'gcx> Lowerer<'gcx> {
     /// Returns the memory offset.
     pub(crate) fn alloc_local_memory(&mut self, var_id: VariableId) -> u64 {
         let offset = self.next_local_memory_offset;
-        self.next_local_memory_offset += 32; // Each slot is 32 bytes
+        self.next_local_memory_offset += EvmMemoryLayout::WORD_SIZE;
         self.local_memory_slots.insert(var_id, offset);
         offset
     }
@@ -255,9 +255,9 @@ impl<'gcx> Lowerer<'gcx> {
         offset: u64,
     ) -> ValueId {
         if self.lowering_internal_function {
-            let header_size = 64;
-            let arg_size = (builder.func().params.len() as u64) * 32;
-            let return_size = (builder.func().returns.len() as u64) * 32;
+            let header_size = EvmMemoryLayout::INTERNAL_FRAME_HEADER_SIZE;
+            let arg_size = (builder.func().params.len() as u64) * EvmMemoryLayout::WORD_SIZE;
+            let return_size = (builder.func().returns.len() as u64) * EvmMemoryLayout::WORD_SIZE;
             let local_offset = offset.saturating_sub(EvmMemoryLayout::HEAP_START);
             builder.internal_frame_addr(header_size + arg_size + return_size + local_offset)
         } else {
@@ -850,7 +850,7 @@ impl<'gcx> Lowerer<'gcx> {
                     let field_tys = self.gcx.struct_field_types(struct_id);
 
                     // Allocate memory for the struct
-                    let struct_size = (num_fields as u64) * 32;
+                    let struct_size = (num_fields as u64) * EvmMemoryLayout::WORD_SIZE;
                     let struct_ptr = self.allocate_memory_object(
                         &mut builder,
                         struct_size,
@@ -1091,7 +1091,8 @@ impl<'gcx> Lowerer<'gcx> {
                 let offset = self.alloc_local_memory(ret_id);
                 let offset_val = self.local_memory_addr(&mut builder, offset);
                 if matches!(ret_ty.peel_refs().kind, TyKind::Struct(_)) {
-                    let struct_size = self.calculate_memory_words_for_ty(ret_ty) * 32;
+                    let struct_size =
+                        self.calculate_memory_words_for_ty(ret_ty) * EvmMemoryLayout::WORD_SIZE;
                     let struct_ptr = self.allocate_memory_object(
                         &mut builder,
                         struct_size,
@@ -1253,7 +1254,7 @@ impl<'gcx> Lowerer<'gcx> {
         let word = match source {
             AbiParamSource::ExternalCalldata => {
                 // Runtime ABI encoding: selector (4 bytes) + one head word per parameter.
-                let offset = builder.imm_u64(4 + arg_index * 32);
+                let offset = builder.imm_u64(4 + arg_index * EvmMemoryLayout::WORD_SIZE);
                 builder.calldataload(offset)
             }
             AbiParamSource::ConstructorMemory => {

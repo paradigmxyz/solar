@@ -53,6 +53,7 @@ pub(crate) struct LoopOptimizer {
     /// Maximum number of instructions hoisted from one loop.
     max_licm_hoisted_insts: usize,
     stats: LoopOptStats,
+    alias: Option<AliasAnalysis>,
 }
 
 impl Default for LoopOptimizer {
@@ -61,6 +62,7 @@ impl Default for LoopOptimizer {
             min_licm_profit: 0,
             max_licm_hoisted_insts: usize::MAX,
             stats: LoopOptStats::default(),
+            alias: None,
         }
     }
 }
@@ -83,13 +85,14 @@ impl FunctionPass for LicmPass {
 
 impl LoopOptimizer {
     fn with_limits(min_licm_profit: u16, max_licm_hoisted_insts: usize) -> Self {
-        Self { min_licm_profit, max_licm_hoisted_insts, stats: LoopOptStats::default() }
+        Self { min_licm_profit, max_licm_hoisted_insts, stats: LoopOptStats::default(), alias: None }
     }
 
     /// Runs loop-invariant code motion on a function.
     pub(crate) fn optimize(&mut self, func: &mut Function) -> &LoopOptStats {
         self.stats = LoopOptStats::default();
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::StorageAndTransient);
+        self.alias = Some(AliasAnalysis::new(func));
 
         let mut analyzer = LoopAnalyzer::new();
         let loop_info = analyzer.analyze(func);
@@ -107,6 +110,10 @@ impl LoopOptimizer {
         }
 
         &self.stats
+    }
+
+    fn alias(&self) -> &AliasAnalysis {
+        self.alias.as_ref().expect("loop optimizer alias snapshot is initialized")
     }
 
     fn apply_licm(&mut self, func: &mut Function, loop_data: &Loop, analyzer: &LoopAnalyzer) {
@@ -457,7 +464,7 @@ impl LoopOptimizer {
         load_addr: ValueId,
         load_width: Option<u64>,
     ) -> bool {
-        let aa = AliasAnalysis;
+        let aa = self.alias();
         for block_id in &ctx.loop_data.blocks {
             for &inst_id in &func.blocks[block_id].instructions {
                 match func.instructions[inst_id].kind {
@@ -497,7 +504,7 @@ impl LoopOptimizer {
         load_slot: ValueId,
         space: StorageSpace,
     ) -> bool {
-        let aa = AliasAnalysis;
+        let aa = self.alias();
         let Some(load_alias) =
             self.storage_alias_for_loop_value(func, load_inst, load_slot, ctx.loop_data)
         else {
@@ -537,7 +544,7 @@ impl LoopOptimizer {
                             StorageSpace::Persistent => Location::Storage(load_alias),
                             StorageSpace::Transient => Location::Transient(load_alias),
                         };
-                        if aa.instruction_mod_ref(func, inst_id).may_write(&aa, location) {
+                        if aa.instruction_mod_ref(func, inst_id).may_write(aa, location) {
                             return true;
                         }
                     }
@@ -559,7 +566,7 @@ impl LoopOptimizer {
         write_block: BlockId,
     ) -> bool {
         let Some(load_width) = load_width else { return true };
-        let aa = AliasAnalysis;
+        let aa = self.alias();
         if let (Some(load), Some(write)) = (
             aa.bare_memory_location(func, load_addr, LocationSize::Const(load_width)),
             aa.bare_memory_location(func, write_addr, LocationSize::Const(write_width)),
@@ -678,7 +685,7 @@ impl LoopOptimizer {
         value: ValueId,
         loop_data: &Loop,
     ) -> Option<StorageAlias> {
-        let alias = AliasAnalysis.storage_alias(func, inst_id, value);
+        let alias = self.alias().storage_alias(func, inst_id, value);
         if let Some(base) = alias.symbolic_base()
             && self.value_defined_in_loop(func, base, loop_data)
         {

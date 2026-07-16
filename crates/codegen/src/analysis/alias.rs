@@ -7,6 +7,7 @@
 //! and exposes the memory, storage, and transient-storage effects of each
 //! instruction.
 
+use super::MemoryCallSummaries;
 use crate::{
     memory::EvmMemoryLayout,
     mir::{
@@ -15,8 +16,8 @@ use crate::{
     },
 };
 use smallvec::SmallVec;
-use solar_data_structures::map::FxHashMap;
-use std::collections::VecDeque;
+use solar_data_structures::map::{FxHashMap, FxHashSet};
+use std::{cell::RefCell, collections::VecDeque, sync::Arc};
 
 /// An address space tracked by ModRef analysis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -318,11 +319,128 @@ fn add_storage_range(effects: &mut ModRef, base: StorageAlias, slots: u64, write
     }
 }
 
-/// Shared control-flow-aware provenance, alias, and ModRef analysis.
 #[derive(Clone, Copy, Debug, Default)]
-pub struct AliasAnalysis;
+struct AllocationProvenance {
+    dynamic: bool,
+    unique: bool,
+}
+
+#[derive(Debug, Default)]
+struct PointerProvenance {
+    allocations: FxHashMap<InstId, AllocationProvenance>,
+    addresses: RefCell<FxHashMap<ValueId, Option<MemoryAddress>>>,
+    visiting: RefCell<FxHashSet<ValueId>>,
+}
+
+impl PointerProvenance {
+    fn new(
+        func: &Function,
+        call_summaries: Option<&MemoryCallSummaries>,
+        may_reset_fmp: impl Fn(&Function, InstId, Option<&MemoryCallSummaries>) -> bool,
+    ) -> Self {
+        if func.blocks.is_empty() {
+            return Self::default();
+        }
+        let cyclic = cyclic_blocks(func);
+        let block_resets: Vec<_> = func
+            .blocks
+            .iter()
+            .map(|block| {
+                block.instructions.iter().any(|&inst| may_reset_fmp(func, inst, call_summaries))
+            })
+            .collect();
+
+        // `poisoned[block]` means at least one path into the block may have
+        // recycled the FMP. The monotone OR lattice handles joins and loops.
+        let mut reachable = vec![false; func.blocks.len()];
+        let mut poisoned = vec![false; func.blocks.len()];
+        let mut worklist = VecDeque::from([func.entry_block]);
+        reachable[func.entry_block.index()] = true;
+        while let Some(block) = worklist.pop_front() {
+            let out = poisoned[block.index()] || block_resets[block.index()];
+            let Some(terminator) = &func.blocks[block].terminator else { continue };
+            for successor in terminator.successors() {
+                let index = successor.index();
+                let changed = !reachable[index] || (out && !poisoned[index]);
+                reachable[index] = true;
+                poisoned[index] |= out;
+                if changed {
+                    worklist.push_back(successor);
+                }
+            }
+        }
+
+        let mut allocations = FxHashMap::default();
+        for (block_id, block) in func.blocks.iter_enumerated() {
+            let mut reset = poisoned[block_id.index()];
+            for &inst_id in &block.instructions {
+                if matches!(
+                    func.instructions[inst_id].kind,
+                    InstKind::Alloc { .. } | InstKind::AbiEncode { .. }
+                ) {
+                    allocations.insert(
+                        inst_id,
+                        AllocationProvenance {
+                            dynamic: cyclic[block_id.index()],
+                            unique: reachable[block_id.index()]
+                                && !cyclic[block_id.index()]
+                                && !reset,
+                        },
+                    );
+                }
+                reset |= may_reset_fmp(func, inst_id, call_summaries);
+            }
+        }
+
+        Self {
+            allocations,
+            addresses: RefCell::new(FxHashMap::default()),
+            visiting: RefCell::new(FxHashSet::default()),
+        }
+    }
+}
+
+/// Shared cached, control-flow-aware provenance, alias, and ModRef analysis.
+///
+/// One instance is an immutable snapshot of a function. Recompute it after a
+/// transform mutates definitions or CFG edges.
+#[derive(Debug)]
+pub struct AliasAnalysis {
+    provenance: PointerProvenance,
+    call_summaries: Option<Arc<MemoryCallSummaries>>,
+}
 
 impl AliasAnalysis {
+    /// Computes a function-local snapshot with conservative internal calls.
+    #[must_use]
+    pub fn new(func: &Function) -> Self {
+        Self::with_optional_summaries(func, None)
+    }
+
+    /// Computes a snapshot using module-level internal-call summaries.
+    #[must_use]
+    pub fn with_call_summaries(func: &Function, summaries: Arc<MemoryCallSummaries>) -> Self {
+        Self::with_optional_summaries(func, Some(summaries))
+    }
+
+    /// Drops value-address memoization after instruction operands are rewritten.
+    pub(crate) fn clear_cached_addresses(&self) {
+        self.provenance.addresses.borrow_mut().clear();
+        self.provenance.visiting.borrow_mut().clear();
+    }
+
+    fn with_optional_summaries(
+        func: &Function,
+        call_summaries: Option<Arc<MemoryCallSummaries>>,
+    ) -> Self {
+        let provenance = PointerProvenance::new(
+            func,
+            call_summaries.as_deref(),
+            Self::instruction_may_reset_fmp_with_summaries,
+        );
+        Self { provenance, call_summaries }
+    }
+
     /// Canonicalizes a MIR value used as a memory address.
     #[must_use]
     pub fn memory_address(&self, func: &Function, value: ValueId) -> Option<MemoryAddress> {
@@ -367,12 +485,24 @@ impl AliasAnalysis {
     /// Returns the canonical storage alias for an instruction operand.
     #[must_use]
     pub fn storage_alias(&self, func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
+        Self::storage_alias_at(func, inst_id, slot)
+    }
+
+    /// Returns a canonical storage alias without pointer-provenance state.
+    #[must_use]
+    pub fn storage_alias_at(func: &Function, inst_id: InstId, slot: ValueId) -> StorageAlias {
         func.storage_alias(inst_id, slot)
     }
 
     /// Canonicalizes a value used as a storage slot without instruction metadata.
     #[must_use]
     pub fn storage_alias_for_value(&self, func: &Function, slot: ValueId) -> StorageAlias {
+        Self::storage_alias_for_value_at(func, slot)
+    }
+
+    /// Canonicalizes a storage-slot value without pointer-provenance state.
+    #[must_use]
+    pub fn storage_alias_for_value_at(func: &Function, slot: ValueId) -> StorageAlias {
         StorageAlias::for_value(func, slot)
     }
 
@@ -385,14 +515,173 @@ impl AliasAnalysis {
         slot: ValueId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) -> StorageAlias {
+        Self::storage_alias_after_replacements_at(func, inst_id, slot, replacements)
+    }
+
+    /// Canonicalizes a replaced storage operand without pointer-provenance state.
+    #[must_use]
+    pub fn storage_alias_after_replacements_at(
+        func: &Function,
+        inst_id: InstId,
+        slot: ValueId,
+        replacements: &FxHashMap<ValueId, ValueId>,
+    ) -> StorageAlias {
         func.storage_alias_after_replacements(inst_id, slot, replacements)
+    }
+
+    /// Returns whether a pointer-derived value can escape its function.
+    ///
+    /// Address-only uses are non-capturing. Stores of the pointer value,
+    /// returns, and arguments to capturing internal-call parameters escape.
+    /// Unsupported uses stay conservative.
+    #[must_use]
+    pub fn value_escapes(&self, func: &Function, root: ValueId) -> bool {
+        let mut derived = FxHashSet::default();
+        derived.insert(root);
+        loop {
+            let mut changed = false;
+            for (value_id, value) in func.values.iter_enumerated() {
+                let Value::Inst(inst_id) = value else { continue };
+                let propagates = match &func.instructions[*inst_id].kind {
+                    InstKind::Add(first, second)
+                    | InstKind::Sub(first, second)
+                    | InstKind::MakeSlice { ptr: first, len: second, .. } => {
+                        derived.contains(first) || derived.contains(second)
+                    }
+                    InstKind::Phi(incoming) => {
+                        incoming.iter().any(|(_, value)| derived.contains(value))
+                    }
+                    InstKind::Select(_, first, second) => {
+                        derived.contains(first) || derived.contains(second)
+                    }
+                    InstKind::SlicePtr(value)
+                    | InstKind::MemoryObjectData(value, _)
+                    | InstKind::MemoryObjectFieldAddr { object: value, .. } => {
+                        derived.contains(value)
+                    }
+                    InstKind::MemoryObjectElementAddr { object, .. } => derived.contains(object),
+                    _ => false,
+                };
+                if propagates && derived.insert(value_id) {
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        for block in &func.blocks {
+            for &inst_id in &block.instructions {
+                let kind = &func.instructions[inst_id].kind;
+                for operand in kind.operands() {
+                    if derived.contains(&operand) && self.instruction_operand_escapes(kind, operand)
+                    {
+                        return true;
+                    }
+                }
+            }
+            if let Some(terminator) = &block.terminator {
+                for operand in terminator.operands() {
+                    if !derived.contains(&operand) {
+                        continue;
+                    }
+                    match terminator {
+                        Terminator::Revert { offset, .. }
+                        | Terminator::ReturnData { offset, .. }
+                            if operand == *offset => {}
+                        Terminator::TailCall { function, args } => {
+                            let summary = self
+                                .call_summaries
+                                .as_deref()
+                                .and_then(|summaries| summaries.get(*function));
+                            if summary.is_none_or(|summary| {
+                                args.iter().enumerate().any(|(index, &arg)| {
+                                    arg == operand && summary.captures_param(index)
+                                })
+                            }) {
+                                return true;
+                            }
+                        }
+                        _ => return true,
+                    }
+                }
+            }
+        }
+        false
+    }
+
+    fn instruction_operand_escapes(&self, kind: &InstKind, operand: ValueId) -> bool {
+        match kind {
+            InstKind::Add(_, _)
+            | InstKind::Sub(_, _)
+            | InstKind::Phi(_)
+            | InstKind::Select(_, _, _)
+            | InstKind::MakeSlice { .. }
+            | InstKind::SlicePtr(_)
+            | InstKind::MemoryObjectData(_, _)
+            | InstKind::MemoryObjectFieldAddr { .. }
+            | InstKind::MemoryObjectElementAddr { .. } => false,
+            InstKind::MLoad(address)
+            | InstKind::MappingSlotMemory(address, _)
+            | InstKind::MemoryObjectLen(address, _) => operand != *address,
+            InstKind::MStore(address, _)
+            | InstKind::MStore8(address, _)
+            | InstKind::SetMemoryObjectLen(address, _, _) => operand != *address,
+            InstKind::MCopy(dest, source, _)
+            | InstKind::StorageToMemory { memory: dest, storage: source, .. } => {
+                operand != *dest && operand != *source
+            }
+            InstKind::MemoryToStorage { memory, .. } => operand != *memory,
+            InstKind::CalldataCopy(dest, _, _)
+            | InstKind::CodeCopy(dest, _, _)
+            | InstKind::ReturnDataCopy(dest, _, _)
+            | InstKind::Keccak256(dest, _)
+            | InstKind::Log0(dest, _) => operand != *dest,
+            InstKind::ExtCodeCopy(_, dest, _, _) => operand != *dest,
+            InstKind::Log1(address, _, _)
+            | InstKind::Log2(address, _, _, _)
+            | InstKind::Log3(address, _, _, _, _)
+            | InstKind::Log4(address, _, _, _, _, _) => operand != *address,
+            InstKind::Call { args_offset, ret_offset, .. }
+            | InstKind::StaticCall { args_offset, ret_offset, .. }
+            | InstKind::DelegateCall { args_offset, ret_offset, .. } => {
+                operand != *args_offset && operand != *ret_offset
+            }
+            InstKind::Create(_, offset, _) | InstKind::Create2(_, offset, _, _) => {
+                operand != *offset
+            }
+            InstKind::AbiEncode { args, layout, .. } => args
+                .iter()
+                .zip(layout.types.iter())
+                .filter(|(arg, _)| **arg == operand)
+                .any(|(_, ty)| !Self::abi_type_reads_memory(ty)),
+            InstKind::InternalCall { function, args, .. } => self
+                .call_summaries
+                .as_deref()
+                .and_then(|summaries| summaries.get(*function))
+                .is_none_or(|summary| {
+                    args.iter()
+                        .enumerate()
+                        .any(|(index, &arg)| arg == operand && summary.captures_param(index))
+                }),
+            _ => true,
+        }
     }
 
     /// Computes the alias relationship between two locations.
     #[must_use]
     pub fn alias(&self, first: Location, second: Location) -> AliasResult {
+        Self::alias_locations(first, second)
+    }
+
+    /// Computes a location relationship without function-specific provenance.
+    #[must_use]
+    pub fn alias_locations(first: Location, second: Location) -> AliasResult {
         match (first, second) {
-            (Location::Memory(first), Location::Memory(second)) => self.memory_alias(first, second),
+            (Location::Memory(first), Location::Memory(second)) => {
+                Self::memory_alias_locations(first, second)
+            }
             (Location::Storage(first), Location::Storage(second))
             | (Location::Transient(first), Location::Transient(second)) => {
                 if first == second {
@@ -579,13 +868,28 @@ impl AliasAnalysis {
                     effects.write_any(AddressSpace::Transient);
                 }
             }
-            InstKind::InternalCall { .. } => {
-                effects.read_any(AddressSpace::Memory);
-                effects.write_any(AddressSpace::Memory);
-                effects.read_any(AddressSpace::Storage);
-                effects.write_any(AddressSpace::Storage);
-                effects.read_any(AddressSpace::Transient);
-                effects.write_any(AddressSpace::Transient);
+            InstKind::InternalCall { function, .. } => {
+                if let Some(summary) =
+                    self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
+                {
+                    for space in
+                        [AddressSpace::Memory, AddressSpace::Storage, AddressSpace::Transient]
+                    {
+                        if summary.reads(space) {
+                            effects.read_any(space);
+                        }
+                        if summary.writes(space) {
+                            effects.write_any(space);
+                        }
+                    }
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                    effects.write_any(AddressSpace::Memory);
+                    effects.read_any(AddressSpace::Storage);
+                    effects.write_any(AddressSpace::Storage);
+                    effects.read_any(AddressSpace::Transient);
+                    effects.write_any(AddressSpace::Transient);
+                }
             }
             InstKind::Create(_, offset, size) | InstKind::Create2(_, offset, size, _) => {
                 read_memory(&mut effects, offset, SizeOperand::Value(size));
@@ -613,11 +917,33 @@ impl AliasAnalysis {
                     effects.read_any(AddressSpace::Memory);
                 }
             }
+            Terminator::TailCall { function, .. } => {
+                if let Some(summary) =
+                    self.call_summaries.as_deref().and_then(|summaries| summaries.get(function))
+                {
+                    for space in
+                        [AddressSpace::Memory, AddressSpace::Storage, AddressSpace::Transient]
+                    {
+                        if summary.reads(space) {
+                            effects.read_any(space);
+                        }
+                        if summary.writes(space) {
+                            effects.write_any(space);
+                        }
+                    }
+                } else {
+                    effects.read_any(AddressSpace::Memory);
+                    effects.write_any(AddressSpace::Memory);
+                    effects.read_any(AddressSpace::Storage);
+                    effects.write_any(AddressSpace::Storage);
+                    effects.read_any(AddressSpace::Transient);
+                    effects.write_any(AddressSpace::Transient);
+                }
+            }
             Terminator::Jump(_)
             | Terminator::Branch { .. }
             | Terminator::Switch { .. }
             | Terminator::Return { .. }
-            | Terminator::TailCall { .. }
             | Terminator::Stop
             | Terminator::Invalid
             | Terminator::SelfDestruct { .. } => {}
@@ -648,6 +974,12 @@ impl AliasAnalysis {
     /// Computes the alias relationship between two memory ranges.
     #[must_use]
     pub fn memory_alias(&self, first: MemoryLocation, second: MemoryLocation) -> AliasResult {
+        Self::memory_alias_locations(first, second)
+    }
+
+    /// Computes a memory-range relationship after addresses are canonicalized.
+    #[must_use]
+    pub fn memory_alias_locations(first: MemoryLocation, second: MemoryLocation) -> AliasResult {
         if matches!(first.size, LocationSize::Const(0))
             || matches!(second.size, LocationSize::Const(0))
         {
@@ -706,10 +1038,16 @@ impl AliasAnalysis {
         value: ValueId,
         depth: usize,
     ) -> Option<MemoryAddress> {
+        if let Some(cached) = self.provenance.addresses.borrow().get(&value).copied() {
+            return cached;
+        }
         if depth > 8 {
             return Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)));
         }
-        match func.value(value) {
+        if !self.provenance.visiting.borrow_mut().insert(value) {
+            return Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0)));
+        }
+        let address = (|| match func.value(value) {
             Value::Immediate(immediate) => {
                 Some(MemoryAddress::absolute(immediate.as_u256()?.try_into().ok()?))
             }
@@ -724,13 +1062,13 @@ impl AliasAnalysis {
             Value::Undef(_) | Value::Error(_) => None,
             Value::Inst(inst_id) => match func.instructions[*inst_id].kind {
                 InstKind::InternalFrameAddr(offset) => Some(MemoryAddress::internal_frame(offset)),
-                InstKind::Alloc { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
+                InstKind::Alloc { .. } => Some(if self.allocation_is_dynamic(*inst_id) {
                     MemoryAddress {
                         region: MemoryRegion::Heap,
                         base: MemoryBase::DynamicAllocation(*inst_id),
                         offset: 0,
                     }
-                } else if self.allocation_has_unique_provenance(func, *inst_id) {
+                } else if self.allocation_has_unique_provenance(*inst_id) {
                     MemoryAddress {
                         region: MemoryRegion::Heap,
                         base: MemoryBase::Allocation(*inst_id),
@@ -762,7 +1100,10 @@ impl AliasAnalysis {
                 }
                 _ => Some(MemoryAddress::symbolic(value, self.pointer_region(func, value, 0))),
             },
-        }
+        })();
+        self.provenance.visiting.borrow_mut().remove(&value);
+        self.provenance.addresses.borrow_mut().insert(value, address);
+        address
     }
 
     fn address_add(
@@ -801,13 +1142,13 @@ impl AliasAnalysis {
                 SliceLocation::Memory => self.memory_address_with_depth(func, *ptr, depth + 1),
                 SliceLocation::Calldata => None,
             },
-            InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(func, *inst_id) {
+            InstKind::AbiEncode { .. } => Some(if self.allocation_is_dynamic(*inst_id) {
                 MemoryAddress {
                     region: MemoryRegion::Heap,
                     base: MemoryBase::DynamicAllocation(*inst_id),
                     offset: 0,
                 }
-            } else if self.allocation_has_unique_provenance(func, *inst_id) {
+            } else if self.allocation_has_unique_provenance(*inst_id) {
                 MemoryAddress {
                     region: MemoryRegion::Heap,
                     base: MemoryBase::Allocation(*inst_id),
@@ -909,103 +1250,51 @@ impl AliasAnalysis {
         }
     }
 
-    /// Proves that an allocation executes once with an unmodified FMP on
-    /// every path reaching it. A loop allocation has multiple dynamic
-    /// instances, and an opaque FMP write can recycle an earlier range, so
-    /// neither may receive a globally unique provenance base.
-    fn allocation_has_unique_provenance(&self, func: &Function, target: InstId) -> bool {
-        let Some((target_block, target_index)) =
-            func.blocks.iter_enumerated().find_map(|(block, data)| {
-                data.instructions
-                    .iter()
-                    .position(|&inst| inst == target)
-                    .map(|index| (block, index))
-            })
-        else {
-            return false;
-        };
-        if self.block_is_cyclic(func, target_block) {
-            return false;
-        }
-
-        let mut reachable = vec![false; func.blocks.len()];
-        let mut poisoned = vec![false; func.blocks.len()];
-        let mut worklist = VecDeque::from([func.entry_block]);
-        reachable[func.entry_block.index()] = true;
-        while let Some(block) = worklist.pop_front() {
-            let out = poisoned[block.index()]
-                || func.blocks[block]
-                    .instructions
-                    .iter()
-                    .any(|&inst| self.instruction_may_reset_fmp(func, inst));
-            let Some(terminator) = &func.blocks[block].terminator else { continue };
-            for successor in terminator.successors() {
-                let successor_index = successor.index();
-                let changed = !reachable[successor_index] || (out && !poisoned[successor_index]);
-                reachable[successor_index] = true;
-                poisoned[successor_index] |= out;
-                if changed {
-                    worklist.push_back(successor);
-                }
-            }
-        }
-        if !reachable[target_block.index()] || poisoned[target_block.index()] {
-            return false;
-        }
-        !func.blocks[target_block].instructions[..target_index]
-            .iter()
-            .any(|&inst| self.instruction_may_reset_fmp(func, inst))
+    fn allocation_has_unique_provenance(&self, target: InstId) -> bool {
+        self.provenance.allocations.get(&target).is_some_and(|facts| facts.unique)
     }
 
-    fn allocation_is_dynamic(&self, func: &Function, target: InstId) -> bool {
-        func.blocks
-            .iter_enumerated()
-            .find(|(_, block)| block.instructions.contains(&target))
-            .is_some_and(|(block, _)| self.block_is_cyclic(func, block))
+    fn allocation_is_dynamic(&self, target: InstId) -> bool {
+        self.provenance.allocations.get(&target).is_some_and(|facts| facts.dynamic)
     }
 
-    fn block_is_cyclic(&self, func: &Function, target: BlockId) -> bool {
-        let Some(terminator) = &func.blocks[target].terminator else { return false };
-        let mut worklist: Vec<_> = terminator.successors().into_iter().collect();
-        let mut visited = vec![false; func.blocks.len()];
-        while let Some(block) = worklist.pop() {
-            if block == target {
-                return true;
-            }
-            if std::mem::replace(&mut visited[block.index()], true) {
-                continue;
-            }
-            if let Some(terminator) = &func.blocks[block].terminator {
-                worklist.extend(terminator.successors());
-            }
-        }
-        false
+    /// Returns whether an instruction may recycle or arbitrarily replace the FMP.
+    #[must_use]
+    pub(crate) fn instruction_may_reset_fmp(&self, func: &Function, inst: InstId) -> bool {
+        Self::instruction_may_reset_fmp_with_summaries(func, inst, self.call_summaries.as_deref())
     }
 
-    fn instruction_may_reset_fmp(&self, func: &Function, inst: InstId) -> bool {
+    fn instruction_may_reset_fmp_with_summaries(
+        func: &Function,
+        inst: InstId,
+        call_summaries: Option<&MemoryCallSummaries>,
+    ) -> bool {
         match func.instructions[inst].kind {
-            InstKind::SetFmp(_) | InstKind::InternalCall { .. } => true,
-            InstKind::MStore(address, _) => self.range_may_overlap_fmp(func, address, Some(32)),
-            InstKind::MStore8(address, _) => self.range_may_overlap_fmp(func, address, Some(1)),
+            InstKind::SetFmp(_) => true,
+            InstKind::InternalCall { function, .. } => call_summaries
+                .and_then(|summaries| summaries.get(function))
+                .is_none_or(|summary| summary.may_reset_fmp()),
+            InstKind::MStore(address, _) => Self::range_may_overlap_fmp(func, address, Some(32)),
+            InstKind::MStore8(address, _) => Self::range_may_overlap_fmp(func, address, Some(1)),
             InstKind::MCopy(dest, _, size)
             | InstKind::CalldataCopy(dest, _, size)
             | InstKind::CodeCopy(dest, _, size)
             | InstKind::ReturnDataCopy(dest, _, size) => {
-                self.range_may_overlap_fmp(func, dest, func.value_u64(size))
+                Self::range_may_overlap_fmp(func, dest, func.value_u64(size))
             }
             InstKind::ExtCodeCopy(_, dest, _, size) => {
-                self.range_may_overlap_fmp(func, dest, func.value_u64(size))
+                Self::range_may_overlap_fmp(func, dest, func.value_u64(size))
             }
             InstKind::Call { ret_offset, ret_size, .. }
             | InstKind::StaticCall { ret_offset, ret_size, .. }
             | InstKind::DelegateCall { ret_offset, ret_size, .. } => {
-                self.range_may_overlap_fmp(func, ret_offset, func.value_u64(ret_size))
+                Self::range_may_overlap_fmp(func, ret_offset, func.value_u64(ret_size))
             }
             _ => false,
         }
     }
 
-    fn range_may_overlap_fmp(&self, func: &Function, address: ValueId, size: Option<u64>) -> bool {
+    fn range_may_overlap_fmp(func: &Function, address: ValueId, size: Option<u64>) -> bool {
         if size == Some(0) {
             return false;
         }
@@ -1015,7 +1304,7 @@ impl AliasAnalysis {
             let fmp_end = EvmMemoryLayout::FMP_SLOT + EvmMemoryLayout::WORD_SIZE;
             return address < fmp_end && end > EvmMemoryLayout::FMP_SLOT;
         }
-        self.pointer_lower_bound(func, address, 0)
+        Self::pointer_lower_bound(func, address, 0)
             .is_none_or(|address| address < EvmMemoryLayout::HEAP_START)
     }
 
@@ -1025,7 +1314,7 @@ impl AliasAnalysis {
     /// subtract from a pointer, and a typed argument may still originate in
     /// opaque code. Only monotonic derivations from compiler-owned bases prove
     /// that a write cannot reach reserved low memory.
-    fn pointer_lower_bound(&self, func: &Function, value: ValueId, depth: usize) -> Option<u64> {
+    fn pointer_lower_bound(func: &Function, value: ValueId, depth: usize) -> Option<u64> {
         if depth > 8 {
             return None;
         }
@@ -1043,21 +1332,19 @@ impl AliasAnalysis {
                 Some(EvmMemoryLayout::HEAP_START)
             }
             InstKind::InternalFrameAddr(offset) => EvmMemoryLayout::HEAP_START.checked_add(*offset),
-            InstKind::Add(first, second) => self
-                .pointer_lower_bound(func, *first, depth + 1)
+            InstKind::Add(first, second) => Self::pointer_lower_bound(func, *first, depth + 1)
                 .and_then(|base| base.checked_add(func.value_u64(*second)?))
                 .or_else(|| {
-                    self.pointer_lower_bound(func, *second, depth + 1)
+                    Self::pointer_lower_bound(func, *second, depth + 1)
                         .and_then(|base| base.checked_add(func.value_u64(*first)?))
                 }),
-            InstKind::Sub(base, offset) => self
-                .pointer_lower_bound(func, *base, depth + 1)
+            InstKind::Sub(base, offset) => Self::pointer_lower_bound(func, *base, depth + 1)
                 .and_then(|base| base.checked_sub(func.value_u64(*offset)?)),
             InstKind::SlicePtr(slice) => {
                 let Value::Inst(slice) = func.value(*slice) else { return None };
                 match &func.instructions[*slice].kind {
                     InstKind::MakeSlice { ptr, location: SliceLocation::Memory, .. } => {
-                        self.pointer_lower_bound(func, *ptr, depth + 1)
+                        Self::pointer_lower_bound(func, *ptr, depth + 1)
                     }
                     InstKind::AbiEncode { .. } => Some(EvmMemoryLayout::HEAP_START),
                     _ => None,
@@ -1065,14 +1352,14 @@ impl AliasAnalysis {
             }
             InstKind::Phi(incoming) => incoming
                 .iter()
-                .map(|(_, value)| self.pointer_lower_bound(func, *value, depth + 1))
+                .map(|(_, value)| Self::pointer_lower_bound(func, *value, depth + 1))
                 .collect::<Option<Vec<_>>>()?
                 .into_iter()
                 .min(),
             InstKind::Select(_, first, second) => {
                 Some(
-                    self.pointer_lower_bound(func, *first, depth + 1)?
-                        .min(self.pointer_lower_bound(func, *second, depth + 1)?),
+                    Self::pointer_lower_bound(func, *first, depth + 1)?
+                        .min(Self::pointer_lower_bound(func, *second, depth + 1)?),
                 )
             }
             _ => None,
@@ -1108,6 +1395,75 @@ impl AliasAnalysis {
     }
 }
 
+fn cyclic_blocks(func: &Function) -> Vec<bool> {
+    let successors: Vec<Vec<_>> =
+        func.blocks
+            .iter()
+            .map(|block| {
+                block.terminator.as_ref().map_or_else(Vec::new, |terminator| {
+                    terminator.successors().into_iter().collect()
+                })
+            })
+            .collect();
+    let mut predecessors = vec![Vec::new(); func.blocks.len()];
+    for (block, block_successors) in successors.iter().enumerate() {
+        for &successor in block_successors {
+            predecessors[successor.index()].push(BlockId::from_usize(block));
+        }
+    }
+
+    // Kosaraju's two linear scans classify all strongly connected components.
+    // Doing one reachability search per block made constructing this analysis
+    // quadratic on functions with many basic blocks.
+    let mut visited = vec![false; func.blocks.len()];
+    let mut finish_order = Vec::with_capacity(func.blocks.len());
+    for start in func.blocks.indices() {
+        if visited[start.index()] {
+            continue;
+        }
+        visited[start.index()] = true;
+        let mut stack = vec![(start, false)];
+        while let Some((block, expanded)) = stack.pop() {
+            if expanded {
+                finish_order.push(block);
+                continue;
+            }
+            stack.push((block, true));
+            for &successor in &successors[block.index()] {
+                if !std::mem::replace(&mut visited[successor.index()], true) {
+                    stack.push((successor, false));
+                }
+            }
+        }
+    }
+
+    let mut cyclic = vec![false; func.blocks.len()];
+    visited.fill(false);
+    for start in finish_order.into_iter().rev() {
+        if visited[start.index()] {
+            continue;
+        }
+        visited[start.index()] = true;
+        let mut component = Vec::new();
+        let mut stack = vec![start];
+        while let Some(block) = stack.pop() {
+            component.push(block);
+            for &predecessor in &predecessors[block.index()] {
+                if !std::mem::replace(&mut visited[predecessor.index()], true) {
+                    stack.push(predecessor);
+                }
+            }
+        }
+        let is_cycle = component.len() > 1 || successors[start.index()].contains(&start);
+        if is_cycle {
+            for block in component {
+                cyclic[block.index()] = true;
+            }
+        }
+    }
+    cyclic
+}
+
 #[derive(Clone, Copy)]
 enum SizeOperand {
     Const(u64),
@@ -1141,7 +1497,7 @@ mod tests {
             let absolute = builder.imm_u64(0x20);
             (arg, frame, heap, absolute)
         };
-        let aa = AliasAnalysis;
+        let aa = AliasAnalysis::new(&func);
 
         assert_eq!(
             aa.memory_address(&func, arg),
@@ -1158,7 +1514,6 @@ mod tests {
 
     #[test]
     fn distinguishes_and_classifies_memory_ranges() {
-        let aa = AliasAnalysis;
         let base = ValueId::from_usize(0);
         let location = |offset, size| {
             Location::Memory(MemoryLocation::new(
@@ -1167,12 +1522,21 @@ mod tests {
             ))
         };
 
-        assert_eq!(aa.alias(location(0, 32), location(0, 32)), AliasResult::MustAlias);
-        assert_eq!(aa.alias(location(0, 32), location(16, 32)), AliasResult::PartialAlias);
-        assert_eq!(aa.alias(location(0, 32), location(32, 32)), AliasResult::NoAlias);
+        assert_eq!(
+            AliasAnalysis::alias_locations(location(0, 32), location(0, 32)),
+            AliasResult::MustAlias
+        );
+        assert_eq!(
+            AliasAnalysis::alias_locations(location(0, 32), location(16, 32)),
+            AliasResult::PartialAlias
+        );
+        assert_eq!(
+            AliasAnalysis::alias_locations(location(0, 32), location(32, 32)),
+            AliasResult::NoAlias
+        );
 
         let scratch = Location::Memory(AliasAnalysis::fmp_location());
-        assert_eq!(aa.alias(scratch, location(0, 32)), AliasResult::NoAlias);
+        assert_eq!(AliasAnalysis::alias_locations(scratch, location(0, 32)), AliasResult::NoAlias);
     }
 
     #[test]
@@ -1188,7 +1552,7 @@ mod tests {
             let joined_path = builder.select(condition, first, second);
             (first, second, same_path, joined_path)
         };
-        let aa = AliasAnalysis;
+        let aa = AliasAnalysis::new(&func);
         let location = |value| {
             MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
         };
@@ -1210,7 +1574,7 @@ mod tests {
             let second = builder.alloc(size, crate::mir::AllocationSemantics::INTERNAL);
             (first, second)
         };
-        let aa = AliasAnalysis;
+        let aa = AliasAnalysis::new(&func);
         let location = |value| {
             MemoryLocation::new(aa.memory_address(&func, value).unwrap(), LocationSize::Const(32))
         };
@@ -1238,7 +1602,7 @@ mod tests {
             allocation
         };
 
-        let aa = AliasAnalysis;
+        let aa = AliasAnalysis::new(&func);
         let address = aa.memory_address(&func, allocation).unwrap();
         assert!(matches!(address.base, MemoryBase::DynamicAllocation(_)));
         let location = MemoryLocation::new(address, LocationSize::Const(32));
@@ -1247,16 +1611,18 @@ mod tests {
 
     #[test]
     fn classifies_storage_aliases() {
-        let aa = AliasAnalysis;
         let first = Location::Storage(StorageAlias::Slot(U256::from(1)));
         let second = Location::Storage(StorageAlias::Slot(U256::from(2)));
-        assert_eq!(aa.alias(first, first), AliasResult::MustAlias);
-        assert_eq!(aa.alias(first, second), AliasResult::NoAlias);
+        assert_eq!(AliasAnalysis::alias_locations(first, first), AliasResult::MustAlias);
+        assert_eq!(AliasAnalysis::alias_locations(first, second), AliasResult::NoAlias);
 
         let symbolic = Location::Storage(StorageAlias::Symbolic(ValueId::from_usize(0)));
-        assert_eq!(aa.alias(first, symbolic), AliasResult::MayAlias);
+        assert_eq!(AliasAnalysis::alias_locations(first, symbolic), AliasResult::MayAlias);
         assert_eq!(
-            aa.alias(first, Location::Transient(StorageAlias::Slot(U256::from(1)))),
+            AliasAnalysis::alias_locations(
+                first,
+                Location::Transient(StorageAlias::Slot(U256::from(1))),
+            ),
             AliasResult::NoAlias
         );
     }
@@ -1272,7 +1638,7 @@ mod tests {
             builder.mcopy(dest, source, size);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };
-        let aa = AliasAnalysis;
+        let aa = AliasAnalysis::new(&func);
         let effects = aa.instruction_mod_ref(&func, copy);
 
         assert_eq!(effects.reads().len(), 1);
@@ -1293,7 +1659,7 @@ mod tests {
             builder.staticcall(gas, address, offset, size, offset, size);
             *builder.func().blocks[builder.current_block()].instructions.last().unwrap()
         };
-        let effects = AliasAnalysis.instruction_mod_ref(&func, call);
+        let effects = AliasAnalysis::new(&func).instruction_mod_ref(&func, call);
 
         assert!(effects.reads_space(AddressSpace::Storage));
         assert!(!effects.writes_space(AddressSpace::Storage));

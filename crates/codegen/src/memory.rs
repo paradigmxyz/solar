@@ -98,6 +98,6 @@ impl MemoryLayoutPolicy for EvmMemoryLayout {
             | MemoryObjectLayout::FixedArray { element_words, .. } => element_words,
             MemoryObjectLayout::Bytes | MemoryObjectLayout::Struct { .. } => return None,
         };
-        words.checked_mul(Self::WORD_SIZE)
+        u64::from(words).checked_mul(Self::WORD_SIZE)
     }
 }

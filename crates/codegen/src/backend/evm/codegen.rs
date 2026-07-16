@@ -19,8 +19,8 @@ use super::{
 };
 use crate::{
     analysis::{
-        CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer, ParallelCopy,
-        PhiEliminator,
+        AliasAnalysis, CallGraphInfo, CfgInfo, CopyDest, CopySource, Liveness, Loop, LoopAnalyzer,
+        MemoryCallSummaries, ParallelCopy, PhiEliminator,
     },
     memory::EvmMemoryLayout,
     mir::{BlockId, Function, FunctionId, InstId, InstKind, MirType, Module, Terminator, ValueId},
@@ -35,6 +35,7 @@ use solar_data_structures::{
 };
 use solar_interface::sym;
 use solar_sema::{Gcx, hir::StateMutability};
+use std::sync::Arc;
 
 const LINEAR_SELECTOR_DISPATCH_THRESHOLD: usize = 64;
 const STACK_PHI_LAYOUT_LIMIT: usize = 8;
@@ -1027,8 +1028,10 @@ impl<'gcx> EvmCodegen<'gcx> {
         }
         run_pass(self.gcx, module, &crate::pass::LOWER_MAPPING_SLOTS_PASS);
         if self.gcx.sess.opts.optimization != OptimizationMode::None {
+            let summaries = Arc::new(MemoryCallSummaries::new(module));
             for (func_id, func) in module.functions.iter_enumerated() {
-                for candidate in eligible_static_allocations(func) {
+                let aa = AliasAnalysis::with_call_summaries(func, Arc::clone(&summaries));
+                for candidate in eligible_static_allocations(func, &aa) {
                     self.static_alloc_candidates.insert((func_id, candidate.alloc), candidate.size);
                 }
             }

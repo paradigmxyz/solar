@@ -15,6 +15,7 @@ use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 pub(crate) struct StorageLoadCse {
     /// Number of storage loads eliminated.
     pub eliminated_count: usize,
+    alias: Option<AliasAnalysis>,
 }
 
 struct RunState {
@@ -51,6 +52,7 @@ impl StorageLoadCse {
     fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
+        self.alias = Some(AliasAnalysis::new(func));
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
@@ -97,7 +99,7 @@ impl StorageLoadCse {
         inst_results: &FxHashMap<InstId, ValueId>,
         state: &mut RunState,
     ) {
-        let aa = AliasAnalysis;
+        let aa = self.alias.as_ref().expect("storage-load CSE alias snapshot is initialized");
         for (inst_idx, &inst_id) in func.blocks[block_id].instructions.iter().enumerate() {
             match &func.instructions[inst_id].kind {
                 InstKind::SLoad(slot) => {

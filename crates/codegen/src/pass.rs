@@ -433,15 +433,23 @@ pub(crate) trait ModulePass {
 pub(crate) trait FunctionPass {
     /// Runs the transformation on the given function.
     fn run_on_function(&mut self, func: &mut Function) -> bool;
-}
 
-impl<T: FunctionPass> ModulePass for T {
-    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+    /// Runs the function pass over a module.
+    ///
+    /// Passes that need module-level summaries may override this hook. The
+    /// default preserves the ordinary function-local execution model.
+    fn run_on_module(&mut self, module: &mut Module) -> bool {
         let mut changed = false;
         for func in module.functions.iter_mut().filter(|func| !func.blocks.is_empty()) {
             changed |= self.run_on_function(func);
         }
         changed
+    }
+}
+
+impl<T: FunctionPass> ModulePass for T {
+    fn run(&mut self, _gcx: Gcx<'_>, module: &mut Module) -> bool {
+        self.run_on_module(module)
     }
 }
 

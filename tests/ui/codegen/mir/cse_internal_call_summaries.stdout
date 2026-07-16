@@ -1,0 +1,47 @@
+// === ROOT/tests/ui/codegen/mir/cse_internal_call_summaries.mir (after cse) ===
+; module @CseInternalCallSummaries
+fn @keep_load_across_reader(arg0: memptr) -> u256 {
+  bb0 (entry):
+    v0 = mload arg0
+    v1 = internal_call @reader, 1, arg0
+    v3 = add v0, v0
+    v4 = add v3, v1
+    ret v4
+}
+
+fn @invalidate_load_across_writer(arg0: memptr) -> u256 {
+  bb0 (entry):
+    v0 = mload arg0
+    internal_call @writer, 0, arg0
+    v1 = mload arg0
+    v2 = add v0, v1
+    ret v2
+}
+
+fn @preserve_freshness_across_call() -> u256 {
+  bb0 (entry):
+    v0 = alloc raw, exact, uninitialized, infallible, 32
+    v1 = mload v0
+    internal_call @noop, 0
+    v2 = alloc raw, exact, uninitialized, infallible, 32
+    mstore v2, 7
+    v4 = add v1, v1
+    ret v4
+}
+
+fn @reader(arg0: memptr) -> u256 {
+  bb0 (entry):
+    v0 = mload arg0
+    ret v0
+}
+
+fn @writer(arg0: memptr) {
+  bb0 (entry):
+    mstore arg0, 9
+    ret
+}
+
+fn @noop() {
+  bb0 (entry):
+    ret
+}
