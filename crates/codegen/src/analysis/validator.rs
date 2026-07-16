@@ -41,6 +41,7 @@ use solar_interface::{Span, diagnostics::DiagCtxt, sym};
 /// Stateful MIR verifier.
 pub struct Validator<'a> {
     dcx: &'a DiagCtxt,
+    // TODO: Use MIR debug-info spans when emitting diagnostics for generated IR.
     source_map: Option<&'a MirSourceMap>,
     function: Option<usize>,
     error_count: usize,

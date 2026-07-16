@@ -12,6 +12,7 @@ use std::cell::Cell;
 /// Stateful EVM IR verifier.
 pub struct EvmIrVerifier<'a> {
     dcx: &'a DiagCtxt,
+    // TODO: Use EVM IR debug-info spans when emitting diagnostics for generated IR.
     source_map: Option<&'a EvmIrSourceMap>,
     span: Cell<Option<solar_interface::Span>>,
 }
