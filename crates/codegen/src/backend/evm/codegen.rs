@@ -67,7 +67,7 @@ pub struct EvmCodegenConfig {
     /// Run the experimental EVM IR `StackSchedule` pass in the assembler bridge.
     ///
     /// Off by default: the default bytecode path must stay byte-for-byte
-    /// unchanged. When enabled the bridge runs `ir::Pass::StackSchedule` on the
+    /// unchanged. When enabled the bridge runs [`ir::STACK_SCHEDULE_PASS`] on the
     /// operand-cleared block IR. On that already-stack-scheduled input the pass
     /// is a verified near no-op in `StructuredAsmProgram::optimize_with_evm_ir`.
     pub evm_ir_stack_schedule: bool,

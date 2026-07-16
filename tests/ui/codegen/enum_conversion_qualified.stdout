@@ -24,7 +24,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   calldatasize
   push 4
@@ -42,4 +42,4 @@ bb2:
   mstore
   push 32
   push 128
-  terminal return
+  return

@@ -23,7 +23,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   push 160
   mload
@@ -36,7 +36,7 @@ bb2:
   mload
   push 160
   mstore
-  terminal jump
+  jump
 bb3:
   push 160
   mload
@@ -59,7 +59,7 @@ bb3:
   push 96
   add
   mstore
-  terminal jump
+  jump
 bb4:
   calldatasize
   push 4
@@ -188,7 +188,7 @@ bb8:
   mstore
   push 32
   push 128
-  terminal return
+  return
 bb9:
   push 1
   push 160
@@ -281,7 +281,7 @@ bb11:
   add
   mstore
   pop
-  terminal jump
+  jump
 bb12:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
@@ -291,4 +291,4 @@ bb12:
   mstore
   push 36
   push 0
-  terminal revert
+  revert

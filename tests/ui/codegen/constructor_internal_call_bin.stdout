@@ -35,7 +35,7 @@ bb2:
   push 96
   add
   mstore
-  terminal jump
+  jump
 bb3:
   push 11
   push 160
@@ -184,7 +184,7 @@ bb5:
   mstore
   push 36
   push 0
-  terminal revert
+  revert
 bb6:
   push 7
   push 128
@@ -248,7 +248,7 @@ bb0 (entry):
   push 0
   codecopy
   push 0
-  terminal return
+  return
 
 // === runtime ===
 bb0 (entry):
@@ -275,7 +275,7 @@ bb0 (entry):
 bb1:
   push 0
   dup1
-  terminal revert
+  revert
 bb2:
   push 0
   sload
@@ -283,4 +283,4 @@ bb2:
   mstore
   push 32
   push 128
-  terminal return
+  return

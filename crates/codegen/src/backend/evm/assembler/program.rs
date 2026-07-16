@@ -109,7 +109,7 @@ impl StructuredAsmProgram {
     /// # Experimental `StackSchedule` gating
     ///
     /// When `context.run_evm_ir_stack_schedule()` is true (off by default) the
-    /// bridge runs [`ir::Pass::StackSchedule`]. The reality of what the bridge
+    /// bridge runs [`ir::STACK_SCHEDULE_PASS`]. The reality of what the bridge
     /// feeds the scheduler matters here: MIR lowering has already materialized
     /// every virtual stack-word operand into physical `dup`/`swap`/`pop` and
     /// `push`/opcode instructions, so `to_evm_ir_module` produces
@@ -147,7 +147,7 @@ impl StructuredAsmProgram {
             // always holds (the pass is a near no-op), but the guard means an
             // unexpected rewrite is dropped instead of changing produced code.
             let mut scheduled = module.clone();
-            if ir::Pass::StackSchedule.run(&mut scheduled, pass_options)
+            if ir::run_pass(&mut scheduled, &ir::STACK_SCHEDULE_PASS, pass_options)
                 && is_valid_evm_ir(&scheduled)
                 && modules_have_equal_code(&module, &scheduled)
             {
@@ -157,8 +157,8 @@ impl StructuredAsmProgram {
         }
 
         if context.run_evm_ir_layout_passes() {
-            for pass in [ir::Pass::ColdLayout, ir::Pass::TerminalDedup] {
-                changed += usize::from(pass.run(&mut module, pass_options));
+            for pass in ir::DEFAULT_LAYOUT_PIPELINE {
+                changed += usize::from(ir::run_pass(&mut module, pass, pass_options));
             }
         }
         debug_assert!(is_valid_evm_ir(&module));
