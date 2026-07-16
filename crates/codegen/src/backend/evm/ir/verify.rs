@@ -7,6 +7,7 @@ use solar_data_structures::{
     map::FxHashSet,
 };
 use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
+use std::fmt;
 
 /// Stateful EVM IR verifier.
 pub struct EvmIrVerifier<'a> {
@@ -20,22 +21,22 @@ impl<'a> EvmIrVerifier<'a> {
     }
 
     #[track_caller]
-    fn error(&self, msg: impl Into<String>) -> ErrorGuaranteed {
+    fn error(&self, msg: impl fmt::Display) -> ErrorGuaranteed {
         // TODO: Use EVM IR debug-info spans when emitting verifier diagnostics.
-        let msg = format!("EVM IR verification failed: {}", msg.into());
-        self.dcx.err(msg).emit()
+        let msg = fmt::from_fn(|f| write!(f, "EVM IR verification failed: {msg}"));
+        self.dcx.err(msg.to_string()).emit()
     }
 
     #[track_caller]
-    fn error_in_block(&self, block: EvmIrBlockId, msg: impl Into<String>) -> ErrorGuaranteed {
-        self.error(format!("block {}: {}", block.index(), msg.into()))
+    fn error_in_block(&self, block: EvmIrBlockId, msg: impl fmt::Display) -> ErrorGuaranteed {
+        self.error(format_args!("block {}: {msg}", block.index()))
     }
 
     /// Verifies basic EVM IR invariants.
     pub fn verify_module(&self, module: &EvmIrModule) {
         let errors_before = self.dcx.err_count();
         if !is_valid_ident(&module.name) {
-            self.error(format!("invalid program name `{}`", module.name));
+            self.error(format_args!("invalid program name `{}`", module.name));
         }
         if module.blocks.is_empty() {
             self.error("program has no blocks");
@@ -44,7 +45,7 @@ impl<'a> EvmIrVerifier<'a> {
         let entry = match module.entry_block {
             Some(entry) if self.block_exists(module, entry) => Some(entry),
             Some(entry) => {
-                self.error(format!("entry block `{}` is out of range", entry.index()));
+                self.error(format_args!("entry block `{}` is out of range", entry.index()));
                 None
             }
             None => {
@@ -56,10 +57,16 @@ impl<'a> EvmIrVerifier<'a> {
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !is_valid_block_label(&block.label) {
-                self.error_in_block(block_id, format!("invalid block label `{}`", block.label));
+                self.error_in_block(
+                    block_id,
+                    format_args!("invalid block label `{}`", block.label),
+                );
             }
             if !labels.insert(block.label.as_str()) {
-                self.error_in_block(block_id, format!("duplicate block label `{}`", block.label));
+                self.error_in_block(
+                    block_id,
+                    format_args!("duplicate block label `{}`", block.label),
+                );
             }
             if block.terminator.is_none() {
                 self.error_in_block(block_id, "missing terminator");
@@ -69,10 +76,10 @@ impl<'a> EvmIrVerifier<'a> {
         let mut value_names = FxHashSet::default();
         for (_, value) in module.values.iter_enumerated() {
             if !is_valid_value_name(&value.name) {
-                self.error(format!("invalid value name `%{}`", value.name));
+                self.error(format_args!("invalid value name `%{}`", value.name));
             }
             if !value_names.insert(value.name.as_str()) {
-                self.error(format!("duplicate value name `%{}`", value.name));
+                self.error(format_args!("duplicate value name `%{}`", value.name));
             }
         }
 
@@ -84,12 +91,12 @@ impl<'a> EvmIrVerifier<'a> {
                     if !self.value_exists(module, result) {
                         self.error_in_block(
                             block_id,
-                            format!("result value `{}` is out of range", result.index()),
+                            format_args!("result value `{}` is out of range", result.index()),
                         );
                     } else if !defined_values.insert(result) {
                         self.error_in_block(
                             block_id,
-                            format!(
+                            format_args!(
                                 "value `%{}` is defined more than once",
                                 module.value(result).name
                             ),
@@ -112,7 +119,7 @@ impl<'a> EvmIrVerifier<'a> {
                 if !self.block_exists(module, target) {
                     self.error_in_block(
                         block_id,
-                        format!("target block `{}` is out of range", target.index()),
+                        format_args!("target block `{}` is out of range", target.index()),
                     );
                 }
                 Ok::<(), ()>(())
@@ -126,12 +133,12 @@ impl<'a> EvmIrVerifier<'a> {
                 if !self.value_exists(module, value) {
                     self.error_in_block(
                         block_id,
-                        format!("entry stack value `{}` is out of range", value.index()),
+                        format_args!("entry stack value `{}` is out of range", value.index()),
                     );
                 } else if !defined_values.contains(value) {
                     self.error_in_block(
                         block_id,
-                        format!(
+                        format_args!(
                             "entry stack value `%{}` is never defined",
                             module.value(value).name
                         ),
@@ -272,9 +279,9 @@ impl EvmIrVerifier<'_> {
                 if !exit.starts_with(&succ_entry) {
                     self.error_in_block(
                         block_id,
-                        format!(
+                        format_args!(
                             "stack on edge to `{}` is inconsistent: successor declares incoming \
-                         stack [{}] but predecessor leaves [{}]",
+                                             stack [{}] but predecessor leaves [{}]",
                             module.blocks[succ].label,
                             self.format_entry_stack(module, &module.blocks[succ].entry_stack),
                             self.format_abstract_stack(module, exit),
@@ -337,7 +344,7 @@ impl EvmIrVerifier<'_> {
                     {
                         return Err(self.error_in_block(
                             block_id,
-                            format!(
+                            format_args!(
                                 "operand `%{}` of `{}` is not live on the stack",
                                 module.value(*value).name,
                                 inst.mnemonic()
@@ -371,7 +378,7 @@ impl EvmIrVerifier<'_> {
         if !stack.ensure_depth(inputs) {
             return Err(self.error_in_block(
                 block_id,
-                format!(
+                format_args!(
                     "`{}` consumes {} stack words but only {} are available",
                     inst.mnemonic(),
                     effect.inputs,
@@ -399,7 +406,10 @@ impl EvmIrVerifier<'_> {
                 if !stack.ensure_depth(depth) {
                     return Err(self.error_in_block(
                         block_id,
-                        format!("`dup{n}` reaches depth {n} but the stack has {}", stack.len()),
+                        format_args!(
+                            "`dup{n}` reaches depth {n} but the stack has {}",
+                            stack.len()
+                        ),
                     ));
                 }
                 let word = stack.words[depth - 1];
@@ -410,7 +420,10 @@ impl EvmIrVerifier<'_> {
                 if !stack.ensure_depth(depth + 1) {
                     return Err(self.error_in_block(
                         block_id,
-                        format!("`swap{n}` reaches depth {n} but the stack has {}", stack.len()),
+                        format_args!(
+                            "`swap{n}` reaches depth {n} but the stack has {}",
+                            stack.len()
+                        ),
                     ));
                 }
                 stack.words.swap(0, depth);
@@ -444,7 +457,7 @@ impl EvmIrVerifier<'_> {
             {
                 result = Err(self.error_in_block(
                     block_id,
-                    format!(
+                    format_args!(
                         "terminator operand `%{}` is not live on the stack",
                         module.value(*value).name
                     ),
@@ -478,7 +491,7 @@ impl EvmIrVerifier<'_> {
         if !stack.ensure_depth(remaining_inputs) {
             return Err(self.error_in_block(
                 block_id,
-                format!(
+                format_args!(
                     "`{}` consumes {} stack words but only {} are available",
                     self.terminator_name(kind),
                     effect.inputs,
@@ -501,7 +514,7 @@ impl EvmIrVerifier<'_> {
         let Some(index) = stack.words.iter().position(|word| *word == needle) else {
             return Err(self.error_in_block(
                 block_id,
-                format!(
+                format_args!(
                     "`{}` consumes an operand that is not live on the stack",
                     self.terminator_name(kind)
                 ),
@@ -532,23 +545,39 @@ impl EvmIrVerifier<'_> {
         inst.result.map(AbstractWord::Value).unwrap_or(AbstractWord::Unknown)
     }
 
-    fn format_entry_stack(&self, module: &EvmIrModule, stack: &[EvmIrValueId]) -> String {
-        stack
-            .iter()
-            .map(|&value| format!("%{}", module.value(value).name))
-            .collect::<Vec<_>>()
-            .join(", ")
+    fn format_entry_stack<'a>(
+        &self,
+        module: &'a EvmIrModule,
+        stack: &'a [EvmIrValueId],
+    ) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |f| {
+            for (index, &value) in stack.iter().enumerate() {
+                if index != 0 {
+                    f.write_str(", ")?;
+                }
+                write!(f, "%{}", module.value(value).name)?;
+            }
+            Ok(())
+        })
     }
 
-    fn format_abstract_stack(&self, module: &EvmIrModule, stack: &[AbstractWord]) -> String {
-        stack
-            .iter()
-            .map(|word| match word {
-                AbstractWord::Value(value) => format!("%{}", module.value(*value).name),
-                AbstractWord::Unknown => "<word>".to_string(),
-            })
-            .collect::<Vec<_>>()
-            .join(", ")
+    fn format_abstract_stack<'a>(
+        &self,
+        module: &'a EvmIrModule,
+        stack: &'a [AbstractWord],
+    ) -> impl fmt::Display + 'a {
+        fmt::from_fn(move |f| {
+            for (index, word) in stack.iter().enumerate() {
+                if index != 0 {
+                    f.write_str(", ")?;
+                }
+                match word {
+                    AbstractWord::Value(value) => write!(f, "%{}", module.value(*value).name)?,
+                    AbstractWord::Unknown => f.write_str("<word>")?,
+                }
+            }
+            Ok(())
+        })
     }
 
     fn verify_instruction_shape(&self, block_id: EvmIrBlockId, inst: &EvmIrInstruction) {
@@ -557,13 +586,16 @@ impl EvmIrVerifier<'_> {
             if inst.result.is_some() {
                 self.error_in_block(
                     block_id,
-                    format!("physical stack op `{}` cannot define an SSA value", op.mnemonic()),
+                    format_args!(
+                        "physical stack op `{}` cannot define an SSA value",
+                        op.mnemonic()
+                    ),
                 );
             }
             if !inst.operands.is_empty() {
                 self.error_in_block(
                     block_id,
-                    format!("physical stack op `{}` cannot have operands", op.mnemonic()),
+                    format_args!("physical stack op `{}` cannot have operands", op.mnemonic()),
                 );
             }
             if let Some(effect) = inst.metadata.stack
@@ -571,7 +603,7 @@ impl EvmIrVerifier<'_> {
             {
                 self.error_in_block(
                     block_id,
-                    format!(
+                    format_args!(
                         "physical stack op `{}` has stack effect {}->{}, expected {}->{}",
                         op.mnemonic(),
                         effect.inputs,
@@ -585,12 +617,12 @@ impl EvmIrVerifier<'_> {
             if inst.operands.len() != 1 {
                 self.error_in_block(
                     block_id,
-                    format!("`{}` must have one operand", inst.mnemonic()),
+                    format_args!("`{}` must have one operand", inst.mnemonic()),
                 );
             } else if matches!(inst.operands[0], EvmIrOperand::Value(_)) {
                 self.error_in_block(
                     block_id,
-                    format!("`{}` cannot take a stack value operand", inst.mnemonic()),
+                    format_args!("`{}` cannot take a stack value operand", inst.mnemonic()),
                 );
             }
         } else {
@@ -604,7 +636,7 @@ impl EvmIrVerifier<'_> {
             {
                 self.error_in_block(
                     block_id,
-                    format!(
+                    format_args!(
                         "operand-cleared instruction `{}` must declare an explicit stack effect",
                         inst.mnemonic()
                     ),
@@ -658,7 +690,7 @@ impl EvmIrVerifier<'_> {
         what: &str,
     ) {
         if !matches!(operand, EvmIrOperand::Value(_)) {
-            self.error_in_block(block_id, format!("{what} must be a stack value"));
+            self.error_in_block(block_id, format_args!("{what} must be a stack value"));
         }
     }
 
@@ -667,7 +699,7 @@ impl EvmIrVerifier<'_> {
             if matches!(item.key.as_str(), "type" | "ty" | "result_ty" | "mir_type") {
                 self.error_in_block(
                     block_id,
-                    format!("EVM IR is untyped; metadata key `{}` is not allowed", item.key),
+                    format_args!("EVM IR is untyped; metadata key `{}` is not allowed", item.key),
                 );
             }
         }
@@ -676,10 +708,16 @@ impl EvmIrVerifier<'_> {
     fn verify_operand(&self, block_id: EvmIrBlockId, module: &EvmIrModule, operand: &EvmIrOperand) {
         match operand {
             EvmIrOperand::Value(value) if !self.value_exists(module, *value) => {
-                self.error_in_block(block_id, format!("value `{}` is out of range", value.index()));
+                self.error_in_block(
+                    block_id,
+                    format_args!("value `{}` is out of range", value.index()),
+                );
             }
             EvmIrOperand::Block(block) if !self.block_exists(module, *block) => {
-                self.error_in_block(block_id, format!("block `{}` is out of range", block.index()));
+                self.error_in_block(
+                    block_id,
+                    format_args!("block `{}` is out of range", block.index()),
+                );
             }
             _ => {}
         }
@@ -698,7 +736,7 @@ impl EvmIrVerifier<'_> {
         {
             self.error_in_block(
                 block_id,
-                format!("value `%{}` is used but never defined", module.value(*value).name),
+                format_args!("value `%{}` is used but never defined", module.value(*value).name),
             );
         }
     }

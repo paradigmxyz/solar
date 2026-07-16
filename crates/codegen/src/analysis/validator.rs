@@ -37,6 +37,7 @@ use crate::{
 };
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 use solar_interface::{diagnostics::DiagCtxt, sym};
+use std::fmt;
 
 /// Stateful MIR verifier.
 pub struct Validator<'a> {
@@ -52,26 +53,26 @@ impl<'a> Validator<'a> {
     }
 
     #[track_caller]
-    fn emit(&mut self, message: impl Into<String>) {
+    fn emit(&mut self, message: impl fmt::Display) {
         // TODO: Use MIR debug-info spans when emitting verifier diagnostics.
-        let message = message.into();
-        let message = if let Some(function) = self.function {
-            format!("[fn{function}] {message}")
-        } else {
-            message
-        };
-        self.dcx.err(message).emit();
+        let message = fmt::from_fn(|f| {
+            if let Some(function) = self.function {
+                write!(f, "[fn{function}] ")?;
+            }
+            write!(f, "{message}")
+        });
+        self.dcx.err(message.to_string()).emit();
         self.error_count += 1;
     }
 
     #[track_caller]
-    fn emit_at_block(&mut self, message: impl Into<String>, block: BlockId) {
-        self.emit(format!("[bb{}] {}", block.index(), message.into()));
+    fn emit_at_block(&mut self, message: impl fmt::Display, block: BlockId) {
+        self.emit(format_args!("[bb{}] {message}", block.index()));
     }
 
     #[track_caller]
-    fn emit_at_inst(&mut self, message: impl Into<String>, block: BlockId, inst: InstId) {
-        self.emit(format!("[bb{}, inst{}] {}", block.index(), inst.index(), message.into()));
+    fn emit_at_inst(&mut self, message: impl fmt::Display, block: BlockId, inst: InstId) {
+        self.emit(format_args!("[bb{}, inst{}] {message}", block.index(), inst.index()));
     }
 
     /// Validates a single function.
@@ -99,14 +100,14 @@ impl<'a> Validator<'a> {
         }
         for (inst_id, count) in inst_def_count.iter() {
             if *count > 1 {
-                self.emit(format!(
+                self.emit(format_args!(
                     "instruction inst{} is defined by {count} Value entries (must be 1)",
                     inst_id.index()
                 ));
             }
             // Only value-producing instructions may have a result value.
             if inst_id.index() < num_insts && func.instructions[*inst_id].result_ty.is_none() {
-                self.emit(format!(
+                self.emit(format_args!(
                     "instruction inst{} (`{:?}`) has a result Value entry but no result type",
                     inst_id.index(),
                     func.instructions[*inst_id].kind
@@ -131,14 +132,14 @@ impl<'a> Validator<'a> {
             for &succ in &term_succs {
                 if succ.index() >= num_blocks {
                     self.emit_at_block(
-                        format!("terminator references nonexistent block bb{}", succ.index()),
+                        format_args!("terminator references nonexistent block bb{}", succ.index()),
                         block_id,
                     );
                     continue;
                 }
                 if !func.blocks[succ].predecessors.contains(&block_id) {
                     self.emit_at_block(
-                        format!(
+                        format_args!(
                             "successor bb{} does not list bb{} as a predecessor",
                             succ.index(),
                             block_id.index()
@@ -152,7 +153,7 @@ impl<'a> Validator<'a> {
             for &pred in &block.predecessors {
                 if pred.index() >= num_blocks {
                     self.emit_at_block(
-                        format!(
+                        format_args!(
                             "stored predecessor references nonexistent block bb{}",
                             pred.index()
                         ),
@@ -162,14 +163,14 @@ impl<'a> Validator<'a> {
                 }
                 let Some(pred_term) = &func.blocks[pred].terminator else {
                     self.emit_at_block(
-                        format!("stored predecessor bb{} has no terminator", pred.index()),
+                        format_args!("stored predecessor bb{} has no terminator", pred.index()),
                         block_id,
                     );
                     continue;
                 };
                 if !pred_term.successors().contains(&block_id) {
                     self.emit_at_block(
-                        format!(
+                        format_args!(
                             "stored predecessor bb{} does not branch to bb{}",
                             pred.index(),
                             block_id.index()
@@ -183,7 +184,7 @@ impl<'a> Validator<'a> {
             for op in term.operands() {
                 if op.index() >= num_values {
                     self.emit_at_block(
-                        format!(
+                        format_args!(
                             "terminator references undefined value v{} (only {} values exist)",
                             op.index(),
                             num_values
@@ -198,7 +199,7 @@ impl<'a> Validator<'a> {
             for &inst_id in &block.instructions {
                 if inst_id.index() >= num_insts {
                     self.emit_at_block(
-                        format!("block contains nonexistent inst{}", inst_id.index()),
+                        format_args!("block contains nonexistent inst{}", inst_id.index()),
                         block_id,
                     );
                     continue;
@@ -209,7 +210,7 @@ impl<'a> Validator<'a> {
                 for op in inst.kind.operands() {
                     if op.index() >= num_values {
                         self.emit_at_inst(
-                            format!(
+                            format_args!(
                                 "instruction references undefined value v{} (only {} values exist)",
                                 op.index(),
                                 num_values
@@ -226,7 +227,7 @@ impl<'a> Validator<'a> {
                     for (pred_block, _) in incoming {
                         if pred_block.index() >= num_blocks {
                             self.emit_at_inst(
-                                format!(
+                                format_args!(
                                     "phi incoming references nonexistent block bb{}",
                                     pred_block.index()
                                 ),
@@ -237,7 +238,7 @@ impl<'a> Validator<'a> {
                         }
                         if !block_preds.contains(pred_block) {
                             self.emit_at_inst(
-                                format!(
+                                format_args!(
                                     "phi incoming from bb{} but bb{} is not a predecessor",
                                     pred_block.index(),
                                     pred_block.index()
@@ -251,7 +252,7 @@ impl<'a> Validator<'a> {
                     for pred in &block_preds {
                         if !incoming.iter().any(|(b, _)| b == pred) {
                             self.emit_at_inst(
-                                format!(
+                                format_args!(
                                     "phi missing incoming entry for predecessor bb{}",
                                     pred.index()
                                 ),
@@ -270,7 +271,7 @@ impl<'a> Validator<'a> {
                             .any(|(other, other_value)| other == pred_block && other_value != value)
                         {
                             self.emit_at_inst(
-                                format!(
+                                format_args!(
                                     "phi has conflicting incoming values for predecessor bb{}",
                                     pred_block.index()
                                 ),
@@ -342,9 +343,9 @@ impl<'a> Validator<'a> {
                                 && !reaches(def, pred)
                             {
                                 self.emit_at_inst(
-                                    format!(
+                                    format_args!(
                                         "phi input {value:?} from bb{} can never be reached by \
-                                         its definition in bb{}",
+                                 its definition in bb{}",
                                         pred.index(),
                                         def.index()
                                     ),
@@ -361,9 +362,9 @@ impl<'a> Validator<'a> {
                                 && !reaches(def, block_id)
                             {
                                 self.emit_at_inst(
-                                    format!(
+                                    format_args!(
                                         "use of {operand:?} can never be reached by its \
-                                         definition in bb{}",
+                                 definition in bb{}",
                                         def.index()
                                     ),
                                     block_id,
@@ -381,9 +382,9 @@ impl<'a> Validator<'a> {
                         && !reaches(def, block_id)
                     {
                         self.emit_at_block(
-                            format!(
+                            format_args!(
                                 "terminator use of {operand:?} can never be reached by its \
-                                 definition in bb{}",
+                         definition in bb{}",
                                 def.index()
                             ),
                             block_id,
@@ -415,7 +416,7 @@ impl<'a> Validator<'a> {
                     continue;
                 };
                 let Some(callee) = module.functions.get(*function) else {
-                    self.emit(format!(
+                    self.emit(format_args!(
                         "[fn{}] tail_call targets nonexistent function fn{}",
                         id.index(),
                         function.index()
@@ -423,7 +424,7 @@ impl<'a> Validator<'a> {
                     continue;
                 };
                 if args.len() != callee.params.len() {
-                    self.emit(format!(
+                    self.emit(format_args!(
                         "[fn{}] tail_call to `{}` passes {} argument(s), expected {}",
                         id.index(),
                         callee.name,
@@ -445,7 +446,7 @@ impl<'a> Validator<'a> {
             && module.functions.iter().any(|f| f.selector.is_some() && !f.blocks.is_empty())
             && !module.functions.iter().any(|f| f.name.name == sym::entry)
         {
-            self.emit(format!(
+            self.emit(format_args!(
                 "module is in the `{}` phase but has no `entry` dispatcher function",
                 module.phase.name()
             ));
@@ -455,9 +456,9 @@ impl<'a> Validator<'a> {
         if module.phase >= crate::mir::MirPhase::Abi {
             for (id, func) in module.iter_functions() {
                 if func.selector.is_some() && !func.blocks.is_empty() && !func.params.is_empty() {
-                    self.emit(format!(
+                    self.emit(format_args!(
                         "[fn{}] selector function `{}` still takes arguments in the `{}` phase \
-                         (expected an argument-free ABI wrapper)",
+                     (expected an argument-free ABI wrapper)",
                         id.index(),
                         func.name,
                         module.phase.name()
