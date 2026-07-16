@@ -2,28 +2,28 @@
 bb0 (entry):
   push 320
   push 64
-  mstore !meta(stack=0->0)
-  callvalue !meta(stack=0->0)
+  mstore
+  callvalue
   push bb1
-  jumpi !meta(stack=0->0)
-  calldatasize !meta(stack=0->0)
-  iszero !meta(stack=0->0)
+  jumpi
+  calldatasize
+  iszero
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
-  calldataload !meta(stack=0->0)
+  calldataload
   push 224
-  shr !meta(stack=0->0)
+  shr
   dup1
   push 0x561cce0a
-  eq !meta(stack=0->0)
+  eq
   push bb4
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 0xa871da91
-  eq !meta(stack=0->0)
+  eq
   push bb2
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb1
 bb1:
   push 0
@@ -32,111 +32,111 @@ bb1:
 bb2:
   push 0
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 0x3339000000000000000000000000000000000000000000000000000000000000
   fallthrough bb3
 bb3:
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   jump bb5
 bb4:
   push 0
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   jump bb3
 bb5:
   push 64
-  mload !meta(stack=0->0)
+  mload
   push 32
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   push 288
-  mload !meta(stack=0->0)
-  mload !meta(stack=0->0)
+  mload
+  mload
   push 32
   dup3
-  add !meta(stack=0->0)
+  add
   dup2
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   pop
   push 31
   dup2
-  add !meta(stack=0->0)
+  add
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
   swap1
-  and !meta(stack=0->0)
+  and
   push 64
   dup4
-  add !meta(stack=0->0)
+  add
   push 32
   dup3
-  sub !meta(stack=0->0)
+  sub
   dup2
-  add !meta(stack=0->0)
+  add
   push 0
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   pop
   push 32
   push 288
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mload
+  add
   dup4
   dup2
   dup4
-  mcopy !meta(stack=0->0)
+  mcopy
   pop
   pop
   swap1
   pop
   push 64
   swap1
-  add !meta(stack=0->0)
+  add
   dup2
   terminal return
 // === ROOT/tests/ui/codegen/revert_error_helper.sol:R (runtime) ===
 bb0 (entry):
   push 352
   push 64
-  mstore !meta(stack=0->0)
-  callvalue !meta(stack=0->0)
+  mstore
+  callvalue
   push bb1
-  jumpi !meta(stack=0->0)
-  calldatasize !meta(stack=0->0)
-  iszero !meta(stack=0->0)
+  jumpi
+  calldatasize
+  iszero
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
-  calldataload !meta(stack=0->0)
+  calldataload
   push 224
-  shr !meta(stack=0->0)
+  shr
   dup1
   push 0xc4186a6
-  eq !meta(stack=0->0)
+  eq
   push bb14
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 0x17a0525e
-  eq !meta(stack=0->0)
+  eq
   push bb17
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 0x9927bee4
-  eq !meta(stack=0->0)
+  eq
   push bb11
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 0x9af992c0
-  eq !meta(stack=0->0)
+  eq
   push bb8
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 0x9ee36b07
-  eq !meta(stack=0->0)
+  eq
   push bb3
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb1
 bb1:
   push 0
@@ -145,192 +145,192 @@ bb1:
 bb2:
   push 0
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 5
   push 4
-  calldataload !meta(stack=0->0)
-  gt !meta(stack=0->0)
-  iszero !meta(stack=0->0)
+  calldataload
+  gt
+  iszero
   swap1
   terminal jump
 bb3:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 32
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push bb4
   jump bb2
 bb4:
   push bb6
-  jumpi !meta(stack=0->0)
+  jumpi
   fallthrough bb5
 bb5:
   push 4
-  calldataload !meta(stack=0->0)
+  calldataload
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   push 128
   terminal return
 bb6:
   push 2
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   push 0x3339000000000000000000000000000000000000000000000000000000000000
   fallthrough bb7
 bb7:
   push 320
-  mstore !meta(stack=0->0)
+  mstore
   jump bb20
 bb8:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 32
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push bb9
   jump bb2
 bb9:
   push bb10
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb5
 bb10:
   push 11
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   push 0x6c69746572616c206d7367000000000000000000000000000000000000000000
   jump bb7
 bb11:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 32
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push bb12
   jump bb2
 bb12:
   push bb13
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb5
 bb13:
   push 15
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   push 0x6c6f63616c2d636f6e73742d6d73670000000000000000000000000000000000
   jump bb7
 bb14:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 32
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push bb15
   jump bb2
 bb15:
   push bb16
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb5
 bb16:
   push 64
-  mload !meta(stack=0->0)
+  mload
   push 96
   dup2
-  add !meta(stack=0->0)
+  add
   push 64
-  mstore !meta(stack=0->0)
+  mstore
   push 33
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   push 0x746869732d69732d612d33332d627974652d6c6f6e672d6d6573736167652121
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   push 64
   dup3
-  add !meta(stack=0->0)
+  add
   swap2
   pop
   push 0x2100000000000000000000000000000000000000000000000000000000000000
   dup3
-  mstore !meta(stack=0->0)
+  mstore
   swap1
   pop
   push 0x8c379a000000000000000000000000000000000000000000000000000000000
   push 0
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   push 4
-  mstore !meta(stack=0->0)
+  mstore
   push 33
   push 36
-  mstore !meta(stack=0->0)
+  mstore
   push 0
   push 100
-  mstore !meta(stack=0->0)
+  mstore
   push 33
   dup2
   push 68
-  mcopy !meta(stack=0->0)
+  mcopy
   pop
   push 132
   push 0
   terminal revert
 bb17:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 32
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push bb18
   jump bb2
 bb18:
   push bb19
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb5
 bb19:
   push 11
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   push 0x7265766572742d70617468000000000000000000000000000000000000000000
   jump bb7
 bb20:
   push 0x8c379a000000000000000000000000000000000000000000000000000000000
   push 0
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   push 4
-  mstore !meta(stack=0->0)
+  mstore
   push 288
-  mload !meta(stack=0->0)
+  mload
   push 36
-  mstore !meta(stack=0->0)
+  mstore
   push 320
-  mload !meta(stack=0->0)
+  mload
   push 68
-  mstore !meta(stack=0->0)
+  mstore
   push 100
   push 0
   terminal revert

@@ -3,8 +3,8 @@ bb0 (entry):
   %a = push 1
   %b = push 2
   swap1
-  %c = sub !meta(stack=2->1)
+  %c = sub
   %zero = push 0
   swap1
-  %d = eq !meta(stack=2->1)
+  %d = eq
   stop

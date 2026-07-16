@@ -237,12 +237,6 @@ impl ModelStack {
 /// words the predecessor leaves, in order. The predecessor may leave additional
 /// words below them — a successor only names the prefix it consumes. The entry
 /// block must start from an empty stack.
-///
-/// Limitation: a *scheduled* operation has its operands cleared and does not
-/// record a stack effect, so its input arity is no longer recoverable from the
-/// instruction alone; such ops fall back to [`default_instruction_stack_effect`]
-/// (inputs = 0). This does not affect the cross-block check, which compares a
-/// successor's declared value identities against the predecessor's exit words.
 fn verify_stack_consistency(module: &EvmIrModule) -> Result<(), EvmIrVerifyError> {
     if let Some(entry) = module.entry_block
         && !module.blocks[entry].entry_stack.is_empty()
@@ -594,15 +588,6 @@ fn verify_instruction_shape(
             ));
         }
     } else {
-        if operandless_operation_needs_stack_metadata(inst) {
-            return Err(EvmIrVerifyError::in_block(
-                block_id,
-                format!(
-                    "operand-cleared instruction `{}` must declare an explicit stack effect",
-                    inst.mnemonic()
-                ),
-            ));
-        }
         for operand in &inst.operands {
             if !matches!(operand, EvmIrOperand::Value(_)) {
                 return Err(EvmIrVerifyError::in_block(
@@ -613,43 +598,6 @@ fn verify_instruction_shape(
         }
     }
     Ok(())
-}
-
-fn operandless_operation_needs_stack_metadata(inst: &EvmIrInstruction) -> bool {
-    inst.operands.is_empty()
-        && inst.metadata.stack.is_none()
-        && matches!(
-            &inst.kind,
-            EvmIrInstructionKind::Operation(mnemonic)
-                if !(inst.result.is_some() && is_zero_input_operation(mnemonic))
-        )
-}
-
-fn is_zero_input_operation(mnemonic: &str) -> bool {
-    matches!(
-        mnemonic,
-        "address"
-            | "origin"
-            | "caller"
-            | "callvalue"
-            | "calldatasize"
-            | "codesize"
-            | "gasprice"
-            | "coinbase"
-            | "timestamp"
-            | "number"
-            | "prevrandao"
-            | "difficulty"
-            | "gaslimit"
-            | "chainid"
-            | "selfbalance"
-            | "basefee"
-            | "blobbasefee"
-            | "returndatasize"
-            | "msize"
-            | "gas"
-            | "pc"
-    )
 }
 
 fn verify_terminator_shape(

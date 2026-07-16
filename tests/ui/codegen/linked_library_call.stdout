@@ -2,77 +2,77 @@
 bb0 (entry):
   push 256
   push 64
-  mstore !meta(stack=0->0)
-  callvalue !meta(stack=0->0)
+  mstore
+  callvalue
   push bb1
-  jumpi !meta(stack=0->0)
-  calldatasize !meta(stack=0->0)
-  iszero !meta(stack=0->0)
+  jumpi
+  calldatasize
+  iszero
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
-  calldataload !meta(stack=0->0)
+  calldataload
   push 224
-  shr !meta(stack=0->0)
+  shr
   dup1
   push 0xed2f0bb8
-  eq !meta(stack=0->0)
+  eq
   push bb2
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb1
 bb1:
   push 0
   dup1
   terminal revert
 bb2:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 96
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 36
-  calldataload !meta(stack=0->0)
+  calldataload
   push 0xffffffffffffffffffffffffffffffffffffffff
   dup2
-  and !meta(stack=0->0)
-  sub !meta(stack=0->0)
+  and
+  sub
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 36
-  calldataload !meta(stack=0->0)
+  calldataload
   push 0
-  mstore !meta(stack=0->0)
+  mstore
   push 4
-  calldataload !meta(stack=0->0)
+  calldataload
   push 32
-  mstore !meta(stack=0->0)
+  mstore
   push 64
   push 0
-  keccak256 !meta(stack=0->0)
+  keccak256
   dup1
   push 160
-  mstore !meta(stack=0->0)
-  sload !meta(stack=0->0)
+  mstore
+  sload
   push 68
-  calldataload !meta(stack=0->0)
+  calldataload
   dup2
   dup1
   push 224
-  mstore !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mstore
+  add
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup1
   push 224
-  mstore !meta(stack=0->0)
+  mstore
   dup2
-  lt !meta(stack=0->0)
+  lt
   swap2
   pop
   dup2
@@ -80,33 +80,33 @@ bb2:
   pop
   pop
   push bb3
-  jumpi !meta(stack=0->0)
+  jumpi
   push 192
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   push 160
-  mload !meta(stack=0->0)
-  sstore !meta(stack=0->0)
+  mload
+  sstore
   push 160
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 160
-  mstore !meta(stack=0->0)
-  sload !meta(stack=0->0)
+  mstore
+  sload
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   push 128
   terminal return
 bb3:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
-  mstore !meta(stack=0->0)
+  mstore
   push 17
   push 4
-  mstore !meta(stack=0->0)
+  mstore
   push 36
   push 0
   terminal revert
@@ -114,116 +114,116 @@ bb3:
 bb0 (entry):
   push 224
   push 64
-  mstore !meta(stack=0->0)
-  callvalue !meta(stack=0->0)
+  mstore
+  callvalue
   push bb1
-  jumpi !meta(stack=0->0)
-  calldatasize !meta(stack=0->0)
-  iszero !meta(stack=0->0)
+  jumpi
+  calldatasize
+  iszero
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
-  calldataload !meta(stack=0->0)
+  calldataload
   push 224
-  shr !meta(stack=0->0)
+  shr
   dup1
   push 0x3dd41ca6
-  eq !meta(stack=0->0)
+  eq
   push bb2
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb1
 bb1:
   push 0
   dup1
   terminal revert
 bb2:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 64
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 4
-  calldataload !meta(stack=0->0)
+  calldataload
   push 0xffffffffffffffffffffffffffffffffffffffff
   dup2
-  and !meta(stack=0->0)
-  sub !meta(stack=0->0)
+  and
+  sub
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 64
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 160
-  mstore !meta(stack=0->0)
+  mstore
   push 32
-  mstore !meta(stack=0->0)
+  mstore
   push 0xed2f0bb800000000000000000000000000000000000000000000000000000000
   push 160
-  mload !meta(stack=0->0)
-  mstore !meta(stack=0->0)
+  mload
+  mstore
   push 4
   push 160
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mload
+  add
   push 0
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   pop
   push 36
   push 160
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mload
+  add
   push 4
-  calldataload !meta(stack=0->0)
+  calldataload
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   pop
   push 68
   push 160
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mload
+  add
   push 36
-  calldataload !meta(stack=0->0)
+  calldataload
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   pop
-  gas !meta(stack=0->0)
+  gas
   push 32
   push 0
   push 100
   push 160
-  mload !meta(stack=0->0)
+  mload
   push 0x1111111111111111111111111111111111111111
-  gas !meta(stack=0->0)
-  delegatecall !meta(stack=0->0)
+  gas
+  delegatecall
   swap1
   pop
-  iszero !meta(stack=0->0)
+  iszero
   push bb3
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
-  mload !meta(stack=0->0)
+  mload
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   push 128
   terminal return
 bb3:
-  returndatasize !meta(stack=0->0)
+  returndatasize
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   push 0
   dup1
-  returndatacopy !meta(stack=0->0)
+  returndatacopy
   push 192
-  mload !meta(stack=0->0)
+  mload
   push 0
   terminal revert

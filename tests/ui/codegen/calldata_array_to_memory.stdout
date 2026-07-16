@@ -2,38 +2,38 @@
 bb0 (entry):
   push 672
   push 64
-  mstore !meta(stack=0->0)
-  callvalue !meta(stack=0->0)
+  mstore
+  callvalue
   push bb1
-  jumpi !meta(stack=0->0)
-  calldatasize !meta(stack=0->0)
-  iszero !meta(stack=0->0)
+  jumpi
+  calldatasize
+  iszero
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
-  calldataload !meta(stack=0->0)
+  calldataload
   push 224
-  shr !meta(stack=0->0)
+  shr
   dup1
   push 0x2be02e45
-  eq !meta(stack=0->0)
+  eq
   push bb9
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 0x3ce9e381
-  eq !meta(stack=0->0)
+  eq
   push bb10
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 0x7da1365e
-  eq !meta(stack=0->0)
+  eq
   push bb2
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 0x874b8e9d
-  eq !meta(stack=0->0)
+  eq
   push bb4
-  jumpi !meta(stack=0->0)
+  jumpi
   jump bb1
 bb1:
   push 0
@@ -41,205 +41,205 @@ bb1:
   terminal revert
 bb2:
   push 0
-  sload !meta(stack=0->0)
+  sload
   fallthrough bb3
 bb3:
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   push 128
   terminal return
 bb4:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 32
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 4
   push 4
-  calldataload !meta(stack=0->0)
-  add !meta(stack=0->0)
-  calldataload !meta(stack=0->0)
+  calldataload
+  add
+  calldataload
   dup1
   push 224
-  mstore !meta(stack=0->0)
+  mstore
   push 251
-  shr !meta(stack=0->0)
+  shr
   push bb11
-  jumpi !meta(stack=0->0)
+  jumpi
   push 224
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 224
-  mstore !meta(stack=0->0)
+  mstore
   push 5
-  shl !meta(stack=0->0)
+  shl
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   push 64
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 256
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup2
-  add !meta(stack=0->0)
+  add
   swap2
   pop
   dup2
   push 64
-  mstore !meta(stack=0->0)
+  mstore
   swap1
   pop
   push 224
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 224
-  mstore !meta(stack=0->0)
+  mstore
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   dup1
   push 352
-  mstore !meta(stack=0->0)
+  mstore
   push 36
   push 4
-  calldataload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  calldataload
+  add
   dup4
   dup2
   dup4
   dup1
   push 352
-  mstore !meta(stack=0->0)
-  calldatacopy !meta(stack=0->0)
+  mstore
+  calldatacopy
   pop
   swap2
   pop
   push 0
   push 160
-  mstore !meta(stack=0->0)
+  mstore
   push 0
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   pop
   pop
   push 0
   jump bb5
 bb5:
   push 256
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 256
-  mstore !meta(stack=0->0)
-  mload !meta(stack=0->0)
+  mstore
+  mload
   swap1
-  lt !meta(stack=0->0)
+  lt
   push bb6
-  jumpi !meta(stack=0->0)
+  jumpi
   push 160
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 416
-  mstore !meta(stack=0->0)
+  mstore
   push 0
-  sstore !meta(stack=0->0)
+  sstore
   push 416
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 416
-  mstore !meta(stack=0->0)
+  mstore
   jump bb3
 bb6:
   push 192
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 448
-  mstore !meta(stack=0->0)
+  mstore
   push 5
-  shl !meta(stack=0->0)
+  shl
   dup1
   push 384
-  mstore !meta(stack=0->0)
+  mstore
   push 256
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 256
-  mstore !meta(stack=0->0)
-  mload !meta(stack=0->0)
+  mstore
+  mload
   push 448
-  mload !meta(stack=0->0)
-  lt !meta(stack=0->0)
-  iszero !meta(stack=0->0)
+  mload
+  lt
+  iszero
   push bb7
-  jumpi !meta(stack=0->0)
+  jumpi
   dup1
   push 384
-  mstore !meta(stack=0->0)
+  mstore
   push 352
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
-  mload !meta(stack=0->0)
+  mload
+  add
+  mload
   push 160
-  mload !meta(stack=0->0)
+  mload
   dup2
   dup1
   push 544
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup1
   push 512
-  mstore !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mstore
+  add
   dup1
   push 320
-  mstore !meta(stack=0->0)
+  mstore
   swap2
   pop
   dup2
   push 320
-  mstore !meta(stack=0->0)
+  mstore
   dup1
   push 512
-  mstore !meta(stack=0->0)
+  mstore
   swap1
-  lt !meta(stack=0->0)
+  lt
   push bb12
-  jumpi !meta(stack=0->0)
+  jumpi
   push 320
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 320
-  mstore !meta(stack=0->0)
+  mstore
   push 160
-  mstore !meta(stack=0->0)
+  mstore
   push 192
-  mload !meta(stack=0->0)
+  mload
   push 1
   dup2
   dup1
   push 480
-  mstore !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mstore
+  add
   dup1
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup1
   push 480
-  mstore !meta(stack=0->0)
+  mstore
   dup2
-  lt !meta(stack=0->0)
+  lt
   swap2
   pop
   dup2
@@ -247,370 +247,370 @@ bb6:
   pop
   pop
   push bb12
-  jumpi !meta(stack=0->0)
+  jumpi
   push 288
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   push 288
-  mload !meta(stack=0->0)
+  mload
   jump bb5
 bb7:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
-  mstore !meta(stack=0->0)
+  mstore
   pop
   push 50
   fallthrough bb8
 bb8:
   push 4
-  mstore !meta(stack=0->0)
+  mstore
   push 36
   push 0
   terminal revert
 bb9:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 32
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 0
   push 160
-  mstore !meta(stack=0->0)
+  mstore
   push 4
   push 4
-  calldataload !meta(stack=0->0)
-  add !meta(stack=0->0)
-  calldataload !meta(stack=0->0)
+  calldataload
+  add
+  calldataload
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   push 251
-  shr !meta(stack=0->0)
+  shr
   push bb11
-  jumpi !meta(stack=0->0)
+  jumpi
   push 192
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   push 5
-  shl !meta(stack=0->0)
+  shl
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   push 64
-  mload !meta(stack=0->0)
+  mload
   dup2
   dup2
-  add !meta(stack=0->0)
+  add
   swap2
   pop
   dup2
   push 64
-  mstore !meta(stack=0->0)
+  mstore
   swap1
   pop
   push 192
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   push 36
   push 4
-  calldataload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  calldataload
+  add
   dup4
   dup2
   dup4
-  calldatacopy !meta(stack=0->0)
+  calldatacopy
   pop
   pop
   swap1
   pop
   dup1
   push 224
-  mstore !meta(stack=0->0)
+  mstore
   push 160
-  mstore !meta(stack=0->0)
+  mstore
   push 224
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 224
-  mstore !meta(stack=0->0)
-  mload !meta(stack=0->0)
+  mstore
+  mload
   jump bb3
 bb10:
-  calldatasize !meta(stack=0->0)
+  calldatasize
   push 4
   swap1
-  sub !meta(stack=0->0)
+  sub
   push 96
   swap1
-  slt !meta(stack=0->0)
+  slt
   push bb1
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0
   push 128
-  mstore !meta(stack=0->0)
+  mstore
   push 64
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 224
-  mstore !meta(stack=0->0)
+  mstore
   push 96
   dup2
-  add !meta(stack=0->0)
+  add
   push 64
-  mstore !meta(stack=0->0)
+  mstore
   push 4
-  calldataload !meta(stack=0->0)
+  calldataload
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   push 4
   push 36
-  calldataload !meta(stack=0->0)
-  add !meta(stack=0->0)
-  calldataload !meta(stack=0->0)
+  calldataload
+  add
+  calldataload
   dup1
   push 160
-  mstore !meta(stack=0->0)
+  mstore
   push 251
-  shr !meta(stack=0->0)
+  shr
   swap1
   pop
   push bb11
-  jumpi !meta(stack=0->0)
+  jumpi
   push 160
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 160
-  mstore !meta(stack=0->0)
+  mstore
   push 5
-  shl !meta(stack=0->0)
+  shl
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   push 64
-  mload !meta(stack=0->0)
+  mload
   dup2
   dup2
-  add !meta(stack=0->0)
+  add
   swap2
   pop
   dup2
   push 64
-  mstore !meta(stack=0->0)
+  mstore
   swap1
   pop
   push 160
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 160
-  mstore !meta(stack=0->0)
+  mstore
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   push 36
   push 36
-  calldataload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  calldataload
+  add
   dup4
   dup2
   dup4
-  calldatacopy !meta(stack=0->0)
+  calldatacopy
   pop
   pop
   swap1
   pop
   push 32
   push 224
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mload
+  add
   dup1
   push 448
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   swap1
   pop
   push 4
   push 68
-  calldataload !meta(stack=0->0)
-  add !meta(stack=0->0)
-  calldataload !meta(stack=0->0)
+  calldataload
+  add
+  calldataload
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   push 31
   dup2
-  add !meta(stack=0->0)
+  add
   dup1
   push 544
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   swap1
-  lt !meta(stack=0->0)
+  lt
   swap2
   pop
   pop
   push bb11
-  jumpi !meta(stack=0->0)
+  jumpi
   push 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0
   push 544
-  mload !meta(stack=0->0)
-  and !meta(stack=0->0)
+  mload
+  and
   dup1
   push 640
-  mstore !meta(stack=0->0)
-  iszero !meta(stack=0->0)
+  mstore
+  iszero
   push 640
-  mload !meta(stack=0->0)
+  mload
   push 32
   dup3
   dup3
   dup3
-  sub !meta(stack=0->0)
-  mul !meta(stack=0->0)
+  sub
+  mul
   swap1
   pop
-  add !meta(stack=0->0)
+  add
   dup1
   push 512
-  mstore !meta(stack=0->0)
+  mstore
   swap1
   pop
   dup1
   push 512
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   dup1
   push 416
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup1
   push 512
-  mstore !meta(stack=0->0)
+  mstore
   swap1
-  lt !meta(stack=0->0)
+  lt
   swap1
   pop
   push bb11
-  jumpi !meta(stack=0->0)
+  jumpi
   push 64
-  mload !meta(stack=0->0)
+  mload
   push 416
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 416
-  mstore !meta(stack=0->0)
+  mstore
   dup2
-  add !meta(stack=0->0)
+  add
   push 64
-  mstore !meta(stack=0->0)
+  mstore
   push 192
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   push 32
   dup2
-  add !meta(stack=0->0)
+  add
   push 32
   push 512
-  mload !meta(stack=0->0)
-  sub !meta(stack=0->0)
+  mload
+  sub
   dup2
-  add !meta(stack=0->0)
+  add
   push 0
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   pop
   push 36
   push 68
-  calldataload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  calldataload
+  add
   push 192
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 192
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup4
-  calldatacopy !meta(stack=0->0)
+  calldatacopy
   pop
   pop
   push 64
   push 224
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mload
+  add
   dup1
   push 320
-  mstore !meta(stack=0->0)
+  mstore
   dup2
   dup2
-  mstore !meta(stack=0->0)
+  mstore
   swap1
   pop
   push 224
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 224
-  mstore !meta(stack=0->0)
-  mload !meta(stack=0->0)
+  mstore
+  mload
   dup1
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   push 448
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 448
-  mstore !meta(stack=0->0)
-  mload !meta(stack=0->0)
-  mload !meta(stack=0->0)
+  mstore
+  mload
+  mload
   push 10
   dup2
   dup1
   push 608
-  mstore !meta(stack=0->0)
-  mul !meta(stack=0->0)
+  mstore
+  mul
   dup1
   push 480
-  mstore !meta(stack=0->0)
+  mstore
   push 10
   dup2
-  div !meta(stack=0->0)
+  div
   dup3
   dup1
   push 608
-  mstore !meta(stack=0->0)
+  mstore
   swap1
-  eq !meta(stack=0->0)
+  eq
   swap2
   pop
   dup2
@@ -620,98 +620,98 @@ bb10:
   swap2
   pop
   pop
-  iszero !meta(stack=0->0)
+  iszero
   push bb12
-  jumpi !meta(stack=0->0)
+  jumpi
   push 480
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 480
-  mstore !meta(stack=0->0)
+  mstore
   push 288
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mload
+  add
   dup1
   push 256
-  mstore !meta(stack=0->0)
+  mstore
   push 288
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 288
-  mstore !meta(stack=0->0)
+  mstore
   swap1
-  lt !meta(stack=0->0)
+  lt
   push bb12
-  jumpi !meta(stack=0->0)
+  jumpi
   push 320
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 320
-  mstore !meta(stack=0->0)
-  mload !meta(stack=0->0)
-  mload !meta(stack=0->0)
+  mstore
+  mload
+  mload
   push 100
   dup2
   dup1
   push 576
-  mstore !meta(stack=0->0)
-  mul !meta(stack=0->0)
+  mstore
+  mul
   dup1
   push 384
-  mstore !meta(stack=0->0)
+  mstore
   push 100
   dup2
-  div !meta(stack=0->0)
+  div
   dup3
   dup1
   push 576
-  mstore !meta(stack=0->0)
+  mstore
   swap1
-  eq !meta(stack=0->0)
+  eq
   swap2
   pop
   dup2
   swap2
   pop
   pop
-  iszero !meta(stack=0->0)
+  iszero
   push bb12
-  jumpi !meta(stack=0->0)
+  jumpi
   push 384
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 384
-  mstore !meta(stack=0->0)
+  mstore
   push 256
-  mload !meta(stack=0->0)
-  add !meta(stack=0->0)
+  mload
+  add
   dup1
   push 352
-  mstore !meta(stack=0->0)
+  mstore
   push 256
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 256
-  mstore !meta(stack=0->0)
+  mstore
   swap1
-  lt !meta(stack=0->0)
+  lt
   push bb12
-  jumpi !meta(stack=0->0)
+  jumpi
   push 352
-  mload !meta(stack=0->0)
+  mload
   dup1
   push 352
-  mstore !meta(stack=0->0)
+  mstore
   jump bb3
 bb11:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
-  mstore !meta(stack=0->0)
+  mstore
   push 65
   jump bb8
 bb12:
   push 0x4e487b7100000000000000000000000000000000000000000000000000000000
   push 0
-  mstore !meta(stack=0->0)
+  mstore
   push 17
   jump bb8

@@ -415,10 +415,18 @@ pub(super) fn default_instruction_stack_effect(inst: &EvmIrInstruction) -> EvmIr
         EvmIrInstructionKind::Operation(_) if is_encoded_push_instruction(inst) => {
             EvmIrStackEffect::new(0, 1)
         }
-        EvmIrInstructionKind::Operation(_) => EvmIrStackEffect::new(
-            inst.operands.len().try_into().unwrap_or(u16::MAX),
-            u16::from(inst.result.is_some()),
-        ),
+        EvmIrInstructionKind::Operation(mnemonic) => {
+            if let Some(opcode) = super::assembler::op::from_mnemonic(mnemonic)
+                && let Some((inputs, outputs)) = super::assembler::op::stack_io(opcode)
+            {
+                EvmIrStackEffect::new(inputs, outputs)
+            } else {
+                EvmIrStackEffect::new(
+                    inst.operands.len().try_into().unwrap_or(u16::MAX),
+                    u16::from(inst.result.is_some()),
+                )
+            }
+        }
     }
 }
 
@@ -434,8 +442,10 @@ fn default_terminator_stack_effect(kind: &EvmIrTerminatorKind) -> EvmIrStackEffe
         | EvmIrTerminatorKind::FallthroughNext
         | EvmIrTerminatorKind::Jump(_)
         | EvmIrTerminatorKind::Stop
-        | EvmIrTerminatorKind::Invalid
-        | EvmIrTerminatorKind::RawOpcode(_) => EvmIrStackEffect::new(0, 0),
+        | EvmIrTerminatorKind::Invalid => EvmIrStackEffect::new(0, 0),
+        EvmIrTerminatorKind::RawOpcode(opcode) => super::assembler::op::stack_io(*opcode)
+            .map(|(inputs, outputs)| EvmIrStackEffect::new(inputs, outputs))
+            .unwrap_or_else(|| EvmIrStackEffect::new(0, 0)),
     }
 }
 

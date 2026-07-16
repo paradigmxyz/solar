@@ -64,15 +64,11 @@ fn display_instruction<'a>(
                 inst.operands.iter().map(|operand| display_operand(module, operand)).format(", ")
             )?;
         }
-        let default_stack = match &inst.kind {
-            EvmIrInstructionKind::Operation(_)
-                if inst.operands.is_empty() && inst.result.is_none() =>
-            {
-                None
-            }
-            _ => Some(default_instruction_stack_effect(inst)),
-        };
-        write!(f, "{}", display_metadata(&inst.metadata, default_stack))
+        write!(
+            f,
+            "{}",
+            display_metadata(&inst.metadata, Some(default_instruction_stack_effect(inst)))
+        )
     })
 }
 

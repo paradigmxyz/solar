@@ -286,9 +286,7 @@ impl StructuredAsmProgram {
                 if let Some(stack_op) = stack_op_from_opcode(opcode) {
                     EvmIrInstruction::stack_op(stack_op)
                 } else {
-                    let mut inst = EvmIrInstruction::new(opcode_mnemonic(opcode), Vec::new());
-                    inst.metadata.stack = Some(EvmIrStackEffect::new(0, 0));
-                    inst
+                    EvmIrInstruction::new(opcode_mnemonic(opcode), Vec::new())
                 }
             }
             AsmInstKind::PushInline(value) => {
