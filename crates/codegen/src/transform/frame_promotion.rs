@@ -20,7 +20,10 @@ use crate::{
     },
     pass::FunctionPass,
 };
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    map::FxHashMap,
+};
 
 const LOW_MEMORY_START: u64 = 0x80;
 
@@ -178,7 +181,7 @@ struct SlotSsaBuilder<'a> {
     cfg: &'a CfgInfo,
     inst_results: &'a FxHashMap<InstId, ValueId>,
     replacements: FxHashMap<ValueId, ValueId>,
-    dead: DenseBitSet<InstId>,
+    dead: GrowableBitSet<InstId>,
     phis: FxHashMap<BlockId, PendingPhi>,
     /// Blocks where this slot is live-in. Used to place phis only where the slot
     /// is actually live (pruned SSA): forcing a phi at a multi-predecessor block
@@ -229,12 +232,8 @@ impl FrameSlotPromoter {
 
         for info in slots {
             let inst_results = func.inst_results();
-            let mut builder = SlotSsaBuilder::new(
-                &info,
-                &cfg,
-                &inst_results,
-                func.instructions.len() + func.blocks.len(),
-            );
+            let mut builder =
+                SlotSsaBuilder::new(&info, &cfg, &inst_results, func.instructions.len());
             if builder.run(func) {
                 self.stats.slots_promoted += 1;
                 self.stats.loads_promoted += builder.loads_promoted;
@@ -640,14 +639,14 @@ impl<'a> SlotSsaBuilder<'a> {
         info: &'a SlotAccessInfo,
         cfg: &'a CfgInfo,
         inst_results: &'a FxHashMap<InstId, ValueId>,
-        instruction_capacity: usize,
+        instruction_count: usize,
     ) -> Self {
         Self {
             info,
             cfg,
             inst_results,
             replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(instruction_capacity),
+            dead: GrowableBitSet::with_capacity(instruction_count),
             phis: FxHashMap::default(),
             live_in: DenseBitSet::new_empty(info.use_blocks.domain_size()),
             phi_blocks: DenseBitSet::new_empty(info.use_blocks.domain_size()),

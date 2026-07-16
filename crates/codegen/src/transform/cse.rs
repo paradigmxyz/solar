@@ -44,7 +44,10 @@ use crate::{
     pass::FunctionPass,
 };
 use alloy_primitives::U256;
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    map::FxHashMap,
+};
 use std::cmp::Ordering;
 
 /// Common Subexpression Elimination pass.
@@ -287,7 +290,7 @@ impl CommonSubexprEliminator {
             return;
         }
 
-        let mut dead = DenseBitSet::new_empty(func.instructions.len() + candidates.len());
+        let mut dead = GrowableBitSet::with_capacity(func.instructions.len());
         let mut replacements = FxHashMap::default();
         let mut inserted_by_block: FxHashMap<BlockId, usize> = FxHashMap::default();
 
