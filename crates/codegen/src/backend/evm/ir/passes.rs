@@ -52,6 +52,8 @@ declare_passes! {
     /// Replace duplicate terminal block bodies with jumps to the first copy when profitable.
     pub const TERMINAL_DEDUP_PASS -> "terminal-dedup" = deduplicate_terminal_blocks;
 
+    /// Replace jumps to the next laid-out block with fallthrough edges.
+    pub const JUMP_TO_FALLTHROUGH_PASS -> "jump-to-fallthrough" = replace_jumps_to_next_block;
 }
 
 /// Options for running an EVM IR pass.
@@ -63,10 +65,11 @@ pub struct PassOptions {
 
 /// All EVM IR passes exposed by `solar evm-opt`.
 pub const PASS_REGISTRY: &[PassInfo] =
-    &[STACK_SCHEDULE_PASS, COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS];
+    &[STACK_SCHEDULE_PASS, COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS, JUMP_TO_FALLTHROUGH_PASS];
 
 /// The canonical EVM IR layout and code-size pipeline used by EVM codegen.
-pub const DEFAULT_LAYOUT_PIPELINE: &[PassInfo] = &[COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS];
+pub const DEFAULT_LAYOUT_PIPELINE: &[PassInfo] =
+    &[COLD_LAYOUT_PASS, TERMINAL_DEDUP_PASS, JUMP_TO_FALLTHROUGH_PASS];
 
 /// Finds a pass in the EVM IR pass registry by command-line name.
 pub fn lookup_pass(name: &str) -> Option<&'static PassInfo> {
@@ -78,6 +81,20 @@ pub fn run_pass(module: &mut Module, pass: &PassInfo, options: PassOptions) -> b
     let timer = PassTimer::new(options.time_passes);
     let changed = (pass.run_pass)(module);
     timer.finish("EVM IR", &module.name, pass.name, changed);
+    changed
+}
+
+fn replace_jumps_to_next_block(module: &mut Module) -> bool {
+    let mut changed = false;
+    for index in 0..module.blocks.len().saturating_sub(1) {
+        let block = BlockId::from_usize(index);
+        let next = BlockId::from_usize(index + 1);
+        let Some(term) = &mut module.blocks[block].terminator else { continue };
+        if matches!(term.kind, TerminatorKind::Jump(target) if target == next) {
+            term.kind = TerminatorKind::Fallthrough(next);
+            changed = true;
+        }
+    }
     changed
 }
 

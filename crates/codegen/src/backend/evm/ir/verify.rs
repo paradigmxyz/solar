@@ -125,6 +125,18 @@ impl<'a> Verifier<'a> {
                 Ok::<(), ()>(())
             })
             .unwrap();
+            if let TerminatorKind::Fallthrough(target) = term.kind
+                && self.block_exists(module, target)
+                && target.index() != block_id.index() + 1
+            {
+                self.error_in_block(
+                    block_id,
+                    format_args!(
+                        "fallthrough target `{}` is not the next laid-out block",
+                        module.block(target).label
+                    ),
+                );
+            }
             self.verify_metadata_is_untyped(block_id, &term.metadata);
         }
 

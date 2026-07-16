@@ -18,8 +18,8 @@ mod verify;
 
 pub use parse::ParseError;
 pub use passes::{
-    COLD_LAYOUT_PASS, DEFAULT_LAYOUT_PIPELINE, PASS_REGISTRY, PassInfo, PassOptions,
-    STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
+    COLD_LAYOUT_PASS, DEFAULT_LAYOUT_PIPELINE, JUMP_TO_FALLTHROUGH_PASS, PASS_REGISTRY, PassInfo,
+    PassOptions, STACK_SCHEDULE_PASS, TERMINAL_DEDUP_PASS, lookup_pass, run_pass,
 };
 pub use verify::Verifier;
 

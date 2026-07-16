@@ -1,0 +1,7 @@
+//@compile-flags: --pass jump-to-fallthrough
+bb0 (entry):
+  jump bb1
+bb1:
+  jump bb2
+bb2:
+  terminal return
