@@ -80,28 +80,15 @@ fn process_evmir(args: &EvmOptArgs) -> Result<(), String> {
         .load_file(Path::new(&args.input))
         .map_err(|e| format!("failed to read {}: {e}", args.input))?;
     let text = source.src.as_str();
-    let mut result: Result<(), String> = Ok(());
     sess.enter(|| {
         let input_name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
         for (name, section) in evm_ir_sections(text, &input_name) {
-            let mut module = match parse_evm_ir_module(section) {
-                Ok(module) => module,
-                Err(err) => {
-                    result = Err(format!("{err}"));
-                    return;
-                }
-            };
-            if let Err(err) = verify_evm_ir_module(&module) {
-                result = Err(format!("{err}"));
-                return;
-            }
-            if let Err(err) = run_pipeline(&mut module, name, args) {
-                result = Err(err);
-                return;
-            }
+            let mut module = parse_evm_ir_module(section).map_err(|err| format!("{err}"))?;
+            verify_evm_ir_module(&module).map_err(|err| format!("{err}"))?;
+            run_pipeline(&mut module, name, args)?;
         }
-    });
-    result
+        Ok(())
+    })
 }
 
 fn evm_ir_sections<'a>(input: &'a str, input_name: &'a str) -> Vec<(&'a str, &'a str)> {
