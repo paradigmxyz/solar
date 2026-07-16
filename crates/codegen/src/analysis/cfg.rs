@@ -9,13 +9,14 @@
 use std::cell::OnceCell;
 
 use crate::mir::{BlockId, Function};
+use smallvec::SmallVec;
 use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
 
 /// Control-flow facts for one MIR function.
 #[derive(Clone, Debug)]
 pub struct CfgInfo {
     entry_block: BlockId,
-    successors: Vec<Vec<BlockId>>,
+    successors: Vec<SmallVec<[BlockId; 2]>>,
     reachable: OnceCell<DenseBitSet<BlockId>>,
     rpo: OnceCell<Vec<BlockId>>,
     dominators: OnceCell<DominatorTree>,
@@ -30,11 +31,7 @@ impl CfgInfo {
             .blocks
             .iter()
             .map(|block| {
-                block
-                    .terminator
-                    .as_ref()
-                    .map(|term| term.successors().into_iter().collect())
-                    .unwrap_or_default()
+                block.terminator.as_ref().map(|term| term.successors()).unwrap_or_default()
             })
             .collect();
         Self {
@@ -58,7 +55,8 @@ impl CfgInfo {
     pub fn reachable(&self) -> &DenseBitSet<BlockId> {
         self.reachable.get_or_init(|| {
             let mut reachable = DenseBitSet::new_empty(self.successors.len());
-            let mut stack = vec![self.entry_block];
+            let mut stack = Vec::new();
+            stack.push(self.entry_block);
             while let Some(block) = stack.pop() {
                 if reachable.insert(block) {
                     stack.extend(self.successors[block.index()].iter().copied());
@@ -139,7 +137,11 @@ pub struct DominatorTree {
 }
 
 impl DominatorTree {
-    fn compute(entry_block: BlockId, successors: &[Vec<BlockId>], rpo: &[BlockId]) -> Self {
+    fn compute(
+        entry_block: BlockId,
+        successors: &[SmallVec<[BlockId; 2]>],
+        rpo: &[BlockId],
+    ) -> Self {
         let block_count = successors.len();
         let mut predecessors = vec![Vec::new(); block_count];
         for (block_index, block_successors) in successors.iter().enumerate() {
