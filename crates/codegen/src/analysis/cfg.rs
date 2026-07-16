@@ -206,10 +206,12 @@ fn compute_transitive_reachability(
     successors: &[Vec<BlockId>],
 ) -> FxHashMap<BlockId, DenseBitSet<BlockId>> {
     let mut reachability = FxHashMap::default();
+    let mut stack = Vec::new();
     for block_index in 0..successors.len() {
         let block_id = BlockId::from_usize(block_index);
         let mut reachable = DenseBitSet::new_empty(successors.len());
-        let mut stack = successors[block_id.index()].clone();
+        stack.clear();
+        stack.extend(successors[block_id.index()].iter().copied());
         while let Some(block) = stack.pop() {
             if reachable.insert(block) {
                 stack.extend(successors[block.index()].iter().copied());

@@ -23,7 +23,10 @@ use crate::{
 };
 use alloy_primitives::U256;
 use solar_config::{EvmVersion, OptimizationMode};
-use solar_data_structures::{bit_set::DenseBitSet, map::FxHashMap};
+use solar_data_structures::{
+    bit_set::{DenseBitSet, GrowableBitSet},
+    map::FxHashMap,
+};
 use solar_interface::{Session, sym};
 
 // 0x00..0x7f follows Solidity's scratch/free-pointer/zero-slot convention, and
@@ -1772,14 +1775,17 @@ impl EvmCodegen {
     /// calls to other cold functions.
     fn collect_cold_functions(module: &Module) -> DenseBitSet<FunctionId> {
         let mut cold = DenseBitSet::new_empty(module.functions.len());
+        let mut worklist = Vec::new();
+        let mut visited = GrowableBitSet::new_empty();
         loop {
             let mut changed = false;
             for (function_id, func) in module.functions.iter_enumerated() {
                 if cold.contains(function_id) || func.blocks.is_empty() {
                     continue;
                 }
-                let mut worklist = vec![func.entry_block];
-                let mut visited = DenseBitSet::new_empty(func.blocks.len());
+                worklist.clear();
+                worklist.push(func.entry_block);
+                visited.clear();
                 let mut saw_exit = false;
                 let mut all_exits_cold = true;
                 while let Some(block_id) = worklist.pop()

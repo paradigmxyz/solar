@@ -153,9 +153,11 @@ impl LoopOptimizer {
         });
 
         let mut selected = DenseBitSet::new_empty(func.instructions.len());
+        let mut closure = Vec::new();
+        let mut visiting = DenseBitSet::new_empty(func.instructions.len());
         for root in roots {
-            let mut closure = Vec::new();
-            let mut visiting = DenseBitSet::new_empty(func.instructions.len());
+            closure.clear();
+            visiting.clear();
             if !self.collect_hoist_closure(func, root, ctx, &selected, &mut visiting, &mut closure)
             {
                 continue;
@@ -165,7 +167,7 @@ impl LoopOptimizer {
             if selected.count() + new_count > self.config.max_licm_hoisted_insts {
                 continue;
             }
-            for inst_id in closure {
+            for &inst_id in &closure {
                 selected.insert(inst_id);
             }
         }

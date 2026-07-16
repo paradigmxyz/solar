@@ -23,6 +23,16 @@ struct RunState {
     cached_loads: FxHashMap<StorageAlias, ValueId>,
 }
 
+impl RunState {
+    fn new(func: &Function) -> Self {
+        Self {
+            replacements: FxHashMap::default(),
+            dead: DenseBitSet::new_empty(func.instructions.len()),
+            cached_loads: FxHashMap::default(),
+        }
+    }
+}
+
 /// Function pass for straight-line storage-load CSE.
 pub struct StorageLoadCsePass;
 
@@ -44,21 +54,23 @@ impl StorageLoadCse {
 
     /// Runs storage-load CSE on a function.
     pub fn run(&mut self, func: &mut Function) -> usize {
+        let mut state = RunState::new(func);
+        self.run_with_state(func, &mut state)
+    }
+
+    fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.eliminated_count = 0;
         func.annotate_storage_aliases(mir_utils::StorageAliasScope::Storage);
 
         let mut analyses = AnalysisManager::new();
         let liveness = analyses.get_or_compute(&LivenessAnalysis, func);
         let inst_results = func.inst_results();
-        let mut state = RunState {
-            replacements: FxHashMap::default(),
-            dead: DenseBitSet::new_empty(func.instructions.len()),
-            cached_loads: FxHashMap::default(),
-        };
+        state.replacements.clear();
+        state.dead.clear();
 
         for block_id in func.blocks.indices() {
             state.cached_loads.clear();
-            self.process_block(func, block_id, liveness, &inst_results, &mut state);
+            self.process_block(func, block_id, liveness, &inst_results, state);
         }
 
         if !state.replacements.is_empty() {
@@ -76,8 +88,9 @@ impl StorageLoadCse {
     /// Runs storage-load CSE to a fixed point.
     pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
+        let mut state = RunState::new(func);
         loop {
-            let eliminated = self.run(func);
+            let eliminated = self.run_with_state(func, &mut state);
             if eliminated == 0 {
                 break;
             }

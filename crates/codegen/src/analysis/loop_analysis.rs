@@ -163,13 +163,14 @@ impl LoopAnalyzer {
         blocks: &mut DenseBitSet<BlockId>,
     ) {
         blocks.insert(header);
-        let mut worklist = vec![back_edge_src];
+        let mut worklist = Vec::new();
+        if blocks.insert(back_edge_src) {
+            worklist.push(back_edge_src);
+        }
         while let Some(block) = worklist.pop() {
-            if blocks.insert(block) {
-                for &pred in &func.blocks[block].predecessors {
-                    if !blocks.contains(pred) {
-                        worklist.push(pred);
-                    }
+            for &pred in &func.blocks[block].predecessors {
+                if blocks.insert(pred) {
+                    worklist.push(pred);
                 }
             }
         }

@@ -28,6 +28,22 @@ pub struct InstSimplifier {
     pub simplified_count: usize,
 }
 
+struct RunState {
+    inst_results: FxHashMap<InstId, ValueId>,
+    replacements: FxHashMap<ValueId, ValueId>,
+    dead: DenseBitSet<InstId>,
+}
+
+impl RunState {
+    fn new(func: &Function) -> Self {
+        Self {
+            inst_results: func.inst_results(),
+            replacements: FxHashMap::default(),
+            dead: DenseBitSet::new_empty(func.instructions.len()),
+        }
+    }
+}
+
 /// Function pass for local instruction simplification.
 pub struct InstSimplifyPass;
 
@@ -49,55 +65,60 @@ impl InstSimplifier {
 
     /// Runs instruction simplification on a function.
     pub fn run(&mut self, func: &mut Function) -> usize {
+        let mut state = RunState::new(func);
+        self.run_with_state(func, &mut state)
+    }
+
+    fn run_with_state(&mut self, func: &mut Function, state: &mut RunState) -> usize {
         self.simplified_count = 0;
 
-        let inst_results = func.inst_results();
-        let mut replacements: FxHashMap<ValueId, ValueId> = FxHashMap::default();
-        let mut dead = DenseBitSet::<InstId>::new_empty(func.instructions.len());
+        state.replacements.clear();
+        state.dead.clear();
         let block_ids: Vec<_> = func.blocks.indices().collect();
 
         for block_id in block_ids {
-            let inst_ids = func.blocks[block_id].instructions.clone();
-            for inst_id in inst_ids {
+            let instruction_count = func.blocks[block_id].instructions.len();
+            for index in 0..instruction_count {
+                let inst_id = func.blocks[block_id].instructions[index];
                 let kind = func.instructions[inst_id].kind.clone();
 
-                if self.is_dead_noop_inst(func, &kind, &replacements) {
-                    dead.insert(inst_id);
+                if self.is_dead_noop_inst(func, &kind, &state.replacements) {
+                    state.dead.insert(inst_id);
                     self.simplified_count += 1;
                     continue;
                 }
 
-                if let Some(new_kind) = self.rewrite_inst(func, &kind, &replacements) {
+                if let Some(new_kind) = self.rewrite_inst(func, &kind, &state.replacements) {
                     func.instructions[inst_id].kind = new_kind;
                     self.simplified_count += 1;
                     continue;
                 }
 
-                let Some(&result) = inst_results.get(&inst_id) else {
+                let Some(&result) = state.inst_results.get(&inst_id) else {
                     continue;
                 };
-                let Some(replacement) = self.simplify_inst(func, &kind, &replacements) else {
+                let Some(replacement) = self.simplify_inst(func, &kind, &state.replacements) else {
                     continue;
                 };
-                let replacement = mir_utils::resolve_replacement(replacement, &replacements);
+                let replacement = mir_utils::resolve_replacement(replacement, &state.replacements);
                 if replacement == result {
                     continue;
                 }
-                replacements.insert(result, replacement);
-                dead.insert(inst_id);
+                state.replacements.insert(result, replacement);
+                state.dead.insert(inst_id);
                 self.simplified_count += 1;
             }
         }
 
-        if !replacements.is_empty() {
-            func.replace_uses_canonicalized(&replacements);
+        if !state.replacements.is_empty() {
+            func.replace_uses_canonicalized(&state.replacements);
         }
-        if !dead.is_empty() {
+        if !state.dead.is_empty() {
             for block in func.blocks.iter_mut() {
-                block.instructions.retain(|&id| !dead.contains(id));
+                block.instructions.retain(|&id| !state.dead.contains(id));
             }
         }
-        self.simplified_count += self.rewrite_terminators(func, &replacements);
+        self.simplified_count += self.rewrite_terminators(func, &state.replacements);
 
         self.simplified_count
     }
@@ -105,8 +126,9 @@ impl InstSimplifier {
     /// Runs instruction simplification until no more changes are found.
     pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total = 0;
+        let mut state = RunState::new(func);
         loop {
-            let simplified = self.run(func);
+            let simplified = self.run_with_state(func, &mut state);
             if simplified == 0 {
                 break;
             }

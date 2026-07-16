@@ -926,8 +926,9 @@ impl<'a> SlotSsaBuilder<'a> {
             current = Some(phi.value);
         }
 
-        let insts = func.blocks[block].instructions.clone();
-        for inst_id in insts {
+        let instruction_count = func.blocks[block].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block].instructions[index];
             match func.instructions[inst_id].kind {
                 InstKind::MLoad(addr)
                     if FrameSlotPromoter::promotable_slot(func, addr) == Some(self.info.slot) =>

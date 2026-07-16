@@ -70,6 +70,15 @@ impl DeadCodeEliminator {
     /// Runs dead code elimination on a function.
     /// Returns the number of instructions eliminated.
     pub fn run(&mut self, func: &mut Function) -> usize {
+        let inst_to_value = func.inst_results();
+        self.run_with_inst_results(func, &inst_to_value)
+    }
+
+    fn run_with_inst_results(
+        &mut self,
+        func: &mut Function,
+        inst_to_value: &FxHashMap<InstId, ValueId>,
+    ) -> usize {
         self.eliminated_count = 0;
         self.blocks_removed = 0;
         self.unused_params = 0;
@@ -80,23 +89,11 @@ impl DeadCodeEliminator {
         // Phase 2: Find and count unused parameters
         self.unused_params = self.find_unused_parameters(func).len();
 
-        // Phase 3: Precompute InstId → ValueId map (O(V) once, replaces
-        // the O(V)-per-instruction linear scan in find_result_value).
-        let inst_to_value: FxHashMap<InstId, ValueId> = func
-            .values
-            .iter_enumerated()
-            .filter_map(
-                |(vid, val)| {
-                    if let Value::Inst(iid) = val { Some((*iid, vid)) } else { None }
-                },
-            )
-            .collect();
-
-        // Phase 4: Find all used values
+        // Phase 3: Find all used values
         let used_values = self.collect_used_values(func);
 
-        // Phase 5: Find dead instructions
-        let dead_instructions = self.find_dead_instructions(func, &used_values, &inst_to_value);
+        // Phase 4: Find dead instructions
+        let dead_instructions = self.find_dead_instructions(func, &used_values, inst_to_value);
 
         // Remove dead instructions from blocks
         for (block_id, inst_id) in &dead_instructions {
@@ -121,8 +118,9 @@ impl DeadCodeEliminator {
     /// Runs dead code elimination iteratively until no more changes.
     pub fn run_to_fixpoint(&mut self, func: &mut Function) -> usize {
         let mut total_eliminated = 0;
+        let inst_to_value = func.inst_results();
         loop {
-            let eliminated = self.run(func);
+            let eliminated = self.run_with_inst_results(func, &inst_to_value);
             if eliminated == 0 {
                 break;
             }

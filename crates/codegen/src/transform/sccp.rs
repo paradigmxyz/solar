@@ -649,6 +649,7 @@ impl SccpPass {
         // replacement may allocate new ValueIds that don't have lattice entries.
         let block_ids: Vec<BlockId> = func.blocks.indices().collect();
         let mut control_rewrites: Vec<(BlockId, BlockId)> = Vec::new();
+        let mut executable_successors = DenseBitSet::new_empty(func.blocks.len());
         for &block_id in &block_ids {
             if !executable_blocks.contains(block_id) {
                 continue;
@@ -660,7 +661,7 @@ impl SccpPass {
                 continue;
             }
 
-            let mut executable_successors = DenseBitSet::new_empty(func.blocks.len());
+            executable_successors.clear();
             for successor in term.successors() {
                 if executable_edges.contains(&(block_id, successor)) {
                     executable_successors.insert(successor);

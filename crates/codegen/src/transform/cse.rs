@@ -387,8 +387,7 @@ impl CommonSubexprEliminator {
         cache: &mut FxHashMap<ExprKey, ValueId>,
         ctx: &mut GlobalCseContext<'_>,
     ) {
-        let inst_ids = func.blocks[block_id].instructions.clone();
-        for inst_id in inst_ids {
+        for &inst_id in &func.blocks[block_id].instructions {
             let kind = func.instructions[inst_id].kind.clone();
             if kind.has_side_effects() {
                 self.invalidate_for_side_effect(func, inst_id, &kind, ctx.replacements, cache);
@@ -492,11 +491,9 @@ impl CommonSubexprEliminator {
         // Instructions to remove
         let mut to_remove = DenseBitSet::new_empty(func.instructions.len());
 
-        // Get instruction list for this block
-        let block = func.block(block_id);
-        let inst_ids: Vec<InstId> = block.instructions.clone();
-
-        for inst_id in inst_ids {
+        let instruction_count = func.blocks[block_id].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block_id].instructions[index];
             let inst = &func.instructions[inst_id];
             let kind = inst.kind.clone();
 
@@ -1111,10 +1108,9 @@ impl CommonSubexprEliminator {
         block_id: BlockId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
-        let block = func.block(block_id);
-        let inst_ids: Vec<InstId> = block.instructions.clone();
-
-        for inst_id in inst_ids {
+        let instruction_count = func.blocks[block_id].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block_id].instructions[index];
             let inst = &mut func.instructions[inst_id];
             if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
                 if mir_utils::is_memory_inst(&inst.kind) {

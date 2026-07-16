@@ -807,8 +807,9 @@ impl MirInliner {
 
     fn recursive_functions(&self, module: &Module) -> DenseBitSet<MirFunctionId> {
         let mut recursive = DenseBitSet::new_empty(module.functions.len());
+        let mut visiting = DenseBitSet::new_empty(module.functions.len());
         for func_id in module.functions.indices() {
-            let mut visiting = DenseBitSet::new_empty(module.functions.len());
+            visiting.clear();
             if self.function_reaches(module, func_id, func_id, &mut visiting) {
                 recursive.insert(func_id);
             }

@@ -279,8 +279,9 @@ impl CfgSimplifier {
         // Mutually-trivial cycles have no outside source; keep those phis.
         let mut replacements = FxHashMap::default();
         let mut dead = DenseBitSet::new_empty(func.instructions.len());
+        let mut seen = DenseBitSet::new_empty(func.values.len());
         for &(inst_id, phi_value) in &candidates {
-            let mut seen = DenseBitSet::new_empty(func.values.len());
+            seen.clear();
             seen.insert(phi_value);
             let mut target = raw[&phi_value];
             let mut cyclic = false;

@@ -557,8 +557,9 @@ impl StorageScalarPromoter {
             }
         }
 
-        let inst_ids = func.blocks[preheader].instructions.clone();
-        for (pos, inst_id) in inst_ids.into_iter().enumerate() {
+        let instruction_count = func.blocks[preheader].instructions.len();
+        for pos in 0..instruction_count {
+            let inst_id = func.blocks[preheader].instructions[pos];
             if let InstKind::SLoad(load_slot) = &func.instructions[inst_id].kind {
                 let alias = func.storage_alias(inst_id, *load_slot);
                 if let Some(&(temp_addr, init_pos)) = temps.get(&alias)
@@ -692,9 +693,10 @@ impl StorageScalarPromoter {
                     self.stats.stores_promoted += 1;
                 }
 
-                let inst_ids = func.blocks[candidate.preheader].instructions.clone();
                 let mut rewrite = false;
-                for inst_id in inst_ids {
+                let instruction_count = func.blocks[candidate.preheader].instructions.len();
+                for index in 0..instruction_count {
+                    let inst_id = func.blocks[candidate.preheader].instructions[index];
                     if inst_id == init_store {
                         rewrite = true;
                         continue;

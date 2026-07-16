@@ -413,8 +413,9 @@ impl GlobalValueNumberer {
         block_id: BlockId,
         replacements: &FxHashMap<ValueId, ValueId>,
     ) {
-        let inst_ids: Vec<InstId> = func.blocks[block_id].instructions.clone();
-        for inst_id in inst_ids {
+        let instruction_count = func.blocks[block_id].instructions.len();
+        for index in 0..instruction_count {
+            let inst_id = func.blocks[block_id].instructions[index];
             let inst = &mut func.instructions[inst_id];
             if mir_utils::replace_inst_uses_canonicalized(&mut inst.kind, replacements) != 0 {
                 if mir_utils::is_memory_inst(&inst.kind) {
