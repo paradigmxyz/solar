@@ -29,6 +29,7 @@ use solar_interface::data_structures::map::rustc_hash::FxHashMap;
 #[derive(Default)]
 pub(crate) struct Vfs {
     data: FxHashMap<VfsPath, Rope>,
+    versions: FxHashMap<VfsPath, i32>,
     dirty: bool,
 }
 
@@ -36,16 +37,35 @@ impl Vfs {
     /// Set the contents of a file. A content of `None` means the file is to be removed from the
     /// VFS.
     pub(crate) fn set_file_contents(&mut self, path: VfsPath, contents: Option<Rope>) {
+        self.set_file_contents_with_version(path, contents, None);
+    }
+
+    pub(crate) fn set_file_contents_with_version(
+        &mut self,
+        path: VfsPath,
+        contents: Option<Rope>,
+        version: Option<i32>,
+    ) {
         if let Some(contents) = contents {
-            self.data.insert(path, contents);
+            self.data.insert(path.clone(), contents);
+            if let Some(version) = version {
+                self.versions.insert(path, version);
+            } else {
+                self.versions.remove(&path);
+            }
         } else {
             self.data.remove(&path);
+            self.versions.remove(&path);
         }
         self.dirty = true;
     }
 
     pub(crate) fn get_file_contents(&self, path: &VfsPath) -> Option<&Rope> {
         self.data.get(path)
+    }
+
+    pub(crate) fn get_file_version(&self, path: &VfsPath) -> Option<i32> {
+        self.versions.get(path).copied()
     }
 
     pub(crate) fn exists(&self, path: &VfsPath) -> bool {

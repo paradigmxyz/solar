@@ -1180,10 +1180,13 @@ fn parse_natspec(
                 "notice" => ast::NatSpecKind::Notice,
                 "dev" => ast::NatSpecKind::Dev,
                 "param" | "inheritdoc" => {
+                    let name_start = rest_start;
                     let (name, content_start_pos) =
                         crate::natspec::split_once_ws(content, rest_start, line_end);
                     content_start = content_start_pos;
-                    let ident = Ident::new(Symbol::intern(name), comment_span);
+                    let name_lo = comment_span.lo() + PREFIX_BYTES + name_start as u32;
+                    let name_span = Span::new(name_lo, name_lo + name.len() as u32);
+                    let ident = Ident::new(Symbol::intern(name), name_span);
                     match tag {
                         "param" => ast::NatSpecKind::Param { name: ident },
                         "inheritdoc" => ast::NatSpecKind::Inheritdoc { contract: ident },

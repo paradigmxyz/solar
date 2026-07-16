@@ -4,20 +4,32 @@ use lsp_types::{
 };
 use solar_interface::{
     Span,
-    data_structures::{Never, index::IndexVec, map::FxHashMap, newtype_index},
+    data_structures::{
+        Never,
+        index::IndexVec,
+        map::{FxHashMap, FxHashSet},
+        newtype_index,
+    },
 };
 use solar_sema::{
     Gcx,
     builtins::Builtin,
     hir::{
-        self, ContractKind, EnumId, FunctionKind, ItemId, Res, StmtKind, TypeKind, UsingEntryKind,
-        VarKind, Visit,
+        self, CallArgs, CallArgsKind, ContractKind, EnumId, FunctionKind, ItemId, Res, StmtKind,
+        TypeKind, UsingEntryKind, VarKind, VariableId, Visit,
     },
-    ty::{MemberCompletion, ResolvedMember, Ty},
+    ty::{CallableParamSource, MemberCompletion, ResolvedMember, Ty, TyKind},
 };
 use std::ops::ControlFlow;
 
-use crate::{inlay_hints::InlayHintIndex, proto, signature_help::SignatureHelpIndex};
+use crate::{
+    inlay_hints::InlayHintIndex,
+    proto,
+    rename::{
+        ImportBindings, MappingBindings, RenameCandidate, RenameIndex, RenameReferenceContext,
+    },
+    signature_help::SignatureHelpIndex,
+};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SymbolTables {
@@ -35,6 +47,7 @@ pub(crate) struct SymbolTables {
     references: Vec<SymbolReference>,
     file_references: FxHashMap<Url, Vec<usize>>,
     symbol_references: FxHashMap<SymbolId, Vec<Location>>,
+    rename: RenameIndex,
     inlay_hints: InlayHintIndex,
     signature_help: SignatureHelpIndex,
 }
@@ -126,8 +139,10 @@ impl SymbolTables {
     /// source-level declarations that LSP requests can query after that run has finished.
     pub(crate) fn build(gcx: Gcx<'_>) -> Self {
         let mut tables = Self::default();
+        tables.rename.record_source_contents(gcx);
         tables.build_builtin_completions();
         let item_ids = gcx.hir.item_ids();
+        let yul_variables = YulVariableCollector::collect(gcx);
         let mut item_symbols =
             FxHashMap::with_capacity_and_hasher(item_ids.size_hint().0, Default::default());
 
@@ -165,6 +180,14 @@ impl SymbolTables {
                 },
             );
             item_symbols.insert(item_id, symbol_id);
+            if item.name().is_some()
+                && !matches!(item_id, ItemId::Function(id) if gcx.hir.function(id).is_yul)
+                && !matches!(item_id, ItemId::Variable(id) if yul_variables.contains(&id))
+            {
+                tables
+                    .rename
+                    .add_symbol_declaration(symbol_id, tables.selection_location(symbol_id));
+            }
         }
 
         // Convert HIR ownership (`contract`, `parent`) into SymbolId links. These links are the
@@ -172,6 +195,16 @@ impl SymbolTables {
         for (&item_id, &symbol_id) in &item_symbols {
             tables.declarations[symbol_id].parent =
                 item_id.parent(&gcx.hir).and_then(|parent| item_symbols.get(&parent).copied());
+        }
+
+        // Public state-variable getters are compiler-generated functions, but source member calls
+        // such as `this.value()` still name the state variable. Point getter resolutions back to
+        // the source declaration so navigation and rename do not lose those references.
+        for function_id in gcx.hir.function_ids() {
+            let Some(variable_id) = gcx.hir.function(function_id).gettee else { continue };
+            if let Some(&symbol_id) = item_symbols.get(&ItemId::Variable(variable_id)) {
+                item_symbols.insert(ItemId::Function(function_id), symbol_id);
+            }
         }
 
         // Enum variants are declarations, but they are not HIR ItemIds. Add them explicitly and
@@ -186,7 +219,7 @@ impl SymbolTables {
                     continue;
                 };
                 let name = variant.to_string();
-                tables.push_declaration(
+                let symbol_id = tables.push_declaration(
                     SymbolKey::EnumVariant(enum_id, variant_index),
                     DeclarationSymbol {
                         id: tables.declarations.next_idx(),
@@ -199,13 +232,16 @@ impl SymbolTables {
                         has_definition: true,
                     },
                 );
+                tables
+                    .rename
+                    .add_symbol_declaration(symbol_id, tables.selection_location(symbol_id));
             }
         }
 
         tables.build_scopes(gcx);
         tables.build_receiver_member_completions(gcx);
         tables.build_member_completions(gcx);
-        tables.build_references(gcx);
+        tables.build_references(gcx, &item_symbols);
         tables.inlay_hints = InlayHintIndex::build(gcx);
         tables.signature_help = SignatureHelpIndex::build(gcx);
         tables.rebuild_indexes();
@@ -237,10 +273,6 @@ impl SymbolTables {
         }
         self.inlay_hints.extend(other.inlay_hints);
         self.signature_help.extend(other.signature_help);
-
-        if other.declarations.is_empty() {
-            return;
-        }
 
         let symbol_offset = self.declarations.len();
         let scope_offset = self.scopes.len();
@@ -276,6 +308,7 @@ impl SymbolTables {
         );
         self.member_completions.extend(other.member_completions);
         self.references.extend(other.references);
+        self.rename.extend(other.rename, symbol_offset);
         // HIR IDs are scoped to one compiler run, so this build-time map is not meaningful after
         // merging symbol tables from separate analysis batches.
         self.symbols_by_key.clear();
@@ -421,6 +454,14 @@ impl SymbolTables {
         sort_locations(&mut locations);
         locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         Some(locations)
+    }
+
+    pub(crate) fn rename_candidate(
+        &self,
+        uri: &Url,
+        position: Position,
+    ) -> Option<RenameCandidate> {
+        self.rename.candidate(uri, position, &self.declarations)
     }
 
     pub(crate) fn completion_items(
@@ -597,8 +638,21 @@ impl SymbolTables {
             .push(ScopedDeclaration { symbol_id, available_from: Some(available_from) });
     }
 
-    fn build_references(&mut self, gcx: Gcx<'_>) {
-        let mut collector = ReferenceCollector { tables: self, gcx, source: None, contract: None };
+    fn build_references(&mut self, gcx: Gcx<'_>, item_symbols: &FxHashMap<ItemId, SymbolId>) {
+        let bindings = self.rename.build_imports(gcx, item_symbols);
+        let mapping_bindings = self.rename.build_mapping_names(gcx);
+        self.rename.build_natspec(gcx, &bindings, item_symbols, &self.declarations);
+        self.rename.build_overrides(gcx, &bindings, item_symbols, &self.declarations);
+        let mut collector = ReferenceCollector {
+            tables: self,
+            gcx,
+            item_symbols,
+            bindings: &bindings,
+            mapping_bindings: &mapping_bindings,
+            source: None,
+            contract: None,
+            in_yul: false,
+        };
         for source_id in gcx.hir.source_ids() {
             collector.source = Some(source_id);
             collector.contract = None;
@@ -934,6 +988,7 @@ impl SymbolTables {
             sort_locations(locations);
             locations.dedup_by(|a, b| a.uri == b.uri && a.range == b.range);
         }
+        self.rename.rebuild(&self.declarations);
     }
 }
 
@@ -943,6 +998,55 @@ fn remap_symbol_id(symbol_id: SymbolId, offset: usize) -> SymbolId {
 
 fn remap_scope_id(scope_id: ScopeId, offset: usize) -> ScopeId {
     ScopeId::from_usize(scope_id.index() + offset)
+}
+
+struct YulVariableCollector<'gcx> {
+    gcx: Gcx<'gcx>,
+    variables: FxHashSet<VariableId>,
+    in_yul: bool,
+}
+
+impl<'gcx> YulVariableCollector<'gcx> {
+    fn collect(gcx: Gcx<'gcx>) -> FxHashSet<VariableId> {
+        let mut collector = Self { gcx, variables: FxHashSet::default(), in_yul: false };
+        for source_id in gcx.hir.source_ids() {
+            let _ = collector.visit_nested_source(source_id);
+        }
+        collector.variables
+    }
+}
+
+impl<'gcx> hir::Visit<'gcx> for YulVariableCollector<'gcx> {
+    type BreakValue = Never;
+
+    fn hir(&self) -> &'gcx hir::Hir<'gcx> {
+        &self.gcx.hir
+    }
+
+    fn visit_function(
+        &mut self,
+        function: &'gcx hir::Function<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let previous = std::mem::replace(&mut self.in_yul, function.is_yul);
+        let result = hir::Visit::walk_function(self, function);
+        self.in_yul = previous;
+        result
+    }
+
+    fn visit_nested_var(&mut self, id: VariableId) -> ControlFlow<Self::BreakValue> {
+        if self.in_yul {
+            self.variables.insert(id);
+        }
+        hir::Visit::walk_nested_var(self, id)
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let previous = self.in_yul;
+        self.in_yul |= matches!(stmt.kind, StmtKind::AssemblyBlock(_));
+        let result = hir::Visit::walk_stmt(self, stmt);
+        self.in_yul = previous;
+        result
+    }
 }
 
 struct ScopeBuilder<'a, 'gcx> {
@@ -1236,12 +1340,33 @@ impl<'gcx> hir::Visit<'gcx> for MemberCompletionCollector<'_, 'gcx> {
 struct ReferenceCollector<'a, 'gcx> {
     tables: &'a mut SymbolTables,
     gcx: Gcx<'gcx>,
+    item_symbols: &'a FxHashMap<ItemId, SymbolId>,
+    bindings: &'a ImportBindings,
+    mapping_bindings: &'a MappingBindings,
     source: Option<hir::SourceId>,
     contract: Option<hir::ContractId>,
+    in_yul: bool,
 }
 
 impl<'gcx> ReferenceCollector<'_, 'gcx> {
     fn push_reference(&mut self, span: Span, targets: Vec<SymbolId>) {
+        if let Some(source) = self.source {
+            if self.in_yul {
+                self.tables.rename.mark_yul_symbols(&targets);
+            }
+            self.tables.rename.push_symbol_reference(
+                self.gcx,
+                RenameReferenceContext {
+                    bindings: self.bindings,
+                    source,
+                    contract: self.contract,
+                    item_symbols: self.item_symbols,
+                    declarations: &self.tables.declarations,
+                },
+                span,
+                &targets,
+            );
+        }
         if targets.is_empty() {
             return;
         }
@@ -1251,15 +1376,40 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         self.tables.references.push(SymbolReference { location, targets });
     }
 
+    fn push_namespace_references(&mut self, span: Span, resolutions: &[Res]) {
+        let Some(source) = self.source else { return };
+        self.tables.rename.push_namespace_reference(
+            self.gcx,
+            self.bindings,
+            source,
+            span,
+            resolutions.iter().filter_map(|res| match res {
+                Res::Namespace(source) => Some(*source),
+                _ => None,
+            }),
+        );
+    }
+
     fn symbol_ids_for_res(&self, res: impl IntoIterator<Item = Res>) -> Vec<SymbolId> {
-        res.into_iter().filter_map(|res| self.tables.symbol_id_for_res(res)).collect()
+        res.into_iter().filter_map(|res| self.symbol_id_for_res(res)).collect()
+    }
+
+    fn symbol_id_for_res(&self, res: Res) -> Option<SymbolId> {
+        match res {
+            Res::Item(item_id) => self.item_symbols.get(&item_id).copied(),
+            Res::Namespace(_) | Res::Builtin(_) | Res::Err(_) => None,
+        }
     }
 
     fn symbol_ids_for_member_expr(&self, expr: &hir::Expr<'gcx>) -> Vec<SymbolId> {
-        if let Some(member) = self.gcx.resolved_member(expr.id)
-            && let Some(symbol_id) = self.tables.symbol_id_for_resolved_member(self.gcx, member)
-        {
-            return vec![symbol_id];
+        if let Some(member) = self.gcx.resolved_member(expr.id) {
+            let symbol_id = match member {
+                ResolvedMember::Res(res) => self.symbol_id_for_res(res),
+                _ => self.tables.symbol_id_for_resolved_member(self.gcx, member),
+            };
+            if let Some(symbol_id) = symbol_id {
+                return vec![symbol_id];
+            }
         }
 
         if let Some(callee) = self.gcx.resolved_callee(expr.id) {
@@ -1279,6 +1429,70 @@ impl<'gcx> ReferenceCollector<'_, 'gcx> {
         {
             self.push_reference(ty.span, vec![symbol_id]);
         }
+    }
+
+    fn push_named_arg_references(&mut self, source: CallableParamSource, args: &CallArgs<'gcx>) {
+        let CallArgsKind::Named(args) = args.kind else { return };
+        let params = self.call_param_ids(source);
+
+        for arg in args {
+            let Some(&param) = params.iter().find(|&&param| {
+                self.gcx.hir.variable(param).name.is_some_and(|name| name.name == arg.name.name)
+            }) else {
+                continue;
+            };
+            if self.tables.rename.push_mapping_reference(
+                self.gcx,
+                self.mapping_bindings,
+                param,
+                arg.name.span,
+            ) {
+                continue;
+            }
+            if let Some(symbol_id) =
+                self.tables.symbols_by_key.get(&SymbolKey::Item(param.into())).copied()
+            {
+                self.push_reference(arg.name.span, vec![symbol_id]);
+            }
+        }
+    }
+
+    fn call_param_source(&self, callee: &'gcx hir::Expr<'gcx>) -> Option<CallableParamSource> {
+        if let hir::ExprKind::New(ty) = &callee.kind
+            && let TyKind::Contract(id) = self.gcx.type_of_hir_ty(ty).kind
+        {
+            return self.item_param_source(id.into());
+        }
+
+        self.gcx
+            .type_of_expr(callee.id)
+            .and_then(|ty| self.gcx.callable_signature_of_ty(ty))
+            .and_then(|signature| signature.param_source)
+    }
+
+    fn item_param_source(&self, item: ItemId) -> Option<CallableParamSource> {
+        let id = match item {
+            ItemId::Function(id) => id,
+            ItemId::Contract(id) => self.gcx.hir.contract(id).ctor?,
+            _ => return None,
+        };
+        Some(CallableParamSource::Function { id, skips_receiver: false })
+    }
+
+    fn call_param_ids(&self, source: CallableParamSource) -> Vec<VariableId> {
+        let (params, skip) = match source {
+            CallableParamSource::Function { id, skips_receiver } => {
+                (self.gcx.hir.function(id).parameters, usize::from(skips_receiver))
+            }
+            CallableParamSource::FunctionType(id) => match self.gcx.hir.variable(id).ty.kind {
+                TypeKind::Function(ty) => (ty.parameters, 0),
+                _ => return Vec::new(),
+            },
+            CallableParamSource::Struct(id) => (self.gcx.hir.strukt(id).fields, 0),
+            CallableParamSource::Event(id) => (self.gcx.hir.event(id).parameters, 0),
+            CallableParamSource::Error(id) => (self.gcx.hir.error(id).parameters, 0),
+        };
+        params.iter().copied().skip(skip).collect()
     }
 
     fn visit_using_directive(&mut self, using: &'gcx hir::UsingDirective<'gcx>) {
@@ -1310,6 +1524,16 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         &self.gcx.hir
     }
 
+    fn visit_function(
+        &mut self,
+        function: &'gcx hir::Function<'gcx>,
+    ) -> ControlFlow<Self::BreakValue> {
+        let previous = std::mem::replace(&mut self.in_yul, function.is_yul);
+        let result = hir::Visit::walk_function(self, function);
+        self.in_yul = previous;
+        result
+    }
+
     fn visit_modifier(
         &mut self,
         modifier: &'gcx hir::Modifier<'gcx>,
@@ -1318,6 +1542,9 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
             self.tables.symbols_by_key.get(&SymbolKey::Item(modifier.id)).copied()
         {
             self.push_reference(modifier.span.with_hi(modifier.args.span.lo()), vec![symbol_id]);
+        }
+        if let Some(source) = self.item_param_source(modifier.id) {
+            self.push_named_arg_references(source, &modifier.args);
         }
         self.visit_call_args(&modifier.args)
     }
@@ -1333,6 +1560,9 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
         &mut self,
         contract: &'gcx hir::Contract<'gcx>,
     ) -> ControlFlow<Self::BreakValue> {
+        if let Some(layout) = contract.layout {
+            self.visit_expr(layout)?;
+        }
         for base in contract.bases_args {
             self.visit_modifier(base)?;
         }
@@ -1350,13 +1580,23 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
 
     fn visit_expr(&mut self, expr: &'gcx hir::Expr<'gcx>) -> ControlFlow<Self::BreakValue> {
         match expr.kind {
+            hir::ExprKind::Call(callee, ref args, _) => {
+                if let Some(source) = self.call_param_source(callee) {
+                    self.push_named_arg_references(source, args);
+                }
+                hir::Visit::walk_expr(self, expr)?;
+            }
             hir::ExprKind::Ident(res) => {
-                let targets = if let Some(callee) = self.gcx.resolved_callee(expr.id) {
-                    self.symbol_ids_for_res([callee.res])
+                let resolutions = if let Some(callee) = self.gcx.resolved_callee(expr.id)
+                    && !callee.res.is_err()
+                {
+                    vec![callee.res]
                 } else {
-                    self.symbol_ids_for_res(res.iter().copied())
+                    res.to_vec()
                 };
+                let targets = self.symbol_ids_for_res(resolutions.iter().copied());
                 self.push_reference(expr.span, targets);
+                self.push_namespace_references(expr.span, &resolutions);
             }
             hir::ExprKind::Member(receiver, ident) | hir::ExprKind::YulMember(receiver, ident) => {
                 self.visit_expr(receiver)?;
@@ -1394,6 +1634,14 @@ impl<'gcx> hir::Visit<'gcx> for ReferenceCollector<'_, 'gcx> {
             }
         }
         ControlFlow::Continue(())
+    }
+
+    fn visit_stmt(&mut self, stmt: &'gcx hir::Stmt<'gcx>) -> ControlFlow<Self::BreakValue> {
+        let previous = self.in_yul;
+        self.in_yul |= matches!(stmt.kind, StmtKind::AssemblyBlock(_));
+        let result = hir::Visit::walk_stmt(self, stmt);
+        self.in_yul = previous;
+        result
     }
 }
 
