@@ -2,10 +2,7 @@
 
 use super::*;
 use solar_data_structures::{index::IndexVec, map::FxHashSet};
-use solar_interface::{
-    Result,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
-};
+use solar_interface::diagnostics::{DiagCtxt, ErrorGuaranteed};
 
 /// Stateful EVM IR verifier.
 pub struct EvmIrVerifier<'a> {
@@ -29,129 +26,134 @@ impl<'a> EvmIrVerifier<'a> {
     }
 
     /// Verifies basic EVM IR invariants.
-    pub fn verify_module(&self, module: &EvmIrModule) -> Result {
+    pub fn verify_module(&self, module: &EvmIrModule) {
+        let errors_before = self.dcx.err_count();
         if !is_valid_ident(&module.name) {
-            return Err(self.error(format!("invalid program name `{}`", module.name)));
+            self.error(format!("invalid program name `{}`", module.name));
         }
         if module.blocks.is_empty() {
-            return Err(self.error("program has no blocks"));
+            self.error("program has no blocks");
+            return;
         }
-        let Some(entry) = module.entry_block else {
-            return Err(self.error("program has no entry block"));
+        let entry = match module.entry_block {
+            Some(entry) if self.block_exists(module, entry) => Some(entry),
+            Some(entry) => {
+                self.error(format!("entry block `{}` is out of range", entry.index()));
+                None
+            }
+            None => {
+                self.error("program has no entry block");
+                None
+            }
         };
-        if !self.block_exists(module, entry) {
-            return Err(self.error(format!("entry block `{}` is out of range", entry.index())));
-        }
 
         let mut labels = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
             if !is_valid_block_label(&block.label) {
-                return Err(
-                    self.error_in_block(block_id, format!("invalid block label `{}`", block.label))
-                );
+                self.error_in_block(block_id, format!("invalid block label `{}`", block.label));
             }
             if !labels.insert(block.label.as_str()) {
-                return Err(self
-                    .error_in_block(block_id, format!("duplicate block label `{}`", block.label)));
+                self.error_in_block(block_id, format!("duplicate block label `{}`", block.label));
             }
             if block.terminator.is_none() {
-                return Err(self.error_in_block(block_id, "missing terminator"));
+                self.error_in_block(block_id, "missing terminator");
             }
         }
 
         let mut value_names = FxHashSet::default();
         for (_, value) in module.values.iter_enumerated() {
             if !is_valid_value_name(&value.name) {
-                return Err(self.error(format!("invalid value name `%{}`", value.name)));
+                self.error(format!("invalid value name `%{}`", value.name));
             }
             if !value_names.insert(value.name.as_str()) {
-                return Err(self.error(format!("duplicate value name `%{}`", value.name)));
+                self.error(format!("duplicate value name `%{}`", value.name));
             }
         }
 
         let mut defined_values = FxHashSet::default();
         for (block_id, block) in module.blocks.iter_enumerated() {
             for inst in &block.instructions {
-                self.verify_instruction_shape(block_id, inst)?;
+                self.verify_instruction_shape(block_id, inst);
                 if let Some(result) = inst.result {
                     if !self.value_exists(module, result) {
-                        return Err(self.error_in_block(
+                        self.error_in_block(
                             block_id,
                             format!("result value `{}` is out of range", result.index()),
-                        ));
-                    }
-                    if !defined_values.insert(result) {
-                        return Err(self.error_in_block(
+                        );
+                    } else if !defined_values.insert(result) {
+                        self.error_in_block(
                             block_id,
                             format!(
                                 "value `%{}` is defined more than once",
                                 module.value(result).name
                             ),
-                        ));
+                        );
                     }
                 }
                 for operand in &inst.operands {
-                    self.verify_operand(block_id, module, operand)?;
+                    self.verify_operand(block_id, module, operand);
                 }
-                self.verify_metadata_is_untyped(block_id, &inst.metadata)?;
+                self.verify_metadata_is_untyped(block_id, &inst.metadata);
             }
-            let term = block.terminator.as_ref().expect("checked above");
-            self.verify_terminator_shape(block_id, &term.kind)?;
+            let Some(term) = &block.terminator else { continue };
+            self.verify_terminator_shape(block_id, &term.kind);
             visit_terminator_operands(&term.kind, |operand| {
-                self.verify_operand(block_id, module, operand)?;
-                Ok(())
-            })?;
+                self.verify_operand(block_id, module, operand);
+                Ok::<(), ()>(())
+            })
+            .unwrap();
             visit_terminator_targets(&term.kind, |target| {
                 if !self.block_exists(module, target) {
-                    return Err(self.error_in_block(
+                    self.error_in_block(
                         block_id,
                         format!("target block `{}` is out of range", target.index()),
-                    ));
+                    );
                 }
-                Ok(())
-            })?;
-            self.verify_metadata_is_untyped(block_id, &term.metadata)?;
+                Ok::<(), ()>(())
+            })
+            .unwrap();
+            self.verify_metadata_is_untyped(block_id, &term.metadata);
         }
 
         for (block_id, block) in module.blocks.iter_enumerated() {
             for &value in &block.entry_stack {
                 if !self.value_exists(module, value) {
-                    return Err(self.error_in_block(
+                    self.error_in_block(
                         block_id,
                         format!("entry stack value `{}` is out of range", value.index()),
-                    ));
-                }
-                if !defined_values.contains(&value) {
-                    return Err(self.error_in_block(
+                    );
+                } else if !defined_values.contains(&value) {
+                    self.error_in_block(
                         block_id,
                         format!(
                             "entry stack value `%{}` is never defined",
                             module.value(value).name
                         ),
-                    ));
+                    );
                 }
             }
             for inst in &block.instructions {
                 for operand in &inst.operands {
-                    self.verify_value_defined(block_id, module, operand, &defined_values)?;
+                    self.verify_value_defined(block_id, module, operand, &defined_values);
                 }
             }
-            let term = block.terminator.as_ref().expect("checked above");
+            let Some(term) = &block.terminator else { continue };
             visit_terminator_operands(&term.kind, |operand| {
-                self.verify_value_defined(block_id, module, operand, &defined_values)?;
-                Ok(())
-            })?;
+                self.verify_value_defined(block_id, module, operand, &defined_values);
+                Ok::<(), ()>(())
+            })
+            .unwrap();
         }
 
-        self.verify_stack_consistency(module)?;
-
-        Ok(())
+        if entry.is_some() && self.dcx.err_count() == errors_before {
+            self.verify_stack_consistency(module);
+        }
     }
 }
 
-/// Verifies basic EVM IR invariants and emits the first finding into `dcx`.
-pub fn verify_evm_ir_module(dcx: &DiagCtxt, module: &EvmIrModule) -> Result {
-    EvmIrVerifier::new(dcx).verify_module(module)
+/// Verifies basic EVM IR invariants and emits findings into `dcx`.
+pub fn verify_evm_ir_module(dcx: &DiagCtxt, module: &EvmIrModule) {
+    EvmIrVerifier::new(dcx).verify_module(module);
 }
 
 /// One abstract stack word tracked by the consistency simulator.
@@ -238,24 +240,23 @@ impl ModelStack {
 /// words below them — a successor only names the prefix it consumes. The entry
 /// block must start from an empty stack.
 impl EvmIrVerifier<'_> {
-    fn verify_stack_consistency(&self, module: &EvmIrModule) -> Result<(), ErrorGuaranteed> {
+    fn verify_stack_consistency(&self, module: &EvmIrModule) {
         if let Some(entry) = module.entry_block
             && !module.blocks[entry].entry_stack.is_empty()
         {
-            return Err(self.error_in_block(entry, "entry block must start from an empty stack"));
+            self.error_in_block(entry, "entry block must start from an empty stack");
         }
 
-        let mut exit_stacks: IndexVec<EvmIrBlockId, Vec<AbstractWord>> =
+        let mut exit_stacks: IndexVec<EvmIrBlockId, Option<Vec<AbstractWord>>> =
             IndexVec::with_capacity(module.blocks.len());
         for (block_id, block) in module.blocks.iter_enumerated() {
             let is_entry = module.entry_block == Some(block_id);
-            exit_stacks.push(self.simulate_block(module, block_id, block, is_entry)?);
+            exit_stacks.push(self.simulate_block(module, block_id, block, is_entry).ok());
         }
 
         for (block_id, block) in module.blocks.iter_enumerated() {
-            let exit = &exit_stacks[block_id];
+            let Some(exit) = &exit_stacks[block_id] else { continue };
             let term = block.terminator.as_ref().expect("checked above");
-            let mut result = Ok(());
             visit_terminator_targets(&term.kind, |succ| {
                 let succ_entry: Vec<AbstractWord> = module.blocks[succ]
                     .entry_stack
@@ -263,7 +264,7 @@ impl EvmIrVerifier<'_> {
                     .map(|&value| AbstractWord::Value(value))
                     .collect();
                 if !exit.starts_with(&succ_entry) {
-                    result = Err(self.error_in_block(
+                    self.error_in_block(
                         block_id,
                         format!(
                             "stack on edge to `{}` is inconsistent: successor declares incoming \
@@ -272,14 +273,12 @@ impl EvmIrVerifier<'_> {
                             self.format_entry_stack(module, &module.blocks[succ].entry_stack),
                             self.format_abstract_stack(module, exit),
                         ),
-                    ));
+                    );
                 }
-                Ok::<(), ErrorGuaranteed>(())
-            })?;
-            result?;
+                Ok::<(), ()>(())
+            })
+            .unwrap();
         }
-
-        Ok(())
     }
 
     /// Computes a block's exit stack, rejecting any entry-block physical-stack-op
@@ -546,29 +545,25 @@ impl EvmIrVerifier<'_> {
             .join(", ")
     }
 
-    fn verify_instruction_shape(
-        &self,
-        block_id: EvmIrBlockId,
-        inst: &EvmIrInstruction,
-    ) -> Result<(), ErrorGuaranteed> {
+    fn verify_instruction_shape(&self, block_id: EvmIrBlockId, inst: &EvmIrInstruction) {
         if let EvmIrInstructionKind::Stack(op) = &inst.kind {
             let expected = op.stack_effect();
             if inst.result.is_some() {
-                return Err(self.error_in_block(
+                self.error_in_block(
                     block_id,
                     format!("physical stack op `{}` cannot define an SSA value", op.mnemonic()),
-                ));
+                );
             }
             if !inst.operands.is_empty() {
-                return Err(self.error_in_block(
+                self.error_in_block(
                     block_id,
                     format!("physical stack op `{}` cannot have operands", op.mnemonic()),
-                ));
+                );
             }
             if let Some(effect) = inst.metadata.stack
                 && effect != expected
             {
-                return Err(self.error_in_block(
+                self.error_in_block(
                     block_id,
                     format!(
                         "physical stack op `{}` has stack effect {}->{}, expected {}->{}",
@@ -578,20 +573,19 @@ impl EvmIrVerifier<'_> {
                         expected.inputs,
                         expected.outputs
                     ),
-                ));
+                );
             }
         } else if is_encoded_push_instruction(inst) {
             if inst.operands.len() != 1 {
-                return Err(self.error_in_block(
+                self.error_in_block(
                     block_id,
                     format!("`{}` must have one operand", inst.mnemonic()),
-                ));
-            }
-            if matches!(inst.operands[0], EvmIrOperand::Value(_)) {
-                return Err(self.error_in_block(
+                );
+            } else if matches!(inst.operands[0], EvmIrOperand::Value(_)) {
+                self.error_in_block(
                     block_id,
                     format!("`{}` cannot take a stack value operand", inst.mnemonic()),
-                ));
+                );
             }
         } else {
             if inst.operands.is_empty()
@@ -602,52 +596,45 @@ impl EvmIrVerifier<'_> {
                         if opcode_stack_effect(mnemonic).is_none()
                 )
             {
-                return Err(self.error_in_block(
+                self.error_in_block(
                     block_id,
                     format!(
                         "operand-cleared instruction `{}` must declare an explicit stack effect",
                         inst.mnemonic()
                     ),
-                ));
+                );
             }
             for operand in &inst.operands {
                 if !matches!(operand, EvmIrOperand::Value(_)) {
-                    return Err(self.error_in_block(
+                    self.error_in_block(
                         block_id,
                         "non-`push` instruction operands must be stack values",
-                    ));
+                    );
                 }
             }
         }
-        Ok(())
     }
 
-    fn verify_terminator_shape(
-        &self,
-        block_id: EvmIrBlockId,
-        kind: &EvmIrTerminatorKind,
-    ) -> Result<(), ErrorGuaranteed> {
+    fn verify_terminator_shape(&self, block_id: EvmIrBlockId, kind: &EvmIrTerminatorKind) {
         match kind {
             EvmIrTerminatorKind::Branch { condition, .. } => {
-                self.verify_stack_value_operand(block_id, condition, "branch condition")?
+                self.verify_stack_value_operand(block_id, condition, "branch condition")
             }
             EvmIrTerminatorKind::Switch { value, cases, .. } => {
-                self.verify_stack_value_operand(block_id, value, "switch value")?;
+                self.verify_stack_value_operand(block_id, value, "switch value");
                 for (case, _) in cases {
                     if !matches!(case, EvmIrOperand::Immediate(_)) {
-                        return Err(
-                            self.error_in_block(block_id, "switch case values must be immediates")
-                        );
+                        self.error_in_block(block_id, "switch case values must be immediates");
                     }
                 }
             }
             EvmIrTerminatorKind::Return { offset, size }
             | EvmIrTerminatorKind::Revert { offset, size } => {
-                self.verify_stack_value_operand(block_id, offset, "memory offset")?;
-                self.verify_stack_value_operand(block_id, size, "memory size")?;
+                self.verify_stack_value_operand(block_id, offset, "memory offset");
+                self.verify_stack_value_operand(block_id, size, "memory size");
             }
             EvmIrTerminatorKind::SelfDestruct { recipient } => {
-                self.verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")?
+                self.verify_stack_value_operand(block_id, recipient, "selfdestruct recipient")
             }
             EvmIrTerminatorKind::Fallthrough(_)
             | EvmIrTerminatorKind::FallthroughNext
@@ -656,7 +643,6 @@ impl EvmIrVerifier<'_> {
             | EvmIrTerminatorKind::Invalid
             | EvmIrTerminatorKind::RawOpcode(_) => {}
         }
-        Ok(())
     }
 
     fn verify_stack_value_operand(
@@ -664,45 +650,32 @@ impl EvmIrVerifier<'_> {
         block_id: EvmIrBlockId,
         operand: &EvmIrOperand,
         what: &str,
-    ) -> Result<(), ErrorGuaranteed> {
-        if matches!(operand, EvmIrOperand::Value(_)) {
-            return Ok(());
+    ) {
+        if !matches!(operand, EvmIrOperand::Value(_)) {
+            self.error_in_block(block_id, format!("{what} must be a stack value"));
         }
-        Err(self.error_in_block(block_id, format!("{what} must be a stack value")))
     }
 
-    fn verify_metadata_is_untyped(
-        &self,
-        block_id: EvmIrBlockId,
-        metadata: &EvmIrMetadata,
-    ) -> Result<(), ErrorGuaranteed> {
+    fn verify_metadata_is_untyped(&self, block_id: EvmIrBlockId, metadata: &EvmIrMetadata) {
         for item in &metadata.attrs {
             if matches!(item.key.as_str(), "type" | "ty" | "result_ty" | "mir_type") {
-                return Err(self.error_in_block(
+                self.error_in_block(
                     block_id,
                     format!("EVM IR is untyped; metadata key `{}` is not allowed", item.key),
-                ));
+                );
             }
         }
-        Ok(())
     }
 
-    fn verify_operand(
-        &self,
-        block_id: EvmIrBlockId,
-        module: &EvmIrModule,
-        operand: &EvmIrOperand,
-    ) -> Result<(), ErrorGuaranteed> {
+    fn verify_operand(&self, block_id: EvmIrBlockId, module: &EvmIrModule, operand: &EvmIrOperand) {
         match operand {
             EvmIrOperand::Value(value) if !self.value_exists(module, *value) => {
-                Err(self
-                    .error_in_block(block_id, format!("value `{}` is out of range", value.index())))
+                self.error_in_block(block_id, format!("value `{}` is out of range", value.index()));
             }
             EvmIrOperand::Block(block) if !self.block_exists(module, *block) => {
-                Err(self
-                    .error_in_block(block_id, format!("block `{}` is out of range", block.index())))
+                self.error_in_block(block_id, format!("block `{}` is out of range", block.index()));
             }
-            _ => Ok(()),
+            _ => {}
         }
     }
 
@@ -712,16 +685,16 @@ impl EvmIrVerifier<'_> {
         module: &EvmIrModule,
         operand: &EvmIrOperand,
         defined_values: &FxHashSet<EvmIrValueId>,
-    ) -> Result<(), ErrorGuaranteed> {
+    ) {
         if let EvmIrOperand::Value(value) = operand
+            && self.value_exists(module, *value)
             && !defined_values.contains(value)
         {
-            return Err(self.error_in_block(
+            self.error_in_block(
                 block_id,
                 format!("value `%{}` is used but never defined", module.value(*value).name),
-            ));
+            );
         }
-        Ok(())
     }
 
     fn block_exists(&self, module: &EvmIrModule, block: EvmIrBlockId) -> bool {

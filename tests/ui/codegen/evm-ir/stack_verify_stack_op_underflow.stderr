@@ -3,3 +3,5 @@ error: EVM IR verification failed: block 0: `dup2` reaches depth 2 but the stack
   ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
           emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC
 
+error: aborting due to 1 previous error
+

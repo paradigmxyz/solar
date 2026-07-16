@@ -179,7 +179,9 @@ mod round_trip {
                     continue;
                 }
                 let module = lower::lower_contract(gcx, id);
-                if validate_module(gcx.dcx(), &module).is_err() {
+                let errors_before = gcx.dcx().err_count();
+                validate_module(gcx.dcx(), &module);
+                if gcx.dcx().err_count() != errors_before {
                     result = Err(format!(
                         "contract `{}` has invalid MIR:\n{}",
                         contract.name,

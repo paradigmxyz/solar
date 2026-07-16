@@ -456,7 +456,8 @@ fn modules_have_equal_code(before: &EvmIrModule, after: &EvmIrModule) -> bool {
 
 fn is_valid_evm_ir(module: &EvmIrModule) -> bool {
     let dcx = DiagCtxt::with_silent_emitter(None);
-    verify_evm_ir_module(&dcx, module).is_ok()
+    verify_evm_ir_module(&dcx, module);
+    dcx.has_errors().is_ok()
 }
 
 fn push_instruction(operand: EvmIrOperand) -> EvmIrInstruction {

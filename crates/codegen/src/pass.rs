@@ -560,7 +560,8 @@ impl PassManager {
 
 fn validate_module_after_pass(module: &Module, pass_name: &str) {
     let dcx = DiagCtxt::new_early();
-    if Validator::new(&dcx).validate_module(module).is_err() {
+    Validator::new(&dcx).validate_module(module);
+    if dcx.has_errors().is_err() {
         panic!("MIR validation failed after `{pass_name}`");
     }
 }

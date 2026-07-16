@@ -28,7 +28,7 @@
 //!
 //! ```ignore
 //! use solar_codegen::analysis::Validator;
-//! Validator::new(dcx).validate_function(&func)?;
+//! Validator::new(dcx).validate_function(&func);
 //! ```
 
 use crate::{
@@ -36,16 +36,11 @@ use crate::{
     mir::{BlockId, Function, InstId, InstKind, Module, Value, ValueId},
 };
 use solar_data_structures::map::{FxHashMap, FxHashSet};
-use solar_interface::{
-    Result,
-    diagnostics::{DiagCtxt, ErrorGuaranteed},
-    sym,
-};
+use solar_interface::{diagnostics::DiagCtxt, sym};
 
 /// Stateful MIR verifier.
 pub struct Validator<'a> {
     dcx: &'a DiagCtxt,
-    guar: Option<ErrorGuaranteed>,
     function: Option<usize>,
     error_count: usize,
 }
@@ -53,7 +48,7 @@ pub struct Validator<'a> {
 impl<'a> Validator<'a> {
     /// Creates a verifier that emits findings into `dcx`.
     pub const fn new(dcx: &'a DiagCtxt) -> Self {
-        Self { dcx, guar: None, function: None, error_count: 0 }
+        Self { dcx, function: None, error_count: 0 }
     }
 
     #[track_caller]
@@ -64,7 +59,7 @@ impl<'a> Validator<'a> {
         } else {
             message
         };
-        self.guar = Some(self.dcx.err(message).emit());
+        self.dcx.err(message).emit();
         self.error_count += 1;
     }
 
@@ -78,14 +73,9 @@ impl<'a> Validator<'a> {
         self.emit(format!("[bb{}, inst{}] {}", block.index(), inst.index(), message.into()));
     }
 
-    fn finish(self) -> Result {
-        self.guar.map_or(Ok(()), Err)
-    }
-
     /// Validates a single function.
-    pub fn validate_function(mut self, func: &Function) -> Result {
+    pub fn validate_function(mut self, func: &Function) {
         self.validate_function_inner(func);
-        self.finish()
     }
 
     fn validate_function_inner(&mut self, func: &Function) {
@@ -404,7 +394,7 @@ impl<'a> Validator<'a> {
     }
 
     /// Validates every function in a module.
-    pub fn validate_module(mut self, module: &Module) -> Result {
+    pub fn validate_module(mut self, module: &Module) {
         for (id, func) in module.iter_functions() {
             self.function = Some(id.index());
             self.validate_function_inner(func);
@@ -412,7 +402,6 @@ impl<'a> Validator<'a> {
         self.function = None;
         self.validate_tail_calls(module);
         self.validate_phase(module);
-        self.finish()
     }
 
     /// Checks the cross-function invariants of `tail_call` terminators: the
@@ -479,13 +468,13 @@ impl<'a> Validator<'a> {
 }
 
 /// Validates a single function and emits every finding into `dcx`.
-pub fn validate_function(dcx: &DiagCtxt, func: &Function) -> Result {
-    Validator::new(dcx).validate_function(func)
+pub fn validate_function(dcx: &DiagCtxt, func: &Function) {
+    Validator::new(dcx).validate_function(func);
 }
 
 /// Validates every function in a module and emits every finding into `dcx`.
-pub fn validate_module(dcx: &DiagCtxt, module: &Module) -> Result {
-    Validator::new(dcx).validate_module(module)
+pub fn validate_module(dcx: &DiagCtxt, module: &Module) {
+    Validator::new(dcx).validate_module(module);
 }
 
 // =============================================================================
@@ -518,7 +507,8 @@ mod tests {
                 let sum = b.add(x, one);
                 b.ret([sum]);
             }
-            assert!(validate_function(&sess.dcx, &func).is_ok());
+            validate_function(&sess.dcx, &func);
+            assert!(sess.dcx.has_errors().is_ok());
         });
     }
 
@@ -532,7 +522,8 @@ mod tests {
                 let _p = b.add_param(MirType::uint256());
                 // Don't terminate — leave the entry block dangling.
             }
-            assert!(validate_function(&sess.dcx, &func).is_err());
+            validate_function(&sess.dcx, &func);
+            assert!(sess.dcx.has_errors().is_err());
             assert!(sess.emitted_diagnostics().unwrap().to_string().contains("no terminator"));
         });
     }
@@ -549,7 +540,8 @@ mod tests {
             // Manually corrupt: replace the terminator with a Jump to a nonexistent block.
             let bad_block = BlockId::from_usize(99);
             func.blocks[func.entry_block].terminator = Some(Terminator::Jump(bad_block));
-            assert!(validate_function(&sess.dcx, &func).is_err());
+            validate_function(&sess.dcx, &func);
+            assert!(sess.dcx.has_errors().is_err());
             assert!(sess.emitted_diagnostics().unwrap().to_string().contains("nonexistent block"));
         });
     }
@@ -566,10 +558,12 @@ mod tests {
                 b.switch_to_block(target);
                 b.stop();
             }
-            assert!(validate_function(&sess.dcx, &func).is_ok());
+            validate_function(&sess.dcx, &func);
+            assert!(sess.dcx.has_errors().is_ok());
             // Drop the back-link.
             func.blocks[target].predecessors.clear();
-            assert!(validate_function(&sess.dcx, &func).is_err());
+            validate_function(&sess.dcx, &func);
+            assert!(sess.dcx.has_errors().is_err());
             assert!(
                 sess.emitted_diagnostics()
                     .unwrap()
@@ -591,7 +585,8 @@ mod tests {
             }
             // Add the invalid predecessor to the entry block.
             func.blocks[func.entry_block].predecessors.push(func.entry_block);
-            assert!(validate_function(&sess.dcx, &func).is_err());
+            validate_function(&sess.dcx, &func);
+            assert!(sess.dcx.has_errors().is_err());
             assert!(
                 sess.emitted_diagnostics()
                     .unwrap()
@@ -609,7 +604,8 @@ mod tests {
                 let mut b = FunctionBuilder::new(&mut func);
                 b.stop();
             }
-            assert!(validate_function(&sess.dcx, &func).is_ok());
+            validate_function(&sess.dcx, &func);
+            assert!(sess.dcx.has_errors().is_ok());
         });
     }
 

@@ -8,3 +8,5 @@ error: [fn2] tail_call targets nonexistent function fn9
   ╰ note: created at crates/codegen/src/analysis/validator.rs:LL:CC,
           emitted at crates/codegen/src/analysis/validator.rs:LL:CC
 
+error: aborting due to 2 previous errors
+

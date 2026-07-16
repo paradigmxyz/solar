@@ -3,3 +3,10 @@ error: EVM IR verification failed: block 0: operand-cleared instruction `mystery
   ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
           emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC
 
+error: EVM IR verification failed: block 0: operand-cleared instruction `unknown` must declare an explicit stack effect
+  │
+  ╰ note: created at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC,
+          emitted at crates/codegen/src/backend/evm/ir/verify.rs:LL:CC
+
+error: aborting due to 2 previous errors
+

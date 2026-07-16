@@ -53,43 +53,47 @@ fn print_module(module: &EvmIrModule, name: &str, after: &str) {
     print!("{}", module.to_text());
 }
 
-fn run_pipeline(
-    dcx: &DiagCtxt,
-    module: &mut EvmIrModule,
-    name: &str,
-    args: &EvmOptArgs,
-) -> solar_interface::Result {
+fn run_pipeline(dcx: &DiagCtxt, module: &mut EvmIrModule, name: &str, args: &EvmOptArgs) {
     if args.print_after_each {
         for &pass in &args.passes {
             pass.run(module);
-            verify_evm_ir_module(dcx, module)?;
+            verify_evm_ir_module(dcx, module);
+            if dcx.has_errors().is_err() {
+                break;
+            }
             print_module(module, name, pass.name());
         }
     } else {
         for &pass in &args.passes {
             pass.run(module);
         }
-        verify_evm_ir_module(dcx, module)?;
-        let label = selected_pass_list_label(&args.passes, ",");
-        print_module(module, name, &label);
+        verify_evm_ir_module(dcx, module);
+        if dcx.has_errors().is_ok() {
+            let label = selected_pass_list_label(&args.passes, ",");
+            print_module(module, name, &label);
+        }
     }
-    Ok(())
 }
 
 fn process_evmir(args: &EvmOptArgs) -> solar_interface::Result {
     let sess = Session::builder().with_stderr_emitter().build();
-    let source = sess
+    let result = sess
         .source_map()
         .load_file(Path::new(&args.input))
-        .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())?;
-    let text = source.src.as_str();
-    sess.enter(|| {
-        let input_name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
-        let mut module =
-            parse_evm_ir_module(text).map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
-        verify_evm_ir_module(&sess.dcx, &module)?;
-        run_pipeline(&sess.dcx, &mut module, &input_name, args)
-    })
+        .map_err(|e| sess.dcx.err(format!("failed to read {}: {e}", args.input)).emit())
+        .and_then(|source| {
+            sess.enter(|| {
+                let input_name = Ident::with_dummy_span(Symbol::intern(&args.input)).to_string();
+                let mut module = parse_evm_ir_module(source.src.as_str())
+                    .map_err(|err| sess.dcx.err(format!("{err}")).emit())?;
+                verify_evm_ir_module(&sess.dcx, &module);
+                if sess.dcx.has_errors().is_ok() {
+                    run_pipeline(&sess.dcx, &mut module, &input_name, args);
+                }
+                Ok(())
+            })
+        });
+    result.and(sess.dcx.print_error_count())
 }
 
 pub(crate) fn run(args: EvmOptArgs) -> ExitCode {
