@@ -336,6 +336,16 @@ def append_github_output(name: str, value: str) -> None:
         f.write(f"{name}={value}\n")
 
 
+def format_report(markdown: str, has_changes: bool) -> str:
+    if has_changes:
+        return markdown
+    return (
+        "> [!NOTE]\n"
+        "> Codegen benchmark output is unchanged from `main`.\n\n"
+        f"{markdown}"
+    )
+
+
 def metric(value: int | float, unit: str, statistic: str) -> dict[str, Any]:
     return {"value": value, "unit": unit, "statistic": statistic}
 
@@ -501,12 +511,12 @@ def main() -> int:
     if not sections:
         sections.append("## Codegen benchmark\n\nNo benchmark inputs were configured.\n")
 
-    markdown = "\n".join(sections)
-    print(markdown)
-    append_step_summary(markdown)
     should_comment = has_baseline_changes(
         micro_results, baseline_micro
     ) or has_baseline_changes(repo_results, baseline_repo)
+    markdown = format_report("\n".join(sections), should_comment)
+    print(markdown)
+    append_step_summary(markdown)
     append_github_output("should_comment", "true" if should_comment else "false")
     if args.common_output is not None:
         write_common_result(
