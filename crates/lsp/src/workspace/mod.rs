@@ -159,11 +159,11 @@ impl<'a> WorkspacePathIndex<'a> {
     }
 
     pub(crate) fn workspace_idx_for_path(&self, path: &Path) -> usize {
-        self.entries
-            .iter()
-            .find(|entry| path.starts_with(entry.base_path))
-            .map(|entry| entry.idx)
-            .unwrap_or(0)
+        self.workspace_idx_containing_path(path).unwrap_or(0)
+    }
+
+    pub(crate) fn workspace_idx_containing_path(&self, path: &Path) -> Option<usize> {
+        self.entries.iter().find(|entry| path.starts_with(entry.base_path)).map(|entry| entry.idx)
     }
 }
 
